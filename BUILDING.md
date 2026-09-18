@@ -522,6 +522,13 @@ of the table, out of the count and out of the body's download table at once. A c
 that *was* named and is not staged stops the run exactly as before. The rule is
 [`A release page carries the platforms the machine cutting it can build`](docs/decisions/distribution.md#a-release-page-carries-the-platforms-the-machine-cutting-it-can-build).
 
+**A pushed `v*` tag runs all of this in CI.** `.github/workflows/release.yml` stages ten of the
+twelve carriers on hosted runners and runs `release.sh --upload --platforms windows,linux,android,ios`.
+It needs the repository secrets `KM_ANDROID_KEYSTORE_B64` (the keystore, base64-encoded) and
+`KM_ANDROID_KEYSTORE_PASSWORD`, plus `KM_ANDROID_KEY_ALIAS` and `KM_ANDROID_KEY_PASSWORD` where they
+differ from the defaults. See
+[`CI builds the release, and a person publishes it`](docs/decisions/distribution.md#ci-builds-the-release-and-a-person-publishes-it).
+
 **`tools/dist/release.sh` gathers and never builds**, for the reason `tools/dist/bin.sh --no-build`
 exists: it names the command behind any carrier that is not staged and stops, so a release is cut
 from artifacts somebody has looked at. Its table is the one place an asset's published name is

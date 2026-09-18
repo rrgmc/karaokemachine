@@ -93,8 +93,9 @@ dist/bin-console/<platform>/   the console form; every single-form tool in both
   pair is two files under two names, so rule 2 keeps `<x>.exe` in `bin/`.
 - **Its own round trip is what caught that**, unpacking the built package and starting each of the
   seven commands out of the extracted payload. Worth stating as a property rather than an anecdote:
-  the setup program is macOS-only and no CI builds it — GitHub bills macOS at 10× — so that check is
-  the only thing standing between a payload rule changing and a release shipping short.
+  the setup program is macOS-only, and the release workflow leaves it out until the repository
+  holds Apple signing secrets, so that check is the only thing standing between a payload rule
+  changing and a release shipping short.
 - **`--no-video` is settled by looking in the folder, not by reading the flag.** This was got wrong
   twice, and both attempts look sufficient. A bare glob gathered a video build staged an hour earlier;
   passing acceptable suffixes still failed, because the marker goes on the *declined* build, so a

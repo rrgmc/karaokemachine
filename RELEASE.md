@@ -71,6 +71,15 @@ or deleted; a mistake is the next patch version.
 
 ## 6. Stage the carriers, and upload
 
+**The pushed tag does this.** `.github/workflows/release.yml` builds Windows, Linux, Android and iOS
+from the tag, checks each carrier, and fills the draft. Watch it with `gh run watch`. A job that
+failed on something outside the tree is re-run with
+`gh workflow run release.yml -f tag=vX.Y.0`. The two macOS `.pkg` files are not built there; a Mac
+adds them to the draft with `gh release upload vX.Y.0 <files>`. See
+[`CI builds the release, and a person publishes it`](docs/decisions/distribution.md#ci-builds-the-release-and-a-person-publishes-it).
+
+**By hand, from a desk**, the same step is:
+
 ```sh
 tools/dist/release.sh           # gather what is staged into dist/release/<version>/
 tools/dist/release.sh --upload  # ...and fill the draft release

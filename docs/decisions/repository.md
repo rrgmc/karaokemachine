@@ -1112,8 +1112,10 @@ scheduled run of everything is its backstop.
 **All three desktop platforms run on every pull request**, because a public repository's standard
 runners cost nothing, and a fault found on the pull request is cheaper than one found in a release.
 **The video build runs on Linux, in `debian:13-slim`**, the base the appliance and the `.deb` are
-built on, so it compiles against the ffmpeg they link. Android and iOS are built by their own scripts,
-not by CI.
+built on, so it compiles against the ffmpeg they link. Android and iOS are not built on a pull
+request; the release workflow builds them from a tag, as
+[`CI builds the release, and a person publishes it`](distribution.md#ci-builds-the-release-and-a-person-publishes-it)
+says.
 
 ## A vulnerability is reported privately, through GitHub
 
