@@ -66,7 +66,7 @@ moves four counters and no more — one file to no lyrics at all, two from sylla
 line-level, three suitabilities by a point — which is the check that a rule touching syllable text
 did not quietly move suitabilities on a corpus.
 
-**A file may mark none of it: a space after every syllable, no break markers and no underscores.**
+**A file may mark none of it: a space after every syllable and no underscores.**
 That claims each fragment is a whole word and puts six words on the screen where the line has two.
 `build_timeline` narrows those spaces to `SYLLABLE_DIVIDER` and the file loses a point of its
 suitability, under
@@ -74,9 +74,11 @@ suitability, under
 **The cancelled space above is what such a file is missing**, which is why the two rules meet in the
 right order: `spacing` resolves the marks in `collect_raws`, so a file that cancels the spaces it
 does not mean arrives with the word-final ones already distinguished and is left alone here. What
-reaches this rule marks nothing, and two measurements keep it narrow — a stream that marks
-*anything*, by a break marker or a leading space, is untouched, and mean fragment length separates a
-file whose syllables are spaced from one whose whole words are.
+reaches this rule marks no word, and two measurements keep it narrow — a stream with a single
+leading space is untouched, and mean fragment length separates a file whose syllables are spaced from
+one whose whole words are. **Break markers are not among them**: a file can place every line with
+`\r` and still space every syllable, and only fragments with text are counted, so a marker standing
+alone does not dilute the share.
 
 **A file may mark none of it the other way round: no space anywhere.** Sheet music read by an optical
 scanner writes one event per note and no separator at all, so a whole verse joins into one run of

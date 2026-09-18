@@ -685,9 +685,14 @@ pub fn drums_and_lyrics() -> Vec<u8> {
 pub fn high_quality_song() -> Vec<u8> {
     let mut words = TrackWriter::new();
     words.track_name(0, b"Words");
-    // 240 syllables at one per beat is two minutes at 120 BPM.
+    // 240 syllables at one per beat is two minutes at 120 BPM. A word ends after every second
+    // syllable, so the file says where its words end and draws them as written.
     for i in 0..240u32 {
-        let text: &[u8] = if i % 8 == 0 { b"/la " } else { b"la " };
+        let text: &[u8] = match (i % 8, i % 2) {
+            (0, _) => b"/la",
+            (_, 0) => b"la",
+            _ => b"la ",
+        };
         words.lyric(if i == 0 { 0 } else { 480 }, text);
     }
     song_around(words)
@@ -724,7 +729,11 @@ pub fn lyrics_that_stop_early() -> Vec<u8> {
     words.track_name(0, b"Words");
     // 40 syllables in the first eight seconds, then silence for the remaining hundred-odd.
     for i in 0..40u32 {
-        let text: &[u8] = if i % 8 == 0 { b"/la " } else { b"la " };
+        let text: &[u8] = match (i % 8, i % 2) {
+            (0, _) => b"/la",
+            (_, 0) => b"la",
+            _ => b"la ",
+        };
         words.lyric(if i == 0 { 0 } else { 96 }, text);
     }
     song_around(words)
@@ -751,6 +760,26 @@ pub fn word_ends_unmarked() -> Vec<u8> {
     // 240 syllables at one per beat is two minutes at 120 BPM.
     for i in 0..240usize {
         words.lyric(if i == 0 { 0 } else { 480 }, SYLLABLES[i % SYLLABLES.len()]);
+    }
+    song_around(words)
+}
+
+/// [`word_ends_unmarked`] with every line ended by a `\r` event of its own.
+///
+/// A real shape from the corpus: the file places each of its lines and still spaces every syllable.
+/// A break marker says where a line ends and nothing about words, so this is drawn with the same
+/// divider.
+pub fn word_ends_unmarked_lines_marked() -> Vec<u8> {
+    let mut words = TrackWriter::new();
+    words.track_name(0, b"Words");
+    const SYLLABLES: [&[u8]; 10] = [
+        b"can ", b"ta ", b"re ", b"mos ", b"jun ", b"tos ", b"a ", b"gui ", b"tar ", b"ra ",
+    ];
+    for i in 0..240usize {
+        words.lyric(if i == 0 { 0 } else { 480 }, SYLLABLES[i % SYLLABLES.len()]);
+        if i % SYLLABLES.len() == SYLLABLES.len() - 1 {
+            words.lyric(0, b"\r");
+        }
     }
     song_around(words)
 }
@@ -950,7 +979,11 @@ pub fn lyrics_against_another_arrangement() -> Vec<u8> {
     let mut words = TrackWriter::new();
     words.track_name(0, b"Words");
     for i in 0..240usize {
-        let text: &[u8] = if i % 8 == 0 { b"/la " } else { b"la " };
+        let text: &[u8] = match (i % 8, i % 2) {
+            (0, _) => b"/la",
+            (_, 0) => b"la",
+            _ => b"la ",
+        };
         words.lyric(if i == 0 { 240 } else { 480 }, text);
     }
 
@@ -994,7 +1027,11 @@ pub fn named_melody_silent_under_the_words() -> Vec<u8> {
     words.track_name(0, b"Words");
     let mut last = 0;
     for beat in (16..120u32).chain(136..240) {
-        let text: &[u8] = if beat % 8 == 0 { b"/la " } else { b"la " };
+        let text: &[u8] = match (beat % 8, beat % 2) {
+            (0, _) => b"/la",
+            (_, 0) => b"la",
+            _ => b"la ",
+        };
         words.lyric((beat - last) * BEAT, text);
         last = beat;
     }
@@ -1079,7 +1116,11 @@ pub fn two_lyric_tracks_disagreeing() -> Vec<u8> {
     let mut words = TrackWriter::new();
     words.track_name(0, b"Words");
     for i in 0..240usize {
-        let text: &[u8] = if i % 8 == 0 { b"\\la " } else { b"la " };
+        let text: &[u8] = match (i % 8, i % 2) {
+            (0, _) => b"\\la",
+            (_, 0) => b"la",
+            _ => b"la ",
+        };
         words.text(if i == 0 { 0 } else { 480 }, text);
     }
 
@@ -1087,7 +1128,11 @@ pub fn two_lyric_tracks_disagreeing() -> Vec<u8> {
     // spacing rather than a correction applied on top of it.
     let mut stale = TrackWriter::new();
     for i in 0..300usize {
-        let text: &[u8] = if i % 8 == 0 { b"\\la " } else { b"la " };
+        let text: &[u8] = match (i % 8, i % 2) {
+            (0, _) => b"\\la",
+            (_, 0) => b"la",
+            _ => b"la ",
+        };
         stale.text(if i == 0 { 0 } else { 237 }, text);
     }
 
@@ -1808,6 +1853,10 @@ pub const FIXTURES: &[Fixture] = &[
     ("lyrics_that_stop_early.mid", lyrics_that_stop_early),
     ("chord_names_as_lyrics.mid", chord_names_as_lyrics),
     ("word_ends_unmarked.mid", word_ends_unmarked),
+    (
+        "word_ends_unmarked_lines_marked.mid",
+        word_ends_unmarked_lines_marked,
+    ),
     ("word_boundaries_unmarked.mid", word_boundaries_unmarked),
     ("truncated_by_realtime_byte.mid", truncated_by_realtime_byte),
     ("unbalanced_note_on.mid", unbalanced_note_on),

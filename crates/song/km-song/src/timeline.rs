@@ -340,9 +340,9 @@ pub const WORD_END_SHARE_PERCENT: usize = 95;
 /// Mean syllable length, in tenths of a character, above which the fragments are words.
 ///
 /// **This is what separates a file that lost its word ends from one that never had syllables.** A
-/// file with one event per whole word, each carrying a space and no break markers, meets every other
-/// condition here while its words are exactly where it says they are — narrowing those would run
-/// correct words together.
+/// file with one event per whole word, each carrying a space, meets every other condition here
+/// while its words are exactly where it says they are — narrowing those would run correct words
+/// together.
 ///
 /// Measured over 11,857 files: every file whose word ends are lost averages 2.17 to 2.75 characters
 /// a syllable, and the nearest word-per-event files 3.40 and 3.44. This sits in that gap, with room
@@ -358,23 +358,27 @@ pub const MAX_JUDGED_MEAN_TENTHS: usize = 30;
 /// A single leading space disqualifies the file. In the other convention a leading space is *how* a
 /// word start is marked, so one of them is the file telling us something, and this must not overrule
 /// it.
+///
+/// **A break marker does not disqualify it.** A marker says where a line ends, and a file can mark
+/// every line and still space every syllable. Only fragments with text are counted, so a marker
+/// that stands alone does not dilute the share.
 fn marks_no_word_ends(raws: &[RawSyllable]) -> bool {
-    if raws.len() < MIN_JUDGED_SYLLABLES {
-        return false;
-    }
+    let mut judged = 0usize;
     let mut word_ends = 0usize;
     let mut body_chars = 0usize;
-    for raw in raws {
+    for raw in raws.iter().filter(|r| !r.text.is_empty()) {
         if raw.text.starts_with(' ') {
             return false;
         }
+        judged += 1;
         if raw.text.ends_with(' ') {
             word_ends += 1;
         }
         body_chars += raw.text.trim_end().chars().count();
     }
-    word_ends * 100 >= raws.len() * WORD_END_SHARE_PERCENT
-        && body_chars * 10 < raws.len() * MAX_JUDGED_MEAN_TENTHS
+    judged >= MIN_JUDGED_SYLLABLES
+        && word_ends * 100 >= judged * WORD_END_SHARE_PERCENT
+        && body_chars * 10 < judged * MAX_JUDGED_MEAN_TENTHS
 }
 
 /// What share of syllables may carry a space, in percent, for the file still to be marking nothing.
@@ -653,17 +657,17 @@ pub fn build_timeline(
 
     let has_markers = raws.iter().any(|r| r.break_before != LineBreak::None);
 
-    // A file that says where its lines go says where its words go too, so only an unmarked stream
-    // is judged. The rewrite runs here, before the grouping and the redaction below, so every
-    // reader downstream sees the text the screen will draw.
+    // The rewrite runs here, before the grouping and the redaction below, so every reader downstream
+    // sees the text the screen will draw.
     //
     // Two shapes reach the same divider from opposite sides: a file that spaces every fragment, and
     // one that spaces none. A file of the first kind is left as it stands wherever a fragment lacks
     // its space, because the file wrote one there and that is what a run of them looks like; a file
     // of the second kind has nothing to leave.
-    let word_ends = if has_markers {
-        WordEnds::AsWritten
-    } else if marks_no_word_ends(&raws) {
+    //
+    // A break marker says where a line ends and nothing about words, so a marked file is judged for
+    // the first shape too. The second is judged only in an unmarked stream.
+    let word_ends = if marks_no_word_ends(&raws) {
         for raw in &mut raws {
             if raw.text.ends_with(' ') {
                 raw.text.pop();
@@ -671,7 +675,7 @@ pub fn build_timeline(
             }
         }
         WordEnds::EverySyllableSpaced
-    } else if marks_no_word_boundaries(&raws) {
+    } else if !has_markers && marks_no_word_boundaries(&raws) {
         // The handful of fragments that do carry a space keep it, and take no divider on top: the
         // gap is already there, and a second one beside it is wider than either.
         for raw in &mut raws {
@@ -1533,13 +1537,39 @@ mod tests {
         assert!(timeline.lines[0].text().contains(' '));
     }
 
+    /// A break marker says where a line ends and nothing about words, so a file that marks every
+    /// line and spaces every syllable is still divided.
     #[test]
-    fn one_line_marker_is_enough_to_leave_the_spacing_alone() {
+    fn line_markers_do_not_leave_every_syllable_spaced() {
         let mut raws = unmarked(&["can ", "ta ", "re ", "mos "], 40);
-        raws[8].break_before = LineBreak::Line;
+        for raw in raws.iter_mut().step_by(4).skip(1) {
+            raw.break_before = LineBreak::Line;
+        }
+        let timeline = build_timeline(raws, inference(), ticks_to_ms);
+        assert_eq!(timeline.word_ends, WordEnds::EverySyllableSpaced);
+        let text = timeline.lines[0].text();
+        assert!(!text.contains(' '), "no full space is left: {text:?}");
+    }
+
+    /// The mean fragment length still spares whole words when the file marks its lines.
+    #[test]
+    fn a_marked_file_of_whole_words_keeps_its_spaces() {
+        let mut raws = unmarked(&["guitarra ", "cantando ", "sozinho ", "amanhece "], 40);
+        for raw in raws.iter_mut().step_by(4).skip(1) {
+            raw.break_before = LineBreak::Line;
+        }
         let timeline = build_timeline(raws, inference(), ticks_to_ms);
         assert!(!timeline.word_ends.divided());
         assert!(timeline.lines[0].text().contains(' '));
+    }
+
+    /// The no-space rule is judged only in an unmarked stream.
+    #[test]
+    fn line_markers_leave_an_unspaced_file_alone() {
+        let mut raws = unmarked(&["can", "ta", "re", "mos"], 40);
+        raws[8].break_before = LineBreak::Line;
+        let timeline = build_timeline(raws, inference(), ticks_to_ms);
+        assert_eq!(timeline.word_ends, WordEnds::AsWritten);
     }
 
     /// A leading space is how the other convention marks a word start, so one of them is the file
