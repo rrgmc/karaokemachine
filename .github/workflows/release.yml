@@ -275,6 +275,11 @@ jobs:
 
   # Debian's `abcmidi` package is the abc2midi `carols.sh` looks for on PATH, so nothing is built
   # into the cache for it.
+  #
+  # `apt-deps.sh` without `--video` is the rest. The dependency graph of `km-carols` and `km-pack`
+  # reaches `alsa-sys`, whose build script needs ALSA's headers although neither program opens a
+  # device. The script's full list costs a minute and keeps this job from failing one header at a
+  # time.
   carols:
     needs: tag
     runs-on: ubuntu-latest
@@ -284,7 +289,7 @@ jobs:
         with:
           ref: ${{ env.TAG }}
       - run: |
-          sudo apt-get update
+          bash tools/platform/linux/apt-deps.sh
           sudo apt-get install -y --no-install-recommends abcmidi
       - run: rustup toolchain install --no-self-update
       - uses: actions/cache@v6
