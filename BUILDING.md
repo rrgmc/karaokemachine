@@ -676,22 +676,22 @@ ffmpeg at all: nothing it was asked for has such a feature, so nothing checks fo
 Everything lands under `dist/<app>/<platform>/`:
 
 ```
-dist/karaokemachine/windows/karaokemachine-1.17.0-x86_64-pc-windows-msvc/   (+ .zip with --zip)
-dist/karaokemachine/windows/karaokemachine-1.17.0-x86_64-pc-windows-msvc-no-video/
+dist/karaokemachine/windows/karaokemachine-1.18.0-x86_64-pc-windows-msvc/   (+ .zip with --zip)
+dist/karaokemachine/windows/karaokemachine-1.18.0-x86_64-pc-windows-msvc-no-video/
 dist/karaokemachine/macos/Karaoke Machine.app
-dist/karaokemachine/linux/karaokemachine_1.17.0-1_amd64.deb
-dist/karaokemachine/linux/no-video/karaokemachine_1.17.0-1_amd64.deb
-dist/karaokemachine-tools/linux/karaokemachine-tools_1.17.0-1_amd64.deb
-dist/karaokemachine/linux/karaokemachine-1.17.0-x86_64-unknown-linux-gnu/   (+ .tar.gz)
-dist/km-pack/windows/km-pack-1.17.0-x86_64-pc-windows-msvc/
-dist/km-lyrics/windows/km-lyrics-1.17.0-x86_64-pc-windows-msvc/
-dist/km-package-builder/windows/km-package-builder-1.17.0-x86_64-pc-windows-msvc/
-dist/setup/windows/karaokemachine-setup-1.17.0-windows-x86_64.exe
-dist/setup/macos/karaokemachine-setup-1.17.0-macos-aarch64.pkg              (notarized)
-dist/setup/macos/karaokemachine-setup-1.17.0-macos-aarch64-unnotarized.pkg  (signed only)
-dist/setup/macos/karaokemachine-setup-1.17.0-macos-aarch64-unsigned.pkg     (ad-hoc, the default)
-dist/setup/windows/km-remote-setup-1.17.0-windows-x86_64.exe
-dist/setup/macos/km-remote-setup-1.17.0-macos-aarch64.pkg                   (the same three signing states)
+dist/karaokemachine/linux/karaokemachine_1.18.0-1_amd64.deb
+dist/karaokemachine/linux/no-video/karaokemachine_1.18.0-1_amd64.deb
+dist/karaokemachine-tools/linux/karaokemachine-tools_1.18.0-1_amd64.deb
+dist/karaokemachine/linux/karaokemachine-1.18.0-x86_64-unknown-linux-gnu/   (+ .tar.gz)
+dist/km-pack/windows/km-pack-1.18.0-x86_64-pc-windows-msvc/
+dist/km-lyrics/windows/km-lyrics-1.18.0-x86_64-pc-windows-msvc/
+dist/km-package-builder/windows/km-package-builder-1.18.0-x86_64-pc-windows-msvc/
+dist/setup/windows/karaokemachine-setup-1.18.0-windows-x86_64.exe
+dist/setup/macos/karaokemachine-setup-1.18.0-macos-aarch64.pkg              (notarized)
+dist/setup/macos/karaokemachine-setup-1.18.0-macos-aarch64-unnotarized.pkg  (signed only)
+dist/setup/macos/karaokemachine-setup-1.18.0-macos-aarch64-unsigned.pkg     (ad-hoc, the default)
+dist/setup/windows/km-remote-setup-1.18.0-windows-x86_64.exe
+dist/setup/macos/km-remote-setup-1.18.0-macos-aarch64.pkg                   (the same three signing states)
 ```
 
 The `.deb` gets a subfolder rather than a suffix because cargo-deb names the file from the package

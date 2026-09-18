@@ -64,7 +64,7 @@ todo = "warn"
 # the root manifest `exclude`s this directory and nothing crosses that boundary. So this line and the
 # root's are a pair that moves together, and `tools/dev/check-version-pin.sh` is what says so.
 [workspace.package]
-version = "1.17.0"
+version = "1.18.0"
 edition = "2024"
 # Equal to the pin in `rust-toolchain.toml`, which governs this directory too: rustup resolves the pin
 # by walking up from the working directory, and this is a subdirectory of the root.

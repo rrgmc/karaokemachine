@@ -34,7 +34,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "The tag to build, such as v1.17.0"
+        description: "The tag to build: v and the manifest's version"
         required: true
 
 concurrency:
