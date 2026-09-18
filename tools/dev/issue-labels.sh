@@ -31,6 +31,13 @@ cd "$(dirname "${BASH_SOURCE[0]}")/../.."
 self="${0##*/}"
 labels_sh="tools/dev/labels.sh"
 
+# Through `bash`, as the Taskfile and CI run every script in this directory: a script's executable
+# bit does not survive a commit made on Windows, so a checkout on a runner has none and calling one
+# by its path is a `Permission denied` that only a runner sees.
+labels_table() {
+  bash "$labels_sh" table
+}
+
 issue=""
 case "${1-}" in
   "") ;;
@@ -60,7 +67,7 @@ answer_under() { # $1 heading
 }
 
 label_for() { # $1 kind, $2 option
-  "$labels_sh" table | awk -F'|' -v k="$1" -v o="$2" '$3 == k && $4 == o { print $1; exit }'
+  labels_table | awk -F'|' -v k="$1" -v o="$2" '$3 == k && $4 == o { print $1; exit }'
 }
 
 contains() { # $1 newline-separated list, $2 item
@@ -134,7 +141,7 @@ while IFS='|' read -r name _ kind _ _; do
   if ! contains "$want" "$name"; then
     remove="${remove:+$remove,}$name"
   fi
-done < <("$labels_sh" table)
+done < <(labels_table)
 
 args=()
 [ -z "$add" ] || args+=(--add-label "$add")
