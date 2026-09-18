@@ -1,0 +1,4 @@
+{% import "play_button.html" as play %}
+{% call play::button(played_id, true, true) %}{% endcall %}
+{% for song_id in unlit %}{% call play::button(song_id, false, true) %}{% endcall %}
+{% endfor %}

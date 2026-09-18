@@ -1,0 +1,190 @@
+# The assets workspace — the programs that go and get things.
+#
+# **This is a second workspace inside one repository, and the reason is TLS.** Cargo unifies features
+# per crate version across a workspace build. `km-wallpaper-pack` needs real TLS from `reqwest`;
+# `km-package-builder`, over in the main workspace, needs `reqwest` to have *none*. Asking one
+# `reqwest` to be both is not a compromise anybody can make — it made the builder's `Client::new()`
+# panic with "no rustls crypto provider is configured", and only when the workspace was built
+# together, so the same source produced two different binaries depending on how it was built. See the
+# `exclude` note in the root `Cargo.toml`.
+#
+# **Unification is the thing being avoided across the boundary and the thing being relied on inside
+# it.** This was `km-wallpaper-pack` alone, as its own root, until `km-admin` arrived wanting the same
+# `reqwest` with the same features and the same `image` and `zip` to agree about what a pack is. The
+# alternative considered was a second excluded workspace beside this one, with `km-wallpaper-pack` as a
+# path dependency: that resolves and builds — it was tried — but it means two lockfiles that must
+# agree and nothing to make them, which is the drift `km-wallpaper-pack`'s own dependency comment
+# ("versions match the root `Cargo.toml` … so the two trees do not drift") exists to prevent.
+#
+# Excluded from the main workspace means excluded from `cargo fmt --all` and from `cargo km-lint`.
+# The `km-*-assets` aliases in `.cargo/config.toml` cover it instead, run by `ci.yml`'s `assets` job
+# and `Taskfile.yml`, and `tools/platform/linux/check.sh` names the manifest itself to add `--locked`
+# — **one of each, for the pair**, where a second workspace would have needed two.
+[workspace]
+resolver = "3"
+members = ["km-admin", "km-wallpaper-pack"]
+
+# **These have to live here and nowhere else, and the number is why.** A workspace root inherits no
+# profiles from the directory above it, and a *member's* own `[profile]` is ignored — so these were in
+# `km-wallpaper-pack/Cargo.toml` while it was its own root, and they move up with it rather than being
+# written twice.
+#
+# `analyze` is a few thousand JPEG decodes, Lanczos3 resizes and Gaussian blurs, and at opt-level 0
+# they run 10-40x slower. A full run took **78 minutes** unoptimized against single-digit ones
+# optimized — slow enough that the phase reads as a hang rather than as work. The hot loops are split
+# between `image` and `km-wallpaper-pack`'s own `metrics.rs`/`process.rs`, so both sides need lifting: 1
+# on our own code keeps rebuilds quick and backtraces honest, 2 on the dependency tree is where the
+# decoding and resampling actually is.
+[profile.dev]
+opt-level = 1
+
+[profile.dev.package."*"]
+opt-level = 2
+
+# The same lints the main workspace sets, stated here because nothing across the boundary can be
+# inherited. Members take `[lints] workspace = true`.
+[workspace.lints.rust]
+missing_docs = "warn"
+unsafe_code = "deny"
+
+[workspace.lints.clippy]
+todo = "warn"
+
+# Shared metadata, so a member says it once.
+#
+# **`version` is the machine's, and both members follow it.** They ship in the machine's own carriers
+# — `dist/bin`, the Inno Setup installer, the macOS `.pkg`, all three of which stamp one number on
+# everything they carry — and `tools/dist/cmd.sh` names a staged folder from the version the binary
+# itself reports. A program on a number of its own is therefore a folder name that the script looking
+# for it has to be told about, one arm per program: `tools/dist/clean.sh` got both and
+# `tools/dist/bin.sh` got one, so `task dist:bin` staged km-admin under a number of its own and then
+# said nothing was staged for it, having gone looking for the machine's.
+#
+# **It has to be repeated here rather than inherited**, for the same reason `rust-version` below does:
+# the root manifest `exclude`s this directory and nothing crosses that boundary. So this line and the
+# root's are a pair that moves together, and `tools/dev/check-version-pin.sh` is what says so.
+[workspace.package]
+version = "1.17.0"
+edition = "2024"
+# Equal to the pin in `rust-toolchain.toml`, which governs this directory too: rustup resolves the pin
+# by walking up from the working directory, and this is a subdirectory of the root.
+rust-version = "1.98.1"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/rrgmc/karaokemachine"
+homepage = "https://rrgmc.github.io/karaokemachine/"
+publish = false
+
+# **One version table for the workspace**, which is the whole benefit of the members sharing one. A
+# version here still matches the root `Cargo.toml` wherever a crate appears in both, so the two trees
+# do not drift; what changes is that the members can no longer drift from *each other*.
+#
+# The reasoning behind each of these is in `km-wallpaper-pack/Cargo.toml`, beside the crate that asks for
+# it — that is where a reader looking at a dependency will be, and moving the prose up here would put
+# it a directory away from its subject.
+[workspace.dependencies]
+image = { version = "0.25.10", default-features = false, features = [
+    "jpeg",
+    "png",
+    "webp",
+] }
+zip = "8.6.0"
+sha2 = "0.11.0"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.151"
+clap = { version = "4.6.6", features = ["derive"] }
+thiserror = "2.0.20"
+anyhow = "1.0.104"
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
+image_hasher = "3.1.1"
+rayon = "1.12.0"
+toml = "0.9.12"
+hex = "0.4.3"
+tokio = { version = "1.53.1", features = [
+    "rt-multi-thread",
+    "macros",
+    "fs",
+    "sync",
+    "time",
+] }
+# `stream` is `km-wallpaper-pack`'s, so a 6 MB photograph goes to disk in chunks rather than into memory
+# whole; `multipart` is `km-admin`'s, for the machine's three upload routes. **This is the first
+# place the shared table earns its keep**: one `reqwest` with the union of what the two members ask
+# for, resolved once, rather than two lockfiles quietly disagreeing about which build each got.
+reqwest = { version = "0.13.4", default-features = false, features = [
+    "json",
+    "rustls-no-provider",
+    "stream",
+    "multipart",
+] }
+rustls = { version = "0.23.43", default-features = false, features = [
+    "ring",
+    "std",
+    "tls12",
+    "logging",
+] }
+futures-util = { version = "0.3.34", default-features = false, features = [
+    "sink",
+] }
+
+wiremock = "0.6.5"
+tempfile = "3.27.0"
+
+# `km-admin`'s own, from here down. Versions match the repository root's wherever a crate appears in
+# both — the same rule the block above keeps, and the reason this table exists.
+#
+# **The path dependencies reach into the main workspace, and that is safe in the one direction that
+# matters.** None of the six takes an HTTP client, so nothing they carry can unify with the `reqwest`
+# above and re-open the question the `exclude` line exists to settle. `km-api` was checked rather
+# than assumed: it declares axum, tokio, `mdns-sd`, argon2 and the song crates, and no client at all.
+axum = { version = "0.8.9", features = ["multipart"] }
+askama = "0.16.0"
+tower = { version = "0.5.3", features = ["util"] }
+directories = "6.0.0"
+# The desktop shell, behind `km-admin`'s `desktop` feature. Off in cargo, on when staging Windows
+# and macOS, and **never** on Linux: `wry` links libwebkit2gtk at load time, so a Linux build with it
+# does not start on a machine without it, and `--browser` cannot rescue a failure that happens in the
+# dynamic loader before `main`.
+wry = "0.56.1"
+tao = "0.37.0"
+winresource = "0.1.31"
+
+km-api = { path = "../../../crates/machine/km-api" }
+# **The owner's page itself**, so `km-admin` draws the machine's own markup rather than a second copy
+# of it. The eighth crate reached across this boundary and safe on exactly the rule the seven above
+# keep: `cargo tree` says its whole direct list is askama, async-trait, axum, km-api, km-kmpkg,
+# km-locale, km-songcode, serde, serde_json, thiserror, tokio and tracing -- **no HTTP client**, so
+# nothing it carries can unify with the `reqwest` above. That is not luck: the crate holds the markup
+# and the traits, and a client is what a *host* brings. See `docs/architecture/admin.md`.
+km-admin-pages = { path = "../../../crates/machine/km-admin-pages" }
+# Which language a surface speaks. Taken directly because `km-admin` names `Locale` when it says
+# which one it has pinned -- see `Admin::with_fixed_locale`. **No product words in it**, so nothing
+# about this crate decides what this program says.
+km-locale = { path = "../../../crates/platform/km-locale" }
+# The `dyn`-able async traits the seam is made of. Version matched to the root manifest's, which is
+# the rule this whole table keeps: a crate appearing in both trees resolves to one version.
+async-trait = "0.1.92"
+km-banks = { path = "../../../crates/machine/km-banks" }
+km-console = { path = "../../../crates/platform/km-console" }
+km-logfile = { path = "../../../crates/platform/km-logfile" }
+# Safe to take from here on the rule the crates above keep: its whole direct list is `ecapplog`,
+# `tracing` and `tracing-subscriber`, and `ecapplog` speaks a plain TCP protocol of its own -- **no
+# HTTP client**, so nothing it carries can unify with the `reqwest` in this tree.
+km-ecapplog = { path = "../../../crates/platform/km-ecapplog" }
+# What a settings file says about both of those, and about how much detail there is. Safe to take
+# from here on the rule the crates above keep: its whole direct list is the two beside it, serde,
+# serde_json, tracing and tracing-subscriber -- **no HTTP client**, so nothing it carries can unify
+# with the `reqwest` in this tree.
+km-logsettings = { path = "../../../crates/platform/km-logsettings" }
+km-osopen = { path = "../../../crates/platform/km-osopen" }
+# The machine passwords this computer was told to remember, shared with `km-package-builder` over
+# on the other side of this boundary. Safe to take from here on the rule the eight above keep: it
+# declares serde, serde_json, directories and tracing, and **no HTTP client**, so nothing it carries
+# can unify with the `reqwest` in this tree. Where the file goes is `crate::passwords`, this
+# program's own answer, including the `cfg!(test)` guard that keeps a suite off the owner's store.
+km-passwords = { path = "../../../crates/platform/km-passwords" }
+km-tray = { path = "../../../crates/platform/km-tray" }
+# The window geometry the three desktop shells share. Reached across this workspace boundary by path
+# for the reason the root `Cargo.toml` gives about the four platform crates: it takes no HTTP client,
+# so nothing it carries can unify with the `reqwest` over here.
+km-webshell = { path = "../../../crates/platform/km-webshell" }

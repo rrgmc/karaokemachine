@@ -1,0 +1,121 @@
+{% extends "layout.html" %}
+{% block title %}{{ package.name }} &middot; {{ crate::APP_NAME }}{% endblock %}
+{% block content %}
+
+{# The way back is a link rather than the browser's own button, because this page is arrived at from
+   the Packages page and every other way out of it goes forward -- to a song, to a filter, to the
+   machine. #}
+<p><a href="/packages">&larr; {{ "nav-packages"|t }}</a></p>
+
+<div class="spread">
+  <h2>{{ package.name }}</h2>
+  <a href="/songs?unpackaged=1">{{ "package-find-songs"|t }} &rarr;</a>
+</div>
+
+{# What is said about the whole package, over the tabs rather than in one, because it is true whatever
+   tab is open. Nothing here belongs to a volume: the first number is on Songs, beside the songs it
+   numbers, and the version is on Build, beside the file it names.
+
+   **The id is here and nowhere else on the page.** It is sixteen hexadecimal characters that matter
+   only when a built file or a bank has to be matched to a package, and every other place it was drawn
+   put it in front of somebody reading for something else. #}
+<div class="panel fit">
+  <form hx-post="/packages/{{ package.id }}/settings" hx-target="#action-result" hx-swap="innerHTML">
+    <div class="fields compact">
+      <label for="package-name">{{ "package-name"|t }}</label>
+      <input id="package-name" name="name" value="{{ package.name }}" class="medium">
+      <label for="package-publisher">{{ "package-publisher"|t }}</label>
+      <input id="package-publisher" name="publisher" class="medium"
+             value="{% match package.publisher %}{% when Some with (p) %}{{ p }}{% when None %}{% endmatch %}">
+      <label for="package-language" title="{{ "package-default-language-title"|t }}">{{ "package-unclassified-are"|t }}</label>
+      <select id="package-language" name="default_language" title="{{ "package-default-language-title"|t }}">
+        <option value="">&mdash; {{ "package-refuse-to-build"|t }}</option>
+        {% if !corpus_languages.is_empty() %}
+        <optgroup label="{{ "package-in-this-corpus"|t }}">
+          {% for choice in corpus_languages %}
+          <option value="{{ choice.value }}">{{ choice.label }}</option>
+          {% endfor %}
+        </optgroup>
+        {% endif %}
+        <optgroup label="{{ "package-every-language"|t }}">
+          {% for choice in every_language %}
+          <option value="{{ choice.value }}"{% if self.is_default_language(choice.value.as_str()) %} selected{% endif %}>{{ choice.label }}</option>
+          {% endfor %}
+        </optgroup>
+      </select>
+      {# `{n}` is the volume's number. Blank saves the default, `vol{n}`. #}
+      <label for="package-volume-format" title="{{ "package-volume-format-title"|t }}">{{ "package-volume-format"|t }}</label>
+      <div class="row">
+        <input id="package-volume-format" name="volume_format" value="{{ package.volume_format }}"
+               style="width:8rem" title="{{ "package-volume-format-title"|t }}">
+        <span class="dim">{{ "package-volume-format-note"|t }}</span>
+      </div>
+      <span class="label" title="{{ "package-id-title"|t }}">{{ "package-id"|t }}</span>
+      <span class="dim mono" title="{{ "package-id-title"|t }}">{{ package.id }}</span>
+      <span></span>
+      <div><button>{{ "action-save"|t }}</button></div>
+    </div>
+  </form>
+</div>
+
+{# Above the strip, so a refusal is in the same place whichever tab raised it -- and near enough to
+   every button on a pane that it is read. What succeeded goes to the corner instead; see
+   `Where a curation action says what it did`. #}
+<div id="action-result"></div>
+
+{# **Three tabs: the songs, where they come from, and how they are written.** Songs holds the volume
+   strip over what it picks -- the first number, Re-flow and the song list -- because a first number
+   means nothing without the numbers it flows into. That is the shape `The curation actions are tabs`
+   already names.
+
+   `.songtabs` is the arrangement, not the page: the song page and the settings page carry the same
+   class for the same hidden radios, strip and panes. What cannot be shared is the arm per tab,
+   because a selector cannot ask which radio is checked without naming it. #}
+<div class="songtabs">
+  <input type="radio" name="package-tab" id="package-tab-songs" checked>
+  <input type="radio" name="package-tab" id="package-tab-sources">
+  <input type="radio" name="package-tab" id="package-tab-build">
+  <div class="tabstrip">
+    <label for="package-tab-songs">{{ "package-tab-songs"|t }}</label>
+    <label for="package-tab-sources">{{ "package-tab-sources"|t }}</label>
+    <label for="package-tab-build">{{ "package-tab-build"|t }}</label>
+  </div>
+
+  <div class="pane songs">
+    {{ chips|safe }}
+
+    {# The strip, then what belongs to the volume it picked: the first number, Re-flow, and the songs.
+       One element around all four, because a volume link swaps it in place from the page it asks
+       for, which keeps where somebody had scrolled to. #}
+    <div id="package-volume-pane">
+      {{ volume_strip|safe }}
+      <div class="row">
+        {# `max` only saves a round trip; `handlers::start_number_refusal` is the authority, because a
+           first number also reaches a row from `import`. #}
+        <form class="row" hx-post="/packages/{{ package.id }}/volume?volume={{ package.volume }}"
+              hx-target="#action-result" hx-swap="innerHTML">
+          <label>{{ "package-first-number"|t }}
+            <input name="start_number" type="number" min="1" max="{{ km_songcode::MAX_SLOT }}"
+                   value="{{ package.start_number }}" style="width:6rem"></label>
+          <button>{{ "action-save"|t }}</button>
+        </form>
+        {# Re-flow sits beside the first number, because it acts on it: a button that reads *from 500*
+           belongs beside the field that says 500. #}
+        {{ renumber|safe }}
+      </div>
+      {{ members|safe }}
+    </div>
+  </div>
+
+  <div class="pane sources">
+    <div class="panel">
+      {{ sourcing|safe }}
+    </div>
+  </div>
+
+  <div class="pane build">
+    {{ build|safe }}
+  </div>
+</div>
+
+{% endblock %}

@@ -1,0 +1,28 @@
+{% if machines.is_empty() %}
+{# Two keys around the setting's name, rather than one sentence with the name inside it. The name is
+   a word a machine reads and is drawn as one; a message carrying its own `<code>` would either lose
+   the element or hand a translator markup to retype. #}
+<div class="message">
+  {{ "discovered-none-lead"|t }} <span class="mono">api.advertise_mdns</span> {{ "discovered-none-tail"|t }}
+</div>
+{% else %}
+<ul class="found">
+  {% for machine in machines %}
+  <li>
+    <button type="button"
+            class="link"
+            data-machine="{{ machine.url }}"
+            hx-post="/settings"
+            hx-vals='{"machine": "{{ machine.url }}"}'
+            hx-target="#action-result"
+            hx-swap="innerHTML">
+      {{ "discovered-select"|t }}
+    </button>
+    <strong>{{ machine.name }}</strong>
+    <span class="mono dim">{{ machine.url }}</span>
+    {% if machine.current %}<span class="dim">&mdash; {{ "discovered-already-set"|t }}</span>{% endif %}
+
+  </li>
+  {% endfor %}
+</ul>
+{% endif %}

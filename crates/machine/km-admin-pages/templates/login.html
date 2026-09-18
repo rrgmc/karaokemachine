@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>{{ "sign-in"|t }}</title>
+  {# This crate's own route, which every host serves, and not the machine's `/icon.png` -- that one
+     exists on a single host and was being asked of all of them. `layout.html` says the same thing
+     beside the same link. #}
+  <link rel="icon" href="/admin/static/icon.png?v={{ assets }}">
+  <link rel="stylesheet" href="/admin/static/admin.css?v={{ assets }}">
+</head>
+<body class="centered">
+
+<main class="card">
+  <h1>{{ "admin-title"|t }}</h1>
+  {% match notice %}
+  {% when Some with (notice) %}
+  <p class="banner banner-{{ notice.kind }}">{{ notice.text }}</p>
+  {% when None %}
+  {% endmatch %}
+  <form method="post" action="/admin/login">
+    <label>
+      {{ "password-field"|t }}
+      <input type="password" name="password" autocomplete="current-password" autofocus required>
+    </label>
+    <button type="submit">{{ "sign-in"|t }}</button>
+  </form>
+</main>
+
+</body>
+</html>

@@ -1,0 +1,407 @@
+/*
+ * KaraokeMachine — the landing page.
+ *
+ * The palette is the machine's own, from `crates/playback/km-display/src/theme.rs`, so the page is
+ * framed in the colors its screenshots were drawn in. Amber is `lyric_sung` — the color a syllable
+ * turns as it is sung — and it is also the machine's icon color; blue and green are the package
+ * builder's and the remote's, which is why the cards for those two are not amber.
+ *
+ * Dark is committed to rather than toggled. The product is a full-screen television application,
+ * every screenshot is dark, and a light variant would frame all eight of them badly.
+ *
+ * The *surfaces* are the icons' ground rather than a neutral gray — `icon_ground` and `icon_glow`,
+ * the violet-into-magenta the three marks stand on. `--bg` is still `theme.background`, because the
+ * page's ground and the television's are answering the same question; what changed is everything
+ * lifted off it. The reason is the same one that lifted the icons: eight dark screenshots on a
+ * near-black page make a black rectangle with pictures in it, and the frame is the only part of a
+ * landing page that is allowed to have a color of its own. `--raised`, `--line`, `--dim` and
+ * `--muted` are page-only and have no theme source, so they are re-derived toward the violet rather
+ * than copied from anywhere.
+ *
+ * No webfont, no script, no external request of any kind.
+ */
+
+:root {
+  color-scheme: dark;
+
+  --bg:      #0A0C14;   /* theme.background   */
+  --ground:  #2A0E42;   /* theme.icon_ground  — the icons' own ground */
+  --glow:    #C43A8E;   /* theme.icon_glow    */
+  --raised:  #2A1B44;   /* derived from --ground, page-only */
+  --line:    #3A2757;   /* derived from --ground, page-only */
+  --text:    #ECEFF4;   /* theme.text         */
+  --dim:     #9A92AA;   /* theme.text_dim, warmed onto --ground */
+  --muted:   #B3A9C2;   /* theme.lyric_upcoming, likewise */
+  --amber:   #FFC107;   /* theme.lyric_sung   — the machine */
+  --blue:    #5FD3FF;   /* theme.accent       — km-package-builder */
+  --green:   #57E79A;   /* theme.accent_alt   — km-remote */
+
+  --wrap: 68rem;
+  --radius: 10px;
+
+  --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial,
+          "Noto Sans", sans-serif;
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 17px;
+  line-height: 1.65;
+  /* The hero image is full-bleed; nothing else may push the page sideways. */
+  overflow-x: hidden;
+}
+
+img { max-width: 100%; height: auto; display: block; }
+
+code, .mono { font-family: var(--mono); font-size: 0.92em; }
+
+code {
+  background: var(--raised);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 0.1em 0.35em;
+}
+
+pre {
+  background: var(--ground);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 0.9rem 1.1rem;
+  overflow-x: auto;
+}
+
+pre code { background: none; border: 0; padding: 0; }
+
+a { color: var(--amber); text-decoration-color: rgba(255, 193, 7, 0.4); text-underline-offset: 3px; }
+a:hover { text-decoration-color: var(--amber); }
+
+.wrap { max-width: var(--wrap); margin-inline: auto; padding-inline: 1.5rem; }
+
+.skip {
+  position: absolute;
+  left: -9999px;
+}
+.skip:focus {
+  left: 1rem; top: 1rem;
+  position: fixed; z-index: 10;
+  background: var(--amber); color: #000;
+  padding: 0.6rem 1rem; border-radius: 6px;
+  text-decoration: none; font-weight: 600;
+}
+
+:focus-visible { outline: 2px solid var(--amber); outline-offset: 3px; }
+
+/* -- hero ------------------------------------------------------------------------------------- */
+
+.hero {
+  padding-top: 4.5rem;
+  text-align: center;
+  /* Two pools of light, and the order matters. The magenta is the icons' own glow, thrown wide and
+     off-center the way `icon.rs` throws it — its wash center is at 32% across, not the middle. The
+     amber sits on top of it, tighter and directly behind the title, so the word the eye lands on is
+     still lit the color of a sung syllable. One gradient of either alone read as decoration; the
+     pair reads as a stage. */
+  background:
+    radial-gradient(52rem 26rem at 50% -4rem, rgba(255, 193, 7, 0.12), transparent 68%),
+    radial-gradient(88rem 40rem at 32% -10rem, rgba(196, 58, 142, 0.30), transparent 72%),
+    var(--bg);
+}
+
+.eyebrow {
+  margin: 0 0 1.1rem;
+  color: var(--dim);
+  font-size: 0.8rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.hero h1 {
+  margin: 0;
+  font-size: clamp(2.6rem, 8vw, 4.6rem);
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+  font-weight: 800;
+}
+.hero h1 span { color: var(--amber); }
+/* `inline-block` undoes the global `img { display: block }`, which would give the mark a line of
+   its own. The width tracks the h1's clamp; height stays auto, so the attributes set the ratio. */
+.hero h1 .mark {
+  display: inline-block;
+  width: clamp(2.2rem, 6.5vw, 3.6rem);
+  vertical-align: -0.12em;
+  margin-right: 0.5rem;
+}
+
+.lede {
+  max-width: 46rem;
+  margin: 1.4rem auto 0;
+  font-size: clamp(1.02rem, 2.2vw, 1.2rem);
+  color: var(--muted);
+}
+.lede strong { color: var(--text); font-weight: 600; }
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  justify-content: center;
+  margin: 2rem 0 0;
+}
+
+.btn {
+  display: inline-block;
+  padding: 0.7rem 1.5rem;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--raised);
+  color: var(--text);
+  font-weight: 600;
+  text-decoration: none;
+  transition: transform 0.12s ease, border-color 0.12s ease, background 0.12s ease;
+}
+.btn:hover { transform: translateY(-1px); border-color: var(--muted); }
+
+.btn-primary {
+  background: var(--amber);
+  border-color: var(--amber);
+  color: #14100A;
+}
+.btn-primary:hover { background: #FFCE3A; border-color: #FFCE3A; }
+
+.honesty {
+  margin: 1.6rem auto 0;
+  max-width: 40rem;
+  font-size: 0.9rem;
+  color: var(--dim);
+}
+
+/* -- screenshots ------------------------------------------------------------------------------ */
+
+.shot { margin: 0; }
+
+.shot img {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #000;
+}
+
+.shot figcaption {
+  margin-top: 0.7rem;
+  font-size: 0.87rem;
+  line-height: 1.5;
+  color: var(--dim);
+}
+.shot figcaption b { color: var(--muted); }
+
+.shot-hero {
+  max-width: 60rem;
+  margin: 3.2rem auto 0;
+  padding-inline: 1.5rem;
+}
+.shot-hero img {
+  border-radius: 12px 12px 0 0;
+  border-bottom: 0;
+  box-shadow: 0 -2px 60px rgba(196, 58, 142, 0.22);
+}
+
+/* The phone captures are tall; cap them so a row of four does not become a wall. */
+.shot-phone img { max-height: 34rem; width: auto; margin-inline: auto; }
+
+.shot-wide { margin-top: 3rem; }
+
+/* km-package-builder's is a dense table of small text. Scaled to fit a phone it is a gray smear, so
+   below its natural width it becomes pannable inside its own figure instead — the reader drags it,
+   which is what you do with a wide table on a phone anyway. `.table-scroll` does the same for the
+   carrier table. Nothing else on the page may scroll sideways. */
+.shot-wide { overflow-x: auto; }
+.shot-wide img { min-width: 44rem; }
+
+.gallery { display: grid; gap: 1.8rem; margin-top: 1.5rem; }
+
+/* Two 16:9 television shots. They stack on a phone: half of 390px is unreadable for a whole screen
+   of words. */
+.gallery-2 { grid-template-columns: repeat(auto-fit, minmax(22rem, 1fr)); }
+
+/* Four tall phone shots. `auto-fit` takes these to 4, then 2 — and it must NOT reach 1: a phone
+   screenshot shown at full phone width is life-size, and four of them at life size is four screens
+   of scrolling to look at a gallery. Two-up keeps it a strip you glance at, which is the job.
+   Hence a floor of two columns rather than `minmax`'s natural collapse. */
+/* 14rem and not 15: the container is 65rem of content, and four 15rem tracks plus three 1.8rem gaps
+   is 65.4 — which overflows by a quarter of a rem and silently drops the row to three, leaving the
+   fourth shot alone underneath. Measured, not guessed. */
+.gallery-4 { grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); }
+
+@media (max-width: 34rem) {
+  .gallery-4 { grid-template-columns: repeat(2, 1fr); gap: 1rem; }
+  .gallery-4 .shot figcaption { font-size: 0.8rem; }
+}
+
+.gallery-title {
+  margin: 3rem 0 0;
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+
+/* -- sections --------------------------------------------------------------------------------- */
+
+main section { padding: 4.5rem 0 1rem; }
+
+h2 {
+  margin: 0 0 1.6rem;
+  font-size: clamp(1.6rem, 4vw, 2.1rem);
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+
+/* Full-bleed, so it takes an inner `<div class="wrap">` the way `.hero` and `footer` do -- never
+   `class="wrap band"` on the section itself. That spelling clipped the tint to 68rem, which read as
+   a box rather than a band, and this shorthand's `0` then beat `.wrap`'s `padding-inline` at equal
+   specificity and sat the text on the edge. `border-block` is the tell: a box would want four
+   sides. */
+.band {
+  margin-top: 3rem;
+  padding: 3rem 0 3.2rem;
+  background: var(--ground);
+  border-block: 1px solid var(--line);
+}
+.band p { max-width: 44rem; color: var(--muted); }
+.band .mono { color: var(--amber); }
+/* km-admin's hue, the fourth of the four. `--glow` straight measures 3.50:1 on `--ground` against
+   about 10:1 for the other three, so it is lifted 18% toward white -- the same answer `icon.rs`
+   gives, at a bigger number because the icon's M stands on the near-black plate and this stands on
+   the violet. 4.64:1. Lifted here rather than in `--glow`, which the hero's wash still wants dark. */
+.band-admin h2 { color: #CF5DA2; }
+
+.prose { max-width: 46rem; color: var(--muted); }
+.prose b { color: var(--text); }
+.dim { color: var(--dim); }
+
+/* -- feature cards ---------------------------------------------------------------------------- */
+
+/* Two by two, and the floor is what forces it. There are exactly four cards, so a three-across row
+   leaves the fourth stranded beside an empty half of the page — which is what a 20rem floor does in
+   a 65rem container. 22rem admits two tracks and never three. */
+.cards {
+  display: grid;
+  gap: 1.4rem;
+  grid-template-columns: repeat(auto-fit, minmax(22rem, 1fr));
+}
+
+.card {
+  background: var(--ground);
+  border: 1px solid var(--line);
+  border-top: 2px solid var(--line);
+  border-radius: var(--radius);
+  padding: 1.6rem 1.7rem;
+}
+
+/* The three product colors, used as the products use them. */
+.card-amber { border-top-color: var(--amber); }
+.card-blue  { border-top-color: var(--blue); }
+.card-green { border-top-color: var(--green); }
+
+.card h3 { margin: 0 0 0.9rem; font-size: 1.15rem; }
+.card-amber h3 { color: var(--amber); }
+.card-blue  h3 { color: var(--blue); }
+.card-green h3 { color: var(--green); }
+
+.card ul { margin: 0; padding-left: 1.15rem; }
+.card li { margin-bottom: 0.75rem; color: var(--muted); font-size: 0.95rem; }
+.card li:last-child { margin-bottom: 0; }
+.card li b { color: var(--text); }
+
+/* -- the carrier table ------------------------------------------------------------------------ */
+
+.table-scroll { overflow-x: auto; margin-top: 1.8rem; }
+
+.carriers {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 0.95rem;
+}
+
+.carriers th, .carriers td {
+  padding: 1rem 1.1rem;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+}
+
+.carriers thead th {
+  font-size: 0.75rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--dim);
+  border-bottom-color: var(--muted);
+}
+
+.carriers tbody th {
+  color: var(--amber);
+  white-space: nowrap;
+  width: 12rem;
+}
+
+.carriers td { color: var(--muted); }
+.carriers td b { color: var(--text); }
+
+/* -- footer ----------------------------------------------------------------------------------- */
+
+footer {
+  margin-top: 4rem;
+  padding: 3rem 0 4rem;
+  border-top: 1px solid var(--line);
+  background: var(--ground);
+  font-size: 0.92rem;
+}
+
+.foot-grid {
+  display: grid;
+  gap: 2.5rem;
+  grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+}
+
+footer h3 { margin: 0 0 0.8rem; font-size: 1rem; color: var(--text); }
+footer ul { margin: 0; padding: 0; list-style: none; }
+footer li { margin-bottom: 0.5rem; color: var(--dim); }
+footer p { margin: 0 0 0.8rem; }
+
+/* -- narrow ------------------------------------------------------------------------------------ */
+
+@media (max-width: 40rem) {
+  body { font-size: 16px; }
+  .hero { padding-top: 3rem; }
+  main section { padding-top: 3.2rem; }
+  .shot-hero { padding-inline: 1rem; }
+  .card { padding: 1.3rem 1.3rem; }
+
+  /* The carrier table stops being a table: two columns of prose in 390px is unreadable, and
+     scrolling a table sideways is worse than stacking it. */
+  .carriers, .carriers tbody, .carriers tr, .carriers td, .carriers th { display: block; }
+  .carriers thead { position: absolute; left: -9999px; }
+  .carriers tr {
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    margin-bottom: 1rem;
+    padding: 0.4rem 0.9rem 0.9rem;
+    background: var(--ground);
+  }
+  .carriers tbody th { width: auto; border-bottom: 0; padding-bottom: 0.2rem; }
+  .carriers td { border-bottom: 0; padding-top: 0.2rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; }
+  .btn:hover { transform: none; }
+}

@@ -1,0 +1,134 @@
+# km-wallpaper-pack — example configuration
+#
+# Copy to config.toml and edit. API keys are NEVER read from this file: they come from
+# PIXABAY_API_KEY, PEXELS_API_KEY and OPENVERSE_API_TOKEN, and a key-shaped entry here is a hard
+# error, so that a config file is always safe to commit.
+#
+#   PIXABAY_API_KEY=… km-wallpaper-pack all --config config.toml
+#
+# The third is **optional and the other two are not**: Openverse answers without a token, inside
+# three caps its `[[queries]]` group below spells out.
+#
+# **A pack built from Pixabay or Pexels may not be handed on.** Their terms permit you to use their
+# photographs and not to redistribute them, which is why `--zip-dest` defaults somewhere no release
+# can see. Openverse is the source whose packs may be shared.
+
+[output]
+# One size by default. The app resizes every wallpaper to the display before uploading it, so a 4K
+# copy buys nothing on a 1080p panel and costs four times the bytes.
+#
+# Before adding "3840x2160", check what the providers actually serve. Pixabay's largeImageURL is
+# capped at 1280 pixels whatever the photograph's real size, so asking for 4K there does not produce
+# a sharper pack -- it upscales every image 3x, quadruples the cost of `analyze`, and ships soft
+# JPEGs. `build` now warns per image when the source is narrower than the output size; believe it.
+sizes        = ["1920x1080"]
+format       = "jpeg"          # jpeg | webp
+jpeg_quality = 82
+target_count = 120
+# The deliverable. The app reads a zip in its wallpaper folder as a folder of wallpapers, so a pack
+# is one file to drop in and one file to remove.
+zip          = true
+
+[legibility]
+# The band the lyrics occupy, as fractions of image height.
+#
+# These are the app's own numbers, not a guess: km-display draws its two lyric rows at 0.42 and 0.55
+# of screen height, each about 0.085 tall — see `Theme::lyric_band`, and the test beside it named
+# `the_lyric_band_is_what_the_wallpaper_tool_measures`, which fails if a row moves out from under
+# this band. The margin either side is deliberate.
+#
+# Measuring the 16:9 frame covers every screen shape, which is worth knowing before "improving" it:
+# `Fit::Cover` crops to fill, so a wider screen sees a *shorter* slice of the picture and a narrower
+# one sees a *narrower* slice. Either way the visible band is a subset of this one, so this is the
+# worst case.
+band_top     = 0.40
+band_bottom  = 0.68
+
+# The lyric color, from `Theme::lyric_pending`. Near-white on purpose — pure white glares over a
+# bright photograph — and measuring against pure white would overstate every contrast ratio by about
+# a seventh.
+text_color  = "#ECEFF4"
+
+# The darkening the app itself applies, from `WallpaperConfig::default().dim`. An image ships when the
+# darkening it needs is no more than this. The pack does NOT bake any darkening in: doing both would
+# darken twice and would override a setting the user is entitled to change.
+assumed_dim  = 0.45
+
+# WCAG AAA rather than AA. Lyrics are read across a room, in motion, by somebody who is singing
+# rather than studying. The cost of aiming high is a smaller pack.
+target_contrast = 7.0
+
+# Applied before measuring and before writing. Most of why an image passes: blur raises the darkest
+# pixels, lowers the brightest, and destroys the fine detail that competes with letter shapes.
+blur_sigma   = 2.5
+vignette     = true
+
+[filters]
+min_source_width  = 2400   # room to crop and downscale -- but read as the PROVIDER describes the
+                           # photograph, and handed to its search as `min_width`. It decides which
+                           # pictures are asked for; it says nothing about the file that comes back.
+min_decoded_width = 1280   # the width of the file actually downloaded, which is a different number.
+                           # Pixabay serves 1280 whatever it advertised, so a 2400 gate on the line
+                           # above passed 4,682 files that were all 1280 wide and the pack was
+                           # silently upscaled to 4K for a month. A floor against tiny files.
+min_entropy       = 4.0    # rejects flat gradients and blown-out frames
+max_band_busyness = 0.16   # detail where the words go, which no darkening can rescue
+phash_distance    = 10     # at or below this, two images are the same photograph. A Hamming
+                           # distance over a 64-bit hash, so it is only meaningful against that
+                           # width: `perceptual_hash` once emitted 22 bits, where 10 matched two
+                           # unrelated photographs 42% of the time and a pack of 120 came back as 6.
+max_per_query     = 16     # so one search term cannot fill the pack. Ten terms are enabled below
+                           # (eight Pixabay, two Pexels), so 10 x 16 = 160 and `target_count` is what
+                           # binds; at 12 a pack could never exceed 120. Uncommenting the Openverse
+                           # group raises the ceiling again -- this number only matters when it is
+                           # *below* `target_count`, which is the arithmetic to redo after editing
+                           # the groups.
+
+# Keep only images whose license grants redistribution. Off by default: `--zip-dest` already writes
+# to local/assets/wallpapers, which nothing stages, so a pack goes nowhere but the machine that
+# built it. Turn it on when the pack is for somebody else -- what changes is that a Pixabay or
+# Pexels image is rejected and counted as `not_redistributable` rather than quietly included.
+redistributable_only = false
+
+# Pixabay: ~100 requests a minute, 200 hits a page. A generous list of terms is affordable here.
+[[queries]]
+provider = "pixabay"
+terms = [
+  "mountain lake dusk",
+  "misty forest morning",
+  "desert dunes sunset",
+  "coastal cliffs long exposure",
+  "aurora night sky",
+  "rice terraces fog",
+  "glacier ice blue hour",
+  "rolling hills wildflowers",
+]
+pages = 3
+
+# Pexels: 200 requests an *hour*, so slots are eighteen seconds apart. A few good terms rather than
+# forty speculative ones.
+[[queries]]
+provider = "pexels"
+terms = ["calm ocean horizon", "alpine valley clouds"]
+pages = 2
+
+# Openverse: **the only source here whose pack may be handed on.** An aggregator over Wikimedia
+# Commons, Flickr, StockSnap, rawpixel and museum open collections, filtered to the licenses that
+# grant redistribution -- cc0, pdm and by. Commented out because the two groups above already fill a
+# pack; uncomment it, and set `redistributable_only` above, when the pack is for somebody else.
+#
+# **Set OPENVERSE_API_TOKEN.** Without one you get 20 requests a minute and 200 a day, at most 20
+# results a page, and -- the one that actually hurts -- no search can see past its first 240 hits.
+# That last is a ceiling, not a delay: waiting does not get you result 241. Register at
+# https://api.openverse.org/v1/auth_tokens/register/ and exchange the credentials at
+# .../auth_tokens/token/. With a token: 100/min and 10,000/day.
+#
+# **Expect a low yield, and it is `min_decoded_width` doing its job.** Openverse reports the width of
+# the *work*, while the `url` it hands you is often a scaled rendition of it -- the same trap Pixabay
+# sets, one layer further away. A measured run: 42 candidates, 41 rejected as `too_small_on_disk`.
+# Ask for more pages than feels necessary, and prefer terms whose results come from Wikimedia, whose
+# `url` is the original file.
+#[[queries]]
+#provider = "openverse"
+#terms = ["mountain lake dusk", "aurora borealis", "milky way landscape"]
+#pages = 4

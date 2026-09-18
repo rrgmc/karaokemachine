@@ -1,0 +1,538 @@
+{% extends "layout.html" %}
+{% block title %}{{ song.effective_title() }} &middot; {{ crate::APP_NAME }}{% endblock %}
+{% block content %}
+
+<p class="back"><a href="{{ chrome.songs_href() }}">&lsaquo; {{ "song-back"|t }}</a></p>
+
+<div class="spread">
+  <h2>
+    {% if song.title_is_filename() %}<span class="dim"
+       title="{{ "song-no-title-title"|t }}">{{ song.effective_title() }}</span>
+    {%- else %}{{ song.effective_title() }}{% endif %}
+    {% match song.effective_artist() %}{% when Some with (a) %}<span class="dim">&mdash; {{ a }}</span>{% when None %}{% endmatch %}
+  </h2>
+  <span class="row">
+    <button hx-post="/songs/{{ song.id }}/play" hx-target="#action-result" hx-swap="innerHTML">&#9654; {{ "song-test-play"|t }}</button>
+    <button hx-post="/songs/{{ song.id }}/reveal" hx-target="#action-result" hx-swap="innerHTML">&#8599; {{ "song-open-in-os"|t }}</button>
+    {# The browse row's ≈ button, opening where that one does, and named here because this row
+       names every button in it. #}
+    {% let similar = song.similar_url() %}
+    {% if !similar.is_empty() %}<a href="{{ similar }}" target="_blank"><button type="button" title="{{ "row-similar-title"|t }}">&#8776; {{ "song-similar"|t }}</button></a>{% endif %}
+    <a href="/songs/{{ song.id }}/download"><button type="button">&#8681; {{ "song-download"|t }}</button></a>
+    {% if !youtube.is_empty() %}<a href="{{ youtube }}" target="_blank" rel="noopener"><button type="button">&#9834; {{ "song-youtube"|t }}</button></a>{% endif %}
+    {% if !song.favorites.is_empty() %}
+    <span class="tag" title="{{ "song-favorites-title"|t }}">&#9733; {{ song.favorites.len() }}</span>
+    {% endif %}
+  </span>
+</div>
+
+{# Above the tabs and outside every pane, because almost every button on this page answers into it:
+   a message landing in a pane that is not open is a button that did nothing. #}
+<div id="action-result"></div>
+
+{% match song.merged_into %}
+{% when Some with (other) %}
+<div class="message error">
+  {# Two keys around the link, because the other song is what the link points at. #}
+  {{ "song-merged-lead"|t }} <a href="/songs/{{ other }}">{{ "song-another-song"|t }}</a>
+  {{ "song-merged-tail"|t }}
+  <button hx-post="/songs/{{ song.id }}/unmerge" hx-target="#action-result" hx-swap="innerHTML">{{ "song-unmerge"|t }}</button>
+</div>
+{% when None %}{% endmatch %}
+
+{# A different notice from the merge banner above, and deliberately worded so it cannot be mistaken
+   for one. That one reports a decision somebody made; this reports a guess the tool made, and says
+   which button undoes which. #}
+{% match song.duplicate_of %}
+{% when Some with (best) %}
+<div class="message">
+  {{ "song-duplicate-lead"|t }} <a href="/songs/{{ best }}">{{ "song-that-one"|t }}</a>
+  {{ "song-duplicate-tail"|t }}
+  <button hx-post="/songs/{{ song.id }}/release" hx-target="#action-result" hx-swap="innerHTML"
+          title="{{ "song-show-anyway-title"|t }}">{{ "song-show-anyway"|t }}</button>
+</div>
+{% when None %}{% endmatch %}
+
+{# One subject a tab: what this song is, what it is on disk, where it has been put, what it says, and
+   what its channels do. The boxes fall into those groups, and side by side down a page they read as
+   a sequence when what they are is things somebody comes here for one at a time.
+
+   Advanced is drawn only for a file with channels to show, which is to say a MIDI song whose bytes
+   are still there. A tab that opens onto nothing is worse than a tab that is not offered.
+
+   **The `.curate` pattern, with a prefix of its own.** Hidden radios, flat siblings, `:checked ~`,
+   no `:has()` and no script -- the whole argument is in `style.css`, in the block above the one
+   these rules sit in, and applies here unchanged. The prefix is not decoration: `curate-tags` and
+   `curate-favorites` are page-global ids the Songs page already uses.
+
+   A pane holds the `.panel` cards it always held, in the `.grid` that lays two of them side by side
+   on a wide window. The pane itself draws nothing, so the strip hangs over cards rather than over a
+   box holding cards. #}
+<div class="songtabs">
+  <input type="radio" name="song-tab" id="song-tab-details" checked>
+  <input type="radio" name="song-tab" id="song-tab-files">
+  <input type="radio" name="song-tab" id="song-tab-filing">
+  <input type="radio" name="song-tab" id="song-tab-lyrics">
+  <input type="radio" name="song-tab" id="song-tab-advanced">
+  <div class="tabstrip">
+    <label for="song-tab-details">{{ "song-tab-details"|t }}</label>
+    <label for="song-tab-files">{{ "song-tab-files"|t }}</label>
+    <label for="song-tab-filing">{{ "song-tab-filing"|t }}</label>
+    <label for="song-tab-lyrics">{{ "song-tab-lyrics"|t }}</label>
+    {% if !channels.is_empty() %}<label for="song-tab-advanced">{{ "song-tab-advanced"|t }}</label>{% endif %}
+  </div>
+
+  <div class="pane details">
+  <div class="grid">
+
+  <div class="panel">
+    <h3>{{ "song-tab-details"|t }}</h3>
+    <form hx-post="/songs/{{ song.id }}/edit" hx-target="#edit-result" hx-swap="innerHTML">
+      <dl class="facts">
+        <dt><label for="title">{{ "column-title"|t }}</label></dt>
+        <dd>
+          <input id="title" name="title" size="34"
+                 value="{% match song.title %}{% when Some with (v) %}{{ v }}{% when None %}{% endmatch %}"
+                 placeholder="{% match song.det_title %}{% when Some with (v) %}{{ v }}{% when None %}{{ "song-file-says-nothing"|t }}{% endmatch %}">
+        </dd>
+
+        <dt><label for="artist">{{ "column-artist"|t }}</label></dt>
+        <dd>
+          <input id="artist" name="artist" size="34"
+                 value="{% match song.artist %}{% when Some with (v) %}{{ v }}{% when None %}{% endmatch %}"
+                 placeholder="{% match song.det_artist %}{% when Some with (v) %}{{ v }}{% when None %}{{ "song-file-says-nothing"|t }}{% endmatch %}">
+        </dd>
+
+        <dt><label for="language">{{ "songs-tab-language"|t }}</label></dt>
+        <dd>
+          <select id="language" name="language">
+            <option value="">({{ "row-language-unknown"|t }})</option>
+            {% if !corpus_languages.is_empty() %}
+            <optgroup label="{{ "package-in-this-corpus"|t }}">
+              {% for choice in corpus_languages %}
+              <option value="{{ choice.value }}">{{ choice.label }}</option>
+              {% endfor %}
+            </optgroup>
+            {% endif %}
+            <optgroup label="{{ "package-every-language"|t }}">
+              {% for choice in languages %}
+              <option value="{{ choice.value }}" {% if choice.selected %}selected{% endif %}>{{ choice.label }}</option>
+              {% endfor %}
+            </optgroup>
+          </select>
+          {% if song.language_is_detected() %}
+          {# A code the file declared sits inside the sentence, so both are composed in Rust. #}
+          <div class="dim">{{ said.language_guess }}</div>
+          {% else if !said.language_unknown_code.is_empty() %}
+          <div class="dim">{{ said.language_unknown_code }}</div>
+          {% endif %}
+        </dd>
+
+        <dt><label for="transpose">{{ "song-transpose"|t }}</label></dt>
+        <dd>
+          <input id="transpose" name="transpose" type="number" min="-12" max="12" size="4"
+                 value="{% match song.default_transpose %}{% when Some with (v) %}{{ v }}{% when None %}{% endmatch %}"
+                 placeholder="0">
+          <span class="dim">{{ "song-semitones"|t }}</span>
+        </dd>
+
+        <dt><label for="notes">{{ "song-notes"|t }}</label></dt>
+        <dd><textarea id="notes" name="notes">{% match song.notes %}{% when Some with (v) %}{{ v }}{% when None %}{% endmatch %}</textarea></dd>
+      </dl>
+      <button class="primary">{{ "action-save"|t }}</button>
+      <span id="edit-result"></span>
+    </form>
+  </div>
+
+  <div class="panel">
+    <h3>{% if song.kind.is_midi() %}{{ "song-file-analysis"|t }}{% else %}{{ "song-file-info"|t }}{% endif %}</h3>
+    <dl class="facts">
+      {% match song.midi %}
+      {% when Some with (midi) %}
+      <dt>{{ "column-suitability"|t }}</dt>
+      <dd>
+        <span class="suitability {{ crate::views::suitability_class(&midi.suitability_opt()) }}">{{ midi.suitability }}</span>/10
+        <span class="dim">{{ said.suitability_parts }}</span>
+      </dd>
+      {% when None %}
+      <dt>{{ "column-suitability"|t }}</dt>
+      <dd>
+        <span class="suitability high">10</span>/10
+        <div class="dim">{{ "song-native-karaoke"|t }}</div>
+      </dd>
+      {% endmatch %}
+      <dt>{{ "song-your-rating"|t }}</dt>
+      <dd>
+        <form class="row" hx-post="/songs/{{ song.id }}/user-score?as=toast" hx-target="#action-result" hx-swap="innerHTML">
+          <select name="score">
+            <option value="">{{ "songs-unset"|t }}</option>
+            {% for choice in ratings %}
+            <option value="{{ choice.value }}" {% if choice.selected %}selected{% endif %}>{{ choice.value }}</option>
+            {% endfor %}
+          </select>
+          <button>{{ "row-set"|t }}</button>
+        </form>
+      </dd>
+      {% match song.midi %}
+      {% when Some with (midi) %}
+      <dt>{{ "column-melody"|t }}</dt>
+      <dd>{{ said.melody }}</dd>
+      <dt>{{ "song-format"|t }}</dt>
+      <dd>{{ midi.flavor }} <span class="dim">&middot; {{ midi.granularity }}</span></dd>
+      <dt>{{ "column-length-full"|t }}</dt>
+      <dd>{{ song.duration() }}</dd>
+      <dt>{{ "song-content"|t }}</dt>
+      <dd>{{ said.content }}</dd>
+      <dt>{{ "songs-encoding"|t }}</dt>
+      <dd>
+        {{ midi.det_encoding }}
+        <span class="tag {% if song.encoding_guessed() %}warn{% endif %}">{{ midi.det_encoding_source }}</span>
+        {% if song.encoding_guessed() %}
+        <div class="dim">{{ "song-encoding-guess"|t }}</div>
+        {% endif %}
+      </dd>
+      {% when None %}
+      {% endmatch %}
+
+      {% match song.video %}
+      {% when Some with (video) %}
+      <dt>{{ "song-picture"|t }}</dt>
+      <dd>{{ video.resolution() }} <span class="dim">&middot; {{ video.frame_rate() }} fps</span></dd>
+      <dt>{{ "column-length-full"|t }}</dt>
+      <dd>{{ song.duration() }}</dd>
+      <dt>{{ "song-codecs"|t }}</dt>
+      <dd>{{ video.video_codec }} <span class="dim">&middot; {{ video.audio_codec }} {{ "song-audio"|t }}</span></dd>
+      {% when None %}
+      {% endmatch %}
+
+      {% match song.cdg %}
+      {% when Some with (cdg) %}
+      <dt>{{ "song-graphics-file"|t }}</dt>
+      <dd class="mono">{{ cdg.graphics_path }}</dd>
+      <dt>{{ "column-length-full"|t }}</dt>
+      <dd>{{ song.duration() }} <span class="dim">&middot; {{ said.cdg_length }}</span></dd>
+      <dt>{{ "song-audio"|t }}</dt>
+      <dd>{{ cdg.sample_rate }} Hz <span class="dim">&middot; {{ said.cdg_audio }}</span></dd>
+      <dt>{{ "song-graphics"|t }}</dt>
+      <dd>
+        {{ said.cdg_graphics }}
+        {% match said.cdg_unknown %}{% when Some with (unknown) %}
+        <div class="dim">{{ unknown }}</div>
+        {% when None %}{% endmatch %}
+      </dd>
+      {% when None %}
+      {% endmatch %}
+
+      <dt>{{ "song-added"|t }}</dt>
+      <dd title="{{ song.first_seen }}">{{ song.added_on() }}</dd>
+      <dt>{{ "song-hash"|t }}</dt>
+      <dd class="mono">{{ song.id }}</dd>
+    </dl>
+
+    {% if !song.parsed_warnings().is_empty() %}
+    <h3>{{ "song-warnings"|t }}</h3>
+    <ul>
+      {% for warning in song.parsed_warnings() %}
+      <li><span class="tag warn">{{ warning.code }}</span> {{ warning.message }}</li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+  </div>
+
+  </div>
+  </div>
+
+  <div class="pane files">
+  <div class="grid">
+
+  <div class="panel">
+    <h3>{{ said.files_heading }}</h3>
+    {% if song.files.is_empty() %}
+    <p class="bad">{{ "song-no-files"|t }}</p>
+    {% else %}
+    <ul class="mono">
+      {% for file in song.files %}
+      <li>
+        {{ file.path }} <span class="dim">({{ file.size }} {{ "song-bytes"|t }})</span>
+      </li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+  </div>
+
+  {# Beside *Files on disk*, which answers "how many copies of these exact bytes". This is the same
+     question one step out: how many files are this same song, saved differently.
+
+     **Drawn whether or not there is one**, as every tab on the Songs page is: a box that vanishes
+     leaves a tab that is sometimes one card wide and sometimes two, and the sentence a corpus
+     nobody has run the suggestion pass over deserves is the same sentence a song in no cluster
+     deserves. #}
+  <div class="panel">
+    <h3>{{ said.versions_heading }}</h3>
+    {% if versions.is_empty() %}
+    <p class="dim">{{ "song-no-other-versions"|t }}</p>
+    {% else %}
+    <p class="dim">{{ "song-other-versions-note"|t }}</p>
+    <table>
+      <thead>
+        <tr><th>{{ "column-title"|t }}</th><th class="num" title="{{ "column-suitability-title"|t }}">{{ "column-suitability"|t }}</th>
+            <th class="num">{{ "column-length"|t }}</th><th class="num" title="{{ "column-copies-title"|t }}">{{ "column-copies"|t }}</th><th></th></tr>
+      </thead>
+      <tbody>
+      {% for other in versions %}
+        <tr>
+          <td><a href="/songs/{{ other.id }}">{{ other.title }}</a>
+            {%- match other.artist %}{% when Some with (a) %} <span class="dim">&mdash; {{ a }}</span>{% when None %}{% endmatch -%}
+          </td>
+          <td class="num"><span class="suitability {{ crate::views::suitability_class(other.suitability) }}">
+            {%- match other.suitability %}{% when Some with (s) %}{{ s }}{% when None %}&mdash;{% endmatch -%}
+          </span></td>
+          <td class="num">{{ other.duration() }}</td>
+          <td class="num">{% if other.file_count > 1 %}<span class="tag warn">{{ other.file_count }}</span>{% else %}1{% endif %}</td>
+          <td class="actions">
+            <span class="row">
+              <button hx-post="/songs/{{ other.id }}/play" hx-target="#action-result"
+                      hx-swap="innerHTML" title="{{ "song-test-play-version-title"|t }}">&#9654;</button>
+              {# The one judgment left for a person, and it sits beside the button that lets them
+                 make it: play both, then say so. A dismissal is permanent -- the pair never groups
+                 again -- which is why it is worded as a statement rather than as a preference. #}
+              <button hx-post="/songs/{{ song.id }}/not-the-same/{{ other.id }}"
+                      hx-target="#action-result" hx-swap="innerHTML"
+                      title="{{ "song-not-the-same-title"|t }}">{{ "song-not-the-same"|t }}</button>
+            </span>
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+  </div>
+
+  </div>
+  </div>
+
+  {# Three ways of putting a song somewhere, which is one subject: a tag says what kind of thing it
+     is, a favorite is somebody's own filing of it, and a package is what a machine will be given. #}
+  <div class="pane filing">
+  <div class="grid">
+
+  <div class="panel">
+    <h3>{{ "songs-tab-tags"|t }}</h3>
+    <form class="row" hx-post="/songs/{{ song.id }}/tags" hx-target="#tag-list" hx-swap="outerHTML">
+      <input type="hidden" name="action" value="add">
+      <input type="text" name="tag" list="known-tags" autocomplete="off"
+             placeholder="rock" size="14"
+             title="{{ "song-tag-title"|t }}">
+      <button>{{ "curate-add"|t }}</button>
+    </form>
+    {{ tag_list|safe }}
+    <datalist id="known-tags">
+      {% for tag in known_tags %}
+      <option value="{{ tag }}"{% if is_suggestion(tag) %} label="{{ tag }} — {{ "songs-suggested"|t }}"{% endif %}></option>
+      {% endfor %}
+    </datalist>
+
+    <h3>{{ "nav-favorites"|t }}</h3>
+    {% if favorites.is_empty() %}
+    <p class="dim">{{ "song-no-favorites-defined"|t }}</p>
+    {% else %}
+    <form hx-post="/songs/{{ song.id }}/favorites" hx-target="#action-result" hx-swap="innerHTML">
+      {% for f in favorites %}
+      <label style="display:block">
+        <input type="checkbox" name="favorite" value="{{ f.id }}"
+               {% if song.has_favorite(f.id) %}checked{% endif %}>
+        {{ f.name }}
+      </label>
+      {% endfor %}
+      <button>{{ "song-save-favorites"|t }}</button>
+    </form>
+    {% endif %}
+  </div>
+
+  <div class="panel">
+    <h3>{{ "nav-packages"|t }}</h3>
+    {% if song.packages.is_empty() %}
+    <p class="dim">{{ "song-no-packages"|t }}</p>
+    {% else %}
+    <ul>
+      {% for entry in song.packages %}
+      <li><a href="/packages/{{ entry.0 }}?volume={{ entry.1 }}">{{ entry.0 }}</a> {{ "song-as-number"|t }} {{ entry.2 }}</li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+    {% if !packages.is_empty() %}
+    <form class="row" hx-post="/packages/add" hx-target="#action-result" hx-swap="innerHTML">
+      <input type="hidden" name="song_id" value="{{ song.id }}">
+      <select name="package_id">
+        {% for p in packages %}<option value="{{ p.id }}">{{ p.name }}</option>{% endfor %}
+      </select>
+      <button>{{ "song-add-to-package"|t }}</button>
+    </form>
+    {% endif %}
+    {# Puts this song at a number another song holds, for a better file of a song already packaged.
+       Remove and Add would give it the number after the highest, and the number is what a songbook
+       prints. A volume rather than a package, because a number is only unique inside one; sourced
+       packages too, because the replacement changes the lists they follow as well. It asks first,
+       naming the song that leaves the number. #}
+    {% if !volumes.is_empty() %}
+    <form class="row" hx-post="/packages/replace" hx-target="#action-result" hx-swap="innerHTML"
+          title="{{ "song-replace-title"|t }}">
+      <input type="hidden" name="song_id" value="{{ song.id }}">
+      <label>{{ "song-replace-number"|t }}
+        <input type="number" name="number" min="1" max="999" required style="width:5em">
+      </label>
+      <label>{{ "song-replace-in"|t }}
+        <select name="slot">
+          {% for v in volumes %}<option value="{{ self.slot(v) }}">{{ v.volume_name() }}</option>{% endfor %}
+        </select>
+      </label>
+      <button>{{ "song-replace"|t }}&hellip;</button>
+    </form>
+    {% endif %}
+  </div>
+
+  </div>
+  </div>
+
+  <div class="pane lyrics">
+  <div class="panel">
+    <div class="spread">
+      <h3 style="margin-top:0">{{ "song-tab-lyrics"|t }}</h3>
+      <form class="row" hx-get="/songs/{{ song.id }}/lyrics" hx-target="#lyrics" hx-swap="innerHTML">
+        <label>{{ "song-decode-as"|t }}
+          <select name="encoding">
+            {% for choice in encodings %}
+            <option value="{{ choice.value }}" {% if choice.selected %}selected{% endif %}>{{ choice.value }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <button>{{ "song-show"|t }}</button>
+      </form>
+    </div>
+    {# `load` rather than `revealed`: this pane starts hidden, and a `display: none` element is never
+       revealed by a CSS rule changing -- so the words would arrive only for somebody who opened the
+       tab and then scrolled. `load` fires for an element that is in the page, open or not. #}
+    <div id="lyrics" hx-get="/songs/{{ song.id }}/lyrics" hx-trigger="load" hx-swap="innerHTML">
+      <p class="dim">{{ "song-loading"|t }}&hellip;</p>
+    </div>
+
+    <h3>{{ "song-text-events"|t }}</h3>
+    <div id="raw">
+      <button hx-get="/songs/{{ song.id }}/raw" hx-target="#raw" hx-swap="innerHTML">{{ "song-show-raw"|t }}</button>
+    </div>
+  </div>
+  </div>
+
+  {% if !channels.is_empty() %}
+  <div class="pane advanced">
+  <div class="panel">
+    <h3 style="margin-top:0">{{ "song-channels"|t }}</h3>
+    {# The whole file, one row per channel: what it plays, how much of it there is, what the melody
+       detector made of it, and every correction it can be given. The Details tab carries the one
+       correction somebody reaches for while listening; this is where somebody goes having decided
+       the file itself is wrong.
+
+       **Melody is evidence and not the confidence on the Details panel.** Confidence folds in how
+       far the winner stood clear of the field, which is a property of the song; evidence is the
+       channel's own signals, which is what can be put in a column beside the others. The number is
+       the mark: above nine tenths it is coloured, and a column of numbers to compare needs no
+       second column naming the largest.
+
+       **The column is also where the melody channel is chosen**, because the evidence and the
+       choice are the same question and a page that showed one and took the other elsewhere would be
+       asking somebody to remember a table while looking at a select. A song detection abstained
+       about is exactly the one somebody opens this tab for. The drum channel has no radio: it
+       sounds a kit rather than a part.
+
+       Leaving the table as it was found stores nothing, so a song goes on being detected until
+       somebody actually changes a control -- see `crate::fixes::selection` and
+       `crate::fixes::melody_selection`. #}
+    <form hx-post="/songs/{{ song.id }}/corrections" hx-target="#channels-result" hx-swap="innerHTML">
+      <table class="rows">
+        <thead>
+          <tr>
+            <th>{{ "song-channel"|t }}</th>
+            <th>{{ "song-instrument-in-file"|t }}</th>
+            <th>{{ "song-notes-column"|t }}</th>
+            <th>{{ "song-track"|t }}</th>
+            {# The *no melody* radio lives in the head, because it is the one answer that is about
+               the song rather than about a channel and so has no row to sit in. It is part of the
+               same group, so choosing it unticks whichever channel was ticked. #}
+            <th>{{ "column-melody"|t }}
+              <label class="no-melody"><input type="radio" name="melody" value="none"
+                     {% if melody_is_none %}checked{% endif %}> {{ "song-no-melody"|t }}</label>
+            </th>
+            <th>{{ "song-ignore-bank"|t }}</th>
+            <th>{{ "song-silence"|t }}</th>
+            <th>{{ "song-recentre-bend"|t }}</th>
+            <th>{{ "song-play-as"|t }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in channels %}
+          <tr>
+            <td>{{ row.channel }}{% if row.drums %} <span class="dim">{{ "song-drums"|t }}</span>{% endif %}</td>
+            <td>{{ row.instrument }}</td>
+            <td>{% if row.notes > 0 %}{{ row.notes }}{% endif %}</td>
+            <td class="dim">{{ row.track }}</td>
+            <td>
+              {% if row.melody_candidate %}
+              <input type="radio" name="melody" value="{{ row.channel }}"
+                     {% if row.chosen %}checked{% endif %}
+                     title="{{ "song-melody-is-this"|t }}">
+              {% endif %}
+              {% if row.melody_strong %}<span class="good">{{ row.melody }}</span>
+              {% else %}{{ row.melody }}{% endif %}
+              {% if row.found %}<span class="dim">{{ "songs-melody-found"|t }}</span>{% endif %}
+            </td>
+            <td>
+              {% match row.bank %}
+              {% when Some with (bank) %}
+              <input type="checkbox" name="fix" value="{{ bank.value }}"
+                     {% if bank.checked %}checked{% endif %}>
+              {% if bank.detected %}<span class="dim">{{ "songs-encoding-detected"|t }}</span>{% endif %}
+              {% when None %}{% endmatch %}
+            </td>
+            <td>
+              <input type="checkbox" name="fix" value="{{ row.mute.value }}"
+                     {% if row.mute.checked %}checked{% endif %}>
+              {% if row.mute.detected %}<span class="dim">{{ "songs-encoding-detected"|t }}</span>{% endif %}
+            </td>
+            {# Offered only where detection suggests it or it is in force, like the bank select. It
+               never applies itself, so the hint says suggested rather than detected: an unticked
+               box beside "detected" would read as a correction already in force. #}
+            <td>
+              {% match row.recentre %}
+              {% when Some with (recentre) %}
+              <input type="checkbox" name="fix" value="{{ recentre.value }}"
+                     title="{{ "song-recentre-bend-title"|t }}"
+                     {% if recentre.checked %}checked{% endif %}>
+              {% if recentre.detected %}<span class="dim">{{ "songs-suggested"|t }}</span>{% endif %}
+              {% when None %}{% endmatch %}
+            </td>
+            <td>
+              {% if row.programs.is_empty() %}
+              <span class="dim">{{ "song-a-kit"|t }}</span>
+              {% else %}
+              <select name="fix">
+                {% for program in row.programs %}
+                <option value="{{ program.value }}"
+                        {% if program.selected %}selected{% endif %}>{{ program.name }}</option>
+                {% endfor %}
+              </select>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <button class="primary">{{ "song-save-corrections"|t }}</button>
+      <span id="channels-result"></span>
+      <div class="dim">{{ "song-correction-note"|t }}</div>
+    </form>
+  </div>
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

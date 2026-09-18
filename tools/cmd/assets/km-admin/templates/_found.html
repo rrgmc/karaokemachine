@@ -1,0 +1,29 @@
+{# What a browse turned up, swapped into the front door once it answers.
+
+   **Not one of these rows is `checked`.** Listing is not setting: the worst thing that happens to a
+   remote which re-points itself is browsing the wrong catalog, and the worst thing that happens here
+   is a gigabyte landing on somebody else's television. A row that opened selected would be adoption
+   with a coat on, and `a_discovered_row_is_never_preselected` says so. #}
+{% if found.is_empty() %}
+<p class="hint">{{ "door-none-found"|t }}</p>
+{% else %}
+<ul class="machines">
+  {% for machine in found %}
+  <li>
+    <label>
+      <input type="radio" name="row" value="{{ machine.url }}">
+      <strong>{{ machine.name }}</strong>
+      <span class="mono">{{ machine.url }}</span>
+      {% match chosen %}
+      {% when Some with (address) %}{% if address.as_str() == machine.url.as_str() %}<span class="dim">{{ "door-this-one"|t }}</span>{% endif %}
+      {% when None %}
+      {% endmatch %}
+    </label>
+  </li>
+  {% endfor %}
+</ul>
+{% endif %}
+
+<p class="hint">
+  <a href="#" hx-get="/admin/connect/found" hx-target="#found" hx-swap="innerHTML">{{ "door-look-again"|t }}</a>
+</p>

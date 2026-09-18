@@ -1,0 +1,3 @@
+// The Android wrapper around the Rust machine. See README.md beside this file.
+rootProject.name = 'karaokemachine'
+include ':app'

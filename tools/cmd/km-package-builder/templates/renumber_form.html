@@ -1,0 +1,8 @@
+<form class="row" id="renumber-form" {% if oob %}hx-swap-oob="true" {% endif %}
+      hx-post="/packages/{{ package_id }}/renumber?volume={{ volume }}" hx-target="#action-result" hx-swap="innerHTML"
+      style="margin-top:0.5rem">
+  {# The label carries the number it would start from, so it is composed in Rust and arrives as a
+     field -- markup carries a key and nothing else. #}
+  <button>{{ button }}</button>
+  <span class="dim">{{ "renumber-note"|t }}</span>
+</form>

@@ -1,0 +1,37 @@
+[package]
+name = "km-tray"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+description = "An icon in the OS icon bar, for a program that runs a web server and then gets out of the way."
+
+[lints]
+workspace = true
+
+[dependencies]
+anyhow = { workspace = true }
+tracing = { workspace = true }
+
+# **Per target rather than behind a feature, and the difference matters here.** This crate is a
+# workspace member, so `cargo build --workspace` compiles it on every platform -- and on Linux
+# `tray-icon`'s only backend is gtk plus `libayatana-appindicator`, linked at load time, which is
+# exactly the dependency the `The package builder's window` decision refuses to take on for `wry`. A
+# target table naming the two platforms that have one means a Linux build compiles this crate to a
+# stub with nothing for a staging script to get wrong; the `km-video`/ffmpeg feature pattern in the
+# root manifest is the alternative and is heavier than this needs, ffmpeg costing libclang where
+# `tray-icon` on Windows and macOS cost nothing at all.
+#
+# **Named platforms rather than `not(linux)`**, because `tray-icon` sends the BSDs down the same gtk
+# path Linux takes -- so the negative spelling would ask for `libayatana-appindicator` there too, on
+# a platform nothing here is built for and nobody would notice until it failed.
+[target.'cfg(any(windows, target_os = "macos"))'.dependencies]
+tray-icon = { workspace = true }
+
+# Only macOS decodes a picture. Windows reads the icon back out of the executable's own resources --
+# the same `LoadImageW` route `desktop.rs`'s `window_icon` takes -- so it needs no decoder, and
+# saying so per target is what keeps one out of that build.
+[target.'cfg(target_os = "macos")'.dependencies]
+image = { workspace = true }

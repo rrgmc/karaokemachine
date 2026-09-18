@@ -1,0 +1,46 @@
+[package]
+name = "km-admin-pages"
+description = "The owner's page: packages, pictures, sound and the machine itself"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+# Everything this page is about. Handlers call `km_api::ops::*` and the `Controller`/`Catalog`
+# trait objects **directly** rather than re-issuing HTTP against the machine's own API -- that is the
+# `One implementation of each operation` decision, and it is the same call `km-remote-pages` makes
+# for the same reason.
+km-api = { workspace = true }
+# The ISO 639-1 table, for naming a package's languages the way packaging and the curation tool do.
+km-kmpkg = { workspace = true }
+# `MAX_BANK`, so the block a package is moved to is checked against the same number the API
+# route checks it against rather than a second copy of it.
+km-songcode = { workspace = true }
+
+askama = { workspace = true }
+# The owner pages' own words, and the askama filter the templates render them through.
+km-locale = { workspace = true, features = ["askama"] }
+# `multipart`, because this crate's whole subject is files arriving from a browser. `km-api` already
+# asks for the same feature; cargo features are additive, so this is the second crate agreeing rather
+# than a new cost.
+axum = { workspace = true, features = ["multipart"] }
+tokio = { workspace = true }
+async-trait = { workspace = true }
+thiserror = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+# Driving the real router as a service, the way `km-api`, `km-remote-pages` and the package builder
+# all test theirs. It matters more here than in any of them: this crate's guard denies by default and
+# is mounted under `nest`, so what has to be tested is the *nested* router answering, not a table.
+tower = { workspace = true, features = ["util"] }
+# The `TestMachine` the pages are rendered against.
+km-api = { workspace = true, features = ["testing"] }

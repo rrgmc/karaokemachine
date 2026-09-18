@@ -1,0 +1,15 @@
+<span class="row">
+  <strong>{{ subject }}</strong>
+  {% if whole_corpus %}
+  <span class="warn">&mdash; {{ "confirm-whole-corpus"|t }}</span>
+  {% else %}
+  {{ "confirm-matching"|t }} {% for f in filters %}<span class="tag good">{{ f }}</span>{% endfor %}
+  {% endif %}
+  &rarr; {{ "confirm-read-again"|t }}
+  {% for song in songs %}<input type="hidden" name="song_id" value="{{ song }}">{% endfor %}
+  <button class="primary" hx-post="/songs/reanalyze?{{ query }}&amp;confirm=1"
+          hx-target="#reanalyze-result" hx-swap="innerHTML"
+          hx-include="#reanalyze">{{ confirm }}</button>
+  <button type="button" hx-get="/songs/reanalyze/cancel"
+          hx-target="#reanalyze-result" hx-swap="innerHTML">{{ "action-cancel"|t }}</button>
+</span>

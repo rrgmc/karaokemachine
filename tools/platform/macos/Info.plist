@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  The application bundle's manifest. `tools/platform/macos/app-bundle.sh` substitutes @VERSION@ and copies
+  this in; everything else is fixed.
+-->
+<plist version="1.0">
+<dict>
+    <key>CFBundleName</key>
+    <string>KaraokeMachine</string>
+    <key>CFBundleDisplayName</key>
+    <string>KaraokeMachine</string>
+    <key>CFBundleIdentifier</key>
+    <string>com.karaokemachine.app</string>
+    <key>CFBundleExecutable</key>
+    <string>karaokemachine</string>
+    <!-- Without extension. macOS looks for `<this>.icns` in Contents/Resources. -->
+    <key>CFBundleIconFile</key>
+    <string>karaokemachine</string>
+    <key>CFBundleShortVersionString</key>
+    <string>@VERSION@</string>
+    <key>CFBundleVersion</key>
+    <string>@VERSION@</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleInfoDictionaryVersion</key>
+    <string>6.0</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>11.0</string>
+    <!-- Music, not Entertainment: what this does is play a song and put its words on the screen.
+         Entertainment is the shelf the system keeps for games and film players, and a video *song*
+         is still a song. Advisory metadata -- Finder, Launchpad and the App Store read it and
+         nothing at run time does. -->
+    <key>LSApplicationCategoryType</key>
+    <string>public.app-category.music</string>
+    <!-- The display is landscape and full screen; there is nothing for dark mode to restyle, and
+         saying so stops macOS drawing a light title bar over a dark app. -->
+    <key>NSHighResolutionCapable</key>
+    <true/>
+    <key>NSRequiresAquaSystemAppearance</key>
+    <false/>
+    <!--
+      The document type. **Both halves are needed and they do different jobs.**
+
+      `CFBundleDocumentTypes` says "this application opens files of this type". On its own that is a
+      claim about a type nobody has defined, so it does nothing.
+
+      `UTExportedTypeDeclarations` is the definition: it says the type exists, that `.kmpkg` is how
+      you recognize it, and that it is ordinary data. Exported rather than imported because this
+      product invents the type -- an imported declaration is for describing somebody else's format.
+
+      **There is no Rust code behind this on macOS, and that is the interesting part.** A
+      double-clicked document is delivered to a running application as a `kAEOpenDocuments` Apple
+      Event and never in `argv`. The package builder answers that through `tao`'s application
+      delegate; the machine has no `tao` -- its window is SDL -- and SDL3's Cocoa backend turns
+      `application:openFile:` into `SDL_EVENT_DROP_FILE`, which is the event `display.rs` has handled
+      since packages could be dropped on the window. So a double-clicked package arrives at the same
+      handler a dragged one does, and the machine needed nothing new to receive it.
+
+      **The cold-launch case is the one still to be checked on a Mac.** `Cocoa_RegisterApp` calls
+      `[NSApp finishLaunching]` before it installs SDL's own delegate, and `finishLaunching` is what
+      AppKit documents as dispatching the launch Apple Event -- so a document that starts the
+      application may be dispatched before anything implements `openFile:`. If it is lost, macOS
+      supports this association only for an already-running machine, and `argv` is not an available
+      fallback there. The already-running case is safe either way.
+    -->
+    <key>CFBundleDocumentTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleTypeName</key>
+            <string>Karaoke song package</string>
+            <key>LSItemContentTypes</key>
+            <array>
+                <string>com.karaokemachine.kmpkg</string>
+            </array>
+            <!-- Viewer rather than the builder's Editor: the machine installs a package and reads
+                 it, and nothing here ever writes one. `km-pack` is what makes them. -->
+            <key>CFBundleTypeRole</key>
+            <string>Viewer</string>
+            <!-- Owner, because this product defines the type. -->
+            <key>LSHandlerRank</key>
+            <string>Owner</string>
+            <key>CFBundleTypeIconFile</key>
+            <string>karaokemachine</string>
+        </dict>
+    </array>
+
+    <key>UTExportedTypeDeclarations</key>
+    <array>
+        <dict>
+            <key>UTTypeIdentifier</key>
+            <string>com.karaokemachine.kmpkg</string>
+            <key>UTTypeDescription</key>
+            <string>Karaoke song package</string>
+            <!-- `public.data` rather than `public.archive`, though a package is a zip underneath:
+                 conforming to the archive type invites every unarchiver on the machine to offer to
+                 open one, which is not what a person double-clicking a package wants. What matters
+                 to the system is that this is an opaque file with one program behind it. -->
+            <key>UTTypeConformsTo</key>
+            <array>
+                <string>public.data</string>
+            </array>
+            <key>UTTypeIconFile</key>
+            <string>karaokemachine</string>
+            <key>UTTypeTagSpecification</key>
+            <dict>
+                <key>public.filename-extension</key>
+                <array>
+                    <string>kmpkg</string>
+                </array>
+            </dict>
+        </dict>
+    </array>
+
+    <!-- No NSMicrophoneUsageDescription: microphone audio is mixed in hardware and this app never
+         opens an input stream. See the decision in docs/decisions/. Declaring it would make macOS
+         prompt for a permission the app does not use. -->
+</dict>
+</plist>

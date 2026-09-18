@@ -1,0 +1,159 @@
+{# This program's front door: which machine, and the password for it.
+
+   **The two questions are one form because they are one errand.** Nothing here can write to a
+   machine until it has been told which machine and been let in to it, and splitting them across two
+   pages would make the second one a place somebody has to be sent. That is also why a refused write
+   comes back here from whichever tab it was made on -- see `refusal` in `km-admin-pages`.
+
+   **Listing is not setting**, which is the rule this whole program is built on, and on a page whose
+   rows are radios it turns on one attribute: *the only row that opens selected is the machine
+   somebody already chose*. A discovered row is one somebody has to press twice -- once to pick it,
+   once to submit -- and `a_discovered_row_is_never_preselected` asserts it.
+
+   The browse arrives underneath rather than holding the page: it waits its whole three seconds, and
+   this is the page that opens on every launch. #}
+<section class="card door">
+  <h2>{{ "door-heading"|t }}</h2>
+  <p class="hint">{{ "door-explained"|t }}</p>
+
+  <form method="post" action="/admin/connect/use">
+    <ul class="machines">
+      {# The machine this run is pointed at. **Read from the record and the client, never from the
+         network**: this program is built around the machine being off, and a row that waited for an
+         answer would be missing on exactly the launch somebody needs it. #}
+      {% match chosen %}
+      {% when Some with (address) %}
+      <li>
+        <label>
+          <input type="radio" name="row" value="chosen" checked>
+          {% match chosen_name %}
+          {% when Some with (name) %}<strong>{{ name }}</strong>
+          {% when None %}<strong>{{ "door-chosen-unnamed"|t }}</strong>
+          {% endmatch %}
+          <span class="mono">{{ address }}</span>
+          <span class="dim">{{ "door-last-used"|t }}</span>
+        </label>
+      </li>
+      {% when None %}
+      {% endmatch %}
+
+      {# The typed address is a row of the same group, so picking it is the same act as picking a
+         machine that answered -- and so that nothing can be submitted without one row being chosen.
+         The box is not `required`: it is only read when this row is the one selected. #}
+      <li>
+        <label>
+          <input type="radio" name="row" value="typed"{% if chosen.is_none() %} checked{% endif %}>
+          {{ "door-typed"|t }}
+        </label>
+        <input type="text" name="typed" inputmode="url" autocomplete="off"
+               aria-label="{{ "door-typed"|t }}"
+               placeholder="{{ "door-address-example"|t }}">
+      </li>
+    </ul>
+
+    {# Filled by the fragment below once the browse answers. Outside the list above so that a swap
+       cannot disturb a row somebody has already picked. #}
+    <div id="found" hx-get="/admin/connect/found" hx-trigger="load" hx-swap="innerHTML">
+      <p class="hint">{{ "door-looking"|t }}</p>
+    </div>
+
+    {# **What this program already holds, before what it is asking for.** The question this page
+       leaves open is *do I have to type this again*, and the answer is a fact about this computer
+       that costs no network call to state -- so it is stated, where it is a fact, above the box it
+       decides the need for.
+
+       Three positions, and the page is in exactly one: a password saved for this machine, a token
+       held with nothing saved, or neither. The sentence names the machine because *which machine
+       this password is for* is the other half of what the page was read as leaving open. #}
+    {% match saved %}
+    {% when Some with (said) %}
+    <div class="saved">
+      <p class="hint">{{ said }}</p>
+      {# **The way out that does not run through logging in.** Somebody who wants this computer to
+         stop remembering is already logged in, so a box left unticked cannot be the only route: it
+         would ask them to type the password they are trying to have forgotten.
+
+         `form=` rather than a form wrapped around the button, because a form inside a form is not a
+         document -- and because submitting *this* one would put a typed password in the body of a
+         route that has no use for it. #}
+      <button type="submit" class="danger" form="forget-password">{{ "door-forget"|t }}</button>
+    </div>
+    {% when None %}
+    {% if logged_in %}
+    <p class="hint">{{ "door-already"|t }}</p>
+    {% endif %}
+    {% endmatch %}
+
+    {# **Required, because every control on the tabs behind this page needs it.** A program let in
+       without one refuses each write in turn, which reads as a broken machine rather than as a
+       question nobody answered.
+
+       Not `required` as an attribute: blank means *use the way in this program already has*, and
+       whether there is one is the server's to know. `handlers::enter` is the rule.
+
+       **Behind a summary wherever there is already a way in**, and drawn plainly where there is
+       not. A box that is the only thing to do reads as a box to fill in; the same box under a
+       sentence saying the password is already held reads as a question about whether it still is.
+       A refusal opens it, because every refusal this page draws is answered by typing one.
+
+       **The checkbox goes with the box rather than with the sentence.** It is a statement about
+       what this computer should remember, and it is spent on the password in hand -- so where no
+       password is being typed there is nothing for it to say, and *Forget it* is the control that
+       means the other thing. #}
+    {% if saved.is_some() || logged_in %}
+    <details class="retype"{% if retype %} open{% endif %}>
+      <summary>{% if saved.is_some() %}{{ "door-retype"|t }}{% else %}{{ "door-retype-again"|t }}{% endif %}</summary>
+    {% endif %}
+      <label>
+        {{ "door-password"|t }}
+        <input type="password" name="password" autocomplete="current-password">
+      </label>
+      <p class="hint">{{ "door-where"|t }}</p>
+
+      {# **Left out until a machine is chosen**, because until then there is no password to be asked
+         about. Where one is, the box is drawn even before the machine has said who it is: the id a
+         password is keyed under is recorded by `handlers::enter` at the moment a login proves the
+         machine is up, so nothing is ever stored under a machine nobody can name -- see
+         `views::Connect::can_remember`. #}
+      {% if can_remember %}
+      <label class="check">
+        <input type="checkbox" name="remember" value="yes"{% if saved.is_some() %} checked{% endif %}>
+        {{ "door-remember"|t }}
+        {% if !owner_only %}<span class="note">{{ "door-remember-open"|t }}</span>{% endif %}
+      </label>
+      {% endif %}
+    {% if saved.is_some() || logged_in %}
+    </details>
+    {% endif %}
+
+    <button type="submit" class="primary">{{ "door-use"|t }}</button>
+  </form>
+
+  {# Empty and hidden: what it carries is its action, and the button that submits it is up beside
+     the sentence saying there is something to forget. #}
+  <form method="post" action="/admin/machine/password/forget" id="forget-password" hidden></form>
+</section>
+
+{# What *these pages* are in, which is not what the television says -- that is the Screen language
+   pane on the Machine tab, and the two headings are worded apart because confusing them is the
+   likeliest misreading.
+
+   **A card of its own below the door, not a field inside it.** The form above is one errand and
+   this is not part of it: a language is chosen once and left, where a machine and a password are
+   answered together every time somebody points this program somewhere new.
+
+   **Here rather than on a tab** because this is the page that draws before anything on the network
+   has answered -- so somebody who cannot read this program can reach the picker without a machine
+   being up. #}
+<section class="card">
+  <h2>{{ "door-locale-heading"|t }}</h2>
+  <form method="post" action="/admin/connect/locale" class="inline">
+    <select name="locale" aria-label="{{ "door-locale-heading"|t }}">
+      {% for choice in locales %}
+      <option value="{{ choice.tag }}"{% if choice.chosen %} selected{% endif %}>{{ choice.name }}</option>
+      {% endfor %}
+    </select>
+    <button type="submit">{{ "door-locale-save"|t }}</button>
+  </form>
+  <p class="hint">{{ "door-locale-note"|t }}</p>
+</section>

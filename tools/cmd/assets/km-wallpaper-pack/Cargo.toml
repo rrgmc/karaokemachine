@@ -1,0 +1,72 @@
+[package]
+name = "km-wallpaper-pack"
+description = "Builds a legibility-verified wallpaper pack from royalty-free stock photography"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+# A member of `tools/cmd/assets`, which is excluded from the workspace above it. See that manifest's
+# header: this tool needs TLS from reqwest and `km-package-builder` needs reqwest to have none, and
+# cargo unifies features per crate version across a workspace build — so being a member of the main
+# workspace made km-package-builder's HTTP client panic.
+#
+# **It was its own root until `km-admin` arrived.** What it carried then and does not now is the
+# profile stanzas and the lint table, both of which a member cannot hold: they are at
+# `../Cargo.toml`, and the 78-minute `analyze` run they exist for is written down beside them.
+[lints]
+workspace = true
+
+[dependencies]
+# Versions are the assets workspace's, in `../Cargo.toml`, and still match the repository root's where
+# a crate appears in both — so neither the two trees nor the two members can drift.
+image = { workspace = true }
+zip = { workspace = true }
+sha2 = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+clap = { workspace = true }
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+# Perceptual hashing, for the same photograph returned under eight different search terms. The
+# maintained successor to `img_hash`.
+image_hasher = { workspace = true }
+# Metrics over a few thousand photographs are embarrassingly parallel and entirely CPU-bound.
+rayon = { workspace = true }
+# The config file. `serde_json` is here for manifests, but a config a person edits wants comments,
+# which JSON has not got.
+toml = { workspace = true }
+hex = { workspace = true }
+
+# `fs` for streaming a download to disk without blocking the reactor, `time` for the throttle and the
+# backoff sleeps.
+tokio = { workspace = true }
+# `stream` so a 6 MB photograph goes to disk in chunks rather than into memory whole.
+#
+# `rustls-no-provider` plus an explicitly chosen `ring`, rather than reqwest's own `rustls` feature.
+# That feature selects aws-lc-rs, which is a C library: it wants a working `cl.exe` and fails outright
+# on MSVC 14.36 (`stdalign_check.c` under `-WX`), which is what it was tried against.
+# `default-tls` was the other option
+# and is worse in the other direction — schannel here, OpenSSL headers on Linux, so the build breaks
+# in a container instead of on a desktop. ring ships pregenerated assembly and needs no toolchain on
+# any platform this runs on. `providers::client` installs it as the process default, and is the only
+# thing that builds an HTTP client, so no caller can forget and get a handshake failure instead.
+reqwest = { workspace = true }
+rustls = { workspace = true }
+futures-util = { workspace = true }
+
+[dev-dependencies]
+# Recorded provider responses, so the retry-and-backoff path is tested without a network.
+wiremock = { workspace = true }
+tempfile = { workspace = true }
+# `test-util` for the paused clock. The throttle's whole job is to make requests wait, and a test that
+# actually waited eighteen seconds for a Pexels slot would be a test nobody runs.
+#
+# Spelled out rather than inherited: a `dev-dependencies` entry adds its features to the same
+# resolved crate, so this is the workspace `tokio` **plus** `test-util` rather than a second one.
+tokio = { version = "1.53.1", features = ["test-util"] }

@@ -1,0 +1,19 @@
+[package]
+name = "km-osopen"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+description = "Handing a file or a URL to whatever the operating system uses for it."
+
+[lints]
+workspace = true
+
+# **No dependencies at all, and that is what makes a crate this small worth having.** The one Windows
+# creation flag is a `u32` spelled in the source rather than taken from `windows-sys`; a failure is
+# returned as `std::io::Result` rather than described by an error crate, because what to do about one
+# differs per caller; and nothing here logs, since two of the three callers put the failure on a
+# screen instead.
+[dependencies]

@@ -1,0 +1,490 @@
+[package]
+name = "karaokemachine"
+description = "KaraokeMachine: plays karaoke MIDI files with synced lyrics"
+# **Required, not a nicety.** With two `[[bin]]` targets and no default, `cargo run -p karaokemachine`
+# refuses with "could not determine which binary to run" -- and that command is written a dozen times
+# in CLAUDE.md and is how this application is started during development. The machine is the default
+# because it is the product; the console twin is asked for by name, `--bin karaokemachine-console`.
+#
+# It costs nothing on Windows, where a `cargo run` from a shell has a console or a pipe either way and
+# `say` prints down both. See the `The machine's console window` decision in docs/decisions/.
+default-run = "karaokemachine"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+# A library as well as a binary, because Android loads a shared object and calls into it rather than
+# executing a program. `cdylib` is what the APK ships; `lib` is what the desktop binary links.
+[lib]
+# Not "karaokemachine": that collides with the binary's output name. Not Android's default "main"
+# either -- the activity can name whichever library it loads, and `km_app` says what this is.
+name = "km_app"
+crate-type = ["lib", "cdylib"]
+
+# **Two binaries, because `#![windows_subsystem]` is a property of a binary crate root.** Both are
+# three lines over `km_app::cli::main`; what differs is one attribute. `karaokemachine` is
+# GUI-subsystem on Windows, so double-clicking it opens the machine and no console window beside it;
+# `karaokemachine-console` is not, and is the one to type -- it is what answers `--help`, prints a
+# version and lets `--set-password` report that it worked. See the `Two executables on Windows`
+# decision in docs/decisions/.
+#
+# Neither carries `required-features`, unlike `km-package-builder`'s twin: there is no feature here
+# that means "this build has a window", because every build of this one does. So both are built
+# everywhere and only Windows *stages* both -- the macOS bundle and the two Linux carriers name the
+# plain binary and ignore the twin, which on a platform with no subsystem is the same program under a
+# second name. Deciding it in the staging scripts rather than in cargo keeps `cargo build --workspace`
+# producing exactly what the Windows folder ships.
+[[bin]]
+name = "karaokemachine"
+path = "src/main.rs"
+
+[[bin]]
+name = "karaokemachine-console"
+path = "src/bin/karaokemachine-console.rs"
+
+[features]
+# Video songs. Off by default because it is the only C dependency outside SDL: it needs ffmpeg
+# development libraries and libclang to build, and DLLs beside the executable on Windows to run.
+# A build without it still catalogs, searches and queues video songs -- see `src/video.rs`.
+#
+# **`km-stream` rides on this feature rather than taking one of its own**, and the two really are one
+# question: both name ffmpeg, both need the same libraries and the same libclang, and a build that
+# can do one can always do the other. A second feature would be a second thing for
+# `tools/setup/features.sh`, `.cargo/config.toml` and five staging scripts to keep in step, in
+# exchange for a combination -- streaming without video songs -- that nothing asks for.
+#
+# What it means for `--stream` is that a `--no-video` build has none: the flag is refused at startup
+# with a sentence naming the build, rather than a machine that streams every song kind but one.
+video = ["dep:km-video", "dep:km-stream"]
+
+# An icon in the bar for a streaming run, which has no window and no television and is otherwise a
+# process with no face.
+#
+# **Off in cargo and on when staging for Windows and macOS, never for Linux**, on the same terms as
+# `km-remote`'s `desktop` and for the same reason one step lighter: `tray-icon`'s Linux backend links
+# `libayatana-appindicator` at load time, which is the dependency that decision refuses to take on.
+# There is no `wry` here — nothing opens a window — so this is `tao` and `km-tray` and nothing else.
+#
+# **It must never appear in `tools/setup/features.sh`.** That file's exclusion by omission is the
+# whole mechanism keeping both load-time Linux dependencies out of a workspace build, and adding
+# this to either list would reintroduce the fault on Linux alone.
+tray = ["dep:tao", "dep:km-tray"]
+
+[dependencies]
+km-song = { workspace = true }
+km-suitability = { workspace = true }
+km-fixes = { workspace = true }
+km-kmpkg = { workspace = true }
+km-catalog = { workspace = true }
+km-cdg = { workspace = true }
+km-audio = { workspace = true }
+# The queue, the mic registry, the transport and the two playback limits. Declared beside the engine
+# rather than reached through it: `km-audio` deliberately re-exports none of them, so a crate that
+# wants a queue says so. This one wants both.
+km-queue = { workspace = true }
+# The catalog of fetchable banks and the rules for checking one, re-exported by `src/lib.rs` as
+# `crate::banks` so that every call site is spelled as it always was. See the crate's own header for
+# why it is not a module here any more.
+km-banks = { workspace = true }
+# Turning a package's measurement into the gain that levels one song. The machine is where the two
+# halves meet: the bank says what a MIDI song renders at and the manifest says what a media song was
+# published at, and this owns the one implementation of the arithmetic between them.
+km-loudness = { workspace = true }
+km-api = { workspace = true }
+# What language this machine speaks. Here rather than only inside `km-api` because it is a setting
+# the owner sets, so `settings.json` has to name its type.
+km-locale = { workspace = true }
+# The owner's page at `/admin/`, and `src/admin.rs` is the adapter that gates it on this
+# machine's own access list.
+km-admin-pages = { workspace = true }
+# For `--song-book`'s report only — the layout and the adapter both live behind `km_api::book`, so
+# the flag and `GET /songs/book.pdf` cannot produce different books. What is named here is
+# `Replacements`, which the report has to be able to hold.
+km-songbook = { workspace = true }
+km-songcode = { workspace = true }
+# The singer-facing remote, served at `/` by this machine. The same crate `km-remote` links; what
+# differs is `Capabilities` and what stands behind its three traits -- here, the catalog and the
+# controller this process already owns. See `src/remote.rs`.
+km-remote-pages = { workspace = true }
+# The remote's three traits are `dyn` and `async`; implementing them needs the same macro they were
+# declared with.
+async-trait = { workspace = true }
+# One type: the `Router` `km-remote-pages` builds, handed to `km-api` to merge at `/`. Nothing here defines
+# a route.
+axum = { workspace = true }
+km-display = { workspace = true }
+km-video = { workspace = true, optional = true }
+# Encoding the screen this machine drew, for the run that has no television to draw it on. Behind
+# the same feature as the decoder above, for the reason the feature block gives.
+km-stream = { workspace = true, optional = true }
+# The icon in the bar and the event loop it needs, behind the `tray` feature above. Optional
+# together, because neither is reachable without the other.
+tao = { workspace = true, optional = true }
+km-tray = { workspace = true, optional = true }
+# Whether anything `src/cli.rs` prints will be read. The machine is GUI-subsystem on Windows, so a
+# double-clicked run has a null standard output handle and `println!` there is a panic rather than a
+# lost line -- see the crate's own header, and the `Unsafe code, once` decision in docs/decisions/.
+km-console = { workspace = true }
+# Showing the packages folder in a file manager, which is `F12` and nothing else. The machine is the
+# third caller of a file that was two copies of itself, and the one that turned the pair into a
+# crate; it is also the only one that puts the failure on a screen rather than in a log.
+km-osopen = { workspace = true }
+# ...and where those lines go when nothing is reading, which is the same double-click the line above
+# is about seen from the other side: `km-console` stops a lost line becoming a panic, and this is
+# what `--log-file` keeps it in instead.
+km-logfile = { workspace = true }
+# ...and the third destination for that stream, which is the one a person can reach without finding
+# the box first: the most recent records in memory, for `/admin/logs` to serve and `/dev/` to draw.
+# Always installed, because the run that most needs a log is the one nobody thought to arm.
+km-logtap = { workspace = true }
+# ...and the fourth, which is the one somebody watches rather than goes and finds: `--ecapplog` puts
+# the same stream in a window beside the run, in place of the console.
+km-ecapplog = { workspace = true }
+# ...and what the settings file says about all four of them, which is the only route left to a box
+# under a television that somebody starts by double-clicking its icon. The `logging` section, shared
+# with the two programs beside this one that keep a settings file of their own.
+km-logsettings = { workspace = true }
+# The SoundFont downloader: fetch, verify, unpack. See `src/fetch.rs`, and the `ureq` entry in the
+# workspace manifest for why this is not `reqwest`.
+#
+# **`sha2`, `sha1` and `zip` belong with the table rather than here.** Checking a downloaded bank is
+# a property of the table's own `digest`, `bytes` and `archive` fields, not of a download loop, so
+# `km-banks` carries those rules and the crates they need — which is what lets two programs fetch the
+# same files. What is here is the loop: `ureq`, a named thread and the `Fetching` state.
+ureq = { workspace = true }
+
+tokio = { workspace = true }
+qrcode = { workspace = true }
+
+serde = { workspace = true }
+serde_json = { workspace = true }
+# The seed for the wallpaper order. `km-display` takes a seed rather than drawing one, so that the
+# order it produces can be pinned by a test; this is where the real entropy comes in.
+getrandom = { workspace = true }
+directories = { workspace = true }
+clap = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+[dev-dependencies]
+# The synthetic fixtures, so the wiring can be tested without the corpus.
+km-song = { workspace = true, features = ["testing"] }
+# The in-memory machine, so `toggle_demo` can be driven through the real `Controller` trait. A real
+# `Machine` needs an audio device, a catalog and a window; the double needs none of the three and
+# records what it was asked, which is exactly what the `D` key's three outcomes have to assert.
+km-api = { workspace = true, features = ["testing"] }
+# Writing a wallpaper pack in the folder-precedence tests. The wallpapers folder holds zips, so a
+# test about which folder wins has to put a real one there -- `holds_wallpapers` asks
+# `Playlist::scan`, which reads an archive's directory rather than trusting an extension.
+zip = { workspace = true }
+
+# Registering the `.kmpkg` file type, in `src/register.rs`. Target-gated, so no other platform
+# compiles it -- Linux writes files under `~/.local/share` and macOS declares the type in the bundle,
+# so neither needs anything here.
+[target.'cfg(windows)'.dependencies]
+windows-registry = { workspace = true }
+
+# `build.rs` attaches the application icon to the Windows executable. Under `[target.'cfg(windows)']`
+# because build-dependencies are resolved for the *host*, so this is absent from a Linux or macOS
+# build entirely — and present, unused, when a Windows host cross-compiles for Android, which
+# `build.rs` guards against by checking the target rather than the host.
+[target.'cfg(windows)'.build-dependencies]
+winresource = { workspace = true }
+
+# Split for the same reason as in `km-display`, and it has to be split in *both*: cargo features are
+# additive, so one crate asking for a static SDL puts a static SDL in the build no matter what the
+# other asks for. Getting this wrong here silently undid the split next door -- `libkm_app.so` came
+# out with no `libSDL3.so` dependency at all.
+[target.'cfg(not(target_os = "android"))'.dependencies]
+sdl3 = { workspace = true }
+
+[target.'cfg(target_os = "android")'.dependencies]
+# Getting `tracing` into logcat, which is the only place a line goes on a device. Android-only
+# because `SDL_main` is: the crate itself compiles everywhere and keeps its own tests, so nothing is
+# left untested by this being narrow. It was `src/androidlog.rs` until the offline remote's Android
+# shell needed the identical thing under a different tag.
+km-androidlog = { workspace = true }
+sdl3 = { version = "0.18.4", default-features = false, features = [
+    "ttf",
+    "build-from-source",
+    "unsafe_textures",
+] }
+# Both exist to hand cpal the JavaVM and Activity it expects somebody else to have published; see
+# `androidctx`. The versions are pinned to exactly what cpal resolves, and that is the whole point
+# rather than caution: `ndk-context` keeps the context in a private static, so a different version
+# would be a different crate, a different static, and an initialization cpal never sees.
+ndk-context = "=0.1.1"
+jni = "=0.22.4"
+
+# -- Debian package (cargo-deb, run from tools/platform/linux/deb.sh) --------------------------------------
+#
+# The layout is /opt rather than the FHS one, and that is a decision rather than laziness.
+# `Paths::discover_asset_dir` takes the directory beside the executable if it has an `assets` child,
+# and otherwise the working directory. Split the package the conventional way -- the binary in
+# /usr/bin, the assets in /usr/share/karaokemachine -- and neither branch finds them: the machine
+# comes up on its sine test tone over a plain gradient and nothing says why. Keeping the two together
+# under /opt means no code change, and `/usr/bin/karaokemachine` is a symlink to it, which still
+# works because `current_exe` reads /proc/self/exe and that resolves *through* the symlink to the
+# real file, whose parent holds `assets/`. Verified, not assumed.
+#
+# The alternative -- teaching `Paths` an /usr/share branch -- is the more Debian-idiomatic answer and
+# is written up as the open option in docs/ARCHITECTURE.md. /opt is defensible for a self-contained
+# appliance that bundles a 31 MiB instrument bank.
+[package.metadata.deb]
+maintainer = "Rangel Reale <rangelspam@gmail.com>"
+section = "sound"
+priority = "optional"
+# `$auto` is dpkg-shlibdeps, so the linked dependencies stay honest without a hand-kept list. On its
+# own it is not enough, and the first real build proved it: it derived only
+# `libasound2t64, libc6`. SDL3 is linked statically *and* opens X11, Wayland and GL with dlopen at
+# run time, so nothing in the binary's dynamic section mentions them and shlibdeps cannot see them.
+# The package would have installed cleanly on a machine with no X11 at all and then failed the moment
+# it tried to open a window.
+#
+# So the X11 runtime libraries are named explicitly. X11 rather than Wayland as the hard requirement
+# because it is the backend available on effectively every desktop, XWayland included; the Wayland
+# libraries are Recommends, since SDL picks a backend at run time and either path works.
+# Every name was checked against a trixie archive.
+#
+# Three more groups are named for reasons the first build did not reach:
+#
+# * **A font, and it is not optional.** `km-display`'s text setup tries `display.font`, then the
+#   bundled `assets/fonts/karaoke.ttf` (which this package does not ship), then a list of system
+#   paths beginning with DejaVu. Finding none is `anyhow!("no usable font")`, and km-app treats a
+#   display that will not start as non-fatal -- so on a minimal install the screen simply stays black
+#   and the reason is in the journal or nowhere. fonts-dejavu-core is the package holding the exact
+#   first candidate, /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf.
+#
+# * **The kmsdrm backend.** The machine runs as an appliance on a bare virtual terminal with no
+#   display server at all (see linux/karaokemachine.service), which is SDL's kmsdrm video driver:
+#   libdrm2 for the mode setting, libgbm1 for the buffers, libegl1 and libgles2 for the rendering,
+#   and libgl1-mesa-dri for the driver that actually talks to the hardware -- without that last one
+#   EGL finds only software rasterisation and a 1080p wipe animation stops being smooth. libegl1 is
+#   therefore promoted out of Recommends: optional for X11, mandatory here. libgl1 stays a Recommends
+#   because it is desktop GL, which only the X11 path uses.
+#
+# * **libudev1**, which SDL opens for input-device enumeration and hotplug. In practice it is on
+#   every systemd machine already, but the whole lesson of the paragraph above is that "in practice
+#   it is already there" is what shlibdeps cannot say for us.
+# **`$auto` is spelled out rather than asked for, and the reason is what the package carries.** With
+# the four ffmpeg libraries inside the package, dpkg-shlibdeps would still see them in the binary and
+# resolve them against the -dev packages the build image has -- putting back the dependency the
+# bundling exists to remove. What `$auto` derived when it ran is `libasound2t64, libc6`, so that is
+# what stands here.
+#
+# Losing `$auto` loses the thing that notices a *new* link-time dependency, so
+# tools/platform/linux/verify-deb.sh reads the shipped binary's DT_NEEDED against an allowlist and
+# refuses an X library there. That is the same shape tools/platform/linux/ffmpeg-lgpl.sh already uses
+# on its own output, and it states the rule as a check rather than as a sentence.
+#
+# **X11 is a Recommends, and that is what makes an appliance install carry no X.** Debian's ffmpeg
+# is the reason it could not be before: libavutil.so.59 has libX11.so.6 as a direct NEEDED, along
+# with libva-x11, libvdpau and libOpenCL, so a video build loaded an X client library on a box with
+# no X server whatever this line said. The bundled ffmpeg links none of them, so the choice returns
+# to apt: a plain `apt-get install` pulls Recommends and gives a desktop its backend, and
+# `--no-install-recommends` -- which deploy.sh passes -- gives the appliance a box with no X on it.
+#
+# The price is stated where it falls: a desktop install that declines Recommends gets a machine that
+# starts and finds no video device, which km-app treats as non-fatal and logs. See `What the machine
+# is, on Linux` in docs/decisions/distribution.md.
+#
+# libegl1 and libgles2 stay hard: kmsdrm needs them, where X11 does not. libgl1 stays a Recommends,
+# being desktop GL that only the X11 path uses.
+#
+# **The version floors are derived, not guessed, and dropping them was the first thing losing `$auto`
+# cost.** Without them a package installs on a distribution too old to run it and fails in the dynamic
+# loader, where apt should have refused it and said why. `libc6 (>= 2.39)` is the highest versioned
+# glibc symbol anything the package ships asks for -- the binary's own, the bundled libraries all
+# being lower -- and `deb.sh --system-ffmpeg`, where `$auto` still runs against the same binary,
+# derives exactly that. Re-derive them rather than editing by hand:
+#
+#   objdump -T <each shipped object> | grep -oE 'GLIBC_[0-9.]+' | sort -V | tail -1
+depends = "libasound2t64 (>= 1.1.0), libc6 (>= 2.39), libgcc-s1 (>= 3.0), libdrm2, libgbm1, libegl1, libgles2, libgl1-mesa-dri, libudev1, fonts-dejavu-core"
+#
+# **`karaokemachine-tools` rides the same mechanism as the backends**, and for the same reason: a
+# desktop wants the curation tools and a television box does not. `apt-get install` takes them,
+# `--no-install-recommends` leaves them, and `deploy.sh` passes that flag -- so one list decides both
+# whether the box carries a display-server stack and whether it carries 45 MB of tools nobody will
+# run on it. The package is defined in tools/cmd/km-package-builder/Cargo.toml.
+recommends = "karaokemachine-tools, libx11-6, libxext6, libxrandr2, libxcursor1, libxi6, libxfixes3, libxss1, libxtst6, libxrender1, libwayland-client0, libwayland-cursor0, libwayland-egl1, libxkbcommon0, libdecor-0-0, libgl1"
+# The boot splash, and it is a Suggests rather than a Recommends because Recommends is installed by
+# default: pulling a boot splash and an initramfs rebuild onto somebody's desktop as a side effect of
+# installing a karaoke player would be the same overreach as enabling the unit. The theme below ships
+# regardless and selects nothing, so the package is correct with plymouth absent -- and
+# tools/platform/linux/appliance-boot.sh, which is what selects it, installs both of these itself.
+# plymouth-label is the second one because it carries the label plugin the theme's Image.Text needs
+# to draw a password prompt, and a splash that cannot ask for a passphrase is how a box with an
+# encrypted root becomes a black screen.
+suggests = "plymouth, plymouth-label"
+# The second paragraph is what `apt show karaokemachine` tells somebody who has only the package, and
+# it is the only place that answers a question the unit file below can only answer to a reader who
+# already knows to look inside it: this package is two things, and which one you have is up to you.
+# Without it, the appliance is documented in a comment in /lib/systemd/system and in a deploy script
+# that is not in the package -- so a person who installed the .deb wanting a television could not
+# find out that they already had one.
+#
+# The lone `.` is a Debian control-file paragraph break rather than a typo: cargo-deb indents every
+# line of this field by one space, and ` .` is how that format spells an empty line. A genuinely
+# empty line here would terminate the field and produce a malformed control file.
+extended-description = """\
+Plays karaoke MIDI files (.mid / .kar) with the lyrics highlighted in time with \
+the music, and serves an HTTP API so a phone on the same network can search, \
+queue and control playback. Songs come from packages built with km-pack. \
+Bundles the GeneralUser GS instrument bank and a set of wallpapers.
+.
+Installs as an ordinary desktop application. It also includes a systemd \
+service, shipped disabled, for running the machine as a television appliance \
+on a box with no desktop on it: `systemctl enable --now karaokemachine' takes \
+over tty1 and draws straight to the screen, running as the system user \
+karaoke. Enabling it is a decision this package deliberately leaves to you.
+.
+On the same terms it includes a Plymouth boot theme, so an appliance can show \
+its own mark instead of kernel text between the bootloader and the first \
+frame. Installing this package does not select it; \
+`plymouth-set-default-theme -R karaokemachine' does."""
+# Matched by extension rather than with `*`, which shipped `.gitkeep` in the first real build. Those
+# exist to hold empty directories in git and are dead weight in a package -- `tools/platform/windows/dist.sh`
+# and `tools/port/machine/android/assets.sh` both filter them out, and this is the third staging path agreeing on
+# what counts as an asset.
+#
+# The desktop entry and the icon theme are what make the package an *installed application* rather
+# than a binary in /opt: without them there is nothing in the menu to click and nothing for a window
+# to show in a taskbar. `Icon=karaokemachine` in the .desktop file is a theme lookup, not a path,
+# which is why each size goes to its own hicolor directory -- a shell then picks the size it needs
+# instead of scaling whichever one it found. Named one by one rather than with a glob because the
+# destination differs per file, and the sizes are exactly the ones `icon/` holds.
+#
+# The systemd unit is shipped but left disabled -- postinst reloads the daemon and stops there. A
+# unit file on disk is inert; enabling it is what seizes tty1, and that is an appliance decision
+# rather than a consequence of installing an application. tools/platform/linux/deploy.sh enables it.
+assets = [
+    # One binary, not two. `cargo deb` packages this whitelist rather than whatever the build left in
+    # `target/release`, so `karaokemachine-console` -- built here as everywhere, and wanted only on
+    # Windows -- is left out by saying nothing about it. See the `The machine's console window`
+    # decision in docs/decisions/.
+    ["target/release/karaokemachine", "opt/karaokemachine/karaokemachine", "755"],
+    ["../../../assets/soundfont/*.sf2", "opt/karaokemachine/assets/soundfont/", "644"],
+    ["../../../assets/soundfont/LICENSE.txt", "opt/karaokemachine/assets/soundfont/", "644"],
+    # **This list is the one carrier that names extensions**, where every other copies `assets/`
+    # wholesale through `dist_stage_assets` -- so it is the one that has to be edited when the shape
+    # of what ships changes, and the one that fails silently when it is not. It said `*.png` while
+    # the shipped wallpapers were four generated gradients, which meant it had never carried a zip:
+    # the Pixabay pack that rode into the Windows and macOS folders for a month was absent here, by
+    # this line rather than by anybody's decision. The set is seven CC0 photographs in a zip now, and
+    # a stale `*.png` would have produced a package that installs and comes up on a plain background
+    # with nothing in any log.
+    ["../../../assets/wallpapers/default-wallpapers.zip", "opt/karaokemachine/assets/wallpapers/", "644"],
+    ["../../../assets/wallpapers/CREDITS.md", "opt/karaokemachine/assets/wallpapers/", "644"],
+    ["linux/karaokemachine.desktop", "usr/share/applications/", "644"],
+    # What a `.kmpkg` *is*, as opposed to what opens one. The desktop entry above carries the
+    # `MimeType=` line saying this program handles the type; this file is what tells the desktop the
+    # type exists at all, and without it nothing ever reads that line. Two files, two jobs, and the
+    # second is the one that is easy to leave out because omitting it fails silently -- a `.kmpkg`
+    # simply stays a nameless icon that opens nothing.
+    ["linux/karaokemachine-package.xml", "usr/share/mime/packages/", "644"],
+    ["linux/karaokemachine.service", "lib/systemd/system/karaokemachine.service", "644"],
+    # 755, because the unit runs it. It sits beside the binary rather than in /usr/bin: it is not a
+    # command anybody types, it is part of how the service starts.
+    ["linux/wait-for-drm.sh", "opt/karaokemachine/wait-for-drm.sh", "755"],
+    # 644 and **under /opt rather than under /etc**, which is the whole point of the row. A file in
+    # /etc/systemd/logind.conf.d/ is live the moment it is installed, so there is no inert state to
+    # ship it in -- and repurposing a desktop's power button must not be a consequence of installing
+    # an application, the same position that ships the unit above disabled. deploy.sh copies it into
+    # place, which is the step that turns a machine into an appliance.
+    ["linux/logind-powerkey.conf", "opt/karaokemachine/logind-powerkey.conf", "644"],
+    # The boot splash, shipped on exactly the terms the unit above is shipped disabled: a theme
+    # directory on disk changes no boot, and `plymouth-set-default-theme` is the act that repaints
+    # somebody's machine. postinst therefore does not call it, for the same reason it does not call
+    # `systemctl enable`; tools/platform/linux/appliance-boot.sh does, and that is the step that
+    # makes a computer's boot into an appliance's.
+    #
+    # The 1024 icon lands here rather than in the hicolor ladder below, and this is the line that
+    # decides it: the sizes are named one by one, so adding 1024 to the generator gave the theme a
+    # logo without giving `hicolor` a directory no desktop asked for. It is a ceiling rather than a
+    # size -- the theme scales it to a fraction of whatever panel it finds.
+    ["linux/plymouth/karaokemachine.plymouth", "usr/share/plymouth/themes/karaokemachine/karaokemachine.plymouth", "644"],
+    ["linux/plymouth/karaokemachine.script", "usr/share/plymouth/themes/karaokemachine/karaokemachine.script", "644"],
+    ["../../../icon/icon-1024.png", "usr/share/plymouth/themes/karaokemachine/logo.png", "644"],
+    ["../../../icon/icon-16.png", "usr/share/icons/hicolor/16x16/apps/karaokemachine.png", "644"],
+    ["../../../icon/icon-32.png", "usr/share/icons/hicolor/32x32/apps/karaokemachine.png", "644"],
+    ["../../../icon/icon-48.png", "usr/share/icons/hicolor/48x48/apps/karaokemachine.png", "644"],
+    ["../../../icon/icon-64.png", "usr/share/icons/hicolor/64x64/apps/karaokemachine.png", "644"],
+    ["../../../icon/icon-128.png", "usr/share/icons/hicolor/128x128/apps/karaokemachine.png", "644"],
+    ["../../../icon/icon-256.png", "usr/share/icons/hicolor/256x256/apps/karaokemachine.png", "644"],
+    ["../../../icon/icon-512.png", "usr/share/icons/hicolor/512x512/apps/karaokemachine.png", "644"],
+    # The badged mark, under the name the desktop entry's stream action names. Six sizes where the
+    # entry itself gets seven: an action is drawn in a menu, and nothing asks a menu for a 512-pixel
+    # icon. The Plymouth logo has no twin here either -- a boot splash is drawn before the machine
+    # has been started one way or the other.
+    ["../../../icon/karaokemachine-stream-16.png", "usr/share/icons/hicolor/16x16/apps/karaokemachine-stream.png", "644"],
+    ["../../../icon/karaokemachine-stream-32.png", "usr/share/icons/hicolor/32x32/apps/karaokemachine-stream.png", "644"],
+    ["../../../icon/karaokemachine-stream-48.png", "usr/share/icons/hicolor/48x48/apps/karaokemachine-stream.png", "644"],
+    ["../../../icon/karaokemachine-stream-64.png", "usr/share/icons/hicolor/64x64/apps/karaokemachine-stream.png", "644"],
+    ["../../../icon/karaokemachine-stream-128.png", "usr/share/icons/hicolor/128x128/apps/karaokemachine-stream.png", "644"],
+    ["../../../icon/karaokemachine-stream-256.png", "usr/share/icons/hicolor/256x256/apps/karaokemachine-stream.png", "644"],
+]
+# postinst creates the /usr/bin symlink and postrm removes it. Not shipped as a file in the package
+# because the target lives in /opt and dpkg would rather own a real path than a dangling one during
+# unpack ordering.
+maintainer-scripts = "debian"
+
+# **Two variants, and the section above is the third build.** A variant is what lets one manifest
+# hold three packages that differ only in what they depend on and what they carry, which is a thing
+# a shell flag cannot reach: `[package.metadata.deb]` is static TOML and deb.sh's `--system-ffmpeg`
+# is an argument. `name` is pinned in both, because cargo-deb otherwise appends the variant's name to
+# the package's and these are one package built three ways rather than three packages.
+#
+# | build                      | variant          | ffmpeg      |
+# |----------------------------|------------------|-------------|
+# | `deb.sh --no-video`        | none, the above  | none at all |
+# | `deb.sh`                   | `bundled-ffmpeg` | in `lib/`   |
+# | `deb.sh --system-ffmpeg`   | `system-ffmpeg`  | Debian's    |
+#
+# The section above is therefore correct on its own terms: with no video feature there is no ffmpeg
+# to depend on or to carry, and the dependency list is already right for it.
+
+# Video, with the four libraries inside the package. **The default build.**
+#
+# `merge-assets.append` rather than a second `assets` list, which would be the whole of the one above
+# copied for the sake of a line -- and the copy that goes stale is how the wallpaper zip came to be
+# missing from this carrier for a month. deb-in-container.sh stages the libraries under their sonames
+# into this directory and patchelfs `$ORIGIN` into each; the binary gets `$ORIGIN/lib`.
+#
+# **`libstdc++6` is named here and nowhere else**, because the library that needs it is one this
+# package carries: libopenh264 is C++ where everything else in `lib/` is C. Nothing in the binary's
+# own dynamic section mentions it, so there is no mechanism -- `$auto` included -- that could have
+# worked it out, and a box without it gets a libavcodec that will not load.
+[package.metadata.deb.variants.bundled-ffmpeg]
+name = "karaokemachine"
+depends = "libasound2t64 (>= 1.1.0), libc6 (>= 2.39), libgcc-s1 (>= 3.0), libstdc++6 (>= 5), libdrm2, libgbm1, libegl1, libgles2, libgl1-mesa-dri, libudev1, fonts-dejavu-core"
+merge-assets.append = [
+    ["target/release/kmffmpeg/*.so.*", "opt/karaokemachine/lib/", "644"],
+    # The LGPL text and openh264's, beside the libraries they cover. Shipping the libraries is what
+    # makes carrying these required.
+    ["target/release/kmffmpeg/ffmpeg-COPYING.LGPLv2.1.txt", "usr/share/doc/karaokemachine/", "644"],
+    ["target/release/kmffmpeg/openh264-LICENSE.txt", "usr/share/doc/karaokemachine/", "644"],
+]
+
+# Video against the distribution's own ffmpeg. **Not the default, and the one a distribution packager
+# wants**: vendored libraries are what Debian policy tells a packager not to ship, and this is the
+# build that ships none.
+#
+# `$auto` comes back here and earns its keep exactly as it did -- km-video links the four ffmpeg
+# libraries normally, so shlibdeps really can see them and no list here needs a video entry. X11
+# returns to `depends` with it, because Debian's libavutil drags libX11 in regardless and a
+# Recommends that cannot be declined is a Recommends that lies.
+[package.metadata.deb.variants.system-ffmpeg]
+name = "karaokemachine"
+depends = "$auto, libx11-6, libxext6, libxrandr2, libxcursor1, libxi6, libxfixes3, libxss1, libxtst6, libxrender1, libdrm2, libgbm1, libegl1, libgles2, libgl1-mesa-dri, libudev1, fonts-dejavu-core"
+# A variant's `recommends` replaces the base's rather than adding to it, so `karaokemachine-tools`
+# is named again here. Leaving it out would make the tools a desktop's default on one build and not
+# on the other, which is the kind of difference nobody would look for.
+recommends = "karaokemachine-tools, libwayland-client0, libwayland-cursor0, libwayland-egl1, libxkbcommon0, libdecor-0-0, libgl1"

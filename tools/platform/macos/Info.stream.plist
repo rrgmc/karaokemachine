@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  The second bundle's manifest: the same machine, drawing for an encoder instead of for a television.
+  `tools/platform/macos/app-bundle.sh` substitutes @VERSION@ and copies this in.
+
+  **A second bundle is what a launch argument costs on this platform.** Windows passes `--stream` on a
+  shortcut and Linux puts it in a desktop action; a macOS bundle carries no argument anywhere in its
+  manifest, so the only way to offer the mode as something double-clickable is a bundle whose
+  executable supplies it. That executable is a four-line script, and the machine it starts is the one
+  in `KaraokeMachine.app` beside this.
+
+  **`CFBundleIdentifier` is its own, and that is not cosmetic.** LaunchServices keys a bundle on this,
+  and two bundles sharing one identifier are one application to the system: the Finder, the Dock and
+  `open` would treat whichever it found first as both.
+
+  It declares no document types. `.kmpkg` belongs to the machine's own bundle, and a second Owner for
+  one type is a fight neither wins predictably -- a package handed to a streaming run would also be
+  installed by a machine with no screen to say so.
+-->
+<plist version="1.0">
+<dict>
+    <key>CFBundleName</key>
+    <string>KaraokeMachine Stream</string>
+    <key>CFBundleDisplayName</key>
+    <string>KaraokeMachine Stream</string>
+    <key>CFBundleIdentifier</key>
+    <string>com.karaokemachine.app.stream</string>
+    <key>CFBundleExecutable</key>
+    <string>karaokemachine-stream</string>
+    <!-- Without extension. macOS looks for `<this>.icns` in Contents/Resources. The machine's own
+         mark with the stream badge on it: this is the machine, and it sits in the Dock and in
+         /Applications beside the bundle that starts it drawing a television, where two bundles
+         wearing one mark differ only by the name under them. -->
+    <key>CFBundleIconFile</key>
+    <string>karaokemachine-stream</string>
+    <key>CFBundleShortVersionString</key>
+    <string>@VERSION@</string>
+    <key>CFBundleVersion</key>
+    <string>@VERSION@</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleInfoDictionaryVersion</key>
+    <string>6.0</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>11.0</string>
+    <key>LSApplicationCategoryType</key>
+    <string>public.app-category.music</string>
+    <key>NSHighResolutionCapable</key>
+    <true/>
+    <key>NSRequiresAquaSystemAppearance</key>
+    <false/>
+    <!-- **No `LSUIElement`, and the machine drops its Dock tile itself once its icon is in the bar.**
+         The key cannot express *once the icon is there*, and a run that never gets one has to keep
+         the tile: it would otherwise be a process nothing announces and nothing but Activity Monitor
+         ends. `crates/machine/karaokemachine/src/tray.rs` is where that is decided.
+
+         The key would also be read by nothing. This bundle's executable hands over to the machine's
+         own, so the manifest macOS reads for the running program is `Info.plist` beside this one.
+
+         `KM Remote.app` takes a Dock tile in its `--browser` mode and keeps it, because a tool's
+         icon is a fallback for a run that usually has a window - where this bundle only ever starts
+         a run that has none. -->
+</dict>
+</plist>

@@ -1,0 +1,36 @@
+{# The folders and their pager, swapped on their own so that narrowing does not replace the box
+   being typed into. Every control here sends `at` and `filter` back, because a page turn that
+   dropped either would walk somebody out of the folder they were narrowing. #}
+<div id="folders">
+<ul class="folders">
+{% for row in listing.rows %}
+  <li>
+    <button class="link" hx-get="/open/list?at={{ row.path|urlencode }}"
+            hx-target="#listing" hx-swap="innerHTML">{{ row.name }}</button>
+    {% if row.indexed.openable() %}
+      <span class="badge">{{ "open-indexed"|t }}</span>
+      <button hx-post="/open/open" hx-vals='{"path": {{ row.path|json|safe }}}'
+              hx-target="#opening" hx-swap="innerHTML">{{ "open-open"|t }}</button>
+    {% endif %}
+  </li>
+{% else %}
+  <li class="empty">{% if listing.filter.is_empty() %}{{ "open-nothing-found"|t }}{% else %}{{ "open-no-folder-called-that"|t }}{% endif %}</li>
+{% endfor %}
+</ul>
+{% if listing.total > 0 %}
+<div class="spread pager">
+  {# The page, the page count and a plural over the folders, composed in Rust. #}
+  <span class="dim">{{ listing.range }}</span>
+  <span class="row">
+    {% if !listing.previous.is_empty() %}
+    <button type="button" hx-get="/open/list?rows=1&amp;{{ listing.previous }}"
+            hx-target="#folders" hx-swap="outerHTML">&larr; {{ "pager-previous"|t }}</button>
+    {% endif %}
+    {% if !listing.next.is_empty() %}
+    <button type="button" hx-get="/open/list?rows=1&amp;{{ listing.next }}"
+            hx-target="#folders" hx-swap="outerHTML">{{ "pager-next"|t }} &rarr;</button>
+    {% endif %}
+  </span>
+</div>
+{% endif %}
+</div>

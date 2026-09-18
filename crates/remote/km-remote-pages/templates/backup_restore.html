@@ -1,0 +1,50 @@
+{% extends "layout.html" %}
+{% block title %}{{ head.title }}{% endblock %}
+{% block content %}
+
+{{ head|safe }}
+
+{% match error %}
+{% when Some with (message) %}
+<p class="step-warn">{{ message }}</p>
+{% when None %}
+{% endmatch %}
+
+{# **One form, one field, and the file input feeds it.** `pick.js` reads the chosen file with a
+   `FileReader` and posts its text as `document`, which is the same field the paste box below uses —
+   so there is one handler and one code path rather than a multipart branch beside a text branch.
+   That also keeps the handler on a `String` body, which is what `form.rs` exists for, and adds no
+   `multipart` feature to a workspace table shared with the machine and the owner's page.
+
+   The input is really there, so both phone shells still open their native picker.
+
+   Three `accept` values, because the two phones filter differently and either alone hides the file
+   on the other: iOS maps the list to UTTypes and knows the extension, while Android's document
+   picker matches on MIME type — which Drive and Dropbox choose themselves, and which is why the
+   Android shell deliberately builds its own `*/*` intent rather than honoring this list. #}
+<form method="post" action="/favorites/backup/restore" id="pick-form">
+  <input type="hidden" name="document" id="pick-text">
+  <input type="file" name="file" id="pick-file" class="pick-file"
+         accept=".json,application/json,text/json">
+  <noscript>
+    <p class="step-note">{{ "backup-paste-hint"|t }}</p>
+  </noscript>
+</form>
+
+<p class="step-note">{{ "backup-choose-hint"|t }}</p>
+
+{# The path that works with no JavaScript at all, and the one a desktop can paste into. The same
+   field name, so the server cannot tell — and does not need to — which of the two was used. #}
+<details class="step-fallback">
+  <summary>{{ "backup-paste"|t }}</summary>
+  <form method="post" action="/favorites/backup/restore">
+    <p class="step-note">{{ "backup-paste-hint"|t }}</p>
+    <textarea name="document" class="share-digits" rows="4" required
+              autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"></textarea>
+    <button class="icon-btn primary" type="submit">{{ "backup-restore-button"|t }}</button>
+  </form>
+</details>
+
+<script src="/static/pick.js?v={{ chrome.assets }}"></script>
+
+{% endblock %}

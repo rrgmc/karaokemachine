@@ -1,0 +1,36 @@
+{% extends "layout.html" %}
+{% block title %}{{ "nav-scan"|t }} &middot; {{ crate::APP_NAME }}{% endblock %}
+{% block content %}
+
+<h2>{{ "nav-scan"|t }}</h2>
+
+<div class="panel">
+  <p>
+    {{ "scan-reads-lead"|t }} <span class="mono">{{ chrome.root }}</span>.
+  </p>
+  <p class="dim">
+    {{ "scan-unchanged-skipped"|t }}
+    <strong>{{ "scan-reanalyze"|t }}</strong> {{ "scan-reanalyze-note"|t }}
+  </p>
+  {# Only where there are any. A folder this build decided every song of has nothing to say here, and
+     the sentence is worded in the handler because its plural is one the two languages disagree on. #}
+  {% match stale %}
+  {% when Some with (stale) %}<p>{{ stale }}</p>
+  {% when None %}
+  {% endmatch %}
+
+  <form class="row" hx-post="/scan" hx-target="#progress" hx-swap="outerHTML">
+    <button class="primary" {% if running %}disabled{% endif %}>{{ "scan-changed"|t }}</button>
+    <button name="force" value="1" {% if running %}disabled{% endif %}>{{ "scan-reanalyze"|t }}</button>
+    {% match last_scan %}
+    {% when Some with (when) %}<span class="dim">{{ "scan-last-run"|t }} {{ when }}</span>
+    {% when None %}<span class="dim">{{ "scan-never-run"|t }}</span>
+    {% endmatch %}
+  </form>
+</div>
+
+{% include "progress.html" %}
+
+{% include "failures.html" %}
+
+{% endblock %}

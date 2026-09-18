@@ -1,0 +1,26 @@
+[package]
+name = "km-console"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+description = "Whether anything this process prints will be read, and what to do when it will not."
+
+[lints]
+workspace = true
+
+[dependencies]
+# The other sink, and the reason this can be called from a GUI-subsystem binary at all: `say` becomes
+# a `tracing` event when there is nowhere to print, and `tracing_subscriber` drops its writer's errors
+# where `println!` panics on them.
+tracing = { workspace = true }
+
+# **The only `unsafe` in the workspace lives behind this**, and it is two calls --
+# `GetConsoleProcessList` and `FreeConsole`. Neither has a safe wrapper anywhere. Under
+# `cfg(windows)` rather than as a plain dependency because every other platform compiles the stub in
+# `lib.rs` instead and must not gain a dependency in order to answer "no". See the `Unsafe code,
+# once` decision in docs/decisions/.
+[target.'cfg(windows)'.dependencies]
+windows-sys = { workspace = true }

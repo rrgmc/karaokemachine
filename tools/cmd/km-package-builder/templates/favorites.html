@@ -1,0 +1,18 @@
+{% extends "layout.html" %}
+{% block title %}{{ "nav-favorites"|t }} &middot; {{ crate::APP_NAME }}{% endblock %}
+{% block content %}
+
+<h2>{{ "nav-favorites"|t }}</h2>
+
+<div class="panel">
+  <form class="row" hx-post="/favorites" hx-target="#action-result" hx-swap="innerHTML">
+    <input name="name" placeholder="{{ "favorites-new-placeholder"|t }}" size="24" required>
+    <button class="primary">{{ "favorites-create"|t }}</button>
+  </form>
+  <div id="action-result"></div>
+</div>
+
+
+{{ table|safe }}
+
+{% endblock %}

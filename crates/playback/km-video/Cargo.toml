@@ -1,0 +1,37 @@
+[package]
+name = "km-video"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+description = "Decoding video songs: the only crate in the workspace that decodes with ffmpeg."
+
+[lints]
+workspace = true
+
+[features]
+# The crate's own ffmpeg switch, and it exists for a reason that is not obvious: `km-video` is a
+# workspace **member**, so `cargo build --workspace` compiles it whether or not anything asked for
+# video. With `ffmpeg-next` unconditional that made ffmpeg and libclang a requirement of building the
+# workspace at all -- which is not what CLAUDE.md promises, not what CI installs, and the reason an
+# IDE that builds the whole project fails here with `ffmpeg-sys-next` errors.
+#
+# Off by default, so a bare workspace build compiles this crate to nothing. Consumers do not name it:
+# the root `Cargo.toml` puts `features = ["ffmpeg"]` on the workspace dependency entry, so any crate
+# that takes `km-video` at all gets a real one.
+ffmpeg = ["dep:ffmpeg-next", "dep:km-loudness"]
+
+[dependencies]
+# These three stay unconditional, deliberately: all are pure Rust, every other member already builds
+# them, and making them optional would buy nothing while adding three more names to the feature list.
+km-audio = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+ffmpeg-next = { workspace = true, optional = true }
+# Measuring a video song's level for the package being built. Behind the same feature as ffmpeg, and
+# for a reason that is about this crate rather than about the meter: the whole of `lib.rs` is
+# `#![cfg(feature = "ffmpeg")]`, so without it there is nothing here to measure with and a
+# `--no-video` build would compile a meter it cannot reach.
+km-loudness = { workspace = true, optional = true }

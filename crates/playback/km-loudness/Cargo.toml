@@ -1,0 +1,18 @@
+[package]
+name = "km-loudness"
+description = "Measuring a song's loudness, and the gain that levels it against the MIDI reference"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+# **No features, deliberately.** `km-cdg` takes this crate and its own manifest turns on having none
+# of its own -- an MP3+G song plays in a `--no-video` build and on Android because nothing in that
+# path is optional. A feature here would be a switch on that claim.
+[dependencies]
+ebur128 = { workspace = true }

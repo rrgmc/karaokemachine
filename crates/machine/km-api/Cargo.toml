@@ -1,0 +1,92 @@
+[package]
+name = "km-api"
+description = "HTTP and WebSocket control API"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+km-songcode = { workspace = true }
+# The queue, the mic registry, the transport enum and the two playback limits -- everything the DTOs
+# describe and the `Controller` trait passes across.
+#
+# **This is `km-audio`'s replacement and not an addition to it.** The module documentation in
+# `machine.rs` has said since M6 that this crate "never touches the engine or the library directly",
+# and for the engine half that was aspiration rather than fact: `dto`, `machine`, `ops`, `error` and
+# `testing` all named `km_audio`, for five value types and two constants that needed no synthesizer.
+# So anything that described a machine linked `rustysynth`, `cpal` and `rtrb` -- `km-remote-pages`,
+# `km-remote-core`, `km-remote` and the Android remote among them, none of which can play a note.
+# See `crates/machine/km-queue/src/lib.rs`.
+km-queue = { workspace = true }
+# Named only by the two debug audition routes, which carry a curator's corrections through to a
+# preview. A leaf over `km-song` and serde, and the API already links the catalog that stores one.
+km-fixes = { workspace = true }
+km-catalog = { workspace = true }
+km-song = { workspace = true }
+# The printed song book, and the language table its section headings are named from.
+#
+# `km-kmpkg` was already in this crate's tree through `km-catalog`; what it was not was *declared*,
+# so `Language::parse("pt").name()` -- the difference between a divider reading `Portuguese` and one
+# reading `pt` -- was out of reach. `km-remote-pages` took the same edge for the same reason.
+km-songbook = { workspace = true }
+# The book's own words, which `km-songbook` deliberately holds none of: `BookStyle` was always a
+# struct the caller fills, so this is where the catalog goes. No `askama` feature — nothing here
+# renders markup.
+km-locale = { workspace = true }
+km-kmpkg = { workspace = true }
+# What the two `/admin/logs` routes serve. A concrete type and not a trait, unlike `Power` beside
+# it: what powering a box off *does* varies per host, where a ring of records behaves the same on
+# every one of them and there will never be a second implementation to abstract over. This crate
+# still holds no subscriber -- installing the layer is the binary's business, and a machine that
+# installed none simply does not mount the routes.
+km-logtap = { workspace = true }
+
+# `multipart` for `POST /debug/play-upload`, whose body is the song file itself. One dependency
+# (`multer`), no TLS, and nothing else on this surface uses it.
+axum = { workspace = true, features = ["multipart"] }
+# `fs` for the same route, and only for it: an upload is streamed to disk a chunk at a time, and
+# `std::fs` there would block a runtime worker for as long as a video takes to arrive.
+tokio = { workspace = true, features = ["fs"] }
+tower-http = { workspace = true }
+futures-util = { workspace = true }
+argon2 = { workspace = true }
+# The bearer token is an HMAC keyed on the stored argon2 hash, so a restart keeps everybody logged
+# in without a token table on disk. See `auth.rs`.
+hmac = { workspace = true }
+sha2 = { workspace = true }
+getrandom = { workspace = true }
+mdns-sd = { workspace = true }
+if-addrs = { workspace = true }
+
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+
+[features]
+# An in-memory karaoke machine implementing the `machine` traits, so the HTTP surface can be driven
+# with no audio device and no catalog on disk. Wanted by this crate's integration tests and by
+# `km-app`'s; never compiled into a release binary.
+testing = ["km-song/testing"]
+
+[dev-dependencies]
+tower = { workspace = true }
+# The `dev_server` example logs what it is doing; the library itself only emits `tracing` events and
+# leaves the subscriber to the binary.
+tracing-subscriber = { workspace = true }
+# `test-util` gives the paused clock, so the 4 Hz state ticker is verified by advancing time rather
+# than by sleeping for a real second in every test run.
+tokio = { workspace = true, features = ["test-util"] }
+tokio-tungstenite = { workspace = true }
+
+# Serves the API over the in-memory machine so the dev remote can be driven in a browser before
+# `km-app` exists. See the example's own documentation for why it is not a binary.
+[[example]]
+name = "dev_server"
+required-features = ["testing"]

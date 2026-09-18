@@ -1,0 +1,9 @@
+<form class="row" id="install-form" {% if oob %}hx-swap-oob="true" {% endif %}
+      hx-post="/packages/{{ package_id }}/install?volume={{ volume }}" hx-target="#action-result" hx-swap="innerHTML"
+      style="margin-top:0.5rem">
+  <button {% if !built %}disabled{% endif %}>{{ "install-button"|t }}</button>
+  <span class="dim">
+    {% if !built %}{{ "install-build-first"|t }}
+    {% else %}{{ "install-sends"|t }}{% endif %}
+  </span>
+</form>

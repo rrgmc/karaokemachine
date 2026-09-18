@@ -1,0 +1,30 @@
+{% extends "layout.html" %}
+{% block title %}{{ "tab-packages"|t }}{% endblock %}
+{% block content %}
+
+<div class="modes setup-tabs">
+  <a class="mode-btn" href="/setup">{{ "tab-setup"|t }}</a>
+  <a class="mode-btn active" href="/setup/packages" aria-current="page">{{ "tab-packages"|t }}</a>
+</div>
+
+{# Which packages this phone searches. On both remotes, because it is about the person holding the
+   phone. Every box posts on change: `listed` names each package drawn, so the handler can tell a
+   box somebody unticked from a package this list never showed.
+
+   `hx-swap="none"` because the answer is a toast and nothing else: the default swap would put that
+   empty remainder inside the form and take every box with it. The toast is out-of-band and still
+   lands. #}
+<form class="package-list" hx-post="/packages/hidden" hx-trigger="change" hx-swap="none">
+  <div class="pref-row">{{ "packages-shown"|t }}</div>
+  {% for package in packages %}
+  <input type="hidden" name="listed" value="{{ package.id }}">
+  <label class="package-row">
+    <input type="checkbox" name="show" value="{{ package.id }}"{% if package.shown %} checked{% endif %}>
+    <span class="package-name">{{ package.name }}</span>
+    <span class="package-songs">{{ package.songs }}</span>
+  </label>
+  {% endfor %}
+  <p class="hint">{{ "packages-shown-hint"|t }}</p>
+</form>
+
+{% endblock %}

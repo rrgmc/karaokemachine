@@ -1,0 +1,44 @@
+{% extends "layout.html" %}
+{% block title %}{{ "nav-packages"|t }} &middot; {{ crate::APP_NAME }}{% endblock %}
+{% block content %}
+
+<h2>{{ "nav-packages"|t }}</h2>
+<div id="action-result"></div>
+
+<div class="grid">
+  <div class="panel">
+    <h3 style="margin-top:0">{{ "packages-new"|t }}</h3>
+    <form hx-post="/packages" hx-target="#action-result" hx-swap="innerHTML">
+      <dl class="facts">
+        <dt><label for="name">{{ "packages-name"|t }}</label></dt>
+        <dd><input id="name" name="name" required size="24" placeholder="{{ "packages-name-placeholder"|t }}"></dd>
+        <dt><label for="version">{{ "packages-version"|t }}</label></dt>
+        <dd><input id="version" name="version" size="10" value="1.0.0"
+          required pattern="[0-9]+\.[0-9]+\.[0-9]+" title="{{ "packages-version-title"|t }}"></dd>
+        <dt><label for="publisher">{{ "packages-publisher"|t }}</label></dt>
+        <dd><input id="publisher" name="publisher" size="24"></dd>
+        <dt><label for="start_number">{{ "packages-first-number"|t }}</label></dt>
+        <dd><input id="start_number" name="start_number" type="number" min="1" max="{{ km_songcode::MAX_SLOT }}" value="1" size="8"></dd>
+      </dl>
+      {# The highest number a package holds is in the sentence, so it is composed in Rust. #}
+      <p class="dim">{{ numbering }}</p>
+      <button class="primary">{{ "packages-create"|t }}</button>
+    </form>
+  </div>
+
+  <div class="panel">
+    <h3 style="margin-top:0">{{ "packages-open"|t }}</h3>
+    <form hx-post="/packages/import" hx-target="#action-result" hx-swap="innerHTML">
+      <label>{{ "packages-path-to"|t }} <span class="mono">.kmpkg</span>
+        <input name="path" size="40" required placeholder="vol1.kmpkg">
+      </label>
+      <p class="dim">{{ "packages-import-note"|t }}</p>
+      <button class="primary">{{ "packages-import"|t }}</button>
+    </form>
+  </div>
+</div>
+
+
+{{ table|safe }}
+
+{% endblock %}

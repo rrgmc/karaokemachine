@@ -1,0 +1,81 @@
+<div data-sse="machine" class="machine" id="machine">
+
+  <div class="machine-head">
+    <span class="conn {% if status.connection.online %}conn-on{% else %}conn-off{% endif %}"
+          role="status" aria-hidden="true"></span>
+    <span class="machine-state">
+      {% if status.connection.online %}{{ "machine-connected"|t }}{% else %}{{ "not-connected"|t }}{% endif %}
+    </span>
+    {% if status.pinned %}
+    <span class="badge badge-warn" title="{{ "machine-rescan"|t }}">{{ "pinned"|t }}</span>
+    {% endif %}
+  </div>
+
+  {# The name leads and the address stays beneath it as the quiet line, which is the ordering the
+     package builder's own discovery list already uses. Where a machine advertises nothing worth
+     showing there is no heading at all rather than an empty one -- the address is a complete answer
+     on its own, and was the only answer for as long as this card has existed. #}
+  {% match status.connection.name %}
+  {% when Some with (name) %}<div class="machine-name">{{ name }}</div>
+  {% when None %}
+  {% endmatch %}
+
+  {% match status.connection.address %}
+  {% when Some with (address) %}<div class="machine-address">{{ address }}</div>
+  {% when None %}<div class="machine-address quiet-text">{{ "machine-none"|t }}</div>
+  {% endmatch %}
+
+  <div class="hint">
+    {% match how_key() %}
+    {% when Some with (key) %}{{ key|t }} &middot;
+    {% when None %}
+    {% endmatch %}
+    {{ songs_line }}
+  </div>
+
+  <div class="machine-actions">
+    {# Absent rather than disabled where the locator finds nothing by construction -- a button that
+       can only ever report failure is the grayed-out star `Capabilities` exists to avoid. #}
+    {% if status.can_browse %}
+    <button hx-post="/machine/rescan" hx-target="#machine" hx-swap="outerHTML">
+      {{ "machine-rescan-button"|t }}
+    </button>
+    {% endif %}
+    <button hx-post="/machine/refresh" hx-target="#machine" hx-swap="outerHTML">
+      {{ "machine-refresh"|t }}
+    </button>
+    {# **The machine's own remote, not this one.** The address above is a full base URL and the
+       machine serves its remote at the root of it, so this is that same field read a second time --
+       the two cannot drift, and the pump republishing this card keeps both current.
+
+       **An ordinary anchor, and that is what makes it work on every host.** Each of the three
+       webviews already sends a URL that is not its own loopback out to the real browser -- wry's
+       `with_new_window_req_handler`, Android's `shouldOverrideUrlLoading`, iOS's `decidePolicyFor`
+       -- and the YouTube link in `_rows.html` has been proving it in all three for as long as it has
+       existed. So there is no host seam here, no trait, and no `km-osopen` in a phone's binary.
+       `target="_blank"` is load-bearing rather than decoration: it is what makes
+       wry see a *new window* request instead of navigating the app's own window away.
+
+       Drawn wherever there is an address, including while the machine is not answering -- the banner
+       already prints that same address as "retrying", so the card would be pretending otherwise. #}
+    {% match status.connection.address %}
+    {% when Some with (address) %}
+    <a href="{{ address }}" target="_blank" rel="noopener"
+       title="{{ "machine-open-browser-title"|t }}">{{ "machine-open-browser"|t }}</a>
+    {# **The song book, from the machine rather than from here.** `The song book` said the offline
+       remote does not link to it, and the reason it gave was about *serving* one: this device's
+       catalog is `km-remote-core`'s own mirror with a different schema and a different sort key, so
+       a book built here would be a second adapter. Linking out to the machine's own route is not
+       serving one -- it is the anchor directly above, read a second time, and it reaches the same
+       browser on all five hosts for the same reason.
+
+       Gated on having an address rather than on being online, like that anchor: a machine that is
+       not answering is a machine the banner is already saying it is retrying, and a link that
+       vanished would be pretending this device does not know where the book is. #}
+    <a href="{{ address }}/api/v1/songs/book.pdf" target="_blank" rel="noopener"
+       title="{{ "book-link"|t }}">{{ "tab-book"|t }}</a>
+    {% when None %}
+    {% endmatch %}
+  </div>
+
+</div>

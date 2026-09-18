@@ -1,0 +1,101 @@
+{% extends "layout.html" %}
+{% block content %}
+
+<section class="card">
+  <h2>{{ "problems-refused-heading"|t }}</h2>
+  <p class="hint">
+    {{ "problems-refused-hint"|t }}
+  </p>
+  {% if refused.is_empty() %}
+  <p class="empty">{{ "problems-refused-empty"|t }}</p>
+  {% else %}
+  {# `faults` is the width floor, not a look: this is the one table here whose middle column is a
+     *sentence*, and a sentence in a column narrower than a few words is a vertical ribbon. See
+     `.card table.faults` in the stylesheet. #}
+  <table class="faults">
+    <thead>
+      <tr><th>{{ "column-file"|t }}</th><th>{{ "column-what-is-wrong"|t }}</th><th></th></tr>
+    </thead>
+    <tbody>
+    {% for row in refused %}
+      <tr>
+        <td>
+          {{ row.file }}
+          <br><span class="hint">{{ row.folder }}</span>
+        </td>
+        <td>{{ row.reason }}</td>
+        <td>
+          {% match row.why_not_removable %}
+          {% when Some with (why) %}
+          <span class="hint">{{ why }}</span>
+          {% when None %}
+          <a class="danger" href="/admin/problems/{{ row.id }}/delete"
+             aria-label="{{ row.delete_label }}">{{ "problems-delete"|t }}</a>
+          {% endmatch %}
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+</section>
+
+{# **A card per fault, where this was a table.** Every row now carries the control that answers it,
+   and one of the three is a file chooser -- which does not belong in a table cell. Cards are what
+   this stylesheet already draws, and the space is what lets each fault say what is wrong and offer
+   the fix in one place.
+
+   The controls post to the owning tab's own routes, carrying `back=problems` so the redirect lands
+   back here. Not new routes: a fix applied from this tab and the same fix applied from the Sound tab
+   are one act, and a second route would be a second thing to keep in step. #}
+{% if faults.is_empty() %}
+<section class="card">
+  <h2>{{ "problems-other-heading"|t }}</h2>
+  <p class="empty">{{ "problems-other-empty"|t }}</p>
+</section>
+{% else %}
+{% for fault in faults %}
+<section class="card">
+  <h2>{{ fault.subject }}</h2>
+  <p>{{ fault.text }}</p>
+  {% match fault.fix %}
+
+  {% when Some with (Fix::Bank(choices)) %}
+  <form method="post" action="/admin/sound/use" class="inline">
+    <input type="hidden" name="back" value="problems">
+    <select name="id" aria-label="{{ "problems-choose-bank"|t }}">
+      {% for choice in choices %}
+      <option value="{{ choice.id }}"{% if choice.selected %} selected{% endif %}>{% if choice.is_system_choice %}{{ "output-system"|t }}{% else %}{{ choice.label }}{% endif %}</option>
+      {% endfor %}
+    </select>
+    <button type="submit">{{ "bank-use"|t }}</button>
+  </form>
+
+  {% when Some with (Fix::Output(choices)) %}
+  <form method="post" action="/admin/sound/output" class="inline">
+    <input type="hidden" name="back" value="problems">
+    <select name="id" aria-label="{{ "output-choose"|t }}">
+      {% for choice in choices %}
+      <option value="{{ choice.id }}"{% if choice.selected %} selected{% endif %}>{% if choice.is_system_choice %}{{ "output-system"|t }}{% else %}{{ choice.label }}{% endif %}</option>
+      {% endfor %}
+    </select>
+    <button type="submit">{{ "output-save"|t }}</button>
+  </form>
+
+  {# `back` is in the query and not a field, because `uploads::receive` owns the whole multipart
+     body. See `handlers::upload_wallpaper`. #}
+  {% when Some with (Fix::Picture) %}
+  <form method="post" action="/admin/pictures/upload?back=problems"
+        enctype="multipart/form-data">
+    <input type="file" name="file" required>
+    <button type="submit">{{ "action-add"|t }}</button>
+  </form>
+
+  {% when None %}
+  {% endmatch %}
+  <p class="hint"><a href="{{ fault.tab }}">{{ "problems-go-there"|t }}</a></p>
+</section>
+{% endfor %}
+{% endif %}
+
+{% endblock %}

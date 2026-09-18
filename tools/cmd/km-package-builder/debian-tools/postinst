@@ -1,0 +1,30 @@
+#!/bin/sh
+# Puts the three tools on PATH.
+#
+# They install under /opt/karaokemachine/tools for one reason: km-package-builder is built with
+# `video` and links the four ffmpeg libraries, which the karaokemachine package carries at
+# /opt/karaokemachine/lib. An rpath of $ORIGIN/../lib reaches them from there and from nowhere in
+# /usr/bin, so the real files stay in /opt and these symlinks are what make the names typeable.
+#
+# current_exe reads /proc/self/exe, which resolves through a symlink to the real file -- so a tool
+# invoked through one of these still finds whatever it looks for beside itself.
+set -e
+
+case "$1" in
+  configure)
+    for tool in km-package-builder km-remote km-admin; do
+      ln -sfn "/opt/karaokemachine/tools/$tool" "/usr/bin/$tool"
+    done
+    ;;
+
+  abort-upgrade | abort-remove | abort-deconfigure) ;;
+
+  *)
+    echo "postinst called with unknown argument \`$1'" >&2
+    exit 1
+    ;;
+esac
+
+#DEBHELPER#
+
+exit 0

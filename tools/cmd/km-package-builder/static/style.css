@@ -1,0 +1,1262 @@
+/* A developer tool's stylesheet: dense, legible, and no framework.
+   The brief asks for a simple design for knowledgeable users, so this optimizes for how many rows
+   fit on a screen rather than for looking like a product.
+
+   DARK, AND PINNED DARK -- one palette, `color-scheme: dark`, and no `prefers-color-scheme` branch,
+   so a desktop set to light mode gets this page exactly as written. It was inverted to a white
+   ground for half a day, on the argument that a dense table of small text is the thing a light
+   ground is unambiguously best at. That argument is a real one and it still lost, to the only test
+   it was ever going to face: the person who sits in front of this tool looked at it and sent it
+   back. Taste about one's own instrument beats a general claim about legibility, so the dark
+   palette below is restored rather than defended.
+
+   The other two surfaces were never part of this and have not moved. The singer's remote is pinned
+   *light*, for a reason of its own that has nothing to do with density -- it matches the Go remote
+   it is modeled on (see the head of `crates/remote/km-remote-pages/static/app.css`). The television is dark
+   because it is a television. Three surfaces, three decisions; this file settles only its own, and
+   the two of them now disagreeing is the expected state and not a loose end. */
+
+:root {
+    /* `dark`, not `light dark`. There is one palette below and it is dark, so claiming both tells
+       the browser it may draw a light `<select>` or scrollbar on top of it -- which is exactly what
+       happened, the moment tools/dev/screenshots.sh stopped forcing a scheme for every page it
+       captures. That is the whole content of this line and the reason it is never a two-value list:
+       a page that names two schemes and ships one gets its form controls from the wrong one. */
+    color-scheme: dark;
+    --bg: #14161a;
+    --panel: #1c1f26;
+    --panel-2: #23272f;
+    --line: #2f343d;
+    --text: #e6e8ec;
+    --dim: #9aa1ad;
+    --accent: #6ea8fe;
+    /* What goes *on* the accent, where the accent is a fill: primary buttons, the selected letter in
+       the A-Z bar, the video tag. It was the literal `#0b1220` twice and `var(--bg)` once, agreeing
+       only by accident; the inversion that broke the accident has been undone, but the token it
+       forced is kept, because three places that must match should say so. */
+    --accent-ink: #0b1220;
+    --good: #57c785;
+    --warn: #e3b341;
+    /* A filed song's star. The same gold as `--warn` and a token of its own, because the two make
+       opposite claims: `--warn` says something is off -- a copies count, a middling suitability --
+       and a star says somebody chose this. One token carrying both meanings is the accident
+       `--accent-ink` exists to have stopped. */
+    --star: #e3b341;
+    /* Song tags. The fourth mark a row can carry, and the first three had the other three colors —
+       see `.tag.song-tag`. Violet reads as distinct from the blue accent at chip size, which a
+       second blue would not. */
+    --song-tag: #b48ead;
+    --bad: #e26d6d;
+}
+
+* { box-sizing: border-box; }
+
+body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 14px/1.45 ui-sans-serif, system-ui, "Segoe UI", Roboto, sans-serif;
+}
+
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+header {
+    display: flex;
+    align-items: baseline;
+    gap: 1.2rem;
+    padding: 0.6rem 1rem;
+    background: var(--panel);
+    border-bottom: 1px solid var(--line);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    flex-wrap: wrap;
+}
+/* `nowrap` because the name is three words. The header is a wrapping flex row, which is right for
+   its items and wrong inside this one: without it a narrow window breaks
+   "KaraokeMachine Package Builder" mid-phrase and the product name reads as two. The row still
+   wraps around it. */
+header h1 { font-size: 1rem; margin: 0; font-weight: 600; letter-spacing: 0.02em; white-space: nowrap; }
+/* Wrapping, because eight tab words are longer in some languages than in others and a nav that
+   cannot wrap pushes the counts, the folder and the version off the right of a narrow window. The
+   header around it already wraps; this is the row inside it that has to as well. See
+   `A row holding a field survives its longest translation`. */
+header nav { display: flex; gap: 0.9rem; flex-wrap: wrap; }
+header nav a.on { color: var(--text); border-bottom: 2px solid var(--accent); }
+header .counts { margin-left: auto; color: var(--dim); font-size: 0.82rem; }
+header .root { color: var(--dim); font-size: 0.82rem; font-family: ui-monospace, monospace; }
+
+/* Which machine Play and Install would reach. A chip rather than another quiet line, because it is
+   the one thing in this header that says where something *leaves* to — and `none` says so in the
+   warning color rather than by being missing, since an absent tag reads as a header that forgot. */
+header .machine-tag {
+    font-size: 0.78rem;
+    padding: 0.1rem 0.45rem;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    color: var(--dim);
+    white-space: nowrap;
+}
+header .machine-tag:hover { color: var(--text); border-color: var(--accent); }
+header .machine-tag.none { color: var(--warn); border-style: dashed; }
+
+/* **Not a chip, unlike the machine tag above it.** That one is bordered because it names something
+   you can change and is a link to where you change it; this names what is already running and is not
+   a control at all, so it matches `.counts` and `.root` — the two other quiet facts in this
+   header — rather than pretending to be pressable. `header .counts`'s `margin-left: auto` still
+   pushes the whole right-hand cluster over; this rides along in it. */
+header .version { color: var(--dim); font-size: 0.78rem; white-space: nowrap; }
+
+main { padding: 1rem; }
+
+h2 { font-size: 1.05rem; margin: 0 0 0.7rem; }
+h3 { font-size: 0.92rem; margin: 1.2rem 0 0.5rem; color: var(--dim); text-transform: uppercase; letter-spacing: 0.06em; }
+
+/* Filters ---------------------------------------------------------------- */
+
+form.filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: center;
+    padding: 0.6rem;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    margin-bottom: 0.8rem;
+}
+form.filters label { color: var(--dim); font-size: 0.82rem; }
+
+/* The songs page's bar, which is two elements inside one box: the form, and the strip of named
+   filters that cannot be part of it. The chrome is here rather than on the form so the border goes
+   round both — see templates/songs.html.
+
+   It repeats what `form.filters` says rather than the two sharing a declaration, because the six
+   other forms wearing that class are each a box in their own right and must go on being one. */
+.filter-box {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 0.6rem;
+    margin-bottom: 0.8rem;
+}
+
+/* And the form inside gives its own up, or the page draws a box within a box. */
+.filter-box > form.filters.banded {
+    background: none;
+    border: 0;
+    border-radius: 0;
+    padding: 0;
+    margin: 0;
+}
+
+/* The banded form, on the songs page. One long wrapping run of fourteen controls gave the eye
+   nowhere to land and no way to tell a set filter from an unset one; each band answers one question
+   and carries its name in the left margin, so the shape of the bar is the shape of the thinking. */
+form.filters.banded { flex-direction: column; align-items: stretch; gap: 0.35rem; }
+
+form.filters.banded .band {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    /* **The gap between two filters must be visibly bigger than the gap inside one.** Both were
+       0.5rem, so `suitability >= [box] your score [box]` put the same distance either side of a
+       select and nothing said which caption owned it -- the quality band reads as four loose words
+       and four loose boxes. The `label` rule below is the other half: it holds a caption against its
+       own control, so the wide gap is unambiguously *between* pairs. */
+    column-gap: 1.4rem;
+    row-gap: 0.4rem;
+}
+
+/* A caption and the box it names are one thing. `inline-flex` also stops a long caption from
+   wrapping away from its control when a band runs out of width. */
+form.filters.banded .band label { display: inline-flex; align-items: center; gap: 0.3rem; }
+
+/* A fixed column so the names line up under each other and the controls all start at one edge.
+   Shares the uppercase treatment of `h3`, which is what a section name looks like everywhere else
+   in this tool. */
+form.filters.banded .band-name {
+    flex: 0 0 4.2rem;
+    color: var(--dim);
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+
+/* The first two bands hold the search box and the alphabet, which are the whole width of the tool's
+   attention and want no caption. The rule below indents them to the same edge as the captioned
+   ones, so nothing on the left is ragged. */
+form.filters.banded .find,
+form.filters.banded .alphabet-band { padding-left: 4.2rem; }
+form.filters.banded .find { gap: 0.7rem; }
+
+/* The narrowing bands are separated from the view controls above them by a hairline, not a gap:
+   this is a dense tool and the line costs no rows. */
+form.filters.banded .alphabet-band {
+    padding-bottom: 0.35rem;
+    border-bottom: 1px solid var(--line);
+}
+
+/* The two bands that close the bar and belong to the box rather than to the form: the strip of named
+   filters, and the chips saying what is narrowing the list. `templates/saved_filters.html` gives the
+   reason one of them is out there and `templates/songs.html` the reason the other is.
+
+   **A pair of selectors rather than the band rules widened to every `.band` on the page.** Those are
+   scoped `form.filters.banded .band`, and widening them would hand the bar's shape to any markup
+   that happens to wear the class. The child combinator is what keeps this to the two elements meant:
+   a `.band` deeper in the box is somebody else's.
+
+   The separator is a hairline and not a gap, the alphabet band's reason: this is a dense tool and a
+   line costs no rows. */
+.filter-box > .band,
+.saved-strip {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    column-gap: 1.4rem;
+    row-gap: 0.4rem;
+    padding-top: 0.35rem;
+    border-top: 1px solid var(--line);
+}
+.filter-box > .band .band-name,
+.saved-strip .band-name {
+    flex: 0 0 4.2rem;
+    color: var(--dim);
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+
+.filter-box > .chips .clear { font-size: 0.82rem; }
+/* Nothing is narrowing the list, so there is nothing to say, and the saved strip above it is then
+   what the bar ends on. The element stays in the page rather than being left out of it, because an
+   out-of-band swap can only replace an element that is there -- see templates/filter_chips.html.
+   The saved strip is drawn either way: the control that saves the first filter lives in it. */
+.filter-box > .chips.nothing { display: none; }
+.saved-strip form { display: inline-flex; align-items: center; gap: 0.4rem; }
+.saved-strip label { color: var(--dim); font-size: 0.82rem; display: inline-flex; gap: 0.3rem; }
+.saved-strip .tag a { color: inherit; text-decoration: none; }
+.saved-strip .tag a:hover { text-decoration: underline; }
+/* Inside a chip, so they must not take the raised look the global `button` rule gives. Three of
+   them on a chip -- rewrite, rename, forget -- and they are drawn alike because they are the same
+   kind of thing: a mark at the end of a name rather than a control of its own. What tells them
+   apart is the glyph and, on hover, the color the one destructive one takes. */
+.saved-strip .chip-action {
+    background: none;
+    border: 0;
+    padding: 0 0 0 0.25rem;
+    color: inherit;
+    font: inherit;
+    line-height: 1;
+    cursor: pointer;
+}
+.saved-strip .chip-action:hover { color: var(--accent); }
+.saved-strip .forget:hover { color: var(--bad); }
+
+/* The rename box, which replaces the name inside the chip it renames rather than opening anywhere
+   else -- so the chip keeps its place in the strip while the new name is typed, and nothing under
+   it moves. The chip's own padding is what separates the controls. */
+.saved-strip .tag form { gap: 0.3rem; }
+.saved-strip .tag input { font-size: 0.82rem; padding: 0.1rem 0.3rem; }
+.saved-strip .tag button:not(.chip-action) { font-size: 0.78rem; padding: 0.1rem 0.4rem; }
+
+/* What a save answered with, in the box under the control that asked. Empty for most of the page's
+   life, so the space is on the child rather than on the slot: a permanent gap under the strip would
+   be room held for something that is usually not there. */
+#saved-filter-result > * { margin-top: 0.5rem; }
+
+/* Fields are the page's own ground and buttons are raised off it. Both were `--panel-2` for as long
+   as this page was dark the first time, which worked because anything lighter than the ground reads
+   as a control; the split was made when it went white, where a filled text box reads as a *disabled*
+   one and only a filled button reads as pressable. It is kept now that the ground is dark again,
+   because it is the better arrangement on either: a recessed field and a raised button say which is
+   which without depending on the reader knowing the palette. */
+input, select, textarea, button {
+    font: inherit;
+    color: var(--text);
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 0.28rem 0.45rem;
+}
+input[type="checkbox"] { accent-color: var(--accent); }
+textarea { width: 100%; min-height: 4rem; }
+button { background: var(--panel-2); cursor: pointer; }
+button:hover { border-color: var(--accent); }
+button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
+button.danger:hover { border-color: var(--bad); color: var(--bad); }
+
+/* Tables ----------------------------------------------------------------- */
+
+.scroll { overflow-x: auto; }
+
+table { border-collapse: collapse; width: 100%; }
+th, td { text-align: left; padding: 0.32rem 0.5rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { color: var(--dim); font-weight: 600; font-size: 0.8rem; white-space: nowrap; }
+tbody tr:hover { background: var(--panel); }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* How alike a song's name is to the one searched for. Every browse row draws the cell, because a row
+   does not know which list it is on; only the similar-names list shows it. */
+td.likeness, th.likeness { display: none; }
+table.similar td.likeness, table.similar th.likeness { display: table-cell; }
+/* The tick and the likeness are as wide as what they hold, as `td.actions` is, so the width a
+   full-width table has to spare goes to Artist and Title rather than opening a gap between the two. */
+table.similar td.tick, table.similar thead th:first-child,
+table.similar td.likeness, table.similar th.likeness { width: 1%; }
+/* The song the search started from heads the list, and a bar in the accent color says which it is. */
+table.similar td.searched-from { box-shadow: inset 3px 0 0 var(--accent); }
+td.mono, .mono { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; font-size: 0.85em; }
+/* Prose sitting inside a monospace list: a path is mono, a sentence about it is not. */
+.mono .sans { font-family: ui-sans-serif, system-ui, "Segoe UI", Roboto, sans-serif; white-space: nowrap; }
+
+.suitability { display: inline-block; min-width: 2.2em; text-align: right; font-variant-numeric: tabular-nums; }
+.suitability.low { color: var(--bad); }
+.suitability.mid { color: var(--warn); }
+.suitability.high { color: var(--good); }
+/* A video song, which has no automatic suitability. The dim gray of every other "nobody said" mark
+   on the page rather than a color: nothing was measured, so nothing should read as a verdict. */
+.suitability.none { color: var(--dim); }
+
+/* The quality hint's place, beside the tick it belongs to.
+ *
+ * `place` and not `hint`, which is taken one file down by the second line of the "this is taking
+ * minutes" message -- and taken with `display: block` and `color: var(--dim)`, so a badge wearing
+ * that name lands under the checkbox in grey rather than beside it in the accent.
+ *
+ * Filled in the accent, which is what this tool colors a value somebody asked for. Not the star's
+ * gold: that says *somebody filed this*, and a number saying which to play first is not a filing.
+ *
+ * `:empty` is what keeps a row nobody hinted from carrying a floating dot. The element is on every
+ * row whether or not it has a number -- htmx drops an out-of-band swap whose id is not on the page
+ * -- so the badge has to disappear by being empty rather than by being absent. That is also what
+ * keeps the `nowrap` below from costing anything: the cell is its old width until a hint exists. */
+.place {
+    display: inline-block;
+    min-width: 1.1rem;
+    margin-left: 0.3rem;
+    padding: 0 0.25rem;
+    border-radius: 3px;
+    background: var(--accent);
+    color: var(--accent-ink);
+    font-size: 0.72rem;
+    font-weight: 600;
+    text-align: center;
+    vertical-align: middle;
+}
+.place:empty { display: none; }
+
+/* The tick and its number on one line. The cell is `width: 1%`, so without this the badge falls
+ * under the checkbox and every hinted row becomes two lines tall.
+ *
+ * A class on the cell rather than `:has(> .place)` or `td:first-child`: the first is the selector
+ * `The curation actions are tabs` argues against reaching for, and the second would also
+ * catch the favorite chooser's own row, which is a cell that has to be allowed to wrap. */
+td.tick { white-space: nowrap; }
+
+.tag {
+    display: inline-block;
+    padding: 0 0.35rem;
+    border-radius: 3px;
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    color: var(--dim);
+    font-size: 0.75rem;
+    white-space: nowrap;
+}
+/* A tag that is pressed rather than read: the lists a package draws on, over the songs they decide.
+   Fully rounded and roomier than a chip in a table, because the row of them is a row of targets and
+   a 3px corner at this size reads as a label somebody forgot to style. */
+.tag.pill {
+    border-radius: 999px;
+    padding: 0.1rem 0.6rem;
+    font-size: 0.8rem;
+}
+.tag.pill:hover { text-decoration: none; border-color: var(--accent); color: var(--text); }
+.tag.pill .dim { font-size: 0.72rem; }
+
+/* The band the pills sit in. Wrapping, because a package can draw on more lists than fit a line. */
+.chips { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; margin: 0 0 0.6rem; }
+
+.tag.warn { color: var(--warn); border-color: var(--warn); }
+.tag.good { color: var(--good); border-color: var(--good); }
+/* A version the song list hides behind another. Dashed, the border `.song-tag.suggested` uses for
+   something the tool worked out rather than something a person said. */
+.tag.hidden-version { border-style: dashed; }
+.tag.edit { color: var(--accent); border-color: var(--accent); }
+/* A filter somebody named. The accent rather than a color of its own, because the chip is a link
+   pressed to go somewhere and that is what the accent means everywhere else on the page. It must
+   not be `.good`: the showing chips one band down are that green, and a name given to a filter and
+   a filter narrowing the list right now are two different claims to make in one bar. */
+.tag.saved { color: var(--accent); border-color: var(--accent); }
+/* A video song. Filled rather than outlined like the others: this one says what the row *is*, not
+   something about its metadata, so it should read at a glance down a column of MIDI. */
+.tag.video { color: var(--accent-ink); background: var(--accent); border-color: var(--accent); }
+
+/* A song tag, in the browse list and on the song page.
+ *
+ * **Its own color, and that is the point of the class rather than decoration.** The three marks
+ * above say what the *row* is — a video, a title taken from a file name, a field corrected by hand —
+ * and they are the tool's own vocabulary. A tag is a word somebody typed about the music. Reading a
+ * run of `rock` `brasil` in the same gray as `file name` invites them to be scanned as one kind of
+ * thing, and they are not: one is a fact about the file and the other is a judgment about the song.
+ *
+ * Violet because the three colors already in use are spoken for — amber warns, green approves, blue
+ * is the accent and marks an edit — and a fourth mark that borrowed one of them would inherit a
+ * meaning it does not have. */
+.tag.song-tag { color: var(--song-tag); border-color: var(--song-tag); }
+
+/* A tag offered as a hint rather than because a song here carries it: the suggestions from settings.
+ *
+ * Dashed and dimmer, so the two claims are visibly different. One says *songs are filed under this*;
+ * the other says *this is the sort of word to use*. Confusing them would have somebody filter by a
+ * suggestion and conclude their corpus is empty. */
+.tag.song-tag.suggested { color: var(--dim); border-color: var(--dim); border-style: dashed; }
+
+/* The file name beside a title is in every row's markup and shown only when the list has been asked
+   for it. The switch is a class on `#rows` rather than a flag on the row, because a row re-rendered
+   on its own after an edit or a score is swapped back inside `#rows` and inherits it -- so the
+   fragment routes, which never see the browse query, need to know nothing about this. */
+.filename { display: none; }
+#rows.filenames .filename { display: inline-block; }
+
+/* Panels ----------------------------------------------------------------- */
+
+.panel {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 0.8rem;
+    margin-bottom: 0.9rem;
+}
+/* "Which favorite?", on a second line under the song it is asking about -- so the row being filed is
+   still readable while the choice is made. Marked out from its neighbors because it is the one thing
+   on the page waiting on an answer, and a click landing on the wrong row would file the wrong song.
+
+   **The song's own line takes the same ground and gives up the rule between them**, so the pair reads
+   as one block rather than as a row with a stray band under it -- which is what says *this* song is
+   the one the question is about. Both are painted on the cells rather than on the rows, so the hover
+   rule above does not lift the marking off the one row that must not be mistaken for its neighbors. */
+td.picker, tr.picked td { background: var(--panel-2); }
+tr.picked td { border-bottom: 0; }
+
+/* A favorite this song is already in takes the star's own gold -- the same claim the row's star
+   makes, in the color it makes it in. That is what leaves the accent free to mean the action. */
+.picker .filed { color: var(--star); border-color: var(--star); }
+
+/* The divider between the filings and the working lists: their name, then a line to the edge. A
+   full-width item in the wrapping row, so the working lists always start on a line of their own. The
+   line is `--dim` rather than `--line`, which on `--panel-2` is too close to the ground to see. */
+.picker-rule {
+    flex-basis: 100%;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 0.3rem;
+    color: var(--dim);
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+.picker-rule::after { content: ""; flex: 1; border-top: 1px solid var(--dim); opacity: 0.6; }
+
+/* The same divider as a row of the Favorites table, whose own cell border would draw a second line
+   under it. */
+tr.rule-row td { border-bottom: 0; padding-top: 0.8rem; }
+
+/* The two buttons that are about the chooser rather than about a favorite, kept apart from the row
+   of places the song could go. Pushed to the end and fenced, because the list of favorites grows
+   with the corpus and a `Cancel` that drifts along behind forty names is a `Cancel` nobody finds. */
+.picker-actions {
+    margin-left: auto;
+    padding-left: 0.7rem;
+    border-left: 1px solid var(--line);
+}
+
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 0.9rem; }
+.row { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+.spread { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; }
+
+/* The five buttons at the end of a browse row, on one line at the window this tool opens at.
+   `.row` is `flex-wrap: wrap` -- correctly, everywhere else -- and the cell has no width of its own,
+   so on anything narrower than a very wide screen the last two buttons dropped underneath and every
+   row grew a second line of height.
+
+   `width: 1%` is the whole fix and reads like a typo: in a table that is already `width: 100%`, a
+   percentage smaller than the content needs means *as narrow as the content allows*, so the browser
+   gives this column exactly its buttons and takes the difference out of Title and Artist, which are
+   the two columns with slack in them. A pixel width would be a guess that a font change invalidates.
+
+   **The space in `td.actions .row` is load-bearing.** The rule was `td.actions.row`, matching
+   `<td class="row actions">` -- and a `<td>` whose `display` computes to `flex` is not a table cell
+   any more: the `<tr>` wraps it in an anonymous one and the `<td>` becomes a flex box inside that.
+   Every declaration meant for the column then landed on the wrong box. `width: 1%` sized the flex
+   box, `vertical-align: top` from the `th, td` rule above is not inherited so the anonymous cell
+   fell back to `baseline`, and the padding and bottom border were painted on a box shorter than the
+   row. Measured: a 16px cell box holding 145px of buttons, 137px of them outside it.
+
+   **It changed no column by a pixel, which is why it lasted.** Either side of the fix, at one
+   window: Title 502, Artist 381, this column 161. The anonymous cell was already sized by its
+   content -- the same answer `width: 1%` gives -- so the table looked exactly right while the box
+   the buttons live in was a tenth of its width, and nothing said otherwise except the mouse. Chrome
+   hit-tests that overflow correctly; the tool's own webview does not, and a row's buttons answering
+   only along a narrow band is what put it on screen. `song_row.html` says this from the markup side.
+
+   None of this can make the *row* fit. Once Title and Artist have no slack left the table overflows
+   and `.scroll` starts scrolling sideways instead -- with the buttons past the right-hand edge,
+   which looks the same from a chair. That is a width problem and it is answered where the width is
+   chosen: `WANTED` in `src/desktop.rs`, which opens at 1500 logical pixels. Nothing here needs
+   changing when that moves. */
+th.actions, td.actions { width: 1%; }
+td.actions .row { flex-wrap: nowrap; gap: 0.25rem; }
+td.actions button { padding: 0.28rem 0.4rem; }
+
+/* A filed song's star is gold, and not merely filled. ★ against ☆ at row height is a few pixels of
+   interior, and being in a favorite is the one thing on a row that is scanned for down a column
+   rather than read across one -- so it is the state that has to survive being glanced at. Color is
+   what a glance sees; a fill is not. */
+button.star.filed { color: var(--star); border-color: var(--star); }
+
+/* The page turner, which appears twice on a list -- above the table and below it, from one included
+   template. The margin is here rather than inline on the element, because the two copies want it
+   on opposite sides and a single `margin-top` would weld the top one to the header. `flex-wrap` is what keeps the buttons on the row rather than under it when a filter
+   summary and a six-digit count share the line on a narrow window. */
+.pager { margin: 0.6rem 0; flex-wrap: wrap; }
+
+/* The numbered pages. Tighter than the buttons either side of them, because eleven of them in a row
+   with the ordinary gap reads as eleven separate controls rather than as one ruler. */
+.pager .pages { gap: 0.25rem; align-items: center; }
+.pager .pages .page { min-width: 2rem; padding-left: 0.4rem; padding-right: 0.4rem; }
+
+/* The page being shown: a label, not a button. It carries the button's own metrics so the row does
+   not jog as it moves along, and the accent so the eye finds it without reading the numbers. */
+.pager .pages .here {
+    min-width: 2rem;
+    padding: 0.2rem 0.4rem;
+    text-align: center;
+    color: var(--accent);
+    font-weight: 600;
+}
+
+dl.facts { display: grid; grid-template-columns: max-content 1fr; gap: 0.15rem 0.8rem; margin: 0; }
+dl.facts dt { color: var(--dim); }
+dl.facts dd { margin: 0; }
+
+.dim { color: var(--dim); }
+.bad { color: var(--bad); }
+.good { color: var(--good); }
+.warn { color: var(--warn); }
+
+/* Messages --------------------------------------------------------------- */
+
+.message {
+    padding: 0.5rem 0.7rem;
+    border-radius: 4px;
+    border: 1px solid var(--line);
+    background: var(--panel-2);
+    margin: 0.4rem 0;
+    white-space: pre-wrap;
+}
+.message.ok { border-color: var(--good); }
+.message.error { border-color: var(--bad); }
+.message:empty { display: none; padding: 0; margin: 0; border: 0; }
+
+/* Toasts ----------------------------------------------------------------- */
+
+/* The other half of the pair above, and the two divide by whether there is anywhere to put the
+   sentence. A `.message` lands in a slot a page has set aside for it and stays until something
+   replaces it; a toast is for a request that failed with no slot to land in -- a page turn, a star,
+   a row swapped back -- and for the case a slot cannot cover at all, which is the server not being
+   there any more. `ui.js` is the only thing that ever fills the tray; nothing on the server renders
+   one, and the head of that file says why.
+
+   Top right, where km-remote-pages's are top center, and the offset is a `calc` rather than a
+   number because of the one thing that argued for the bottom: this page's `header` is
+   `position: sticky` and wraps its nav on a narrow window, so the height a toast has to start
+   below is not a constant. `ui.js` measures it into `--header-height` and this adds the same
+   `1rem` the right edge uses, so the strip clears the header at every width instead of relying on
+   `z-index` to draw over it. The fallback is one unwrapped header, for the moment before the
+   script has run. */
+.toasts {
+    position: fixed;
+    right: 1rem;
+    top: calc(var(--header-height, 2.8rem) + 1rem);
+    z-index: 50;   /* over the sticky header, which is 10 */
+    display: flex;
+    /* Newest at the top: `ui.js` prepends and the server swaps `afterbegin`, so DOM order is
+       newest-first and plain `column` puts it nearest the corner. The oldest is therefore last,
+       which is what `ui.js`'s cap drops when more than MAX_TOASTS are on screen. */
+    flex-direction: column;
+    gap: 0.4rem;
+    max-width: min(32rem, calc(100vw - 2rem));
+    /* The strip covers a corner of the page and must not swallow a click meant for what is under
+       it. The items themselves take their clicks back, below, because clicking one dismisses it. */
+    pointer-events: none;
+}
+
+.toast-item {
+    pointer-events: auto;
+    cursor: pointer;
+    padding: 0.5rem 0.7rem;
+    border-radius: 4px;
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-left-width: 3px;
+    color: var(--text);
+    /* A database's complaint arrives with its newlines in it, and reflowing them onto one line is
+       how a message that named a path stops naming it legibly. */
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    /* The one literal in this block. It is black at low alpha, mixed for the near-black ground this
+       file is pinned to -- km-remote-pages's shadow is mixed for white and must not travel here. */
+    box-shadow: 0 4px 16px rgb(0 0 0 / 45%);
+    /* **Nothing about being visible is animated, and that is the whole point of the shape of this
+       rule.** The obvious version fades in and out across one eight-second keyframe, starting at
+       `opacity: 0` -- and it was written that way first, and caught: a browser that throttles
+       animations in a tab it is not painting leaves the message sitting at nought, so the one thing
+       on the page that had to be read was the one thing that could not be seen. So the element is
+       fully drawn by its own properties from the instant it is inserted, and the animation is a
+       delayed fade *out* and nothing else. If it never runs at all -- throttled, disabled, a
+       stylesheet that failed to load -- the toast simply stays until `ui.js`'s timer takes it away,
+       which is the failure everybody would choose.
+
+       One animation, not two, for a second reason: `ui.js` removes the element on `animationend`,
+       and a fade-in would fire that event early and take the message off the screen at once.
+
+       Eight seconds all told, against km-remote-pages's four. That one says "Queued: Tempo Perdido" to
+       somebody holding a microphone; this says what a database did, in a sentence that has to be
+       read. `ui.js` keeps a timer that must outlast this -- see LINGER_MS there. */
+    animation: toast-out 0.6s ease 7.4s forwards;
+}
+
+.toast-bad { border-left-color: var(--bad); }
+.toast-warn { border-left-color: var(--warn); }
+.toast-good { border-left-color: var(--good); }
+
+/* Upwards, which is out of the way rather than across the page: the tray is at the top now, so the
+   drift has to go towards the edge it is anchored to. */
+@keyframes toast-out {
+    to { opacity: 0; transform: translateY(-0.5rem); }
+}
+
+/* The movement goes and the eight seconds stay. Collapsing the animation to nothing -- the usual way
+   to honor this -- would take the message off the screen before it could be read. */
+@media (prefers-reduced-motion: reduce) {
+    .toast-item { animation-name: toast-fade; }
+}
+
+@keyframes toast-fade {
+    to { opacity: 0; }
+}
+
+/* Progress --------------------------------------------------------------- */
+
+.bar { height: 8px; background: var(--panel-2); border-radius: 4px; overflow: hidden; border: 1px solid var(--line); }
+.bar > span { display: block; height: 100%; background: var(--accent); }
+
+/* The same bar where there is no proportion to draw. An open has phases and no denominator -- the
+   step that takes the minutes is one `ANALYZE` or one table rewrite, with nothing inside it to count
+   -- so what the bar can honestly say is *working*, and it says it by moving.
+
+   **The resting opacity is on the rule, not on the keyframe's 0%.** A browser throttles animations in
+   a tab it is not painting, and the whole point of this element is to be right when somebody comes
+   back to that tab: left at the keyframe's low end it would read as a bar that had faded out and
+   stopped. Same trap `.toast-item` above documents, reached from the other side.
+
+   Full width, because a partial bar with no percentage beside it is a proportion nobody stated. */
+.bar.working > span { width: 100%; opacity: 0.8; animation: bar-working 1.4s ease-in-out infinite; }
+
+@keyframes bar-working {
+    0%, 100% { opacity: 0.3; }
+    50% { opacity: 0.9; }
+}
+
+/* The bar stays and the movement goes, exactly as the toast keeps its eight seconds: an element
+   whose job is to say *this is still running* must not be the thing that disappears. The seconds
+   beside it carry the same claim and never depended on motion. */
+@media (prefers-reduced-motion: reduce) {
+    .bar.working > span { animation: none; }
+}
+
+/* The scan's checklist. The mark before each step is drawn here from its state, so the markup carries
+   no characters of its own: a tick for done, a pulsing dot for running, a hollow ring for waiting, a
+   dash for a step this run does not take, a cross for the step a run failed in. A skipped step is
+   dimmed as a whole, because it is the one thing on the list that will not happen. */
+ol.scan-steps { list-style: none; margin: 0.8rem 0 0; padding: 0; }
+ol.scan-steps li { padding: 0.15rem 0; }
+ol.scan-steps li::before { display: inline-block; width: 1.4rem; text-align: center; color: var(--dim); }
+ol.scan-steps li.done::before { content: "\2713"; color: var(--accent); }
+ol.scan-steps li.running::before { content: "\25CF"; color: var(--accent); animation: bar-working 1.4s ease-in-out infinite; }
+ol.scan-steps li.running .step-name { font-weight: 600; }
+ol.scan-steps li.waiting::before { content: "\25CB"; }
+ol.scan-steps li.skipped { color: var(--dim); }
+ol.scan-steps li.skipped::before { content: "\2013"; }
+ol.scan-steps li.failed::before { content: "\2717"; color: var(--bad); }
+
+/* A run that reached its end draws its phase, its bar and its ticks in green, so a glance from across
+   the room tells a finished scan from one still at 100% of its reading with the tail to come. A
+   stopped or failed run keeps the accent: it ended, but not the way that means *done*. */
+.panel.succeeded > p > strong { color: var(--good); }
+.panel.succeeded .bar > span { background: var(--good); }
+.panel.succeeded ol.scan-steps li.done::before { color: var(--good); }
+
+@media (prefers-reduced-motion: reduce) {
+    ol.scan-steps li.running::before { animation: none; }
+}
+
+/* Lyrics ----------------------------------------------------------------- */
+
+.lyrics { max-height: 26rem; overflow-y: auto; }
+.lyrics ol { margin: 0; padding-left: 3.4rem; }
+.lyrics li { padding: 0.05rem 0; }
+.lyrics li::marker { color: var(--dim); font-size: 0.8em; }
+.at { color: var(--dim); font-family: ui-monospace, monospace; font-size: 0.8em; margin-right: 0.5rem; }
+
+/* A lyric search hit is two rows: the ordinary browse row, and the matching passage beneath it.
+
+   The rule the borders have to obey is that the line falls *between hits*, not between a song and
+   its own words -- otherwise every hit reads as two unrelated rows. So the table moves the border
+   off every row and puts it back on the passage, which is the last row of each pair. Scoped by the
+   table's class rather than by `:has()`, so it needs nothing modern of the browser and no change to
+   `song_row.html`, which the Songs page shares. */
+table.hits tbody td { border-bottom: none; }
+table.hits tr.passage td { border-bottom: 1px solid var(--line); padding-top: 0; color: var(--dim); }
+table.hits tr.passage:hover { background: none; }
+
+/* The matched words. Weight rather than the browser's yellow highlighter, which on a dark page is a
+   marker pen drawn through the middle of the sentence being read. The rule has now survived the
+   palette going white and coming back, which is the useful thing to know about it: bold is legible
+   on either ground and shouts on neither, so this is not a rule to revisit with the next color. */
+table.hits mark { background: none; color: var(--text); font-weight: 600; }
+
+/* Something was pressed and the answer has not come back. The dim is aimed at a control and at the
+   panel a control is about to replace: it says *this is stale*, which is true of a table somebody
+   has just asked to re-sort and of a button they have just pressed twice. */
+.htmx-request { opacity: 0.55; }
+
+/* **Except a panel that polls for itself, which is neither stale nor pressed.**
+ *
+ * htmx marks the *requesting* element `htmx-request` when no `hx-indicator` names another, and on
+ * the three progress panels the requesting element is the panel — each re-fetches its own fragment
+ * and swaps itself out. Without this the rule above therefore fires on the panel every poll: bright
+ * for the interval, 55% for the length of the request, then a fresh full-opacity node. On the Open
+ * page, where the panel is the only thing on the screen and the interval is 500ms, that reads as a
+ * blink for the whole of a three-minute migration.
+ *
+ * A class rather than an `hx-indicator` pointed at nothing, because the statement is that a panel
+ * reporting a job needs no *second* indicator on top of the one it is. What each carries is its
+ * own: a proportion where there is one to draw, and on the Open page a `.bar.working` and a count of
+ * seconds, which is the thing the dim would be fighting. */
+.polling.htmx-request { opacity: 1; }
+
+/* Machines found on the network, under the Discover button on Settings. A plain list rather than a
+   table: it is two or three rows on a home network, and every row is one clickable thing plus the
+   name and address it sets. */
+ul.found { list-style: none; margin: .4rem 0 0; padding: 0; }
+ul.found li { display: flex; align-items: baseline; gap: .5rem; padding: .25rem 0; }
+
+/* The curation tabs ------------------------------------------------------ */
+
+/* The seven things that can be done to what the filter bar selected, one per tab. Stacked down the
+   page they read as a sequence when they are alternatives.
+
+   **Radios and `~`, and the reason is which way a failure falls.** The obvious markup puts each
+   input inside its own label in the strip, the way `.alphabet` does -- and a selector then has to
+   reach out of the strip and sideways to a panel, which is `:has()`. The rule below that hides a
+   panel is unconditional, so a browser that could not evaluate that `:has()` would show *no* panel
+   at all and lose the whole of this page's curation. Flat siblings need only `:checked ~`, and a
+   stylesheet that does not load at all leaves every form on the page, which is the arrangement this
+   replaces. (The `#selection` bar that used to hide itself when nothing was ticked made the same
+   polarity argument and has gone; nothing here hides on a selection any more, because every handler
+   behind these forms already answers an empty one in words.) */
+.curate { margin-bottom: 0.8rem; }
+
+/* Hidden but focusable, so the strip is arrow-key navigable exactly as the ARIA tab pattern asks --
+   which a radio group is, for free. `.alphabet` hides its inputs the same way and for the same
+   reason. */
+.curate > input { position: absolute; opacity: 0; pointer-events: none; }
+
+/* The same row of underlined words as the header nav and as km-admin's `.tabs`, so an in-page strip
+   and a page-level one read as the same kind of control. */
+.tabstrip {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+    border-bottom: 1px solid var(--line);
+}
+.tabstrip label {
+    padding: 0.4rem 0.9rem;
+    color: var(--dim);
+    font-size: 0.82rem;
+    border-bottom: 2px solid transparent;
+    cursor: pointer;
+    user-select: none;
+}
+.tabstrip label:hover { color: var(--text); }
+
+.curate .panel { display: none; }
+
+/* One arm per tab, and they have to be written out: a selector cannot ask which radio is checked
+   without naming it. Seven on the Songs page, three on the similar-names page, and an id that is not
+   on the page costs nothing. */
+#curate-language:checked ~ .panel.language,
+#curate-tags:checked ~ .panel.tags,
+#curate-package:checked ~ .panel.package,
+#curate-favorites:checked ~ .panel.favorites,
+#curate-titles:checked ~ .panel.titles,
+#curate-analysis:checked ~ .panel.analysis,
+#curate-quality:checked ~ .panel.quality { display: block; }
+
+#curate-language:checked ~ .tabstrip label[for="curate-language"],
+#curate-tags:checked ~ .tabstrip label[for="curate-tags"],
+#curate-package:checked ~ .tabstrip label[for="curate-package"],
+#curate-favorites:checked ~ .tabstrip label[for="curate-favorites"],
+#curate-titles:checked ~ .tabstrip label[for="curate-titles"],
+#curate-analysis:checked ~ .tabstrip label[for="curate-analysis"],
+#curate-quality:checked ~ .tabstrip label[for="curate-quality"] {
+    color: var(--text);
+    border-bottom-color: var(--accent);
+}
+
+/* Keyboard users get the focus ring the hidden input would otherwise take with it, as `.alphabet`
+   does one block down. */
+#curate-language:focus-visible ~ .tabstrip label[for="curate-language"],
+#curate-tags:focus-visible ~ .tabstrip label[for="curate-tags"],
+#curate-package:focus-visible ~ .tabstrip label[for="curate-package"],
+#curate-favorites:focus-visible ~ .tabstrip label[for="curate-favorites"],
+#curate-titles:focus-visible ~ .tabstrip label[for="curate-titles"],
+#curate-analysis:focus-visible ~ .tabstrip label[for="curate-analysis"],
+#curate-quality:focus-visible ~ .tabstrip label[for="curate-quality"] {
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
+}
+
+/* The panel hangs off the strip rather than floating under it: square top corners and no gap. A
+   tab holding two forms -- Package and Titles each do -- keeps the second one separated the way the
+   page separates two bars. */
+.curate .panel form.filters {
+    margin-bottom: 0;
+    border-top-left-radius: 0;
+    border-top-right-radius: 0;
+    border-top-color: transparent;
+}
+.curate .panel form.filters + form.filters {
+    margin-top: 0.4rem;
+    border-radius: 6px;
+    border-top-color: var(--line);
+}
+
+/* The song page's tabs --------------------------------------------------- */
+
+/* `.curate` one block up, with two names changed and nothing else. The radios-and-`~` argument
+   there is the argument here, and a stylesheet that does not load leaves all four panes on the page,
+   which is a usable song page.
+
+   **`.pane` rather than `.panel`, because the song page's boxes are already `.panel`** -- the class
+   that draws a bordered card. `.curate .panel { display: none }` would take every one of them off
+   the page. A pane draws nothing of its own and holds the cards in the `.grid` that lays two of
+   them side by side, so the strip hangs over cards rather than over a box holding cards. */
+.songtabs { margin-bottom: 0.9rem; }
+
+/* Hidden but focusable, so the strip is arrow-key navigable exactly as the ARIA tab pattern asks. */
+.songtabs > input { position: absolute; opacity: 0; pointer-events: none; }
+
+.songtabs .pane { display: none; padding-top: 0.9rem; }
+
+/* One arm per tab, written out: a selector cannot ask which radio is checked without naming it. */
+#song-tab-details:checked ~ .pane.details,
+#song-tab-files:checked ~ .pane.files,
+#song-tab-filing:checked ~ .pane.filing,
+#song-tab-lyrics:checked ~ .pane.lyrics,
+#song-tab-advanced:checked ~ .pane.advanced { display: block; }
+
+#song-tab-details:checked ~ .tabstrip label[for="song-tab-details"],
+#song-tab-files:checked ~ .tabstrip label[for="song-tab-files"],
+#song-tab-filing:checked ~ .tabstrip label[for="song-tab-filing"],
+#song-tab-lyrics:checked ~ .tabstrip label[for="song-tab-lyrics"],
+#song-tab-advanced:checked ~ .tabstrip label[for="song-tab-advanced"] {
+    color: var(--text);
+    border-bottom-color: var(--accent);
+}
+
+#song-tab-details:focus-visible ~ .tabstrip label[for="song-tab-details"],
+#song-tab-files:focus-visible ~ .tabstrip label[for="song-tab-files"],
+#song-tab-filing:focus-visible ~ .tabstrip label[for="song-tab-filing"],
+#song-tab-lyrics:focus-visible ~ .tabstrip label[for="song-tab-lyrics"],
+#song-tab-advanced:focus-visible ~ .tabstrip label[for="song-tab-advanced"] {
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
+}
+
+/* A package's page ------------------------------------------------------ */
+
+/* `.songtabs` a third time, and the element carries the class for the arrangement rather than for
+   the song page: the hidden radios, the strip and `.pane { display: none }` are written once. The
+   arms are per page because a selector cannot ask which radio is checked without naming it.
+
+   Details is open, and it holds what the package is called over the songs in it: the two are read
+   together, since a first number means nothing without the numbers it flows into. */
+#package-tab-songs:checked ~ .pane.songs,
+#package-tab-sources:checked ~ .pane.sources,
+#package-tab-build:checked ~ .pane.build { display: block; }
+
+#package-tab-songs:checked ~ .tabstrip label[for="package-tab-songs"],
+#package-tab-sources:checked ~ .tabstrip label[for="package-tab-sources"],
+#package-tab-build:checked ~ .tabstrip label[for="package-tab-build"] {
+    color: var(--text);
+    border-bottom-color: var(--accent);
+}
+
+#package-tab-songs:focus-visible ~ .tabstrip label[for="package-tab-songs"],
+#package-tab-sources:focus-visible ~ .tabstrip label[for="package-tab-sources"],
+#package-tab-build:focus-visible ~ .tabstrip label[for="package-tab-build"] {
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
+}
+
+/* A package's volumes, over the song list on Songs. Links rather than radios, because a volume is an
+   address that survives a reload. **Drawn as filled folder tabs rather than underlined words**: the
+   strip sits under the page's own tabs, and a second row of underlined words there is read as more of
+   the same and missed. The open volume joins the card below it. */
+.volumetabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+    border-bottom: 2px solid var(--accent);
+    margin: 0.9rem 0 0.6rem;
+}
+.volumetabs a,
+.volumetabs .current {
+    padding: 0.45rem 1rem;
+    font-size: 0.88rem;
+    font-weight: 600;
+    border: 1px solid var(--line);
+    border-bottom: 0;
+    border-radius: 6px 6px 0 0;
+    text-decoration: none;
+}
+.volumetabs a { color: var(--dim); background: var(--panel); }
+.volumetabs a:hover { color: var(--text); background: var(--panel-2); }
+.volumetabs .current { color: var(--accent-ink); background: var(--accent); border-color: var(--accent); }
+
+/* A label beside each field, in two columns, so a card of settings reads down one edge rather than
+   as a paragraph of controls. A row with no label of its own puts an empty `<span>` in the first
+   column. The first letter is raised here because the catalogs keep a label in the lower case the
+   inline sentences use. */
+.fields {
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr);
+    gap: 0.5rem 0.9rem;
+    align-items: center;
+}
+.fields > label:not(.check)::first-letter,
+.fields > .label::first-letter { text-transform: uppercase; }
+.fields > label:not(.check),
+.fields > .label { color: var(--dim); }
+.fields .wide { width: 100%; max-width: 46rem; box-sizing: border-box; }
+
+/* A card of short values, which takes the width its fields need rather than the page's: a name and a
+   language picker stretched across a wide window read as one long bar with a word in it. */
+.fields.compact { grid-template-columns: max-content max-content; }
+.fields .medium { width: 22rem; max-width: 100%; }
+.panel.fit { width: fit-content; max-width: 100%; }
+.fields > form { margin: 0; }
+.pane.build .panel + .panel { margin-top: 0.8rem; }
+
+/* The melody column's *no melody* radio, which sits in the table head because it is the one answer
+   that is about the song rather than about a channel. Its own line under the column name and in the
+   head's ordinary weight, so a control does not read as part of the heading. */
+.no-melody {
+    display: block;
+    font-weight: normal;
+    color: var(--dim);
+    font-size: 0.82rem;
+    white-space: nowrap;
+}
+
+/* The settings page's tabs ---------------------------------------------- */
+
+/* `.songtabs` again, and the element carries both names: the layout, the hidden radios and the
+   `.pane` rule are one arrangement and are written once. What cannot be shared is the arm per tab,
+   because a selector cannot ask which radio is checked without naming it.
+
+   The panels are five subjects somebody comes to one at a time, and the one most often wanted --
+   which machine Play and Install reach -- was the first of five stacked down a page. Machine opens
+   for that reason. Which tab is open is not remembered, by the rule the song page gives: a page is
+   arrived at to do the thing its first tab does, and choosing a language answers `HX-Refresh`, so
+   that one redraws here. */
+#settings-tab-machine:checked ~ .pane.machine,
+#settings-tab-backup:checked ~ .pane.backup,
+#settings-tab-locale:checked ~ .pane.locale,
+#settings-tab-tags:checked ~ .pane.tags,
+#settings-tab-folder:checked ~ .pane.folder { display: block; }
+
+/* The password box, behind a summary where this computer already has the password.
+
+   `flex-basis: 100%` because the form around it is a `.row`: left to itself the disclosure sits
+   between the label it holds and the Sign in button, and opening it pushes the button onto a second
+   line halfway through a sentence. A full row of its own keeps Sign in where it was.
+
+   A default triangle and bold label read as a section of the page; what this is is one more thing
+   you may press, so it takes the accent and the weight of a link. */
+#machine-access details.retype { flex-basis: 100%; }
+#machine-access details.retype > summary {
+    cursor: pointer;
+    color: var(--accent);
+    width: fit-content;
+}
+#machine-access details.retype > summary::marker { content: ""; }
+#machine-access details.retype[open] > summary { margin-bottom: 0.5rem; }
+
+#settings-tab-machine:checked ~ .tabstrip label[for="settings-tab-machine"],
+#settings-tab-backup:checked ~ .tabstrip label[for="settings-tab-backup"],
+#settings-tab-locale:checked ~ .tabstrip label[for="settings-tab-locale"],
+#settings-tab-tags:checked ~ .tabstrip label[for="settings-tab-tags"],
+#settings-tab-folder:checked ~ .tabstrip label[for="settings-tab-folder"] {
+    color: var(--text);
+    border-bottom-color: var(--accent);
+}
+
+#settings-tab-machine:focus-visible ~ .tabstrip label[for="settings-tab-machine"],
+#settings-tab-backup:focus-visible ~ .tabstrip label[for="settings-tab-backup"],
+#settings-tab-locale:focus-visible ~ .tabstrip label[for="settings-tab-locale"],
+#settings-tab-tags:focus-visible ~ .tabstrip label[for="settings-tab-tags"],
+#settings-tab-folder:focus-visible ~ .tabstrip label[for="settings-tab-folder"] {
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
+}
+
+/* The alphabet bar ------------------------------------------------------- */
+
+/* Radios rather than links, so the whole bar is part of the filter form and needs no script. The
+   input itself is hidden and its label is what gets drawn. */
+.alphabet { display: flex; flex-wrap: wrap; gap: 0.15rem; }
+.alphabet input { position: absolute; opacity: 0; pointer-events: none; }
+.alphabet span {
+    display: inline-block;
+    min-width: 1.5rem;
+    padding: 0.1rem 0.25rem;
+    text-align: center;
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    background: var(--panel-2);
+    color: var(--dim);
+    font-size: 0.78rem;
+    cursor: pointer;
+}
+.alphabet span:hover { border-color: var(--accent); color: var(--text); }
+.alphabet input:checked + span {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--accent-ink);
+    font-weight: 600;
+}
+/* Keyboard users get the focus ring the hidden input would otherwise take with it. */
+.alphabet input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+/* A score select small enough to live in a table cell without changing the row height. */
+select.mini {
+    padding: 0 0.1rem;
+    font-size: 0.8rem;
+    min-width: 3.1rem;
+    background: transparent;
+    border-color: transparent;
+}
+select.mini:hover, select.mini:focus { background: var(--panel-2); border-color: var(--line); }
+
+/* A score somebody has actually set.
+
+   **Filled rather than tinted**, and it is the treatment the selected letter in the A-Z bar already
+   wears, for the same reason: it says *this one is chosen* across a page of fifty rows without
+   anybody reading a cell. A border or a color on the digit alone is what the suitability column one
+   cell left does, and that column is never empty -- this one nearly always is, so the mark has to
+   carry further than a shade of text.
+
+   The accent, because this is a value somebody typed, and that is what the accent means here: the
+   `ed` tag in the title cell is the same claim about the same kind of fact. Gold would have said
+   `--star`'s *somebody chose this*, which is close enough to be worth naming and still wrong -- a
+   star is a filing, and a rating is a judgment with a number in it. */
+select.mini.set {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--accent-ink);
+    font-weight: 600;
+}
+/* The hover rule above would otherwise take the fill straight back off again. */
+select.mini.set:hover, select.mini.set:focus { background: var(--accent); border-color: var(--accent); }
+
+/* -- the Open page ------------------------------------------------------------------------------
+
+   The picker, which is the only page here that renders with no database behind it. It reuses the
+   palette above and adds no colors of its own: it is a page somebody passes through on the way to
+   the tool, and giving it a look of its own would make it feel like a second application. */
+
+main.open { max-width: 60rem; }
+
+/* **While a folder is opening, the picker is the progress panel and nothing else.**
+
+   Opening the owner's corpus runs the migrations, builds the browse indexes, three backfills and a
+   full `ANALYZE`, and takes minutes. Underneath a one-line message the Recent list and the file
+   browser went on sitting there, so the press read as one that had done nothing and the obvious
+   response was to click the same folder again.
+
+   **The polarity is the load-bearing part**, and it is the same argument `The curation tabs` above
+   makes to reach the opposite arrangement: the rule hides the chooser when the browser can prove a
+   job is running, so a browser that cannot evaluate `:has()` drops the whole selector and shows what
+   this page has always shown. The other way round, an old webview would hide a chooser it could
+   never bring back. This is the only `:has()` left in the file, and it survives because it can fail
+   that way; the tabs could not, so they do not use one.
+
+   `.opening-now` is on the *running* arm of `open_progress.html` alone, so a finished job or an
+   error restores the lists with nothing to reset. */
+main.open:has(#opening .opening-now) .chooser { display: none; }
+
+/* And the panel that is left grows into the room, so a three-minute wait looks like a page rather
+   than like a sentence somebody forgot to remove. */
+main.open #opening .opening-now {
+    margin-top: 3rem;
+    padding: 1.4rem 1.6rem;
+    font-size: 1.05rem;
+    line-height: 1.6;
+    /* `.message` keeps its newlines, because most of them are one run of text a handler composed and
+       a sentence about a file is allowed to be wrapped where it was written. This one holds blocks,
+       so every newline between two of them would be drawn as a blank line — and a template indented
+       to be read is exactly where those newlines come from. */
+    white-space: normal;
+}
+main.open #opening .opening-now p { margin: 0; }
+/* Above the sentence rather than beside it, so the one thing moving is the first thing the eye
+   reaches on a page that holds nothing else. */
+main.open #opening .opening-now .bar { margin-bottom: 1rem; }
+main.open #opening .opening-now .hint { display: block; margin-top: 0.6rem; font-size: 0.85rem; }
+main.open h2 {
+    font-size: 0.82rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--dim);
+    margin: 1.4rem 0 0.5rem;
+}
+main.open section:first-of-type h2 { margin-top: 0.4rem; }
+
+main.open ul { list-style: none; margin: 0; padding: 0; }
+main.open li {
+    display: flex;
+    align-items: baseline;
+    gap: 0.6rem;
+    padding: 0.3rem 0.4rem;
+    border-bottom: 1px solid var(--line);
+}
+main.open li:hover { background: var(--panel); }
+main.open li.empty { color: var(--dim); border-bottom: 0; }
+
+/* A button that reads as a link, for the folder names. They navigate rather than submit anything,
+   so a link is what they are; a button is what they have to be, because htmx posts a path. */
+button.link {
+    background: none;
+    border: 0;
+    padding: 0;
+    font: inherit;
+    color: var(--accent);
+    cursor: pointer;
+}
+button.link:hover { text-decoration: underline; }
+
+main.open .path {
+    color: var(--dim);
+    font-family: ui-monospace, monospace;
+    font-size: 0.78rem;
+    /* The long half of the row. It gives way first so a deep path never pushes the buttons off the
+       edge, and the beginning is what gets cut, because the end of a path is the part that
+       identifies it. */
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    direction: rtl;
+    text-align: left;
+}
+main.open .counts { color: var(--dim); font-size: 0.8rem; white-space: nowrap; }
+
+/* A row that cannot be pressed: a folder on a drive that is not plugged in, or one still there whose
+   curation database has gone. Dimmed and kept — an unplugged disk is not a reason to forget a year of
+   curation, and neither is a deleted database, since the path is how you get either of them back.
+   Adopt's row is deliberately not in here: it has a one-press fix and is not dim.
+
+   The class is still `missing` although it now covers two states, because what it styles is the one
+   thing they share — nothing here to press. The words on the row are what tell them apart. */
+main.open li.missing { color: var(--dim); }
+main.open li.missing .link { color: var(--dim); cursor: default; }
+
+.badge {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 0.05rem 0.35rem;
+    border-radius: 0.6rem;
+    background: var(--panel-2);
+    color: var(--dim);
+    white-space: nowrap;
+}
+
+button.forget {
+    margin-left: 0.2rem;
+    padding: 0 0.35rem;
+    line-height: 1.2;
+    color: var(--dim);
+}
+button.forget:hover { color: var(--bad); border-color: var(--bad); }
+
+.crumbs {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    padding: 0.4rem 0;
+    border-bottom: 1px solid var(--line);
+}
+.crumbs .here {
+    font-family: ui-monospace, monospace;
+    font-size: 0.82rem;
+    color: var(--text);
+    margin-right: auto;
+}
+button.crumb { padding: 0 0.4rem; }
+
+/* The walker's folders. A page of these is a hundred lines of one folder name each, so it scrolls
+   inside its own panel rather than pushing the pager and the two lists above it off the screen. */
+ul.folders {
+    list-style: none;
+    margin: 0.4rem 0;
+    padding: 0;
+    max-height: 24rem;
+    overflow-y: auto;
+}
+ul.folders li {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.1rem 0;
+}
+ul.folders li.empty { color: var(--dim); }
+#folder-filter { margin: 0.4rem 0 0; }
+
+/* The song page's way back to the list it was reached from. Dim and small on purpose: it is an
+   escape rather than an action, and the page's own heading is what should be read first. */
+.back {
+    margin: 0 0 0.6rem;
+    font-size: 0.85rem;
+}
+.back a { color: var(--dim); text-decoration: none; }
+.back a:hover { color: var(--text); }
+
+main.open .by-path input { width: 100%; max-width: 34rem; }
+main.open .by-path form { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+
+/* The second line of the "this is taking minutes" message. */
+.hint { display: block; color: var(--dim); font-size: 0.8rem; margin-top: 0.2rem; }
+
+/* Quit sits at the end of the header, away from the nav, because it is the one control there that
+   ends the session rather than moving around inside it. */
+header .quit { margin-left: 0.6rem; }
+header .quit:hover { color: var(--bad); border-color: var(--bad); }

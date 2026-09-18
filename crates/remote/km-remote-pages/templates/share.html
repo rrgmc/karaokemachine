@@ -1,0 +1,30 @@
+{% extends "layout.html" %}
+{% block title %}{{ head.title }}{% endblock %}
+{% block content %}
+
+{{ head|safe }}
+
+{# Which device you are is the first thing to settle, and a page that never says it is the
+   failure. The *folder* is already settled — sharing is reachable only from inside one — so
+   neither side has to ask which. #}
+<a class="big-choice" href="{{ path() }}/send">
+  <span class="big-choice-icon" aria-hidden="true">&#8599;</span>
+  <span class="big-choice-text">
+    <span class="big-choice-name">{{ "share-send"|t }}</span>
+    <span class="big-choice-sub">{{ "share-send-sub"|t }}</span>
+  </span>
+  <span class="chevron">&rsaquo;</span>
+</a>
+
+<a class="big-choice" href="{{ path() }}/receive">
+  <span class="big-choice-icon" aria-hidden="true">&#8601;</span>
+  <span class="big-choice-text">
+    <span class="big-choice-name">{{ "share-receive"|t }}</span>
+    <span class="big-choice-sub">{{ receive_line }}</span>
+  </span>
+  <span class="chevron">&rsaquo;</span>
+</a>
+
+<p class="step-note">{{ one_way_line }}</p>
+
+{% endblock %}

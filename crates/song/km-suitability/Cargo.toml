@@ -1,0 +1,20 @@
+[package]
+name = "km-suitability"
+description = "Packaging-time melody detection and karaoke suitability scoring"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+km-song = { workspace = true }
+serde = { workspace = true }
+
+[dev-dependencies]
+km-song = { workspace = true, features = ["testing"] }
+serde_json = { workspace = true }

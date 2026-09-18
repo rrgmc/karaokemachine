@@ -1,0 +1,635 @@
+[workspace]
+resolver = "3"
+members = [
+    # What a song is, and the catalog of them.
+    "crates/song/km-songcode",
+    "crates/song/km-song",
+    "crates/song/km-suitability",
+    "crates/song/km-fixes",
+    "crates/song/km-kmpkg",
+    "crates/song/km-catalog",
+    "crates/song/km-songbook",
+    # Turning one into sound and picture.
+    "crates/playback/km-audio",
+    "crates/playback/km-loudness",
+    "crates/playback/km-cdg",
+    "crates/playback/km-video",
+    "crates/playback/km-stream",
+    "crates/playback/km-display",
+    # The machine itself.
+    "crates/machine/km-banks",
+    "crates/machine/km-queue",
+    "crates/machine/km-api",
+    "crates/machine/km-admin-pages",
+    "crates/machine/karaokemachine",
+    "crates/machine/km-machine-ios",
+    # The remote, in its five hosts and the pages they all serve.
+    "crates/remote/km-remote-pages",
+    "crates/remote/km-remote-core",
+    "crates/remote/km-remote-host",
+    "crates/remote/km-remote",
+    "crates/remote/km-remote-android",
+    "crates/remote/km-remote-ios",
+    # What the operating system asks for, rather than what karaoke does.
+    "crates/platform/km-console",
+    "crates/platform/km-tray",
+    "crates/platform/km-osopen",
+    "crates/platform/km-androidlog",
+    "crates/platform/km-logfile",
+    "crates/platform/km-logtap",
+    "crates/platform/km-ecapplog",
+    "crates/platform/km-logsettings",
+    "crates/platform/km-locale",
+    "crates/platform/km-webshell",
+    "crates/platform/km-passwords",
+    # The packager's commands. `tools/cmd/` for the same reason `crates/` has five folders: the
+    # directory says what the thing is. What a person types is still the package name -- `-p km-pack`
+    # -- which no path here can change, so moving them cost nothing at a command line.
+    "tools/cmd/km-pack",
+    "tools/cmd/km-lyrics",
+    "tools/cmd/km-carols",
+    "tools/cmd/km-package-builder",
+    # The working session's own, and `tools/dev/` for the reason above: the directory says what the
+    # thing is for. This one is never staged and never shipped -- `ALL_APPS` in tools/dist/bin.sh is
+    # an explicit list and does not name it -- but it is a member all the same, so `cargo km-lint`
+    # and `cargo km-test` cover it. The exclusion below is for a feature-unification hazard, which
+    # this crate does not have.
+    "tools/dev/km-pick",
+]
+
+# `tools/cmd/assets` is a **second workspace** and deliberately not part of this one. Cargo unifies
+# features per crate version across a workspace build, and the programs in there need TLS from
+# `reqwest` while `km-package-builder` needs `reqwest` to have none. Making `km-wallpaper-pack` a member
+# made that tool's `Client::new()` panic with "no rustls crypto provider is configured" — a tool that
+# had no TLS gaining half of one — and it did so only when the workspace was built together, so the
+# same source produced two different binaries depending on how it was built.
+#
+# **The directory is excluded rather than the crate**, which is what lets a second program live
+# beside the first without a second exclusion, a second lockfile and a second CI job. See
+# `tools/cmd/assets/Cargo.toml` for why they share a root rather than being two workspaces.
+#
+# Excluding it here is only half of the arrangement: **anything under it may still depend on crates
+# in this workspace by path**, and `km-banks` and the four `crates/platform/` crates are read that
+# way. That is safe in the one direction that matters — none of them takes an HTTP client, so
+# nothing they carry can unify with the `reqwest` over there.
+#
+# CI checks it in a job of its own, `assets` in `.github/workflows/ci.yml`.
+exclude = ["tools/cmd/assets"]
+
+[workspace.package]
+version = "1.17.0"
+edition = "2024"
+# **Equal to the pin in `rust-toolchain.toml`, and it has to be bumped with it.** This is an
+# application rather than a library -- `publish = false` throughout -- so nothing downstream reads
+# this to decide anything, and the only thing it still does is set clippy's MSRV, there being no
+# `clippy.toml`. It said 1.85 until 2026-09-03, which was a claim no build could honor: `askama`,
+# `image`, `time` and `zip` already required 1.88, and understating it also made `resolver = "3"`
+# prefer needlessly old dependencies. `tools/dev/check-toolchain-pin.sh` asserts the two agree.
+rust-version = "1.98.1"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/rrgmc/karaokemachine"
+homepage = "https://rrgmc.github.io/karaokemachine/"
+publish = false
+
+# Central version table. Crates opt in per milestone (see docs/ARCHITECTURE.md) rather than
+# everything depending on everything from day one -- that keeps the build fast and makes each
+# milestone's dependency footprint obvious in its own Cargo.toml.
+[workspace.dependencies]
+# A leaf: `serde` and `thiserror` and nothing else. It has to be visible to the catalog, the queue,
+# the API, the display and both remotes, and no existing crate is -- `km-audio` sees only `km-song`,
+# and `km-display` deliberately avoids `km-kmpkg`.
+km-songcode = { path = "crates/song/km-songcode" }
+km-song = { path = "crates/song/km-song" }
+km-suitability = { path = "crates/song/km-suitability" }
+# Corrections for defects in a song file's own MIDI events -- a stray bank select naming a bank of
+# drum kits on a melodic channel, a channel somebody wants silenced. A leaf taking `km-song`,
+# `serde` and `serde_json`, with no synthesizer and no tracing. **It is a crate because its two
+# readers share no other ancestor**: `km-pack` and `km-package-builder` detect fixes into a manifest
+# at packaging time, and `karaokemachine` resolves them into a channel table at playback. Putting
+# the list in `km-audio` would make a packaging tool link a synthesizer to name a defect, and
+# putting it in `km-kmpkg` would make the sequencer's own filter live in the container format.
+km-fixes = { path = "crates/song/km-fixes" }
+km-kmpkg = { path = "crates/song/km-kmpkg" }
+km-catalog = { path = "crates/song/km-catalog" }
+# What the machine is *doing* -- the queue, the mic registry, the transport state and the two
+# playback limits -- as opposed to what makes it happen. A second leaf, taking `km-songcode` and
+# `thiserror`, and it exists for the reason `km-songcode` does one layer down: the API, the display and
+# both remotes all have to name these types, and while they lived in `km-audio` naming one meant
+# linking `rustysynth` and `cpal`. `km-api` takes this and no longer takes `km-audio` at all, which
+# is what keeps the synthesizer out of the offline remote and its Android application.
+km-queue = { path = "crates/machine/km-queue" }
+# The catalog of General MIDI banks this project knows how to fetch, and the rules for checking one
+# that arrives. **It is a crate rather than a module because it has a reader outside this workspace**:
+# `tools/cmd/assets/km-admin` downloads a bank on a desktop for a machine that may have no internet, and it
+# can neither depend on `karaokemachine` (which links SDL3) nor learn a download address from the API,
+# since `SoundFontOfferDto` carries a bank's size and license and deliberately not its URL. Its whole
+# dependency list is `sha1`, `sha2` and `zip`, none of which brings TLS -- which is what makes it safe
+# to depend on from the excluded workspace; see the `exclude` note at the top of this file.
+km-banks = { path = "crates/machine/km-banks" }
+km-audio = { path = "crates/playback/km-audio" }
+# Measuring a song's loudness at packaging time, and the one implementation of the gain that levels
+# it. A leaf taking `ebur128` and nothing else. It is a crate rather than a module because it has
+# three readers that share no other ancestor: `km-cdg` and `km-video` measure with it, and
+# `karaokemachine` derives the gain with it -- and putting it in any one of those would make the
+# other two link a decoder they have no use for.
+km-loudness = { path = "crates/playback/km-loudness" }
+# `features = ["ffmpeg"]` is load-bearing. `km-video`'s ffmpeg dependency is behind a default-off
+# feature of its own, so that `cargo build --workspace` -- which compiles every member, this one
+# included -- does not need ffmpeg and libclang to build a workspace nobody asked for video from.
+# Putting the feature here rather than in each consumer means the three crates that take `km-video`
+# go on writing `{ workspace = true, optional = true }` and still get a real one: the only thing that
+# turns video on anywhere is a consumer's own `video` feature, exactly as before.
+km-video = { path = "crates/playback/km-video", features = ["ffmpeg"] }
+# The other side of ffmpeg: `km-video` decodes a song's own picture, this encodes the screen the
+# machine drew. `features = ["ffmpeg"]` is load-bearing for the reason given directly above, and the
+# two entries are deliberately spelled the same way — a consumer names neither feature, and a
+# workspace build compiles both crates to nothing.
+km-stream = { path = "crates/playback/km-stream", features = ["ffmpeg"] }
+# No `features = [...]` here, and the contrast with the line above is the point: `km-video` needs one
+# because its ffmpeg dependency is behind a switch a workspace build must be able to leave off.
+# Nothing in `km-cdg` is optional in that sense, so every consumer gets the whole crate and every
+# build that can list an MP3+G song can play it.
+km-cdg = { path = "crates/playback/km-cdg" }
+# The printed song book. A leaf taking `km-songcode` and nothing else -- no PDF crate, no font crate, no
+# compression -- because a book built on the base-14 fonts needs none of the three. It is taken by
+# `km-api` (the catalog's book, over HTTP and from the machine's command line) and by `km-pack`
+# (a book from a stack of `.kmpkg` files), which is why it is a crate rather than a module in either.
+km-songbook = { path = "crates/song/km-songbook" }
+# Whether anything this process prints will be read. Shared rather than copied because the answer
+# needs `unsafe` to work out, and the workspace allows `unsafe` in exactly one file -- so a second
+# copy would be a second exception rather than a second caller. Both binaries that can be built
+# GUI-subsystem on Windows take it: `km-app` and `km-package-builder`. See the `Unsafe code, once`
+# decision in docs/decisions/.
+km-console = { path = "crates/platform/km-console" }
+# Getting `tracing` events into logcat, for the same reason `km-console` is shared: there are two
+# Android applications here -- the machine and the offline remote -- and they differ only in the tag,
+# so a copy would be a second `unsafe` exception rather than a second caller. It lived inside
+# `km-app` as a module while there was one of them.
+km-androidlog = { path = "crates/platform/km-androidlog" }
+# Putting that same stream into a file, for the runs nobody is watching a console for. Shared by all
+# three programs here that can be started by their icon — the machine, the package builder and the
+# offline remote — which is the same three `km-console` serves and for a related reason: a
+# GUI-subsystem process has nowhere to print, and this is where the lines go instead. Unlike the `-v`
+# ladder those three duplicate deliberately, this is a retention policy and a writer that must not
+# panic, which are things three copies would answer differently.
+km-logfile = { path = "crates/platform/km-logfile" }
+# ...and the third destination for that same stream: the most recent records, in memory, for a
+# surface that draws them as they arrive. Neither a console nor a file reaches a box under a
+# television with nobody logged into it, which is the machine whose log is hardest to get and most
+# worth having. A crate rather than code in `km-api` because a `Layer` is a subscriber
+# implementation, and `km-api` deliberately keeps `tracing-subscriber` to its dev-dependencies so
+# that nothing describing a remote links one.
+km-logtap = { path = "crates/platform/km-logtap" }
+# ...and the fourth: that same stream into the ECAppLog viewer, live, over a loopback socket. It is
+# the destination a developer watches while a program runs, where the three above serve a terminal,
+# a folder and a browser. A crate for `km-logfile`'s reason -- four programs assemble it, two of them
+# from the other workspace, and one address parser and one category rule answered four times would be
+# answered four ways.
+km-ecapplog = { path = "crates/platform/km-ecapplog" }
+# What a settings file says about all four of those destinations. The three programs that keep a
+# settings file each read the same `logging` section, and a crate for `km-logfile`'s reason: four
+# keys, two of them taking either of two shapes and every one answering a bad value with no opinion
+# rather than a refusal, is a grammar, and three copies of a grammar is three answers to what
+# `logging.level` accepts. The `-v` ladder stays duplicated, because its rungs name a different
+# crate in every program.
+km-logsettings = { path = "crates/platform/km-logsettings" }
+# Which language a surface speaks. Shared because four of them answer it separately and must answer
+# it the same way: the television reads a setting, the two web surfaces negotiate a header, and each
+# then looks a message up. Only the machinery is here — every catalog stays in the crate whose words
+# they are, so a message and the code that says it are never in two crates.
+km-locale = { path = "crates/platform/km-locale" }
+# What the three tao/wry desktop shells agree about -- where a window opens, and where its webview
+# keeps its profile. Taken by `km-remote` and `km-package-builder` here, and by `km-admin` across the
+# `tools/cmd/assets` workspace boundary by path, which is safe for the reason the `exclude` note at
+# the top of this file gives: it takes no HTTP client.
+km-webshell = { path = "crates/platform/km-webshell" }
+# The icon in the OS icon bar, for the two programs here that run a web server and then get out of
+# the way. Shared for the same reason `km-console` is: two shells need the identical thing, and the
+# part that is easy to get wrong -- which resource ordinal the picture is under, what a left click
+# means on which platform -- is worth having in one place. It takes no `tao`, so the seam between
+# the tray and the window library stays open.
+km-tray = { path = "crates/platform/km-tray" }
+# Handing a file or a URL to whatever the operating system uses for it. **It was two copies of one
+# file, and both said what to do about a third caller**: the machine's `F12` is that caller, so this
+# crate is what they described. Not folded into `km-console` for the reason both copies gave --
+# that would widen the one file allowed `unsafe` from "is anybody reading?" to "and also start
+# processes", which is a second exception rather than a second caller. It takes no dependencies at
+# all, which is what made the duplication defensible for as long as it was.
+km-osopen = { path = "crates/platform/km-osopen" }
+# The machine passwords a computer was told to remember. **Shared with `km-admin` across the
+# `tools/cmd/assets/` workspace boundary**, which is safe on the rule that boundary keeps: it takes no
+# HTTP client, so nothing it carries can unify with the `reqwest` over there. Where the file goes is
+# each host's own answer, including the `cfg!(test)` guard over it -- `cfg(test)` is per crate, so one
+# written inside that crate would be inert in the suite of whoever depends on it.
+km-passwords = { path = "crates/platform/km-passwords" }
+km-api = { path = "crates/machine/km-api" }
+# The owner's page, at `/admin/`. **One page set behind two hosts**: this machine serves
+# it in its own process, and `tools/cmd/assets/km-admin` serves the same markup over HTTP against a
+# machine on the network, with a trait per tab as the seam. Nothing in its handlers names `ApiState`,
+# which is the property that makes the second host possible.
+#
+# It neither "runs only in the machine's process" nor "has no offline mode", so neither clause
+# places the folder. Under `machine/` rather than `remote/` for the one reason that does: it
+# configures the box rather than driving a performance, and it
+# is the machine's own surface even where a tool draws it. `remote/` groups the singer's remote's five
+# hosts because there are five; one crate does not earn a sixth top-level folder. The boundary between
+# the two surfaces is a decision -- see `The dev remote stays` and the entry for this page in
+# `docs/decisions/`, and `docs/architecture/admin.md` for how the seam is built.
+km-admin-pages = { path = "crates/machine/km-admin-pages" }
+km-display = { path = "crates/playback/km-display" }
+# The singer-facing remote: one set of templates and handlers serving two modes. `km-app` links it to
+# serve the reduced online remote at `/`, and `km-remote` links it to serve the full offline one.
+# A library rather than a page dropped into a directory, because both modes render server-side and a
+# second copy of the markup is a second thing to keep in step.
+km-remote-pages = { path = "crates/remote/km-remote-pages" }
+# The offline remote's whole substance, with no command line in it: the catalog mirror, the
+# favorites, the client for a machine, and the server that puts `km-remote-pages`'s pages in front of
+# them. `km-remote` is a thin shell over this, and the Android and iOS applications will be two
+# more. A library rather than a `main`, because a `main` is the one part of a server that is not
+# portable -- it reads argv, derives paths, installs a log subscriber and waits for Ctrl-C, and a
+# phone has none of those.
+# **`default-features = false` here, so every host names the locator it wants.** That crate's own
+# `default = ["mdns"]` stays, for a consumer outside this workspace; inside it, discovery is the one
+# thing the four hosts genuinely disagree about -- a desktop and an Android APK may browse over
+# mDNS, an iOS app may not multicast at all, and `km-remote-host` has no opinion because it is not a
+# host. Naming it per consumer is the same bargain the rest of this file makes about features, and
+# cargo also leaves no choice: an inherited dependency cannot turn a default off at the far end.
+km-remote-core = { path = "crates/remote/km-remote-core", default-features = false }
+# What a host has to drive: the four phases, the singleton, the generation counter and the
+# non-blocking stop, with no platform in any of it. **This one really is a link in a chain** -- both
+# mobile shells take it -- which is the difference between it and the entry below.
+km-remote-host = { path = "crates/remote/km-remote-host" }
+# The Android shell over those two: a `cdylib` the APK loads, six JNI functions and no logic.
+# Declared here for consistency rather than because anything depends on it -- nothing does, and
+# nothing should. It is a leaf in the other direction: the end of a chain, not a link in one. The
+# iOS shell beside it is the same shape and gets the same note.
+km-remote-android = { path = "crates/remote/km-remote-android" }
+km-remote-ios = { path = "crates/remote/km-remote-ios" }
+# The machine's own library, taken by the iOS shell below and by nothing else: `km-app` is a binary
+# in that same crate, and every other consumer here reaches the machine through its API instead.
+# **It links SDL3 and SDL3_ttf**, which is what makes it the wrong dependency for a crate that only
+# wants to describe a song -- the reason `km-banks` is a crate at all.
+karaokemachine = { path = "crates/machine/karaokemachine" }
+# The iOS shell over it: a `staticlib` the app binary links, holding an entry point and a paths
+# handoff. A leaf in the same direction the two entries above are leaves -- nothing depends on it and
+# nothing should.
+km-machine-ios = { path = "crates/machine/km-machine-ios" }
+# The packaging pipeline is a library as well as a command, because `tools/cmd/km-package-builder`
+# builds the same manifests from the same files. Two tools disagreeing about what a manifest holds
+# is a defect nobody would notice until a package behaved oddly on the machine.
+km-pack = { path = "tools/cmd/km-pack" }
+
+# MIDI + audio
+midly = "0.5.3"
+rayon = "1.12.0"
+# The one dependency here that is not a published crate, and the reason is two faults in the
+# registry's 1.3.6 that this machine walks into. It discards the `pmod` and `imod` chunks, so no SF2
+# modulator has ever been heard from this synthesizer -- see `docs/architecture/audio.md`, where that
+# gap is the one real argument in the bundled bank's favor. And it refuses a whole bank for one
+# defective record: four of the fifteen banks surveyed would not load at all. The fork's 1.4.0 implements modulators; its 1.5.0 drops the bad record instead of the
+# bank. `branch` rather than `rev` because the fork is still being iterated -- `Cargo.lock` pins the
+# commit either way, and every release path passes `--locked`. This goes back to a version number
+# the day upstream carries both.
+rustysynth = { git = "https://github.com/rrgmc/rustysynth", branch = "custom" }
+cpal = "0.18.2"
+# The mixers `km-audio::level` reaches, which reads and sets the level in the operating system's own
+# mixer, one platform at a time. cpal opens streams and exposes no volume at all, so none of this is
+# reachable through it -- and every one of them is already in the graph as a cpal dependency at
+# exactly this version, so the cost of naming them is the features each is built with and no new
+# crate.
+alsa = "0.11.0"
+windows = "0.62.2"
+# CoreAudio's own AudioObject properties, which is where a macOS device keeps its volume. Three
+# crates rather than one because the HAL's calls, the value types they answer in and the CFString a
+# device UID is carried as each live in their own.
+objc2-core-audio = { version = "0.3.2", default-features = false }
+objc2-core-audio-types = { version = "0.3.2", default-features = false }
+objc2-core-foundation = { version = "0.3.2", default-features = false }
+rtrb = "0.4.0"
+# The MP3 half of an MP3+G song. Pure Rust, MIT, no build script and no libclang -- which is the
+# whole reason `km-cdg` needs no cargo feature where `km-video` needs one, and therefore the reason
+# an MP3+G song plays in a `--no-video` build and on Android. `default-features = false` drops every
+# other codec and container symphonia ships; `mp3` is the only one this project has a use for.
+# `id3v1`/`id3v2` are here because the corpus carries tags and packaging reads them -- but see the
+# `Where an MP3+G song's title and artist come from` decision before trusting one.
+symphonia = { version = "0.6.1", default-features = false, features = [
+    "mp3",
+    "id3v1",
+    "id3v2",
+] }
+# The loudness meter, for `km-loudness`. A pure-Rust port of libebur128 -- which is what ffmpeg's own
+# `ebur128` filter is built on, and that filter produced every LUFS figure in
+# docs/architecture/audio.md and is still what `tools/dev/soundfont-measure.sh` runs. So this agrees
+# with the numbers this project already wrote down by construction rather than by coincidence.
+#
+# **libavfilter is not the alternative, even though ffmpeg is linked here.**
+# `tools/setup/ffmpeg-pin.sh` configures `--disable-avfilter`, so the filter is in no library this
+# workspace links and in no carrier it ships; the shell script reaches it through a developer's
+# system `ffmpeg`, which a packaging step must not require.
+#
+# **Priced, as everything in this file is.** MIT, no build script that does anything without its
+# `c-tests` feature, and its four dependencies cost one new crate between them: `bitflags` 1.3.2,
+# `dasp_sample` and `smallvec` were all in `Cargo.lock` already, leaving only `dasp_frame`.
+ebur128 = "0.1.10"
+
+# Video
+# The one C dependency outside SDL, and the reason `km-video` exists as a crate of its own: exactly
+# one Cargo.toml in the workspace names ffmpeg, so every other crate goes on showing its real
+# footprint. Reached only through the optional `video` feature.
+#
+# The version does NOT pin the ffmpeg it links against. `ffmpeg-sys-next`'s build script reads the
+# installed headers and enables `ffmpeg_7_1`-style cfgs from a table spanning ffmpeg 3.0 to 9.0, so
+# one crate version compiles against Debian trixie's 7.1.5 and against a newer build on a developer's
+# machine. What each platform links is whatever it has; see "Building km-video" in
+# docs/ARCHITECTURE.md for how to point it at one.
+#
+# `default-features = false` drops avdevice, avfilter and swscale. Nothing here captures from a
+# device or filters, and the transcode profile fixes yuv420p at packaging time, so the decoder's
+# planes upload to an SDL `IYUV` texture with no scaling step. `software-resampling` stays: it is
+# what converts an arbitrary file's channel layout and sample format to the interleaved stereo the
+# audio feed carries.
+ffmpeg-next = { version = "9.0.0", default-features = false, features = [
+    "codec",
+    "format",
+    "software-resampling",
+] }
+
+# Display
+# `unsafe_textures` drops the lifetime tying a Texture to its TextureCreator. Without it, caching
+# rendered lyric lines next to the canvas that created them is a self-referential borrow. The safety
+# obligation is that textures must not outlive their creator, which holds here because one struct
+# owns both and drops them together.
+sdl3 = { version = "0.18.4", features = [
+    "ttf",
+    "build-from-source-static",
+    "unsafe_textures",
+] }
+# HarfBuzz is disabled deliberately. Complex-script shaping is out of scope, and SDL3_ttf's vendored HarfBuzz compiles against the debug CRT on MSVC, which
+# leaves __imp__invalid_parameter unresolved as soon as anything links an executable. Declared here
+# only so the feature can be turned off on the transitive dependency.
+# plutosvg (SVG glyphs inside fonts) is off for the same reasons: unused here, and another vendored
+# C library compiled against the wrong CRT.
+sdl3-ttf-sys = { version = "0.6.1", features = [
+    "no-sdlttf-harfbuzz",
+    "no-sdlttf-plutosvg",
+] }
+image = { version = "0.25.10", default-features = false, features = ["jpeg", "png", "webp"] }
+# **`default-features = false`, and each consumer names what it draws with.** The defaults are
+# `image` and `svg`, which are two renderers; the crate's own `QrCode::new` and `to_colors` need
+# neither, and that raw module matrix is all `km-display` and the machine want -- they draw the code
+# with SDL. Turning them off here is what lets `km-remote-pages` ask for `svg` alone: cargo refuses a
+# member's `default-features = false` when the workspace entry does not already say it, so the choice
+# has to be made in this table rather than at each use.
+qrcode = { version = "0.14.1", default-features = false }
+# Build-time only, and Windows-only: attaches the application icon to the executable. See
+# `crates/machine/karaokemachine/build.rs`.
+winresource = "0.1.31"
+# Microsoft's own **safe** wrapper over the registry, and Windows-only. Registering a file type is
+# half a dozen key writes under HKCU, and doing them through a safe API is what keeps the workspace's
+# unsafe allowance at what it was argued for.
+#
+# Here rather than pinned in a crate because there are two registrars now -- `.kmbuild` for the
+# package builder and `.kmpkg` for the machine -- and two literal versions is exactly the drift a
+# workspace table exists to stop. It is the same reason `wry` and `tao` were hoisted.
+windows-registry = "0.6.1"
+
+# The desktop shell for the two programs here that have a window which is not SDL's:
+# `tools/cmd/km-package-builder` and `crates/remote/km-remote`. `tao` owns the window and the event loop;
+# `wry` puts a platform webview in it -- WebView2 on Windows, WKWebView on macOS. Neither is ever
+# reached on Linux, where `wry` links libwebkit2gtk at load time and a build carrying it would not
+# start at all; see `The package builder's window` in docs/decisions/curation.md.
+#
+# Here rather than spelled twice, because two crates pinning a webview version apiece is how a tree
+# ends up compiling two `wry`s and how the two windows drift apart. Both crates take them
+# `optional = true`, behind their own `desktop` features.
+wry = "0.56.1"
+tao = "0.37.0"
+
+# The icon in the notification area / menu bar, reached only through `km-tray`. `tao` has none of its
+# own -- the tray went out of it at 0.16 and this crate, from the same authors, is where it went --
+# so this is an addition rather than a feature that was left off.
+#
+# It re-exports `muda` as `tray_icon::menu`, which is why there is no second entry here for the menu:
+# one dependency, one version, no chance of a tray and a menu disagreeing about which `muda` they
+# mean. Declared here rather than in `km-tray` for the reason `wry` and `tao` are: a version pinned
+# in one crate is a version that drifts when a second crate wants it.
+tray-icon = "0.24.2"
+
+# API
+axum = { version = "0.8.9", features = ["ws"] }
+# `sync` for the broadcast channel behind the WebSocket event stream, `time` for token TTLs and the
+# periodic re-resolve of the reachable address.
+tokio = { version = "1.53.1", features = [
+    "rt-multi-thread",
+    "macros",
+    "net",
+    "signal",
+    "sync",
+    "time",
+] }
+tower = "0.5.3"
+tower-http = { version = "0.7.1", features = ["fs", "cors", "trace"] }
+# Splitting a WebSocket into its sink and stream halves; axum's `ws` gives us the socket but not the
+# combinators.
+futures-util = { version = "0.3.34", default-features = false, features = ["sink"] }
+# **Default features, and one of them is load-bearing.** `argon2`'s `getrandom` feature turns on
+# `password-hash/getrandom`, which is what gives `PasswordHasher::hash_password` a salt without
+# being handed an RNG. Leaving `argon2/rand_core` OFF is equally deliberate: it is what keeps
+# `password-hash`'s own `rand_core` out of the tree, and the tree already carries two of those.
+argon2 = "0.6.0"
+# OS randomness for the bearer tokens and the mDNS instance id -- and no longer for the password
+# salt, which `argon2` now draws itself.
+#
+# **This was `rand_core` until argon2 0.6.** That line moved to `password-hash` 0.6 and therefore to
+# `rand_core` 0.10, which does not have `OsRng` at all any more: the crate is the traits, and the OS
+# entropy source went back to `getrandom`, where the 0.6 line was only ever re-exporting it from.
+# So this is the same bytes from the same place with one fewer crate in between, and `getrandom` 0.4
+# is already in the tree via `zip` and `jobserver`.
+getrandom = "0.4.3"
+mdns-sd = "0.21.1"
+if-addrs = "0.15.0"
+# A real WebSocket client, for proving the event stream works against a listening server rather
+# than only unit-testing the fan-out. Test-only for `km-api`; `km-remote` uses it in earnest, to
+# follow a machine's event stream from outside the process.
+#
+# **0.29 because that is what `axum` pins**, and 0.30 exists. `axum` 0.8.9 depends on
+# `tokio-tungstenite ^0.29` for its own `ws` feature, so any other choice here compiles two
+# WebSocket implementations into one binary -- which is what 0.28 was doing. Matching axum is the
+# whole reason for the number, so when axum moves, this moves with it rather than ahead of it.
+tokio-tungstenite = "0.29.0"
+# `km-remote-pages` reaches a machine through one trait with two implementations -- in-process for the
+# remote km-app serves itself, and HTTP plus a WebSocket for the standalone app. Which one is in use
+# is a compile-time fact per binary, but the handlers hold it as `Arc<dyn Machine>` so that ~40 of
+# them do not each carry a type parameter, and a `dyn` trait cannot have native `async fn` methods.
+# This is the whole reason for the dependency: it is a proc macro that rewrites those methods into
+# boxed futures, and nothing here uses it for anything else.
+async-trait = "0.1.92"
+
+# Storage + packages
+rusqlite = { version = "0.40.2", features = ["bundled"] }
+zip = "8.6.0"
+# The two halves of what a `.kmpkg` is made of, used directly by `km-kmpkg`'s own container: deflate
+# for every entry a decoder reads whole, and a CRC per entry so a damaged package is diagnosed rather
+# than played wrong. `zip` pulls both in for its own use regardless, so naming them here adds no
+# crate to any artifact.
+flate2 = "1.1.9"
+crc32fast = "1.5.1"
+csv = "1.4.0"
+# Content hashing, for detecting the same recording filed under two song numbers. Not a security
+# boundary -- any decent digest would do -- but a real need: the local corpus is full of duplicates.
+sha2 = "0.11.0"
+# Keyed digest for the admin bearer token, which is `HMAC-SHA256(stored argon2 hash, ...)` rather
+# than a random string in a table -- that is what lets a session survive a restart with nothing
+# persisted. Paired with sha2 0.11 above; both are the same RustCrypto generation.
+hmac = "0.13.0"
+
+# Curation tool
+# Templates are compiled into the binary and checked when it is built, so a typo in the markup is a
+# build failure rather than a 500 while somebody is halfway through curating a package. `urlencode`
+# is in the default feature set and is what builds the YouTube search links.
+askama = "0.16.0"
+
+# Translation
+# The message catalogs, behind `km-locale`. Fluent because the two things a table of format strings
+# cannot do are exactly the two Portuguese needs: choosing a plural form by the number beside it, and
+# agreeing an article with the noun it introduces. Both become data in a `.ftl` file rather than a
+# branch at every call site -- and the six places that already spell `if n == 1 { "" } else { "s" }`
+# by hand are the measure of what that costs when the catalog cannot express it.
+#
+# `fluent-bundle` and not the `fluent` meta-crate, which only re-exports it. `intl-memoizer` and
+# `type-map` arrive through it and are not named here; nothing in this workspace calls them.
+fluent-bundle = "0.16.0"
+# Named directly for one reason: `FluentBundle` can answer whether it has a key but cannot list the
+# keys it holds, and listing them is exactly what the parity tests need. `FluentResource::entries()`
+# hands back this crate's AST, so the type has to be nameable. Pinned to what `fluent-bundle` itself
+# depends on -- two versions here would be two incompatible `Entry` types for one resource.
+fluent-syntax = "0.12.0"
+# The language tag, and turning a browser's `Accept-Language` into the nearest one we have.
+unic-langid = { version = "0.9.6", features = ["macros"] }
+# The only server km-package-builder ever calls is the karaoke app itself, over plain HTTP on
+# loopback or a home LAN. `default-features = false` is therefore doing real work: it drops rustls,
+# aws-lc-rs and the platform certificate verifier, none of which km-package-builder would ever use.
+# `tools/cmd/assets/km-wallpaper-pack` needs real TLS and is excluded from the workspace for exactly that reason
+# -- see the `exclude` note at the top of this file.
+reqwest = { version = "0.13.4", default-features = false, features = ["json"] }
+
+# The SoundFont downloader in the machine, and **deliberately not `reqwest`.**
+#
+# Cargo unifies features per crate version across a workspace build. The machine needs real TLS to
+# fetch a bank over HTTPS; `km-package-builder` needs `reqwest` to have none, for the reason its own
+# entry above gives. Asking one `reqwest` to be both is exactly what made `km-wallpaper-pack`'s
+# `Client::new()` panic with "no rustls crypto provider is configured" when it was briefly a member
+# -- see the `exclude` note at the top of this file. That tool could be moved out of the workspace;
+# the machine is the workspace and cannot.
+#
+# A second HTTP client is the cheaper answer: its own feature graph cannot collide with the first,
+# and it is blocking, which is what a download running on its own thread beside the audio thread
+# wants anyway. `rustls` rather than the platform verifier so that the Debian appliance, Windows and
+# Android all use one certificate story.
+ureq = "3.4.0"
+# For the `sha1:` digests archive.org publishes. `sha2` above covers everything this project computed
+# itself; six rows in the bank table are pinned by the archive's own sha1 instead, because computing
+# a sha256 of them would have meant hours of downloading at the rate that host serves.
+sha1 = "0.11.0"
+
+# Text handling
+encoding_rs = "0.8.35"
+chardetng = "1.0.0"
+
+# Plumbing
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.151"
+# The package description `km-pack` builds from, and nothing else -- one crate names this, and the
+# machine never reads YAML at all. It is a *packager's* document: a person opens it, corrects a title
+# and saves it, which is the whole reason it is not JSON like the manifest inside a `.kmpkg`.
+#
+# **Not `serde_yaml`**, which is `0.9.34+deprecated` and archived. `serde_norway` is a maintained hard
+# fork of it with the same API, so the idiom here is the one every Rust answer on the subject already
+# describes. `yaml_serde` (github.com/yaml/yaml-serde) is the YAML Organization's own continuation and
+# is the named fallback if this one stops moving; swapping is one `use` and this line, so the choice
+# is reversible and was not worth agonising over.
+serde_norway = "0.9.42"
+# Reading a `application/x-www-form-urlencoded` body into a struct with the *same* deserializer axum's
+# `Query` uses, so a filter that arrives in a POST body is understood exactly as one that arrives in a
+# query string. Already in the tree — axum itself depends on it — so naming it here compiles nothing
+# new. See `FilterQuery::from_body` in km-package-builder.
+serde_urlencoded = "0.7.1"
+# The *pair iterator* under the same format, where the line above is the `Deserialize` over it. Both,
+# and not one, because they answer different questions: a flat filter struct wants serde, and a form
+# of ticked checkboxes sends `song_id` a hundred times, which `Deserialize` cannot represent at all.
+# Already in the tree — `serde_urlencoded` depends on it — so naming it compiles nothing new, and it
+# replaced a hand-rolled `%XX` codec in `km-package-builder`. See `form::Fields`.
+form_urlencoded = "1.2.2"
+directories = "6.0.0"
+clap = { version = "4.6.6", features = ["derive"] }
+thiserror = "2.0.20"
+anyhow = "1.0.104"
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
+# The fourth destination that stream can go to, in `km-ecapplog` and nowhere else. `tracing` is the
+# only feature taken: the crate's `log` adapter is a second facade nothing here speaks, and its
+# direct API is for a program that logs to the viewer rather than through a subscriber.
+#
+# A tag rather than a branch, unlike `rustysynth` above: this one carries releases, and `Cargo.lock`
+# pinning the commit is not a reason to leave the manifest vaguer than the crate is. It goes back to
+# a version number the day it is on crates.io.
+ecapplog = { git = "https://github.com/RangelReale/ecapplog-rust", tag = "v1.0.2", features = [
+    "tracing",
+] }
+# The `log` facade and the bridge that carries it into `tracing`, in `km-ecapplog`'s tests and
+# nowhere else. Nothing here speaks the facade — several dependencies do, and the one thing worth
+# asserting about them is that the viewer files each under its own crate rather than under one tab
+# called `log`. A test that emits through the facade is the only way to put that on the wire.
+log = "0.4.30"
+tracing-log = "0.2.0"
+# Two console calls, in `km-console` and nowhere else. Listed here rather than in that crate so the
+# feature list is decided once: it is the whole reason the dependency is small, and a second consumer
+# adding `Win32_Foundation` "while it is there" is how it stops being.
+windows-sys = { version = "0.61.2", features = ["Win32_System_Console"] }
+
+[workspace.lints.rust]
+missing_docs = "warn"
+unsafe_code = "deny"
+
+[workspace.lints.clippy]
+todo = "warn"
+# Deliberately NOT denying unwrap/expect/panic workspace-wide: tests use them legitimately, and
+# with `-D warnings` in CI that would turn every test into a lint failure. The place these
+# actually matter is the real-time audio path, so km-audio's callback modules deny them locally
+# (see the "Hard rules" in docs/ARCHITECTURE.md).
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+
+# Three dependencies get optimized even in a dev build, because each is unusably slow without it and
+# none is code anybody steps through: `image` decodes and resamples wallpapers, `rustysynth` renders
+# every audio callback, and `argon2` is a hash whose whole purpose is to cost something.
+#
+# **`argon2` is the one whose cost lands on `task check`.** A password hash is deliberately expensive
+# and unoptimized it is expensive again by a further order: the tests that only need a hash to come
+# back spend twelve seconds of every test run on it, which is a third of the run. `km-api` alone goes
+# from 6.3s to under half a second.
+#
+# It does NOT reach `tools/cmd/assets/km-wallpaper-pack`, which declares its own `[workspace]` and so is its own
+# workspace root -- it carries the same stanzas in its own manifest. That tool is where the cost was
+# first measured: a debug `analyze` over 4,700 photographs took 78 minutes.
+[profile.dev.package.image]
+opt-level = 2
+
+# ...and a fourth, for the same reason and measured the same way: `km-stream` converts a screen into
+# the planes an encoder wants, which is two million pixels thirty times a second and the only pixel
+# work in the streamed path that is Rust rather than C. SDL's software renderer and libopenh264 are
+# both compiled optimized whatever profile this workspace is built in, so an unoptimized conversion
+# between them is the whole difference between a stream that keeps up and one that does not.
+#
+# **Measured on the idle screen, debug, at 1280x720**: 0.75x real time without this. A stream that
+# runs slow is not a slow stream — it is one whose sound will arrive faster than its pictures.
+[profile.dev.package.km-stream]
+opt-level = 2
+
+[profile.dev.package.rustysynth]
+opt-level = 2
+
+[profile.dev.package.argon2]
+opt-level = 2

@@ -1,0 +1,84 @@
+{# The favorites a package draws its songs from, and the button that makes it agree with them.
+
+   **A row here is the whole of what *sourced* means.** Add a list and the package's songs become the
+   union of the lists in this table, it leaves the *add these songs to a package* select on the Songs
+   page and on a song's own, and Sync below is what makes the two agree. Remove the last and it is an
+   ordinary package again. There is no second box to disagree with this one.
+
+   **The lists it reads are a table and the rest are a picker**, because a corpus carries lists in the
+   dozens: a box per favorite wraps into a paragraph where a name, its count and its mark each land on
+   a different line from the box they belong to. Four rows answer *which does this package read* at a
+   glance, and a fifth is a name picked out of a select.
+
+   **Adding one syncs nothing**: pointing a package at another list is a decision, and what that would
+   do to its songs is what the button below asks in counts first. #}
+<div id="package-sourcing"{% if oob %} hx-swap-oob="true"{% endif %}>
+  <h3 style="margin-top:0">{{ "package-sourced-from"|t }}</h3>
+
+  {% if sources.is_empty() %}
+  <p class="dim">{{ "package-no-sources-yet"|t }}</p>
+  {% else %}
+  <table>
+    <thead>
+      <tr><th>{{ "favorites-name"|t }}</th><th class="num">{{ "favorites-songs"|t }}</th><th></th><th></th></tr>
+    </thead>
+    <tbody>
+    {% for f in sources %}
+      <tr>
+        <td><a href="/songs?favorite={{ f.id }}">{{ f.name }}</a></td>
+        <td class="num">{{ f.song_count }}</td>
+        {# A working list is never offered to a package, so a marked row means somebody set this list
+           aside after the package began reading it. Shown rather than dropped: a source a page did
+           not draw is a source nobody can take away. #}
+        <td>{% if f.temporary %}<span class="tag warn">{{ "favorites-working-list"|t }}</span>{% endif %}</td>
+        <td>
+          <button class="danger" hx-post="/packages/{{ package_id }}/sources/remove"
+                  hx-vals='{"favorite": {{ f.id }}}'
+                  hx-target="#action-result" hx-swap="innerHTML">{{ "failures-remove"|t }}</button>
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+
+  {% if !any_favorites %}
+  <p class="dim">{{ "package-no-favorites-lead"|t }}
+    <a href="/favorites">{{ "nav-favorites"|t }}</a> {{ "songs-page-tail"|t }}</p>
+  {% else if choices.is_empty() %}
+  <p class="dim">{{ "package-every-list-is-a-source"|t }}</p>
+  {% else %}
+  {# The count rides in the option beside the name, which is what a list is judged on before it is
+     added: a package has 999 numbers and a list of two thousand will not fit in one. #}
+  <form class="row" hx-post="/packages/{{ package_id }}/sources/add"
+        hx-target="#action-result" hx-swap="innerHTML">
+    <label>{{ "package-also-source-from"|t }}
+      <select name="favorite">
+        {% for f in choices %}
+        <option value="{{ f.id }}">{{ f.name }} ({{ f.song_count }})</option>
+        {% endfor %}
+      </select>
+    </label>
+    <button class="primary">{{ "package-add-source"|t }}</button>
+  </form>
+  {% endif %}
+
+  <p class="dim">{{ "package-sources-note"|t }}</p>
+
+  {# **It asks first**, unlike the two writes further up this page, and what earns the question is
+     that this one takes songs out. The rows it would remove are not on the screen and the lists it
+     reads are another page away, so the counts go in front of somebody before anything is written --
+     the rule `Acting on a whole filter` states for a set nobody can see in full.
+
+     The button names how many lists it would read, so it is composed in Rust and arrives as a
+     field. #}
+  <div class="row">
+    {% if sources.is_empty() %}
+    <span class="dim">{{ "sync-no-sources-note"|t }}</span>
+    {% else %}
+    <button hx-post="/packages/{{ package_id }}/sync" hx-include="#package-volume"
+            hx-target="#action-result" hx-swap="innerHTML">{{ button }}</button>
+    <span class="dim">{{ "sync-note"|t }}</span>
+    {% endif %}
+  </div>
+</div>

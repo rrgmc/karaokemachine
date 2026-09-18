@@ -1,0 +1,76 @@
+<ul class="song-list" id="rows" data-list="{{ list_tag }}"{% match anchor %}{% when Some with (code) %} data-anchor="{{ code }}"{% when None %}{% endmatch %}>
+
+{% if is_songs() %}
+  {% for line in songs %}
+  {# `data-row` rather than an id: `id="song-{N}"` is already taken, by the actions `<div>` three
+     `hx-target`s point at. #}
+  <li class="song-row" data-row="{{ line.row.number() }}">
+    <div class="song-head">
+      <span class="song-name">{{ line.row.title() }}</span>
+      <span class="song-number">#{{ line.row.number() }}</span>
+    </div>
+    <div class="song-line">
+      <span class="song-sub">{% if line.row.has_artist() %}{{ line.row.artist() }} &middot; {% endif %}{{ line.row.duration() }}</span>
+      <div class="song-controls">
+          {% if line.star.is_some() || line.row.searchable() %}
+          <div class="song-actions">
+            {% match line.star %}
+            {% when Some with (star) %}{{ star|safe }}
+            {% when None %}
+            {% endmatch %}
+            {% if line.row.searchable() %}
+            <a class="icon-btn" href="{{ line.row.youtube_url() }}" target="_blank" rel="noopener"
+               title="{{ "youtube-link"|t }}" aria-label="{{ "youtube-link"|t }}"
+               ><svg class="yt-icon" viewBox="0 0 24 17" aria-hidden="true" focusable="false"><path fill="currentColor" fill-rule="evenodd" d="M3.4 0h17.2A3.4 3.4 0 0 1 24 3.4v10.2a3.4 3.4 0 0 1-3.4 3.4H3.4A3.4 3.4 0 0 1 0 13.6V3.4A3.4 3.4 0 0 1 3.4 0zm6.4 4.4v8.2l7.1-4.1z"/></svg></a>
+            {% endif %}
+          </div>
+          {% endif %}
+          {{ line.actions|safe }}
+      </div>
+    </div>
+  </li>
+  {% endfor %}
+{% endif %}
+
+{% if is_artists() %}
+  {% for artist in artists %}
+  <li class="queue-row">
+    <a class="row-link" href="/?mode=artists&amp;artist={{ artist.row.name|urlencode_strict }}">
+      <span class="song-name">{{ artist.row.name }}</span>
+      <span class="song-sub">{{ artist.count }}</span>
+    </a>
+    <span class="chevron">&rsaquo;</span>
+  </li>
+  {% endfor %}
+{% endif %}
+
+{% if is_folders() %}
+  {% for folder in folders %}
+  <li class="queue-row">
+    <a class="row-link" href="/?mode=favorites&amp;folder={{ folder.row.id }}">
+      <span class="song-name">{{ folder.row.name }}</span>
+      <span class="song-sub">{{ folder.count }}</span>
+    </a>
+    <span class="chevron">&rsaquo;</span>
+  </li>
+  {% endfor %}
+{% endif %}
+
+{% match next %}
+{% when Some with (query) %}
+{# **The list carries on by being scrolled to.** `revealed` fires when the button reaches the
+   viewport, and `click` is written out beside it because naming a trigger replaces the implicit one
+   a `<button>` carries.
+
+   **Not `intersect`.** htmx constructs the `IntersectionObserver` before it binds anything and the
+   trigger loop catches nothing, so a browser without that constructor loses every control in the
+   page this swaps in rather than this one button. The button stays visible because it is also what
+   carries on a list whose automatic fetch `hx-sync` dropped. #}
+<li class="load-more">
+  <button hx-get="/?{{ query }}&amp;fragment=rows" hx-trigger="revealed, click"
+          hx-target="closest li" hx-swap="outerHTML">{{ "load-more"|t }}</button>
+</li>
+{% when None %}
+{% endmatch %}
+
+</ul>

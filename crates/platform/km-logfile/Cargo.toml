@@ -1,0 +1,20 @@
+[package]
+name = "km-logfile"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+description = "Writing a program's log to a file, for the runs nobody is watching a console for."
+
+[lints]
+workspace = true
+
+[dependencies]
+# Only for the `Subscriber` bound on `LogFile::layer`. Nothing here emits an event.
+tracing = { workspace = true }
+# `MakeWriter` and `fmt::Layer` are the two seams this crate exists to fill, so both have to come
+# from here rather than each caller wiring an adapter of its own. All three callers already depend
+# on it, so this costs nothing to compile.
+tracing-subscriber = { workspace = true }

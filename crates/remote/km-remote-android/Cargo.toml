@@ -1,0 +1,46 @@
+[package]
+name = "km-remote-android"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+description = "The offline remote as an Android application: a WebView over the server in the same process."
+
+# **`cdylib` and nothing else**, which is the difference between this and `km-app`. That crate is
+# `["lib", "cdylib"]` because a desktop binary links the same library the APK loads; here there is no
+# desktop caller at all -- `km-remote` is the desktop shell and it reaches `km-remote-core`
+# directly. Nothing is tested in here either: the shared state lives in `km-remote-host`, which is
+# an ordinary library and carries the tests with it.
+[lib]
+name = "km_remote_android"
+crate-type = ["cdylib"]
+
+[lints]
+workspace = true
+
+[dependencies]
+# The state machine, shared with the iOS shell. Everything that thinks is in there; what is left
+# here is a string conversion, a guard against unwinding into the JVM, and a call.
+km-remote-host = { workspace = true }
+# The server, taken **with default features on** so that `find::Mdns` exists to be handed to
+# `km_remote_host::start`. That one line is this shell's whole answer to the discovery seam, and it
+# is a line rather than a `cfg`: Java holds a `WifiManager.MulticastLock` for as long as the
+# Activity is on screen, so a real browse works here where it cannot on iOS.
+km-remote-core = { workspace = true, features = ["mdns"] }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+# **The gate that keeps `jni` out of a desktop build**, which is exactly what `km-remote-core`'s own
+# manifest asks for when it says the mobile shells must be crates of their own. `cargo build
+# --workspace` on Windows or Linux compiles this crate with neither of these and links an empty
+# library that nothing loads.
+#
+# Pinned to what `km-app` already resolves, for the reason its manifest gives about `ndk-context`:
+# two versions of a crate holding process-wide state are two crates.
+[target.'cfg(target_os = "android")'.dependencies]
+jni = "=0.22.4"
+# `tracing` events into logcat -- the only place a line goes on a device. Android-only because there
+# is nowhere else for them to go; the crate itself compiles everywhere.
+km-androidlog = { workspace = true }

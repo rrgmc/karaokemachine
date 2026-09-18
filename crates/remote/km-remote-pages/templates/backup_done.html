@@ -1,0 +1,47 @@
+{% extends "layout.html" %}
+{% block title %}{{ head.title }}{% endblock %}
+{% block content %}
+
+{{ head|safe }}
+
+<div class="outcome">
+  <div class="outcome-tick" aria-hidden="true">&#10003;</div>
+  <div class="outcome-what">
+    <span class="outcome-name">{{ added }}</span>
+    <span class="song-sub">{{ detail }}</span>
+  </div>
+</div>
+
+{% match left_out %}
+{% when Some with (line) %}
+<p class="step-note">{{ line }}</p>
+{% when None %}
+{% endmatch %}
+
+{# One line per remedy, not per song: a pack that can be installed is a different answer from a
+   recording that is nowhere here. #}
+{% for line in unplaced %}
+<p class="step-note">{{ line }}</p>
+{% endfor %}
+
+{% match unreadable %}
+{% when Some with (line) %}
+<p class="step-note">{{ line }}</p>
+{% when None %}
+{% endmatch %}
+
+{% match format_note %}
+{% when Some with (line) %}
+{# A format number is compared and *reported*, never enforced: a file refused by an older build is
+   a recovery that did not happen. #}
+<p class="step-note">{{ line }}</p>
+{% when None %}
+{% endmatch %}
+
+<a class="icon-btn primary wide" href="/?mode=favorites">{{ "backup-open-favorites"|t }}</a>
+
+{# Restoring is add-only, so the file is still exactly what it was and reading it again would do
+   nothing. Saying so is cheaper than letting somebody wonder whether it half-worked. #}
+<p class="step-note">{{ "backup-unchanged"|t }}</p>
+
+{% endblock %}

@@ -1,0 +1,21 @@
+{% extends "layout.html" %}
+
+{% block head %}
+{% match refresh_in %}
+{% when Some with (seconds) %}
+{# A plain meta refresh, not a script: these pages have none, and the tab coming back by itself is
+   the whole difference between this page and a redirect that fails while the machine is down. #}
+<meta http-equiv="refresh" content="{{ seconds }}; url=/admin/machine">
+{% when None %}
+{% endmatch %}
+{% endblock %}
+
+{% block content %}
+
+<section class="card">
+  <h2>{{ heading }}</h2>
+  <p class="hint">{{ said }}</p>
+  <a href="/admin/machine">{{ "tab-machine"|t }}</a>
+</section>
+
+{% endblock %}

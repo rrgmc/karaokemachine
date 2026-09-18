@@ -1,0 +1,13 @@
+{% macro button(song_id, playing, oob) %}
+{# **The page says which buttons it shows lit, and the play un-lights exactly those.** The song the
+   server last recorded is shared by every tab, so a play in another tab moves it, and un-lighting that
+   song here un-lights nothing on this page. The marker sits inside the span an out-of-band swap
+   replaces, so it arrives and leaves with the highlight, and `hx-include` sends every one on the page. #}
+<span id="play-{{ song_id }}"{% if oob %} hx-swap-oob="true"{% endif %}>
+  {% if playing %}<input type="hidden" class="lit-play" name="lit" value="{{ song_id }}">{% endif %}
+  <button type="button"
+          class="{% if playing %}primary{% endif %}"
+          title="{% if playing %}the last song sent to the karaoke machine &mdash; play it again{% else %}play it on the karaoke machine{% endif %}"
+          hx-post="/songs/{{ song_id }}/play?as=toast" hx-include=".lit-play" hx-target="#action-result" hx-swap="innerHTML">&#9654;</button>
+</span>
+{% endmacro %}

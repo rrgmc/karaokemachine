@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  What a `.kmpkg` is, told to the desktop.
+
+  Installed by the `.deb` into /usr/share/mime/packages/, where `update-mime-database` reads it. The
+  desktop entry beside this one says which program opens the type; this says the type exists. Both
+  are needed, and the second is the one that is easy to forget: without it, a file manager has no
+  name, no icon and no default application for a `.kmpkg`, and never looks at the `MimeType=` line
+  that would have told it.
+
+  `x-` on the type because it is not registered with IANA and is not going to be. It names the
+  format rather than a program, unlike the package builder's, because a package genuinely is a
+  format: several programs in this repository read one, and `km-pack` writes them.
+
+  `src/register.rs` compiles this very file in and writes it under XDG_DATA_HOME for the tarball,
+  which installs nothing. The two are the same bytes and differ only in where they land: a per-user
+  definition and a system one for the same type do not conflict, and one of the two is always the
+  answer depending on how the machine got here.
+
+  The icon name matches the theme entry the package installs under
+  /usr/share/icons/hicolor/<size>x<size>/apps/karaokemachine.png, so a package file in a file manager
+  wears the mark of the thing that opens it.
+
+  The magic match is what makes the name reliable rather than merely usual: a package renamed on the
+  way through a phone or a mail client is still recognized, and a file that only happens to end in
+  `.kmpkg` is not. It is the first eight bytes of the container, which is a format of this project's
+  own. See `A package is not an archive a file manager can open` in docs/decisions/packaging.md.
+-->
+<mime-info xmlns="http://www.freedesktop.org/standards/shared-mime-info">
+  <mime-type type="application/x-km-package">
+    <comment>Karaoke song package</comment>
+    <icon name="karaokemachine"/>
+    <glob pattern="*.kmpkg"/>
+    <magic priority="60">
+      <match type="string" value="KMPKG\x1a\0\0" offset="0"/>
+    </magic>
+  </mime-type>
+</mime-info>

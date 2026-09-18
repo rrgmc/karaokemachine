@@ -1,0 +1,10 @@
+// The Android wrapper around the offline remote. See README.md beside this file.
+//
+// **A project of its own rather than a second module in `ports/machine/android/`**, and that is a
+// decision rather than an accident of layout. That project carries SDL's Java verbatim and a guard
+// that refuses to build without the machine's ~150 MB native library staged, so a second module in
+// it would mean every build of this small application first built that one. They share no source,
+// no applicationId and no dependency; what they share is conventions, and conventions travel by
+// being written down rather than by living in one settings file.
+rootProject.name = 'karaokemachine-remote'
+include ':app'

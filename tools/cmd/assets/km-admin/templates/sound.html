@@ -1,0 +1,9 @@
+<h2>{{ "sound-heading"|t }}</h2>
+
+<p class="lead">{{ "sound-lead"|t }}</p>
+<p class="note">{{ "sound-note"|t }}</p>
+
+{% include "_job.html" %}
+
+{# The table is its own file so that a finished job can swap it in — see the header there. #}
+{% include "_banks.html" %}

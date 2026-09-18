@@ -1,0 +1,31 @@
+{% extends "layout.html" %}
+{% block title %}{{ head.title }}{% endblock %}
+{% block content %}
+
+{{ head|safe }}
+
+<div class="outcome">
+  <div class="outcome-tick" aria-hidden="true">&#10003;</div>
+  <div class="outcome-what">
+    <span class="outcome-name">{{ folder.name }}</span>
+    <span class="song-sub">{{ outcome }}</span>
+  </div>
+</div>
+
+{% match left_out %}
+{% when Some with (line) %}
+{# Not stored rather than stored and hidden: a folder's count comes from the favorites database
+   while its listing is filtered through the catalog, so a code nothing can draw would make the
+   folder claim more songs than it lists. #}
+<p class="step-note">{{ line }}</p>
+{% when None %}
+{% endmatch %}
+
+<a class="icon-btn primary wide" href="{{ folder_href() }}">{{ open_label }}</a>
+
+{# A merge goes one way. Saying so here is cheaper than letting somebody find out by discovering
+   half their songs missing on the other device. #}
+<p class="step-note">{{ "share-return-leg"|t }}</p>
+<a class="icon-btn wide" href="{{ send_href() }}">{{ "share-show-code"|t }}</a>
+
+{% endblock %}

@@ -1,0 +1,30 @@
+[package]
+name = "km-carols"
+description = "Turn the pinned Open Hymnal ABC into karaoke MIDI for the Christmas carol pack"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+# The package description is written through km-pack's own `Spec`, so this tool cannot describe a
+# package in a way `km-pack build` would read differently. It is a library as well as a command for
+# exactly this reason -- km-package-builder is the other caller.
+km-pack = { workspace = true }
+# Every generated file is checked with the machine's own parser and scorer before it is written.
+# That is the point of writing this in Rust rather than in shell: the tool that makes the file is
+# the one that refuses it.
+km-song = { workspace = true }
+km-suitability = { workspace = true }
+anyhow = { workspace = true }
+clap = { workspace = true }
+
+# NOTE: no HTTP client, deliberately. `tools/dist/carols.sh` fetches and verifies the source with
+# curl, exactly as tools/setup/fetch-assets.sh does. Pulling `reqwest` in here would put TLS into
+# the workspace's feature unification, which is the very thing the `exclude` note in the root
+# Cargo.toml records going wrong for `tools/cmd/assets/km-wallpaper-pack`.

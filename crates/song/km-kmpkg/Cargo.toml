@@ -1,0 +1,29 @@
+[package]
+name = "km-kmpkg"
+description = "The .kmpkg song package container"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+km-songcode = { workspace = true }
+# For `text::fold` alone, which is what `Tag::parse` normalizes through — so a tag lands in the same
+# alphabet as every title, artist and search box in the product rather than in one of its own. The
+# precedent is `km-catalog`, whose own manifest argues the layering at length: `km-song` is below
+# this crate in the `crates/song/` order, depends on no workspace crate at all, and is already linked
+# by every binary that reaches `km-kmpkg`, so this adds no crate to any artifact.
+km-song = { workspace = true }
+km-fixes = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+flate2 = { workspace = true }
+crc32fast = { workspace = true }
+sha2 = { workspace = true }
+getrandom = { workspace = true }
+thiserror = { workspace = true }

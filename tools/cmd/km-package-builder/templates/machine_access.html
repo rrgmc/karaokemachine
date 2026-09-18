@@ -1,0 +1,94 @@
+{# The machine's password, and the switch that needs it.
+
+   **One fragment, included by the Settings page and returned by the three routes that change what
+   it says**, which is `song_row.html`'s arrangement and it is here for the same reason: the copy a
+   swap brings in has to be character-for-character the copy the page was drawn with, and two
+   spellings in two files is how they come to differ by an attribute nobody notices.
+
+   The forms swap this element rather than posting into `#action-result`, because signing in changes
+   which controls exist -- a message beside a password box that is still asking for a password reads
+   as though nothing happened. #}
+<div id="machine-access" style="margin-top:.6rem">
+
+  {% if !message.is_empty() %}
+  <div class="message {% if ok %}ok{% else %}error{% endif %}">{{ message }}</div>
+  {% endif %}
+
+  {% if signed_in %}
+  <div class="row">
+    <span class="good">{{ "access-signed-in"|t }}</span>
+    <button type="button" hx-post="/settings/logout"
+            hx-target="#machine-access" hx-swap="outerHTML">{{ "access-forget-it"|t }}</button>
+    <button type="button"
+            hx-post="/settings/debugging"
+            hx-vals='{"enabled": "{% if debug_enabled %}0{% else %}1{% endif %}"}'
+            hx-target="#machine-access" hx-swap="outerHTML"
+            hx-disabled-elt="this">
+      {% if debug_enabled %}{{ "access-debugging-off"|t }}{% else %}{{ "access-debugging-on"|t }}{% endif %}
+    </button>
+  </div>
+  <p class="dim">
+    {{ "access-what-signing-in-buys"|t }}
+    {% if remembered %}
+    {# The same sentence the signed-out half draws, which is the point: what this computer holds is
+       one fact and does not change wording with what is signed in. #}
+    {{ "access-password-saved"|t }}
+    {% endif %}
+  </p>
+  {% else %}
+  {# **What this computer already holds, before what it is asking for.** A token is bought at the
+     moment one is wanted, so this is the state most launches open in: the password saved and
+     nothing signed in yet. A box on its own there asks for something this program already has, and
+     `Forget it` is the way out that does not run through typing the password you want gone. #}
+  {% if remembered %}
+  <div class="row">
+    <span class="good">{{ "access-password-saved"|t }}</span>
+    <button type="button" hx-post="/settings/logout"
+            hx-target="#machine-access" hx-swap="outerHTML">{{ "access-forget-it"|t }}</button>
+  </div>
+  {% endif %}
+  <form class="row" hx-post="/settings/login" hx-target="#machine-access" hx-swap="outerHTML">
+    {# **Behind a summary where there is already a password, and drawn plainly where there is not.**
+       Sign in is outside it either way: blank means *spend what is saved*, so the press that does
+       the ordinary thing must not be behind the box for the unusual one. `required` goes with the
+       box for the same reason -- and a required field inside a closed disclosure is a form a
+       browser refuses to submit and cannot say why. #}
+    {% if remembered %}
+    <details class="retype">
+      <summary>{{ "access-retype"|t }}</summary>
+    {% endif %}
+    <label>{{ "access-password"|t }}
+      <input type="password" name="password" placeholder="{{ "access-password-placeholder"|t }}"
+             autocomplete="current-password"{% if !remembered %} required{% endif %}>
+    </label>
+    {% if can_remember %}
+    <label><input type="checkbox" name="remember" {% if remembered %}checked{% endif %}>
+      {{ "access-remember-it"|t }}</label>
+    {% endif %}
+    {% if remembered %}
+    </details>
+    {% endif %}
+    <button class="primary">{{ "access-sign-in"|t }}</button>
+  </form>
+  {# Which password this is and what ticking the box does, for somebody who has neither yet. Where
+     one is saved the line above answers both, and repeating them argues with it. #}
+  {% if !remembered %}
+  <p class="dim">
+    {# Two keys around the page's own path, which is a word a machine reads rather than part of the
+       sentence. #}
+    {{ "access-which-password-lead"|t }} <span class="mono">/admin/</span>
+    {{ "access-which-password-tail"|t }}
+    {% if can_remember %}
+    {{ "access-tick-to-save"|t }}
+    {% if owner_only %}
+    {{ "access-owner-only"|t }}
+    {% else %}
+    {{ "access-no-protection"|t }}
+    {% endif %}
+    {% else %}
+    {{ "access-nothing-to-save-for"|t }}
+    {% endif %}
+  </p>
+  {% endif %}
+  {% endif %}
+</div>

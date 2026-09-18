@@ -1,0 +1,92 @@
+{# The bank table, and what is to be done about each row.
+
+   **Its own file so that a finished job can redraw it.** The progress fragment replaces `#job` and
+   nothing else, so a download that has just landed would leave its row still offering *Get* until
+   somebody reloaded the page — which is exactly the button that stopped being the whole story when
+   fetching and sending became two steps. `_job.html` asks for this fragment once, on the last poll
+   it makes, and swaps it in as `#local`.
+
+   Rendered from `Sound` as an include and from `Banks` on its own; both carry `chrome`, `banks` and
+   `asked_the_machine`, which is what an askama include resolves against. #}
+<div id="local">
+{% if !asked_the_machine %}
+<p class="note">{{ "banks-no-answer"|t }}</p>
+{% endif %}
+
+<table class="banks">
+  <thead>
+    <tr>
+      <th>{{ "column-bank"|t }}</th>
+      <th>{{ "column-size"|t }}</th>
+      <th>{{ "column-what-its-like"|t }}</th>
+      <th>{{ "column-license"|t }}</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+  {% for bank in banks %}
+    <tr>
+      <td>
+        <span class="name">{{ bank.name }}</span>
+        {% if bank.recommended %}<span class="tag good">{{ "bank-recommended"|t }}</span>{% endif %}
+        {# The number stays outside the word, so the word is one key and the digit is a digit. A
+           message with a count in it would have to be composed in Rust — `filters`' own rule — and
+           this one has nothing to agree with: no plural, no gender, just a position in a list. #}
+        {% match bank.rank %}
+        {% when Some with (rank) %}<span class="tag">{{ "bank-shortlist"|t }} {{ rank }}</span>
+        {% when None %}
+        {% endmatch %}
+        {# **Both, where both are true**, and not an `else if` between them: a sent bank would stop
+           saying it is on this computer. The two states are what the buttons are about — *here but
+           not sent* is what Send is for, and *here and sent* says the next machine costs no
+           download. #}
+        {% if bank.here %}<span class="tag">{{ "bank-here"|t }}</span>{% endif %}
+        {% if bank.on_the_machine %}<span class="tag good">{{ "bank-on-the-machine"|t }}</span>{% endif %}
+      </td>
+      <td class="mono">{{ bank.size }}</td>
+      {# `note` and `license` are `km-banks`' own English and stay as they arrive: what a bank sounds
+         like was written by somebody listening to it, and a license is what the file itself states.
+         The catalog header says why those are data. #}
+      <td class="note">{{ bank.note }}</td>
+      <td class="note">{{ bank.license }}</td>
+      <td>
+        {% if !bank.fetchable %}
+          {# `manual`: the table holds no direct URL for it, so there is nothing to fetch and the
+             publisher's own page is what the row offers instead. #}
+          {# The table's `page` is a full URL, scheme and all. Prefixing one here produced
+             `https://https://…`, which is the sort of thing only a rendered page shows you. #}
+          {% match bank.page %}
+          {% when Some with (page) %}<a href="{{ page }}" target="_blank" rel="noreferrer">{{ "bank-by-hand-from-site"|t }}</a>
+          {% when None %}<span class="note">{{ "bank-by-hand-only"|t }}</span>
+          {% endmatch %}
+        {% else if !bank.can_be_sent %}
+          {# Bigger than a machine will take in one upload. Said here rather than after somebody has
+             spent an hour downloading it. #}
+          <span class="note">{{ "bank-too-large"|t }}</span>
+        {% else if bank.here %}
+          {# It is on this computer, so the download is done and never repeats itself: Get is gone
+             and what is left is what can still be done with the file. #}
+          <div class="actions">
+            {% match machine %}
+            {% when Some with (_address) %}
+            <form method="post" action="/admin/sound/fetch/{{ bank.id }}/send">
+              <button type="submit">{% if bank.on_the_machine %}{{ "action-send-again"|t }}{% else %}{{ "action-send"|t }}{% endif %}</button>
+            </form>
+            {% when None %}
+            {% endmatch %}
+            <form method="post" action="/admin/sound/fetch/{{ bank.id }}/remove"
+                  data-confirm="{{ bank.remove_confirm }}">
+              <button type="submit" class="quiet">{{ "action-remove"|t }}</button>
+            </form>
+          </div>
+        {% else %}
+          <form method="post" action="/admin/sound/fetch/{{ bank.id }}/get">
+            <button type="submit">{{ "action-get"|t }}</button>
+          </form>
+        {% endif %}
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>

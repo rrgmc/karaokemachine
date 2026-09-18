@@ -1,0 +1,161 @@
+{% extends "layout.html" %}
+{% block content %}
+
+{# **The output device, first on this tab and above the banks.** A bank decides what the instruments
+   sound like; this decides whether anything is heard at all, and on the appliance it is the fault
+   that presents as a working machine playing to nobody -- the ALSA card order moves between boots.
+   It is a machine setting rather than a performance knob, and it is on Sound rather than on
+   This machine because it is about sound; km-admin puts it on the same tab, which is what
+   `Two admin surfaces, one vocabulary` asks for.
+
+   **The picker is drawn even when the machine would refuse it.** `A control that can only be refused
+   is left out, not grayed` names this flag as the precedent for *having* it and not for spending it:
+   a device that cannot be changed now can be changed when the song ends, so the control stays and
+   the hint says when. #}
+<section class="card">
+  <h2>{{ "output-heading"|t }}</h2>
+  {% match output_fell_back %}
+  {% when Some with (said) %}
+  <p class="banner banner-warn">{{ said }}</p>
+  {% when None %}
+  {% endmatch %}
+  {% match output_playing %}
+  {% when Some with (said) %}
+  <p>{{ said }}</p>
+  {% when None %}
+  {% endmatch %}
+  {% if outputs.is_empty() %}
+  <p class="empty">{{ "output-none"|t }}</p>
+  {% else %}
+  {# Two hints and not one: what this setting *is* always, and why the button will refuse right now
+     when it would. The second is the machine's own condition rather than a permission. #}
+  <p class="hint">{{ "output-hint"|t }}</p>
+  {% if !output_changeable %}
+  <p class="hint">{{ "output-busy"|t }}</p>
+  {% endif %}
+  <form method="post" action="/admin/sound/output" class="inline">
+    <select name="id" aria-label="{{ "output-choose"|t }}">
+      {% for output in outputs %}
+      {# The sentinel is named by its id, and the *flag* marks which real device it resolves to --
+         two different facts, and reading the flag as the first one is a mistake this markup made
+         once. See `OutputRow::is_system_choice`. #}
+      <option value="{{ output.id }}"{% if output.selected %} selected{% endif %}>
+        {% if output.is_system_choice %}{{ "output-system"|t }}{% else %}{{ output.name }}{% endif %}
+        {%- if output.system_default %} — {{ "output-is-system"|t }}{% endif %}
+        {%- if !output.available %} — {{ "output-absent"|t }}{% endif %}
+      </option>
+      {% endfor %}
+    </select>
+    <button type="submit">{{ "output-save"|t }}</button>
+  </form>
+  {# **A link and not a checkbox**, because this page carries no script and a checkbox would need one
+     to mean anything. The same `?all=` the API's own bank list uses. #}
+  <p class="hint">
+    {% if outputs_all %}
+    <a href="/admin/sound">{{ "output-show-fewer"|t }}</a>
+    {% else %}
+    <a href="/admin/sound?all=1">{{ "output-show-all"|t }}</a>
+    {% endif %}
+  </p>
+  {% endif %}
+
+  {# The level the card itself runs at, which is the gain into the amplifier. Absent where there is
+     nothing to set -- an HDMI output hands the volume to the receiver -- and then the hint says so
+     rather than a dead slider implying somebody could fix it. #}
+  {% match level %}
+  {% when Some with (level) %}
+  <h3>{{ "level-heading"|t }}</h3>
+  <p>{{ level.said }}</p>
+  <p class="hint">{{ "level-hint"|t }}</p>
+  {% if level.open %}
+  {# The slider shows no number without script, so the sentence above is the reading and the page
+     redraws it after the save. #}
+  <form method="post" action="/admin/sound/level" class="inline">
+    <input type="range" name="db" aria-label="{{ "level-choose"|t }}"
+           min="{{ level.floor_centi as f64 / 100.0 }}"
+           max="{{ level.ceiling_centi as f64 / 100.0 }}"
+           step="{{ level.step_centi as f64 / 100.0 }}"
+           value="{{ level.db_centi as f64 / 100.0 }}">
+    <button type="submit">{{ "level-save"|t }}</button>
+  </form>
+  {% if level.deeper_than_slider %}
+  <p class="hint">{{ "level-deeper"|t }}</p>
+  {% endif %}
+  <p class="hint"><a href="/admin/sound">{{ "level-hide"|t }}</a></p>
+  {% else %}
+  {# Behind a link for the reason the row above is: no script. And behind one at all because this is
+     the gain into an amplifier, where a stray drag is a room ten times louder. #}
+  <p class="hint"><a href="/admin/sound?level=1">{{ "level-change"|t }}</a></p>
+  {% endif %}
+  {% when None %}
+  <h3>{{ "level-heading"|t }}</h3>
+  <p class="hint">{{ "level-none"|t }}</p>
+  {% endmatch %}
+</section>
+
+<section class="card">
+  <h2>{{ "bank-add"|t }}</h2>
+  <p class="hint">{{ "bank-add-hint"|t }}</p>
+  <form method="post" action="/admin/sound/upload" enctype="multipart/form-data">
+    <input type="file" name="file" accept="{{ accepts }}" required>
+    <button type="submit">{{ "action-add"|t }}</button>
+  </form>
+</section>
+
+{# The door to the host's own bank fetching. See the twin on the Pictures tab: the machine can fetch
+   a bank itself where it has the network, and this serves the machine that has not. #}
+{% if chrome.capabilities.searching %}
+<section class="card">
+  <h2>{{ "banks-fetch-heading"|t }}</h2>
+  <p class="hint">{{ "banks-fetch-hint"|t }}</p>
+  <p><a href="/admin/sound/fetch">{{ "banks-fetch-link"|t }}</a></p>
+</section>
+{% endif %}
+
+{# The banks installed on the machine, with *use this one* and *remove*. **Absent where
+   `installed_banks` is off**, which is the same line the Songs table sits on: a surface that sends a
+   `.sf2` is not the surface that manages what is already there. A tool draws its own table of banks
+   it can *fetch*, which is a different list answering a different question. #}
+{% if chrome.capabilities.installed_banks %}
+<section class="card">
+  <h2>{{ "banks-here"|t }}</h2>
+  <table>
+    <thead>
+      <tr><th>{{ "column-bank"|t }}</th><th class="num">{{ "column-size"|t }}</th><th></th><th></th></tr>
+    </thead>
+    <tbody>
+    {% for bank in banks %}
+      <tr {% if bank.current %}class="current"{% endif %}>
+        <td>
+          {{ bank.name }}
+          {% if bank.current %}<span class="badge">{{ "bank-playing"|t }}</span>{% endif %}
+          {% if bank.bundled %}<span class="badge badge-quiet">{{ "bank-bundled"|t }}</span>{% endif %}
+        </td>
+        <td class="num">{{ bank.size }}</td>
+        <td>
+          {% if !bank.current %}
+          {# The id is a hidden field and not a path segment, because the Problems tab offers this
+             same act as a `<select>` and one route for one act beats two. #}
+          <form method="post" action="/admin/sound/use" class="inline">
+            <input type="hidden" name="id" value="{{ bank.id }}">
+            <button type="submit">{{ "bank-use"|t }}</button>
+          </form>
+          {% endif %}
+        </td>
+        <td>
+          {% match bank.why_not_removable %}
+          {% when Some with (why) %}
+          {% if !bank.bundled %}<span class="hint">{{ why }}</span>{% endif %}
+          {% when None %}
+          <a class="danger" href="/admin/sound/{{ bank.id }}/remove"
+             aria-label="{{ bank.remove_label }}">{{ "action-remove"|t }}</a>
+          {% endmatch %}
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endif %}
+
+{% endblock %}

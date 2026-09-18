@@ -1,0 +1,1172 @@
+# Everything routine, in one place: the checks, the Android APK, the release staging, and running
+# what was staged.
+#
+#   task                            # the whole list, a line each
+#   task check                      # local refs, fmt, clippy and the tests, before a push
+#   task check:linux                # ...the same pass inside the Debian container
+#   task build                      # cargo build --workspace
+#   task build:android              # both ABIs, staged into jniLibs, and an APK out of Gradle
+#   task assets                     # the GM SoundFont, once per machine
+#   task soundfont:list             # ...and the sixty-two other banks it knows how to fetch
+#   task soundfont BANK=musescore   # play one of them here, locally; task soundfont:clear undoes it
+#   task soundfont:debug:choose     # tick which banks Ctrl+2..Ctrl+9 switch between
+#   task dist                       # stage everything this platform can carry
+#   task dist VERBOSE=1             # ...watching the builds; staging is quiet by default
+#   task run                        # start the staged machine and hand the prompt back
+#   task run WAIT=1                 # ...and wait for it instead of detaching
+#   task deploy:linux HOST=user@box # build it, send it to the box and install it there
+#   task clean:old                  # take away the staged releases that are not this version
+#   task clean:all                  # ...and everything else a build here writes: target, ports, dist
+#
+# **This file is the index of what can be run here, not only what cargo cannot express.** Confining
+# it to the second -- no `task build`, no `task test`, because `cargo km-test` and `cargo km-lint`
+# already exist and `task` is a thing somebody has to install first -- is a good rule about
+# *authority* and a poor one about *discoverability*: it leaves the answer to "what can I run here?"
+# spread across four blocks of CLAUDE.md, with nothing anywhere that prints the list.
+#
+# **The authority has not moved with it.** Every task below is a forward to a cargo alias in
+# `.cargo/config.toml` or to a script under `tools/`, and every one of those still works with `task`
+# absent -- so this is the index and not the definition. `build` is the case that shows what that
+# costs: it calls `cargo km-build` rather than spelling the video feature list, because a fourth copy
+# of that list is exactly the drift `tools/setup/features.sh` exists to prevent. **`task` is
+# still optional**: no build, no test, no CI step and no release calls it.
+#
+# Install it from https://taskfile.dev if you want it: `go install github.com/go-task/task/v3/cmd/task@latest`,
+# `winget install Task.Task`, `brew install go-task`.
+#
+# **Run it from whatever shell you like -- cmd, PowerShell, Windows Terminal, Git Bash.** Most tasks
+# below call a bash script, and none of that needs a bash to type them into: Task runs every command
+# through its own embedded POSIX shell rather than the host's, and the `SH` variable below finds Git
+# Bash from git's own location. So the tasks that call `tools/*.sh` need nothing on PATH but `git` --
+# which matters on Windows, where Git's `bin/` is normally *not* on PATH and a bare `bash` is WSL's.
+#
+# Two rules any new task has to respect, both found by getting them wrong and both written up under
+# "The Taskfile" in docs/ARCHITECTURE.md: a bash script is invoked through `{{.SH}}` and never a bare
+# `bash`, which on Windows is WSL's; and only `cargo`, `rustc`, `git` and shell builtins may be
+# assumed on PATH -- a Windows box has no awk, sed, grep, jq or rm, and Task's embedded shell
+# supplies none of them.
+
+version: '3'
+
+# Silences the command echo only. The staging scripts' own reports are stdout and still appear.
+silent: true
+
+vars:
+  # The platform component of `dist/<app>/<platform>/...`. **Must agree with `dist_platform()` in
+  # tools/dist/common.sh**, which is the one place the release layout is written down: this file
+  # reconstructs a path those scripts construct, so the two are coupled and a layout change touches
+  # both. Only the name differs -- Go says `darwin` where the layout says `macos`.
+  PLATFORM: '{{if eq OS "darwin"}}macos{{else}}{{OS}}{{end}}'
+
+  # What `dist_host_triple()` computes, with `read` in place of its `awk`. Task runs every command
+  # through its own embedded POSIX shell, so the *syntax* works on all three platforms -- but an
+  # external binary still has to be on PATH, and on Windows there is no awk, no sed and no grep.
+  # Everything in this file is therefore cargo, rustc, git and shell builtins, and nothing else.
+  TRIPLE:
+    sh: rustc -vV | while read -r k v; do if [ "$k" = "host:" ]; then echo "$v"; fi; done
+
+  # The staged folders carry the version, so the run tasks have to know it *before* they can find a
+  # binary -- which is why they cannot use `dist_version()`, whose whole method is to run the binary
+  # and read its `--version`. `cargo pkgid` is the answer that needs no build, and it cannot disagree
+  # with what that binary would have said, because clap's `version` is CARGO_PKG_VERSION.
+  #
+  # Two strips, because the output has two shapes: `...#karaokemachine@1.2.0` when the package name
+  # differs from its directory, and `...#1.2.0` when it does not. `##*#` then `##*@` is right for
+  # both -- the second is a no-op on a string with no `@`.
+  #
+  # One variable serves every program this file stages, because every crate in both workspaces says
+  # `version.workspace = true` and the two workspace roots name the same number.
+  # `tools/dev/check-version-pin.sh` is what keeps that true, and `task lint:version` runs it.
+  VERSION:
+    sh: p=$(cargo pkgid -p karaokemachine); p=${p##*#}; echo "${p##*@}"
+
+  # The staging scripts are bash, and **on Windows a bare `bash` is WSL's** -- a different git looking
+  # at a different filesystem, with no MSVC cargo behind it. That is the same trap CLAUDE.md
+  # documents for the WorktreeCreate hook, and it takes the same fix: name Git Bash explicitly.
+  #
+  # Derived from git's own location rather than hardcoded, so a non-default install still works:
+  # `git --exec-path` gives `<root>/mingw64/libexec/git-core`, and the root is what is wanted.
+  # Override with `task dist SH=/path/to/bash` if that ever fails to find one.
+  SH:
+    sh: '{{if eq OS "windows"}}p=$(git --exec-path); echo "${p%/mingw*}/bin/bash.exe"{{else}}echo bash{{end}}'
+
+  # Set on the command line: `task dist NO_VIDEO=1 ZIP=1 VERBOSE=1`, `task run CONSOLE=1 WAIT=1`,
+  # `task check:linux QUICK=1`, `task build:android RELEASE=1`. They are declared here so that
+  # `{{if .NO_VIDEO}}` is false rather than an error when nothing was passed, and they are spelled out
+  # at each use rather than precomputed into a flag variable -- a global var is resolved once, and
+  # these have to see an override given on the command line.
+  #
+  # VERBOSE turns the staging scripts' build logs back on; they are quiet by default and replay
+  # whatever they held back if a step fails. WAIT makes `task run` block, which is not the default
+  # -- see the note on `_staged`.
+  #
+  # Every one of them is a flag some script below already takes, and is named after it. Anything
+  # rarer is reached with `--`, which each task forwards: `task verify:tarball -- --image fedora:42`.
+  #
+  # **`HOST` is the one that names no flag.** It is the positional argument the two deploy scripts
+  # take, and it carries their own name for it, so the rule above holds in the form that matters: a
+  # variable here is named after the thing it feeds rather than after anything this file invented.
+  NO_VIDEO: ''
+  ZIP: ''
+  CONSOLE: ''
+  VERBOSE: ''
+  WAIT: ''
+  QUICK: ''
+  ALL: ''
+  CHECK: ''
+  REFRESH: ''
+  RELEASE: ''
+  ARM64: ''
+  DEVICE: ''
+  FORCE: ''
+  HOMEBREW: ''
+  BANK: ''
+  DOCKER: ''
+  CACHE: ''
+  FILE: ''
+  MUSIC_VOLUME: ''
+  KEEP_WORK: ''
+  OPEN: ''
+  HOST: ''
+  PORT: ''
+  IDENTITY: ''
+  SONGS: ''
+  NO_BUILD: ''
+  REVERT: ''
+  SLIM: ''
+
+# **CMake 4 will not configure SDL3_ttf's vendored FreeType**, which still declares a minimum policy
+# version of 3.0, and the failure surfaces as a build-script panic that names neither CMake nor
+# FreeType. Every cargo invocation below can trigger that build -- `build`, `test`, `lint` and the
+# `check` that composes them -- so the variable belongs here rather than on any one of them.
+#
+# **Not per-platform, deliberately.** The obvious `{{if eq OS "darwin"}}` spelling would have to
+# yield the empty string everywhere else, and an env var set to nothing is a worse thing to hand
+# CMake than one that is absent. It costs nothing to set it unconditionally: the variable was
+# introduced in CMake 3.31, so every older CMake simply does not read it.
+#
+# This does **not** make the export in CLAUDE.md redundant -- a bare `cargo km-build` typed by hand
+# never passes through this file. `tools/platform/macos/app-bundle.sh` sets it for the release build
+# it drives, and this covers the routine ones; between them a plain `cargo` call is the only case
+# left that still needs it spelled out.
+#
+# The multicast socket, declined for everything this file drives that is not a deliberate launch.
+# `.cargo/config.toml` already covers every `cargo` call; this covers the tasks that run a script or
+# a built binary instead, so that no path through this file opens UDP 5353 by accident. The two
+# `_staged*` tasks set it back to `0`, because running a staged build is how somebody looks at the
+# real thing. See `KM_NO_MDNS declines the multicast socket, and one function honours it` in
+# docs/decisions/api-and-network.md.
+env:
+  CMAKE_POLICY_VERSION_MINIMUM: '3.5'
+  KM_NO_MDNS: '1'
+
+tasks:
+  default:
+    cmds:
+      - task --list
+
+  # -- building and checking, here -----------------------------------------------------------------
+  #
+  # Each of these is exactly the cargo command named in its `desc`, and neither spelling is more
+  # authoritative than the other: `.cargo/config.toml` is where the command lines live and it needs
+  # nothing installed, while these exist so that one list can be printed. `{{.CLI_ARGS}}` is forwarded
+  # throughout except on the two lint tasks, so `task test -- km-cdg` and `task build -- -p km-audio`
+  # do what they look like; the exception is explained where it is made.
+  #
+  # **The plain name is the video build and the `:no-video` half is the exception** -- see the `Video
+  # is the default build` decision in docs/decisions/. So each of these three needs a C toolchain:
+  # ffmpeg's development libraries and libclang, which `task ffmpeg` installs once per machine. The
+  # `:no-video` twin is what a fresh clone runs, and what checks that the video-less tree still
+  # compiles. Nothing here is `--all-features`, deliberately and for a reason that is not style: see
+  # the header of tools/setup/features.sh.
+
+  build:
+    desc: 'Build everything, video included -- `cargo km-build`; needs `task ffmpeg` first'
+    cmds:
+      - cargo km-build {{.CLI_ARGS}}
+
+  build:no-video:
+    desc: '...declining video, for a machine with no ffmpeg -- `cargo km-build-no-video`'
+    cmds:
+      - cargo km-build-no-video {{.CLI_ARGS}}
+
+  # **Both workspaces, because the second one is not independent of the first.** `tools/cmd/assets` is
+  # excluded from the root workspace, so `--workspace` cannot reach it -- and `km-admin` takes path
+  # dependencies on nine crates under `crates/`, `km-api` and `km-admin-pages` among them. One manifest
+  # alone leaves a change to those compiling green here and broken there.
+  # tools/platform/linux/check.sh runs the same two, and this pair is what makes the local run agree
+  # with the containerised one.
+  test:
+    desc: 'The test suite, video included, and tools/cmd/assets -- `cargo km-test`'
+    cmds:
+      - cargo km-test {{.CLI_ARGS}}
+      - cargo km-test-assets {{.CLI_ARGS}}
+
+  test:no-video:
+    desc: '...declining video -- `cargo km-test-no-video`'
+    cmds:
+      - cargo km-test-no-video {{.CLI_ARGS}}
+
+  # **The two lint tasks are the exception to the `{{.CLI_ARGS}}` rule above, and it is not an
+  # oversight.** `km-lint` ends in `-- -D warnings`, so anything appended lands after that `--` and
+  # reaches rustc rather than cargo: `task lint -- -p km-audio` would become `clippy ... -- -D
+  # warnings -p km-audio` and fail describing a rustc flag nobody typed. Narrowing a clippy run is
+  # `cargo clippy -p km-audio ...` spelled out, which is what the alias is short for anyway.
+  lint:
+    desc: 'Clippy over every target, warnings denied, video included, and tools/cmd/assets'
+    cmds:
+      - cargo km-lint
+      - cargo km-lint-assets
+
+  lint:no-video:
+    desc: '...declining video -- `cargo km-lint-no-video`'
+    cmds:
+      - cargo km-lint-no-video
+
+  # Both manifests, because `--all` does not reach tools/cmd/assets: it is a second workspace,
+  # excluded on purpose (see the `exclude` note in Cargo.toml), so `cargo fmt --all` cannot see it.
+  # **Two lines whatever grows in there** -- the second names the workspace root, so a new member
+  # beside `km-wallpaper-pack` is formatted without a third. tools/platform/linux/check.sh formats the
+  # same two, and this pair exists to make the local run agree with the containerised one rather than
+  # to be a second opinion about it.
+  fmt:
+    desc: Format the workspace and tools/cmd/assets
+    cmds:
+      - cargo km-fmt
+      - cargo km-fmt-assets
+
+  fmt:check:
+    desc: '...check the formatting instead of applying it'
+    cmds:
+      - cargo km-fmt --check
+      - cargo km-fmt-assets --check
+
+  # Nothing committed may name a local drive, a home LAN address or a person -- the standing decision
+  # is `What a committed file may say about the machine it was written on` in docs/decisions/repository.md. The
+  # script matches by shape rather than by value, so it holds nothing private itself, and it takes
+  # under a second over every tracked file.
+  lint:local:
+    desc: 'Check that no tracked file names a local path, address or person'
+    cmds:
+      - '"{{.SH}}" tools/dev/check-no-local-refs.sh'
+
+  # `How a document in this repository is written` says prose states the rule rather than narrating
+  # how it was arrived at, and applies that to code comments too. This catches the shapes that have
+  # one -- `what something used to be`, `chronology`, `meta-commentary` -- and cannot see the appositive
+  # tail or the paragraph of reassurance, so it is a floor rather than a pass.
+  #
+  # **`check` runs this form, and `--changed` is what makes that affordable.** Fourteen shapes over
+  # 700 files is 2m21s on Windows, where a branch's own lines are three seconds -- so the whole-tree
+  # form is the audit to run by hand after a large rewrite, and this one is the guard. Reading the
+  # whole tree in `check` would put the slowest guard in the repository in front of a 13-second one.
+  #
+  # **`--commits` is a second command rather than a second flag on the first**, so a failure names
+  # which of the two it is without reading the other's output. It reads the subject and body of every
+  # commit above `origin/master`, and a message on the default branch is out of its reach.
+  #
+  # CI reads the whole tree on every run and `--commits` on a pull request, whose checkout carries
+  # the history to resolve the branch against.
+  lint:prose:
+    desc: 'Check that the prose and the commit messages this branch adds state the rule rather than narrating it'
+    cmds:
+      - '"{{.SH}}" tools/dev/check-prose.sh --changed'
+      - '"{{.SH}}" tools/dev/check-prose.sh --commits'
+
+  # The compiler version is written down once, in `rust-toolchain.toml`, and three tracked files have
+  # to repeat it because no format lets them derive it. This asserts they agree, and that the two
+  # that are supposed to *read* the file have not gone back to carrying their own copy. The standing
+  # decision is `The Rust toolchain is pinned exactly` in docs/decisions/repository.md. Reads five
+  # files and says one line.
+  lint:pin:
+    desc: 'Check that the Rust toolchain pin and every copy of its version agree'
+    cmds:
+      - '"{{.SH}}" tools/dev/check-toolchain-pin.sh'
+
+  # The product version is written down twice -- `[workspace.package]` in each of the two workspace
+  # roots -- because the root manifest `exclude`s `tools/cmd/assets` and nothing crosses that
+  # boundary. This asserts the two agree and that no crate under either has gone back to spelling its
+  # own out. The standing decision is `One version number for the whole repository` in
+  # docs/decisions/repository.md. Reads four files and says one line.
+  lint:version:
+    desc: 'Check that both workspace roots name the same version'
+    cmds:
+      - '"{{.SH}}" tools/dev/check-version-pin.sh'
+
+  # A daemon binds UDP `0.0.0.0:5353`, so one function opens every one of them and `KM_NO_MDNS`
+  # means the same thing in every program. This asserts that function is still the only caller, and
+  # that no test reaches for a watcher or a real locator. The standing decision is `KM_NO_MDNS
+  # declines the multicast socket, and one function honours it` in docs/decisions/api-and-network.md.
+  # Reads the tracked Rust files and says one line.
+  lint:mdns:
+    desc: 'Check that one function opens every mDNS daemon and no test browses'
+    cmds:
+      - '"{{.SH}}" tools/dev/check-mdns.sh'
+
+  # Cargo merges a `.cargo/config.toml` from every parent directory, joining arrays and replacing
+  # strings, and a worktree under `.claude/worktrees/` is handed the checkout's copy as well as its
+  # own. This asserts every value in that file is a string, so an alias added in the array form the
+  # Cargo Book shows first fails here rather than in every worktree. The standing decision is
+  # `A worktree lives inside the checkout` in docs/decisions/repository.md. Reads one file and says
+  # one line.
+  lint:cargo:
+    desc: 'Check that every value in .cargo/config.toml is a string a worktree can inherit'
+    cmds:
+      - '"{{.SH}}" tools/dev/check-cargo-config.sh'
+
+  # In the order a failure is cheapest to read: the five text checks are a second each and say one
+  # line, formatting says one thing, clippy says a few, and the test suite is the long one. `check:linux`
+  # below is the part that only fails on Linux, and CI's `linux` job runs its equivalent.
+  #
+  # **It runs the video build, because `lint` and `test` mean that one.** There is deliberately no
+  # `check:no-video`: this is the single pre-push gate and there should be one baseline for it, and
+  # `task build:no-video` is how you confirm the video-less tree still compiles. CI's `linux` job runs
+  # the same build; its Windows and macOS jobs run the `-no-video` twins.
+  check:
+    desc: 'The pass before a push -- local refs, prose, the two pins, the daemon, cargo config, formatting, clippy, then the tests'
+    cmds:
+      - task: lint:local
+      - task: lint:prose
+      - task: lint:pin
+      - task: lint:version
+      - task: lint:mdns
+      - task: lint:cargo
+      - task: fmt:check
+      - task: lint
+      - task: test
+
+  # -- ...and the same checks on Linux, in Docker ---------------------------------------------------
+  #
+  # No `platforms:` on any of these: they run from Windows and macOS as well, because the scripts
+  # convert their own paths, and running them from Windows is the entire point -- a `Path` that reads
+  # `\` as an ordinary character, a missing system library and a wrong `#[cfg]` are the three faults
+  # that only appear off Windows. Each says what to do about a Docker daemon it cannot reach.
+
+  check:linux:
+    desc: 'fmt, clippy and the tests inside the Debian image (QUICK=1 skips the format check)'
+    cmds:
+      - '"{{.SH}}" tools/platform/linux/check.sh {{if .QUICK}}--quick{{end}} {{.CLI_ARGS}}'
+
+  shell:linux:
+    desc: A shell inside that image, for poking at a failure
+    interactive: true
+    cmds:
+      - '"{{.SH}}" tools/platform/linux/check.sh --shell'
+
+  prewarm:
+    desc: 'Build the Docker images the Linux tooling uses (ALL=1, CHECK=1, REFRESH=1)'
+    cmds:
+      - '"{{.SH}}" tools/platform/linux/prewarm.sh {{if .ALL}}--all{{end}} {{if .CHECK}}--check{{end}} {{if .REFRESH}}--refresh{{end}} {{.CLI_ARGS}}'
+
+  verify:
+    desc: Install the staged .deb and unpack the staged tarball, each in a clean container
+    cmds:
+      - task: verify:deb
+      - task: verify:tarball
+
+  verify:deb:
+    desc: 'Install the staged .deb in a clean container and run it (NO_VIDEO=1, REFRESH=1)'
+    cmds:
+      - '"{{.SH}}" tools/platform/linux/verify-deb.sh {{if .NO_VIDEO}}--no-video{{end}} {{if .REFRESH}}--refresh{{end}} {{.CLI_ARGS}}'
+
+  verify:tarball:
+    desc: 'Unpack the staged tarball in a clean container and run it (`-- --image fedora:42`, `-- --bare`)'
+    cmds:
+      - '"{{.SH}}" tools/platform/linux/verify-tarball.sh {{if .NO_VIDEO}}--no-video{{end}} {{if .REFRESH}}--refresh{{end}} {{.CLI_ARGS}}'
+
+  # -- Android --------------------------------------------------------------------------------------
+  #
+  # Four steps, split where the toolchains change hands: cargo cross-compiles both ABIs, two staging
+  # scripts put the results where Gradle looks, and Gradle packages. There is no `externalNativeBuild`
+  # anywhere in the project, on purpose -- see ports/machine/android/README.md -- which is why this is a sequence
+  # rather than one command.
+  #
+  # `RELEASE=1` is forwarded to the two scripts that take it and gives optimized native code inside an
+  # APK signed with whichever key `KM_ANDROID_KEYSTORE` names. `ARM64=1` skips
+  # armeabi-v7a for a quick phone-only iteration and is **not** a thing to ship: every Google TV
+  # device runs a 32-bit OS and loads that library alone.
+  #
+  # `tools/setup/fetch-assets.sh` is deliberately not folded in. It reaches the network, and `task assets`
+  # is the once-per-machine step that owns doing that.
+
+  # The JDK is checked **first**, before the cross-compile rather than after it: the native half is
+  # about 75 seconds cold, and discovering at the end of it that Gradle has no JDK is 75 seconds spent
+  # to learn something that was knowable at the start.
+  build:android:
+    desc: 'Build, stage and package an APK (RELEASE=1, ARM64=1, NO_VIDEO=1) -- needs JAVA_HOME'
+    cmds:
+      - task: _java-home
+      - task: build:android:native
+      - task: build:android:gradle
+
+  build:android:native:
+    desc: '...the cargo half alone: both ABIs, staged into jniLibs, with assets bundled (RELEASE=1, ARM64=1, NO_VIDEO=1)'
+    cmds:
+      - '"{{.SH}}" tools/port/machine/android/build.sh {{if .RELEASE}}--release{{end}} {{if .ARM64}}--arm64-only{{end}} {{if .NO_VIDEO}}--no-video{{end}}'
+      - '"{{.SH}}" tools/port/machine/android/stage.sh {{if .RELEASE}}--release{{end}} {{if .ARM64}}--arm64-only{{end}}'
+      - '"{{.SH}}" tools/port/machine/android/assets.sh'
+
+  # **One command for all three platforms, the same as the offline remote's below.** A `platforms:`
+  # fan-out here -- `cmd /c gradlew.bat` on Windows, `./gradlew` elsewhere -- over an internal task
+  # carrying `dir: android` cannot work on Windows.
+  #
+  # The reason, which the remote's task states too: **Task's `dir:` reaches
+  # its own shell builtins but not a spawned `cmd`.** A `.bat` is not an executable image, so nothing
+  # but `cmd.exe` can start one; `cmd` is then given the *process's* working directory, which is the
+  # repository root, and reports `'gradlew.bat' is not recognized` from a directory where `ls` finds
+  # it. Measured rather than reasoned: with `dir: one`, `pwd` prints `.../one` and `cmd /c probe.bat`
+  # in the same task fails. **Depth had nothing to do with it** -- one segment failed exactly as
+  # three did -- so this was broken before the move under `ports/`, and only on Windows, which is why
+  # `./gradlew` on the other two platforms went on working and hid it.
+  #
+  # The fix is the rule this file already states for every other script it runs: invoke bash through
+  # `{{.SH}}`, which is Git Bash on Windows. `gradlew` -- the POSIX one beside the `.bat` -- is a
+  # shell script, so it needs no `cmd`, no fan-out and no `dir:`, because `-p` names the project
+  # directory outright.
+  #
+  # `RELEASE=1` reaches Gradle here, the same way it does in the remote's task: both release build
+  # types name a signingConfig, so `assembleRelease` produces an APK that installs. It is the APK to
+  # hand somebody, because a debug build is debuggable and anything holding ADB access can attach to
+  # one. See `How the Android applications are signed` in docs/decisions/remotes.md.
+  #
+  # **The report after it says which key signed the APK**, because `KM_ANDROID_KEYSTORE` set and unset
+  # both produce a file called `app-release.apk` and only one of them is a release. A debug build has
+  # no such question to answer, so it gets no line.
+  build:android:gradle:
+    internal: true
+    cmds:
+      - task: _java-home
+      - '"{{.SH}}" ports/machine/android/gradlew -p ports/machine/android {{if .RELEASE}}assembleRelease{{else}}assembleDebug{{end}} {{.CLI_ARGS}}'
+      - '{{if .RELEASE}}"{{.SH}}" tools/port/apk-signer.sh ports/machine/android/app/build/outputs/apk/release/app-release.apk{{else}}true{{end}}'
+
+  # -- the offline remote's APK ----------------------------------------------------------------------
+  #
+  # A second Android application over the same workspace, and a much smaller build than the machine's:
+  # no ffmpeg, no ninja, no libclang, no CMake and no assets step. `km-remote-pages` compiles its templates,
+  # its stylesheet and its script in, so there is nothing to unpack on a device and no counterpart to
+  # `tools/port/machine/android/assets.sh`.
+  #
+  build:android:remote:
+    desc: 'Build, stage and package the offline remote as an APK (RELEASE=1, ARM64=1) -- needs JAVA_HOME'
+    cmds:
+      - task: _java-home
+      - task: build:android:remote:native
+      - task: build:android:remote:gradle
+
+  build:android:remote:native:
+    desc: '...the cargo half alone: both ABIs, staged into the remote APK''s jniLibs (RELEASE=1, ARM64=1)'
+    cmds:
+      - '"{{.SH}}" tools/port/remote/android/build.sh {{if .RELEASE}}--release{{end}} {{if .ARM64}}--arm64-only{{end}}'
+      - '"{{.SH}}" tools/port/remote/android/stage.sh {{if .RELEASE}}--release{{end}} {{if .ARM64}}--arm64-only{{end}}'
+
+  # **One command for all three platforms, and no `cmd /c` -- which is the opposite of the machine's
+  # arrangement below and is the more robust of the two.**
+  #
+  # The machine runs `gradlew.bat` through `cmd /c` on Windows, because a `.bat` is not an executable
+  # image and only `cmd.exe` can start one. That works there and is left alone. It does *not* work
+  # from a nested `dir:`: Task's embedded shell applies `dir:` to its own builtins -- `pwd` prints the
+  # right directory -- but spawns `cmd` with the process's own working directory, so `cmd /c
+  # gradlew.bat` reports `'gradlew.bat' is not recognized` from a place where `ls gradlew.bat` finds
+  # it. That was an hour, and the diagnosis is written down here so it is not spent twice.
+  #
+  # The fix is the rule this file already states for every other script it runs: invoke bash through
+  # `{{.SH}}`, which is Git Bash on Windows. `gradlew` -- the POSIX one beside the `.bat` -- is a
+  # shell script, so it needs no `cmd`, no platform fan-out and no `dir:` at all, because `-p` names
+  # the project directory outright.
+  #
+  # **`assembleRelease` is a real thing to ask for**, here and in the machine's task above: both
+  # release build types name a signingConfig, so what comes out installs. The report after it names
+  # the key, for the reason the machine's task gives.
+  build:android:remote:gradle:
+    internal: true
+    cmds:
+      - task: _java-home
+      - '"{{.SH}}" ports/remote/android/gradlew -p ports/remote/android {{if .RELEASE}}assembleRelease{{else}}assembleDebug{{end}} {{.CLI_ARGS}}'
+      - '{{if .RELEASE}}"{{.SH}}" tools/port/apk-signer.sh ports/remote/android/app/build/outputs/apk/release/app-release.apk{{else}}true{{end}}'
+
+  # **One task where Android has three, and `platforms: [darwin]` where Android has none.**
+  #
+  # The first difference is that there is nothing to stage: an `.xcframework` is what Xcode consumes
+  # directly, so `build.sh` assembles one rather than copying a library into a source set. It also
+  # generates the project, because the project is generated -- so there is no second half to run and
+  # no equivalent of the Gradle task above.
+  #
+  # The second is that this is the only build in this file that cannot run anywhere else. The
+  # Android tasks are gated on `JAVA_HOME` rather than on a platform because the NDK cross-compiles
+  # from all three; an iOS build needs Xcode, and Xcode is macOS. A task whose `platforms:` does not
+  # match is skipped rather than failed, which is the same arrangement `dist:app:*` uses.
+  # -- the machine's iOS application -----------------------------------------------------------------
+  #
+  # **`build:ios` is the machine, the same way `build:android` is**, and the remote is the suffixed
+  # one. One task where the machine's Android build has three: there is nothing to stage into a
+  # source set, so `build.sh` assembles the xcframework, stages the assets and generates the project
+  # itself.
+  #
+  # `platforms: [darwin]` for the reason the remote's carries it, and with the same trap: a task
+  # whose `platforms:` does not match is **skipped rather than failed**, so this line printing green
+  # on Linux says nothing about whether the app compiles.
+  build:ios:
+    desc: 'Build the machine for iOS, stage its assets, generate the Xcode project and compile the app (RELEASE=1, DEVICE=1, NOAPP=1, NO_VIDEO=1, IPA=1) -- needs Xcode'
+    platforms: [darwin]
+    cmds:
+      - '"{{.SH}}" tools/port/machine/ios/build.sh {{if .RELEASE}}--release{{end}} {{if .DEVICE}}--device-only{{end}} {{if .NOAPP}}--no-app{{end}} {{if .NO_VIDEO}}--no-video{{end}} {{if .IPA}}--ipa{{end}}'
+
+  build:ios:native:
+    desc: '...the cargo half alone: both slices, no xcframework, no assets and no project (RELEASE=1)'
+    platforms: [darwin]
+    cmds:
+      - 'cargo build -p km-machine-ios --lib --target aarch64-apple-ios {{if .RELEASE}}--release{{end}}'
+      - 'cargo build -p km-machine-ios --lib --target aarch64-apple-ios-sim {{if .RELEASE}}--release{{end}}'
+
+  build:ios:remote:
+    desc: 'Build the offline remote for iOS, generate the Xcode project and compile the app (RELEASE=1, DEVICE=1, NOAPP=1, IPA=1) -- needs Xcode'
+    platforms: [darwin]
+    cmds:
+      - '"{{.SH}}" tools/port/remote/ios/build.sh {{if .RELEASE}}--release{{end}} {{if .DEVICE}}--device-only{{end}} {{if .NOAPP}}--no-app{{end}} {{if .IPA}}--ipa{{end}}'
+
+  build:ios:remote:native:
+    desc: '...the cargo half alone: both slices, no xcframework and no project (RELEASE=1)'
+    platforms: [darwin]
+    cmds:
+      - 'cargo build -p km-remote-ios --lib --target aarch64-apple-ios {{if .RELEASE}}--release{{end}}'
+      - 'cargo build -p km-remote-ios --lib --target aarch64-apple-ios-sim {{if .RELEASE}}--release{{end}}'
+
+  # The guard is its own task because three callers want it: `build:android` up front, and each of
+  # the two gradle tasks, for anybody who reaches the Gradle half directly. It exists because the
+  # failure it replaces is genuinely misleading -- the JDK already on a machine with Android Studio
+  # on it is the bundled JBR, which is **25**, and Gradle 8.12 rejects 25 with `Unsupported class
+  # file major version 69`: a message about class files that is really a message about which of
+  # several JDKs was picked.
+  #
+  # Only the unset case is caught. A wrong *version* is left to Gradle, whose own error names it
+  # exactly, and reading a version here would want a `grep` this file may not assume.
+  #
+  # **Do not replace this with a glob that discovers a JDK.** `%ProgramFiles%` expands with
+  # backslashes, and a backslash inside a POSIX glob is an escape rather than a separator -- so the
+  # pattern silently matches nothing and the discovery fails invisibly, which is strictly worse than
+  # a message naming the fix.
+  _java-home:
+    internal: true
+    cmds:
+      - cmd: |
+          if [ -z "${JAVA_HOME:-}" ]; then
+            echo "task: JAVA_HOME is unset, and Gradle needs a JDK 17 or 21." >&2
+            echo "      JDK 25 -- which is what Android Studio bundles -- fails with" >&2
+            echo "      'Unsupported class file major version 69'. See ports/machine/android/README.md." >&2
+            echo "      'task build:android:native' does the cargo half without any of this." >&2
+            exit 1
+          fi
+
+  # -- once per machine -------------------------------------------------------------------------------
+  #
+  # The two things a fresh checkout has to fetch, and the only tasks here that touch the network.
+  # Separate rather than one `setup`, because they are not equally necessary: nothing builds without
+  # the SoundFont, and ffmpeg is wanted by everything except the `:no-video` twins. Both are worth
+  # running on a new machine -- `task build`, `task test` and `task lint` are all video builds now.
+
+  # `BANK=musescore` caches an override bank instead of the bundled one, and deliberately does not
+  # install it anywhere -- everything under assets/ is copied into every release. `task soundfont`
+  # below is what then plays it.
+  assets:
+    desc: 'Fetch the GM SoundFont, which is not committed (FORCE=1 re-fetches, BANK=<name> for an override)'
+    cmds:
+      - '"{{.SH}}" tools/setup/fetch-assets.sh {{if .FORCE}}--force{{end}} {{if .BANK}}--bank {{.BANK}}{{end}} {{.CLI_ARGS}}'
+
+  ffmpeg:
+    desc: "Install ffmpeg's development libraries and libclang, for the video feature (FORCE=1, HOMEBREW=1 on macOS)"
+    cmds:
+      - '"{{.SH}}" tools/setup/fetch-ffmpeg.sh {{if .FORCE}}--force{{end}} {{if .HOMEBREW}}--homebrew{{end}} {{.CLI_ARGS}}'
+
+  # ...and the same for Android, which needs its own ffmpeg built per ABI rather than the host's.
+  # **`ffmpeg:android`, not `android:ffmpeg`**: it belongs with the fetch above, which is what it is,
+  # rather than at the head of a namespace of its own -- it was the one task in this file that led
+  # with a platform, so `task --list` sorted it away from both `ffmpeg` and `build:android:*`.
+  ffmpeg:android:
+    desc: 'Cross-build the LGPL ffmpeg an Android video build needs, once per machine per ABI (FORCE=1)'
+    cmds:
+      - '"{{.SH}}" tools/port/machine/android/ffmpeg.sh {{if .FORCE}}--force{{end}} {{.CLI_ARGS}}'
+
+  # The compiler that turns the hymnal's ABC into MIDI. Once per machine, into the asset cache,
+  # and `task carols` finds it there by itself -- so this is rarely typed on purpose. It is built
+  # rather than downloaded because the project publishes no binaries: no GitHub releases, nothing
+  # in its SourceForge file area, and its own site is gone.
+  abcmidi:
+    desc: 'Build abc2midi into the asset cache, once per machine (FORCE=1)'
+    cmds:
+      - '"{{.SH}}" tools/setup/fetch-abcmidi.sh {{if .FORCE}}--force{{end}} {{.CLI_ARGS}}'
+
+  # -- listening to a different instrument bank ------------------------------------------------------
+  #
+  # **Not a once-per-machine step, unlike the two above, and not a release one either.** It is here
+  # because it reaches the network the same way `assets` does -- and because the answer to "what can I
+  # run here?" should include it.
+  #
+  # These write `audio.soundfont` in settings.json, which is the one override that reaches a binary in
+  # `dist/bin`: a machine with an `assets/` folder beside it gets **no** checkout overlay, structurally
+  # (`Paths::asset_dirs_from`), so `local/assets/soundfont` is invisible to a staged or installed
+  # build. settings.json is per-machine and in no carrier, so nothing here can reach a release. See
+  # the `Switching the SoundFont locally` decision in docs/decisions/.
+  #
+  # A bare `task soundfont` says which bank is playing rather than changing anything, which is why
+  # there is no separate `soundfont:status`.
+  soundfont:
+    desc: 'Play a different SoundFont locally (BANK=<name>, FILE=<path>, MUSIC_VOLUME=<v>; bare says which is playing)'
+    cmds:
+      - '"{{.SH}}" tools/dev/soundfont.sh {{if .BANK}}--bank {{.BANK}}{{end}} {{if .FILE}}--file "{{.FILE}}"{{end}} {{if .MUSIC_VOLUME}}--music-volume {{.MUSIC_VOLUME}}{{end}} {{.CLI_ARGS}}'
+
+  soundfont:list:
+    desc: '...the sixty-three banks it knows about, and what each was measured at'
+    cmds:
+      - '"{{.SH}}" tools/dev/soundfont.sh --list'
+
+  soundfont:clear:
+    desc: '...back to the bundled bank, restoring the music_volume it found'
+    cmds:
+      - '"{{.SH}}" tools/dev/soundfont.sh --clear'
+
+  # The switcher, which is the other way to hear a different bank and the one for comparing two.
+  # `soundfont` above changes which bank the machine starts on; these fill Ctrl+2..Ctrl+9 so it can
+  # be changed while a song plays, keeping the song and its position. Run-only: pressing a key never
+  # writes `audio.soundfont`, so the two commands cannot disagree about what the machine starts with.
+  soundfont:debug:
+    desc: '...put every bank on this box in the Ctrl+2-Ctrl+9 slots, for switching mid-song'
+    cmds:
+      - '"{{.SH}}" tools/dev/soundfont-debug.sh {{.CLI_ARGS}}'
+
+  # The plain command can only ever reach the top of the table -- it keeps the first eight rows that
+  # are already cached, and the table is in rank order. This ticks any of them, and fetches what is
+  # ticked and missing.
+  soundfont:debug:choose:
+    desc: '...tick which banks go in the slots, from every bank in the table'
+    cmds:
+      - '"{{.SH}}" tools/dev/soundfont-debug.sh --choose'
+
+  soundfont:debug:list:
+    desc: '...which banks it would use, and which slot each would get, without writing anything'
+    cmds:
+      - '"{{.SH}}" tools/dev/soundfont-debug.sh --list'
+
+  soundfont:debug:clear:
+    desc: '...empty the slots, turning the switcher and its on-screen label off'
+    cmds:
+      - '"{{.SH}}" tools/dev/soundfont-debug.sh --clear'
+
+  # -- staging -----------------------------------------------------------------------------------
+
+  dist:
+    desc: 'Stage every release this platform can carry -- the machine, then the six tools (NO_VIDEO=1 ZIP=1 VERBOSE=1)'
+    cmds:
+      - task: dist:app
+      - task: dist:tools
+
+  # Three implementations, one per platform, and the fan-out is not an `if`: a task whose `platforms:`
+  # does not match the host is skipped rather than failed, so calling all three runs exactly one.
+  dist:app:
+    desc: 'Stage the karaoke machine for this platform (NO_VIDEO=1 ZIP=1 VERBOSE=1)'
+    cmds:
+      - task: dist:app:windows
+      - task: dist:app:macos
+      - task: dist:app:linux
+
+  dist:app:windows:
+    internal: true
+    platforms: [windows]
+    cmds:
+      - '"{{.SH}}" tools/platform/windows/dist.sh {{if .NO_VIDEO}}--no-video{{end}} {{if .ZIP}}--zip{{end}} {{if .VERBOSE}}--verbose{{end}} {{.CLI_ARGS}}'
+
+  dist:app:macos:
+    internal: true
+    platforms: [darwin]
+    cmds:
+      - '"{{.SH}}" tools/platform/macos/app-bundle.sh {{if .NO_VIDEO}}--no-video{{end}} {{if .ZIP}}--zip{{end}} {{if .VERBOSE}}--verbose{{end}} {{.CLI_ARGS}}'
+
+  # All three Linux carriers, because all three are releases: the .deb is the supported appliance
+  # install, the tools package is the curation tools on a system with a package manager, and the
+  # tarball is the portable folder.
+  dist:app:linux:
+    internal: true
+    platforms: [linux]
+    cmds:
+      - task: dist:deb
+      - task: dist:deb:tools
+      - task: dist:tarball
+
+  # ...and the same two, reachable by name from any host, which the arm above is not. Both build
+  # entirely in Docker, so there is nothing Linux-only about *running* them -- and without them the
+  # `verify:*` tasks below are unreachable from the Windows box this is mostly developed on, since
+  # verifying a .deb needs a .deb and nothing here could stage one. `dist:app:linux` stays gated on
+  # purpose: `task dist` means "what the platform in front of me can carry", which is a different
+  # question from "run this Linux script".
+  #
+  # `--zip` is deliberately not forwarded to either -- neither accepts it, and an unknown option is
+  # exit 2.
+  dist:deb:
+    desc: 'Build the Debian package in Docker -- runs from any host (NO_VIDEO=1 VERBOSE=1)'
+    cmds:
+      - '"{{.SH}}" tools/platform/linux/deb.sh {{if .NO_VIDEO}}--no-video{{end}} {{if .VERBOSE}}--verbose{{end}} {{.CLI_ARGS}}'
+
+  # `karaokemachine-tools`, the second Debian package. A task of its own rather than
+  # `dist:deb -- --tools`, because `dist:app:linux` above names it and `tools/dist/release.sh` prints
+  # it beside a carrier that is not staged, to a reader who is about to type it.
+  #
+  # **No NO_VIDEO.** The release carries one shape of this package: km-package-builder is built with
+  # `video` and reaches the machine's ffmpeg through an rpath, and a second shape would be a second
+  # file of the same name in a subfolder nothing uploads.
+  dist:deb:tools:
+    desc: 'Build the karaokemachine-tools Debian package in Docker -- runs from any host (VERBOSE=1)'
+    cmds:
+      - '"{{.SH}}" tools/platform/linux/deb.sh --tools {{if .VERBOSE}}--verbose{{end}} {{.CLI_ARGS}}'
+
+  dist:tarball:
+    desc: 'Build the portable Linux folder and its tar.gz in Docker -- from any host (NO_VIDEO=1 VERBOSE=1)'
+    cmds:
+      - '"{{.SH}}" tools/platform/linux/tarball.sh {{if .NO_VIDEO}}--no-video{{end}} {{if .VERBOSE}}--verbose{{end}} {{.CLI_ARGS}}'
+
+  dist:tools:
+    desc: 'Stage the command-line tools -- all six, or `task dist:tools -- km-pack km-lyrics` (NO_VIDEO=1 ZIP=1 VERBOSE=1)'
+    cmds:
+      - '"{{.SH}}" tools/dist/cmd.sh {{if .NO_VIDEO}}--no-video{{end}} {{if .ZIP}}--zip{{end}} {{if .VERBOSE}}--verbose{{end}} {{.CLI_ARGS}}'
+
+  # The one artifact here that is not a build of this program: a package of songs. It is a
+  # **separate download and is never bundled**, so it is not part of `task dist` -- staging the
+  # machine and staging a pack of carols are different jobs with different reasons to run.
+  #
+  # It needs `abc2midi`, which `task abcmidi` builds into the asset cache and this script then finds
+  # by itself, and the network once; it says so before it builds anything.
+  carols:
+    desc: 'Build the downloadable Christmas carol pack into dist/carols (VERBOSE=1 KEEP_WORK=1)'
+    cmds:
+      - '"{{.SH}}" tools/dist/carols.sh {{if .VERBOSE}}--verbose{{end}} {{if .KEEP_WORK}}--keep-work{{end}} {{.CLI_ARGS}}'
+
+  # The landing page. Assembles `site/` plus the README's screenshots and a favicon into `dist/site`,
+  # which is exactly what `.github/workflows/pages.yml` uploads -- so a local preview and the
+  # published page come out of one code path rather than two that can drift.
+  site:
+    desc: 'Stage the landing page into dist/site (OPEN=1 VERBOSE=1)'
+    cmds:
+      - '"{{.SH}}" tools/dist/site.sh {{if .OPEN}}--open{{end}} {{if .VERBOSE}}--verbose{{end}} {{.CLI_ARGS}}'
+
+  # The other carrier: one folder holding every executable, instead of one folder per product. It
+  # stages what it needs itself -- the same scripts the dist tasks above run -- so it is a complete
+  # command on its own and is deliberately **not** part of `task dist`, which already means "stage
+  # every release this platform can carry" and would otherwise do all of it twice.
+  #
+  # `task dist:bin -- --no-build` is the fast path when `task dist` has just run: gather what is
+  # there and build nothing.
+  dist:bin:
+    desc: 'Stage one folder with every executable this platform can build (NO_VIDEO=1 ZIP=1 VERBOSE=1)'
+    cmds:
+      - '"{{.SH}}" tools/dist/bin.sh {{if .NO_VIDEO}}--no-video{{end}} {{if .ZIP}}--zip{{end}} {{if .VERBOSE}}--verbose{{end}} {{.CLI_ARGS}}'
+
+  # The setup program, which is a carrier rather than a folder: one installer holding every product,
+  # with component checkboxes. **Two of them now**, and the fan-out is the same one `dist:app` uses
+  # rather than an `if`: both are called unconditionally and the one whose `platforms:` does not
+  # match the host is skipped rather than failed, so exactly one runs.
+  #
+  # **There is no `dist:setup:linux`, and that is not a gap.** The `.deb` already is that carrier --
+  # a package the system installs, remembers and can remove -- so a third installer there would be a
+  # second answer to a question Debian has answered. `task dist:deb` is the line.
+  #
+  # **Not part of `task dist`**, for exactly the reason `dist:bin` is not: both of these run
+  # tools/dist/bin.sh themselves, so folding them in would stage every product twice.
+  # `task dist:setup -- --no-build` is the fast path when something has already staged.
+  #
+  # **No NO_VIDEO.** The installer is always the build that plays every kind of song; the portable
+  # folder is where declining video still means something. See the `What an installed build contains`
+  # decision in docs/decisions/. `--zip` is not forwarded either -- a setup program is already one
+  # file, and both scripts would exit 2 on an option they do not take.
+  dist:setup:
+    desc: 'Build this platform''s setup program -- one installer, every product (VERBOSE=1)'
+    cmds:
+      - task: dist:setup:windows
+      - task: dist:setup:macos
+
+  dist:setup:windows:
+    internal: true
+    platforms: [windows]
+    cmds:
+      - '"{{.SH}}" tools/platform/windows/installer.sh {{if .VERBOSE}}--verbose{{end}} {{.CLI_ARGS}}'
+
+  # `--install` is the one flag worth knowing and it has no variable, deliberately: it installs into
+  # /Applications and /usr/local for real, asks for an administrator password and then removes it
+  # again, so it should be typed rather than set. `task dist:setup -- --install`.
+  dist:setup:macos:
+    internal: true
+    platforms: [darwin]
+    cmds:
+      - '"{{.SH}}" tools/platform/macos/installer.sh {{if .VERBOSE}}--verbose{{end}} {{.CLI_ARGS}}'
+
+  # The remote in a carrier of its own: one small installer holding the windowed program and nothing
+  # else, for a computer that will never play a song. It has its own identity rather than being a
+  # smaller selection of the one above -- its own AppId and install folder on Windows, its own product
+  # identifiers and receipts on macOS -- so a computer may hold both and removing either leaves the
+  # other. See the `A setup program for the remote alone` decision in docs/decisions/.
+  #
+  # **Not folded into `dist:setup`**, which means one installer holding every product. A task
+  # producing two unrelated installers from one word is a task nobody can name, and the payloads
+  # differ: this one stages the remote alone in two seconds where that one stages everything.
+  dist:setup:remote:
+    desc: 'Build this platform''s KM Remote setup program -- the remote alone (VERBOSE=1)'
+    cmds:
+      - task: dist:setup:remote:windows
+      - task: dist:setup:remote:macos
+
+  dist:setup:remote:windows:
+    internal: true
+    platforms: [windows]
+    cmds:
+      - '"{{.SH}}" tools/platform/windows/installer-remote.sh {{if .VERBOSE}}--verbose{{end}} {{.CLI_ARGS}}'
+
+  dist:setup:remote:macos:
+    internal: true
+    platforms: [darwin]
+    cmds:
+      - '"{{.SH}}" tools/platform/macos/installer-remote.sh {{if .VERBOSE}}--verbose{{end}} {{.CLI_ARGS}}'
+
+  # The one above produces an ad-hoc build, which is the right default and the wrong thing to hand
+  # anybody: a downloaded copy is refused until it has been to Apple. This is that same package,
+  # signed and notarized -- named for the state it produces rather than for signing, because
+  # signed-but-not-notarized is a *third* state that `spctl` still rejects, and the `Signing a macOS
+  # release` decision is careful about the difference.
+  #
+  # **Not a fan-out, because there is nothing to fan out to.** tools/platform/windows/installer.sh
+  # takes `--no-build`, `-v` and `-h` and knows nothing about certificates; Windows signing needs a
+  # certificate nobody here has, and the decision says so in as many words. So this is gated on
+  # darwin directly, the way `build:ios:remote` is, rather than dispatching to a pair.
+  #
+  # **Nothing is validated here and no certificate is named here.** Both belong to the script: it
+  # resolves the three values and refuses every bad combination *before staging*, so a wrong one
+  # costs a second rather than a build. That keeps this a forward like every other task in the file,
+  # and keeps `installer.sh --notarize` typed by hand identical to typing this.
+  #
+  # **Never with `--no-build`.** Signing happens in `dist_codesign` at staging time, so skipping the
+  # staging leaves an ad-hoc payload inside a signed wrapper and only the round trip notices.
+  dist:setup:notarized:
+    desc: '...the same package signed and notarized, ready to hand over -- macOS only'
+    platforms: [darwin]
+    cmds:
+      - '"{{.SH}}" tools/platform/macos/installer.sh --notarize {{if .VERBOSE}}--verbose{{end}} {{.CLI_ARGS}}'
+
+  # And the remote's own package in the same state. It needs a task of its own rather than a flag on
+  # the one above, because `release_rows()` takes only the notarized `.pkg`: without this the macOS
+  # remote row names no command that can satisfy it.
+  dist:setup:remote:notarized:
+    desc: '...the remote''s own package signed and notarized -- macOS only'
+    platforms: [darwin]
+    cmds:
+      - '"{{.SH}}" tools/platform/macos/installer-remote.sh --notarize {{if .VERBOSE}}--verbose{{end}} {{.CLI_ARGS}}'
+
+  # -- onto the appliance ------------------------------------------------------------------------
+  #
+  # The last mile: the box under the television, reached over ssh. `deploy.sh` builds the package,
+  # copies it, installs it, enables the service and restarts it; DEPLOYING.md is the reference for
+  # what it reports and for the four things that bite.
+  #
+  # **`HOST` is required and can have no default.** The only value that would serve as one is the
+  # address of somebody's own house, which a tracked file may not name -- the standing decision is
+  # `What a committed file may say about the machine it was written on` in
+  # docs/decisions/repository.md, and `task lint:local` is what holds it.
+  #
+  # **Neither is gated on a platform**, for the reason `dist:deb` is not: the build happens in Docker
+  # and the rest is ssh, so the host in front of you does not decide.
+  #
+  # `interactive: true` on both, because the remote half is `ssh -t` and sudo may ask.
+  #
+  # A second host through `--` is the script's own error and it names it: `more than one host given`.
+
+  deploy:linux:
+    desc: 'Deploy the machine to a Debian box over ssh (HOST=user@box; NO_BUILD=1 NO_VIDEO=1 SONGS=<dir> PORT=<n> IDENTITY=<path>)'
+    interactive: true
+    cmds:
+      - task: _host
+        vars: { TASK: 'deploy:linux' }
+      - '"{{.SH}}" tools/platform/linux/deploy.sh "{{.HOST}}" {{if .NO_BUILD}}--no-build{{end}} {{if .NO_VIDEO}}--no-video{{end}} {{if .SONGS}}--songs "{{.SONGS}}"{{end}} {{if .PORT}}--port {{.PORT}}{{end}} {{if .IDENTITY}}--identity "{{.IDENTITY}}"{{end}} {{.CLI_ARGS}}'
+
+  # The once-per-box second half: it hides the bootloader menu behind a one-second any-key window and
+  # selects the Plymouth theme the package installed but did not switch on. It needs the package to
+  # be there already, it asks for a password where a deploy does not, and `REVERT=1` puts the box
+  # back. `SLIM=1` is the one thing here that cannot be undone over ssh -- see the script's own
+  # header, and `What the box shows before the machine does` in docs/decisions/distribution.md.
+  deploy:linux:boot:
+    desc: '...and the box''s boot, once per box -- hide the menu, use the splash (HOST=user@box; REVERT=1 FORCE=1 SLIM=1 PORT=<n> IDENTITY=<path>)'
+    interactive: true
+    cmds:
+      - task: _host
+        vars: { TASK: 'deploy:linux:boot' }
+      - '"{{.SH}}" tools/platform/linux/appliance-boot.sh "{{.HOST}}" {{if .REVERT}}--revert{{end}} {{if .FORCE}}--force{{end}} {{if .SLIM}}--slim-initramfs{{end}} {{if .PORT}}--port {{.PORT}}{{end}} {{if .IDENTITY}}--identity "{{.IDENTITY}}"{{end}} {{.CLI_ARGS}}'
+
+  # Both deploy tasks want this, which is why it is a task rather than a line in each -- the same
+  # reason `_java-home` is one, and the same reason: **what is bought is the message.** The scripts
+  # refuse a missing host themselves and print their own usage line, which names a command nobody
+  # ran; Task's `requires:` says `missing required variables: HOST`, which names no spelling at all.
+  # Neither says which of the two accounts on the box is meant, and that is the trap worth spending
+  # two lines on.
+  #
+  # **`requires:` cannot be added on top of this as a second opinion.** It treats a variable declared
+  # empty in `vars:` as set, and `HOST` is declared there with every other -- so it would pass on
+  # exactly the case it was added for. Undeclaring `HOST` to make it work costs the thing the
+  # declaration buys, which is that `{{.HOST}}` resolves rather than erroring.
+  _host:
+    internal: true
+    cmds:
+      - cmd: |
+          if [ -z "{{.HOST}}" ]; then
+            echo "task: {{.TASK}} needs a box -- 'task {{.TASK}} HOST=user@box'" >&2
+            echo "      It names the sudo account there, never the karaoke service account." >&2
+            exit 1
+          fi
+
+  # -- clearing it out ---------------------------------------------------------------------------
+
+  # `clean` and `clean:old` are both tools/dist/clean.sh, and the shell lives there rather than here
+  # for a reason that is not style: Task's embedded shell has `for`, `case` and parameter expansion on
+  # every platform but **no `rm`** -- that is an external command, and there is no `rm.exe` on Windows
+  # any more than there is a `sed`. Choosing a script is what this file does for staging too.
+  # `--dry-run` is worth knowing about and is reached the same way as any other flag the scripts take.
+
+  clean:
+    desc: 'Remove every staged release under dist/ (--dry-run to look first)'
+    cmds:
+      - '"{{.SH}}" tools/dist/clean.sh --all {{.CLI_ARGS}}'
+
+  # The whole checkout rather than the releases in it: dist/, both cargo directories, the two Gradle
+  # projects and the generated Xcode one, and fixtures/generated. **`clean` keeps its meaning** --
+  # it was the dist cleaner before this task existed and a task that quietly grew to remove `target/`
+  # would be a nasty surprise for anybody who typed it out of habit.
+  #
+  # Two flags rather than two more tasks, because both are about *reach* rather than about a different
+  # job, and the script explains each where it does it: `DOCKER=1` also takes the Linux tooling's
+  # images and volumes, which every checkout on this machine shares, and `CACHE=1` also empties the
+  # asset cache, which is a download and an ffmpeg build to refill. Neither is implied by the other or
+  # by the plain form. `task clean:all -- --dry-run` looks first.
+  clean:all:
+    desc: 'Remove everything a build here writes -- dist, target, ports, fixtures (DOCKER=1, CACHE=1)'
+    cmds:
+      - '"{{.SH}}" tools/dev/clean.sh {{if .DOCKER}}--docker{{end}} {{if .CACHE}}--cache{{end}} {{.CLI_ARGS}}'
+
+  # Keeps the current version and takes the rest. **It knows about no product in particular**, which
+  # is the property to preserve: one number covers everything under `dist/` now that the excluded
+  # workspace follows the machine, where it used to need an arm for each of the two programs in it.
+  # The one thing left is explained where it is handled, in tools/dist/clean.sh: `KaraokeMachine.app`
+  # carries no version at all, so `clean:old` can never remove a macOS bundle and `clean` is what does.
+  clean:old:
+    desc: 'Remove staged releases from older versions, keeping the current one (--dry-run to look first)'
+    cmds:
+      - '"{{.SH}}" tools/dist/clean.sh --old {{.CLI_ARGS}}'
+
+  # -- running what was staged -------------------------------------------------------------------
+  #
+  # **These launch and return; they do not wait for the app to exit.** What is being started is a
+  # karaoke machine, which somebody uses for an evening -- so blocking meant staging a build, running
+  # it, and having no prompt back until the singing stopped. `WAIT=1` is the old behavior, and so is
+  # `CONSOLE=1` on Windows: asking for the twin that prints means wanting to read what it prints, and
+  # a detached one would print into a console nobody is looking at.
+  #
+  # **A bare `&` does not detach here**, which is the trap in all of this. Task's embedded shell is
+  # mvdan/sh, and it waits for its background jobs before the command returns -- so the launcher has
+  # to be something that forks and exits by itself. Three of them, one per platform, all using what
+  # the operating system already provides rather than the awk/sed/grep this file may not assume:
+  #
+  #   Windows     `cmd /c start "" <exe>` -- `start` is a cmd builtin. The empty `""` is the window
+  #               title, which `start` would otherwise take from the quoted path and then have no
+  #               program left to run.
+  #   Unix        `/bin/sh -c '... &'` -- a real /bin/sh does not wait for background jobs, so it
+  #               exits at once and the child is reparented. Output goes to /dev/null: a detached run
+  #               that will not start is diagnosed by running it again with WAIT=1, and a log file
+  #               nobody reads is a file somebody has to remember to delete.
+  #   macOS .app  `open -a` -- returns immediately and gives the bundle proper activation and a Dock
+  #               icon, which launching the inner Mach-O directly does not.
+
+  run:
+    desc: 'Run the staged karaoke machine at the current version -- `task dist:app` stages it (WAIT=1 CONSOLE=1)'
+    cmds:
+      - task: run:app:folder
+      - task: run:app:bundle
+
+  # Windows and Linux both stage a folder named for the version, so they share an implementation.
+  # On Windows the windowed executable is the default, as double-clicking it is; `CONSOLE=1` picks
+  # the twin that prints, which is the one worth running from a terminal.
+  run:app:folder:
+    internal: true
+    platforms: [windows, linux]
+    cmds:
+      - task: _staged
+        vars:
+          APP: karaokemachine
+          BIN: '{{if .CONSOLE}}karaokemachine-console{{else}}karaokemachine{{end}}'
+          STAGE: 'dist:app'
+
+  run:app:bundle:
+    internal: true
+    platforms: [darwin]
+    cmds:
+      - task: _staged_bundle
+        vars:
+          BUNDLE: 'dist/karaokemachine/macos/KaraokeMachine.app'
+          BIN: karaokemachine
+          STAGE: 'dist:app'
+
+  run:package-builder:
+    desc: 'Run the staged package builder -- `task run:package-builder -- /path/to/songs` (WAIT=1 CONSOLE=1)'
+    aliases: [run:pkgbuild]
+    cmds:
+      - task: run:package-builder:folder
+      - task: run:package-builder:bundle
+
+  run:package-builder:folder:
+    internal: true
+    platforms: [windows, linux]
+    cmds:
+      - task: _staged
+        vars:
+          APP: km-package-builder
+          BIN: '{{if .CONSOLE}}km-package-builder-console{{else}}km-package-builder{{end}}'
+          STAGE: 'dist:tools -- km-package-builder'
+
+  # On macOS the builder is staged twice -- a folder for the command line and a bundle to open -- and
+  # this runs the bundle, because opening it is the thing the folder cannot do: a Dock icon, proper
+  # activation, and the declared `.kmbuild` type. The folder's executable is still there to type.
+  run:package-builder:bundle:
+    internal: true
+    platforms: [darwin]
+    cmds:
+      - task: _staged_bundle
+        vars:
+          BUNDLE: 'dist/km-package-builder/macos/KM Package Builder.app'
+          BIN: km-package-builder
+          STAGE: 'dist:tools -- km-package-builder'
+
+  # The other two products that are servers with a page rather than one-shot commands, and so the
+  # other two worth *starting* rather than invoking. `tools/dist/cmd.sh` has staged both as macOS
+  # bundles with their own Info.plist and .icns since they existed -- `bundle_name`, `bundle_plist`
+  # and `bundle_icns` name all three -- so the shape these need was already built and only the tasks
+  # that start them were missing. The remaining four tools take arguments and exit; there is nothing
+  # for a `run:` to do with one.
+  run:remote:
+    desc: 'Run the staged offline remote -- `task run:remote -- --machine 192.168.1.5` (WAIT=1 CONSOLE=1)'
+    cmds:
+      - task: run:remote:folder
+      - task: run:remote:bundle
+
+  run:remote:folder:
+    internal: true
+    platforms: [windows, linux]
+    cmds:
+      - task: _staged
+        vars:
+          APP: km-remote
+          BIN: '{{if .CONSOLE}}km-remote-console{{else}}km-remote{{end}}'
+          STAGE: 'dist:tools -- km-remote'
+
+  run:remote:bundle:
+    internal: true
+    platforms: [darwin]
+    cmds:
+      - task: _staged_bundle
+        vars:
+          BUNDLE: 'dist/km-remote/macos/KM Remote.app'
+          BIN: km-remote
+          STAGE: 'dist:tools -- km-remote'
+
+  run:assets:
+    desc: 'Run the staged asset finder -- `task run:assets -- --machine 192.168.1.5` (WAIT=1 CONSOLE=1)'
+    cmds:
+      - task: run:assets:folder
+      - task: run:assets:bundle
+
+  run:assets:folder:
+    internal: true
+    platforms: [windows, linux]
+    cmds:
+      - task: _staged
+        vars:
+          APP: km-admin
+          BIN: '{{if .CONSOLE}}km-admin-console{{else}}km-admin{{end}}'
+          STAGE: 'dist:tools -- km-admin'
+
+  run:assets:bundle:
+    internal: true
+    platforms: [darwin]
+    cmds:
+      - task: _staged_bundle
+        vars:
+          BUNDLE: 'dist/km-admin/macos/KM Admin.app'
+          BIN: km-admin
+          STAGE: 'dist:tools -- km-admin'
+
+  # macOS is the one carrier with no version in its path -- a `.app` is what the Finder shows, and
+  # `KaraokeMachine 1.2.0.app` would read as a different application every release, so the number
+  # lives in Info.plist. The version is therefore *checked* here rather than used to find anything. A
+  # warning and not a failure: an older bundle still runs, and being told which one you got is the
+  # whole point of detecting it.
+  #
+  # `open -a` rather than launching the inner Mach-O: it returns immediately and gives the bundle
+  # activation and a Dock icon, which running Contents/MacOS/<bin> directly does not. `WAIT=1` is the
+  # attached form, and there it has to be the inner executable -- `open` has already returned.
+  _staged_bundle:
+    internal: true
+    interactive: true
+    # A staged build is run in order to watch it behave like the shipped one, and advertising itself
+    # is part of that. The global `KM_NO_MDNS` is for compiling, not for looking.
+    env:
+      KM_NO_MDNS: '0'
+    cmds:
+      - cmd: |
+          app='{{.BUNDLE}}'
+          if [ ! -d "$app" ]; then
+            echo "task: nothing staged at $app -- run 'task {{.STAGE}}' first" >&2
+            exit 1
+          fi
+          have=$(defaults read "$PWD/$app/Contents/Info" CFBundleShortVersionString 2>/dev/null || echo '?')
+          if [ "$have" != "{{.VERSION}}" ]; then
+            echo "task: the staged bundle is $have, this workspace is {{.VERSION}} -- 'task {{.STAGE}}' to restage" >&2
+          fi
+          {{if .WAIT}}
+          exec "$app/Contents/MacOS/{{.BIN}}" {{.CLI_ARGS}}
+          {{else}}
+          echo "task: opening $app (detached; WAIT=1 to stay attached)"
+          open -a "$PWD/$app" --args {{.CLI_ARGS}}
+          {{end}}
+
+  # One implementation of "find the folder tools/dist/common.sh would have named, and run what is in
+  # it". The plain name is tried first and then any suffixed variant of the same version, so a folder
+  # staged `--no-video` or `--no-desktop` is still found rather than reported missing. An unmatched
+  # glob stays literal in a POSIX shell, which is what the `-d` test inside the loop is for.
+  #
+  # **The lookup runs either way**, so a missing build still fails with the three lines below rather
+  # than detaching into nothing. Only the launch differs -- see the note above the `run` tasks for why
+  # a bare `&` is not one of the options.
+  #
+  # The blocking branch is `exec` rather than a plain call, so Ctrl-C reaches the app and its exit
+  # code becomes the task's. That is what these did unconditionally until the detach landed, and it
+  # is still what `WAIT=1` and (on Windows) `CONSOLE=1` get.
+  _staged:
+    internal: true
+    interactive: true
+    # See `_staged_bundle`: a staged build advertises and browses the way the shipped one does.
+    env:
+      KM_NO_MDNS: '0'
+    cmds:
+      - cmd: |
+          app='{{.APP}}'
+          dir="dist/$app/{{.PLATFORM}}/$app-{{.VERSION}}-{{.TRIPLE}}"
+          if [ ! -d "$dir" ]; then
+            for d in "dist/$app/{{.PLATFORM}}/$app-{{.VERSION}}-"*/; do
+              if [ -d "$d" ]; then dir="${d%/}"; break; fi
+            done
+          fi
+          exe="$dir/{{.BIN}}{{exeExt}}"
+          if [ ! -f "$exe" ]; then
+            echo "task: no staged $app {{.VERSION}} for {{.TRIPLE}}" >&2
+            echo "      looked for $exe" >&2
+            echo "      stage it with 'task {{.STAGE}}'" >&2
+            exit 1
+          fi
+          {{if or .WAIT (and .CONSOLE (eq OS "windows"))}}
+          exec "$exe" {{.CLI_ARGS}}
+          {{else if eq OS "windows"}}
+          echo "task: starting $exe (detached; WAIT=1 to stay attached)"
+          cmd /c start "" "$exe" {{.CLI_ARGS}}
+          {{else}}
+          echo "task: starting $exe (detached; WAIT=1 to stay attached)"
+          /bin/sh -c '"$@" >/dev/null 2>&1 &' sh "$exe" {{.CLI_ARGS}}
+          {{end}}

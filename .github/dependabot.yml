@@ -1,0 +1,11 @@
+# The actions the workflows use, checked monthly and grouped into one pull request. Cargo is not
+# listed: a dependency bump wants the Android and iOS builds, which CI does not run.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      actions:
+        patterns: ['*']

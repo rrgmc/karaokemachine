@@ -1,0 +1,15 @@
+<span class="row">
+  <strong>{{ subject }}</strong>
+  {% if whole_corpus %}
+  <span class="warn">&mdash; {{ "confirm-whole-corpus"|t }}</span>
+  {% else %}
+  {{ "confirm-matching"|t }} {% for f in filters %}<span class="tag good">{{ f }}</span>{% endfor %}
+  {% endif %}
+  &rarr; {% if removing %}{{ "confirm-out-of"|t }}{% else %}{{ "confirm-into"|t }}{% endif %} <strong>{{ favorite }}</strong>
+  {% for song in songs %}<input type="hidden" name="song_id" value="{{ song }}">{% endfor %}
+  <button class="primary" hx-post="/songs/favorite-bulk?{{ query }}&amp;confirm=1"
+          hx-target="#bulk-favorite-result" hx-swap="innerHTML"
+          hx-include="#bulk-favorite">{{ confirm }}</button>
+  <button type="button" hx-get="/songs/favorite-bulk/cancel"
+          hx-target="#bulk-favorite-result" hx-swap="innerHTML">{{ "action-cancel"|t }}</button>
+</span>

@@ -1,0 +1,15 @@
+<div id="list">
+  {# Above the branch, because a folder whose songs are all on another machine lists nothing at all
+     -- which is the case the sentence matters most in, and the one an `else` arm would miss. #}
+  {% if !not_here.is_empty() %}
+  <div class="not-here">
+    {% for line in not_here %}<p>{{ line }}</p>{% endfor %}
+  </div>
+  {% endif %}
+  {% if rows.is_empty() %}
+  <p class="empty">{{ empty }}</p>
+  {% else %}
+  <div class="filters"><span class="result-count">{{ summary }}</span></div>
+  {{ rows|safe }}
+  {% endif %}
+</div>

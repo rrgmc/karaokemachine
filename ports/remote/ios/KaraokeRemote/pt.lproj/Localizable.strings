@@ -1,0 +1,22 @@
+/* The Portuguese shell.
+
+   `pt.lproj` and not `pt-BR.lproj`, deliberately: what is here is five screens of plain prose with
+   nothing Brazilian about it, and a Portuguese speaker anywhere is better served by this than by
+   English. The *page* makes the same call — see `Locale::best_match`, where `pt-PT` reaches
+   `pt-BR`. */
+
+"starting.title" = "Iniciando o controle…";
+
+"no_machine.title" = "Nenhuma máquina de karaokê encontrada";
+"no_machine.body" = "Ela pode estar desligada, ou em outra rede. Você pode digitar o endereço dela.";
+"no_machine.note" = "Deixe o endereço em branco para procurar na rede de novo.";
+
+"failed.title" = "O controle não iniciou";
+"page_failed.title" = "A página não carregou";
+
+"address.placeholder" = "Endereço da máquina, por exemplo 192.168.1.5";
+"action.retry" = "Salvar e tentar de novo";
+"action.carry_on" = "Seguir mesmo assim";
+"action.try_again" = "Tentar de novo";
+
+"save_failed.title" = "Não foi possível salvar o backup";

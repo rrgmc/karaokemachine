@@ -1,0 +1,36 @@
+<div data-sse="nowbar" class="nowbar" id="nowbar">
+
+  <div class="nowbar-head">
+    <div class="now-title">
+      {% match view.song_title() %}
+      {% when Some with (title) %}{{ title }}
+      {% when None %}{{ view.title_key()|t }}
+      {% endmatch %}
+    </div>
+    {# **Two glyphs and one is always hidden**, so the mark says which way the panel is folded. The
+       `#nowbar-controls:checked ~` rules in `app.css` pick between them, and the flip therefore
+       costs no JavaScript — the property this whole disclosure is built on.
+
+       ▾/▴ rather than ⌄/⌃: `_rows.html` ships ▶ out of the same Unicode block, so both phones are
+       known to draw from it, where U+2304 is thinly covered and risks a box.
+
+       `aria-label` says *Show controls* in both states and deliberately does not flip. A `<label>`
+       cannot carry a truthful `aria-expanded` without script, and a label that changes under a
+       screen reader while the checkbox it fronts says nothing is worse than one naming what
+       pressing it is for. #}
+    <label for="nowbar-controls" class="icon-btn controls-toggle" role="button" tabindex="0"
+           title="{{ "transport-show"|t }}" aria-label="{{ "transport-show"|t }}"
+      ><span class="when-closed">&#9662;</span><span class="when-open">&#9652;</span></label>
+  </div>
+  {% match view.artist() %}
+  {% when Some with (artist) %}<div class="now-artist">{{ artist }}</div>
+  {% when None %}
+  {% endmatch %}
+  {% match view.singer() %}
+  {% when Some with (singer) %}<div class="now-singer">{{ "now-singer-for"|t }} {{ singer }}</div>
+  {% when None %}
+  {% endmatch %}
+
+  {{ transport|safe }}
+
+</div>

@@ -1,0 +1,152 @@
+{% extends "layout.html" %}
+{% block title %}{{ "nav-settings"|t }} &middot; {{ crate::APP_NAME }}{% endblock %}
+{% block content %}
+
+<h2>{{ "nav-settings"|t }}</h2>
+{# **Above the strip**, which is the rule the song page's four tabs give: four of these five panels
+   swap this one slot, and a slot inside a pane is a button that appears to do nothing whenever
+   another tab is open. #}
+<div id="action-result"></div>
+
+{# Five subjects, one tab each. Stacked down the page they read as a sequence when what they are is
+   five places somebody comes to one at a time, and the one most often wanted -- which machine Play
+   and Install reach -- sat above four panels it has nothing to do with.
+
+   `.songtabs` and `.pane` rather than `.curate` and `.panel`, for that block's own reason: the boxes
+   here are already `.panel`, the class that draws a bordered card, and `.curate .panel` hides every
+   one of them. Hidden radios, flat siblings and `:checked ~`, so a stylesheet that does not load
+   leaves all five panels on the page, which is a usable settings page. #}
+<div class="songtabs settingtabs">
+  <input type="radio" name="settings-tab" id="settings-tab-machine" checked>
+  <input type="radio" name="settings-tab" id="settings-tab-backup">
+  <input type="radio" name="settings-tab" id="settings-tab-locale">
+  <input type="radio" name="settings-tab" id="settings-tab-tags">
+  <input type="radio" name="settings-tab" id="settings-tab-folder">
+  <div class="tabstrip">
+    <label for="settings-tab-machine">{{ "settings-machine"|t }}</label>
+    <label for="settings-tab-backup">{{ "settings-backup"|t }}</label>
+    <label for="settings-tab-locale">{{ "settings-locale-heading"|t }}</label>
+    <label for="settings-tab-tags">{{ "settings-suggested-tags"|t }}</label>
+    <label for="settings-tab-folder">{{ "settings-this-folder"|t }}</label>
+  </div>
+
+  <div class="pane machine">
+<div class="panel">
+  <h3 style="margin-top:0">{{ "settings-machine"|t }}</h3>
+  <form class="row" hx-post="/settings" hx-target="#action-result" hx-swap="innerHTML">
+    <label>{{ "settings-base-url"|t }} <input name="machine" size="34" value="{{ machine }}"></label>
+    <button class="primary">{{ "settings-save-and-check"|t }}</button>
+  </form>
+  <div class="message {% if reachable %}ok{% else %}error{% endif %}">{{ status }}</div>
+
+  {% include "machine_access.html" %}
+
+  <div class="row" style="margin-top:.6rem">
+    <button type="button"
+            hx-post="/settings/discover"
+            hx-target="#discovered"
+            hx-swap="innerHTML"
+            hx-disabled-elt="this">{{ "settings-discover"|t }}</button>
+  </div>
+  <div id="discovered"></div>
+  <p class="dim">{{ "settings-discover-note"|t }}</p>
+
+  {# The two settings and the command are words a machine reads, so each is drawn as one and the
+     sentences are keyed around them. #}
+  <p class="dim">
+    {{ "settings-machine-used-for"|t }}
+    {% if on_this_box %}
+    {{ "settings-here-lead"|t }} <span class="mono">debug.play_file_roots</span>
+    {{ "settings-here-tail"|t }}
+    {% else %}
+    {{ "settings-elsewhere-lead"|t }} <span class="mono">debug.accept_uploads</span>
+    {{ "settings-elsewhere-tail"|t }}
+    {% endif %}
+    {{ "settings-which-setting-lead"|t }}
+    <span class="mono">karaokemachine --show-paths</span>
+    {% if !on_this_box %}{{ "settings-on-that-machine"|t }}{% endif %} {{ "settings-which-setting-tail"|t }}
+  </p>
+</div>
+  </div>
+
+  <div class="pane backup">
+<div class="panel">
+  <h3 style="margin-top:0">{{ "settings-backup"|t }}</h3>
+
+  <form class="row" hx-post="/settings/backup" hx-target="#action-result" hx-swap="innerHTML">
+    <label>{{ "settings-backup-to"|t }} <input name="out" size="46" value="{{ default_backup_out }}"></label>
+    <button class="primary">{{ "settings-write-backup"|t }}</button>
+    <span class="dim">{{ hand_set_said }}</span>
+  </form>
+
+  <form class="row" hx-post="/settings/restore" hx-target="#action-result" hx-swap="innerHTML"
+        style="margin-top:.6rem">
+    {# A backup is named after the moment it was taken, so no fixed name is one anybody can type
+       from memory. The newest is the one somebody restoring almost always wants, and it is a
+       placeholder rather than a value because restoring with `overwrite` ticked takes work away. #}
+    <label>{{ "settings-restore-from"|t }}
+      <input name="path" size="46" required
+             placeholder="{% if newest_backup.is_empty() %}km-package-builder-20260909T140233Z.kmbackup.json{% else %}{{ newest_backup }}{% endif %}">
+    </label>
+    <label><input type="checkbox" name="overwrite"> {{ "settings-overwrite"|t }}</label>
+    <button hx-confirm="{{ "settings-restore-confirm"|t }}">
+      {{ "settings-restore"|t }}
+    </button>
+  </form>
+</div>
+  </div>
+
+  <div class="pane locale">
+{# **The one form on this page that aims at nothing.** Its four neighbours swap `#action-result`;
+   choosing a language changes every word on the document, including the nav, the counts strip,
+   `<html lang>` and the sentences `ui.js` reads off `<body>`, so there is no target a swap could be
+   right about. The handler answers `HX-Refresh` and the redraw is the confirmation -- in the
+   language just chosen, which is what somebody who picked the wrong one needs. #}
+<div class="panel">
+  <h3 style="margin-top:0">{{ "settings-locale-heading"|t }}</h3>
+  <form class="row" hx-post="/settings/locale">
+    <label>{{ "settings-locale-field"|t }}
+      <select name="locale">
+        {# Each option names its own language, which is the one string in the product deliberately
+           not in the reader's: whoever has to read a language picker is by definition whoever
+           cannot read the page around it. #}
+        {% for choice in locales %}
+        <option value="{{ choice.tag }}"{% if choice.chosen %} selected{% endif %}>{{ choice.endonym }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <button class="primary">{{ "settings-locale-save"|t }}</button>
+  </form>
+  <p class="dim">{{ "settings-locale-note"|t }}</p>
+</div>
+  </div>
+
+  <div class="pane tags">
+<div class="panel">
+  <h3 style="margin-top:0">{{ "settings-suggested-tags"|t }}</h3>
+  <form class="row" hx-post="/settings/tags" hx-target="#action-result" hx-swap="innerHTML">
+    <label>{{ "settings-comma-separated"|t }}
+      <input name="default_tags" size="40" value="{{ default_tags }}"></label>
+    <button class="primary">{{ "action-save"|t }}</button>
+  </form>
+  {% if !settings_file.is_empty() %}
+  <p class="dim">{{ "settings-kept-in"|t }} <span class="mono">{{ settings_file }}</span>{{ "settings-kept-in-tail"|t }}</p>
+  {% endif %}
+</div>
+  </div>
+
+  <div class="pane folder">
+<div class="panel">
+  <h3 style="margin-top:0">{{ "settings-this-folder"|t }}</h3>
+  <dl class="facts">
+    <dt>{{ "settings-root"|t }}</dt><dd class="mono">{{ chrome.root }}</dd>
+    <dt>{{ "favorites-songs"|t }}</dt><dd>{{ chrome.counts.songs }}</dd>
+    <dt>{{ "settings-files"|t }}</dt><dd>{{ chrome.counts.files }}{% match failed_said %}{% when Some with (said) %}, {{ said }}{% when None %}{% endmatch %}</dd>
+    <dt>{{ "nav-favorites"|t }}</dt><dd>{{ favorites_said }}</dd>
+    <dt>{{ "nav-packages"|t }}</dt><dd>{{ chrome.counts.packages }}</dd>
+  </dl>
+</div>
+  </div>
+</div>
+
+{% endblock %}

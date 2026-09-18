@@ -1,0 +1,20 @@
+#!/bin/sh
+# Stops and disables the appliance service while its unit file still exists.
+#
+# This has to happen here rather than in postrm: dpkg removes the package's files *between* the two,
+# so by the time postrm runs, /lib/systemd/system/karaokemachine.service is gone and `systemctl
+# disable` has nothing to work from -- it would leave a dangling symlink in multi-user.target.wants
+# and the next install would come up enabled without anyone asking for it.
+#
+# `remove` only. On `upgrade` the service should keep running; postinst restarts it once the new
+# binary is unpacked.
+set -e
+
+case "$1" in
+  remove)
+    if [ -d /run/systemd/system ]; then
+      systemctl stop karaokemachine.service >/dev/null 2>&1 || true
+      systemctl disable karaokemachine.service >/dev/null 2>&1 || true
+    fi
+    ;;
+esac

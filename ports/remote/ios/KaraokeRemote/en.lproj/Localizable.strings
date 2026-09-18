@@ -1,0 +1,32 @@
+/* The five screens the shell draws before the page exists.
+
+   **Apple's resources rather than this project's `.ftl` catalogs**, for the reason the Android
+   port's `res/values/strings.xml` gives at length: everything the *page* says is Fluent, because
+   the page is `km-remote-pages` and travels to five hosts; everything drawn *before* the page is
+   Swift, and a Swift screen reading a Rust catalog would be a second locale mechanism inside an app
+   that already has one. iOS resolves `pt.lproj` against the device's preferred languages, which is
+   the same question `Accept-Language` answers a moment later, so the shell and the page agree
+   without being told to.
+
+   Keys are named for what they are rather than being the English sentence, which is Apple's other
+   convention and the one that survives a rewording. */
+
+"starting.title" = "Starting the remote…";
+
+"no_machine.title" = "No karaoke machine found";
+"no_machine.body" = "It may be switched off, or on another network. You can type its address instead.";
+"no_machine.note" = "Leave the address empty to look on the network again.";
+
+"failed.title" = "The remote did not start";
+"page_failed.title" = "The page did not load";
+
+"address.placeholder" = "Machine address, e.g. 192.168.1.5";
+"action.retry" = "Save and try again";
+"action.carry_on" = "Carry on anyway";
+"action.try_again" = "Try again";
+
+/* Not a screen but an alert, and the one thing about a backup the *page* cannot say: whether the
+   file reached the place the share sheet was going to put it. Everything about the contents of a
+   backup — not ours, damaged, empty, too large — is worded by `km-remote-pages`, which is the half
+   that parsed it. */
+"save_failed.title" = "The backup could not be saved";

@@ -1,0 +1,13 @@
+{% extends "layout.html" %}
+{% block title %}{{ "tab-songs"|t }}{% endblock %}
+{% block content %}
+
+{% if browse.shows_extras() %}
+<input type="checkbox" id="extra-actions" class="visually-hidden" name="actions" value="1" autocomplete="off"
+       aria-label="{{ "row-actions-extra"|t }}"
+       {% if browse.extra %}checked{% endif %}
+       hx-get="/?fragment=extra" hx-trigger="change" hx-swap="none">
+{% endif %}
+
+{{ browse|safe }}
+{% endblock %}

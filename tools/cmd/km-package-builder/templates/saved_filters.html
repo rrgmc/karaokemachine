@@ -1,0 +1,48 @@
+{# Filters somebody named, and the box that names one.
+
+   **A `div` outside `#filters`, not a band inside it.** That form carries `hx-trigger="change"`, so
+   a text box in it would fire a filter request on every keystroke and a checkbox on every click; and
+   `serde_urlencoded` answers a repeated known key with a 400, which is what a second `name` in the
+   same body would be. It is the `.curate` radios' argument reached from the other side.
+
+   It is also not a `form` itself, tempting as that is for the band styling: it *holds* one, and a
+   form inside a form is not markup a browser will keep. Both of those are about the form and neither
+   is about the box: `.filter-box` in songs.html is what puts this inside the bar's border while
+   leaving it the form's sibling.
+
+   **Drawn whether or not anything is saved**, unlike the chips strip one band down, and the
+   difference is which half earns it: a chip strip with no chips has nothing to say, where this one
+   still carries the only control that can put something in it. The element has to be here in either
+   case anyway — an out-of-band swap can only replace an element that is already on the page. #}
+<div class="saved-strip" id="saved-filters"{% if oob %} hx-swap-oob="true"{% endif %}>
+  <span class="band-name">{{ "saved-band"|t }}</span>
+
+  {# One template for a chip wherever it is drawn, so the strip and the fragment that reopens a
+     single chip cannot drift. `song_rows.html` and `song_row_fragment.html` are the same
+     arrangement. #}
+  {% for filter in filters %}
+  {% include "saved_filter_chip.html" %}
+  {% endfor %}
+
+  {% if filters.is_empty() %}
+  <span class="dim">{{ "saved-none"|t }}</span>
+  {% endif %}
+
+  {# The one action on this page that does not send the bar with it. Every change to the filter goes
+     through `/songs/rows`, which writes the canonical query string down before it answers, so the
+     server already holds the exact string the address bar is showing. See `handlers::save_filter`.
+
+     `saved_name` rather than `name`, because a row in `#rows` already sends `name` and this crate
+     has renamed a control for that collision more than once. Nothing includes this form today; the
+     spelling costs nothing and is what stops the next thing that does. #}
+  <form id="save-filter" hx-post="/songs/saved-filters"
+        hx-target="#saved-filter-result" hx-swap="innerHTML">
+    <input name="saved_name" placeholder="{{ "saved-name-placeholder"|t }}" size="22" required>
+    {# Ticked, because the page is part of where somebody was — see `The page comes back too` in
+       `docs/decisions/curation.md`. Untick it for a filter that names a question rather than a
+       place, which should open at the top however deep the corpus was being read when it was
+       saved. #}
+    <label><input type="checkbox" name="keep_page" value="1" checked> {{ "saved-keep-page"|t }}</label>
+    <button>{{ "action-save"|t }}</button>
+  </form>
+</div>

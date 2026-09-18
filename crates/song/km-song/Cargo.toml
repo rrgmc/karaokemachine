@@ -1,0 +1,38 @@
+[package]
+name = "km-song"
+description = "Standard MIDI file parsing and karaoke lyric normalization"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[features]
+# Synthetic karaoke files for tests and manual inspection. Off by default so they never ship in a
+# release build.
+#
+# CI names it explicitly -- `--features km-song/testing,km-api/testing` -- rather than reaching for
+# `--all-features`, which nothing in this repository runs and `CLAUDE.md` forbids outright: that also
+# turns on `km-package-builder/desktop`, whose `wry` links libwebkit2gtk. See `tools/setup/features.sh`.
+testing = []
+
+[lints]
+workspace = true
+
+[dependencies]
+midly = { workspace = true }
+rayon = { workspace = true }
+encoding_rs = { workspace = true }
+chardetng = { workspace = true }
+serde = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+km-suitability = { workspace = true }
+km-audio = { workspace = true }
+serde_json = { workspace = true }
+
+[[example]]
+name = "write_fixtures"
+required-features = ["testing"]

@@ -1,0 +1,163 @@
+<div id="browse">
+
+  {% for problem in package_problems %}
+  <p class="banner">{{ problem }}</p>
+  {% endfor %}
+
+  <div class="browse-bar">
+
+    <div class="modes">
+      {% for m in modes() %}
+      <a class="mode-btn {% if is_mode(m) %}active{% endif %}" href="{{ mode_href(m) }}">{{ m.label_key()|t }}</a>
+      {% endfor %}
+      {% if capabilities.song_book %}
+      <a class="mode-btn book-btn" href="/api/v1/songs/book.pdf" download
+         title="{{ "book-link"|t }}">{{ "tab-book"|t }}</a>
+      {% endif %}
+    </div>
+
+    {% if is_nested() %}
+    <div class="page-head">
+      <a href="{{ up_href() }}" class="icon-btn" aria-label="{{ "browse-back"|t }}">&lsaquo;</a>
+      <h1>{{ nested_name() }}</h1>
+      {# Inside a folder and nowhere else. That one constraint is what deletes both "which folder?"
+         questions from the flow underneath: the folder you are in is the answer for the phone
+         showing a code and for the phone reading one. Absent inside an *artist*, which shares this
+         head and has nothing to share. #}
+      {% match share_href() %}
+      {% when Some with (href) %}
+      <a href="{{ href }}" class="icon-btn head-action"
+         aria-label="{{ "share-link"|t }}" title="{{ "share-link"|t }}">&#8646;</a>
+      {% when None %}
+      {% endmatch %}
+    </div>
+    {% endif %}
+
+    <form hx-get="/?fragment=list" hx-target="#list" hx-swap="outerHTML show:window:top"
+          {# **The tag picker is deliberately not in this list.** Everything here narrows the rows and
+             nothing else, which is what makes `#list` the right target; adding a tag also changes the
+             chip strip, so it asks for `#browse` on its own, exactly as a chip's ✕ does. It was in
+             this list, and that one word is what made the strip never appear. #}
+          hx-trigger="submit, keyup changed delay:300ms from:#q, change from:#language, change from:#initial"
+          hx-push-url="true"
+          onsubmit="this.querySelector('#q').blur(); return false;">
+
+      <input type="hidden" name="mode" value="{{ mode.as_str() }}">
+      {% if !shows_initials() %}
+      {% match initial %}
+      {% when Some with (l) %}<input id="initial" type="hidden" name="initial" value="{{ l }}">
+      {% when None %}
+      {% endmatch %}
+      {% endif %}
+      <input id="tags" type="hidden" name="tags" value="{{ tags_value() }}">
+      {% match artist %}
+      {% when Some with (a) %}<input type="hidden" name="artist" value="{{ a }}">
+      {% when None %}
+      {% endmatch %}
+      {% match folder %}
+      {% when Some with (f) %}<input type="hidden" name="folder" value="{{ f.id }}">
+      {% when None %}
+      {% endmatch %}
+
+      <div class="field-row">
+        <input type="search" id="q" name="q" value="{{ query }}"
+               placeholder="{{ mode.placeholder_key()|t }}"
+               autocomplete="off" autocorrect="off" autocapitalize="off"
+               enterkeyhint="search" aria-label="{{ mode.placeholder_key()|t }}">
+        <button type="button" class="icon-btn" title="{{ "search-clear"|t }}"
+                aria-label="{{ "search-clear"|t }}"
+                hx-get="{{ clear_href() }}" hx-include="#language, #initial, #tags"
+                hx-target="#browse" hx-swap="outerHTML" hx-push-url="false">&#10005;</button>
+      </div>
+
+      {% if shows_filters() %}
+      <div class="filter-row">
+        {% if !languages.is_empty() %}
+        <select id="language" name="language" title="{{ "filter-language"|t }}" aria-label="{{ "filter-language"|t }}">
+          <option value="">{{ "filter-all"|t }}</option>
+          {% for l in languages %}
+          <option value="{{ l.code }}" {% if language.as_deref() == Some(l.code.as_str()) %}selected{% endif %}>{{ l.name }} ({{ l.songs }})</option>
+          {% endfor %}
+        </select>
+        {% endif %}
+
+        {% if shows_initials() %}
+        <select id="initial" name="initial" class="initial-select"
+                title="{{ "filter-initial"|t }}" aria-label="{{ "filter-initial"|t }}">
+          <option value="" {% if no_initial() %}selected{% endif %}>{{ "filter-all"|t }}</option>
+          {% for l in initials() %}
+          <option value="{{ l }}" {% if initial_is(l) %}selected{% endif %}>{{ initial_label(l) }}</option>
+          {% endfor %}
+        </select>
+        {% endif %}
+
+        {% if shows_tags() %}
+        {# **Its own request, targeting `#browse`, and not the form's.** Adding a tag changes the chip
+           strip as well as the rows, so swapping only `#list` left the chip undrawn, the
+           picker still offering what it had just applied, and the hidden `tags` field holding the
+           previous set — which made a second choice *replace* the first instead of adding to it.
+
+           The same shape as a chip's ✕ one block down, and for the same reasons: the tags already
+           held are baked into the URL by `tag_add_href` because the hidden field is stale at the
+           moment this fires, while the language and the initial ride `hx-include` because those are
+           live `<select>` values and what is on screen beats what the last render said. htmx appends
+           this select's own `add_tag` to that URL.
+
+           **No `hx-vals` and no second `fragment` anywhere near this**: the URL carries the one it
+           wants, and a key sent twice is a 400 before a handler ever sees it — see the note above the
+           `<form>`. #}
+        <select id="add-tag" name="add_tag" title="{{ "filter-tags"|t }}" aria-label="{{ "filter-tags"|t }}"
+                hx-get="{{ tag_add_href() }}" hx-include="#language, #initial"
+                hx-target="#browse" hx-swap="outerHTML" hx-push-url="true">
+          <option value="">{{ "filter-tag-add"|t }}</option>
+          {% for t in tag_choices %}
+          <option value="{{ t.tag }}">{{ t.tag }} ({{ t.songs }})</option>
+          {% endfor %}
+        </select>
+        {% endif %}
+
+        {% if shows_extras() %}
+        <label for="extra-actions" class="icon-btn actions-toggle" title="{{ "row-actions-extra"|t }}"
+               >&hellip;</label>
+        {% endif %}
+      </div>
+      {% endif %}
+
+      {# **Under the pickers and last in the bar**, which puts it directly against the list it
+         describes. Two reasons, and the second is the one that decided it.
+
+         A chip is not a control you go looking for, it is a statement about the rows underneath — so
+         it belongs against them, rather than up beside the row of `<select>`s, which is where you go
+         to *change* the narrowing.
+
+         And the strip's height varies with how many tags are on. Above the search box it moved that
+         box down the page on every add and every remove — and on a phone the search box is the most
+         used control there is and wants to be in the same place each time you reach for it. A strip
+         that grows downward into the list costs nothing, because the list is already scrolling.
+
+         **The strip carries its own clear-all**, because nothing else could do it: the picker's first
+         option is a placeholder that does nothing, and the search box's ✕ deliberately keeps the tags
+         since it clears a search. Four tags on meant four presses, with the control that looked like
+         it might do it doing nothing. See `Active tag filters are a strip under the filter row` in
+         docs/decisions/remotes.md. #}
+      {% if !tags.is_empty() %}
+      <div class="filter-chips">
+        {% for t in tags %}
+        <span class="chip">{{ t }}
+          <a href="#" title="{{ "filter-tag-remove"|t }}" aria-label="{{ "filter-tag-remove"|t }}"
+             hx-get="{{ tag_remove_href(t) }}" hx-include="#language, #initial"
+             hx-target="#browse" hx-swap="outerHTML" hx-push-url="false">&#10005;</a></span>
+        {% endfor %}
+        <a class="chip-clear" href="#"
+           hx-get="{{ tags_clear_href() }}" hx-include="#language, #initial"
+           hx-target="#browse" hx-swap="outerHTML" hx-push-url="false">{{ "filter-tags-clear"|t }}</a>
+      </div>
+      {% endif %}
+
+    </form>
+
+  </div>
+
+  {{ list|safe }}
+
+</div>

@@ -1,0 +1,58 @@
+[package]
+name = "km-remote-pages"
+description = "The singer-facing remote: search, queue and control, rendered server-side"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+# The wire format and the event enum, used as this crate's own model types. Rendering the API's DTOs
+# rather than mapping them into a parallel set is deliberate: the online mode is the same process as
+# the API, and the offline mode parses exactly these off a socket, so a third description of a song
+# would be a third thing to keep in step. See the header of `km-api`'s `dto` module.
+km-api = { workspace = true }
+# `SearchQuery`, `SortOrder` and `fts_match_query`. Both modes build the identical SQL -- the machine
+# against `library.sqlite` and the offline app against its mirror -- so the two can never disagree
+# about what a search means, and neither reimplements FTS5's operator escaping.
+km-songcode = { workspace = true }
+# The remote's own words, and the askama filter the templates render them through.
+km-locale = { workspace = true, features = ["askama"] }
+km-catalog = { workspace = true }
+# The compiled-in ISO 639-1 table, so the language picker names a code the same way packaging and
+# the curation tool do. A second table would be a second thing to disagree with the one the codes
+# were written from.
+km-kmpkg = { workspace = true }
+# `text::fold` and `text::initial` — the accent folding that makes "coracao" find "Coração" outside
+# SQLite, and the bucket the A–Z strip filters by. Deliberately the same function the catalog's FTS
+# tokenizer implies, so a song found by the search box and the same song under its initial cannot
+# disagree about what it starts with.
+km-song = { workspace = true }
+
+# Drawing a folder's share code. **`default-features = false, features = ["svg"]`, and the opt-out is
+# the point**: the default features pull in the `image` crate, and this library is compiled into the
+# appliance's binary, into `km-remote`, into an APK and into an iOS app — none of which has any use
+# for a raster encoder. The `svg` feature is pure string formatting with no dependency at all. The
+# workspace entry keeps its defaults for `km-display`, which wants the module matrix and neither
+# renderer.
+qrcode = { workspace = true, default-features = false, features = ["svg"] }
+
+askama = { workspace = true }
+axum = { workspace = true }
+tokio = { workspace = true }
+# `Stream` for the SSE body, and `StreamExt` for the fan-out.
+futures-util = { workspace = true }
+async-trait = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+# Driving the real router as a service, the way `km-api` and `km-package-builder` both test theirs.
+tower = { workspace = true, features = ["util"] }

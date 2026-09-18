@@ -1,0 +1,165 @@
+{% extends "layout.html" %}
+{% block title %}{{ "similar-heading"|t }} &middot; {{ crate::APP_NAME }}{% endblock %}
+{% block content %}
+
+{# Reached from a row's ≈ button or a song's own page, never from the nav: the question is always
+   asked about a song somebody is already looking at. The boxes stay editable because a name can be
+   garbled past matching, and loosening it by hand is the way out. See `Finding a song under another
+   spelling of its name` in docs/decisions/curation.md. #}
+<h2>{{ "similar-heading"|t }}</h2>
+
+{# The Songs page's box and bands, holding the five of its controls that separate one file of a song
+   from another. They narrow the candidates before any is scored, and the song the search started
+   from heads the list whatever they say. Same field names as that bar, so one parser reads both. #}
+<div class="filter-box">
+<form class="filters banded" id="similar-search"
+      hx-get="/similar/hits" hx-target="#hits" hx-swap="outerHTML"
+      hx-trigger="change, keyup changed delay:400ms from:#similar-title, keyup changed delay:400ms from:#similar-artist"
+      hx-indicator="#hits"
+      onsubmit="return false">
+  <div class="band find">
+    <label>{{ "column-title"|t }}
+      <input type="search" id="similar-title" name="title" size="34" value="{{ title }}">
+    </label>
+    <label>{{ "column-artist"|t }}
+      <input type="search" id="similar-artist" name="artist" size="26" value="{{ artist }}">
+    </label>
+    <input type="hidden" name="from" value="{{ from }}">
+    <span class="dim">{{ "similar-how-it-matches"|t }}</span>
+  </div>
+
+  <div class="band">
+    <span class="band-name">{{ "songs-band-quality"|t }}</span>
+
+    <label>{{ "songs-sort-suitability"|t }}
+      <select name="suitability" title="{{ "songs-suitability-title"|t }}">
+        {% for band in query.suitabilities() %}
+        <option value="{{ band.value }}" {% if band.selected %}selected{% endif %}>{{ band.label }}</option>
+        {% endfor %}
+      </select>
+    </label>
+  </div>
+
+  <div class="band">
+    <span class="band-name">{{ "songs-band-song"|t }}</span>
+
+    <label>{{ "songs-media-type"|t }}
+      <select name="kind" title="{{ "songs-media-type-title"|t }}">
+        <option value="" {% if query.kind == "" %}selected{% endif %}>{{ "songs-any"|t }}</option>
+        <option value="midi" {% if query.kind == "midi" %}selected{% endif %}>{{ "kind-midi"|t }}</option>
+        <option value="video" {% if query.kind == "video" %}selected{% endif %}>{{ "kind-video"|t }}</option>
+        <option value="cdg" {% if query.kind == "cdg" %}selected{% endif %}>{{ "kind-cdg"|t }}</option>
+        <option value="ultrastar" {% if query.kind == "ultrastar" %}selected{% endif %}>{{ "kind-ultrastar"|t }}</option>
+      </select>
+    </label>
+
+    <label>{{ "songs-lyrics"|t }}
+      <select name="granularity">
+        <option value="" {% if query.granularity == "" %}selected{% endif %}>{{ "songs-any"|t }}</option>
+        <option value="syllablelevel" {% if query.granularity == "syllablelevel" %}selected{% endif %}>{{ "songs-per-syllable"|t }}</option>
+        <option value="linelevel" {% if query.granularity == "linelevel" %}selected{% endif %}>{{ "songs-per-line"|t }}</option>
+        <option value="none" {% if query.granularity == "none" %}selected{% endif %}>{{ "songs-lyrics-none"|t }}</option>
+      </select>
+    </label>
+  </div>
+
+  <div class="band">
+    <span class="band-name">{{ "songs-band-state"|t }}</span>
+
+    <label>{{ "songs-copies"|t }}
+      <select name="copies" title="{{ "songs-copies-title"|t }}">
+        <option value="" {% if query.copies_is("") %}selected{% endif %}>{{ "songs-any"|t }}</option>
+        <option value="1" {% if query.copies_is("1") %}selected{% endif %}>1</option>
+        <option value="2-10" {% if query.copies_is("2-10") %}selected{% endif %}>2&ndash;10</option>
+        <option value="10+" {% if query.copies_is("10+") %}selected{% endif %}>{{ "songs-more-than-ten"|t }}</option>
+      </select>
+    </label>
+
+    {# Clear by default, as on the Songs page: a hidden version's primary stands for it. #}
+    <label><input type="checkbox" name="versions" value="all" {% if query.every_version() %}checked{% endif %}
+           title="{{ "songs-every-version-title"|t }}"> {{ "songs-every-version"|t }}</label>
+  </div>
+</form>
+</div>
+
+{# The actions over the ticked matches, in the Songs page's tab strip and for its reasons: they are
+   alternatives rather than a sequence, and one subject is one tab. The radios and their ids are that
+   page's, so `style.css` already has an arm for each. They sit outside `#similar-search`, whose
+   `hx-trigger="change"` would search on every tab click, and outside `#hits`, so a redraw of the
+   matches keeps the open tab. Quality opens first: choosing which file of a song to play first is
+   what a match is most often found for. #}
+<div class="curate">
+  <input type="radio" name="curate" id="curate-quality" checked>
+  <input type="radio" name="curate" id="curate-favorites">
+  <input type="radio" name="curate" id="curate-titles">
+
+  <nav class="tabstrip">
+    <label for="curate-quality">{{ "songs-band-quality"|t }}</label>
+    <label for="curate-favorites">{{ "nav-favorites"|t }}</label>
+    <label for="curate-titles">{{ "songs-tab-titles"|t }}</label>
+  </nav>
+
+{# The Songs page's quality hint, on the list that is most often several files of one song. The same
+   two routes answer with the same out-of-band badges; the ticks are in `#hits` here rather than
+   `#rows`. The reasoning is beside the Songs page's panel and in `crate::hint`. #}
+<div class="panel quality">
+<form class="filters" id="quality-hint"
+      hx-post="/songs/quality-hint" hx-include="#hits"
+      hx-target="#quality-hint-result" hx-swap="innerHTML">
+  <button>{{ "songs-hint"|t }}</button>
+  <button type="button" hx-post="/songs/quality-hint/clear"
+          hx-target="#quality-hint-result" hx-swap="innerHTML">{{ "songs-hint-clear"|t }}</button>
+  <span class="dim">{{ "songs-hint-note"|t }}</span>
+  <span id="quality-hint-result"></span>
+</form>
+</div>
+
+{# The Lyrics page's one action, for its reason: what is done with a match is to set it aside. #}
+<div class="panel favorites">
+<form class="filters" id="favorite-file"
+      hx-post="/favorites/add?as=toast" hx-include="#hits"
+      hx-target="#favorite-result" hx-swap="innerHTML">
+  <label>{{ "curate-put-ticked-in"|t }}
+    <select name="favorite_id">
+      {% for f in favorites %}
+      <option value="{{ f.id }}">{{ f.name }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <button class="primary">{{ "curate-file"|t }}</button>
+  {% if favorites.is_empty() %}
+  <span class="dim">{{ "curate-no-favorites"|t }}</span>
+  {% endif %}
+  <span id="favorite-result"></span>
+</form>
+</div>
+
+{# The Songs page's three Titles actions, over the ticks in `#hits`. `as=hits` asks for the matches
+   back rather than the Songs rows, so a renamed file shows its new name where it was ticked; the bar
+   is included ahead of the ticks because the redraw is of the search on screen, and a row open for
+   renaming has a `title` box of its own that must not win. #}
+<div class="panel titles">
+<form class="filters" id="titles-from-filename"
+      hx-post="/songs/titles-from-filename?as=hits" hx-include="#similar-search, #hits"
+      hx-target="#hits" hx-swap="outerHTML">
+  <button>{{ "songs-title-from-filename"|t }}</button>
+  <span class="dim">{{ "songs-title-from-filename-note"|t }}</span>
+</form>
+<form class="filters" id="fix-name-case"
+      hx-post="/songs/fix-name-case?as=hits" hx-include="#similar-search, #hits"
+      hx-target="#hits" hx-swap="outerHTML">
+  <button>{{ "songs-fix-capitals"|t }}</button>
+  <span class="dim">{{ "songs-fix-capitals-note"|t }}</span>
+</form>
+<form class="filters" id="split-artist-from-title"
+      hx-post="/songs/split-artist-from-title?as=hits" hx-include="#similar-search, #hits"
+      hx-target="#hits" hx-swap="outerHTML">
+  <button>{{ "songs-split-artist"|t }}</button>
+  <span class="dim">{{ "songs-split-artist-note"|t }}</span>
+</form>
+</div>
+</div>
+
+{{ hits|safe }}
+
+{% endblock %}

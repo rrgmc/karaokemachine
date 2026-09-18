@@ -1,0 +1,85 @@
+[package]
+name = "km-audio"
+description = "SoundFont synthesis, sequencing and the audio path"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+# The transport enum this crate's player owns the state of, and the two limits its sequencer clamps
+# to. They lived here until `km-api` needing them meant every remote linking `rustysynth`; see the
+# note in `lib.rs`.
+#
+# **`km-songcode` left this table in the same change**, and the absence is worth a line: the only thing
+# in here that ever named a `SongCode` was the queue, so an engine that no longer holds one has no
+# use for the type. Nothing outside a queue entry identifies a song to a synthesizer.
+km-queue = { workspace = true }
+km-song = { workspace = true }
+# The per-song fix table this crate's sequencer filters through. A leaf over `km-song` and serde,
+# with no synthesizer in it -- the direction that matters is the one `km-queue` left in, and nothing
+# here travels back toward a remote. What it adds to a build is `serde_json`, which every binary
+# that links a synthesizer already links a catalog for.
+km-fixes = { workspace = true }
+rustysynth = { workspace = true }
+cpal = { workspace = true }
+rtrb = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+
+# The output level lives in the operating system's own mixer, which cpal does not reach: it opens
+# streams and has no volume API at all. Both of these are already in the graph as cpal's own
+# dependencies at these versions, so naming them here adds no crate to the build -- only the parts
+# of each that `km-audio::level` calls.
+
+# ALSA's mixer. The runtime library is already a `Depends` of the .deb because cpal links it, and
+# `libasound2-dev` is already in the build image, so this costs the package nothing.
+[target.'cfg(target_os = "linux")'.dependencies]
+alsa = { workspace = true }
+
+# WASAPI's endpoint volume, through COM.
+[target.'cfg(target_os = "windows")'.dependencies]
+windows = { workspace = true, features = [
+  "Win32_Devices_FunctionDiscovery",
+  "Win32_Media_Audio",
+  "Win32_Media_Audio_Endpoints",
+  "Win32_System_Com",
+] }
+
+# CoreAudio's AudioObject properties. `target_os = "macos"` and not `target_vendor = "apple"`: an
+# iOS application cannot set the system volume at all, so the iPad keeps the no-op and the 404 that
+# goes with it.
+#
+# Each is cut to the parts this module compiles against, and cpal already asks for all three, so
+# nothing here turns on anything the build was not paying for.
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2-core-audio = { workspace = true, features = [
+  "std",
+  "AudioHardware",
+] }
+objc2-core-audio-types = { workspace = true, features = [
+  "std",
+  "CoreAudioBaseTypes",
+] }
+objc2-core-foundation = { workspace = true, features = [
+  "std",
+  "CFString",
+] }
+
+[dev-dependencies]
+km-song = { workspace = true, features = ["testing"] }
+km-suitability = { workspace = true }
+# The R128 meter, so the census example can put a number on what it renders. A dev-dependency
+# because only the example needs it: nothing in the audio path measures its own output.
+km-loudness = { workspace = true }
+
+[[example]]
+name = "render_wav"
+
+[[example]]
+name = "loudness_census"

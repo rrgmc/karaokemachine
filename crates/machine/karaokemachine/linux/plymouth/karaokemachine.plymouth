@@ -1,0 +1,27 @@
+# The appliance's boot splash.
+#
+# Shipped by the Debian package and selected by nothing. A theme directory on disk changes no boot;
+# `plymouth-set-default-theme -R karaokemachine` is what makes it the splash, and
+# tools/platform/linux/appliance-boot.sh is what runs that. Exactly the terms the package ships
+# karaokemachine.service disabled on: installing an application should not repaint somebody's boot.
+#
+# The module below is the script plugin rather than one of Plymouth's built-in formats. `two-step`
+# and `fade-in` want a ladder of numbered animation frames -- dozens of PNGs -- to say what thirty
+# lines of script say here, and every one of them would be a generated file in icon/ with no other
+# reader.
+#
+# **No comment in this file may contain a key name followed by `=`.** Debian's
+# `plymouth-set-default-theme` reads the module out with `grep "ModuleName *= *"` over the whole
+# file, comments and all, so a line of prose naming the key is a second match -- and the two lines
+# then land inside a `[ ! -e ... ]`, which fails with `[: too many arguments` rather than with
+# anything that mentions this file. It is the reason the sentence above is phrased the way it is,
+# and crates/machine/karaokemachine/tests/plymouth_theme.rs asserts exactly one match so that a
+# tidier rewording cannot bring it back.
+[Plymouth Theme]
+Name=KaraokeMachine
+Description=The machine's mark, from power-on to the first frame.
+ModuleName=script
+
+[script]
+ImageDir=/usr/share/plymouth/themes/karaokemachine
+ScriptFile=/usr/share/plymouth/themes/karaokemachine/karaokemachine.script

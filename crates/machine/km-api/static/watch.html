@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>KaraokeMachine</title>
+    <!-- The machine's mark, so a tab showing the television is the machine's tab. The route is
+         `km-api`'s own and is mounted whatever else a run serves, so this page needs nothing added
+         to its router; a `data:` URI would put a kilobyte of base64 in a page meant to stay
+         readable, and a favicon that does not arrive costs nothing.
+
+         **The plain mark rather than the streaming one**, which is what `A badge says how the
+         machine was started` asks of every favicon: the badge tells two ways of starting the
+         machine apart where both are offered side by side, and a browser tab is not that place. -->
+    <link rel="icon" href="/icon.png" />
+    <style>
+      /* Black, edge to edge, no furniture. This page is a television screen shown somewhere else,
+         so anything drawn around the picture is something the television would not have. */
+      :root {
+        color-scheme: dark;
+      }
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        background: #000;
+        color: #eee;
+        font: 16px/1.5 system-ui, sans-serif;
+        overflow: hidden;
+      }
+      video {
+        width: 100%;
+        height: 100%;
+        display: block;
+        /* `contain`, so a set whose shape differs from the stream's letterboxes rather than
+           cropping. Words cut off at the edge of the screen are worse than black bars. */
+        object-fit: contain;
+        background: #000;
+      }
+      #message {
+        position: fixed;
+        inset: 0;
+        display: none;
+        place-content: center;
+        text-align: center;
+        padding: 2rem;
+      }
+      #message.shown {
+        display: grid;
+      }
+      #message p {
+        margin: 0.4rem 0;
+      }
+      code {
+        font-family: ui-monospace, monospace;
+        background: #222;
+        padding: 0.15em 0.4em;
+        border-radius: 3px;
+        overflow-wrap: anywhere;
+      }
+      /* A television is driven by a remote, and the first thing pressed should be visible. */
+      button {
+        font: inherit;
+        padding: 0.6em 1.4em;
+        margin-top: 1rem;
+        border: 2px solid #888;
+        border-radius: 6px;
+        background: #222;
+        color: inherit;
+      }
+      button:focus {
+        outline: 3px solid #4af;
+      }
+    </style>
+  </head>
+  <body>
+    <video id="screen" playsinline autoplay></video>
+    <div id="message"><p id="why"></p></div>
+
+    <script src="hls.light.min.js"></script>
+    <script>
+      // **Absolute, because the playlist is not under this page.** It is served at the root, beside
+      // `/watch/` rather than beneath it, and a relative name resolves against the directory of the
+      // current URL -- which is `/watch/`, so a relative one asks for a path nothing answers. The
+      // leading slash is all the page needs to be reached by any name, address or QR code: what a
+      // root-relative URL keeps is the scheme, the host and the port.
+      const PLAYLIST = "/stream/live.m3u8";
+
+      const screen = document.getElementById("screen");
+      const message = document.getElementById("message");
+      const why = document.getElementById("why");
+
+      function say(html) {
+        why.innerHTML = html;
+        message.classList.add("shown");
+      }
+
+      function clear() {
+        message.classList.remove("shown");
+      }
+
+      // **Autoplay with sound is refused until somebody has interacted with the page**, on every
+      // browser worth naming, and a karaoke screen with no sound is not the stream. So a refusal
+      // draws a button rather than being logged: one press is all the interaction that is wanted,
+      // and on a television that press is the remote's OK.
+      function play() {
+        screen.play().then(clear, () => {
+          say(
+            "<p>This browser will not start sound on its own.</p>" +
+              '<p><button id="start" autofocus>Play</button></p>'
+          );
+          const button = document.getElementById("start");
+          button.focus();
+          button.addEventListener("click", () => screen.play().then(clear, () => {}));
+        });
+      }
+
+      // Native HLS where the platform has it, which is every television, Safari, iOS and Android.
+      // The library is for desktop Chrome and Firefox, which have none.
+      if (screen.canPlayType("application/vnd.apple.mpegurl")) {
+        screen.src = PLAYLIST;
+        screen.addEventListener("loadedmetadata", play);
+      } else if (window.Hls && window.Hls.isSupported()) {
+        const hls = new Hls({
+          // Join at the live edge rather than at the start of the window. A viewer arriving
+          // mid-song wants what is being sung now, not what was being sung six seconds ago.
+          liveSyncDurationCount: 2,
+        });
+        hls.loadSource(PLAYLIST);
+        hls.attachMedia(screen);
+        hls.on(Hls.Events.MANIFEST_PARSED, play);
+        // **The stream outlives any one playlist.** Nothing is playing between songs either, so a
+        // client that gave up on the first error would go dark for the rest of the evening. A
+        // network error reloads and a media error recovers in place; anything else stops the
+        // picture, and the page says so rather than leaving a black screen.
+        hls.on(Hls.Events.ERROR, (_event, data) => {
+          if (!data.fatal) return;
+          if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+            hls.startLoad();
+          } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+            hls.recoverMediaError();
+          } else {
+            say("<p>The stream stopped.</p><p>Reload to try again.</p>");
+          }
+        });
+      } else {
+        say(
+          "<p>This browser cannot play the stream.</p>" +
+            "<p>Open this address in a player such as VLC:</p>" +
+            "<p><code>" +
+            new URL(PLAYLIST, location.href).href +
+            "</code></p>"
+        );
+      }
+    </script>
+  </body>
+</html>

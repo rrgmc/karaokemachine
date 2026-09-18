@@ -1,0 +1,234 @@
+# XcodeGen spec for the machine's iOS application.
+#
+# **Generate the project with `tools/port/machine/ios/build.sh`**, which builds the Rust staticlib
+# first: the app cannot compile without the xcframework it produces, and cannot run without the
+# assets that script stages.
+#
+# The `.xcodeproj` and the `Info.plist` are generated from this file and are git-ignored, the same
+# treatment `ports/machine/android/`'s `jniLibs/` gets. **Edit this file, never the project in
+# Xcode**: the next build regenerates it and would discard the change.
+
+name: KaraokeMachine
+
+# **ffmpeg's four frameworks, named in a file the build writes.** They cannot be listed below,
+# because `--no-video` is a supported build and xcodegen refuses a dependency whose xcframework is
+# not on disk -- a failure that arrives as four repeated `There is no XCFramework found` errors from
+# `xcodebuild`, naming a decoder nobody asked for.
+#
+# `tools/port/machine/ios/build.sh` writes this file on every run: the four dependencies when there
+# is video, an empty list when there is not. xcodegen concatenates arrays across an include, so the
+# fragment adds to the target below rather than replacing anything in it.
+#
+# Generated, and therefore git-ignored, exactly as the `.xcodeproj` and the `Info.plist` are.
+include:
+  - ffmpeg.yml
+
+options:
+  bundleIdPrefix: com.rrgmc
+  developmentLanguage: en
+  deploymentTarget:
+    # Must match the `IPHONEOS_DEPLOYMENT_TARGET` build.sh exports before cargo, because `cc`
+    # compiles the SQLite amalgamation. A mismatch is a link error inside Xcode long after cargo
+    # said `Finished`, and it names object files rather than this line.
+    iOS: "15.0"
+  createIntermediateGroups: true
+
+settings:
+  base:
+    # iPhone and iPad both. The television layout is a landscape one and an iPad is the device it
+    # suits; a phone gets the same screen smaller, which is what the Android build already does on
+    # a handset.
+    TARGETED_DEVICE_FAMILY: "1,2"
+    # **No Intel simulator, and the project has to say so rather than leave it to be discovered.**
+    # `tools/port/machine/ios/build.sh` builds `aarch64-apple-ios` and `aarch64-apple-ios-sim` and
+    # no third slice. Without this line a build against a *generic* simulator destination asks for
+    # x86_64 as well, and the failure reads as the archive never having been linked rather than as
+    # an architecture nobody built. `ports/remote/ios/project.yml` carries the same line and the
+    # longer form of this note.
+    EXCLUDED_ARCHS[sdk=iphonesimulator*]: x86_64
+
+targets:
+  KaraokeMachine:
+    type: application
+    platform: iOS
+    sources:
+      # The shell, minus the staged tree below -- which is gitignored and would otherwise be walked
+      # as a group of individual files.
+      - path: KaraokeMachine
+        excludes:
+          - assets
+      # **A folder reference, and that word is the whole mechanism.** `type: folder` makes Xcode copy
+      # the directory wholesale into the bundle root, structure intact, rather than flattening its
+      # files into `Resources/` the way a group of file references would. `Paths::asset_dirs_from`
+      # looks for an `assets` child of the executable's own directory, and an `.app` keeps its
+      # executable at the bundle root -- so the tree is found with no code change at all.
+      #
+      # `tools/port/machine/ios/assets.sh` is what puts it there, and build.sh runs it before
+      # generating the project: xcodegen writes a reference to a directory that has to exist.
+      - path: KaraokeMachine/assets
+        type: folder
+    dependencies:
+      # A static archive: the machine, SDL3 and SDL3_ttf are all linked into the app binary. SDL is
+      # bundled *inside* this archive by rustc, which is why nothing here adds a search path into
+      # cargo's build directory. `embed: false` because there is nothing to copy into the bundle.
+      - framework: Frameworks/KmMachine.xcframework
+        embed: false
+      # ffmpeg's four are added by `ffmpeg.yml`, for the reason the `include` at the top gives.
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.rrgmc.karaokemachine
+        # **On the target, not just the project.** XcodeGen writes an empty `DEVELOPMENT_TEAM` into
+        # every app target's own configurations, and that overrides a project-level one -- leaving
+        # Xcode reporting that signing "requires a development team" while the value sits unused one
+        # level up. Costs an hour to find and reads like a bug in Xcode.
+        DEVELOPMENT_TEAM: "5XV6P36QZR"
+        CODE_SIGN_STYLE: Automatic
+        # Or the app icon is silently not used, with no warning anywhere.
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        # The crate's own header, reached by `#import "km_machine.h"` in `main.m`. Copied into the
+        # xcframework by build.sh, which is where this path resolves.
+        HEADER_SEARCH_PATHS: $(inherited) $(SRCROOT)/Frameworks/KmMachine.xcframework/ios-arm64/Headers
+        # Where the loader looks for the embedded frameworks at run time. Their install names are
+        # `@rpath/<name>.framework/<name>`, stamped by ffmpeg's own `--install-name-dir`, and this
+        # is what `@rpath` resolves to inside a bundle. Without it the app links and then fails to
+        # launch, with dyld naming a library that is sitting in the bundle it is looking at.
+        LD_RUNPATH_SEARCH_PATHS: $(inherited) @executable_path/Frameworks
+        # **Asked of rustc rather than guessed**, with
+        # `cargo rustc -p km-machine-ios --target aarch64-apple-ios -- --print native-static-libs`.
+        # Seventeen frameworks once duplicates are dropped: fifteen from SDL, `AVFAudio` from cpal's
+        # CoreAudio backend, and `CoreFoundation` under both. `-liconv` is rusqlite's, the same one
+        # the offline remote's shell needs.
+        #
+        # `-lSystem`, `-lc`, `-lm`, `-lobjc` and `-lpthread` are in that answer too and are not
+        # here: Xcode supplies all five. Everything else in the list is not something an iOS app
+        # target links by default, and the failure for a missing one is a wall of undefined `_SDL_*`
+        # or `_OBJC_CLASS_$_AV*` symbols.
+        OTHER_LDFLAGS: >-
+          -liconv
+          -framework AVFAudio
+          -framework AVFoundation
+          -framework AudioToolbox
+          -framework CoreAudio
+          -framework CoreBluetooth
+          -framework CoreFoundation
+          -framework CoreGraphics
+          -framework CoreHaptics
+          -framework CoreMedia
+          -framework CoreMotion
+          -framework CoreVideo
+          -framework Foundation
+          -framework GameController
+          -framework Metal
+          -framework OpenGLES
+          -framework QuartzCore
+          -framework UIKit
+    info:
+      path: KaraokeMachine/Info.plist
+      properties:
+        # The home-screen label. `KaraokeMachine` is fifteen characters and fits, unlike the
+        # remote's twenty-one, so this platform's one user-visible name carries the whole product
+        # name and `ports/remote/ios/project.yml`'s argument about a short form does not arise.
+        CFBundleDisplayName: KaraokeMachine
+        # Set here rather than left to XcodeGen, which quietly defaults both to 1.0 and 1 -- the same
+        # numbers by accident rather than on purpose, and nothing to notice when one of them should
+        # have moved. ShortVersionString tracks the workspace version; CFBundleVersion is the build
+        # within it, and is the one that must rise between uploads of the same version.
+        CFBundleShortVersionString: "1.17.0"
+        CFBundleVersion: "8"
+        # **Landscape only, matching the Android manifest's `userLandscape`.** The lyric screen is a
+        # television's shape: a now bar across the top and two lines of words under it, which a
+        # portrait phone would either letterbox or wrap. SDL is told the same thing through
+        # `SDL_HINT_ORIENTATIONS` in `display.rs`, and needs to be: SDL overrules this list at window
+        # creation, which is the trap `ports/machine/android/AndroidManifest.xml` records for the
+        # manifest's own version of it.
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        # **Mandatory, and its absence is silent.** The machine serves its API and its pages to the
+        # phones in the room, and without this every packet is dropped with nothing said. The prompt
+        # is raised on the first local-network traffic.
+        #
+        # Worded as the machine rather than the remote: this is the thing being found, not the thing
+        # looking.
+        NSLocalNetworkUsageDescription:
+          KaraokeMachine serves its song list and its controls to the phones on this network, so
+          people in the room can queue songs.
+        # **No NSBonjourServices, and that is a statement.** The machine advertises nothing on this
+        # platform -- multicast needs an entitlement Apple reviews by hand, and its absence is
+        # silent. The iOS remote finds a machine by unicast sweep and needs no record to exist. See
+        # `What the machine *is*, on iOS` in docs/decisions/distribution.md.
+        #
+        # The machine's own `/dev/` page is plain HTTP on loopback, and this is what permits a web
+        # view to load it. Needed for the web view and nothing else: the Rust side's HTTP is native
+        # sockets, which App Transport Security does not police.
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+        # **`Documents/` in the Files app and in Finder over USB, which is how a package arrives.**
+        # There is no `adb push` here, so these two keys are the whole sideloading story for a
+        # `.kmpkg` somebody copied across.
+        UIFileSharingEnabled: true
+        LSSupportsOpeningDocumentsInPlace: true
+        # **No `UIBackgroundModes`, because the machine plays nothing off the screen.** It pauses
+        # when the screen goes away, by `Leaving the screen stops the music` in
+        # docs/decisions/interface.md. The mode would therefore permit an application that never
+        # plays there to keep running, and the battery pays for it. See
+        # `The machine sleeps when it leaves the screen` in docs/decisions/audio.md.
+
+        # The screen is the product. `SDL_VideoInit` asks for this itself, the same way it does on
+        # Android, so this is belt and braces rather than the mechanism.
+        UIRequiresFullScreen: true
+        # **A trackpad or a mouse reaches the buttons, and without this it does not.** An iPad with a
+        # keyboard case is an ordinary thing and the idle screen is a grid of things to press; UIKit
+        # says so itself at launch, in a line that reads like a warning and is really a missing
+        # feature: "You need UIApplicationSupportsIndirectInputEvents in your Info.plist for mouse
+        # support". Touch is unaffected either way.
+        UIApplicationSupportsIndirectInputEvents: true
+        # Music, matching the four macOS bundles -- see `What a macOS bundle says it is for`.
+        LSApplicationCategoryType: public.app-category.music
+        # **The `.kmpkg` type, so *Open in* reaches the machine.** The same two keys the macOS bundle
+        # carries and the same UTI, because it is the same type: `CFBundleDocumentTypes` claims the
+        # application opens it and `UTExportedTypeDeclarations` is what defines it at all. Exported
+        # rather than imported because this product invents the format.
+        #
+        # **The Rust side needed one fix rather than nothing, which is where this differs from
+        # macOS.** SDL's UIKit delegate answers `application:openURL:` by sending a drop event, so a
+        # package arrives at the handler a dragged one already used -- but it carries
+        # `url.absoluteString`, a percent-encoded `file://` URL, where every other platform sends a
+        # path. `dropped_path` in `display.rs` is what turns one into the other.
+        CFBundleDocumentTypes:
+          - CFBundleTypeName: Karaoke song package
+            LSItemContentTypes:
+              - com.karaokemachine.kmpkg
+            # Viewer rather than Editor: the machine installs a package and reads it, and nothing
+            # here ever writes one. `km-pack` is what makes them.
+            CFBundleTypeRole: Viewer
+            # Owner, because this product defines the type.
+            LSHandlerRank: Owner
+        UTExportedTypeDeclarations:
+          - UTTypeIdentifier: com.karaokemachine.kmpkg
+            UTTypeDescription: Karaoke song package
+            # `public.data` rather than `public.archive`, though a package is a zip underneath:
+            # conforming to the archive type invites every unarchiver on the device to offer to open
+            # one, which is not what somebody sharing a package wants. What matters to the system is
+            # that this is an opaque file with one program behind it.
+            UTTypeConformsTo:
+              - public.data
+            UTTypeTagSpecification:
+              public.filename-extension:
+                - kmpkg
+
+# Declared rather than left to Xcode to autocreate. Without a real scheme on disk `xcodebuild`
+# invents one whose buildable has no supported platforms, and every `-destination` is then rejected
+# as unmatched -- with an error that blames the destination.
+schemes:
+  KaraokeMachine:
+    build:
+      targets:
+        KaraokeMachine: all
+    run:
+      config: Debug
+    archive:
+      config: Release

@@ -1,0 +1,146 @@
+# Normalize to LF in the repository; Git still checks out native line endings on Windows.
+# Keeps `cargo fmt --check` and diffs consistent across the Linux/macOS/Windows CI matrix.
+* text=auto
+
+*.rs    text eol=lf
+*.toml  text eol=lf
+*.md    text eol=lf
+*.yml   text eol=lf
+*.json  text eol=lf
+*.sql   text eol=lf
+*.html  text eol=lf
+*.css   text eol=lf
+*.js    text eol=lf
+
+# Shell scripts must keep LF wherever they are checked out. `sh` on Linux and macOS treats a
+# trailing CR as part of the interpreter path or the command, so a CRLF checkout produces
+# "bad interpreter: No such file or directory" -- which is what would have happened to
+# ports/machine/android/gradlew and the build scripts beside it.
+*.sh      text eol=lf
+gradlew   text eol=lf
+*.gradle  text eol=lf
+*.java    text eol=lf
+*.xml     text eol=lf
+*.pro     text eol=lf
+*.properties text eol=lf
+
+# Data a shell script parses, meaning crates/machine/km-banks/data/soundfont-banks.conf --
+# the bank table, read by `tools/setup/soundfont-banks.sh` and through it by four other scripts.
+# **This is a fix, not consistency.** On a Windows checkout the table came out CRLF and the shell
+# reader found no bank at all: `tools/dev/soundfont.sh --list` printed a header and no rows,
+# `soundfont-measure.sh` refused every bank by name, and `tools/setup/fetch-assets.sh` could not find
+# the bundled bank to download -- which fails `task dist:bin`.
+#
+# **Where the CR actually bites is worth being exact about**, because the obvious suspect is
+# innocent. `KM_BANKS` is built with `sed`, and Git Bash's sed reads in text mode and strips the CR,
+# so that list is clean. It is `km_bank`'s `while IFS= read -r line` that keeps it: `${line%]}` then
+# leaves the id as `generaluser<CR>`, no block ever matches, and the function returns 2 for every
+# name. Verified rather than reasoned: `printf 'A\r\n'` through `read -r` yields `A^M` where
+# `sed -n 1p` yields `A`.
+#
+# That reader now strips the CR itself as well, so the two halves of the table agree about a stray
+# one the way the Rust half always did with `trim_end()`. This pin is still the door that matters --
+# a file arriving with CRLF is a bug wherever it is tolerated -- but "one definition, two readers"
+# ought to mean two readers that behave alike.
+#
+# Worth recording how it got past its own check: the refactor that split this file out verified that
+# `soundfont.sh --list` and `soundfont-debug.sh --list` produce *byte-identical* output before and
+# after, and two empty tables are byte-identical. A check that compares two outputs cannot see that
+# both are wrong.
+#
+# **And this pin does not repair a copy already checked out.** A checkout made before it stays CRLF
+# until the file is re-materialised: `git rm --cached <file> && git checkout -- <file>`, or a
+# tree-wide `git add --renormalize .`. Merging the pin and re-running the failing command without
+# that step reproduces the failure exactly and reads as "the fix did not work".
+*.conf    text eol=lf
+
+# Linker version scripts, meaning tools/port/libc_n.map, which `.cargo/config.toml` passes as
+# `--version-script`. Unlike the shell scripts above this is *not* load-bearing: lld was tested with
+# a CRLF copy and linked it without complaint, so this is consistency rather than a fix. Pinned
+# anyway, so the linker gets the same bytes on every platform and nobody has to re-establish that.
+*.map     text eol=lf
+
+# ...and the Windows companion keeps CRLF, for the same reason in reverse: cmd.exe needs it.
+gradlew.bat text eol=crlf
+*.jar     binary
+
+# The Linux desktop entry, meaning crates/machine/karaokemachine/linux/karaokemachine.desktop. Same
+# reasoning as the Debian maintainer scripts below, and the same delivery path: `tools/platform/linux/deb.sh`
+# mounts this working copy into the build container, so a CRLF checkout is what would go *into* the
+# package. The desktop entry spec separates lines with LF only, so a trailing CR becomes part of
+# the value -- `Exec=karaokemachine\r` and `Icon=karaokemachine\r` both then resolve to nothing, and
+# the failure shows up as an installed application with no icon that will not launch from the menu.
+*.desktop text eol=lf
+
+# Systemd units, meaning crates/machine/karaokemachine/linux/karaokemachine.service. Exactly the desktop
+# entry's problem one directory over, and it arrives by the same route: `tools/platform/linux/deb.sh`
+# packages this working copy, so a CRLF checkout is what lands in /lib/systemd/system on the
+# appliance. Systemd does not strip a trailing CR, so `ExecStart=/usr/bin/karaokemachine\r` becomes
+# a request to run a binary whose path ends in a carriage return -- and the unit fails to start with
+# a message naming a path that looks perfectly correct in every terminal that does not show control
+# characters.
+*.service text eol=lf
+
+# The boot splash, meaning crates/machine/karaokemachine/linux/plymouth/. The third file in that one
+# directory to need this line and the one with the least forgiving reader: the theme is packaged from
+# this working copy, unpacked into the *initramfs*, and parsed before the root filesystem is mounted.
+# A trailing CR makes `ImageDir=/usr/share/plymouth/themes/karaokemachine\r` a directory that does
+# not exist, so `Image("logo.png")` finds nothing and the splash is a bare ground with no mark on it
+# -- with no console, no journal and no way to ask, because none of that exists yet.
+*.plymouth text eol=lf
+*.script   text eol=lf
+
+# Property lists, meaning tools/platform/macos/Info.plist. Not load-bearing -- XML normalizes CRLF to LF
+# during parsing, so macOS reads it either way -- but the `*.xml` rule above misses the `.plist`
+# extension, and there is no reason for the two to disagree.
+*.plist   text eol=lf
+
+# Binary assets must never be transformed.
+*.sf2   binary
+*.mid   binary
+*.kar   binary
+*.kmpkg binary
+*.ttf   binary
+*.otf   binary
+*.png   binary
+# The Windows and macOS icon containers. Content detection would classify these as binary anyway;
+# named for the same reason as the formats above, so the rule is a statement rather than a bet on
+# heuristics.
+*.ico   binary
+*.icns  binary
+*.jpg   binary
+*.jpeg  binary
+*.webp  binary
+*.wav   binary
+
+# Debian maintainer scripts, meaning crates/machine/karaokemachine/debian/{postinst,postrm}. They have no
+# extension, so the *.sh rule above misses them -- and they are the one kind of script that runs on
+# somebody else's machine, at `dpkg --configure` time, where "#!/bin/sh\r" fails exactly as
+# described above. A CRLF checkout here ships a broken package rather than breaking the build that
+# made it.
+crates/machine/karaokemachine/debian/* text eol=lf
+# **And the tools package's, which are the same files under a second name.** A path rule protects a
+# path and nothing else, so a second package's scripts are a second line -- the failure it prevents
+# is silent on the machine that commits them and fatal on the one that installs them.
+tools/cmd/km-package-builder/debian-tools/* text eol=lf
+
+# Dockerfiles. A trailing CR turns a line-continuation backslash into an argument, so the long
+# `RUN apt-get install … \` blocks in tools/platform/linux/Dockerfile fail on a CRLF checkout.
+Dockerfile   text eol=lf
+*.dockerfile text eol=lf
+
+# The SoundFont's license, which `tools/setup/fetch-assets.sh` downloads from GeneralUser GS's own
+# repository and copies in beside the bank. **Upstream ships it CRLF**, and this is the one tracked
+# file in the tree whose contents arrive from a fetch rather than from an editor -- so the working
+# copy has to be whatever the fetch writes, or the two disagree forever.
+#
+# Under the `* text=auto` rule at the top they did disagree, on every platform except the one this is
+# mostly developed on. Windows checks out CRLF, so the fetched file matched and nothing looked wrong;
+# macOS and Linux check out LF, so `git status` reported the file modified after every
+# `tools/setup/fetch-assets.sh`, and the script's own `cmp -s` guard never matched either -- it re-copied
+# and printed "installed" on every single run, where the bank beside it printed "current".
+#
+# `eol=crlf` pins the *working tree* form on all three, which is what the fetch produces. The blob in
+# the repository stays LF, normalized as everything else is, so no history changes and nothing else
+# has to know.
+assets/soundfont/LICENSE.txt text eol=crlf

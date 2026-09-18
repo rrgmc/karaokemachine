@@ -1,0 +1,207 @@
+# Target-specific build settings.
+#
+# Only one entry, and it exists for a specific linker interaction rather than a preference.
+
+# 32-bit ARM Android needs the `LIBC_N` symbol version node declared, and this is the ABI that
+# matters most for a television: both the Google TV Streamer and the Chromecast with Google TV run a
+# **32-bit** build of Android on 64-bit-capable chips, so `armeabi-v7a` is the library they load.
+#
+# Without this, linking the `cdylib` fails with `symbol __aeabi_memcpy8@@LIBC_N has undefined
+# version LIBC_N`, twelve times over. The full diagnosis, and the two plausible fixes that turn out
+# not to work, are in tools/port/libc_n.map — which is also the file being passed here.
+#
+# The path is relative because cargo invokes rustc from the workspace root, and rustc's linker
+# inherits that working directory. Keeping it relative means the setting works on any machine and in
+# CI without an absolute path baked in.
+#
+# arm64 does not need it — bionic's aarch64 EABI helpers carry no version tags.
+[target.armv7-linux-androideabi]
+rustflags = "-C link-arg=-Wl,--version-script=tools/port/libc_n.map"
+
+# What a checkout does about the multicast socket, and it is the opposite of what an install does.
+#
+# `mdns_sd::ServiceDaemon::new` binds UDP `0.0.0.0:5353` and `[::]:5353`. Windows Firewall answers a
+# non-loopback bind with a dialog and a rule keyed on the full image path -- which carries a build
+# hash for a test binary and a worktree name for everything else, so no rule it writes ever matches
+# twice and the prompt comes back on the next relink. The three tools bind their HTTP listener to
+# loopback already; this is the socket that was still asking.
+#
+# **Nothing an owner installs reads this.** A release runs from `dist/` or a package and never
+# through cargo, so a machine still advertises and a remote still browses. See
+# `KM_NO_MDNS declines the multicast socket, and one function honours it` in
+# docs/decisions/api-and-network.md.
+#
+# A plain entry here does not override a variable already in the environment, so
+# `KM_NO_MDNS=0 cargo run -p km-remote -- --port 8279` asks for mDNS back for that one command --
+# which is what testing discovery from a phone needs. Read with `env::var_os` at runtime and never
+# `env!`, so setting it triggers no rebuild.
+[env]
+KM_NO_MDNS = "1"
+
+# Command shortcuts, so that everything this project does routinely is a `cargo` command and there is
+# no Makefile to install, learn or keep in step. `make` is not present on Windows by default, which
+# is where this is largely developed; cargo is present by definition.
+#
+# **Every value in this file is a string and not an array of arguments, and a worktree is the
+# reason.** Cargo reads a `.cargo/config.toml` from every parent directory of the one it runs in and
+# merges them: a string takes the nearest file's value, an array is *joined* with the ancestor's. A
+# worktree lives under `.claude/worktrees/` and so is a descendant of the checkout, which hands it
+# both files -- so every array here arrived doubled, and `cargo km-build` expanded to
+# `build ... build ...` in every worktree this repository asks a session to work in. Cargo splits a
+# string on spaces, so the two forms are the same arguments, and no value here has a space inside a
+# single argument. `rustflags` above is the same rule and the same reason.
+#
+# **A worktree that disagrees with the checkout about the form is worse than one that doubles**:
+# cargo refuses to merge an array with a string and fails to load its configuration at all, so every
+# cargo command in that worktree stops rather than one alias misbehaving. Anything already checked
+# out when this lands has to take it before cargo works there again.
+#
+# Only the non-obvious ones are here, plus one obvious one: `km-build-no-video` exists so that
+# `task build:no-video` has an alias to forward to, rather than spelling a cargo line nothing
+# compares.
+#
+# `Taskfile.yml` at the root **wraps these rather than competing with them**, and that is a rule
+# rather than a description of how things happen to stand. `task build`, `task test`, `task lint`
+# and `task fmt` each forward to exactly the alias below it. **These stay authoritative**: they are
+# what CLAUDE.md documents, they need nothing installed, and a task that carried a flag, a default or
+# a feature list its alias does not carry would be a bug rather than a convenience. What `task` adds
+# is the one thing this file cannot -- `task --list` names every routine job with a sentence beside
+# it, where `cargo --list` gives alias names and nothing else.
+[alias]
+# **The everyday four, and they are the video ones.** The unsuffixed name is the build this project
+# actually ships and actually runs; declining video is spelled `-no-video` and is the exception. That
+# is a change of direction rather than a preference about names -- see the `Video is the default
+# build` decision in docs/decisions/ -- and it costs one thing worth stating up front: these need
+# ffmpeg's development libraries and libclang, which `tools/setup/fetch-ffmpeg.sh` installs once per
+# machine.
+#
+# **The reason the names matter at all is the build cache.** Alternating between the two feature sets
+# invalidates every crate downstream of `km-video` -- karaokemachine, km-pack and
+# km-package-builder -- so a scheme where the short name is the one nobody wants produces exactly the
+# flip-flopping that is expensive on this workspace.
+#
+# The two `testing` features are in both lists below. They are off by default because neither should
+# ship in a release binary, and the integration tests, the `write_fixtures` example and the in-memory
+# machine behind `dev_server` all need them.
+#
+# **The list is spelled here and defined in `tools/setup/features.sh`, because a cargo alias cannot source
+# a shell file.** `tools/platform/linux/check.sh` asserts the two agree -- both lists, since the rename -- and
+# fails naming them if they do not, so neither copy can quietly drift. Keep each string on one line
+# and in that order, since the check is a literal match.
+#
+# **Nothing here is `--all-features`, and that is not a style rule.** The flag turns on
+# `km-package-builder/desktop` and `km-remote/desktop`, whose `wry` links libwebkit2gtk -- a
+# library a Linux build of either tool is deliberately never given (`The package builder's window`
+# and `The remote's window, and its portable core` in docs/decisions/). So the one flag meaning
+# "everything" asks Linux for the one thing the platform is designed not to provide. Neither
+# `desktop` appears below, and that omission is the mechanism rather than a rule to remember.
+km-build = "build --workspace --features km-song/testing,km-api/testing,km-video/ffmpeg,km-stream/ffmpeg,karaokemachine/video,km-pack/video,km-package-builder/video"
+km-test = "test --workspace --features km-song/testing,km-api/testing,km-video/ffmpeg,km-stream/ffmpeg,karaokemachine/video,km-pack/video,km-package-builder/video"
+km-lint = "clippy --workspace --all-targets --features km-song/testing,km-api/testing,km-video/ffmpeg,km-stream/ffmpeg,karaokemachine/video,km-pack/video,km-package-builder/video -- -D warnings"
+
+# ...and the same three with video declined, for the machine that has neither ffmpeg nor libclang: a
+# fresh clone, and the check that a `--no-video` release still compiles. **The cargo `video` feature
+# is still off by default**, which is what makes these work at all -- `km-video` is a workspace
+# member, so `--workspace` compiles it either way, and without the feature it builds to an empty
+# library. The root `Cargo.toml` puts `features = ["ffmpeg"]` on the workspace dependency entry, so
+# the crates that take km-video still get a real one.
+#
+# **All three carry the same list, and `km-build-no-video` did not until now.** It was a bare
+# `cargo build --workspace`, which compiles a *different tree* from the one `km-test-no-video` tests:
+# no `write_fixtures` example and no in-memory machine, because those are what `km-song/testing` and
+# `km-api/testing` turn on. So `task build:no-video` could pass over code `task test:no-video` was
+# about to fail on -- the exact asymmetry the video trio above does not have, in the twin nobody
+# checked. The three lists now match their video counterparts one for one, and
+# `tools/platform/linux/check.sh` asserts all six rather than five.
+km-build-no-video = "build --workspace --features km-song/testing,km-api/testing"
+km-test-no-video = "test --workspace --features km-song/testing,km-api/testing"
+km-lint-no-video = "clippy --workspace --all-targets --features km-song/testing,km-api/testing -- -D warnings"
+
+# Running things. Arguments append, so `cargo km -- --headless` and
+# `cargo km-package-builder ./songs --init --scan --open` both work.
+#
+# **`km` carries video for the same reason the four above do**: a machine that lists a video song and
+# then refuses to read it is not the machine this builds. `km-no-video` is what to run where ffmpeg
+# is not installed -- it still catalogs, searches and queues video songs, and says at startup that
+# it cannot play them.
+km = "run -p karaokemachine --features video"
+km-no-video = "run -p karaokemachine"
+
+# **The streaming machine, and the one spelling that carries its icon.** `tray` is off in cargo and
+# named by the Windows and macOS staging scripts, so `cargo km -- --stream` compiles the icon out
+# and says nothing about it -- and then the only way to see an icon at all is to stage a bundle.
+# This alias is what makes a streaming run's icon something a developer can look at.
+#
+# **`tray` stays out of `tools/setup/features.sh`**, which is what keeps `tray-icon`'s
+# load-time Linux dependency out of a workspace build. An alias is not that file, and
+# `tools/platform/linux/check.sh` asserts only the km-build/km-test/km-lint triple against it.
+km-stream = "run -p karaokemachine --features video,tray -- --stream"
+
+# **The per-tool aliases keep their plain spelling, and that is a deliberate exception rather than an
+# oversight.** `km-pack book` and `km-pack check` need no `video` feature and no ffmpeg at all -- a
+# book is made of manifest metadata and never opens a song's bytes -- and a MIDI or MP3+G corpus
+# scans in km-package-builder without one. Making the short name demand a C toolchain would be the
+# rename in name only and a regression in practice, so here video is asked for by name.
+km-package-builder = "run -p km-package-builder --"
+km-package-builder-video = "run -p km-package-builder --features video --"
+# ...and a short spelling of the same two, because the crate name is a mouthful to type. The full
+# name is the one that matches `-p`; this one exists only to save keystrokes.
+km-pkgbuild = "run -p km-package-builder --"
+km-pkgbuild-video = "run -p km-package-builder --features video --"
+km-pack = "run -p km-pack --"
+km-pack-video = "run -p km-pack --features video --"
+km-lyrics = "run -p km-lyrics --"
+# The offline remote. The alias and the package are now the same word, so this one saves no
+# keystrokes and is kept for the reason the others exist: every command in CLAUDE.md is a `cargo
+# km-*`, and the one that is spelled `cargo run -p` instead is the one somebody gets wrong. The
+# pages both modes share are `km-remote-pages`, a library and not a command.
+km-remote = "run -p km-remote --"
+# The carol pack builder and the terminal picker `tools/dev/screenshots.sh` drives. Neither is a
+# daily command; both are here because the rule above is *every* command, not *every frequent one*.
+km-carols = "run -p km-carols --"
+km-pick = "run -p km-pick --"
+
+# **The windowed builds, asked for by name.** `desktop` is deliberately absent from the four
+# workspace aliases at the top -- that omission is what stops Linux being asked for libwebkit2gtk --
+# and naming it here does not weaken it: this is opt-in on one crate, exactly as `-video` is, and it
+# is the spelling BUILDING.md used to document as a bare `cargo run -p ... --features desktop`.
+# Do not add these to `tools/setup/features.sh`; they are not part of any whole-workspace run.
+km-remote-desktop = "run -p km-remote --features desktop --"
+km-pkgbuild-desktop = "run -p km-package-builder --features desktop --"
+
+# Generated assets, rebuilt from code rather than committed. All five of km-display's examples, not
+# the three that happened to get an alias first: `banner` and `screenshots` were reached by a bare
+# `cargo run -p km-display --example ...` in BUILDING.md and in tools/dev/screenshots.sh.
+km-preview = "run -p km-display --example preview"
+km-wallpapers = "run -p km-display --example wallpapers"
+km-icon = "run -p km-display --example icon"
+km-banner = "run -p km-display --example banner"
+km-screenshots = "run -p km-display --example screenshots"
+
+# **The excluded workspace, reachable from here.** `tools/cmd/assets/` is its own workspace (root
+# Cargo.toml excludes it, because `km-admin` and `km-wallpaper-pack` need TLS from reqwest and
+# `km-package-builder` needs it to have none), so `-p` cannot reach either member. The path is
+# written here, and Taskfile.yml and .github/workflows/ci.yml forward to these rather than each
+# spelling `--manifest-path`. tools/platform/linux/check.sh spells it, to add `--locked`.
+#
+# The qualifier goes *after* the verb, as in `km-lint-no-video`: `km-lint-assets` lints the assets
+# workspace, where `km-admin-lint` would read as linting the one crate of that name.
+km-admin = "run --manifest-path tools/cmd/assets/Cargo.toml -p km-admin --"
+km-admin-desktop = "run --manifest-path tools/cmd/assets/Cargo.toml -p km-admin --features desktop --"
+# **`--release`, in the alias**, for the reason `km` carries `video`: it is what this program is.
+# `analyze` is thousands of JPEG decodes, resizes and blurs, and an unoptimized run over a full cache
+# took 78 minutes against single-digit ones optimized -- so a debug build is not a cheaper answer to
+# the same question, it is the wrong answer slowly. A debug run is still `cargo run -p km-wallpaper-pack`
+# with the manifest named, which is what somebody debugging the tool itself wants and nobody else.
+km-wallpaper-pack = "run --release --manifest-path tools/cmd/assets/Cargo.toml -p km-wallpaper-pack --"
+km-build-assets = "build --manifest-path tools/cmd/assets/Cargo.toml --workspace"
+km-test-assets = "test --manifest-path tools/cmd/assets/Cargo.toml --workspace"
+km-lint-assets = "clippy --manifest-path tools/cmd/assets/Cargo.toml --workspace --all-targets -- -D warnings"
+# `fmt` completes the verb set, and there is no `-no-video` twin because formatting has no features.
+# **`km-lint` and `km-lint-assets` are the two that cannot take an extra flag**, because a trailing
+# `-- -D warnings` swallows whatever follows: `cargo km-lint-assets --locked` hands `--locked` to
+# clippy's lint list. That is why `tools/platform/linux/check.sh` spells its own `--locked` clippy
+# run out by hand and asserts the alias agrees, rather than calling it -- the same arrangement the
+# video aliases already have, for the same reason.
+km-fmt = "fmt --all"
+km-fmt-assets = "fmt --manifest-path tools/cmd/assets/Cargo.toml --all"

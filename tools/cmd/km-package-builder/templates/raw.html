@@ -1,0 +1,14 @@
+{% if events.is_empty() %}
+<p class="dim">{{ "raw-none"|t }}</p>
+{% else %}
+<div class="scroll" style="max-height:22rem; overflow-y:auto">
+<table class="mono">
+  <thead><tr><th class="num">{{ "raw-track"|t }}</th><th class="num">{{ "raw-tick"|t }}</th><th>{{ "raw-kind"|t }}</th><th>{{ "raw-text"|t }}</th></tr></thead>
+  <tbody>
+  {% for event in events %}
+    <tr><td class="num">{{ event.0 }}</td><td class="num">{{ event.1 }}</td><td>{{ event.2 }}</td><td>{{ event.3 }}</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endif %}

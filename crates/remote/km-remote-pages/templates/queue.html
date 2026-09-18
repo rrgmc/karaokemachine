@@ -1,0 +1,17 @@
+{% extends "layout.html" %}
+{% block title %}{{ "tab-queue"|t }}{% endblock %}
+{% block content %}
+
+<div class="page-head">
+  <h1>{{ "tab-queue"|t }}</h1>
+</div>
+
+<input type="checkbox" id="nowbar-controls" class="visually-hidden" autocomplete="off">
+
+{{ nowbar|safe }}
+
+<input type="checkbox" id="queue-actions" class="visually-hidden" autocomplete="off">
+
+{{ queue|safe }}
+
+{% endblock %}

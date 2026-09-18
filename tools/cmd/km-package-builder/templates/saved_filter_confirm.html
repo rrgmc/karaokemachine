@@ -1,0 +1,26 @@
+{# Saving under a name that is taken. `bulk_tag_confirm.html`'s shape, at a much smaller stake: this
+   replaces one row and takes no song with it, so what it has to do is say which name and show the
+   two queries, rather than count anything.
+
+   **The name and the query ride in the body, where the bulk actions put theirs in the URL.** The
+   payload here *is* a query string, so nesting it in one would need escaping twice and would invite
+   `serde_urlencoded` to read the filter's own keys as this handler's. Hidden fields, `hx-include`d
+   from the slot this fragment is sitting in.
+
+   **And the write uses what this fragment was shown, never the filter as it stands.** The bar is
+   live while this sits on screen — somebody can narrow the list between reading the sentence and
+   pressing the button — and the promise made here is the one that has to be kept. Same rule as
+   `Acting on a whole filter`, one stake down. #}
+<span class="row" id="saved-filter-confirm">
+  <strong>{{ name }}</strong> {{ "saved-already-saved"|t }}
+  <span class="tag">{% if replacing.is_empty() %}{{ "saved-whole-corpus"|t }}{% else %}{{ replacing }}{% endif %}</span>
+  &rarr;
+  <span class="tag saved">{% if query.is_empty() %}{{ "saved-whole-corpus"|t }}{% else %}{{ query }}{% endif %}</span>
+  <input type="hidden" name="saved_name" value="{{ name }}">
+  <input type="hidden" name="saved_query" value="{{ query }}">
+  <button class="primary" hx-post="/songs/saved-filters?confirm=1"
+          hx-target="#saved-filter-result" hx-swap="innerHTML"
+          hx-include="#saved-filter-confirm">{{ "saved-replace-it"|t }}</button>
+  <button type="button" hx-get="/songs/saved-filters/cancel"
+          hx-target="#saved-filter-result" hx-swap="innerHTML">{{ "action-cancel"|t }}</button>
+</span>

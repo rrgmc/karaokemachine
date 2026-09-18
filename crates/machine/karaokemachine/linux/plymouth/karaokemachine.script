@@ -1,0 +1,216 @@
+# The appliance's boot splash: the machine's mark on the machine's own ground.
+#
+# What this is for. Between the firmware and the machine's first frame the television shows a
+# bootloader menu, then kernel text, then black -- the one stretch of an appliance that still looks
+# like a computer booting. This covers it, and it covers it in the *same* colour the machine's idle
+# screen uses, so the handover from splash to application is not a change of picture but the mark
+# going away.
+#
+# Two theme colours are written out below as floats, because Plymouth's script language has no way
+# to read a Rust constant. That is a copy, and a copy drifts -- so
+# crates/machine/karaokemachine/tests/plymouth_theme.rs parses this file and asserts both still
+# round to the same bytes as the fields they were taken from. Change a colour here and that test
+# fails; change it in `Theme` and it fails the same way. There is no authoritative copy to fix the
+# other one from -- they simply have to agree.
+
+# ---- the ground -------------------------------------------------------------------------------
+#
+# km_display::theme::Theme::background, Color::RGB(0x0A, 0x0C, 0x14). Top and bottom are the same
+# value on purpose: the machine's ground is flat, and a gradient here would be a second design
+# nobody chose that the first frame then wipes away.
+Window.SetBackgroundTopColor(0.039216, 0.047059, 0.078431);
+Window.SetBackgroundBottomColor(0.039216, 0.047059, 0.078431);
+
+# km_display::theme::Theme::lyric_pending, Color::RGB(0xEC, 0xEF, 0xF4). Only the prompt and message
+# lines use it -- the near-white the K in the mark is already drawn in.
+TEXT_RED = 0.925490;
+TEXT_GREEN = 0.937255;
+TEXT_BLUE = 0.956863;
+
+# ---- the mark ---------------------------------------------------------------------------------
+#
+# **Sized from the panel, not shipped at a size.** logo.png is a 1024-pixel render, and drawn at
+# 1024 it would be a fifth of an ultrawide, a quarter of a 4K panel and two fifths of a 720p set --
+# three different designs from one file. A fraction of screen width is one design. The height cap is
+# for the shape nobody thinks of, a very wide and very short mode, where a fifth of the width does
+# not fit vertically at all.
+#
+# It is never scaled *up*: 1024 is a ceiling rather than a target, because an upscale of a drawing
+# whose whole point is that it is exact at every size would be the one soft thing on the screen.
+LOGO_WIDTH_FRACTION = 0.2;
+LOGO_HEIGHT_LIMIT = 0.4;
+
+screen_width = Window.GetWidth();
+screen_height = Window.GetHeight();
+
+logo.image = Image("logo.png");
+logo.size = screen_width * LOGO_WIDTH_FRACTION;
+
+if (logo.size > logo.image.GetWidth())
+  {
+    logo.size = logo.image.GetWidth();
+  }
+
+if (logo.size > screen_height * LOGO_HEIGHT_LIMIT)
+  {
+    logo.size = screen_height * LOGO_HEIGHT_LIMIT;
+  }
+
+logo.sprite = Sprite(logo.image.Scale(logo.size, logo.size));
+logo.sprite.SetX(screen_width / 2 - logo.size / 2);
+logo.sprite.SetY(screen_height / 2 - logo.size / 2);
+logo.sprite.SetZ(0);
+
+# ---- the pulse ---------------------------------------------------------------------------------
+#
+# A boot that shows one motionless image is indistinguishable from a boot that has stopped, and the
+# whole point of a splash is that somebody on the sofa can tell. So the mark breathes.
+#
+# A triangle ramp rather than a cosine, and that is deliberate rather than lazy: Math.Cos comes from
+# Plymouth's script-lib-math library, which is one more thing that has to have made it into the
+# initramfs on a box nobody here can inspect. Between 0.72 and 1.0 opacity the two curves are not
+# tellable apart, so the robust one wins for free.
+#
+# The refresh function runs at Plymouth's own rate, near 50 Hz, so 96 ticks is a breath of about two
+# seconds.
+PULSE_TICKS = 96;
+PULSE_FLOOR = 0.72;
+
+pulse.tick = 0;
+
+fun refresh ()
+  {
+    pulse.tick = pulse.tick + 1;
+    if (pulse.tick >= PULSE_TICKS)
+      {
+        pulse.tick = 0;
+      }
+
+    half = PULSE_TICKS / 2;
+    if (pulse.tick < half)
+      {
+        phase = pulse.tick / half;
+      }
+    else
+      {
+        phase = (PULSE_TICKS - pulse.tick) / half;
+      }
+
+    logo.sprite.SetOpacity(PULSE_FLOOR + (1 - PULSE_FLOOR) * phase);
+  }
+
+Plymouth.SetRefreshFunction(refresh);
+
+# ---- words, when there have to be any ----------------------------------------------------------
+#
+# **A splash with no way to say anything is how an appliance becomes a brick.** The appliance this
+# was written for boots a plain root filesystem and needs none of what follows -- but a theme is
+# installed by a package, and packages land on machines nobody planned for. On a box with an
+# encrypted root, a splash that cannot draw a password prompt is a black screen that will never
+# finish booting and never say why. So the prompt, the bullets and Plymouth's own messages all have
+# somewhere to go.
+#
+# Image.Text needs Plymouth's label plugin, which is the `plymouth-label` package;
+# tools/platform/linux/appliance-boot.sh installs it beside plymouth for exactly this. Without it
+# Image.Text yields nothing and these sprites stay empty -- the splash degrades to the mark alone
+# rather than failing, which is the right way round for something on the far side of an initramfs.
+LINE_GAP = 0.06;
+
+prompt.sprite = Sprite();
+prompt.sprite.SetZ(1);
+bullets.sprite = Sprite();
+bullets.sprite.SetZ(1);
+message.sprite = Sprite();
+message.sprite.SetZ(1);
+
+# Centred horizontally and placed by a fraction of the screen below the mark, so the block holds
+# together at every size the mark itself is sized for.
+#
+# **The NULL check is the whole reason this is one function and not three inline copies.** Image.Text
+# yields NULL when the label plugin is not there, and asking a NULL for its width is a script error
+# rather than a blank line. A line is cleared by drawing a space rather than by drawing "", for the
+# same reason from the other end: an empty string is the other input that can come back NULL.
+fun set_line (sprite, text, offset)
+  {
+    image = Image.Text(text, TEXT_RED, TEXT_GREEN, TEXT_BLUE);
+    sprite.SetImage(image);
+    if (image != NULL)
+      {
+        sprite.SetX(screen_width / 2 - image.GetWidth() / 2);
+        sprite.SetY(screen_height / 2 + logo.size / 2 + screen_height * offset);
+      }
+  }
+
+fun clear_line (sprite)
+  {
+    set_line(sprite, " ", 0);
+  }
+
+# One bullet per character typed, drawn as text for the same reason the prompt is: an image of a
+# bullet would be a second file in icon/ whose only reader is this line.
+fun bullet_string (count)
+  {
+    marks = "";
+    i = 0;
+    while (i < count)
+      {
+        marks = marks + "*";
+        i = i + 1;
+      }
+    return marks;
+  }
+
+fun display_password (text, count)
+  {
+    set_line(prompt.sprite, text, LINE_GAP);
+    set_line(bullets.sprite, bullet_string(count), LINE_GAP * 2);
+  }
+
+Plymouth.SetDisplayPasswordFunction(display_password);
+
+# Back to the mark alone. Both lines are cleared rather than hidden, because a stale prompt under a
+# booting machine reads as a machine still waiting for something.
+fun display_normal ()
+  {
+    clear_line(prompt.sprite);
+    clear_line(bullets.sprite);
+  }
+
+Plymouth.SetDisplayNormalFunction(display_normal);
+
+# fsck progress, a failed mount, whatever systemd wants said. Below the password block, so the two
+# never land on each other.
+fun display_message (text)
+  {
+    set_line(message.sprite, text, LINE_GAP * 3);
+  }
+
+Plymouth.SetMessageFunction(display_message);
+
+# **The mark stays, and the words go.** This was the other way round to begin with, on the reasoning
+# that leaving the mark up would fight the machine's first frame rather than hand over to it -- and
+# on a real television that reasoning was exactly backwards.
+#
+# What actually happens between plymouth quitting and the machine drawing is *five seconds*: the
+# SoundFont, the catalog and the packages folder all load first. Blanking the mark at the start of
+# that gap gave the mark about a tenth of a second on screen and then five seconds of console text,
+# which is worse than no splash at all -- it looks like something crashed.
+#
+# So plymouth is quit with `--retain-splash`, which leaves the last frame on the framebuffer after
+# the daemon exits, and this function's job is to make that last frame worth retaining: the mark, at
+# full opacity, with nothing else on it. The machine's own first frame is what replaces it, and the
+# ground underneath is the same colour either way, so the handover is the mark going away and
+# nothing else moving. tools/platform/linux/appliance-boot.sh installs the drop-in that adds the
+# flag; without it this function still does the right thing, it just gets less time to be seen.
+#
+# The opacity is set rather than left alone because the pulse stops wherever the last tick put it,
+# and a mark retained for five seconds at 0.72 reads as a mark that is fading out.
+fun quit ()
+  {
+    logo.sprite.SetOpacity(1);
+    clear_line(prompt.sprite);
+    clear_line(bullets.sprite);
+    clear_line(message.sprite);
+  }
+
+Plymouth.SetQuitFunction(quit);

@@ -1,0 +1,42 @@
+# Declares the `LIBC_N` symbol version node, for 32-bit ARM Android links only.
+#
+# This is a workaround, and an empty one on purpose: the node is declared so that it exists, and no
+# symbol is assigned to it. The output gets one inert entry in `.gnu.version_d` and nothing else
+# changes — in particular `libkm_app.so` still exports exactly one symbol, `SDL_main`.
+#
+# Why it is needed
+# ----------------
+# Linking the `cdylib` for `armv7-linux-androideabi` otherwise fails with a dozen lines of:
+#
+#   ld.lld: error: libcompiler_builtins-*.rlib(...): symbol __aeabi_memcpy8@@LIBC_N
+#           has undefined version LIBC_N
+#
+# The chain:
+#
+#   1. Rust's `compiler_builtins` defines the ARM EABI memory helpers — `__aeabi_memcpy`,
+#      `__aeabi_memset`, `__aeabi_memclr` and their 4/8-byte-aligned variants — as *weak* symbols
+#      with no version suffix. (Verified: `LIBC_N` appears nowhere in the rlib.)
+#   2. Bionic *also* exports all twelve, and from API 24 onwards tags them with the version node
+#      `LIBC_N`. So the NDK's `libc.so` stub we link against declares them `__aeabi_memcpy8@@LIBC_N`.
+#   3. lld reads that version off the stub and carries it onto the definition that wins the link —
+#      ours. Producing a shared object then requires `LIBC_N` to be a version node the output
+#      declares, and nothing declares it, so lld refuses.
+#
+# It is not a missing symbol: the symbol is defined twice over. Only the version node is missing, and
+# this file supplies it.
+#
+# arm64 needs none of this — bionic's aarch64 helpers carry no version tags.
+#
+# Things that do not work, so they are not tried again
+# ---------------------------------------------------
+# * `-Wl,--undefined-version`. The obvious guess, and the one most search results suggest, because
+#   rustc does pass `--no-undefined-version` when it links a cdylib. It governs a different check —
+#   whether a version script names a symbol that is never defined — and has no effect here. Verified
+#   with the flag passed last on the command line, where it would win any ordering race.
+# * A different API level. `LIBC_N` is absent below API 24, but `libaaudio.so` — which cpal's Android
+#   backend links unconditionally — does not exist below 26. Every level that has AAudio has the
+#   version tag. Checked all fifteen stubs in NDK 28.
+#
+# See `The armv7 cdylib links` in docs/architecture/android.md; armv7 is the ABI both Google TV
+# devices load.
+LIBC_N { };

@@ -1,0 +1,29 @@
+{# `hx-sync` for the reason the scan's bar carries one — see `progress.html`. #}
+<div id="build-progress"
+     {% if running %}class="polling" hx-get="/packages/{{ package_id }}/build/progress?volume={{ volume }}&amp;poll=1" hx-trigger="every 1s" hx-swap="outerHTML" hx-sync="this:replace"{% endif %}>
+  {% match progress %}
+  {% when Some with (p) %}
+  {% if running %}
+  <div class="bar"><span style="width: {{ p.percent }}%"></span></div>
+  <p>
+    {# The phase and the three counts are all composed in Rust: a build runs on a worker thread that
+       has no language, and four of the phases carry a value of their own. #}
+    {%- if !volume_said.is_empty() %}<strong>{{ volume_said }}</strong> &middot; {% endif %}
+    <strong>{{ p.phase_said }}</strong>
+    {%- if p.total > 0 %} &middot; {{ done_said }}{% endif %}
+    {%- if p.written > 0 %} &middot; {{ written_said }}{% endif %}
+    {%- if p.skipped > 0 %} &middot; <span class="bad">{{ skipped_said }}</span>{% endif %}
+  </p>
+  {% match p.encoding %}
+  {% when Some with (percent) %}
+  <div class="bar"><span style="width: {{ percent }}%"></span></div>
+  <p class="dim">{{ encoding_said }}</p>
+  {% when None %}{% endmatch %}
+  {% endif %}
+  {% when None %}{% endmatch %}
+
+  {% match message %}
+  {% when Some with (text) %}
+  <div class="message {% if failed %}error{% endif %}">{{ text }}</div>
+  {% when None %}{% endmatch %}
+</div>

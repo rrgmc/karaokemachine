@@ -1,0 +1,43 @@
+[package]
+name = "km-webshell"
+description = "What the three tao/wry desktop shells agree about: where a window opens, and where its webview keeps its profile"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+# **Per target rather than behind a feature, for the reason `km-tray` gives at length.** This crate
+# is a workspace member, so `cargo build --workspace` compiles it on every platform — and on Linux
+# `tao`'s only backend is gtk3, which is the dependency the `The package builder's window` decision
+# refuses to take on for `wry` and which `tools/platform/linux/apt-deps.sh` therefore installs none
+# of. A plain `[dependencies]` entry makes every `--workspace` build on Linux fail in `pango-sys`
+# before it reaches a line of this repository's own code.
+#
+# A feature would not have done: the three shells that use this crate gate it behind their own
+# `desktop`, and the failure is in `--workspace`, which ignores what any of them asked for.
+#
+# **Named platforms rather than `not(linux)`**, matching `km-tray` — `tao` sends the BSDs down the
+# same gtk path, so the negative spelling would ask for gtk3 there too.
+#
+# `wry` is deliberately **not** here on any target: nothing in this crate touches a webview, only
+# where a window opens — so the crate that decides that does not drag a browser engine in with it.
+[target.'cfg(any(windows, target_os = "macos"))'.dependencies]
+tao = { workspace = true }
+
+# **`tracing` is Windows-only and is here for one debug line**, in `from_resource`. It came back
+# after being removed with `directories` below, and the line it exists for is the only warning
+# anybody gets that an executable shipped with no icon resource at all -- which each `build.rs`
+# allows, treating a missing `rc.exe` as a `cargo:warning` rather than a failure. Without it that
+# build looks identical to a working one until somebody notices the window wearing Windows' default.
+[target.'cfg(windows)'.dependencies]
+tracing = { workspace = true }
+
+# Nothing else, on any target. `directories` was here for a `webview_profile_dir` that is not: the
+# three shells split that one on `#[cfg(windows)]` -- only WebView2 reads the field -- and `km-admin`
+# keeps its profile under `data_dir` where the other two use `cache_dir`. Those are per-shell
+# decisions, not a shared rule waiting to be extracted.

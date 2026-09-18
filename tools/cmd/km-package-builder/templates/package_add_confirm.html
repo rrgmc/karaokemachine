@@ -1,0 +1,24 @@
+{# What adding a whole filter to a package that already exists would do.
+
+   **It names the room left as well as the count**, which the make-a-package confirmation has no need
+   of: that one numbers from the start it was given, and this one adds behind whatever the package
+   already holds. A filter of eleven thousand songs meeting a package with four hundred numbers left
+   is the case somebody should see before the write rather than in the sentence after it. #}
+<span class="row">
+  <strong>{{ subject }}</strong>
+  {% if filters.is_empty() %}
+  <span class="warn">&mdash; {{ "confirm-whole-corpus-unnarrowed"|t }}</span>
+  {% else %}
+  {{ "confirm-matching"|t }} {% for f in filters %}<span class="tag good">{{ f }}</span>{% endfor %}
+  {% endif %}
+  &rarr; <strong>{{ name }}</strong>
+  {% if room < count %}
+  {# Two numbers in one clause, so it is composed in Rust like the count above it. #}
+  <span class="warn">&mdash; {{ room_left }}</span>
+  {% endif %}
+  <button class="primary" hx-post="/packages/add?as=toast&amp;{{ query }}&amp;confirm=1"
+          hx-target="#package-add-result" hx-swap="innerHTML"
+          hx-include="#package-add">{{ "action-ok"|t }}</button>
+  <button type="button" hx-get="/songs/language-bulk/cancel"
+          hx-target="#package-add-result" hx-swap="innerHTML">{{ "action-cancel"|t }}</button>
+</span>

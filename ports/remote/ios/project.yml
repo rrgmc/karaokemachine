@@ -1,0 +1,183 @@
+# XcodeGen spec for the offline remote's iOS application.
+#
+# **Generate the project with `tools/port/remote/ios/build.sh`**, which builds the Rust staticlib first —
+# the app cannot compile without the xcframework it produces.
+#
+# The `.xcodeproj` and the `Info.plist` are generated from this file and are git-ignored, the same
+# treatment `ports/remote/android/`'s `jniLibs/` gets. **Edit this file, never the project in
+# Xcode**: the next build regenerates it and would discard the change.
+
+name: KaraokeRemote
+
+# The languages the shell's own five screens are in. The *page* carries its own catalogs and is not
+# affected by this — see `crates/remote/km-remote-pages/i18n/`.
+#
+# **Both `.lproj` folders have to be named here**, or the bundle ships one language and resolves
+# every key to itself. Apple's tooling infers the list from what is on disk only inside Xcode's UI,
+# which is exactly the place this project is never edited.
+#
+# `pt` rather than `pt-BR`, for the reason `pt.lproj/Localizable.strings` gives: five screens of
+# plain prose with nothing Brazilian about them serve a Portuguese speaker anywhere.
+knownRegions:
+  - Base
+  - en
+  - pt
+
+options:
+  bundleIdPrefix: com.rrgmc
+  developmentLanguage: en
+  deploymentTarget:
+    # Must match the `IPHONEOS_DEPLOYMENT_TARGET` build.sh exports before cargo, because `cc`
+    # compiles the SQLite amalgamation. A mismatch is a link error inside Xcode long after cargo
+    # said `Finished`, and it names object files rather than this line.
+    iOS: "15.0"
+  createIntermediateGroups: true
+
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    # iPhone and iPad both. The page is a phone layout -- one fluid column with a bottom tab bar --
+    # and it is perfectly readable on an iPad, which is the device the owner's Go remote actually
+    # runs on.
+    TARGETED_DEVICE_FAMILY: "1,2"
+    # **No Intel simulator, and the project has to say so rather than leave it to be discovered.**
+    # `tools/port/remote/ios/build.sh` builds `aarch64-apple-ios` and `aarch64-apple-ios-sim` and no
+    # third slice, because this is an Apple Silicon Mac. Without this line a build against a
+    # *generic* simulator destination asks for x86_64 as well, and the failure is a wall of
+    # "ignoring file ... found architecture 'arm64', required architecture 'x86_64'" followed by six
+    # undefined `_km_remote_*` symbols -- which reads as the archive not having been linked at all
+    # rather than as an architecture nobody built.
+    #
+    # If an Intel Mac ever needs to run this in a simulator, the fix is a third `cargo build` for
+    # `x86_64-apple-ios` `lipo`d together with the arm64 simulator slice into one archive -- not a
+    # second `-library` argument, which `-create-xcframework` rejects for two slices of one
+    # platform.
+    EXCLUDED_ARCHS[sdk=iphonesimulator*]: x86_64
+
+targets:
+  KaraokeRemote:
+    type: application
+    platform: iOS
+    sources:
+      - path: KaraokeRemote
+    dependencies:
+      # A static archive: the server is linked into the app binary, not embedded as a framework.
+      # `embed: false` because there is nothing to copy into the bundle.
+      - framework: Frameworks/KmRemote.xcframework
+        embed: false
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.rrgmc.karaokemachine.remote
+        # **On the target, not just the project.** XcodeGen writes an empty `DEVELOPMENT_TEAM` into
+        # every app target's own configurations, and that overrides a project-level one -- leaving
+        # Xcode reporting that signing "requires a development team" while the value sits unused one
+        # level up. Costs an hour to find and reads like a bug in Xcode.
+        DEVELOPMENT_TEAM: "5XV6P36QZR"
+        CODE_SIGN_STYLE: Automatic
+        SWIFT_OBJC_BRIDGING_HEADER: KaraokeRemote/KaraokeRemote-Bridging-Header.h
+        # Or the app icon is silently not used, with no warning anywhere.
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        # **Asked of rustc rather than guessed**, with `cargo rustc -- --print native-static-libs`;
+        # the whole answer for this crate is `-liconv -lSystem -lc -lm`, and Xcode supplies all but
+        # the first. Note what is *not* here and would be if this were the owner's Go remote:
+        # `-lresolv` is a Go requirement (its `net` package references `res_9_*` through cgo), and
+        # `Security.framework` is for Go's `crypto/x509`. This tree has no TLS at all -- the remote
+        # speaks plain HTTP to a box on the same network -- and since `km-api` swapped `km-audio`
+        # for `km-queue` it carries no synthesizer and no audio framework either.
+        OTHER_LDFLAGS: -liconv
+    info:
+      path: KaraokeRemote/Info.plist
+      properties:
+        # **The home-screen label, and the short form on purpose** -- `KaraokeMachine Remote` is
+        # twenty-one characters and a home screen cuts it inside the first word, naming neither the
+        # family nor the program. See `res/values/strings.xml` in the Android port for the argument;
+        # this is the same decision.
+        #
+        # **iOS has one user-visible name where Android has two**, and that asymmetry is why this
+        # line is the whole change here. Android's launcher reads the *activity's* label and falls
+        # back to the application's, so the long name survives in Settings and the task switcher.
+        # Apple's second key is `CFBundleName`, which is the *shorter* fallback of the pair and
+        # capped at fifteen characters -- so there is nowhere in a bundle for the long form to live,
+        # and inventing a split would be pretending otherwise. It survives on this platform in
+        # `NSLocalNetworkUsageDescription` below, which is a sentence somebody reads and keeps the
+        # product's whole name, and on the macOS bundle and the desktop window title, neither of
+        # which is short of room.
+        CFBundleDisplayName: KM Remote
+        # Set here rather than left to XcodeGen, which quietly defaults both to 1.0 and 1 -- the same
+        # numbers by accident rather than on purpose, and nothing to notice when one of them should
+        # have moved. ShortVersionString tracks the workspace version; CFBundleVersion is the build
+        # within it, and is the one that must rise between uploads of the same version.
+        CFBundleShortVersionString: "1.17.0"
+        CFBundleVersion: "15"
+        UILaunchScreen:
+          UIColorName: LaunchBackground
+        # Not locked, matching the Android application. This is a phone held in a hand and the page
+        # is a single fluid column, but there is no reason to refuse a landscape reader.
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        # **Mandatory, and its absence is silent.** Without it every packet the sweep sends is
+        # dropped and the app is not told -- it simply never gets a reply, which is exactly what a
+        # network with no machine on it looks like. The prompt is raised on the first local-network
+        # traffic, so the very first sweep may lose its packets while somebody reads the dialog;
+        # that self-corrects, because the recovery loop browses again every twenty seconds while the
+        # machine is unreachable.
+        #
+        # The wording is `tools/platform/macos/Info.remote.plist`'s, verbatim: one product asking one
+        # permission should not word it two ways.
+        NSLocalNetworkUsageDescription:
+          KaraokeMachine Remote looks for your karaoke machine on this network, and sends it the songs you
+          queue.
+        # **Mandatory for the share page's scanner, and its absence is not a refusal - the app is
+        # *killed*.** Nothing here can detect that or recover from it; the first symptom is the app
+        # vanishing the instant that page calls getUserMedia.
+        #
+        # **Not redundant with `requestMediaCapturePermissionFor` in `RootViewController`**, and the
+        # two answer different questions. This is the permission iOS remembers and Settings can
+        # revoke; that delegate replaces WebKit's own prompt, which a WKWebView never remembers and
+        # would therefore raise on every scan. Both, or the flow is either fatal or unusable.
+        #
+        # **No entitlement, unlike multicast.** The camera is a usage-description permission granted
+        # by the person at run time and reviewed by nobody, where
+        # `com.apple.developer.networking.multicast` needs a manual review from Apple - which is the
+        # whole reason this remote sweeps a subnet instead of browsing Bonjour. Worth stating,
+        # because it is the next question a reader of that section asks.
+        #
+        # Worded like `NSLocalNetworkUsageDescription` above and identically to
+        # `tools/platform/macos/Info.remote.plist`, for that file's own reason: one product asking
+        # one permission should not word it two ways.
+        NSCameraUsageDescription:
+          KaraokeMachine Remote reads a favorites folder's code shown on another phone's screen, to copy
+          those songs onto this one.
+        # **No NSBonjourServices, and that is a statement.** Nothing here browses Bonjour -- see the
+        # `Why a sweep, and not Bonjour` section in `crates/remote/km-remote-ios/src/lib.rs` -- and
+        # declaring services the app never looks for would be a claim about a design it does not
+        # have.
+        #
+        # The server inside the app is plain HTTP on loopback, and this is what permits the
+        # WKWebView to load it. The counterpart of the Android application's
+        # `network_security_config.xml`, and with the same narrow scope: it is needed for the *web
+        # view* and nothing else, because the Rust side's HTTP and `ws://` are native sockets that
+        # App Transport Security does not police. There is no reason to widen it and a real loss in
+        # doing so.
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+
+# Declared rather than left to Xcode to autocreate. Without a real scheme on disk `xcodebuild`
+# invents one whose buildable has no supported platforms, and every `-destination` is then rejected
+# as unmatched -- with an error that blames the destination.
+schemes:
+  KaraokeRemote:
+    build:
+      targets:
+        KaraokeRemote: all
+    run:
+      config: Debug
+    archive:
+      config: Release

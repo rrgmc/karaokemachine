@@ -1,0 +1,19 @@
+# **The one place the compiler version is written down.** Everything else that installs Rust here
+# reads it from this file rather than carrying a copy: the three workflows in `.github/workflows/`
+# install by running `rustup toolchain install` with no arguments, which resolves this file, and
+# `tools/platform/linux/deb.sh` parses the channel out of it into the Dockerfile's `RUST_VERSION`
+# build argument. A second copy of the number is the drift that arrangement exists to prevent --
+# the same reasoning as `tools/setup/features.sh`.
+#
+# **Exact, not `stable`, and that is a change of direction rather than a preference.** `cargo
+# km-lint` is clippy with `-D warnings` over a workspace that also sets `missing_docs = "warn"`, so
+# a floating channel lets a lint introduced on a Tuesday fail CI on a branch that changed nothing
+# relevant. Pinning also makes "passes locally" mean "passes in CI", which it did not while each
+# machine held whatever `rustup update` last fetched. The cost is that the bump is now a commit;
+# `Bumping the Rust toolchain` in BUILDING.md is the procedure.
+#
+# No `targets` key, deliberately -- `tools/port/remote/ios/build.sh` explains why an iOS standard
+# library is not something every Windows and Linux developer should download.
+[toolchain]
+channel = "1.98.1"
+components = ["rustfmt", "clippy"]

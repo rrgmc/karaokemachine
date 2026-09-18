@@ -1,0 +1,38 @@
+<div class="spread pager">
+  {# Composed in Rust: a plural over the count, and a total that is approximate while a scan is still writing
+     rows. #}
+  <span class="dim">{{ range }}
+    {%- if scanning %}
+    <span class="tag warn" title="{{ "pager-scanning-title"|t }}">{{ "pager-scanning"|t }}</span>
+    {%- endif %}
+  </span>
+  <span class="row pages">
+    {% if !first_page.is_empty() %}
+    <button type="button" title="{{ "pager-first-title"|t }}"
+            hx-get="/songs/rows?{{ first_page }}" hx-target="#rows" hx-swap="outerHTML show:window:top"
+            hx-indicator="#rows" hx-disabled-elt="this" hx-sync="#rows-slot:replace">&laquo;</button>
+    {% endif %}
+    {% if !previous.is_empty() %}
+    <button type="button" hx-get="/songs/rows?{{ previous }}" hx-target="#rows" hx-swap="outerHTML show:window:top"
+            hx-indicator="#rows" hx-disabled-elt="this" hx-sync="#rows-slot:replace">&larr; {{ "pager-previous"|t }}</button>
+    {% endif %}
+    {% for page in pages %}
+      {% if page.current %}
+    <span class="here">{{ page.number }}</span>
+      {% else %}
+    <button type="button" class="page"
+            hx-get="/songs/rows?{{ page.query }}" hx-target="#rows" hx-swap="outerHTML show:window:top"
+            hx-indicator="#rows" hx-disabled-elt="this" hx-sync="#rows-slot:replace">{{ page.number }}</button>
+      {% endif %}
+    {% endfor %}
+    {% if !next.is_empty() %}
+    <button type="button" hx-get="/songs/rows?{{ next }}" hx-target="#rows" hx-swap="outerHTML show:window:top"
+            hx-indicator="#rows" hx-disabled-elt="this" hx-sync="#rows-slot:replace">{{ "pager-next"|t }} &rarr;</button>
+    {% endif %}
+    {% if !last_page.is_empty() %}
+    <button type="button" title="{{ "pager-last-title"|t }}"
+            hx-get="/songs/rows?{{ last_page }}" hx-target="#rows" hx-swap="outerHTML show:window:top"
+            hx-indicator="#rows" hx-disabled-elt="this" hx-sync="#rows-slot:replace">&raquo;</button>
+    {% endif %}
+  </span>
+</div>

@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- **Two names, and which one shows where is decided in the manifest.** `app_name` is the
+         application's label: Settings > Apps, the task switcher, a permission dialog, anywhere
+         Android has room for a sentence. `app_name_short` is on the `<activity>`, and a launcher
+         reads the activity's label before falling back to the application's — so it is the one
+         under the icon and the only place the short form appears.
+
+         This file used to hold one string and argue for it. The argument was that
+         `KaraokeMachine Remote` is twenty-one characters, that a phone cuts it inside the first
+         word so "Remote" is the half that goes, and that the icons being amber and green tell the
+         two applications apart anyway. Every clause of that is true and the conclusion was still
+         wrong: a launcher entry reading `KaraokeMac…` names neither the family nor the program,
+         and the icon was left doing all of the work while the label did none. `KM Remote` says
+         which family *and* which program in nine characters, and the amber and green go on
+         separating two icons sitting side by side.
+
+         **The product's name did not change** — see `What the product is called` in
+         docs/decisions/foundations.md. This is a label for a space nine characters wide, not a
+         second name for the program, which is exactly why the long one stays above it rather than
+         being replaced by it. Nothing lowercase moves either: the `applicationId`, the namespace
+         and `rootProject.name` are what this is called to Gradle and to a package manager, and
+         they are untouched.
+
+         **Neither is translated, and that is not an omission**: both are the product's name, which
+         `What the product is called` settles once for every surface. -->
+    <string name="app_name">KaraokeMachine Remote</string>
+    <string name="app_name_short">KM Remote</string>
+
+    <!-- The four screens the shell draws before the page exists.
+
+         **These are Android's resources rather than this project's `.ftl` catalogs**, and that is
+         the one place the two systems meet without either winning. Everything the *page* says is
+         Fluent, because the page is `km-remote-pages` and travels to five hosts; everything drawn
+         *before* the page is Java, and a Java screen that read a Rust catalog would be a second
+         locale mechanism inside an app that already has one. Android resolves `values-pt/` against
+         the device's language list, which is the same question `Accept-Language` answers a moment
+         later — so the shell and the page agree without being told to.
+
+         There is no way to make them disagree that is worth guarding against: a device set to
+         Portuguese gets both in Portuguese, and a viewer who later picks English on the Queue tab
+         has changed the page, which is the thing they were looking at. -->
+    <string name="starting_title">Starting the remote…</string>
+    <string name="starting_body">This device keeps its own copy of the song list, so it works whether or not the karaoke machine is switched on.</string>
+    <string name="no_machine_title">No karaoke machine found</string>
+    <string name="no_machine_body">No machine answered on this network, and this device has no song list yet. Enter the machine\'s address to connect directly, or continue and search again later.</string>
+    <string name="failed_title">The remote did not start</string>
+    <string name="failed_slow">the remote is taking longer than expected to start</string>
+    <string name="retry">Save and try again</string>
+    <string name="carry_on">Continue anyway</string>
+    <string name="address_hint">Machine address, e.g. 192.168.1.5</string>
+    <string name="address_note">Leave empty to search the network again. An address you enter is saved and used until you clear it.</string>
+
+    <!-- What the shell says about a file and a camera, which the page cannot say for itself.
+
+         The page words everything about the *contents* of a backup — not ours, damaged, empty, too
+         large — because it is the half that parsed it. What is left here is the half Android owns:
+         whether a document picker exists, whether the file reached the place the picker chose, and
+         the one thing the page has no way to know, which is that a camera denied twice will never
+         be asked for again. -->
+    <string name="saved">Backup saved.</string>
+    <string name="save_failed">The backup could not be saved.</string>
+    <string name="no_picker">This device has no file picker.</string>
+    <string name="camera_in_settings">The camera is off for this app. Turn it on in Settings, or paste the code instead.</string>
+</resources>

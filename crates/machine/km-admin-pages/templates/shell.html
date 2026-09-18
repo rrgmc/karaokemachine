@@ -1,0 +1,15 @@
+{# The shared chrome around a body a host wrote.
+
+   **Extends the same layout every page here does**, which is the whole point: a host's own page gets
+   the identical strip, heading and factory-password banner rather than a copy of them kept in step
+   by hand. See `views::Shell` for why a host cannot reach `layout.html` directly.
+
+   `|safe` because `content` is markup — a host's own rendered template, never a value from a
+   request. `Shell::content` states that rule and why nothing here could enforce it.
+
+   **The scripts and the tray are the layout's**, because a host's script is needed on the tabs this
+   crate draws as much as on the pages a host writes: the upload forms are here. See
+   `views::Chrome::scripts`. #}
+{% extends "layout.html" %}
+
+{% block content %}{{ content|safe }}{% endblock %}

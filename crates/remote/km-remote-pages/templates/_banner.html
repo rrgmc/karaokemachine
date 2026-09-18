@@ -1,0 +1,17 @@
+{% if connection.online %}
+<div data-sse="banner"></div>
+{% else %}
+<div data-sse="banner" class="banner banner-trying" role="status">
+  <span class="banner-trying-line"><span class="spinner spinner-inline"></span>{{ "reconnecting"|t }}</span>
+  <span class="banner-reason">
+  {% match reason_key() %}
+  {% when Some with (key) %}{{ key|t }}
+  {% when None %}{{ "banner-unreachable"|t }}
+  {% endmatch %}
+  {% match connection.address %}
+  {% when Some with (address) %}<span class="hint">&mdash; {{ "banner-retrying"|t }} {{ address }}</span>
+  {% when None %}
+  {% endmatch %}
+  </span>
+</div>
+{% endif %}

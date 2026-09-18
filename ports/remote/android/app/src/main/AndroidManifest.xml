@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    The offline remote. A WebView on the server running inside this process.
+
+    Note when editing: a double hyphen cannot appear inside an XML comment, and the manifest merger
+    reports that only as `Error parsing AndroidManifest.xml` with no line number unless you pass
+    `- -stacktrace`. Writing out a cargo command in a comment is what made the machine's manifest
+    unparseable once already.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- The server runs on loopback and the client talks to a machine on the LAN. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+    <!-- mDNS, and here it is for *browsing* rather than advertising, which is the harder half.
+         Sending multicast needs nothing; receiving it needs this permission AND a
+         `WifiManager.MulticastLock` held for the duration of the browse, which MainActivity takes
+         across onStart/onStop. Without either, a browse returns nothing at all and reports success
+         so a machine that is switched on and announcing itself is simply never found. -->
+    <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
+
+    <!-- Declared only to un-require it. The multicast permission above makes Android *imply*
+         `android.hardware.wifi` as required, which filters the app off any device without Wi-Fi.
+         Found once already by reading `aapt2 dump badging` on the machine's first APK, which
+         reported it as `uses-implied-feature`; it is not a thing to discover twice. -->
+    <uses-feature
+        android:name="android.hardware.wifi"
+        android:required="false" />
+
+    <!-- Reading a favorites folder's code off another phone's screen, on the share page.
+
+         Asked for only when that page opens its scanner, and the application works without it: the
+         same page takes a pasted code, and it hides its own Scan button when there is no camera to
+         use. Nothing else here opens a camera, and nothing here opens a microphone at all. -->
+    <uses-permission android:name="android.permission.CAMERA" />
+
+    <!-- Declared only to un-require them, exactly as `android.hardware.wifi` is above and for the
+         same reason read twice: the CAMERA permission makes Android *imply* both of these as
+         required, which would filter the app off any device with no rear camera - and this is a
+         remote whose whole job works without one.
+
+         **Two features and not one**, which is the part easy to get half right: the documented
+         implication is `android.hardware.camera` AND `android.hardware.camera.autofocus`. Check it
+         on the built APK rather than here, with `aapt2 dump badging | grep feature`; all three
+         must read `uses-feature-not-required`. -->
+    <uses-feature
+        android:name="android.hardware.camera"
+        android:required="false" />
+    <uses-feature
+        android:name="android.hardware.camera.autofocus"
+        android:required="false" />
+
+    <!-- No foreground service, and therefore none of the permissions one needs. There is nothing to
+         keep alive: the server is in this process, so backgrounding does not move its port, and the
+         connection to the machine is a client that reconnects rather than a session the machine is
+         holding a slot for. See the decision in docs/decisions/. -->
+
+    <application
+        android:allowBackup="false"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:networkSecurityConfig="@xml/network_security_config"
+        android:supportsRtl="true"
+        android:theme="@android:style/Theme.DeviceDefault.Light.NoActionBar">
+
+        <!--
+            `allowBackup="false"` is a decision rather than a copy. Auto Backup has a 25 MB per-app
+            quota and `catalog.sqlite` for a real catalog is well past it, so it would need an
+            exclusion rule to work at all. Worse, Auto Backup copies files as they lie and both
+            databases are opened WAL, so an uncheckpointed one restores inconsistently: a backup
+            that silently returns a corrupt favorites database is worse than no backup. The right
+            protection for that collection is an export it can be restored from, and that export
+            exists now: the share page's Backup, which the `DownloadListener` in MainActivity turns
+            into a file this device can put wherever it likes.
+
+            **It answers both of the objections above rather than working around them**, which is
+            why it is a substitute and not a consolation. It reads rows out through SQL on the
+            connection that wrote them, so it sees committed data and leaves no `-wal` sibling; and
+            it carries the collection alone, so an eleven-hundred-song file is under a hundred
+            kilobytes and the quota is beside the point. Auto Backup stays off.
+
+            See `How the Android remote is signed` and `The favorites travel as a file as well` in
+            docs/decisions/remotes.md.
+        -->
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:label="@string/app_name_short"
+            android:launchMode="singleTask"
+            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden">
+            <!-- **`android:label` here is the launcher's label**, and it is the short one on
+                 purpose. A launcher reads the activity's label and falls back to the application's,
+                 so this overrides the `KaraokeMachine Remote` above for the icon alone and leaves
+                 it in place everywhere Android has room for it. See the comment in
+                 `res/values/strings.xml`, which is where the reasoning lives.
+
+                 `configChanges` keeps the WebView alive across a rotation rather than rebuilding it,
+                 which would lose the page and its event stream. Not landscape-locked, unlike the
+                 machine: this is a phone held in a hand, and the page is a single fluid column
+                 designed for portrait. -->
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <!-- No LEANBACK_LAUNCHER. The machine declares one because it lives under a television;
+                 a remote is the thing you hold instead. -->
+        </activity>
+    </application>
+</manifest>

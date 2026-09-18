@@ -1,0 +1,56 @@
+{# Removing a reason accepts the files failing that way *now*, so a file that starts failing later
+   is counted on its own and says so. Dismissing the reason itself would make that one silent, which
+   is the thing this list exists to prevent. See `Db::dismiss_failures`.
+
+   **The Reason column spends a key rather than printing a sentence.** A tally is read inside a
+   database closure where no language is in reach, so `ScanStatus::key` travels and `|t` -- which
+   takes any string -- writes the words here. #}
+<div id="failures">
+{% if !failures.is_empty() %}
+<div class="panel">
+  <h3>{{ "failures-heading"|t }}</h3>
+  <table>
+    <thead><tr><th class="num">{{ "failures-count"|t }}</th><th>{{ "failures-reason"|t }}</th><th>{{ "failures-example"|t }}</th><th></th></tr></thead>
+    <tbody>
+    {% for failure in failures %}
+      <tr>
+        <td class="num">{{ failure.count }}</td>
+        <td>{{ failure.reason|t }}</td>
+        <td class="mono">{{ failure.example }}</td>
+        <td>
+          <button hx-post="/scan/failures/remove"
+                  hx-vals='{"status": {{ failure.status|json|safe }}}'
+                  hx-target="#failures" hx-swap="outerHTML"
+                  title="{{ failure.accept_title }}">{{ "failures-remove"|t }}</button>
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% if !dismissed.is_empty() %}
+<details class="panel" {% if failures.is_empty() %}open{% endif %}>
+  <summary>{{ dismissed_count }}</summary>
+  <table>
+    <thead><tr><th class="num">{{ "failures-count"|t }}</th><th>{{ "failures-reason"|t }}</th><th>{{ "failures-example"|t }}</th><th></th></tr></thead>
+    <tbody>
+    {% for failure in dismissed %}
+      <tr class="dim">
+        <td class="num">{{ failure.count }}</td>
+        <td>{{ failure.reason|t }}</td>
+        <td class="mono">{{ failure.example }}</td>
+        <td>
+          <button hx-post="/scan/failures/restore"
+                  hx-vals='{"status": {{ failure.status|json|safe }}}'
+                  hx-target="#failures" hx-swap="outerHTML">{{ "failures-restore"|t }}</button>
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  <p class="dim">{{ "failures-still-here"|t }}</p>
+</details>
+{% endif %}
+</div>

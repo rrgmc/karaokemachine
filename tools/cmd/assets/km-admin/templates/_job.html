@@ -1,0 +1,55 @@
+{# One job's progress.
+
+   Self-replacing, and **it stops polling when the job stops**: the `hx-get` is inside the `running`
+   branch, so a finished job's fragment is inert HTML rather than a request every second for the rest
+   of the session. #}
+<div id="job"
+     {% match job %}{% when Some with (it) %}{% if it.running %}hx-get="/admin/{{ section }}/progress" hx-trigger="every 1s" hx-swap="outerHTML"{% endif %}{% when None %}{% endmatch %}>
+{% match job %}
+{% when Some with (it) %}
+  {% if it.running %}
+  <div class="job">
+    <div class="progress {% if it.indeterminate() %}working{% endif %}">
+      <span style="width: {% if it.indeterminate() %}100{% else %}{{ it.percent }}{% endif %}%"></span>
+    </div>
+    <p>
+      <strong>{{ it.phase|t }}</strong>
+      {# A total of zero means *not known yet*, never *nothing to do* — so the bar is drawn as
+         working rather than as 0%, and the numbers are left off entirely. #}
+      {% if !it.indeterminate() %}&middot; {{ it.percent }}%{% endif %}
+      &middot; {{ it.elapsed_secs }}s
+      {% if it.stopping %}<span class="note">&middot; {{ "job-stopping"|t }}</span>{% endif %}
+    </p>
+    {# Only where stopping would do something. Sending one file to the machine is a single call with
+       no loop of ours inside it, so a Stop button there would never call anything off — and a
+       control that never does anything teaches somebody to disbelieve the ones that do. #}
+    {% if !it.stopping && it.stoppable %}
+    <form method="post" action="/admin/{{ section }}/stop">
+      <button type="submit" class="quiet">{{ "job-stop"|t }}</button>
+    </form>
+    {% endif %}
+  </div>
+  {% else %}
+    {% match it.error %}
+    {% when Some with (why) %}<div class="message bad">{{ why }}</div>
+    {% when None %}
+      {% match it.outcome %}
+      {% when Some with (said) %}<div class="message ok">{{ said }}</div>
+      {% when None %}
+      {% endmatch %}
+    {% endmatch %}
+    {# A job that has just ended has changed what is on this computer, and the poll above replaces
+       only this div — so the row that download belongs to would go on saying "Get" until somebody
+       reloaded. This fires once, on the last response the poll ever receives, and redraws the list.
+
+       Sections that keep nothing pass `None`: a package passes straight through, so Songs has no
+       list to be out of date. #}
+    {% match list_route %}
+    {% when Some with (route) %}
+    <div hx-get="{{ route }}" hx-trigger="load" hx-target="#local" hx-swap="outerHTML"></div>
+    {% when None %}
+    {% endmatch %}
+  {% endif %}
+{% when None %}
+{% endmatch %}
+</div>

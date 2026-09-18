@@ -1,0 +1,95 @@
+{% extends "layout.html" %}
+{% block content %}
+
+<section class="card">
+  <h2>{{ "picture-add"|t }}</h2>
+  {% if first_upload_replaces %}
+  <p class="banner banner-warn">
+    {{ "pictures-bundled-hint"|t }}
+  </p>
+  {% endif %}
+  <p class="hint">{{ "picture-kinds-hint"|t }}</p>
+  <form method="post" action="/admin/pictures/upload" enctype="multipart/form-data">
+    <input type="file" name="file" accept="{{ accepts }}" required>
+    <button type="submit">{{ "action-add"|t }}</button>
+  </form>
+</section>
+
+{# **A link out to the host's own searching, and not the searching itself.** Nothing in this crate
+   finds pictures, and `A fourth program, rather than a fourth tab on the owner's page` is why rather
+   than how: a machine that searched stock photograph APIs would need the internet it may not have,
+   somebody's Pixabay key on a box every phone in the house can reach, and a hundred JPEG decodes
+   while it is meant to be playing a song.
+
+   So the host serves that page — through `Admin::shell`, so it wears this chrome — and this is the
+   door. `Capabilities::searching` names the contract: a host that sets it must serve
+   `/admin/pictures/find`. #}
+{% if chrome.capabilities.searching %}
+<section class="card">
+  <h2>{{ "pictures-find-heading"|t }}</h2>
+  <p class="hint">{{ "pictures-find-hint"|t }}</p>
+  <p><a href="/admin/pictures/find">{{ "pictures-find-link"|t }}</a></p>
+</section>
+{% endif %}
+
+{# What is on the screen right now, and the button that moves it on. **Absent where `rotation` is
+   off**: a surface that can send a picture but not manage the folder has nothing to say about which
+   one is showing this second, and *Show the next one* is a control over a screen in another room. #}
+{% if chrome.capabilities.rotation %}
+<section class="card">
+  <h2>{{ "action-on-screen"|t }}</h2>
+  <p class="hint">{{ whose }}</p>
+  {% match problem %}
+  {% when Some with (problem) %}
+  <p class="banner banner-warn">{{ problem }}</p>
+  {% when None %}
+  {% endmatch %}
+
+  <dl class="facts">
+    <dt>{{ "tab-pictures"|t }}</dt><dd>{{ count }}</dd>
+    <dt>{{ "picture-showing"|t }}</dt>
+    <dd>
+      {% match current %}
+      {% when Some with (current) %}{{ current }}
+      {% when None %}{{ "picture-showing-nothing"|t }}
+      {% endmatch %}
+    </dd>
+    <dt>{{ "picture-changes-every"|t }}</dt><dd>{{ interval }}</dd>
+  </dl>
+
+  <form method="post" action="/admin/pictures/next" class="inline">
+    <button type="submit">{{ "picture-next"|t }}</button>
+  </form>
+</section>
+{% endif %}
+
+{% if chrome.capabilities.rotation && !pictures.is_empty() %}
+<section class="card">
+  <h2>{{ "picture-in-folder"|t }}</h2>
+  <table>
+    <thead>
+      <tr><th>{{ "column-file"|t }}</th><th class="num">{{ "tab-pictures"|t }}</th><th class="num">{{ "column-size"|t }}</th><th></th></tr>
+    </thead>
+    <tbody>
+    {% for picture in pictures %}
+      <tr>
+        <td>{{ picture.name }}</td>
+        <td class="num">{{ picture.images }}</td>
+        <td class="num">{{ picture.size }}</td>
+        <td>
+          {% match picture.why_not_removable %}
+          {% when Some with (why) %}
+          <span class="hint">{{ why }}</span>
+          {% when None %}
+          <a class="danger" href="/admin/pictures/{{ picture.id }}/remove"
+             aria-label="{{ picture.remove_label }}">{{ "action-remove"|t }}</a>
+          {% endmatch %}
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endif %}
+
+{% endblock %}

@@ -1,0 +1,35 @@
+{# `songs_pager.html` over this page's route and its target, and the numbers come from the same
+   `handlers::page_links`.
+
+   **No scanning tag and no indicator.** A lyric total is an exact `COUNT(*)` over the index, so
+   there is no reading to mark as approximate; and the route behind these buttons answers an FTS5
+   match rather than a walk of hundreds of thousands of rows, so it needs none of the browse pager's
+   `hx-indicator`, `hx-disabled-elt` or `hx-sync`. #}
+<div class="spread pager">
+  {# The page, the page count and a plural over the hits, composed in Rust and arriving as a field. #}
+  <span class="dim">{{ range }}</span>
+  <span class="row pages">
+    {% if !first_page.is_empty() %}
+    <button type="button" title="{{ "pager-first-title"|t }}"
+            hx-get="/lyrics/hits?{{ first_page }}" hx-target="#hits" hx-swap="outerHTML show:window:top">&laquo;</button>
+    {% endif %}
+    {% if !previous.is_empty() %}
+    <button type="button" hx-get="/lyrics/hits?{{ previous }}" hx-target="#hits" hx-swap="outerHTML show:window:top">&larr; {{ "pager-previous"|t }}</button>
+    {% endif %}
+    {% for page in pages %}
+      {% if page.current %}
+    <span class="here">{{ page.number }}</span>
+      {% else %}
+    <button type="button" class="page"
+            hx-get="/lyrics/hits?{{ page.query }}" hx-target="#hits" hx-swap="outerHTML show:window:top">{{ page.number }}</button>
+      {% endif %}
+    {% endfor %}
+    {% if !next.is_empty() %}
+    <button type="button" hx-get="/lyrics/hits?{{ next }}" hx-target="#hits" hx-swap="outerHTML show:window:top">{{ "pager-next"|t }} &rarr;</button>
+    {% endif %}
+    {% if !last_page.is_empty() %}
+    <button type="button" title="{{ "pager-last-title"|t }}"
+            hx-get="/lyrics/hits?{{ last_page }}" hx-target="#hits" hx-swap="outerHTML show:window:top">&raquo;</button>
+    {% endif %}
+  </span>
+</div>

@@ -1,0 +1,26 @@
+[package]
+name = "km-pick"
+description = "A checkbox list on a terminal, for a shell script that has rows and wants a choice"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+anyhow = { workspace = true }
+clap = { workspace = true }
+
+# The checkbox list itself, and **nothing about it is drawn here**: `MultiSelect` is the scrolling
+# `[x]` list, the type-to-filter, the page scrolling and the selection-count validator. This crate is
+# the adapter that lets a shell script reach one.
+#
+# `default-features = false` with `crossterm` named, for two reasons rather than tidiness: inquire's
+# defaults pull `fuzzy` (and `fuzzy-matcher` with it) and a `date` prompt, neither of which is wanted
+# here, and a terminal backend has to be named explicitly once the defaults are off. Substring
+# filtering is inquire's own and needs no feature.
+inquire = { version = "0.9.4", default-features = false, features = ["crossterm"] }

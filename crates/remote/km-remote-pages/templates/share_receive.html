@@ -1,0 +1,63 @@
+{% extends "layout.html" %}
+{% block title %}{{ head.title }}{% endblock %}
+{% block content %}
+
+{{ head|safe }}
+
+{% match error %}
+{% when Some with (message) %}
+<p class="step-warn">{{ message }}</p>
+{% when None %}
+{% endmatch %}
+
+{# Submitted by `scan.js` the moment a code is read. The code goes in a hidden field: it is how this
+   works, not something to read, and showing it was most of what made this page look like a tool
+   rather than a task.
+
+   The five `data-` attributes are the scanner's sentences. A static `.js` file cannot go through
+   `|t`, so prose inside it would be English on a Portuguese page and no test in this crate would
+   see it — the markup scanner reads templates only, and the page test never fetches the script. #}
+<form method="post" action="{{ path() }}/receive" id="scan-form">
+  <input type="hidden" name="code" id="scan-code">
+
+  {# Hidden until the script has established there is a camera to use, so a browser without one
+     shows the typed fallback alone rather than a button that cannot work. That covers `--lan` as
+     well: `getUserMedia` needs a potentially-trustworthy origin, and a phone pointed at this
+     machine's LAN address over plain HTTP does not have one. #}
+  <div id="scan" class="scan" hidden
+       data-starting="{{ "share-camera-starting"|t }}"
+       data-got-it="{{ "share-camera-got-it"|t }}"
+       data-refused="{{ "share-camera-refused"|t }}"
+       data-none="{{ "share-camera-none"|t }}"
+       data-failed="{{ "share-camera-failed"|t }}">
+    <button type="button" class="icon-btn primary" id="scan-start">{{ "share-camera-start"|t }}</button>
+    <div id="scan-view" hidden>
+      {# `playsinline` and `muted`, or iOS takes the video fullscreen the moment it plays and the
+         page underneath is gone. #}
+      <video id="scan-video" class="scan-video" playsinline muted autoplay></video>
+      <button type="button" class="icon-btn" id="scan-stop" hidden>{{ "share-camera-stop"|t }}</button>
+    </div>
+    <p class="step-note" id="scan-status" role="status" aria-live="polite"></p>
+  </div>
+</form>
+
+<p class="step-note">{{ target_line }}</p>
+
+<details class="step-fallback">
+  <summary>{{ "share-cant-scan"|t }}</summary>
+  <form method="post" action="{{ path() }}/receive">
+    <p class="step-note">{{ "share-paste-hint"|t }}</p>
+    <textarea name="code" class="share-digits" rows="3" required
+              autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"></textarea>
+    <button class="icon-btn primary" type="submit">{{ "share-continue"|t }}</button>
+  </form>
+</details>
+
+{# Loaded here rather than in the shared head: the decoder is a quarter of a megabyte and only this
+   page has any use for it. Both files come from this same device, so there is no network cost either
+   way — but there is no reason to parse it on every page. jsQR must come first, or `scan.js` finds
+   no `window.jsQR` and hides its own button. #}
+<script src="/static/jsqr.js?v={{ chrome.assets }}"></script>
+<script src="/static/scan.js?v={{ chrome.assets }}"></script>
+
+{% endblock %}

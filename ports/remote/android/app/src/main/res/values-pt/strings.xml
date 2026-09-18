@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The Portuguese shell. `values-pt` and not `values-pt-rBR`, deliberately: what is here is
+         four screens of plain prose with nothing Brazilian about it, and a Portuguese speaker
+         anywhere is better served by this than by English. The *page* makes the same call — see
+         `Locale::best_match`, where `pt-PT` reaches `pt-BR`.
+
+         `app_name` and `app_name_short` are absent on purpose: they are the product's name, which
+         is the same word in every language. Android falls back to `values/` for anything not here,
+         so leaving them out is how a name stays one name. -->
+    <string name="starting_title">Iniciando o controle…</string>
+    <string name="starting_body">Este aparelho guarda a própria cópia da lista de músicas, então funciona com a máquina de karaokê ligada ou não.</string>
+    <string name="no_machine_title">Nenhuma máquina de karaokê encontrada</string>
+    <string name="no_machine_body">Nenhuma máquina respondeu nesta rede, e este aparelho ainda não tem uma lista de músicas. Digite o endereço da máquina para conectar direto, ou continue e procure de novo mais tarde.</string>
+    <string name="failed_title">O controle não iniciou</string>
+    <string name="failed_slow">o controle está demorando mais do que o esperado para iniciar</string>
+    <string name="retry">Salvar e tentar de novo</string>
+    <string name="carry_on">Continuar mesmo assim</string>
+    <string name="address_hint">Endereço da máquina, por exemplo 192.168.1.5</string>
+    <string name="address_note">Deixe em branco para procurar na rede de novo. Um endereço digitado fica salvo e é usado até você apagá-lo.</string>
+
+    <string name="saved">Backup salvo.</string>
+    <string name="save_failed">Não foi possível salvar o backup.</string>
+    <string name="no_picker">Este aparelho não tem um seletor de arquivos.</string>
+    <string name="camera_in_settings">A câmera está desligada para este app. Ative-a nas Configurações, ou cole o código em vez disso.</string>
+</resources>

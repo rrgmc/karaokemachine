@@ -1,0 +1,12 @@
+<div class="chips" id="tag-list">
+  {% if tags.is_empty() %}
+  <span class="dim">{{ "song-tags-none"|t }}</span>
+  {% else %}
+  {% for tag in tags %}
+  <span class="tag song-tag">{{ tag }}
+    <a href="#" title="{{ "song-tag-remove-title"|t }}"
+       hx-post="/songs/{{ song_id }}/tags?action=remove&amp;tag={{ tag }}"
+       hx-target="#tag-list" hx-swap="outerHTML">&times;</a></span>
+  {% endfor %}
+  {% endif %}
+</div>

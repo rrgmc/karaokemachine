@@ -1,0 +1,31 @@
+[package]
+name = "km-remote-host"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+description = "Starting, stopping and reporting on the offline remote's server, for a host that has no main."
+
+# An ordinary library, and deliberately not a `cdylib` or a `staticlib`. Those are the shells'
+# business: this crate is what both of them link, and what `cargo test` runs on the machine doing
+# the building. It is the whole reason the state machine is tested without a phone in the room.
+[lib]
+name = "km_remote_host"
+
+[lints]
+workspace = true
+
+[dependencies]
+# The server itself, and **no locator implementation** -- the workspace entry turns that crate's
+# default off, and this one names nothing to turn it back on. So `find::Mdns` does not exist as far
+# as this code is concerned, which makes "the host chooses" a compile-time fact rather than a
+# convention: there is no default in here to fall back to.
+#
+# Note that this does not keep `mdns-sd` out of anybody's binary -- `km-api` depends on it
+# unconditionally, so it is linked either way. What it buys is that no code path in this crate can
+# reach `ServiceDaemon::new()`, which is what matters on a platform that will not let it work.
+km-remote-core = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }

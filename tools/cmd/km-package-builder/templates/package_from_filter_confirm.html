@@ -1,0 +1,29 @@
+<span class="row">
+  <strong>{{ subject }}</strong>
+  {% if filters.is_empty() %}
+  <span class="warn">&mdash; {{ "confirm-whole-corpus-unnarrowed"|t }}</span>
+  {% else %}
+  {{ "confirm-matching"|t }} {% for f in filters %}<span class="tag good">{{ f }}</span>{% endfor %}
+  {% endif %}
+  &rarr; <strong>{{ name }}</strong>
+  {# Offered only when the bar narrows by one favorite and by nothing else, and ticked when it is
+     offered: somebody who narrowed to one list and asked for a package of every matching song has
+     said what the package is. A filter carrying other terms gets no box at all, because the package
+     it makes is not what that list holds — see `Filter::only_this_favorite`.
+
+     It rides in `hx-include` by its own id: the box lives in this fragment rather than in the form
+     the button already includes, and an unticked one sends nothing, which is how the route reads
+     it. #}
+  {% match source %}
+  {% when Some with (list) %}
+  <label><input type="checkbox" id="from-filter-source" name="source" value="1" checked>
+    {{ "from-filter-keep-sourced"|t }}
+    <span class="tag {% if list.temporary %}warn{% else %}good{% endif %}">{{ list.name }}</span></label>
+  {% when None %}
+  {% endmatch %}
+  <button class="primary" hx-post="/packages/from-filter?{{ query }}&amp;confirm=1"
+          hx-target="#from-filter-result" hx-swap="innerHTML"
+          hx-include="#package-from-filter, #from-filter-source">{{ "action-ok"|t }}</button>
+  <button type="button" hx-get="/songs/language-bulk/cancel"
+          hx-target="#from-filter-result" hx-swap="innerHTML">{{ "action-cancel"|t }}</button>
+</span>

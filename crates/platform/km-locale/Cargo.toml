@@ -1,0 +1,42 @@
+[package]
+name = "km-locale"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+description = "Which language a surface speaks, and the messages it says in it."
+
+[lints]
+workspace = true
+
+[features]
+# The askama filter, for the two crates that render markup. **Off by default so `km-display` does not
+# link a template engine to draw pixels** — it takes this crate for the same catalog and has no
+# templates at all.
+#
+# Deliberately absent from `tools/setup/features.sh`, and that is not an oversight: this is turned on
+# by the manifests that need it, which is the pattern `km-remote-core`'s `mdns` and `sweep` already
+# follow. The list in that file is for features a full build has to be *told* to turn on; one a
+# consumer names for itself is already on wherever it matters.
+askama = ["dep:askama"]
+
+[dependencies]
+# Fluent rather than a table of format strings, because Portuguese needs plural selection and gender
+# agreement a `&'static str` per key cannot express: `1 música` beside `155 músicas`, and an article
+# that changes with the noun it introduces. Both are data in the catalog here and code at every call
+# site otherwise.
+#
+# `fluent-bundle` directly rather than `fluent`, `fluent-templates` or `i18n-embed`. The meta-crate
+# adds a re-export and nothing else; `fluent-templates` exists to bridge handlebars and tera, neither
+# of which this workspace uses; and `i18n-embed` scans a directory, which is redundant when every
+# catalog is `include_str!`-ed for the reason the `Bundling assets` decision gives.
+fluent-bundle = { workspace = true }
+# Only for `ast::Entry`, so the keys can be read off a resource on its way into a bundle — which is
+# the one moment they are visible. See the workspace entry.
+fluent-syntax = { workspace = true }
+# The language tag, and the matching that turns a browser's `Accept-Language` into one of ours.
+unic-langid = { workspace = true }
+# Optional, behind the feature above: the `|t` filter and the values store it reads a catalog from.
+askama = { workspace = true, optional = true }

@@ -1,0 +1,1108 @@
+/* The remote's stylesheet.
+ *
+ * Mobile-first and hand-written. No framework: the whole surface is three tabs, a list, a card and a
+ * bottom sheet, and a 230 KB grid system to lay that out would be most of what the page weighs.
+ *
+ * LIGHT, AND PINNED LIGHT — there is no dark palette here and no `prefers-color-scheme` branch, so a
+ * phone set to dark mode gets this page exactly as written. That follows the owner's Go remote for a
+ * Videoke unit (`cookara-re`), which is the working reference for this product in this room and is
+ * pinned light in the same way; see the `The remote's palette` row in docs/decisions/. It reverses what
+ * this comment used to argue — that the page is read in a darkened room by somebody about to look
+ * back up at a television, so a white phone screen there is blinding.
+ *
+ * The television keeps the dark theme, because it is a television, and the two are not trying to be
+ * one picture. The hues below are still the display's (`km-display`'s `Theme`), taken to the
+ * contrast a white ground needs: the blue still means "this can be pressed" and the amber still
+ * means "this is happening now" on both screens.
+ */
+
+:root {
+  /* The display's palette, taken to a white ground. */
+  --bg: #ffffff;
+  --surface: #f5f6f8;
+  --surface-raised: #ffffff;
+  --line: #dde1e8;
+  --text: #12151c;
+  --text-dim: #626b7d;
+  --accent: #0b6ea8;
+  --accent-ink: #ffffff;
+  --amber: #9a6b00;
+  --alert: #b3261e;
+  --good: #1d7a52;
+
+  --tabbar-height: 3.25rem;
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --radius: 0.5rem;
+}
+
+* { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  /* The system stack, deliberately: a web font is a file to ship, a request to make, or both, and
+   * this page has neither a network to fetch one over nor a reason to look unlike the phone. */
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-size: 16px;
+  line-height: 1.4;
+  color: var(--text);
+  background: var(--bg);
+  /* Room for the fixed tab bar, plus the home indicator on a phone that has one. */
+  padding-bottom: calc(var(--tabbar-height) + var(--safe-bottom));
+  /* Stops the whole page rubber-banding when a list is flicked past its end, which on iOS otherwise
+   * peels the fixed tab bar away from the bottom of the screen mid-scroll. */
+  overscroll-behavior-y: none;
+}
+
+main { padding: 0 0.85rem; }
+
+a { color: var(--accent); text-decoration: none; }
+
+/* ---------------------------------------------------------------- the tab bar */
+
+.tabbar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  background: var(--surface);
+  border-top: 1px solid var(--line);
+  padding-bottom: var(--safe-bottom);
+  z-index: 30;
+}
+
+.tabbar a {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  height: var(--tabbar-height);
+  color: var(--text-dim);
+  font-size: 0.82rem;
+}
+
+.tabbar a.active { color: var(--accent); font-weight: 600; }
+
+/* The fourth tab is a utility rather than a destination, and it is drawn as one: no word under it,
+ * and a fixed width so the three that are places to be keep sharing the rest between them. */
+.tabbar a.tab-setup { flex: 0 0 3.4rem; }
+
+.tab-icon { font-size: 1.05rem; line-height: 1; }
+
+.tab-count {
+  min-width: 1.15rem;
+  padding: 0 0.3rem;
+  border-radius: 0.6rem;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-align: center;
+}
+
+/* Nothing queued: the badge is still an element, because the event that clears it has to have
+ * something to replace. See `sse.rs`. */
+.tab-count-none { display: none; }
+
+/* The connection dot sits absolutely inside the bar rather than as a flex child of its own, or it
+ * would take width from the things that are actually tappable.
+ *
+ * It lands in the corner of the Setup tab, which is where it wants to be: the machine card is on
+ * that tab, so the dot and the page that explains it are the same press. `pointer-events: none` is
+ * what makes that true rather than merely adjacent — without it the dot is a 7px hole in the tab. */
+.conn {
+  position: absolute;
+  top: 0.4rem;
+  right: 0.5rem;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+/* Shape as well as hue, so the two states are told apart without relying on color. */
+.conn-on { background: var(--good); }
+.conn-off { background: var(--alert); box-shadow: 0 0 0 2px rgb(179 38 30 / 25%); }
+
+/* ---------------------------------------------------------------- banner, toasts, busy */
+
+/* The five literal `rgb()` values in this file — this one, the connection dot's ring above, the two
+ * shadows and the sheet's backdrop — are all tints of `--alert` or of black, and all of them are
+ * chosen for a white ground. A color mixed for a near-black page is not merely a shade off here; it
+ * is a wash nobody can read, or a shadow that reads as dirt. There is no `color-mix()` because these
+ * have to hold on the oldest phone in the house. */
+.banner {
+  padding: 0.45rem 0.85rem;
+  background: rgb(179 38 30 / 10%);
+  border-bottom: 1px solid var(--alert);
+  color: var(--alert);
+  font-size: 0.85rem;
+}
+
+/* The offline banner has said its piece; `live.js` puts this on after `BANNER_LINGER_MS`.
+ *
+ * **Attribute-scoped on purpose.** `.banner` is three unrelated messages — this one, the
+ * package-problem strip in `_browse.html`, and the error lines in `login.html` and `_sheet.html` —
+ * and only the connection one is repeated on every page until the machine comes back. The other two
+ * are answers to something somebody just did and must stay put.
+ *
+ * Hidden rather than removed, because the element is where the next `banner` event lands; see
+ * `armBanner` and the head of `_banner.html`. */
+[data-sse="banner"].banner.spent {
+  display: none;
+}
+
+/* The strip's first few seconds, before it is willing to call the machine unreachable. `live.js`
+ * takes this class off after `BANNER_GRACE_MS`.
+ *
+ * **Why a phase at all.** The machine going quiet for a moment is common and mostly means nothing:
+ * a stalled heartbeat on the Android machine, a phone whose radio has just woken, a television
+ * switched off and on. The remote is already trying again within about a second, so saying "not
+ * reachable" at the instant the stream drops is a red alert for something that has usually mended
+ * before anybody has read it -- and it was reported exactly that way, as a red bar appearing over
+ * and over through an evening.
+ *
+ * Quiet, not invisible: the reason somebody is looking at the page may well be that a song has
+ * stopped, and a spinner is the honest answer to "is it doing anything about it?". The alert
+ * colors are held back for the case that turns out to be real.
+ *
+ * Attribute-scoped for the reason the rule above is -- `.banner` is three unrelated messages, and
+ * only the connection one has phases. */
+[data-sse="banner"].banner.banner-trying {
+  background: none;
+  border-bottom-color: var(--line);
+  color: var(--text-dim);
+}
+
+/* Both halves are always in the markup and this chooses; see the head of `_banner.html`. */
+.banner-trying-line {
+  display: none;
+  align-items: center;
+  gap: 0.4rem;
+}
+[data-sse="banner"].banner.banner-trying .banner-trying-line { display: inline-flex; }
+[data-sse="banner"].banner.banner-trying .banner-reason { display: none; }
+
+/* `.spinner` was written for the fixed tray below and is a `block` at a fixed 1rem, which is wrong
+ * inside a line of 0.85rem text. A modifier rather than an override, so `.busy` keeps the look it
+ * has -- and it inherits the `prefers-reduced-motion` rule with everything else, which leaves a
+ * static ring. That is why the strip carries the word beside it rather than resting on movement. */
+.spinner-inline {
+  display: inline-block;
+  width: 0.7rem;
+  height: 0.7rem;
+  border-width: 2px;
+  flex: none;
+}
+
+.toasts {
+  position: fixed;
+  top: 0.5rem;
+  left: 0;
+  right: 0;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  /* The strip covers the top of the page; without this a toast would swallow a tap meant for the
+   * search box underneath it. */
+  pointer-events: none;
+}
+
+.toast-item {
+  max-width: 26rem;
+  width: calc(100% - 1.7rem);
+  padding: 0.5rem 0.8rem;
+  border-radius: var(--radius);
+  background: var(--surface-raised);
+  border: 1px solid var(--line);
+  color: var(--text);
+  font-size: 0.88rem;
+  box-shadow: 0 4px 16px rgb(0 0 0 / 18%);
+  animation: toast 4s ease forwards;
+}
+
+.toast-good { border-color: var(--good); }
+.toast-warn { border-color: var(--amber); }
+.toast-bad { border-color: var(--alert); }
+
+@keyframes toast {
+  0% { opacity: 0; transform: translateY(-0.5rem); }
+  6% { opacity: 1; transform: translateY(0); }
+  88% { opacity: 1; transform: translateY(0); }
+  100% { opacity: 0; transform: translateY(-0.5rem); }
+}
+
+/* Driven entirely by `:has`, so no control needs an `hx-indicator` and none can be forgotten. */
+.busy {
+  display: none;
+  position: fixed;
+  top: 0.6rem;
+  right: 0.7rem;
+  z-index: 45;
+}
+
+body:has(.htmx-request) .busy { display: block; }
+
+.spinner {
+  display: block;
+  width: 1rem;
+  height: 1rem;
+  border: 2px solid var(--line);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner { animation: none; }
+  .toast-item { animation-duration: 0.01s; }
+  /* **Not the line above.** Shortening the duration is the right answer for a toast, whose animation
+   * is only how it arrives and leaves, and the wrong one here: this animation is a three-second
+   * clock that hides a row's buttons and ends by removing itself, so cutting it to a hundredth of a
+   * second would remove the badge before it could be read and give a reduced-motion reader the one
+   * thing nobody asked for -- no confirmation at all. The duration therefore stays and the movement
+   * goes: the badge holds still for its three seconds and then is taken away. */
+  .badge.flash { animation-name: flash-still; }
+}
+
+@keyframes flash-still {
+  from { opacity: 1; }
+  to { opacity: 1; }
+}
+
+/* ---------------------------------------------------------------- browsing */
+
+/* Sticky, so refining a search never means scrolling back up through a thousand rows to reach the
+ * box that produced them. */
+.browse-bar {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: var(--bg);
+  padding: 0.6rem 0 0.5rem;
+}
+
+.modes { display: flex; gap: 0.3rem; margin-bottom: 0.5rem; }
+
+.mode-btn {
+  flex: 1;
+  padding: 0.35rem 0.2rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text-dim);
+  font: inherit;
+  font-size: 0.82rem;
+  text-align: center;
+}
+
+.mode-btn.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 600;
+}
+
+/* The printed book sits in the mode row and is not a mode: it downloads a file and leaves the page
+ * where it was, so it can never be `.active`. Narrow and trailing rather than `flex: 1`, or a
+ * download would take an equal third of the row and read as somewhere to go. */
+.book-btn {
+  flex: 0 0 auto;
+  padding-left: 0.6rem;
+  padding-right: 0.6rem;
+}
+
+/* **A field and the control beside it, on one line.** Four of them: the search box and its ✕, the
+ * singer's name and *Save*, the new-folder box in the sheet and *Add*, the machine's address and
+ * *Use*. One shape, and for a long time four copies of it — of which only `.machine-change` carried
+ * the two properties that make it work.
+ *
+ * **Two properties, and it takes both of them to draw the word off the edge of the screen.** An
+ * `<input>` is `width: 100%` from the rule below, which as a flex item is a flex basis of the whole
+ * row; a flex item does not shrink below its own content minimum without `min-width`, so the field
+ * conceded nothing and every pixel the row was short came out of the button. A button would normally
+ * refuse — `min-width: auto` is a floor at its own text — except that `.icon-btn` sets `min-width:
+ * 2.1rem` for the glyph buttons on a song row, and an explicit `min-width` *replaces* that floor. So
+ * the button was squeezed to 43px around a word needing 48 and the word came out of the box.
+ *
+ * Measured in the singer's row at 520px: `Salvar` in a 43px button, `Adicionar` in a 69px button
+ * needing 73, at every width down to 320. English had been sitting just inside the same edge for as
+ * long — `Save` and `Add` are simply shorter, so the row was never asked for the pixels.
+ *
+ * `flex-wrap` is the floor under that, and `.filter-row` below makes the same argument: on the
+ * narrowest phone the button drops to its own line rather than off the screen. `6rem` rather than
+ * `0`, so a field never shrinks to a sliver — with somewhere to wrap to, the button leaves first. */
+.field-row { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; }
+.field-row input { flex: 1; min-width: 6rem; }
+.field-row > button, .field-row > .icon-btn { flex: none; }
+
+input[type="search"], input[type="text"], select {
+  width: 100%;
+  padding: 0.5rem 0.6rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  /* 16px or larger, always: anything smaller makes iOS Safari zoom the page when the field takes
+   * focus, and it does not zoom back out. */
+  font: inherit;
+  font-size: 1rem;
+}
+
+/* `.filters` is the result-count row inside `#list`, and `.filter-row` below is the bar's. Two
+ * classes and not one, deliberately: the first is inside the swap target and the second is not, so a
+ * rule written for the bar would otherwise restyle a line of text that is nowhere near it.
+ *
+ * **The Queue tab's two rows used to wear this one and no longer do.** They are `.pref-row` below,
+ * over `.field-row`; borrowing a line of text's styling for a form is how *Salvar* came to be drawn
+ * off the edge of the window, and it was against this comment's own argument. */
+.filters {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+  margin-top: 0.4rem;
+  font-size: 0.82rem;
+  color: var(--text-dim);
+}
+
+.result-count { margin-left: auto; white-space: nowrap; }
+
+/* The two rows on the Setup tab that are about *you* rather than about a song: the name your songs
+ * are queued under, and the language this remote is read in. Their layout is `.field-row`; this is
+ * only the dim small label that marks them as settings rather than as part of the list. */
+.pref-row { margin-top: 0.4rem; font-size: 0.82rem; color: var(--text-dim); }
+
+/* The language picker, like the name field beside it: `width: auto` undoes the `100%` that would
+ * otherwise be its flex basis, exactly as `.filter-row select` does below. */
+.pref-row select { flex: 1; width: auto; min-width: 6rem; }
+
+/* The filter row: the language picker, the A–Z picker and the ⋯ toggle, with no heading over them.
+ * It wraps, because three controls plus a long language name does not fit one line on the narrowest
+ * phone worth supporting and a horizontal scroller inside a vertical one is a gesture fight — which
+ * was the argument the A–Z strip this replaces was built on, and is the one thing about it worth
+ * keeping. */
+.filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  align-items: center;
+  margin-top: 0.4rem;
+  font-size: 0.82rem;
+  color: var(--text-dim);
+}
+
+.filter-row select { flex: 1; width: auto; min-width: 8.5rem; padding: 0.3rem 0.4rem; font-size: 0.85rem; }
+
+/* The tags currently narrowing the list, under the row that adds them.
+ *
+ * Its own row rather than inside `.filter-row`, and the reason is what the two do: that row holds
+ * controls whose value *is* their state, so a picker shows what is chosen by being set to it. The
+ * tag picker cannot — it adds one and then forgets it — so the state has to be drawn, and drawn
+ * where it does not push three `<select>`s onto a fourth line of a phone. Absent entirely when
+ * nothing is chosen, so an unfiltered list carries no empty strip. */
+/* **Its own row under the pickers, and last in the bar**, so the margin is on top. Not part of
+ * `.filter-row`: the pickers are what you press to change the narrowing, these are what the
+ * narrowing currently is, and a strip whose height varies with the number of tags must not be able
+ * to push the search box around — see the note in `_browse.html`. */
+.filter-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  align-items: center;
+  margin-top: 0.35rem;
+}
+
+/* **Bordered and in the accent, rather than a grey pill.** A grey chip on the raised surface reads
+ * with the weight of a caption, and these are not a caption — they are the reason the list is short.
+ *
+ * The two `background` lines are one declaration with a fallback, not a mistake: `color-mix` is a
+ * 2023 feature and this page is served to the WebView on whatever Android a television has. An
+ * engine that cannot parse the second keeps the first, and the chip is then a bordered pill on the
+ * raised surface — which is still legibly a chip, because the border and the ink carry it. */
+.filter-chips .chip {
+  display: inline-flex;
+  gap: 0.3rem;
+  align-items: center;
+  padding: 0.15rem 0.5rem;
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  background: var(--surface-raised);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--accent);
+  font-size: 0.78rem;
+}
+
+/* The way out of all of them at once. Deliberately *not* a chip: a chip names something that is on,
+ * and this is a control. Underlined text at the end of the strip, which is what a link in a sentence
+ * looks like everywhere else here. */
+.filter-chips .chip-clear {
+  padding: 0.2rem 0.35rem;
+  color: var(--text-dim);
+  font-size: 0.78rem;
+  text-decoration: underline;
+  white-space: nowrap;
+}
+
+.filter-chips .chip-clear:hover { color: var(--text); }
+
+/* A real tap target inside a small chip: the ✕ is the control, and 0.78rem of text is not something
+ * a thumb hits. The negative margin keeps the chip the size it looks. */
+.filter-chips .chip a {
+  padding: 0.25rem 0.35rem;
+  margin: -0.25rem -0.25rem -0.25rem 0;
+  /* The chip's own ink now, not the dim grey it was: on an accent-coloured pill a grey ✕ reads as
+   * disabled, which is the opposite of what it is. */
+  color: var(--accent);
+  text-decoration: none;
+  line-height: 1;
+}
+
+.filter-chips .chip a:hover { color: var(--text); }
+
+/* The initial picker opts out of that: its widest option is two characters and a dash, so it shrinks
+ * to its content and leaves the row's slack to the language names, which are the part that needs it. */
+.filter-row .initial-select { flex: none; width: auto; min-width: 0; }
+
+/* Pushed to the end of the row, so the two pickers stay together as one group and the toggle reads
+ * as something else. */
+.filter-row .actions-toggle { margin-left: auto; }
+
+/* **`↑ next` and `▶ now` are folded away until the ⋯ is pressed, and these three rules are the whole
+ * mechanism.** The state is `#extra-actions`, a checkbox in `browse.html` — *outside* `#browse`,
+ * because every search, filter and ✕ replaces that element and a state held inside it would be at
+ * the mercy of a swap about something else. A sibling combinator reaches across.
+ *
+ * **This replaced a re-fetch of the whole block, and the re-fetch was the bug.** The toggle used to
+ * swap `#browse`, which came back as page one — so a press after `Load more` threw away every page
+ * it had appended, and the browser, finding the document abruptly shorter, clamped the scroll to the
+ * end of what was left. Which rows there are is not what this control changes.
+ *
+ * Same shape as `#nowbar-controls` further down, one lifetime apart: that one is a page's and this
+ * one is a phone's, so this box is checked from the `km_extra` cookie and writes it back. */
+#extra-actions:not(:checked) ~ #browse .extra-action { display: none; }
+
+/* The ⋯ is a label, so it needs the two affordances a button gets for free — as the gear does, and
+ * for the same reason. Its box and its centering come from `.icon-btn` and `label.icon-btn`. */
+.actions-toggle { cursor: pointer; user-select: none; }
+#extra-actions:checked ~ #browse .actions-toggle { color: var(--amber); border-color: var(--amber); }
+#extra-actions:focus-visible ~ #browse .actions-toggle { outline: 2px solid var(--amber); outline-offset: 2px; }
+
+/* ---------------------------------------------------------------- song rows */
+
+.song-list { list-style: none; margin: 0; padding: 0; }
+
+.song-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--line);
+}
+
+/* `min-width: 0` so it can shrink inside `.song-head` and let the number keep its width; a flex item
+ * refuses to go below its content's own minimum without it, and a long unbroken title would push the
+ * number off the row. Used on the Queue tab too, where it is not a flex item and the two properties
+ * cost nothing. */
+.song-name { flex: 1; min-width: 0; font-weight: 500; line-height: 1.25; overflow-wrap: anywhere; }
+
+/* **The title's line: the name on the left, the number hard right.**
+ *
+ * `baseline`, so the number sits on the title's own line rather than on the top of its box — which
+ * is visible the moment a long title wraps to two lines and the number stays beside the first.
+ *
+ * The number is `flex: none` and the name shrinks, which is the whole point of putting them here:
+ * `.song-name` *wraps* where `.song-sub` truncates, so a long title costs a second line and the
+ * number cannot be eaten. See the comment in `_rows.html`. */
+.song-head { display: flex; align-items: baseline; gap: 0.5rem; }
+
+/* **The artist's line: the artist and duration on the left, the buttons hard right.** `center`
+ * rather than `flex-start`, so the artist sits level with the buttons it shares the line with. */
+.song-line { display: flex; align-items: center; gap: 0.5rem; }
+
+.song-sub {
+  flex: 1;
+  min-width: 0;
+  color: var(--text-dim);
+  font-size: 0.8rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.song-number {
+  flex: none;
+  color: var(--text-dim);
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* A wrapper around the two `.song-actions` groups rather than a change to either of them, because
+ * `#song-<number>`, the `afterbegin` badge swap and the `:has` rule below all key off those elements
+ * and their children — a new parent is invisible to all three. */
+.song-controls { display: flex; gap: 0.3rem; flex: none; }
+
+.song-actions { display: flex; gap: 0.3rem; flex: none; }
+
+/* The badge stands *in front of* the row's buttons rather than in place of them: the answer to a
+ * press is added with `afterbegin`, so the buttons are still in the DOM underneath and come back on
+ * their own when the span is removed. Driven by `:has`, like `.busy` below, so no button needs an
+ * attribute and none can be forgotten.
+ *
+ * `> ` is deliberate. It is the row's own controls that step aside; anything a badge one day grows
+ * inside itself is not one of them. And the selector is on `.song-actions` rather than on the row,
+ * because a song line holds *two* of these -- the star and the YouTube link are in the other one,
+ * and they have no business disappearing because something was queued.
+ *
+ * **A WebView without `:has` is fine and needs no fallback.** An unsupported selector drops its own
+ * ruleset and nothing else, so the badge simply appears beside the buttons for its three seconds
+ * instead of over them -- which is still a row that works, and still not the permanent green box
+ * this replaced. That is the same exposure `.busy` already accepts below, and iOS 15.0-15.3 and
+ * Chromium under 105 are the phones it applies to. */
+.song-actions:has(.badge.flash) > .icon-btn { display: none; }
+
+/* The buttons set the row's height at 2.1rem, so a badge asking only for its own line box would
+ * shrink every queued row by most of a centimeter and snap it back three seconds later -- all
+ * evening, in a list somebody is scrolling. It stands in for them, so it is their size. */
+.song-actions .badge.flash {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.1rem;
+}
+
+.icon-btn {
+  min-width: 2.1rem;
+  min-height: 2.1rem;
+  padding: 0.1rem 0.4rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  /* Both of these are load-bearing on a phone. Without `font-family: inherit` the glyph is drawn
+   * from a fallback with different metrics; without `font-variant-emoji: text` the system swaps in a
+   * color emoji font, which is taller than the row and makes every row a different height. */
+  font: inherit;
+  font-family: inherit;
+  font-size: 1rem;
+  font-variant-emoji: text;
+  line-height: 1.2;
+}
+
+/* The YouTube link wears `.icon-btn` too, and it is an `<a>` rather than a `<button>`. As a flex item
+ * it is blockified, so the sizes above apply — but nothing centers its contents until this says so,
+ * and a button's centering is the browser's own default rather than something inherited. The now
+ * bar's gear is a `<label>` and has exactly the same problem for exactly the same reason. */
+a.icon-btn,
+label.icon-btn { display: inline-flex; align-items: center; justify-content: center; }
+
+/* An inline SVG rather than a character. Every glyph that means "play a video" is in the emoji block,
+ * and `font-variant-emoji: text` above only asks — a phone with no monochrome form of one draws the
+ * color version anyway, which is taller than the row and makes every row a different height. A path
+ * in `currentColor` cannot do that, and it inherits the disabled and hover states for free. */
+.yt-icon { width: 1.1em; height: 0.78em; vertical-align: -0.1em; }
+
+.icon-btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 700; }
+.icon-btn.starred { color: var(--amber); border-color: var(--amber); }
+.icon-btn.danger { color: var(--alert); border-color: var(--alert); }
+
+/* A control the loaded song cannot take — transposing a video, a melody toggle where detection
+ * abstained. Drawn and dimmed rather than removed: the machine says which of these are available per
+ * song, so a missing button would be a control that comes and goes for no visible reason. */
+.icon-btn[disabled] { opacity: 0.35; }
+
+.badge {
+  display: inline-block;
+  padding: 0.15rem 0.45rem;
+  border-radius: 0.3rem;
+  background: var(--surface-raised);
+  border: 1px solid var(--line);
+  color: var(--text-dim);
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
+.badge-good { color: var(--good); border-color: var(--good); }
+.badge-warn { color: var(--amber); border-color: var(--amber); }
+
+/* A badge that answers a press, rather than one that labels a row. **The animation is the clock**:
+ * live.js removes the span on `animationend`, so this duration is how long the row's buttons stay
+ * hidden, and it is the only thing that decides it. Three seconds is long enough to read two words
+ * on a phone held at arm's length and short enough that nobody waits for it.
+ *
+ * It holds still and then goes, rather than fading throughout, so that what is on screen for most
+ * of those three seconds is a badge and not a badge part-way through leaving. */
+.badge.flash { animation: flash 3s ease forwards; }
+
+@keyframes flash {
+  0% { opacity: 0; }
+  8% { opacity: 1; }
+  80% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+.chevron { color: var(--text-dim); flex: none; }
+
+.row-link { display: flex; align-items: center; gap: 0.5rem; flex: 1; min-width: 0; color: var(--text); }
+
+.load-more { padding: 0.7rem 0; }
+
+.load-more button {
+  width: 100%;
+  padding: 0.6rem;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+}
+
+.empty { padding: 1.5rem 0; color: var(--text-dim); text-align: center; }
+
+/* ---------------------------------------------------------------- the folder sheet */
+
+.sheet-backdrop { position: fixed; inset: 0; background: rgb(0 0 0 / 40%); z-index: 40; }
+
+.sheet {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 41;
+  max-height: 80vh;
+  overflow-y: auto;
+  background: var(--surface);
+  border-top: 1px solid var(--line);
+  border-top-left-radius: 1rem;
+  border-top-right-radius: 1rem;
+  padding: 0.85rem 0.9rem calc(1rem + var(--safe-bottom));
+  box-shadow: 0 -0.5rem 1.5rem rgb(0 0 0 / 22%);
+}
+
+.sheet-title { font-weight: 600; margin-bottom: 0.15rem; }
+.sheet-sub { color: var(--text-dim); font-size: 0.83rem; margin-bottom: 0.6rem; }
+
+.sheet-folder {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.55rem 0.5rem;
+  margin-bottom: 0.25rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-raised);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+}
+
+.sheet-folder .count { margin-left: auto; color: var(--text-dim); font-size: 0.8rem; }
+.sheet-actions { display: flex; gap: 0.5rem; margin-top: 0.7rem; }
+.quiet { background: none; border: none; color: var(--text-dim); font: inherit; font-size: 0.82rem; padding: 0; }
+
+/* ---------------------------------------------------------------- the player */
+
+.player { padding: 0.9rem 0; }
+
+.now-title { font-size: 1.15rem; font-weight: 600; overflow-wrap: anywhere; }
+.now-artist { color: var(--text-dim); }
+.now-singer { color: var(--amber); font-size: 0.88rem; }
+/* Dim rather than amber: `.now-singer` is amber because a name is the thing somebody scans this
+   card for, and a demo song is the opposite — it is the state where nobody's name is on it. */
+.now-demo { color: var(--text-dim); font-size: 0.88rem; }
+
+.progress {
+  height: 4px;
+  margin: 0.6rem 0 0.25rem;
+  border-radius: 2px;
+  background: var(--line);
+  overflow: hidden;
+}
+
+.progress span { display: block; height: 100%; background: var(--amber); }
+
+.times { display: flex; justify-content: space-between; color: var(--text-dim); font-size: 0.78rem; font-variant-numeric: tabular-nums; }
+
+.transport { display: flex; gap: 0.4rem; margin: 0.9rem 0; }
+.transport .icon-btn { flex: 1; min-height: 2.8rem; font-size: 1.2rem; }
+
+/* The Queue page's now bar. The same title, artist and singer as the card above, so it borrows
+   those rules; what it adds is the rule beneath it, which is what stops "what is on" reading as the
+   first row of "who is waiting" — and the transport, which lives here and nowhere else. */
+.nowbar { padding: 0.6rem 0 0.2rem; border-bottom: 1px solid var(--line); }
+.nowbar .transport { margin-bottom: 0.6rem; }
+
+.nowbar-head { display: flex; align-items: center; gap: 0.5rem; }
+.nowbar-head .now-title { flex: 1; min-width: 0; }
+
+/* **The transport is folded away until the ▾ beside the song's name is pressed, and this rule is the
+ * whole mechanism.** Pause, restart, skip and stop end somebody's turn, and this is a phone in a
+ * dark room.
+ *
+ * The state is `#nowbar-controls`, a checkbox in `queue.html` — *outside* `#nowbar`, because the
+ * pump replaces that element whenever the song changes and would fold the strip away mid-song. A
+ * sibling combinator reaches across, so nothing inside the swapped fragment has to remember
+ * anything, and there is no JavaScript to re-sync after a swap. Arriving at the tab renders the
+ * checkbox afresh and unchecked, which is exactly the lifetime wanted: open while you are here,
+ * closed when you come back. */
+#nowbar-controls:not(:checked) ~ #nowbar .transport { display: none; }
+
+/* The toggle is a label, so it needs the two affordances a button gets for free. Its box and its
+ * centering come from `.icon-btn` and the `label.icon-btn` rule beside it.
+ *
+ * **It wears ▾ and not the ⋯ the queue rows below it carry**, because the two ask different
+ * questions: ⋯ on a row means *there is more you can do to this* and opens actions that were not on
+ * the screen, where this means *this panel has a second half* — the panel is right there, the half
+ * is folded, and pressing it unfolds the same thing rather than revealing anything new.
+ *
+ * A chevron also says *which way it is folded*. A mark identical in both states leaves the amber
+ * border below to do that whole job, on a phone, in a dark room.
+ *
+ * The gear is the Setup tab's and is ruled out here. */
+.controls-toggle { cursor: pointer; user-select: none; }
+#nowbar-controls:checked ~ #nowbar .controls-toggle { color: var(--amber); border-color: var(--amber); }
+#nowbar-controls:focus-visible ~ #nowbar .controls-toggle { outline: 2px solid var(--amber); outline-offset: 2px; }
+
+/* The flip, and the reason it is two spans rather than a `::before` whose `content` swaps: a glyph
+ * in `content` is not in the accessibility tree and not selectable, and this label's whole job is
+ * to be a real control a keyboard reaches. Hidden with `display: none` because neither glyph has
+ * anything to say to a screen reader — the `aria-label` on the label is what speaks. */
+#nowbar-controls:not(:checked) ~ #nowbar .controls-toggle .when-open,
+#nowbar-controls:checked ~ #nowbar .controls-toggle .when-closed { display: none; }
+
+/* Off screen but still in the accessibility tree and still focusable — which `display: none` is not,
+ * and this element is a real control that a keyboard has to be able to reach. */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* `flex-wrap` for `.field-row`'s reason, one screen over: a fixed label column, two steppers, a
+ * value and a trailing word is a full row in English and slightly over one in Portuguese —
+ * `reset` becomes *voltar ao normal*, and the melody row's *Off* becomes *Desligada* beside
+ * *não achado nesta música*. Measured: that button squeezed to 66px around a 76px word at 320,
+ * which is the narrowest phone worth supporting rather than a hypothetical one. */
+.control-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.5rem 0;
+  border-top: 1px solid var(--line);
+}
+
+/* The label keeps its width and stays put: it is the column that makes the five rows read as a set,
+ * and it was never what overflowed. */
+.control-row .label { width: 5.5rem; flex: none; color: var(--text-dim); font-size: 0.85rem; }
+.control-row .value { min-width: 2.6rem; text-align: center; font-variant-numeric: tabular-nums; }
+.control-row input[type="range"] { flex: 1; accent-color: var(--accent); }
+
+/* The sentence explaining why a control is unpressable — the only item on these rows made of words
+ * rather than of a glyph, so it is the one that has to be allowed to give. */
+.control-row .hint { flex: 1; min-width: 0; }
+
+/* ------------------------------------------------------- which machine (offline only) */
+
+/* **First on the Setup tab, so it carries no rule of its own.** A remote talking to the wrong
+ * machine is what brings anybody to this tab, so it leads; the rule beneath it is drawn by the group
+ * that follows, which is what keeps a separator from ever appearing above the first group — and
+ * which group is first changes with the mode. Everything inside reuses `.conn`, `.badge`, `.hint`
+ * and `.quiet`. */
+.machine-card { padding: 0.2rem 0 0.9rem; }
+
+/* The Setup tab's other two groups: this device's preferences, and the backup. **The rule goes on
+ * the group that follows another**, never on all of them — the machine card is absent online and in
+ * a build with no locator, and a separator hanging under the heading with nothing above it is a rule
+ * about nothing. The padding is on both sides so the line sits the same distance from the row above
+ * it as from the one below. A bare `border-top` with nothing under the control above puts the line
+ * hard against the language picker. */
+.setup-group { padding: 0.9rem 0; }
+.machine-card + .setup-group,
+.setup-group + .setup-group { border-top: 1px solid var(--line); }
+
+/* The group already spaces itself, so the first row inside it must not add to it. */
+.setup-group .pref-row:first-child { margin-top: 0; }
+
+/* The packages this phone searches: one tappable row per package, the whole row being the label so a
+ * thumb does not have to find the box. The count sits at the right edge, dim, like `.result-count`. */
+.package-row { display: flex; align-items: center; gap: 0.6rem; padding: 0.45rem 0; min-width: 0; }
+.package-row input { flex: none; width: 1.1rem; height: 1.1rem; margin: 0; }
+.package-name { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.package-songs { flex: none; font-size: 0.82rem; color: var(--text-dim); white-space: nowrap; }
+.package-list .hint { margin: 0.4rem 0 0; }
+
+/* Setup and Packages, as the Songs tab draws its modes, standing where the heading would. */
+.setup-tabs { margin: 0.7rem 0 0.9rem; }
+
+/* **Outside the groups, and quieter than anything in them.** A group is something you set; this is
+ * something you read once. Centred rather than left-aligned for the same reason — nothing lines up
+ * with it, because nothing else belongs to it. */
+.setup-version {
+  margin: 1.4rem 0 0;
+  text-align: center;
+  color: var(--text-dim);
+  font-size: 0.78rem;
+}
+
+.machine-title { color: var(--text-dim); font-size: 0.85rem; margin-bottom: 0.45rem; }
+
+.machine-head { display: flex; align-items: center; gap: 0.5rem; }
+
+/* The dot is absolutely positioned inside the tab bar, which is where it was written for — see the
+ * comment above `.conn`. Here it is an ordinary inline child, so the offset is undone. */
+.machine-head .conn { position: static; flex: none; width: 9px; height: 9px; }
+
+.machine-state { font-weight: 600; }
+
+/* The name a machine's owner gave it. Where there is one it leads, and the address below it drops
+ * to the dim color -- an address is what you read when you are diagnosing something, and a name is
+ * what you read to know which television this is. Absent entirely on a machine that advertises no
+ * name, which is why the address is not styled as a subtitle unconditionally. */
+.machine-name {
+  font-weight: 600;
+  font-size: 1.05rem;
+  overflow-wrap: anywhere;
+  margin: 0.25rem 0 0;
+}
+
+.machine-name + .machine-address { color: var(--text-dim); font-size: 0.88rem; }
+
+.machine-address {
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+  margin: 0.15rem 0;
+}
+
+.machine-address.quiet-text { color: var(--text-dim); }
+
+/* **Boxed, because they did not read as controls.** These were `.quiet` — no border, no padding —
+ * which is right in the folder sheet where the surrounding text explains them, and wrong here where
+ * three of them sit in a row under an address and look like a caption. The box is `.load-more
+ * button`'s, which is this sheet's outlined-button idiom already; `.quiet` itself is left alone,
+ * because the sheet's actions still want to be quiet.
+ *
+ * `a` as well as `button`: *Open in browser* is an anchor — see the template — and has to sit
+ * level with the two beside it rather than underlined and baseline-aligned.
+ *
+ * `wrap`, and a small gap, because three boxes do not fit the width of a phone in one line. */
+.machine-actions { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0.6rem 0 0.2rem; }
+
+.machine-actions button,
+.machine-actions a {
+  padding: 0.35rem 0.7rem;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  font-size: 0.82rem;
+  line-height: 1.2;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+/* A machine a rescan found and did not move to. Set apart from the card above it, because it is
+ * about somewhere this device is *not* — see `_found.html` for why it is a sibling of the card
+ * rather than part of it. */
+.machine-found {
+  margin: 0.2rem 0 0.6rem;
+  padding: 0.55rem 0.7rem;
+  border: 1px dashed var(--line);
+  border-radius: var(--radius);
+}
+
+.machine-found .hint { margin: 0 0 0.45rem; }
+.machine-found b { color: var(--text); font-weight: 500; }
+
+/* A rescan can turn up several, so the heading is lifted out of the boxes and said once, and the
+ * boxes stack under it with air between them. Each is already a self-contained dashed panel, so
+ * nothing else about them changes when there are three instead of one. */
+.machine-found-head { margin: 0.4rem 0 0.2rem; }
+.machine-found + .machine-found { margin-top: 0.35rem; }
+.machine-found .machine-name { margin-bottom: 0.1rem; }
+
+/* The same box as the three above it, for the same reason — but it opens a panel rather than doing
+ * something, so it keeps a marker saying so. The browser's own is replaced rather than kept: it sits
+ * outside the border on WebKit and cannot be moved inside it, so the chevron is a `::before` that
+ * turns when the box is open. */
+.machine-change summary {
+  display: inline-block;
+  padding: 0.35rem 0.7rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  color: var(--text-dim);
+  font-size: 0.82rem;
+  line-height: 1.2;
+  cursor: pointer;
+  list-style: none;
+}
+
+.machine-change summary::-webkit-details-marker { display: none; }
+
+.machine-change summary::before {
+  content: "\203A";
+  display: inline-block;
+  width: 0.6rem;
+  margin-right: 0.2rem;
+  text-align: center;
+}
+
+.machine-change[open] summary::before { transform: rotate(90deg); }
+.machine-change .field-row { margin: 0.5rem 0 0.3rem; }
+
+/* ---------------------------------------------------------------- the queue */
+
+.queue-row {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.55rem 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.queue-pos {
+  width: 1.6rem;
+  flex: none;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.queue-body { flex: 1; min-width: 0; }
+
+/* The ⋯ sits over the right-hand column it reveals, which is what makes it read as belonging to it
+ * rather than to the list as a whole. */
+.queue-head { display: flex; justify-content: flex-end; padding: 0.2rem 0 0.35rem; }
+
+/* **Each row's ↑ ↓ ✕ are folded away until the ⋯ is pressed, and this rule is the whole mechanism.**
+ * They reorder and remove songs other people are waiting on, laid along the right edge of every row
+ * in a list somebody scrolls; a thumb traveling down the page must not be able to take a turn away
+ * by landing slightly wrong.
+ *
+ * `#queue-actions` is in `queue.html`, *outside* `#queue`, because the pump replaces that element
+ * whenever the queue changes and would fold the buttons away under somebody's finger. A sibling
+ * combinator reaches across — the arrangement `#nowbar-controls` uses just below, and for the same
+ * reason.
+ *
+ * Page lifetime rather than the Songs tab's cookie: that one asks whether this phone cuts ahead of
+ * people at all, and this asks whether you meant to edit the queue now. */
+#queue-actions:not(:checked) ~ #queue .song-actions > .icon-btn { display: none; }
+#queue-actions:checked ~ #queue .actions-toggle { color: var(--amber); border-color: var(--amber); }
+#queue-actions:focus-visible ~ #queue .actions-toggle { outline: 2px solid var(--amber); outline-offset: 2px; }
+
+/* ---------------------------------------------------------------- odds and ends */
+
+.page-head { display: flex; align-items: center; gap: 0.5rem; padding: 0.7rem 0 0.3rem; }
+.page-head h1 { margin: 0; font-size: 1.05rem; font-weight: 600; }
+.page-head .spacer { margin-left: auto; }
+
+.hint { color: var(--text-dim); font-size: 0.85rem; }
+
+.page-head .head-action { margin-left: auto; }
+
+/* ------------------------------------------- sharing a folder, and saving the collection */
+
+/* The header the eight share and backup screens wear. `.page-head` with the exit pinned right, and
+ * a separate class rather than a modifier because these are pages of their own rather than a bar
+ * over a list. */
+.step-head { display: flex; align-items: center; gap: 0.5rem; padding: 0.7rem 0 0.3rem; }
+.step-head h1 { margin: 0; flex: 1; min-width: 0; font-size: 1.05rem; font-weight: 600; overflow-wrap: anywhere; }
+.step-head .step-exit { flex: none; margin-left: auto; }
+
+.step-note { color: var(--text-dim); font-size: 0.9rem; margin: 0.6rem 0; }
+.step-warn { color: var(--alert); font-size: 0.9rem; margin: 0.5rem 0 0; }
+
+/* Which device you are, as two things to tap rather than two headings to read past. Sized like a
+ * list row, because that is what it behaves as. */
+.big-choice {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.9rem 0.75rem;
+  margin-bottom: 0.6rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  color: inherit;
+  text-decoration: none;
+}
+.big-choice-icon { flex: none; font-size: 1.5rem; line-height: 1; color: var(--accent); }
+.big-choice-text { flex: 1; min-width: 0; }
+.big-choice-name { display: block; font-weight: 600; }
+.big-choice-sub { display: block; color: var(--text-dim); font-size: 0.85rem; }
+
+/* Square, on white whatever the page is doing. An SVG, so there is no scale to choose and no
+ * downscale to lose modules to -- the browser rasterizes the module grid at whatever the screen
+ * actually is. White ground rather than transparent: a code is defined as dark on light, and the
+ * quiet zone the library draws has to actually be light for a reader to find the code in it. */
+.share-code {
+  display: block;
+  width: 100%;
+  max-width: 22rem;
+  aspect-ratio: 1;
+  height: auto;
+  margin: 0 auto;
+  background: #fff;
+}
+
+.step-fallback { margin-top: 0.75rem; }
+.step-fallback summary { color: var(--text-dim); font-size: 0.85rem; cursor: pointer; padding: 0.15rem 0; }
+.share-digits {
+  display: block;
+  width: 100%;
+  margin-top: 0.4rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.75rem;
+  word-break: break-all;
+}
+
+.scan { margin: 0.5rem 0; }
+.scan-video {
+  display: block;
+  width: 100%;
+  max-width: 22rem;
+  margin: 0.5rem auto;
+  border-radius: var(--radius);
+  background: #000;
+}
+
+.pick-file { display: block; width: 100%; margin: 0.5rem 0; }
+
+/* What arrived, said plainly. The code that carried it is deliberately absent: it is how this
+ * works, not something to read. */
+.outcome { display: flex; align-items: center; gap: 0.75rem; margin: 1rem 0; }
+.outcome-tick {
+  flex: none;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 50%;
+  background: var(--good);
+  color: #fff;
+  font-size: 1.3rem;
+  line-height: 2.5rem;
+  text-align: center;
+}
+.outcome-what { min-width: 0; }
+.outcome-name { display: block; font-size: 1.15rem; font-weight: 600; overflow-wrap: anywhere; }
+.outcome-what .song-sub { display: block; }
+
+/* The one button on a screen whose whole purpose is that button. */
+.icon-btn.wide { display: block; width: 100%; margin-top: 0.5rem; text-align: center; }
+
+/* Below this the result count is hidden rather than removed — it is a swap target, and taking it out
+ * of the document would leave the fragment that updates it nowhere to land. */
+@media (max-width: 27rem) {
+  .result-count { display: none; }
+}

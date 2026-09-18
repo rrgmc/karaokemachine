@@ -1,0 +1,13 @@
+<h4>This installer is not signed</h4>
+
+<p>If a double-click reported that it &ldquo;cannot be opened because it is from an unidentified
+developer&rdquo;, close that and <b>right-click the <code>.pkg</code> and choose Open</b>, then
+Open again. You have already done this if you are reading it.</p>
+
+<p>This build was made without a Developer ID identity. It is the same honesty the Windows setup
+carries about SmartScreen&rsquo;s <i>&ldquo;Windows protected your PC&rdquo;</i>.</p>
+
+<p><b>The applications this places are a different matter and open normally.</b> The quarantine
+flag is put on the file you downloaded, and files written out of an installer package do not
+inherit it &mdash; so unlike the zip of a <code>.app</code>, there is no
+<code>xattr -dr com.apple.quarantine</code> to run afterwards.</p>

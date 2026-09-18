@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The remote-only setup program's outline. Compiled by tools/platform/macos/installer-remote.sh,
+  which is the only thing that should use it — that script stages the payload, builds the two
+  component packages, reads the version out of the bundle and substitutes the two placeholders.
+  @VERSION@ is the workspace version; @ARCHS@ is asked of the staged executable with `lipo -archs`,
+  never of a flag.
+
+  **`customize="never"`, which is the opposite of the all-in-one's answer and the same argument.**
+  There, `customize="always"` opens on the component list because somebody who never finds the
+  Customize button installs 150 MB they may not have wanted. Here there is one product and no second
+  thing to leave out, so a component page would be a question with one answer.
+
+  **Two component packages, because `pkgbuild` takes one root and one install location.**
+  The application goes to /Applications and the papers to /usr/local/km-remote, and those cannot
+  share a package. The second one is hidden and always on: the one way to take this off again must
+  not be something a tick could decline, and the licence texts are an obligation rather than a
+  convenience.
+
+  **`com.rrgmc.km-remote` and never `com.rrgmc.karaokemachine.remote`.** Sharing the
+  all-in-one's namespace would make Installer treat one install as an upgrade of the other, and its
+  uninstaller forgets receipts by that prefix — it would take this package's receipt with its own.
+  The *bundle* identifier is a different question and a different namespace: it stays
+  `com.karaokemachine.remote`, because it names the application rather than the carrier.
+
+  `require-scripts="true"` is absent because there are no scripts. Nothing here puts a command on the
+  PATH, so there is no postinstall whose failure would be a silent half-install.
+-->
+<installer-gui-script minSpecVersion="2">
+    <title>KM Remote</title>
+    <organization>com.rrgmc</organization>
+
+    <options customize="never" hostArchitectures="@ARCHS@"/>
+
+    <domains enable_anywhere="false" enable_currentUserHome="false" enable_localSystem="true"/>
+
+    <!-- Declarative rather than an `<installation-check script="...">`: JavaScript in a Distribution
+         is deprecated and increasingly disabled, and there is nothing to compute. 11.0 is exactly
+         what Info.remote.plist declares in LSMinimumSystemVersion, and installer-remote.sh asserts
+         that this number and that one still agree rather than trusting them to. -->
+    <volume-check>
+        <allowed-os-versions>
+            <os-version min="11.0"/>
+        </allowed-os-versions>
+    </volume-check>
+
+    <readme file="readme.html" mime-type="text/html"/>
+    <conclusion file="conclusion.html" mime-type="text/html"/>
+
+    <choices-outline>
+        <line choice="app"/>
+        <line choice="docs"/>
+    </choices-outline>
+
+    <choice id="app" visible="false" start_selected="true" enabled="false"
+            title="KM Remote"
+            description="Search and queue from this Mac, with your own copy of the song list.">
+        <pkg-ref id="com.rrgmc.km-remote.app"/>
+    </choice>
+    <choice id="docs" visible="false" start_selected="true" enabled="false"
+            title="Documentation and the uninstaller">
+        <pkg-ref id="com.rrgmc.km-remote.docs"/>
+    </choice>
+
+    <pkg-ref id="com.rrgmc.km-remote.app" version="@VERSION@"
+             auth="Root" onConclusion="None">#km-remote-app.pkg</pkg-ref>
+    <pkg-ref id="com.rrgmc.km-remote.docs" version="@VERSION@"
+             auth="Root" onConclusion="None">#km-remote-docs.pkg</pkg-ref>
+</installer-gui-script>

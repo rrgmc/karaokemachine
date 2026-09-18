@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="{{ chrome.locale }}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}{{ crate::APP_NAME }}{% endblock %}</title>
+<link rel="stylesheet" href="/static/style.css">
+<link rel="icon" href="/static/icon.png">
+<script src="/static/htmx.min.js" defer></script>
+{# `defer` on both, so this runs after htmx has defined the events it listens for. #}
+<script src="/static/ui.js" defer></script>
+</head>
+{# **Every sentence `ui.js` says is read off here.** A static file cannot go through the `|t` filter,
+   so an English string written into that script would appear inside a Portuguese page with nothing
+   to catch it -- the catalog scanner reads templates and a page test never fetches the script.
+   `km-remote-pages`' `share_receive.html` hands `scan.js` its own words the same way. Two of these
+   still carry `{what}` and `{status}`, which are values only the browser has; see `ScriptWords`. #}
+<body data-js-answered="{{ chrome.script.answered }}"
+      data-js-unreachable="{{ chrome.script.unreachable }}"
+      data-js-timed-out="{{ chrome.script.timed_out }}"
+      data-js-swap-failed="{{ chrome.script.swap_failed }}"
+      data-js-the-tool="{{ chrome.script.the_tool }}">
+{# Where a request says how it went. Outside `main`, and first in the body, so a toast is not clipped
+   by the table's own scroll box and does not have to fight the sticky header for a stacking order --
+   it sits in the top right, under that header, which is why `ui.js` measures the header's height for
+   it. Empty in the markup: both `ui.js` and the server fill it, and neither has anything to say
+   until something has happened. #}
+<div id="toasts" class="toasts"></div>
+<header>
+  <h1>{{ crate::APP_NAME }}</h1>
+  <nav>
+    {# **The one tab that carries state, and it is a link rather than a bare href for that reason.**
+       The filter already survived a reload and the back button, because `/songs/rows` pushes it into
+       the address bar -- but a pushed URL only ever existed in the browser, so the nav could not see
+       it and going to Packages and back handed somebody the whole corpus. `Chrome::songs_href` is
+       `/songs` until there is something to remember. #}
+    <a href="{{ chrome.songs_href() }}" class="{% if chrome.tab == "songs" %}on{% endif %}">{{ "nav-songs"|t }}</a>
+    <a href="/lyrics" class="{% if chrome.tab == "lyrics" %}on{% endif %}"
+       title="{{ "nav-lyrics-title"|t }}">{{ "nav-lyrics"|t }}</a>
+    <a href="/favorites" class="{% if chrome.tab == "favorites" %}on{% endif %}">{{ "nav-favorites"|t }}</a>
+    <a href="/packages" class="{% if chrome.tab == "packages" %}on{% endif %}">{{ "nav-packages"|t }}</a>
+    {# No count beside it. A number that cannot reach zero stops being a queue of work and becomes a
+       permanent fixture of the navigation, which is what a corpus of a few hundred thousand files
+       makes of any duplicate count. The page reports; nothing here nags. #}
+    <a href="/duplicates" class="{% if chrome.tab == "duplicates" %}on{% endif %}">{{ "nav-duplicates"|t }}</a>
+    <a href="/scan" class="{% if chrome.tab == "scan" %}on{% endif %}">{{ "nav-scan"|t }}</a>
+    <a href="/settings" class="{% if chrome.tab == "settings" %}on{% endif %}">{{ "nav-settings"|t }}</a>
+  </nav>
+  {# Each count is a sentence rather than a number beside a word, because each is a plural over the
+     number in it and Portuguese chooses its own form. Composed in `handlers::chrome`, where a test
+     can reach it. #}
+  <span class="counts">
+    {{ chrome.said.songs }} &middot; {{ chrome.said.files }}
+    {%- match chrome.said.failed %}{% when Some with (failed) %} &middot; <span class="bad">{{ failed }}</span>{% when None %}{% endmatch %}
+    &middot; {{ chrome.said.favorites }}
+  </span>
+  {# The folder was already printed here; making it a link is the whole "change folder" control.
+     A tab of its own would have implied the picker is somewhere you work, and it is somewhere you
+     pass through. #}
+  <a class="root" href="/open" title="{{ "nav-root-title"|t }}">{{ chrome.root }}</a>
+  {# **Which machine Play and Install would reach**, in the corner `km-admin` puts the same tag in.
+     Those two controls are the only things in this tool that leave it, and until now the only way to
+     find out where they pointed was to open Settings -- so a song test-played into somebody else's
+     machine, or into nothing, looked exactly like a song test-played correctly.
+
+     The name where the machine has said one, the address otherwise, and the address always in the
+     tooltip so a name never hides where it is. Both come out of the workspace database; nothing here
+     asks the network, because this is drawn on every page and a machine that is switched off is the
+     ordinary state of affairs. #}
+  {% match chrome.machine_label() %}
+  {% when Some with (label) %}
+  <a class="machine-tag" href="/settings" title="{{ chrome.machine_title.as_deref().unwrap_or("") }}">{{ label }}</a>
+  {% when None %}
+  <a class="machine-tag none" href="/settings" title="{{ "header-machine-none-title"|t }}">{{ "header-machine-none"|t }}</a>
+  {% endmatch %}
+  {# **Which build this is**, last of the facts about this run and before the buttons, which are the
+     only things in the header that do something. Dim, because it is read once when a page does
+     something surprising and never again. See `Every program says which build it is` in
+     docs/decisions/interface.md. A product name and a number are the same in every language and are
+     deliberately not keyed. #}
+  <span class="version" title="{{ "header-version-title"|t }}">{{ crate::VERSION }}</span>
+  {# Two buttons, never both, and which one is a fact about where this page is being drawn.
+
+     In a browser, Quit is not a convenience: started by double-clicking a corpus there is no console
+     to press Ctrl-C in, so without it the only way to stop the tool is the task manager.
+
+     In this tool's own window there already is one -- closing the window asks for the same shutdown
+     Quit does, and the same one Ctrl-C does -- so a Quit button is a second X beside the X. What is
+     genuinely missing there is the other direction: a webview is not a browser, it has no address
+     bar and no bookmarks, and somebody who wants the tool in a real tab had to find the address in a
+     console they may not have. Hence Open in browser, which the server does through the same
+     `osopen` the Open in OS button uses.
+
+     **It sends where the page is, and that is the whole of `hx-vals` here.** A bare POST leaves
+     the server opening the address it was started on, so pressing it after narrowing a corpus of
+     hundreds of thousands of files opens every one of them -- the filter is in the
+     address bar (htmx pushes it) and nowhere the server can see. An `href` is not the answer
+     either: the URL wanted is the one the browser is on *now*, which no template knows. The handler
+     checks what arrives against its own address before opening it. #}
+  {% if chrome.windowed %}
+  <button class="quit" hx-post="/browser" hx-target="#header-said" hx-swap="innerHTML"
+          hx-vals='js:{"url": window.location.href}'
+          title="{{ "header-open-browser-title"|t }}">{{ "header-open-browser"|t }}</button>
+  {% else %}
+  <button class="quit" hx-post="/quit" hx-target="#header-said" hx-swap="innerHTML"
+          title="{{ "header-quit-title"|t }}">{{ "header-quit"|t }}</button>
+  {% endif %}
+  <span id="header-said"></span>
+</header>
+<main>
+{% block content %}{% endblock %}
+</main>
+</body>
+</html>

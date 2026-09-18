@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<!--
+  **The doctype has to be the first thing in the file, and it is load-bearing rather than tidy.**
+  Installer sniffs the pane's *data* to decide whether it is HTML or plain text, and a file starting
+  with a comment fails that sniff -- so the whole page was shown as raw markup, this comment
+  included. Reproduced outside Installer with the same Cocoa importer:
+  `textutil -stdin -convert txt -stdout < this-file` echoes the source, and echoes the prose once a
+  doctype is in front of it. `mime-type="text/html"` in the Distribution does not rescue it.
+  tools/platform/macos/installer.sh asserts the first line on every build.
+  The pane Installer shows when it has finished. tools/platform/macos/installer.sh substitutes
+  @DATA_LOCATIONS@ with tools/platform/macos/pkg/data-locations.txt, HTML-escaped.
+
+  **That block is shared with tools/platform/macos/uninstall.sh and comes from one file**, because the thing
+  people fear about an uninstaller is that it takes the songs with it: the promise is made here and
+  kept there, and two copies of it could disagree. The Windows installer says the same sentence in
+  one place, its `CurUninstallStepChanged`; macOS has no uninstaller UI, so it has to be said twice
+  and therefore has to be written once.
+-->
+<html>
+<head><meta charset="utf-8"></head>
+<body style="font: 13px -apple-system, sans-serif; margin: 0">
+
+<p><b>Installed.</b></p>
+
+<p>Whatever you ticked is now in <b>Applications</b> &mdash; <i>KaraokeMachine</i>,
+<i>KM Package Builder</i>, <i>KM Remote</i>, <i>KM Admin</i> &mdash; and the command-line tools are on
+your <code>PATH</code>, in <code>/usr/local/bin</code>:</p>
+
+<pre style="font: 12px ui-monospace, monospace">karaokemachine --show-paths
+km-pack spec ./songs --out vol1.kmspec.yaml
+km-package-builder ./songs --init --scan --open</pre>
+
+<p>The machine comes up with no songs in it. Build a package with the Package Builder or with
+<code>km-pack</code>, then drop the <code>.kmpkg</code> into the packages folder named below.</p>
+
+<pre style="font: 12px ui-monospace, monospace">@DATA_LOCATIONS@</pre>
+
+<p><b>To remove all of this later</b>, open <code>/usr/local/karaokemachine</code> &mdash; the folder
+named above &mdash; and double-click <b>Uninstall KaraokeMachine</b>. It lists what it will remove
+and asks before it does anything. From a terminal,
+<code>sudo /usr/local/karaokemachine/uninstall.sh</code> is the same thing.</p>
+
+</body>
+</html>

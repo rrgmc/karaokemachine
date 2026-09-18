@@ -1,0 +1,42 @@
+<div class="sheet-backdrop" hx-get="/favorites/sheet/close" hx-target="#sheet" hx-swap="innerHTML"></div>
+
+<div class="sheet" role="dialog" aria-modal="true" aria-label="{{ "song-favorite"|t }}">
+
+  <div class="sheet-title">{{ title }}</div>
+  <div class="sheet-sub">{% match artist %}{% when Some with (artist) %}{{ artist }}{% when None %}&mdash;{% endmatch %}</div>
+
+  {% match error %}
+  {% when Some with (message) %}<p class="banner">{{ message }}</p>
+  {% when None %}
+  {% endmatch %}
+
+  {% for pair in folders %}
+  <button class="sheet-folder"
+          hx-post="/favorites/folders/{{ pair.0.id }}/toggle/{{ number }}"
+          hx-vals='{"multi": "{% if multi %}1{% else %}{% endif %}"}'
+          hx-target="#sheet" hx-swap="innerHTML">
+    <span>{% if pair.1 %}&#9733;{% else %}&#9734;{% endif %}</span>
+    <span>{{ pair.0.name }}</span>
+    <span class="count">{{ pair.0.songs }}</span>
+  </button>
+  {% endfor %}
+
+  <form class="field-row" style="margin-top:.5rem"
+        hx-post="/favorites/folders"
+        hx-vals='{"song": "{{ number }}", "multi": "{% if multi %}1{% else %}{% endif %}"}'
+        hx-target="#sheet" hx-swap="innerHTML">
+    <input type="text" name="name" placeholder="{{ "folder-new"|t }}" aria-label="{{ "folder-new-name"|t }}"
+           enterkeyhint="done" autocapitalize="words">
+    <button class="icon-btn">{{ "folder-add"|t }}</button>
+  </form>
+
+  <div class="sheet-actions">
+    {% if multi %}
+    <button class="icon-btn primary" hx-get="/favorites/sheet/close" hx-target="#sheet" hx-swap="innerHTML">{{ "folder-done"|t }}</button>
+    {% else %}
+    <button class="quiet" hx-get="/favorites/sheet/{{ number }}?multi=1" hx-target="#sheet" hx-swap="innerHTML">{{ "song-more-folders"|t }}</button>
+    <button class="icon-btn" style="margin-left:auto" hx-get="/favorites/sheet/close" hx-target="#sheet" hx-swap="innerHTML">{{ "folder-close"|t }}</button>
+    {% endif %}
+  </div>
+
+</div>

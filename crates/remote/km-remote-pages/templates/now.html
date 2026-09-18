@@ -1,0 +1,7 @@
+{% extends "layout.html" %}
+{% block title %}{{ "tab-now"|t }}{% endblock %}
+{% block content %}
+{# The player card and nothing else. Which machine this device talks to is on the Setup tab: this
+   page is about the song, and that one is about the appliance. #}
+{{ player|safe }}
+{% endblock %}

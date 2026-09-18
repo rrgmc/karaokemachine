@@ -1,0 +1,154 @@
+<h2>{{ "pictures-heading"|t }}</h2>
+
+<p class="lead">{{ "pictures-lead"|t }}</p>
+
+{% include "_job.html" %}
+
+<h3>{{ "providers-heading"|t }}</h3>
+<form id="pack-search" method="post" action="/admin/pictures/settings">
+  <div class="providers">
+  {% for provider in providers %}
+    <label class="provider {% if provider.chosen %}chosen{% endif %}">
+      <input type="radio" name="provider" value="{{ provider.value }}" {% if provider.chosen %}checked{% endif %}>
+      {# The provider's own name, and its own terms. Both are the provider's words rather than this
+         program's -- a name is a proper noun and the terms are a licence summary -- so neither is a
+         catalog entry. See the header of `i18n/en.ftl`. #}
+      <span class="name">{{ provider.name }}</span>
+      {% if !provider.needs_key %}<span class="tag good">{{ "provider-no-account"|t }}</span>
+      {% else if provider.has_key %}<span class="tag good">{{ "provider-key-set"|t }}</span>
+      {% else %}<span class="tag">{{ "provider-needs-key"|t }}</span>{% endif %}
+      <span class="terms note">{{ provider.terms|safe }}</span>
+      {% if provider.needs_key %}
+      <span class="note">{{ "provider-get-key"|t }} <a href="https://{{ provider.key_page }}" target="_blank" rel="noreferrer">{{ provider.key_page }}</a></span>
+      {% endif %}
+    </label>
+  {% endfor %}
+  </div>
+
+  <label class="field">
+    <span>{{ "key-field"|t }}</span>
+    <input type="password" name="key" placeholder="{{ "key-placeholder"|t }}" autocomplete="off" size="44">
+  </label>
+  <label class="check">
+    <input type="checkbox" name="remember" value="1">
+    {{ "key-remember"|t }}
+    <span class="note">
+      {% if can_restrict %}
+        {{ "key-remember-unix"|t }}
+      {% else %}
+        {# Two sentences, the second emphasised, rather than one sentence with a `<strong>` in the
+           middle of it: a message split around its own emphasis fixes English word order for every
+           language that follows. #}
+        {{ "key-remember-windows-lead"|t }} <strong>{{ "key-remember-windows-warning"|t }}</strong>
+      {% endif %}
+    </span>
+  </label>
+
+  {# **What the pack will be called, and a search will not run without it.** Two packs built from two
+     searches differ only in a count and eight hex characters, on a page whose whole job is that a
+     pack is a thing you keep. The name is a label rather than part of the search: it is not in the
+     config the pipeline is handed, so changing it does not invalidate the analysis and does not
+     re-measure a single photograph.
+
+     **No placeholder and no worked example**, because a suggested name is the name every pack gets.
+     What the hint describes is the shape, which is a rule rather than a word to copy.
+
+     Slugged on save and shown back slugged, so the rule is visible rather than described — see
+     `pictures::slug`. `required` is the courtesy; `Settings::ready` is the rule, because a page held
+     open from before this asked would otherwise post without the field at all. #}
+  <label class="field">
+    <span>{{ "pack-name-field"|t }}</span>
+    <input type="text" name="name" value="{{ settings.name.as_deref().unwrap_or("") }}"
+           size="30" spellcheck="false" autocomplete="off" required>
+    <span class="note">{{ "pack-name-hint"|t }}</span>
+  </label>
+
+  <label class="field">
+    <span>{{ "terms-field"|t }}</span>
+    <textarea name="terms" rows="7" cols="40" spellcheck="false">{{ settings.terms_text() }}</textarea>
+  </label>
+
+  <div class="numbers">
+    <label class="field">
+      <span>{{ "pages-field"|t }}</span>
+      <input type="number" name="pages" value="{{ settings.pages }}" min="1" max="20">
+    </label>
+    <label class="field">
+      <span>{{ "count-field"|t }}</span>
+      <input type="number" name="target_count" value="{{ settings.target_count }}" min="1" max="500">
+    </label>
+    <label class="field">
+      <span>{{ "contrast-field"|t }}</span>
+      <input type="number" name="target_contrast" value="{{ settings.target_contrast }}" min="1" max="21" step="0.5">
+      <span class="note">{{ "contrast-hint"|t }}</span>
+    </label>
+    <label class="field">
+      <span>{{ "ask-width-field"|t }}</span>
+      <input type="number" name="min_source_width" value="{{ settings.min_source_width }}" min="320" max="8000" step="80">
+      <span class="note">{{ "ask-width-hint"|t }}</span>
+    </label>
+    <label class="field">
+      <span>{{ "keep-width-field"|t }}</span>
+      <input type="number" name="min_decoded_width" value="{{ settings.min_decoded_width }}" min="320" max="8000" step="80">
+      <span class="note">{{ "keep-width-hint"|t }}</span>
+    </label>
+  </div>
+
+  {# `formnovalidate` so a provider key can still be saved before the pack has a name. Saving is
+     writing down what is on the page; only running needs every answer. #}
+  <button type="submit" formnovalidate>{{ "action-save"|t }}</button>
+</form>
+
+<form method="post" action="/admin/pictures/keys/forget">
+  <button type="submit" class="quiet">{{ "action-forget-keys"|t }}</button>
+</form>
+
+<h3>{{ "search-heading"|t }}</h3>
+<p class="note">{{ "search-note"|t }}</p>
+<p class="note">{{ "search-kept"|t }}</p>
+{# **The second button on the form above, rather than a form of its own.** A run uses what is on the
+   page, so the fields have to travel with it; `form=` reaches back to that form because the
+   *Forget the keys* form sits between the two and a form cannot nest inside another. `formaction`
+   is what sends the same fields somewhere else. #}
+<button type="submit" form="pack-search" formaction="/admin/pictures/run">{{ "action-search"|t }}</button>
+
+{# The list is its own file so that a finished build can swap it in — see the header there. #}
+{% include "_packs.html" %}
+
+{% match review %}
+{% when Some with (it) %}
+<h3>{{ "review-heading"|t }}</h3>
+<p>
+  {# Composed in Rust: two counts and a plural, which `filters`' own rule keeps out of markup —
+     *"a plural is arithmetic"*. See `handlers::last_review`. #}
+  {{ it.verdict }}
+  {% if it.redistributable %}
+  <span class="tag good">{{ "review-may-pass-on"|t }}</span>
+  {% else %}
+  <span class="tag">{{ "review-for-this-machine"|t }}</span>
+  {% endif %}
+</p>
+
+{% if !it.rejected.is_empty() %}
+<p class="note">
+  {{ "review-rejected"|t }}
+  {# The reason codes are `km-wallpaper-pack`'s own — `too_small_on_disk` and its neighbours — and
+     stay as they arrive: they are what the hint beside *Keep at least* tells somebody to look for. #}
+  {% for reason in it.rejected %}<span class="tag">{{ reason.0 }} &times;{{ reason.1 }}</span> {% endfor %}
+</p>
+{% endif %}
+
+<div class="grid">
+{% for picture in it.chosen %}
+  <figure>
+    <img loading="lazy" src="/admin/pictures/thumb/{{ picture.provider }}/{{ picture.id }}"
+         alt="{{ picture.alt }}">
+    <figcaption>
+      {{ picture.author }}
+      <span class="note">{{ picture.license }} &middot; {{ "picture-contrast"|t }} {{ picture.contrast }}</span>
+    </figcaption>
+  </figure>
+{% endfor %}
+</div>
+{% when None %}
+{% endmatch %}

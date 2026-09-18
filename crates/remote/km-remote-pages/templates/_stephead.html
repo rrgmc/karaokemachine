@@ -1,0 +1,19 @@
+{# The header every share and backup screen wears.
+
+   Both flows run several screens deep — choose a side, show or read, confirm, done — and backing
+   out a step at a time is tedious when what somebody wants is simply to be finished. So the way out
+   to the folder list is on every one of them, next to the step-back that only some of them have.
+
+   One template for both, unlike the sibling project's two near-identical copies: this one reads
+   `head`, a field every screen in both flows carries, so there is no `.Sync`-or-`.Backup` to thread
+   through pages that have only one of them. #}
+<div class="step-head">
+  {% match back %}
+  {% when Some with (href) %}
+  <a class="icon-btn" href="{{ href }}" aria-label="{{ "step-back"|t }}" title="{{ "step-back"|t }}">&lsaquo;</a>
+  {% when None %}
+  {% endmatch %}
+  <h1>{{ title }}</h1>
+  <a class="icon-btn step-exit" href="/?mode=favorites"
+     aria-label="{{ "step-exit"|t }}" title="{{ "step-exit"|t }}">&#10005;</a>
+</div>

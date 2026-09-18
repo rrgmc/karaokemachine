@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Permits plain HTTP to loopback, and to nothing else.
+
+    Android has blocked cleartext traffic by default since API 28, and that block includes
+    `127.0.0.1`. The server inside this app is plain HTTP on loopback, so without this exception the
+    WebView renders nothing at all and says very little about why, which makes it the cheapest
+    catastrophic omission in the whole application.
+
+    **Only the WebView needs it, and that is worth knowing before somebody widens it.** This policy
+    is enforced by Java's networking stack and by the WebView. The Rust side's plain-HTTP requests to
+    the machine and its `ws://` event stream are native sockets and are not policed by it at all,
+    so there is no reason to add a base-config permitting cleartext to the LAN, and doing so would be
+    a real loss for no gain.
+-->
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">127.0.0.1</domain>
+        <domain includeSubdomains="false">localhost</domain>
+    </domain-config>
+</network-security-config>

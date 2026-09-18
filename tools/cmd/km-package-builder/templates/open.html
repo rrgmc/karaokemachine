@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="{{ locale }}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ "open-title"|t }} &mdash; {{ crate::APP_NAME }}</title>
+<link rel="stylesheet" href="/static/style.css">
+<link rel="icon" href="/static/icon.png">
+<script src="/static/htmx.min.js" defer></script>
+<script src="/static/ui.js" defer></script>
+</head>
+<body>
+<div id="toasts" class="toasts"></div>
+<header>
+  <h1>{{ crate::APP_NAME }}</h1>
+  {% match current %}
+  {% when Some with (root) %}
+    <span class="root">{{ root }}</span>
+    <a href="/songs">{{ "open-back"|t }}</a>
+  {% when None %}
+    {# **"Choose a folder" is wrong while one is being opened**, and it was the same wrong message as
+       the chooser below, in the one line somebody reads first. A startup reopen has no `current` —
+       there is no workspace yet — so this arm is exactly the state the fix below is about. #}
+    {% if opening_now() %}
+    <span class="counts">{{ "open-opening-a-folder"|t }}&hellip;</span>
+    {% else %}
+    <span class="counts">{{ "open-choose-a-folder"|t }}</span>
+    {% endif %}
+  {% endmatch %}
+  {# The same chip `layout.html` carries. This page has its own shell rather than extending that
+     one — it is drawn before there is a workspace to build a `Chrome` from — so the header has to
+     be told twice. #}
+  <span class="version" title="{{ "header-version-title"|t }}">{{ crate::VERSION }}</span>
+  {% if windowed %}
+  <button class="quit" hx-post="/browser" hx-target="#quit-said" hx-swap="innerHTML"
+          hx-vals='js:{"url": window.location.href}'
+          title="{{ "header-open-browser-title"|t }}">{{ "header-open-browser"|t }}</button>
+  {% else %}
+  <button class="quit" hx-post="/quit" hx-target="#quit-said" hx-swap="innerHTML"
+          title="{{ "header-quit-title"|t }}">{{ "header-quit"|t }}</button>
+  {% endif %}
+  <span id="quit-said"></span>
+</header>
+
+<main class="open">
+
+<div id="opening">
+{# **A job that is already over still has something to say**, and the two fragments reach that state
+   by opposite routes: `open_progress.html` arrives at it by polling, this by drawing the page fresh.
+   A refusal made before any job could start is left here by `report_failed_open` and is only ever
+   seen this way; a reload after any failed open is the same picture. No script to bring the chooser
+   back, because `opening_now()` is false for a finished job and it was never hidden. #}
+{% match opening %}
+{% when Some with (job) %}
+  {% if !job.finished %}
+    <p class="message opening-now polling" hx-get="/open/progress" hx-trigger="load"
+       hx-target="#opening" hx-swap="innerHTML">{{ "open-opening"|t }} {{ job.root }}&hellip;</p>
+  {% else %}
+    {% match job.error %}
+    {% when Some with (reason) %}
+      <p class="message error">{{ reason }}</p>
+    {% when None %}
+    {% endmatch %}
+  {% endif %}
+{% when None %}
+{% endmatch %}
+</div>
+<div id="said"></div>
+
+{# **Hidden while a folder is opening, and that is the whole of the startup bug.** Reopening last
+   time's folder lands here — there is no workspace yet, so every route is sent to this page — and
+   this block drew underneath the progress line for the whole of the open. Ten seconds of looking at
+   the folder chooser, which is what this program shows when it has *failed* to open something.
+
+   `hidden` rather than a `{% if %}` around it, because the element has to stay in the document: the
+   progress fragment swaps into `#opening` only, so the two ways an open can end without a redirect
+   both need to bring this back, and they do it by name. See `open_progress.html`. #}
+<div class="chooser"{% if opening_now() %} hidden{% endif %}>
+
+{% if !recent.is_empty() %}
+<section class="recent">
+  <h2>{{ "open-recent"|t }}</h2>
+  <ul>
+  {% for folder in recent %}
+    {# **Three states, and each has its own words.** A folder still on disk whose `.kmbuild` has been
+       deleted is not an openable row: pressing it would produce a refusal and leave the row looking
+       identical afterwards. The startup reopen reads the same enum, so the two cannot disagree about
+       which folder is the obvious thing to press.
+
+       **Only an openable row is a button.** An action whose one outcome is a refusal is worse than
+       no action: the refusal arrives after the press, and nothing about the row has changed. So the
+       other two are text, and each says which of the two it is. #}
+    <li class="{% if !folder.openable() %}missing{% endif %}">
+      {% if folder.openable() %}
+        <button class="link" hx-post="/open/open" hx-vals='{"path": {{ folder.path|json|safe }}}'
+                hx-target="#opening" hx-swap="innerHTML">{{ folder.name }}</button>
+      {% else %}
+        <span class="link">{{ folder.name }}</span>
+      {% endif %}
+      <span class="path">{{ folder.path }}</span>
+      {% if folder.unindexed() %}
+        {# Deliberately not *not found*: the folder and its songs are still there, and what went was
+           the curation — the tags, the packages, the favorites. Somebody who reads "not found" goes
+           looking for a missing drive. There is no one-press fix to offer beside it: making one again
+           means indexing the corpus from nothing, which is `Create here` in the box below and is not
+           something to put one press away. #}
+        <span class="warn">{{ "open-database-gone"|t }}</span>
+      {% else if folder.present %}
+        <span class="counts">{{ folder.counts }}</span>
+      {% else %}
+        <span class="warn">{{ "open-not-found"|t }}</span>
+      {% endif %}
+      <button class="forget" hx-post="/open/forget" hx-vals='{"path": {{ folder.path|json|safe }}}'
+              hx-target="#said" hx-swap="innerHTML" title="{{ "open-forget-title"|t }}">&times;</button>
+    </li>
+  {% endfor %}
+  </ul>
+</section>
+{% endif %}
+
+<section class="browse">
+  <h2>{{ "open-browse"|t }}</h2>
+  <div id="listing">
+    <button class="link" hx-get="/open/list" hx-target="#listing" hx-swap="innerHTML">
+      {{ "open-browse-this-computer"|t }}&hellip;
+    </button>
+  </div>
+</section>
+
+<section class="by-path">
+  <h2>{{ "open-or-type-a-path"|t }}</h2>
+  <form hx-post="/open/open" hx-target="#opening" hx-swap="innerHTML">
+    <input type="text" name="path" placeholder="{% match start %}{% when Some with (start) %}{{ start }}{% when None %}{{ "open-path-placeholder"|t }}{% endmatch %}" size="60">
+    <button type="submit">{{ "open-open"|t }}</button>
+    <button type="submit" name="create" value="1">{{ "open-create-here"|t }}</button>
+  </form>
+</section>
+</div>
+
+</main>
+</body>
+</html>

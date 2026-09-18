@@ -1,0 +1,23 @@
+[package]
+name = "km-songbook"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+description = "The printed song book: a small PDF writer and the layout of a karaoke machine's song list."
+
+[lints]
+workspace = true
+
+# **`km-songcode` and nothing else, and that is the crate's whole shape.** A song book is a PDF, and a
+# PDF built on the base-14 fonts needs no font file, no font parser and no compression -- so this
+# crate takes no external dependency at all. See the module header in `src/lib.rs` for what that
+# bargain buys and what it costs.
+#
+# What is deliberately absent is `km-song`, whose `text::fold` is the accent folding this book's
+# alphabet has to agree with. Taking it would drag `midly`, `encoding_rs` and `chardetng` into a
+# crate that draws rectangles. So the caller folds and `arrange` sorts; see `src/arrange.rs`.
+[dependencies]
+km-songcode = { workspace = true }

@@ -1,0 +1,19 @@
+{# The lists this package draws on, over the songs they decide.
+
+   **A second sight of a fact the Sources tab owns**, and it earns the repetition: the song list is
+   what somebody reads, and a sourced package's list is not theirs to edit one row at a time. Seeing
+   *Brasil Axé* and *Brasil Samba* above the rows says why the rows are what they are, and why there
+   is no way to put another song among them here.
+
+   Each is the link the Sources tab gives it, to the songs that list holds. #}
+<div id="package-source-chips"{% if oob %} hx-swap-oob="true"{% endif %}>
+{% if !sources.is_empty() %}
+<p class="chips">
+  <span class="dim">{{ "package-sourced-from"|t }}</span>
+  {% for f in sources %}
+  <a class="tag pill {% if f.temporary %}warn{% else %}good{% endif %}"
+     href="/songs?favorite={{ f.id }}">{{ f.name }} <span class="dim">{{ f.song_count }}</span></a>
+  {% endfor %}
+</p>
+{% endif %}
+</div>

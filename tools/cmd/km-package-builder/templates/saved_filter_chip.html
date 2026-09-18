@@ -1,0 +1,46 @@
+{# One named filter, as a chip or as the box that renames it.
+
+   **Its own fragment because two of the three buttons answer with the whole strip and one does
+   not.** Updating and forgetting change what the strip holds and where a name sorts, so both come
+   back as the out-of-band strip; opening and closing the rename box changes one chip and must not
+   redraw the others, which would take a second box somebody had open away from them. #}
+<span class="tag saved" id="saved-{{ filter.id }}">
+  {% if renaming %}
+  {# `saved_name` rather than `name` for the reason the save box gives: a row in `#rows` already
+     sends `name`. The answer is the strip, not this chip, because a rename can move the name past
+     its neighbors -- `sort_key` is what the strip is ordered by. #}
+  <form hx-post="/songs/saved-filters/{{ filter.id }}/rename"
+        hx-target="#saved-filter-result" hx-swap="innerHTML">
+    <input name="saved_name" value="{{ filter.name }}" size="18" autofocus required>
+    <button class="primary">{{ "action-save"|t }}</button>
+    <button type="button" hx-get="/songs/saved-filters/{{ filter.id }}/chip"
+            hx-target="#saved-{{ filter.id }}" hx-swap="outerHTML">{{ "action-cancel"|t }}</button>
+  </form>
+  {% else %}
+  {# A link, not a control: restoring redraws every control in the bar, so it is a page load -- the
+     same reason a chip's ✕ is an `<a>` and not a button.
+
+     **The `?` is written whether or not there is a query after it.** A bare `/songs` is answered
+     with the *remembered* filter, so a saved whole-corpus filter spelled without it would restore
+     the cursor instead of the corpus. See `handlers::songs`. #}
+  <a href="/songs?{{ filter.query }}"
+     title="{% if filter.query.is_empty() %}{{ "saved-whole-corpus"|t }}{% else %}{{ filter.query }}{% endif %}">{{ filter.name }}</a>
+  {# Straight away, with no confirmation, where saving under a name that is taken asks first. The
+     difference is how the row was arrived at: this button is on the row it writes, so there is no
+     second filter it could have meant. See `A filter can be given a name, and then it is not the
+     cursor` in `docs/decisions/curation.md`. #}
+  <button type="button" class="chip-action"
+          hx-post="/songs/saved-filters/{{ filter.id }}/update"
+          hx-target="#saved-filter-result" hx-swap="innerHTML"
+          title="{{ filter.update_title }}">&#8635;</button>
+  <button type="button" class="chip-action"
+          hx-get="/songs/saved-filters/{{ filter.id }}/chip?renaming=1"
+          hx-target="#saved-{{ filter.id }}" hx-swap="outerHTML"
+          title="{{ "saved-rename-title"|t }}">&#9998;</button>
+  <button type="button" class="chip-action forget"
+          hx-post="/songs/saved-filters/{{ filter.id }}/delete"
+          hx-confirm="{{ filter.forget_confirm }}"
+          hx-target="#saved-filter-result" hx-swap="innerHTML"
+          title="{{ "saved-forget-title"|t }}">&times;</button>
+  {% endif %}
+</span>

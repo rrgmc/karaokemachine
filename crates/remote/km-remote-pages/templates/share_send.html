@@ -1,0 +1,34 @@
+{% extends "layout.html" %}
+{% block title %}{{ head.title }}{% endblock %}
+{% block content %}
+
+{{ head|safe }}
+
+{% match error %}
+{% when Some with (message) %}
+<p class="empty">{{ message }}</p>
+{% when None %}
+
+<p class="step-note">{{ count }} {{ "share-code-hint"|t }}</p>
+
+{% if too_dense %}
+{# Asked here as well as in the image handler, because a page that links an image the handler will
+   refuse shows a broken icon and no reason. The text underneath works perfectly well. #}
+<p class="step-warn">{{ "share-too-dense"|t }}</p>
+{% else %}
+{# `no-store` on the image, so this always shows what the folder holds now. An SVG, so it is right
+   at whatever size the browser draws it — see the decision. #}
+<img class="share-code" src="{{ image_href() }}" alt="{{ image_alt }}">
+{% endif %}
+
+{# Shut by default. The typed code is for a folder past what one code can hold, or a camera that
+   will not start — not part of the ordinary path. #}
+<details class="step-fallback"{% if too_dense %} open{% endif %}>
+  <summary>{{ "share-cant-scan"|t }}</summary>
+  <p class="step-note">{{ "share-code-copy"|t }}</p>
+  <textarea class="share-digits" rows="4" readonly onclick="this.select()">{{ code }}</textarea>
+</details>
+
+{% endmatch %}
+
+{% endblock %}

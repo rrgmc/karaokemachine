@@ -1,0 +1,38 @@
+[package]
+name = "km-stream"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+description = "Encoding a drawn screen and the sound beside it into one HLS stream."
+
+[lints]
+workspace = true
+
+[features]
+# The crate's own ffmpeg switch, on the same terms as `km-video`'s and for the same reason: this is
+# a workspace **member**, so `cargo build --workspace` compiles it whether or not anything asked for
+# a stream, and an unconditional `ffmpeg-next` would make ffmpeg and libclang a requirement of
+# building the workspace at all.
+#
+# Off by default. Consumers do not name it: the root `Cargo.toml` puts `features = ["ffmpeg"]` on
+# the workspace dependency entry, so any crate that takes `km-stream` gets a real one.
+#
+# **Unlike `km-video`, the crate is not wholly behind it.** `pixels` converts a drawn screen into the
+# planes an encoder wants and needs no encoder to do it, so it compiles and is tested on a machine
+# with no ffmpeg — which is where a colour-matrix mistake is cheapest to catch.
+ffmpeg = ["dep:ffmpeg-next"]
+
+[dependencies]
+thiserror = { workspace = true }
+tracing = { workspace = true }
+ffmpeg-next = { workspace = true, optional = true }
+
+# **`required-features` and not a `cfg` inside the file**, because an example is a build target: a
+# workspace build with no ffmpeg would otherwise compile a `main` whose every import is configured
+# out, and the failure names a missing module rather than a missing feature.
+[[example]]
+name = "synthetic"
+required-features = ["ffmpeg"]

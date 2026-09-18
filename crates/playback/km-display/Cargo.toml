@@ -1,0 +1,78 @@
+[package]
+name = "km-display"
+description = "SDL3 karaoke display"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+km-song = { workspace = true }
+km-songcode = { workspace = true }
+# `QueueEntry` to draw the queue with, and `MAX_TEMPO_RATIO` to bound the lyric lookahead by.
+#
+# **This replaced `km-audio` outright**, which is the clearest measure of what that dependency
+# actually was: those two names were the whole of it, so a crate whose entire job is to put pixels on
+# a screen was linking `rustysynth`, `cpal` and `rtrb` for a struct and a float. Nothing here has
+# ever produced a sample.
+km-queue = { workspace = true }
+# The screen's own words. No `askama` feature — nothing here renders markup; this crate puts pixels
+# on a screen and wants a catalog, not a template engine.
+km-locale = { workspace = true }
+sdl3-ttf-sys = { workspace = true }
+image = { workspace = true }
+qrcode = { workspace = true }
+# `Fit` and `WallpaperConfig` are configuration: they are what `settings.json` holds, so they carry
+# their own serde derives rather than being mirrored in `km-app` by a type that can drift.
+serde = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+# A wallpaper folder may hold zip files of images as well as loose images, so the wallpaper scanner
+# reads archive directories and pulls single entries out of them.
+zip = { workspace = true }
+
+# SDL is linked differently on Android than everywhere else, and the difference is not cosmetic.
+#
+# On a desktop, static is what we want: one executable, no SDL to install or ship beside it.
+#
+# On Android the Java side calls into SDL — `SDLActivity` invokes `nativeRunMain` and a dozen other
+# `Java_org_libsdl_app_*` functions that live in SDL's C code. Those have to be in the dynamic symbol
+# table of a library the activity has loaded. Linked statically into our own `cdylib` they may or may
+# not survive `--gc-sections`, and the failure mode is an `UnsatisfiedLinkError` at run time on a
+# device — which is exactly the kind of thing that cannot be checked at build time. So Android gets
+# the arrangement SDL documents: a real `libSDL3.so` in the APK, loaded first.
+[target.'cfg(not(target_os = "android"))'.dependencies]
+sdl3 = { workspace = true }
+
+#
+# One consequence, and it is load-bearing: because `libSDL3.so` is a real shared library, the C++
+# runtime SDL needs is *inside it*, private and unexported. So `libkm_app.so` needs no C++ runtime of
+# its own — it imports no C++ symbols at all, only `SDL_*`.
+#
+# **Do not add a `build.rs` here that links `c++_static` for Android and adds
+# `<ndk-sysroot>/usr/lib/<triple>` to the link search path so rustc can find it.** That directory
+# holds `libc.a`, `libm.a` and `libdl.a` next to `libc++_static.a`, while the shared stubs live in
+# the per-API-level subdirectory below it — so putting it on the search path makes `-lc` resolve to
+# *static bionic*. The resulting `libkm_app.so` has no `libc.so` in `DT_NEEDED` and carries its own
+# copy of scudo, `bionic_systrace` and the DNS resolver, whose constructors run at `dlopen` and
+# segfault on a null property lookup before `SDL_main` is ever reached. See docs/ARCHITECTURE.md.
+#
+# If SDL is ever built static on Android, a C++ runtime becomes necessary again — link the archive by
+# absolute path with `rustc-link-arg`, never by adding that directory to the search path.
+[target.'cfg(target_os = "android")'.dependencies]
+sdl3 = { version = "0.18.4", default-features = false, features = [
+    "ttf",
+    "build-from-source",
+    "unsafe_textures",
+] }
+
+[dev-dependencies]
+km-song = { workspace = true, features = ["testing"] }
+
+[[example]]
+name = "preview"

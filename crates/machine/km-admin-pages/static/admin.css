@@ -1,0 +1,731 @@
+/* The owner's page, on both of its hosts.
+ *
+ * One file, no framework, and deliberately plainer than the singer's remote. That page is used in a
+ * dark room by somebody holding a phone at arm's length while a song plays; this one is used once,
+ * in the light, by somebody who has sat down to sort their machine out. So it is a document rather
+ * than a control surface: readable at a glance, wide rows, nothing that moves.
+ *
+ * **Both hosts load this and only this.** `km-admin` keeps no stylesheet; the last section of this
+ * file is its half, and the reasoning for one file rather than two is there. */
+
+:root {
+  color-scheme: light dark;
+  --bg: #14110f;
+  --card: #1e1a17;
+  --line: #35302b;
+  --text: #f2ede8;
+  --dim: #a49a90;
+  /* The machine's amber, which is what leads its icon and its banner. This page is the machine's
+   * own surface, so it wears the machine's color rather than the remote's blue. */
+  --accent: #f0a500;
+  --good: #4caf7d;
+  --warn: #d9a441;
+  --bad: #e05252;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  padding: 0 1rem 3rem;
+  background: var(--bg);
+  color: var(--text);
+  font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  max-width: 46rem;
+  margin-inline: auto;
+}
+
+body.centered {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 1rem;
+}
+
+.top { padding: 1.5rem 0 0.5rem; }
+.top h1 { margin: 0; font-size: 1.5rem; overflow-wrap: anywhere; }
+.top .sub { margin: 0.15rem 0 0; color: var(--dim); font-size: 0.9rem; }
+.top .sub .program { color: var(--accent); }
+
+/* The tabs. A row of links and not a control: this page reloads, so the current one is marked by
+ * `aria-current` rather than by anything a script sets. */
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  border-bottom: 1px solid var(--line);
+  margin: 1rem 0 0;
+}
+
+.tabs a {
+  padding: 0.5rem 0.9rem;
+  color: var(--dim);
+  text-decoration: none;
+  border-bottom: 2px solid transparent;
+}
+
+.tabs a[aria-current="page"] {
+  color: var(--text);
+  border-bottom-color: var(--accent);
+}
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 1rem 1.1rem;
+  margin: 1.2rem 0;
+}
+
+.card h2 { margin: 0 0 0.5rem; font-size: 1.05rem; }
+
+/* Dim, small, and secondary to whatever it sits under. `.note` is the inline one — a table cell, a
+ * span after a control — and `.hint` is the same thing as a paragraph, carrying the margins a block
+ * needs. Two names because they are two uses, and one declaration because they are one look. */
+.hint, .note { color: var(--dim); font-size: 0.9rem; }
+.hint { margin: 0.2rem 0 0.9rem; }
+.empty { color: var(--dim); margin: 0.4rem 0; }
+
+/* Banners carry the one thing this page has to say loudly, which is usually that there is no
+ * password. Color and a border rather than an icon: an icon is one more thing to draw and says
+ * less than a sentence. */
+.banner {
+  border-radius: 8px;
+  padding: 0.6rem 0.8rem;
+  margin: 0.8rem 0;
+  border-left: 4px solid var(--dim);
+  background: #00000030;
+}
+
+.banner-good { border-left-color: var(--good); }
+.banner-warn { border-left-color: var(--warn); }
+.banner-bad { border-left-color: var(--bad); }
+.banner a { color: var(--accent); }
+
+table { width: 100%; border-collapse: collapse; }
+th, td { text-align: left; padding: 0.5rem 0.4rem; border-bottom: 1px solid var(--line); }
+th { color: var(--dim); font-size: 0.82rem; font-weight: 600; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+tr.current td { background: #ffffff08; }
+
+/* **A size is one word.** `30.8 MiB` broken over two lines reads as two values, and a cramped
+ * column will break it there given the chance — `19.3` above `MiB` was on the Pictures tab at every
+ * width. Right-aligned tabular numerals only line up if they stay on one line. */
+td.num, th.num { white-space: nowrap; }
+
+/* And so is an action's label. `Delete the file` wrapping to three lines makes a control twice the
+ * height of the row it acts on, which is what the Problems tab looked like on a phone.
+ *
+ * **`a.danger` as well as `button`**, because a delete that asks first is a *link* to a
+ * confirmation page — the one control here that is not a form — and a rule naming only `button`
+ * leaves the single most cramped cell on these pages untouched. */
+td button, td a.danger { white-space: nowrap; }
+
+/* A table on a phone is the one thing this layout cannot make narrow, so it scrolls inside itself
+ * rather than making the whole page scroll sideways.
+ *
+ * **`min-width` is what makes that true, and `width: 100%` alone makes it false**: a table told to
+ * fit its card always fits, by wrapping every cell until it does, and then there is nothing to
+ * scroll. The Problems tab at 500 px was a seven-line ribbon of `is not a readable package:` beside
+ * a three-line button, all of it inside a card with no scrollbar. The floor is in `rem` so it moves
+ * with the type. */
+.card { overflow-x: auto; }
+.card table { min-width: 26rem; }
+
+/* **The Problems table asks for more, because one of its columns is a sentence.** At the floor
+ * above, `is not a readable package: invalid Zip archive` came out seven lines tall beside a
+ * three-line button. The two-column bank and picture lists are left at 26rem, where they fit a
+ * phone without scrolling at all — a floor is only worth paying for where the content needs it. */
+.card table.faults { min-width: 34rem; }
+
+/* ...and below that floor it stops being a table at all.
+ *
+ * **Scrolling is the wrong answer for this one table, and which control it hides is why.** Every
+ * other table here scrolls a *number* out of view; this one puts Delete last, so the column that
+ * goes past the edge is the only thing a person came to the row to press. Stacked, the row reads as
+ * what it is — a file, what is wrong with it, and the one thing to do about it — and nothing is off
+ * screen.
+ *
+ * The headings go with the columns: `File` over a file name that is already on its own line says
+ * nothing, and `What is wrong` over a sentence that begins `is not a readable package` says it
+ * twice. */
+@media (max-width: 34rem) {
+  .card table.faults { min-width: 0; }
+  .card table.faults thead { display: none; }
+  .card table.faults tr { display: block; border-bottom: 1px solid var(--line); padding: 0.6rem 0; }
+  .card table.faults tr:last-child { border-bottom: 0; }
+  .card table.faults td { display: block; border-bottom: 0; padding: 0.15rem 0; }
+  .card table.faults td:empty { display: none; }
+}
+
+.badge {
+  display: inline-block;
+  font-size: 0.72rem;
+  padding: 0.05rem 0.4rem;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #14110f;
+  margin-left: 0.3rem;
+  vertical-align: middle;
+}
+
+.badge-quiet { background: var(--line); color: var(--dim); }
+
+/* The count on the Problems tab. `--bad` rather than `--accent` because it is the one badge on this
+   page that reports something wrong, where the others label a row that is merely a particular kind
+   — "playing", "came with the machine". Dark text on it for the same reason `.badge` uses dark text
+   on `--accent`: both fills are bright enough that the page's own foreground would not carry. */
+.badge-bad { background: var(--bad); color: #14110f; }
+
+form { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: end; margin: 0.4rem 0; }
+form.inline { display: inline-flex; margin: 0; }
+
+label { display: flex; flex-direction: column; gap: 0.2rem; font-size: 0.85rem; color: var(--dim); }
+
+/* A tick box reads along the line rather than down it: the box is the control and the words are its
+   label, where every other field here has the label above the control. `align-items: center` and not
+   `end`, or the box sits on the baseline of a wrapped sentence instead of beside its first line. */
+label.check { flex-direction: row; align-items: center; gap: 0.4rem; color: var(--text); }
+label.check input { margin: 0; }
+
+/* A tick box whose label needs a sentence under it rather than beside it — the searching's
+ * "remember this key" is the one. It wraps to its own full-width line and indents to clear the box,
+ * so the row above stays the box and its words and this reads as a note about them. */
+label.check { flex-wrap: wrap; }
+label.check .note { flex-basis: 100%; margin-left: 1.6rem; }
+
+input[type="text"], input[type="password"], input[type="number"], input[type="file"] {
+  background: #00000040;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--text);
+  padding: 0.45rem 0.55rem;
+  font: inherit;
+  min-width: 0;
+}
+
+input[type="number"] { width: 6rem; }
+
+/* **A `select` belongs in the list above, and leaving it out is what a white slab looks like.** The
+ * output picker was the browser's own dropdown — white ground, black text, native arrow — sitting in
+ * a dark card next to inputs that had all been styled. `appearance: none` is what stops the platform
+ * drawing it, so the arrow is drawn here instead: an SVG in the background, which needs no script
+ * and so keeps `/admin/`'s `No htmx, no script at all` intact. */
+select {
+  appearance: none;
+  background: #00000040 no-repeat right 0.55rem center;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23c9c4bd' stroke-width='1.6' stroke-linecap='round'/%3E%3C/svg%3E");
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--text);
+  padding: 0.45rem 2rem 0.45rem 0.55rem;
+  font: inherit;
+  min-width: 0;
+}
+
+/* **And the button inside a file input, which is the half a person actually sees.** The input's own
+ * box was already dark; the *Choose file* button on top of it was the platform's, so every upload
+ * card on both hosts carried a white rectangle — and its label is in the browser's language rather
+ * than the page's, which no stylesheet can fix and this at least stops advertising. */
+input[type="file"]::file-selector-button {
+  background: var(--line);
+  border: 0;
+  border-radius: 5px;
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+  margin-right: 0.6rem;
+  padding: 0.3rem 0.6rem;
+}
+
+input[type="file"]::file-selector-button:hover { background: #ffffff22; }
+
+/* Room for the button *and* the name beside it. The platform elides the file name to whatever is
+ * left — `Nenhum ar...ivo escolhido` — which reads as a rendering fault rather than as a
+ * placeholder. It grows in the flex row and gives up at the card's width, so a phone keeps it on
+ * one line with the Add button underneath. */
+input[type="file"] { flex: 1 1 18rem; }
+
+button {
+  background: var(--accent);
+  color: #14110f;
+  border: 0;
+  border-radius: 6px;
+  padding: 0.5rem 0.9rem;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* Removing a package, a bank or a picture each delete a file, so each asks first -- on a
+ * confirmation page of its own, because this surface has no script.
+ *
+ * **The test is whether a file somebody may not be able to get again is destroyed**, which all three
+ * meet: an uninstall deletes the .kmpkg, a bank removal deletes the bank, and a picture's folder on
+ * an appliance is reachable by nothing the box has.
+ *
+ * **And it stops there, because a page that asks twice teaches people to click twice.** Moving a
+ * package's bank, showing the next picture and setting a name are one click each, and removing the
+ * password carries the guard its own risk earns -- an explicit clear=yes field -- rather than a
+ * page. The color marks these out; the confirmation is what makes the color mean something.
+ *
+ * `a.danger` because the control is a link to the question rather than a button that does the
+ * thing. */
+button.danger, a.danger { background: transparent; color: var(--bad); border: 1px solid var(--bad); }
+a.danger {
+  display: inline-block;
+  padding: 0.5rem 0.9rem;
+  border-radius: 6px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.facts { display: grid; grid-template-columns: auto 1fr; gap: 0.25rem 1rem; margin: 0.6rem 0 0.9rem; }
+.facts dt { color: var(--dim); font-size: 0.85rem; }
+.facts dd { margin: 0; font-variant-numeric: tabular-nums; }
+
+/* Whether this tool is let in to the machine the facts above it name, inside the same card.
+ *
+ * A rule and no heading rather than a card of its own: it answers the same question the facts
+ * answer, and a second card would put a gap and a full heading between *which machine this is* and
+ * *can this program change it*. */
+.choose { border-top: 1px solid var(--line); padding-top: 0.9rem; }
+.choose h3 { margin: 0 0 0.5rem; font-size: 0.95rem; color: var(--dim); }
+
+.addresses { list-style: none; padding: 0; margin: 0.3rem 0 0.6rem; }
+.addresses li { padding: 0.15rem 0; }
+.addresses a { color: var(--accent); overflow-wrap: anywhere; }
+
+/* The Machine tab's errands, one at a time ---------------------------------- *
+ *
+ * **One deliberate copy of this strip exists**, and it is `km-package-builder`'s, over its curation
+ * panels. `tools/cmd/assets/` is a second cargo workspace whose programs compile their own `static/`
+ * in, so that one cannot be shared and is spelled alike on purpose, down to the arm-per-tab shape
+ * below; `--edge` there is `--line` here.
+ *
+ * `km-admin` needs no copy: it draws this tab from this file.
+ *
+ * The polarity argument that chooses flat siblings over `:has()` is in `machine.html`, beside the
+ * radios it is about. */
+.settings { margin: 1.2rem 0; }
+
+/* Hidden but focusable, so the strip is arrow-key navigable exactly as the ARIA tab pattern asks --
+ * which a radio group is, for free. */
+.settings > input { position: absolute; opacity: 0; pointer-events: none; }
+
+.tabstrip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.tabstrip label {
+  padding: 0.4rem 0.9rem;
+  color: var(--dim);
+  font-size: 0.9rem;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  user-select: none;
+}
+
+.tabstrip label:hover { color: var(--text); }
+
+/* Unconditional, which is the half of the polarity argument that lives here: a browser that could
+ * not evaluate a `:has()` would show no pane at all, where a stylesheet that fails to load leaves
+ * every section stacked -- which is exactly the arrangement this replaces. */
+.settings .pane { display: none; padding-top: 1rem; }
+
+/* One arm per tab, and they have to be written out: a selector cannot ask which radio is checked
+ * without naming it. */
+#machine-tab-debug:checked ~ .pane.debug,
+#machine-tab-name:checked ~ .pane.name,
+#machine-tab-password:checked ~ .pane.password,
+#machine-tab-demo:checked ~ .pane.demo,
+#machine-tab-language:checked ~ .pane.language {
+  display: block;
+}
+
+#machine-tab-debug:checked ~ .tabstrip label[for="machine-tab-debug"],
+#machine-tab-name:checked ~ .tabstrip label[for="machine-tab-name"],
+#machine-tab-password:checked ~ .tabstrip label[for="machine-tab-password"],
+#machine-tab-demo:checked ~ .tabstrip label[for="machine-tab-demo"],
+#machine-tab-language:checked ~ .tabstrip label[for="machine-tab-language"] {
+  color: var(--text);
+  border-bottom-color: var(--accent);
+}
+
+/* Keyboard users get the focus ring the hidden input would otherwise take with it. */
+#machine-tab-debug:focus-visible ~ .tabstrip label[for="machine-tab-debug"],
+#machine-tab-name:focus-visible ~ .tabstrip label[for="machine-tab-name"],
+#machine-tab-password:focus-visible ~ .tabstrip label[for="machine-tab-password"],
+#machine-tab-demo:focus-visible ~ .tabstrip label[for="machine-tab-demo"],
+#machine-tab-language:focus-visible ~ .tabstrip label[for="machine-tab-language"] {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+/* A pane opens with the card its tab named, the strip standing in for a heading above it.
+ * Without this the first card sits hard against the strip. */
+.settings .pane > :first-child { margin-top: 0; }
+
+/* A host's own pages ======================================================== *
+ *
+ * `km-admin`'s front door, its picture searching and its bank fetching are pages this crate does
+ * not have and must not have — `A fourth program, rather than a fourth tab on the owner's page`
+ * keeps them off the machine — and they arrive through `Admin::shell`, inside the chrome above. So
+ * their rules live here, in the one stylesheet both hosts load.
+ *
+ * **The machine downloads a few kilobytes it never uses, and that is not a new position.**
+ * `km-remote-pages` decided exactly this for a quarter-megabyte of jsQR and refused a cargo feature
+ * for it, because that "would make it the first compile-time mode split in a crate whose header says
+ * the templates branch on capabilities and never on a mode." One file, one `ASSET_VERSION`, and one
+ * place each color is spelled.
+ *
+ * These were `km-admin/static/style.css`, 669 lines of which a third styled a header bar, a settings
+ * strip, a discovered-machines list and a factory-password banner that the chrome above now draws.
+ * Those went with the templates that used them. What is left is the searching, rewritten in this
+ * file's variables rather than its own: `--ground`, `--panel`, `--edge` and `--radius` were the same
+ * four ideas under different names.
+ *
+ * **The magenta went with them.** That file led with a provisional `--accent: #c43a8e`, "standing in
+ * until a fourth lead is chosen", and the question stopped being live the moment these pages started
+ * wearing the machine's chrome: a magenta underline beneath an amber heading is two products rather
+ * than one. The tool keeps its own *mark*, which is what "four programs in this product can be open
+ * at once and the favicon is what tells two tabs apart" was always about — a tab is found by its
+ * icon, not by the color of its buttons. */
+
+/* Every link that is not a tab, an address or a banner's — which until this rule meant every link in
+ * a sentence: the provider rows' "get a key", the empty states' "give this one an address", and on
+ * the machine's own pages the Cancel on a confirmation and the two doors to the searching. They were
+ * the browser's default blue on a near-black ground: unreadable, and the one thing on the page that
+ * did not look like this product.
+ *
+ * A floor rather than an override. `.tabs a`, `.addresses a` and `.banner a` all set their own color
+ * and all out-specify a bare element selector, so adding this changed none of them. */
+a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+a:hover { text-decoration: underline; }
+
+/* The sentence a page opens with, above its controls. */
+.lead { font-size: 1.15rem; margin-top: 0; }
+
+.card h2 a { color: var(--accent); }
+.card p { margin: 0 0 0.7rem; }
+
+/* A host's front door: which machine, and the password for it -------------- *
+ *
+ * One card on an otherwise empty page, because the page has one thing on it. Narrower than the body
+ * and centred, so it reads as a door rather than as a tab whose chrome failed to load. */
+.door { max-width: 34rem; margin-inline: auto; }
+
+/* **The door is a column, and the generic `form` rule above is why it has to say so.** That rule
+ * lays a form out as a wrapping flex row, which suits two controls side by side and not this page:
+ * the machine somebody chose and the machines a browse turns up are two separate lists, so the
+ * moment anything answers the second lands *beside* the first and both shrink to half a card, with
+ * every row inside them wrapping onto four lines. What the reader has to compare down a column of
+ * addresses ends up in two.
+ *
+ * Every child takes a full row. The button is left out of it: stretched to the card's width, a
+ * primary button reads as a banner rather than as something to press. */
+.door form > *:not(button) { flex: 1 1 100%; }
+
+/* The rows are radios and the whole row is the label, so a press anywhere on it picks the machine —
+ * a target the width of the card rather than the width of a dot. `.mono` is the address, which is
+ * what a person compares between two rows. */
+.machines { list-style: none; padding: 0; margin: 0.4rem 0 1rem; }
+.machines li {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 0.55rem 0.7rem;
+  margin-bottom: 0.45rem;
+}
+/* **A row reads across, and `flex-direction` has to say so.** The generic `label` rule above is a
+ * column, which is right for a field and its caption and wrong for this: without the override every
+ * row puts its radio, its name, its address and its marker on four lines of their own, and a list of
+ * machines becomes a stack of paragraphs. `align-items: baseline` only ever made sense across. */
+.machines label {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin: 0;
+  cursor: pointer;
+}
+.machines input[type="radio"] { margin: 0; }
+.machines .mono { overflow-wrap: anywhere; }
+/* The typed row's box sits under its own label rather than beside it: an address is long and a flex
+ * row would either wrap it or squeeze the label. */
+.machines li > input[type="text"] { margin-top: 0.45rem; width: 100%; }
+.machines li:has(input[type="radio"]:checked) { border-color: var(--accent); }
+/* What this program already holds, above the box that asks for it: one row, so the sentence and the
+ * way out of it read as one statement rather than as a paragraph with a button after it. */
+.door .saved {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.6rem;
+}
+.door .saved p { margin: 0; }
+
+/* The box behind a summary, where there is already a way in. A default triangle and bold label read
+ * as a section of the page; what this is is one more thing you may press, so it takes the accent and
+ * the weight of a link. */
+.door details.retype > summary {
+  cursor: pointer;
+  color: var(--accent);
+  width: fit-content;
+}
+.door details.retype > summary::marker { content: ""; }
+.door details.retype[open] > summary { margin-bottom: 0.6rem; }
+
+/* The saved sentence is about the machine this program is pointed at, and a row somebody has just
+ * picked may be another one — so it stops claiming to be about that one the moment the picked row is
+ * not the chosen row. The box below stays, which is what that state needs. */
+.door form:not(:has(.machines input[value="chosen"]:checked)) .saved { display: none; }
+
+/* The browse fills a second list under the first, and the two are one column of machines to a
+ * reader. Left alone, the first list's trailing margin and the second's leading one stack on top of
+ * the form's own gap, and the rows a browse found sit three times as far apart as the rows that
+ * were already there — which reads as two lists that happen to be near each other. */
+.door form > .machines { margin-bottom: 0; }
+#found .machines { margin-top: 0; }
+
+/* A `.card` that is a section of a page rather than one of a row of them. Same skin, no grid.
+ *
+ * `overflow-x: auto` for the reason `.card` above already carries: the bank table is eight columns
+ * and the body is 46rem, so it scrolls inside its own section rather than making the page scroll
+ * sideways. The cap is this stylesheet's and reaches the searching as well, which is the answer the
+ * machine's own tables have on a phone. */
+.panel {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 1.1rem 1.2rem;
+  margin: 1.2rem 0;
+  overflow-x: auto;
+}
+
+.panel h3 { margin: 0 0 0.8rem; font-size: 1.15rem; }
+
+h3 { margin-top: 2rem; font-size: 1.05rem; }
+
+/* A path, a file name, a size, a rejection reason — anything the reader may have to compare
+ * character by character. The machine's own *Different machine* pane uses it for the address it is
+ * pointed at, so this is shared rather than a host's. */
+.mono {
+  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+  font-size: 0.92em;
+}
+
+/* A size in a table cell is one word wherever it is written, and this is the second place that has
+ * to say so: the fetchable bank table spells its column `mono` rather than `num`, so sixty-three
+ * rows of `261.9` above `MiB` went unfixed by the rule beside `td.num`. Only in a cell — `.mono` is
+ * also a paragraph's worth of path on the *Different machine* pane, which has to wrap. */
+td.mono { white-space: nowrap; }
+
+/* The focus ring an input would otherwise take from the browser, which on this ground is nearly
+ * invisible. */
+input:focus,
+textarea:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+button:hover { filter: brightness(1.1); }
+
+/* A control that is real but secondary — Stop, Remove, Forget every remembered key. Not `.danger`:
+ * these are reversible or merely quiet, where `.danger` marks the ones that destroy a file. */
+button.quiet {
+  background: transparent;
+  color: var(--dim);
+  border: 1px solid var(--line);
+  font-weight: 400;
+}
+
+/* A word about a row, bordered so it reads as a label rather than as text. `.badge` above is the
+ * chrome's version of this idea and stays its own thing: it is a count on a tab, filled and small,
+ * where this sits in a table cell at reading size. */
+.tag {
+  display: inline-block;
+  padding: 0.15rem 0.55rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 0.82rem;
+}
+
+.tag.good { border-color: var(--good); color: var(--good); }
+
+/* Whatever the row is called — a bank, a pack, a provider. */
+.name { font-weight: 600; }
+
+/* Two forms in one table cell — Send beside Remove. Each is its own form because they are two
+ * different posts, and without this they would stack. */
+.actions { display: flex; gap: 0.4rem; align-items: center; }
+
+/* The fetchable tables: sixty-odd banks, or the packs built on this computer. The generic `table`
+ * rules above do the rest, which is most of it. */
+table.banks td { vertical-align: top; }
+table.banks form { margin: 0; }
+
+/* A job's progress ---------------------------------------------------------- *
+ *
+ * The one part of these pages that needs a script, and the only reason `km-admin` loads htmx at all:
+ * `_job.html` replaces itself once a second while a job runs. The machine's host declares no scripts
+ * and so loads none — see `Admin::scripts`. */
+.job {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 0.9rem 1.1rem;
+  margin: 1.2rem 0;
+}
+
+.job p { margin: 0.6rem 0 0; }
+
+/* **Not `.bar`, which was the page header.** This was named `.bar` until 2026-09-04 — a second rule
+ * of that name, 250 lines below the header's, quietly winning the cascade on every page and clipping
+ * the wordmark, nav and tag to a rounded 8px sliver. The header is gone now and the trap with it,
+ * but the name stays fixed: a class that once meant two things is not a name to reuse. */
+.progress {
+  height: 8px;
+  background: var(--bg);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.progress span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.3s ease;
+}
+
+/* A total of zero means "not known yet", so the bar shows movement rather than a proportion it
+ * cannot compute. */
+.progress.working span { animation: sweep 1.4s ease-in-out infinite; }
+
+@keyframes sweep {
+  0% { opacity: 0.25; }
+  50% { opacity: 0.8; }
+  100% { opacity: 0.25; }
+}
+
+/* What a finished job had to say. The chrome's `.banner` says it for a page the server redirected
+ * to; this says it inside a fragment htmx swapped in, which is why there are two. */
+.message {
+  border-radius: 8px;
+  padding: 0.7rem 0.9rem;
+  margin: 1.2rem 0;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--line);
+}
+
+.message.ok { border-left-color: var(--good); }
+.message.bad { border-left-color: var(--bad); }
+
+/* Where pictures come from -------------------------------------------------- *
+ *
+ * One card per provider, the chosen one bordered in the accent. A radio behind each, so this is a
+ * real radio group and needs no script — the same shape as the settings strip above. */
+.providers {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr));
+  gap: 0.8rem;
+  width: 100%;
+  margin-bottom: 1rem;
+}
+
+.provider {
+  display: block;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 0.9rem 1rem;
+  cursor: pointer;
+}
+
+.provider.chosen { border-color: var(--accent); }
+.provider .terms { display: block; margin-top: 0.5rem; }
+
+/* A labelled field that fills its row, for the long ones: a query, an API key, a pack name. `label`
+ * above already stacks its label over its control; this is that at full width. */
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  width: 100%;
+}
+
+.field > span:first-child { color: var(--dim); font-size: 0.9rem; }
+
+/* The short numeric fields — how many, how wide, what contrast — in a row rather than a column. */
+.numbers { display: flex; gap: 1.2rem; flex-wrap: wrap; width: 100%; }
+.numbers .field { width: auto; max-width: 14rem; }
+
+textarea {
+  background: #00000040;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--text);
+  padding: 0.5rem 0.7rem;
+  font: inherit;
+  resize: vertical;
+}
+
+/* The review grid. Thumbnails rather than originals: a hundred and twenty of these at full size is
+ * several hundred megabytes through a webview to draw tiles a few hundred pixels wide. */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+  gap: 0.9rem;
+  margin-top: 1rem;
+}
+
+.grid figure {
+  margin: 0;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.grid img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  background: var(--bg);
+}
+
+.grid figcaption { padding: 0.5rem 0.7rem; font-size: 0.88rem; }
+.grid figcaption .note { display: block; }
+
+/* Errors, which is most of what `ui.js` is for: htmx will not swap a non-2xx response, so a failure
+ * with no handling looks like a control that does nothing. */
+#toasts {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-width: 26rem;
+  z-index: 10;
+}
+
+.toast {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--bad);
+  border-radius: 8px;
+  padding: 0.7rem 0.9rem;
+  box-shadow: 0 6px 20px #0008;
+}

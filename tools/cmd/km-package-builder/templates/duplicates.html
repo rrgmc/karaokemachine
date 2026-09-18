@@ -1,0 +1,40 @@
+{% extends "layout.html" %}
+{% block title %}{{ "nav-duplicates"|t }} &middot; {{ crate::APP_NAME }}{% endblock %}
+{% block content %}
+
+<h2>{{ "nav-duplicates"|t }}</h2>
+<div id="action-result"></div>
+
+{# **A report and not a queue, and that is the whole shape of this page.** The pass finds thousands
+   of groups on a real corpus, and a list of thousands is not work anybody does — so nothing here
+   lists them. What it says is how much was found and where the answer already shows up, which is in
+   the song list, on a song's own page, and beside a favorite. #}
+<div class="panel">
+  <h3 style="margin-top:0">{{ "duplicates-heading"|t }}</h3>
+
+  {% if counts.clusters == 0 %}
+  {# Two keys around the link, because the page it points at is named by that page's own button. #}
+  <p class="dim">
+    {{ "duplicates-none-lead"|t }}
+    <a href="/scan">{{ "scan-reanalyze"|t }}</a> {{ "duplicates-none-tail"|t }}
+  </p>
+  {% else %}
+  {# Two counts in one sentence, so it is composed in Rust. #}
+  <p>{{ found }}</p>
+  <p class="dim">{{ "duplicates-nothing-to-judge"|t }}</p>
+  {% endif %}
+
+  <p>
+    <button hx-post="/duplicates/suggest" hx-target="#action-result" hx-swap="innerHTML"
+            hx-disabled-elt="this">{{ "duplicates-look-again"|t }}</button>
+    <span class="dim">{{ "duplicates-look-again-note"|t }}</span>
+  </p>
+</div>
+
+<div class="panel">
+  <h3 style="margin-top:0">{{ "duplicates-identical-heading"|t }}</h3>
+  <p class="dim">{{ "duplicates-identical-note"|t }}</p>
+  <p><a href="/songs?copies=2%2B&amp;sort=copies">{{ "duplicates-more-than-one-copy"|t }}</a></p>
+</div>
+
+{% endblock %}

@@ -1,0 +1,46 @@
+[package]
+name = "km-pack"
+description = "Build, inspect and validate .kmpkg song packages"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[features]
+# Video songs in a package. Off by default: it pulls `km-video`, and with it ffmpeg. A build without
+# it packages MIDI exactly as before and reports any video files it finds as skipped.
+video = ["dep:km-video"]
+
+[dependencies]
+km-songcode = { workspace = true }
+# The printed song book. `km-pack book` prints a stack of `.kmpkg` files with the prefix each one
+# *suggests*, which is the half of the `A package may carry a prefix` decision a machine never uses.
+km-songbook = { workspace = true }
+km-song = { workspace = true }
+km-suitability = { workspace = true }
+km-fixes = { workspace = true }
+km-cdg = { workspace = true }
+# Named directly for the one type both measurements come back as, so `Measured` can convert either
+# decoder's answer in one place. It arrives through `km-cdg` regardless -- this says so.
+km-loudness = { workspace = true }
+km-kmpkg = { workspace = true }
+km-video = { workspace = true, optional = true }
+anyhow = { workspace = true }
+clap = { workspace = true }
+csv = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+# The package description. This is the only crate in the workspace that reads or writes YAML — see
+# the note beside it in the root `Cargo.toml`.
+serde_norway = { workspace = true }
+
+# The library half of this crate is shared with `tools/cmd/km-package-builder`, and its tests build
+# entries from real parsed songs. The synthetic fixtures live behind km-song's `testing` feature,
+# which is off by default so it never reaches a release binary.
+[dev-dependencies]
+km-song = { workspace = true, features = ["testing"] }

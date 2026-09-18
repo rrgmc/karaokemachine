@@ -1,0 +1,29 @@
+{# Which volume the Details tab shows, drawn over the song list it picks.
+
+   **Links drawn as tabs, because a volume is a place rather than a view.** The first number, Re-flow
+   and the songs under it follow the volume picked here, and a link is what lets that choice survive a
+   reload. The Build tab has a picker of its own, since which file is built is a choice made there.
+
+   **The element is always drawn, and empty while the package has one volume**, which is the package a
+   curator has always had. Always drawn because a sync that starts a volume swaps it out of band, and
+   htmx drops a swap whose id is not on the page.
+
+   The hidden field is what the sync buttons include, so the member table a sync sends back is the
+   volume on the screen rather than the first one. #}
+<div id="package-volumes"{% if oob %} hx-swap-oob="true"{% endif %}>
+{% if !tabs.is_empty() %}
+<nav class="volumetabs">
+  {% for tab in tabs %}
+  {% if tab.current %}<span class="current">{{ tab.label }}</span>
+  <input type="hidden" id="package-volume" name="volume" value="{{ tab.number }}">
+  {# The `href` is the page itself, so the link still works as a link. htmx asks for that same page
+     and swaps only `#package-volume-pane` out of it, which leaves the scroll position and the open tab
+     where they were, and pushes the address so a reload lands on this volume. #}
+  {% else %}<a href="/packages/{{ package_id }}?volume={{ tab.number }}"
+               hx-get="/packages/{{ package_id }}?volume={{ tab.number }}"
+               hx-select="#package-volume-pane" hx-target="#package-volume-pane" hx-swap="outerHTML"
+               hx-push-url="true">{{ tab.label }}</a>{% endif %}
+  {% endfor %}
+</nav>
+{% endif %}
+</div>

@@ -1,0 +1,36 @@
+{% extends "layout.html" %}
+{% block title %}{{ head.title }}{% endblock %}
+{% block content %}
+
+{{ head|safe }}
+
+{# What was received, named — never the code itself, which rides on in the hidden field below. The
+   name is here so that scanning the wrong folder's code is obvious before anything is written; it
+   does not decide where the songs go, because being inside a folder already did. #}
+<div class="outcome">
+  <div class="outcome-tick" aria-hidden="true">&#10003;</div>
+  <div class="outcome-what">
+    {% match scanned_name %}
+    {% when Some with (name) %}<span class="outcome-name">{{ name }}</span>
+    {% when None %}
+    {% endmatch %}
+    <span class="song-sub">{{ scanned_count }}</span>
+  </div>
+</div>
+
+{% match mismatch %}
+{% when Some with (line) %}
+{# Not an error — merging one folder into another is a fair thing to want — but said out loud,
+   because names not matching is also what a mis-scan looks like. #}
+<p class="step-note">{{ line }}</p>
+{% when None %}
+{% endmatch %}
+
+<form method="post" action="{{ path() }}/merge">
+  <input type="hidden" name="code" value="{{ raw }}">
+  <button class="icon-btn primary wide" type="submit">{{ add_label }}</button>
+</form>
+
+<p class="step-note"><a href="{{ path() }}/receive">&lsaquo; {{ "share-scan-another"|t }}</a></p>
+
+{% endblock %}

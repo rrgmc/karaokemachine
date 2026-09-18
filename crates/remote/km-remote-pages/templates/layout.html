@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="{{ chrome.lang }}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+{# `light` alone, not `light dark`: the stylesheet has one palette and is pinned to it, so naming a
+   dark scheme here would only invite the browser to draw a dark `<select>` on a white page. See the
+   head of `static/app.css`. #}
+<meta name="color-scheme" content="light">
+<meta name="theme-color" content="#ffffff">
+<title>{% block title %}KaraokeMachine{% endblock %}</title>
+<link rel="icon" href="/static/icon.png?v={{ chrome.assets }}">
+<link rel="apple-touch-icon" href="/static/icon.png?v={{ chrome.assets }}">
+<link rel="stylesheet" href="/static/app.css?v={{ chrome.assets }}">
+<script src="/static/htmx.min.js?v={{ chrome.assets }}" defer></script>
+<script src="/static/live.js?v={{ chrome.assets }}" defer></script>
+</head>
+<body hx-sync="body:queue last">
+
+<div id="toasts" class="toasts"></div>
+<div class="busy" aria-hidden="true"><span class="spinner"></span></div>
+<div id="sheet"></div>
+
+{{ chrome.banner|safe }}
+
+<main>
+{% block content %}{% endblock %}
+</main>
+
+<nav class="tabbar">
+  {{ chrome.conn|safe }}
+  <a href="/" class="{% if chrome.tab == "browse" %}active{% endif %}">
+    <span class="tab-icon">&#9906;</span><span>{{ "tab-songs"|t }}</span>
+  </a>
+  <a href="/now" class="{% if chrome.tab == "now" %}active{% endif %}">
+    <span class="tab-icon">&#9835;</span><span>{{ "tab-now"|t }}</span>
+  </a>
+  <a href="/queue" class="{% if chrome.tab == "queue" %}active{% endif %}">
+    <span class="tab-icon">&#8801;</span><span>{{ "tab-queue"|t }}</span>
+    {{ chrome.queue_count|safe }}
+  </a>
+  {# The one tab with no word under it, and the narrow one. The other three are places to be while
+     you are using this; this is where you go to make it work and then leave. The label is still
+     there for a screen reader, because a gear on its own has no accessible name -- the same pair of
+     attributes the share action on a folder head carries. #}
+  <a href="/setup" class="tab-setup {% if chrome.tab == "setup" %}active{% endif %}"
+     aria-label="{{ "tab-setup"|t }}" title="{{ "tab-setup"|t }}">
+    <span class="tab-icon">&#9881;</span>
+  </a>
+</nav>
+
+</body>
+</html>

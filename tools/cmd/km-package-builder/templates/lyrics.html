@@ -1,0 +1,21 @@
+<div class="row" style="margin-bottom:0.5rem">
+  <span class="dim">{{ "lyrics-decoded-as"|t }}</span>
+  <span class="tag {% if source == "fallback" %}warn{% endif %}">{{ encoding }} &middot; {{ source }}</span>
+  {% if pinnable %}
+  <form hx-post="/songs/{{ song_id }}/pin-encoding" hx-target="#action-result" hx-swap="innerHTML">
+    <input type="hidden" name="encoding" value="{{ encoding }}">
+    <button>{{ "lyrics-pin-encoding"|t }}</button>
+  </form>
+  {% endif %}
+</div>
+{% if empty %}
+<p class="dim">{{ "lyrics-none"|t }}</p>
+{% else %}
+<div class="lyrics">
+  <ol>
+  {% for line in lines %}
+    <li><span class="at">{{ line.0 }}</span>{{ line.1 }}</li>
+  {% endfor %}
+  </ol>
+</div>
+{% endif %}

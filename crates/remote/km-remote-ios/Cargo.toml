@@ -1,0 +1,36 @@
+[package]
+name = "km-remote-ios"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+description = "The offline remote as an iOS application: a WKWebView over the server in the same process."
+
+# **`staticlib`, where the Android shell is a `cdylib`** -- and that is the platform talking rather
+# than a preference. iOS forbids `fork` and `exec` from a sandboxed app and will not load an
+# arbitrary dynamic library, so a static archive linked into the app binary is the only shape
+# available. It is also the shape the six JNI functions were deliberately kept to, which is what
+# makes this a calling convention rather than a redesign.
+#
+# `cargo build --workspace` on any desktop compiles this to an empty archive, exactly as it compiles
+# the Android shell to an empty library: everything in here is behind `cfg(target_os = "ios")`.
+[lib]
+name = "km_remote_ios"
+crate-type = ["staticlib"]
+
+[lints]
+workspace = true
+
+[dependencies]
+# The state machine, shared with the Android shell. Everything that thinks is in there; what is left
+# here is a string conversion, a `catch_unwind`, and a call.
+km-remote-host = { workspace = true }
+# The server, taken with **`sweep` and not `mdns`**. That one word is this shell's whole answer to
+# the discovery seam. Apple has required `com.apple.developer.networking.multicast` since iOS 14 and
+# grants it only after a manually reviewed request; without it an mDNS browse does not fail, it
+# finds nothing and reports success. `find::Sweep` asks each address on the subnet instead.
+km-remote-core = { workspace = true, features = ["sweep"] }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }

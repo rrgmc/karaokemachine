@@ -1,0 +1,186 @@
+[Unit]
+# The appliance unit: the machine as a box under a television, coming up by itself on boot with no
+# desktop session anywhere on the system. SDL3's kmsdrm backend draws straight to DRM/KMS from a bare
+# virtual terminal, so there is no X server, no Wayland compositor and no display manager involved.
+#
+# Shipped by the package but deliberately *not* enabled by it -- installing the application on a
+# desktop should not hand tty1 to a service. `systemctl enable karaokemachine` is the decision that
+# turns a machine into an appliance, and tools/platform/linux/deploy.sh is what makes it.
+Description=KaraokeMachine
+Documentation=https://github.com/rrgmc/karaokemachine
+#
+# **plymouth-quit-wait.service used to be on this line and is deliberately gone.** Plymouth is a DRM
+# client and holds DRM master while it draws, so it does have to be gone before the display can
+# start -- but ordering *this* unit after the quit is the wrong way round. It made the splash go
+# first and the machine load afterwards, which is four seconds of black television, measured. The
+# ordering runs the other way now: `plymouth-quit.service` is ordered after *this* service, which
+# `Type=notify` above makes mean "after the machine has loaded". Nothing here needs to name plymouth
+# at all, which is why a box without it is unaffected without a word being said about it.
+#
+# The drop-in that reverses the ordering is written by tools/platform/linux/appliance-boot.sh into
+# /etc, not shipped here, for the reason everything else about the splash is: it edits Debian's unit,
+# and the package ships things while the script decides them.
+After=systemd-user-sessions.service sound.target getty@tty1.service
+# Without this, getty and the machine both own tty1 and fight over it.
+Conflicts=getty@tty1.service
+
+[Service]
+# **Type=notify, and it is for the boot splash rather than for systemd's benefit.** The machine sends
+# READY=1 once the audio, the catalog and the API are up and one line before it starts the display --
+# see `notify.rs` and step 6 of the startup order in `lib.rs`. That turns "after this service" into
+# "after the machine has loaded", which is what lets `plymouth-quit.service` be ordered behind it and
+# keep the mark on the television until there is a first frame to replace it. Ordered the other way
+# round -- Debian's default, plymouth quitting at multi-user.target -- measured four seconds of black
+# on a set that had just been showing the mark.
+#
+# **READY is sent before the display, not after, and it has to be**: the display cannot start until
+# plymouth releases DRM master, and plymouth will not release it until READY arrives. So the machine
+# announces everything except the screen, which is the honest contract anyway -- a television that is
+# switched on at nine in the evening is a state this is designed to sit in and keep retrying.
+#
+# **What happens if READY never comes**, because that is the failure this buys: systemd waits
+# TimeoutStartSec and then fails the unit, `Restart=always` tries again, and anything ordered after
+# it runs -- After= is satisfied by a failure as much as by a success, so plymouth is released either
+# way rather than holding the screen for ever. Bounded deliberately below the 90 s default, because
+# the thing being bounded is how long a television can show a boot splash and nothing else.
+Type=notify
+NotifyAccess=main
+TimeoutStartSec=45s
+User=karaoke
+
+# The load-bearing four lines. SDL's kmsdrm backend opens /dev/dri/card0 and calls drmSetMaster,
+# which succeeds only for root or for a process belonging to a logind session on the active VT. A
+# plain User= service has neither a session nor a seat, so it fails -- and because km-app treats a
+# display that will not start as non-fatal and continues headless, the symptom is a black television
+# from a unit that reports `active (running)` and never exits nonzero.
+#
+# PAMName=login runs pam_systemd, which registers a session against seat0. That is what grants the
+# uaccess ACLs on /dev/dri/* and /dev/input/event*, and what sets XDG_RUNTIME_DIR. TTYPath names the
+# terminal the session is attached to. The same construction is what the cage project documents for
+# its own unit, which is the useful signal that this is the trodden path rather than a trick.
+#
+# `login` reuses /etc/pam.d/login, which every Debian has. Only the account and session stacks run --
+# systemd never runs the auth stack -- so the karaoke account having no password is not a problem.
+# If some hardened box's login stack refuses a system account anyway, the fix is a dedicated
+# /etc/pam.d/karaokemachine containing an account and a session line for pam_unix plus pam_systemd,
+# and PAMName pointing at it. Reusing `login` avoids shipping a file into /etc for a problem nobody
+# has yet had.
+#
+# **TTYReset and TTYVHangup are deliberately absent, and they used to be here.** Both reset the
+# virtual terminal around the service, which repaints the console -- and repainting the console is
+# what wiped the boot splash off the screen. Measured on the appliance: plymouth quits 4.36 seconds
+# before this process draws its first frame, `--retain-splash` leaves the mark on the framebuffer to
+# cover exactly that gap, and the VT reset a fifth of a second later blanked it. The television
+# finished negotiating HDMI into the black that left behind.
+#
+# Neither is load-bearing for the seat: `PAMName` and `TTYPath` are what register the session, and
+# they are untouched. What TTYVHangup bought was a clean restart if something else were holding
+# tty1 -- and `Conflicts=getty@tty1.service` is what actually keeps tty1 free here, with
+# `Restart=always` behind it. The trade is a splash that survives against a failure mode nothing has
+# had.
+PAMName=login
+TTYPath=/dev/tty1
+StandardInput=tty-fail
+StandardOutput=journal
+StandardError=journal
+
+# Wait for a display SDL can actually draw on, because on a cold boot there is not one yet.
+#
+# Measured on the appliance, twice in a row, and it is a full second and a third of a race:
+#
+#   13:56:47.641  i915 finds the GPU
+#   13:56:47.962  this service starts        <- After= is already satisfied: seat0 and sound exist
+#   13:56:49.045  SDL: "no video device: kmsdrm not available"
+#   13:56:50.357  /dev/dri/card0 is created  <- the node the line above needed
+#
+# The `After=` line below waits for a seat and a sound card and nothing at all for the display, so
+# the machine came up **headless after every power cut** -- reporting `active (running)`, answering
+# the API, and showing a black television until somebody restarted it by hand. That is the exact
+# failure the appliance exists to not have.
+#
+# **And then it did it again, one layer up, on 2026-09-01.** Waiting for the node was not the whole
+# predicate:
+#
+#   13:36:54.781  [drm] Initialized i915 1.6.0 ... on minor 0
+#   13:36:54.955  wait-for-drm: /dev/dri/card0 appeared after 300ms   <- the guard above, passing
+#   13:36:55.061  Started session-3.scope    <- seat0, tty1, Active=yes: the PAM guard, passing
+#   13:36:55.824  SDL: "no video device: kmsdrm not available"
+#   13:36:55.893  fbcon: i915drmfb (fb0) is primary device   <- 69 ms AFTER SDL gave up
+#
+# Note the 300 ms: the *same* figure as the boot that verified the first fix. The node was never
+# late. What SDL's `get_driindex` actually requires is a connector that is DRM_MODE_CONNECTED and
+# has at least one mode, and i915 finishes probing that about a second after it creates the node --
+# so the first fix passed on margin rather than because its predicate was right. wait-for-drm.sh now
+# waits for the connector, and says which precondition it waited on, because `open` returning EACCES
+# produces a character-identical log line.
+#
+# **What this line cannot do, and the reason the application now retries.** The appliance is a box
+# under a television that people switch off at the wall. That drops HDMI hotplug detect, so at boot
+# the connector genuinely reads `disconnected`, the script correctly times out, and the information
+# that somebody has switched it on arrives at nine in the evening -- minutes after this ran.
+# `Restart=` is no help either: km-app treats a missing display as non-fatal, so the process never
+# exits and systemd has nothing to act on. The machine therefore keeps asking for a screen for as
+# long as it runs; see DISPLAY_RETRY_* and the loop around `display::run` in
+# crates/machine/karaokemachine/src/lib.rs. This line is what makes the *ordinary* cold boot win on
+# the first attempt, with no black flash and nothing in the journal about a missing screen.
+#
+# `After=dev-dri-card0.device` is the declaration this wants to be and it does not work: udev tags
+# block, net, tty and sound devices for systemd but **not drm**, so that unit is permanently
+# inactive and depending on it means the service never starts at all. Making it real needs a udev
+# rule shipped into /etc to tag the device -- a system-wide change to fix one unit's ordering. This
+# waits for the thing itself instead, which is what the ordering would have meant anyway.
+#
+# It gives up after ten seconds and starts regardless, rather than blocking forever on a box with no
+# graphics device: a machine with no screen still has an API and a queue. `-` prefixed as well, so a
+# non-zero exit could not stop the machine either. That is the same rule the application already
+# applies to every other part of startup -- nothing in it is fatal.
+#
+# A script rather than an inline `/bin/sh -c '...'`, and the script says why: systemd expands `$WORD`
+# in an Exec line as one of its own variables before any shell sees it, which cost two boots here.
+ExecStartPre=-/opt/karaokemachine/wait-for-drm.sh
+
+# Named rather than left to SDL's probing order, so a machine that happens to have X libraries
+# installed cannot quietly pick a backend that needs a server nobody is running.
+Environment=SDL_VIDEODRIVER=kmsdrm
+
+# There is deliberately no RUST_LOG here. It used to say `info,km_app=debug`, which pinned exactly
+# what the binary's own default was -- and when that default dropped to plain `info`, a line here
+# would have gone on re-enabling the whole debug stream on the one machine where the journal is the
+# only diagnostic anybody has. The two ways to get more, when a question actually needs them:
+#
+#   Environment=RUST_LOG=info,km_app=debug   # this crate's debug stream; `karaokemachine -v`
+#   Environment=KM_FRAME_STATS=1             # fps/draw/interval once a second; `--frame-stats`
+#
+# The second is an environment variable rather than an argument because adding a line is a smaller
+# and more reversible edit than rewriting ExecStart.
+ExecStart=/usr/bin/karaokemachine
+
+# The fallback, if kmsdrm turns out not to work on this hardware: comment out the
+# `Environment=SDL_VIDEODRIVER` and `ExecStart` lines above and uncomment these. Requires the `cage` package -- a minimal Wayland compositor that runs one
+# fullscreen application and nothing else. Nothing else in this unit changes, which is the point of
+# writing the alternative out here rather than leaving it to be rediscovered.
+# Environment=SDL_VIDEODRIVER=wayland
+# ExecStart=/usr/bin/cage -- /usr/bin/karaokemachine
+
+Restart=always
+RestartSec=2
+
+# How long a stop is given before SIGKILL. Unset, the default is **90 seconds** -- and a power
+# button that leaves the television lit for a minute and a half reads as a button that did not
+# work, which is exactly the thing somebody then holds down.
+#
+# The shutdown block in src/lib.rs is bounded everywhere but one place: the API stop is an explicit
+# 3 s, the watchdog join is one poll interval, `persist()` is a single settings write. The tail is
+# `drop(runtime)`, which is **unbounded** -- dropping a multi-thread runtime waits for
+# `spawn_blocking` tasks, and this machine puts real work there, including a package install that
+# indexes an archive. A deploy that restarts the machine mid-install genuinely can sit in it.
+#
+# 30 s is comfortably ten times the deliberate bound and short enough that a poweroff in front of a
+# person is never a wait. What a SIGKILL at 30 s costs is only what `persist()` had not reached:
+# the catalog, the password, the session epoch, the machine name and the demo state are all written
+# at the moment they change, by decision, precisely because a shutdown hook is what a power cut
+# does not run.
+TimeoutStopSec=30s
+
+[Install]
+WantedBy=multi-user.target

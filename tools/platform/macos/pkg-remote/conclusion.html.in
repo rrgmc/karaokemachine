@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<!--
+  **The doctype has to be the first thing in the file**, for the reason the Read Me pane's own
+  comment gives: Installer sniffs the data, and a file starting with a comment is shown as raw
+  markup. tools/platform/macos/installer-remote.sh asserts the first line on every build.
+
+  The pane Installer shows when it has finished. @DATA_LOCATIONS@ is substituted with
+  tools/platform/macos/pkg-remote/data-locations.txt, HTML-escaped.
+
+  **That block is shared with tools/platform/macos/uninstall-remote.sh and comes from one file**,
+  because the thing people fear about an uninstaller is that it takes the collection with it: the
+  promise is made here and kept there, and two copies of it could disagree.
+-->
+<html>
+<head><meta charset="utf-8"></head>
+<body style="font: 13px -apple-system, sans-serif; margin: 0">
+
+<p><b>Installed.</b></p>
+
+<p><i>KM Remote</i> is in <b>Applications</b>. Open it and it looks for a karaoke machine on this
+network by itself; if there is more than one, or if it finds none, its Setup tab is where you name
+one.</p>
+
+<p>macOS asks once for permission to find devices on the local network. That is how it finds a
+machine at all. Declining it leaves the song list, the search and your favorites working &mdash;
+they are answered from this Mac's own copy &mdash; and stops discovery, queueing and refreshing.</p>
+
+<pre style="font: 12px ui-monospace, monospace">@DATA_LOCATIONS@</pre>
+
+<p><b>To remove this later</b>, open <code>/usr/local/km-remote</code> and double-click
+<b>Uninstall KM Remote</b>. It lists what it will remove and asks before it does anything. From a
+terminal, <code>sudo /usr/local/km-remote/uninstall.sh</code> is the same thing.</p>
+
+</body>
+</html>

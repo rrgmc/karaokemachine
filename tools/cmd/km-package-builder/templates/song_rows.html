@@ -1,0 +1,35 @@
+<div id="rows"{% if show_filename %} class="filenames"{% endif %}
+     data-offset="{{ offset }}" data-total="{{ total }}">
+<div id="action-result"></div>
+{% if songs.is_empty() %}
+  <p class="dim">{{ "songs-no-matches"|t }}</p>
+{% else %}
+{% include "songs_pager.html" %}
+<div class="scroll">
+<table>
+  <thead>
+    <tr>
+      <th><input type="checkbox" class="select-all" title="{{ "songs-select-all-title"|t }}"></th>
+      <th>{{ "column-artist"|t }}</th>
+      <th>{{ "column-title"|t }}</th>
+      <th>{{ "column-language"|t }}</th>
+      <th class="num">{{ "column-length"|t }}</th>
+      <th class="num">{{ "column-suitability"|t }}</th>
+      <th class="num" title="{{ "column-score-title"|t }}">{{ "column-score"|t }}</th>
+      <th class="num" title="{{ "column-melody-title"|t }}">{{ "column-melody"|t }}</th>
+      <th class="num" title="{{ "column-copies-title"|t }}">{{ "column-copies"|t }}</th>
+      <th class="num" title="{{ "column-versions-title"|t }}">{{ "column-versions"|t }}</th>
+      <th class="actions"></th>
+    </tr>
+  </thead>
+  {# One `<tbody>` per song rather than one round the lot: `song_row.html` brings its own, because
+     the element a row's controls swap has to be able to hold the favorite chooser's second line. #}
+  {% for song in songs %}
+  {% include "song_row.html" %}
+  {% endfor %}
+</table>
+</div>
+
+{% include "songs_pager.html" %}
+{% endif %}
+</div>

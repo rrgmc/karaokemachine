@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<!--
+  **The doctype has to be the first thing in the file, and it is load-bearing rather than tidy.**
+  Installer sniffs the pane's *data* to decide whether it is HTML or plain text, and a file starting
+  with a comment fails that sniff -- so the whole page is shown as raw markup, this comment included.
+  `mime-type="text/html"` in the Distribution does not rescue it, and
+  tools/platform/macos/installer-remote.sh asserts the first line on every build.
+
+  The pane Installer shows first. The placeholder below is the only substitution, and the snippet
+  that fills it comes from tools/platform/macos/pkg/ unchanged: Gatekeeper's obstacle is a property
+  of the archive rather than of the product, so the two carriers have one copy of that text between
+  them. **Naming the placeholder here would be a second mention**, and the renderer refuses anything
+  but exactly one -- every mention is substituted, including one inside a comment.
+
+  **A separate file from the all-in-one's, rather than the same one with a condition in it.** That
+  one names four applications, /usr/local/bin and a packages folder, and every sentence of it would
+  need a qualifier here. A pane with conditionals in it is how a pane comes to say something untrue.
+-->
+<html>
+<head><meta charset="utf-8"></head>
+<body style="font: 13px -apple-system, sans-serif; margin: 0">
+
+<p><b>KM Remote</b> &mdash; the karaoke remote, with your own copy of the song list. Point it at a
+karaoke machine once and it copies the whole catalog onto this Mac, so browsing, searching and your
+favorites work whether or not the machine is switched on.</p>
+
+<p>This installs the application alone. Nothing is placed on your <code>PATH</code> and no file type
+is claimed. The karaoke machine itself is a separate download, which carries this program too.</p>
+
+@SIGNING@
+
+<h4>Removing it later</h4>
+
+<p>Open <b>/usr/local/km-remote</b> and double-click <b>Uninstall KM Remote</b>. It shows you what it
+is about to remove, asks, and then asks for your password &mdash; in that order. From a terminal,
+<code>sudo /usr/local/km-remote/uninstall.sh</code> does the same thing without the questions.</p>
+
+<p>Either way it leaves your copy of the song list and your favorites alone, and prints where they
+are on its way out.</p>
+
+</body>
+</html>

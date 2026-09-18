@@ -1,0 +1,59 @@
+{# The packs in this program's folder, and what is to be done with one.
+
+   **This list is the reason building stopped sending.** A pack used to go to whichever machine was
+   chosen at the moment the search started and was then unreachable except through a file manager —
+   so the second machine in the house meant building it again. Every pack ever built is here, and
+   Send can be pressed as many times as there are machines.
+
+   Its own file so a finished build can redraw it: see the header on `_banks.html`, which is here for
+   the same reason and swaps into the same `#local`. #}
+<div id="local">
+<section class="panel">
+  <h3>{{ "packs-heading"|t }}</h3>
+  {% if packs.is_empty() %}
+  <p class="note">{{ "packs-empty"|t }}</p>
+  {% else %}
+  <p class="note">{{ "packs-note"|t }}</p>
+  <table class="banks">
+    <thead>
+      <tr>
+        <th>{{ "column-pack"|t }}</th>
+        <th>{{ "column-pictures"|t }}</th>
+        <th>{{ "column-size"|t }}</th>
+        <th>{{ "column-built"|t }}</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for pack in packs %}
+      <tr>
+        <td><span class="name">{{ pack.name }}</span></td>
+        {# The manifest is what these two are read from, and a pack whose sidecar did not travel is
+           still a pack worth sending — so the cell is empty rather than the row being missing. #}
+        <td class="mono">{% match pack.images %}{% when Some with (count) %}{{ count }}{% when None %}&mdash;{% endmatch %}</td>
+        <td class="mono">{{ pack.size }}</td>
+        <td class="mono">{% match pack.built %}{% when Some with (day) %}{{ day }}{% when None %}&mdash;{% endmatch %}</td>
+        <td>
+          <div class="actions">
+            {# No Send where there is no machine, rather than one that could only be refused — the
+               rule `_send_one.html` already keeps about a control nothing can act on. #}
+            {% match machine %}
+            {% when Some with (_address) %}
+            <form method="post" action="/admin/pictures/packs/{{ pack.id }}/send">
+              <button type="submit">{{ "action-send"|t }}</button>
+            </form>
+            {% when None %}
+            {% endmatch %}
+            <form method="post" action="/admin/pictures/packs/{{ pack.id }}/remove"
+                  data-confirm="{{ pack.remove_confirm }}">
+              <button type="submit" class="quiet">{{ "action-remove"|t }}</button>
+            </form>
+          </div>
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+</section>
+</div>

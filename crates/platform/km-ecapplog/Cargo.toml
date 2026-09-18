@@ -1,0 +1,32 @@
+[package]
+name = "km-ecapplog"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+description = "Sending a program's log to the ECAppLog viewer, for the run somebody is watching happen."
+
+[lints]
+workspace = true
+
+[dependencies]
+# The client and its `tracing` layer. The feature is named where the version is; see the root
+# manifest for why the `log` adapter beside it is not taken.
+ecapplog = { workspace = true }
+# Only for the `Subscriber` bound on `EcAppLog::layer`. Nothing here emits an event, and the note on
+# `on_error` in `lib.rs` says why nothing may.
+tracing = { workspace = true }
+# `Layer` and the `LookupSpan` bound the layer carries, which is the seam this crate fills. Every
+# caller already depends on it, so this costs nothing to compile.
+tracing-subscriber = { workspace = true }
+
+[dev-dependencies]
+# Reading back what went on the wire, in `tests/wire.rs`. The library itself writes JSON through
+# `ecapplog` and needs no parser of its own.
+serde_json = { workspace = true }
+# Emitting through the `log` facade and putting it on the bridge, for the one test that asserts such
+# a record reaches the viewer under its own crate. The library speaks `tracing` and nothing else.
+log = { workspace = true }
+tracing-log = { workspace = true }

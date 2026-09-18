@@ -1,0 +1,28 @@
+[package]
+name = "km-passwords"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+description = "The machine passwords a computer has been told to remember, keyed by machine id."
+
+[lints]
+workspace = true
+
+# **Four dependencies, and the absence of a fifth is what makes this crate placeable.** It takes **no
+# HTTP client**, which is the rule that lets `tools/cmd/assets/` reach across the workspace boundary
+# by path: that directory is excluded from the root workspace because its members need TLS from
+# `reqwest` where `km-package-builder` needs it to have none, and a crate carrying a client would
+# re-open the question the exclusion settles. Both tools that remember a password are on opposite
+# sides of that line.
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+directories = { workspace = true }
+tracing = { workspace = true }
+
+# **No dev-dependencies either.** The tests want one empty directory each, and the root workspace
+# carries no `tempfile`; a scratch built from `temp_dir` and the thread id is what every other crate
+# here does, and it keeps the four above as the whole of this crate's tree.

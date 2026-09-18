@@ -1,0 +1,18 @@
+<div id="machine-found" hx-swap-oob="true">
+{% if !offers.is_empty() %}
+  <p class="hint machine-found-head">{{ "machine-also-on-network"|t }}</p>
+  {% for offer in offers %}
+  <div class="machine-found">
+    {% match offer.name %}
+    {% when Some with (name) %}<div class="machine-name">{{ name }}</div>
+    {% when None %}
+    {% endmatch %}
+    <p class="hint"><b>{{ offer.url }}</b></p>
+    <form hx-post="/machine/use" hx-target="#machine" hx-swap="outerHTML">
+      <input type="hidden" name="address" value="{{ offer.url }}">
+      <button type="submit">{{ "machine-use-instead"|t }}</button>
+    </form>
+  </div>
+  {% endfor %}
+{% endif %}
+</div>

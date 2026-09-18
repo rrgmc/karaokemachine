@@ -1,0 +1,9 @@
+{# The badges the hint has just changed, each addressed to the row it belongs on.
+
+   **Every mark is sent, including the empty ones.** A song dropped out of a hint has to be told it
+   no longer carries a number, and the only list that knows which rows those are is the one being
+   replaced. htmx drops a swap whose id is not on the page, so a mark for a song on another page
+   costs nothing and arrives when that page is drawn from `SongRow::hint` instead. #}
+{% for (id, place) in marks %}
+<span id="hint-{{ id }}" hx-swap-oob="true" class="place">{{ place }}</span>
+{% endfor %}

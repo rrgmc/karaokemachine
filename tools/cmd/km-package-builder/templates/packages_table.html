@@ -1,0 +1,54 @@
+{# Every package curated here.
+
+   **A fragment because making one, opening one and deleting one all change it**, and the answer to
+   each is a sentence at the top of the page rather than a new page: without this the row somebody
+   just made is not there, and the row they just deleted still is, until they reload — which is not a
+   thing this tool asks anywhere else. #}
+<div id="packages-table"{% if oob %} hx-swap-oob="true"{% endif %}>
+{% if packages.is_empty() %}
+<p class="dim">{{ "curate-no-packages"|t }}</p>
+{% else %}
+<div class="panel">
+<table>
+  <thead>
+    {# **The name is the link, and the id is not a column.** An id is generated and sixteen hex
+       characters, so a column of them is the widest thing in the table and the least like anything
+       somebody is looking for. It is on the package's own page beside its name, which is where it is
+       wanted: reading it off is a thing done once, when a build's file name or a bank has to be
+       matched to a package. #}
+    <tr><th>{{ "packages-name"|t }}</th><th>{{ "packages-version"|t }}</th><th class="num">{{ "favorites-songs"|t }}</th><th class="num">{{ "packages-from"|t }}</th><th>{{ "packages-last-built"|t }}</th><th></th></tr>
+  </thead>
+  <tbody>
+  {% for p in packages %}
+    <tr>
+      {# **A mark beside the name rather than a column**, because most packages have none and a
+         column of dashes is a column nobody reads. It says which lists decide a volume before
+         somebody opens it to find out, and it is why that package is missing from the *add these
+         songs to* select two pages away. #}
+      {# The volume count is a mark for the reason the sources are: most packages have one volume,
+         and the version, first number and build time beside it are the first volume's. #}
+      <td><a href="/packages/{{ p.row.id }}">{{ p.row.name }}</a>
+        {% match p.volumes %}{% when Some with (said) %}<span class="tag">{{ said }}</span>{% when None %}{% endmatch %}
+        {% for name in p.sources %}<span class="tag">{{ name }}</span>{% endfor %}</td>
+      <td>{{ p.row.version }}</td>
+      <td class="num">{{ p.row.total_songs }}</td>
+      <td class="num">{{ p.row.start_number }}</td>
+      <td>
+        {% match p.row.built_at %}
+        {% when Some with (when) %}{{ when }}
+          {% match p.row.out_path %}{% when Some with (path) %}<div class="dim mono">{{ path }}</div>{% when None %}{% endmatch %}
+        {% when None %}<span class="dim">{{ "packages-never"|t }}</span>
+        {% endmatch %}
+      </td>
+      <td>
+        <button class="danger" hx-post="/packages/{{ p.row.id }}/delete"
+                hx-confirm="{{ p.delete_confirm }}"
+                hx-target="#action-result" hx-swap="innerHTML">{{ "favorites-delete"|t }}</button>
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endif %}
+</div>

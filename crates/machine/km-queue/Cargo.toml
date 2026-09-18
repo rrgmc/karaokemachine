@@ -1,0 +1,22 @@
+[package]
+name = "km-queue"
+description = "What a karaoke machine is doing: the queue, the microphone registry, the transport state and the playback limits"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+# A queue entry is a song code and the words to draw beside it. The only crate this one needs, and
+# the reason it can sit this low: `km-songcode` is itself a leaf.
+km-songcode = { workspace = true }
+thiserror = { workspace = true }
+
+# **Nothing below this line, and that is the whole point of the crate.** No `rustysynth`, no `cpal`,
+# no `rtrb`, no `km-song` -- none of which any of this needs, and every one of which `km-api` was
+# linking because these four types lived beside them in `km-audio`. See the crate's `lib.rs`.

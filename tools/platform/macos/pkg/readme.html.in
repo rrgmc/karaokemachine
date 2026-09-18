@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<!--
+  **The doctype has to be the first thing in the file, and it is load-bearing rather than tidy.**
+  Installer sniffs the pane's *data* to decide whether it is HTML or plain text, and a file starting
+  with a comment fails that sniff -- so the whole page was shown as raw markup, this comment
+  included. Reproduced outside Installer with the same Cocoa importer:
+  `textutil -stdin -convert txt -stdout < this-file` echoes the source, and echoes the prose once a
+  doctype is in front of it. `mime-type="text/html"` in the Distribution does not rescue it.
+  tools/platform/macos/installer.sh asserts the first line on every build.
+  The pane Installer shows before the component list. tools/platform/macos/installer.sh stages it into the
+  resources directory productbuild is given; nothing here is substituted.
+
+  **It says only what the reader would otherwise have to find out.** An unsigned or signed-only
+  build puts an obstacle in front of somebody -- a double-click reporting that the file "cannot be
+  opened" -- so those two states are explained, and the placeholder below is where that explanation
+  lands. A notarized build puts no obstacle there and substitutes nothing: telling somebody that a
+  thing which behaves normally is going to behave normally is noise, and a pane of reassurance is
+  the pane people stop reading.
+
+  The administrator password is not mentioned for the same reason. Every installer that writes to
+  /Applications asks for one, Installer's own UI is what asks, and a heading about it says nothing a
+  reader did not already expect. Where a password *is* worth a sentence is the uninstaller below,
+  which is a thing somebody runs by hand and can be surprised by.
+-->
+<html>
+<head><meta charset="utf-8"></head>
+<body style="font: 13px -apple-system, sans-serif; margin: 0">
+
+<p><b>KaraokeMachine</b> &mdash; a karaoke machine, the tool that builds its song packages, a
+remote for this computer, and the command-line tools. The next page lets you leave any of them
+out.</p>
+
+@SIGNING@
+
+<h4>Removing it later</h4>
+
+<p>Open <b>/usr/local/karaokemachine</b> and double-click
+<b>Uninstall KaraokeMachine</b>. It shows you what it is about to remove, asks, and then asks for
+your password &mdash; in that order. From a terminal,
+<code>sudo /usr/local/karaokemachine/uninstall.sh</code> does the same thing without the questions.</p>
+
+<p>Either way it leaves your songs, settings and catalog alone, and prints where they are on its
+way out.</p>
+
+</body>
+</html>

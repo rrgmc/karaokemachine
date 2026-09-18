@@ -1,0 +1,108 @@
+#!/bin/sh
+# Puts karaokemachine on PATH, and prepares the account an appliance install runs as.
+#
+# The package installs everything under /opt/karaokemachine, because the binary finds its assets
+# beside itself (see the note in Cargo.toml). This symlink is what makes `karaokemachine` work as a
+# command anyway: current_exe reads /proc/self/exe, which resolves to the real file in /opt, so asset
+# discovery is unaffected by being invoked through here.
+set -e
+
+case "$1" in
+  configure)
+    ln -sfn /opt/karaokemachine/karaokemachine /usr/bin/karaokemachine
+
+    # The account linux/karaokemachine.service runs as. Created here rather than by the deploy
+    # script so that the unit shipped in this package is never pointing at a user who does not
+    # exist. adduser is idempotent, so an upgrade re-runs this harmlessly.
+    #
+    # The home directory is the whole reason to care where it is. Settings and the catalog are
+    # resolved through the XDG directories, so this account keeps them at
+    # /var/lib/karaoke/.config/karaokemachine/settings.json and
+    # /var/lib/karaoke/.local/share/karaokemachine/library.sqlite. Letting XDG resolve under a home
+    # directory of our choosing keeps the config and data split the platform expects, which one
+    # `--data-dir` would flatten into a single folder.
+    #
+    # This note used to say that `--data-dir /var/lib/karaoke` was a *trap*, because it moved the
+    # asset directory too and the machine would come up on its sine test tone over a plain gradient
+    # with nothing saying why. That is fixed -- `--data-dir` now takes Paths::data_rooted_at, which
+    # leaves asset discovery alone -- so the alternative is merely unnecessary rather than dangerous.
+    # It is recorded because the fault it describes is the one to re-check if assets ever go missing
+    # under this unit.
+    # useradd rather than adduser, which is the more idiomatic Debian call and the wrong one here.
+    # adduser stopped being essential in bookworm, so a package whose maintainer scripts use it has
+    # to Depend on it -- and debian:13-slim, which tools/platform/linux/verify-deb.sh installs into, does not
+    # have it. Rather than take a dependency to create one account, use useradd from `passwd`, which
+    # is Priority: required and therefore cannot be absent from any Debian at all.
+    if ! getent passwd karaoke >/dev/null; then
+      useradd --system --user-group --create-home --home-dir /var/lib/karaoke \
+              --shell /bin/bash --comment "KaraokeMachine" karaoke
+    fi
+
+    # **What makes an installed machine drive a television.** `display.fullscreen` defaults to off
+    # in the binary, because the other thing with no settings file is a checkout somebody has just
+    # built and a default reaches both; what tells them apart is who put the machine there. Two keys
+    # are a whole settings file -- every settings struct is `#[serde(default)]` -- so the machine
+    # fills the rest from its own defaults and writes it back complete on the first start.
+    #
+    # **Only where there is none**, which is the whole of the safety argument: this writes where it
+    # is creating the install and nowhere else, so it is never the thing firstrun.rs refuses -- an
+    # installer overwriting a settings file it did not create, losing whatever an upgrade was
+    # standing on. `apt-get install ./newer.deb` on a working appliance changes nothing here.
+    #
+    # **This account's directory and not a desktop user's**, and the limit is worth stating rather
+    # than working around: a package cannot know who will run the menu entry, and writing into
+    # arbitrary home directories is not something a package should do. So a desktop install gets the
+    # windowed default and `F`, which is the same position it is already in over the unit below --
+    # this creates the appliance's account, and enabling it is deploy.sh's decision.
+    #
+    # 0600 and owned by karaoke: /var/lib/karaoke is 0700, and a settings file root owns is one the
+    # service cannot write its instance id into.
+    if [ ! -f /var/lib/karaoke/.config/karaokemachine/settings.json ]; then
+      install -d -o karaoke -g karaoke -m 700 /var/lib/karaoke/.config/karaokemachine
+      printf '{\n  "display": {\n    "fullscreen": true\n  }\n}\n' \
+        > /var/lib/karaoke/.config/karaokemachine/settings.json
+      chown karaoke:karaoke /var/lib/karaoke/.config/karaokemachine/settings.json
+      chmod 600 /var/lib/karaoke/.config/karaokemachine/settings.json
+    fi
+
+    # Belt and braces beside the seat. A logind session grants the uaccess ACLs on /dev/dri/* and
+    # /dev/input/event* by itself, which is what the unit's PAMName=login arranges; these static
+    # groups are what keeps a manual `sudo -u karaoke karaokemachine` working for debugging, and
+    # what covers a machine whose udev rules do not apply uaccess. Each group is skipped if the
+    # system does not have it -- `render` in particular exists only on newer kernels' installs.
+    for group in video input audio render; do
+      if getent group "$group" >/dev/null; then
+        usermod -aG "$group" karaoke || true
+      fi
+    done
+
+    # The MIME definition and the desktop entry are now on disk, and neither is read until the
+    # caches are rebuilt. Both commands are advisory: a desktop that has them picks the type up
+    # immediately, one that does not picks it up at the next login, and the appliance -- which has
+    # no desktop at all -- has neither command and needs neither. `|| true` throughout for that
+    # last case, which is the one this package is most often installed on.
+    if command -v update-mime-database >/dev/null 2>&1; then
+      update-mime-database /usr/share/mime >/dev/null 2>&1 || true
+    fi
+    if command -v update-desktop-database >/dev/null 2>&1; then
+      update-desktop-database /usr/share/applications >/dev/null 2>&1 || true
+    fi
+
+    # The unit file is now on disk. Reload so `systemctl enable karaokemachine` works immediately,
+    # but do NOT enable or start it: that would hand tty1 to this service on every machine the
+    # package is installed on, including somebody's desktop. Enabling is the appliance decision, and
+    # tools/platform/linux/deploy.sh is what makes it.
+    #
+    # An appliance that has already made that decision is a different case, and this is what makes
+    # `apt-get install ./newer.deb` on the box do the obvious thing: the old process is still running
+    # the old binary until something restarts it, so if the unit is enabled, restart it here. That
+    # makes the explicit restart in deploy.sh belt and braces rather than the only thing keeping the
+    # deployment honest.
+    if [ -d /run/systemd/system ]; then
+      systemctl daemon-reload >/dev/null 2>&1 || true
+      if systemctl is-enabled --quiet karaokemachine.service 2>/dev/null; then
+        systemctl restart karaokemachine.service >/dev/null 2>&1 || true
+      fi
+    fi
+    ;;
+esac

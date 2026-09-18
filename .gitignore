@@ -1,0 +1,128 @@
+/target
+# tools/cmd/assets is a second workspace (see the `exclude` note in Cargo.toml), so its build
+# products land here rather than in the root target directory. Its `Cargo.lock` *is* committed: these
+# are binaries, and a tool with a floating dependency tree is one that stops working quietly.
+#
+# **The directory rather than the crate**, matching the `exclude` line it exists for: one ignore
+# covers every member, so adding a program beside `km-wallpaper-pack` does not need a line here.
+/tools/cmd/assets/target
+**/*.rs.bk
+*.pdb
+.idea/
+
+# km-package-builder's database, which lives in whatever folder is being curated. Never committed:
+# it is an index of somebody's own corpus, and it is rebuilt from the files in minutes.
+#
+# A glob rather than a fixed name, because the database is now the document somebody double-clicks and
+# may be renamed after the corpus -- `Brasil.kmbuild`. Anything with this extension is one of these.
+*.kmbuild
+*.kmbuild-shm
+*.kmbuild-wal
+
+# Local runtime artifacts
+/out
+*.wav
+*.kmpkg
+*.local.*
+/local/
+
+# Everything the staging scripts produce, laid out as dist/<app>/<platform>/ -- see "Where releases
+# go" in docs/ARCHITECTURE.md. Build products, and the SoundFont inside one is 31 MiB that is
+# deliberately not committed in the first place. Ignored at the root, so the layout can change again
+# without touching this line.
+/dist/
+
+# Bundled assets are fetched at build/release time, not committed (see the architecture notes risks)
+/assets/soundfont/*.sf2
+
+# A *built* wallpaper pack, which `tools/cmd/assets/km-wallpaper-pack` can copy here so that a `cargo run` and
+# every staged build pick it up (km-display reads a zip in the wallpaper folder as a folder of
+# images). Not committed, and the reason recorded here used to be only half of it: it is tens of
+# megabytes of somebody else's photographs and it is rebuildable from the config with an API key —
+# and, for a pack built from Pixabay or Pexels, **their terms do not permit passing it on at all**.
+#
+# Matched by the name `zip_name()` gives a built pack rather than by `*.zip`, because the shipped
+# set beside it **is** committed and is a zip too: `default-wallpapers.zip`, seven CC0 photographs
+# built by `km-wallpaper-pack local`, with `CREDITS.md` naming each one. A blanket `*.zip` here would
+# quietly drop the wallpapers the machine ships with.
+/assets/wallpapers/wallpapers-*.zip
+
+# tools/cmd/assets/km-wallpaper-pack: downloaded originals and search responses. Hundreds of megabytes
+# of somebody else's photographs, and rebuildable from the config with an API key — the same rule as
+# the SoundFont. The built pack lands in /out and in /assets/wallpapers, both already ignored.
+.wpcache/
+# A real config carries no secrets (keys come from the environment) but is somebody's own taste in
+# search terms; `config.example.toml` is the one that is committed.
+/tools/cmd/assets/km-wallpaper-pack/config.toml
+
+# Every worktree lives here, inside the repository: Claude Code's own worktree command puts them
+# here and tools/dev/worktree.sh follows it, because a worktree here is inside the permission root a
+# session already holds and one beside the repository is not. Never committed, obviously; ignored so
+# that `git status` in the main checkout does not report a second complete copy of the source as
+# untracked, and so that `rg` and everything else honoring this file walks past it. The rule and
+# what it costs are `A worktree lives inside the checkout` in docs/decisions/repository.md.
+/.claude/worktrees/
+
+# Local, machine-specific notes
+CLAUDE.local.md
+
+# Test material, none of which is committed -- see fixtures/README.md. `generated/` is written by
+# `cargo run -p km-song --features testing --example write_fixtures` and is rebuildable from the
+# source at any time; `scratch/` is for ad-hoc experiments over a corpus that lives elsewhere.
+/fixtures/generated/
+/fixtures/scratch/
+
+# Android: Gradle's output, and the native libraries staged into the project by
+# tools/port/machine/android/stage.sh. Both are build products of `tools/port/machine/android/build.sh`.
+ports/machine/android/.gradle/
+ports/machine/android/build/
+ports/machine/android/app/build/
+ports/machine/android/local.properties
+ports/machine/android/app/src/main/jniLibs/
+# Written by tools/port/machine/android/assets.sh from assets/ and tools/dev/remote/. Build products, and the
+# SoundFont among them is 31 MiB that is deliberately not committed in the first place.
+ports/machine/android/app/src/main/assets/
+
+# The offline remote's Android application, which is a second Gradle project with the same three
+# kinds of build product. There is no `assets/` line here and there should not be: `km-remote-pages`
+# compiles its templates, its stylesheet and its script into the library, so there is nothing to
+# stage and nothing to unpack on a device.
+ports/remote/android/.gradle/
+ports/remote/android/build/
+ports/remote/android/app/build/
+ports/remote/android/local.properties
+ports/remote/android/app/src/main/jniLibs/
+
+# A signing key belongs nowhere git reaches, and `KM_ANDROID_KEYSTORE` names one outside the checkout
+# for that reason. This is the guard against the copy somebody drops in to try something.
+*.jks
+*.keystore
+
+# ...and its iOS application, where the same three kinds of build product have different names. The
+# xcframework holds the Rust staticlib and is rebuilt by `tools/port/remote/ios/build.sh`; the
+# `.xcodeproj` and the `Info.plist` are both generated from `ports/remote/ios/project.yml` by
+# xcodegen and are never edited by hand, which is the same treatment the jniLibs directory above
+# gets. No `assets/` line here either, and for the same reason.
+ports/remote/ios/Frameworks/
+ports/remote/ios/build/
+ports/remote/ios/KaraokeRemote.xcodeproj/
+ports/remote/ios/KaraokeRemote/Info.plist
+
+# The machine's iOS application: the same four, plus the one the remote's port does not have. The
+# asset tree *is* staged here, because a bundle needs the bank, the wallpapers and the font as files
+# -- `tools/port/machine/ios/assets.sh` writes it from `assets/` and `tools/dev/remote/`, and the
+# SoundFont among them is 31 MiB that is deliberately not committed in the first place.
+ports/machine/ios/Frameworks/
+ports/machine/ios/build/
+ports/machine/ios/KaraokeMachine.xcodeproj/
+ports/machine/ios/KaraokeMachine/Info.plist
+ports/machine/ios/KaraokeMachine/assets/
+# The one `ports/remote/ios/` has no counterpart for: the xcframework list `project.yml` includes,
+# which is written per build because `--no-video` produces none of them and xcodegen refuses a
+# dependency that is not on disk.
+ports/machine/ios/ffmpeg.yml
+
+
+
+# Working folder for hand-run verification: sample videos, built packages, throwaway data dirs.
+/scratch/

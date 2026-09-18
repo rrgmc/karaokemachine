@@ -1,0 +1,19 @@
+[package]
+name = "km-androidlog"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+description = "Sending a process's logs somewhere a person can read them, on Android."
+
+[lints]
+workspace = true
+
+[dependencies]
+# The events themselves, and the panic hook's way of reporting.
+tracing = { workspace = true }
+# `MakeWriter` is the seam this crate exists to implement, so the trait has to come from here rather
+# than each caller wiring its own adapter. Both callers already depend on it.
+tracing-subscriber = { workspace = true }

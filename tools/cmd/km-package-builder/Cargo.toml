@@ -1,0 +1,225 @@
+[package]
+name = "km-package-builder"
+description = "Browse a folder of karaoke files and hand-curate them into .kmpkg packages"
+# **This was already broken and nobody had run into it**, which is worth a sentence. Without a default,
+# `cargo run -p km-package-builder --features desktop` refuses with "could not determine which binary
+# to run" -- and CLAUDE.md writes that exact command twice. It went unnoticed because the twin only
+# exists with `desktop`, which is off by default, so every plain `cargo run` had one binary to choose
+# from and worked; the two documented lines that turn the feature on are the two that did not. Found
+# while giving `km-app` the same shape, which has the problem unconditionally.
+default-run = "km-package-builder"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+# **A library with two binaries hanging off it**, because `#![windows_subsystem]` is a property of a
+# binary crate root and the two builds disagree about it. Everything real is in the library; each
+# binary is three lines and a `Shell`. See `src/lib.rs`.
+[lib]
+name = "km_package_builder"
+path = "src/lib.rs"
+
+[[bin]]
+name = "km-package-builder"
+path = "src/main.rs"
+
+# The console twin. **Only when there is a window to be the alternative to**: without `desktop` the
+# executable above is already a console program, and a second identical one under a longer name is a
+# choice nobody can make correctly. `required-features` is what says so to cargo, so a Linux build and
+# a `--no-desktop` one produce exactly one file, as they always have.
+[[bin]]
+name = "km-package-builder-console"
+path = "src/bin/km-package-builder-console.rs"
+required-features = ["desktop"]
+
+[features]
+# Curating video songs. Off by default, because it reaches `km-pack`s own `video` feature and with
+# it ffmpeg -- the only C dependency in this tool. A build without it scans, browses and packages
+# MIDI exactly as before, and says plainly that it found video files it cannot read rather than
+# passing over them in silence.
+video = ["km-pack/video", "dep:km-video"]
+
+# A window of its own, rather than a tab in whatever browser is default.
+#
+# **Off in cargo, on when staging for Windows and macOS, and never on for Linux** -- the same shape as
+# `video` above, for a related but not identical reason. `video`'s cargo default is about what a fresh
+# clone must install to build; this one is that plus a hard constraint: `wry` links libwebkit2gtk at
+# load time, so a Linux build with this feature does not *start* on a machine without it, and
+# `--browser` cannot rescue that because the failure is in the dynamic loader before `main`. That
+# would trade this tool's best property -- one executable, copy it anywhere -- for a window, on the one
+# platform where opening a browser is universal. See the `The package builder's window` row in
+# docs/decisions/curation.md.
+#
+# **The tray rides on this feature and does not get one of its own.** It is the same two platforms
+# for the same reason -- `tray-icon`'s Linux backend links `libayatana-appindicator` at load time,
+# which is the dependency this feature already refuses to take on for `wry` -- and a second feature
+# would be a second thing for five staging scripts, `tools/setup/features.sh` and `.cargo/config.toml` to
+# keep in step. See `A running server has an icon in the bar` in docs/decisions/interface.md.
+desktop = ["dep:wry", "dep:tao", "dep:km-tray", "dep:km-webshell"]
+
+[dependencies]
+km-song = { workspace = true }
+km-suitability = { workspace = true }
+km-fixes = { workspace = true }
+km-cdg = { workspace = true }
+km-songcode = { workspace = true }
+km-kmpkg = { workspace = true }
+km-pack = { workspace = true }
+# For `discover::browse` and nothing else: the Discover button on the Settings page lists the
+# machines advertising themselves. Taken as a dependency rather than reaching for `mdns-sd` directly
+# because `_karaokemachine._tcp.local.` is written down once, in the crate that also advertises it --
+# `km-remote-core` takes km-api for the same constant and the same reason.
+km-api = { workspace = true }
+km-video = { workspace = true, optional = true }
+# Whether anything printed will be read. A crate rather than a `src/console.rs` here, because
+# `km-app` needs the same answer for the same reason and the alternative is a second copy of the
+# workspace's only two `unsafe` calls. Not target-gated: every platform calls `say`, and the
+# crate compiles a stub answering "somebody is reading" where there is no subsystem to choose.
+km-console = { workspace = true }
+# Handing a song file to whatever plays it, and this tool's own address to a browser. It was a module
+# in this crate until the machine became the third caller; the crate's own header carries the rule
+# that promoted it, and the Windows quoting bug that was found here and had to be fixed in two files.
+km-osopen = { workspace = true }
+# Where the log goes when nothing is reading, which is the other half of the `km-console` note above:
+# a double-clicked window has no console, so `--log-file` puts the same stream in this tool's data
+# folder instead of discarding it.
+km-logfile = { workspace = true }
+# ...and where they go when somebody *is* reading, live: `--ecapplog` sends the same stream to the
+# viewer in place of the console.
+km-ecapplog = { workspace = true }
+# ...and what this tool's own settings file says about both, plus how much detail there is and how
+# many runs are kept. The `logging` section, shared with the machine and the picture-and-bank tool.
+km-logsettings = { workspace = true }
+
+# The machine passwords this computer was told to remember, shared with `km-admin`: two tools that
+# send things to a machine meet the same closed door and hold the same kind of credential, and a
+# second copy of one file format is the drift a shared crate exists to stop. Where the file goes
+# stays in `crate::passwords`, this program's own answer.
+km-passwords = { workspace = true }
+
+# What language these pages are drawn in, and the Fluent catalogs behind `i18n/`. The `askama`
+# feature is the `{{ "key"|t }}` filter, and it is named here rather than on the workspace entry
+# because a consumer that renders no markup wants the crate without it -- the arrangement
+# `Catalogs live beside the words they translate` describes.
+km-locale = { workspace = true, features = ["askama"] }
+
+# `serde_json` is for the `json` filter, and it is load-bearing rather than a convenience: an
+# `hx-vals` attribute is JSON, and a Windows path assembled into one by string concatenation is not.
+# Askama's HTML escaper leaves a backslash alone -- correctly -- so `{"path": "D:\tunes\karaoke"}`
+# reached htmx as invalid JSON, `JSON.parse` threw, and every folder button on the Open page posted
+# an empty body. The filter serializes the value in Rust instead. Not on the workspace entry: no
+# other askama user here interpolates anything into JSON.
+askama = { workspace = true, features = ["serde_json"] }
+axum = { workspace = true }
+# For the one piece of state that is not in the curated folder: which folders this person has opened
+# before. The same crate, and the same call, `km-app` and `km-remote` already use for their own
+# per-user files. See `src/recent.rs`.
+directories = { workspace = true }
+tokio = { workspace = true }
+# `multipart` and `stream` are for the one call that sends a song's bytes to a machine that cannot
+# see this box's disk. Both were checked against the workspace entry's no-TLS constraint: `multipart`
+# is `mime_guess` + `futures-util` and `stream` is `tokio/fs` + `tokio-util`, none of which reaches
+# any of the `*-tls` features. `Part::file` needs `stream`, and it is what puts a real
+# `Content-Length` on the request so the machine can refuse an oversized one up front.
+reqwest = { workspace = true, features = ["multipart", "stream"] }
+rusqlite = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+# The filter bar's fields arrive in a POST body, not in a query string. See `FilterQuery::from_body`.
+serde_urlencoded = { workspace = true }
+form_urlencoded = { workspace = true }
+clap = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+# The desktop shell, behind the `desktop` feature. `tao` owns the window and the event loop -- and,
+# on macOS, is the only reason a double-clicked document reaches this process at all: LaunchServices
+# delivers it as an Apple Event, not as `argv`, and tao's application delegate is what turns that into
+# `Event::Opened`. `wry` puts a platform webview in the window: WebView2 on Windows, WKWebView on
+# macOS.
+#
+# **Workspace dependencies, because two crates here have a window that is not SDL's** --
+# `crates/remote/km-remote` is the other. Pinned per crate they would be a webview version apiece,
+# which is how a tree ends up compiling two `wry`s and how the two windows drift apart.
+wry = { workspace = true, optional = true }
+tao = { workspace = true, optional = true }
+# The window geometry the three desktop shells share. Optional beside them, because it is only ever
+# reached from behind the `desktop` feature.
+km-webshell = { workspace = true, optional = true }
+# The icon in the bar, behind the same feature. It takes no `tao` of its own -- the event loop stays
+# this crate's -- so it is one more optional dependency and not a second window library.
+km-tray = { workspace = true, optional = true }
+
+# Registering the `.kmbuild` file type. Target-gated, so no other platform compiles it; the version
+# and the reasoning are in the workspace table, which is where they went once the machine grew a
+# registrar of its own for `.kmpkg`.
+[target.'cfg(windows)'.dependencies]
+windows-registry = { workspace = true }
+
+# `build.rs` attaches the application icon and version information to the Windows executable. Under
+# `[target.'cfg(windows)']` because build-dependencies resolve for the *host*, so this is absent from a
+# Linux or macOS build entirely. Same arrangement as `crates/machine/karaokemachine/Cargo.toml`.
+[target.'cfg(windows)'.build-dependencies]
+winresource = { workspace = true }
+
+[dev-dependencies]
+# The scan is tested over a corpus built from the synthetic fixtures rather than the real one, which
+# is machine-local and very large. The feature is off by default so it never ships.
+km-song = { workspace = true, features = ["testing"] }
+# Driving the real router as a service, the way `km-api`'s tests do.
+tower = { workspace = true, features = ["util"] }
+# `tests/upload.rs` drives `Client::play_upload` against a **real listening machine**, because the
+# one thing a service-level test cannot check is the thing most likely to be wrong: that the
+# multipart body `reqwest` writes is the multipart body `axum` reads. The `testing` feature is the
+# in-memory machine that makes a server startable with no audio device and no catalog.
+km-api = { workspace = true, features = ["testing"] }
+# Serving that machine on a loopback port for the length of one test.
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
+
+# **The Debian package for the three web-backed tools, named for what it holds rather than for the
+# crate that defines it.** cargo-deb builds a package from one manifest and these three are one
+# deliverable -- a curation tool, the offline remote and the picture-and-bank tool -- so the metadata
+# sits on the largest of them and `name` says `karaokemachine-tools`. km-admin comes from the second
+# cargo workspace under `tools/cmd/assets/`; both builds share one CARGO_TARGET_DIR, which is what
+# lets the asset list below name all three.
+#
+# **It is a Recommends of `karaokemachine` rather than part of it**, which is the mechanism the X11
+# libraries use one package over: `apt-get install karaokemachine` on a desktop takes the tools, and
+# `--no-install-recommends` -- what deploy.sh passes -- leaves a television box without 45 MB of
+# curation tools nobody will ever run on it.
+#
+# **And it Depends on `karaokemachine` for one directory.** km-package-builder is built with `video`,
+# so it links the four ffmpeg libraries; the machine's package already carries them at
+# /opt/karaokemachine/lib, and an rpath of `$ORIGIN/../lib` reaches them from
+# /opt/karaokemachine/tools/. A second copy would be 20 MB saying the same thing twice.
+[package.metadata.deb]
+name = "karaokemachine-tools"
+maintainer = "Rangel Reale <rangelspam@gmail.com>"
+section = "sound"
+priority = "optional"
+# **Written out for the reason the machine's list is**, and shorter because these link almost
+# nothing: a tool is a web server with its page compiled into it, so there is no SDL here, no audio
+# device and no font. `karaokemachine` is named without a version -- both come from one source and
+# one release, and what this needs from it is a directory of libraries.
+depends = "karaokemachine, libc6 (>= 2.39), libgcc-s1 (>= 3.0)"
+extended-description = """\
+The three programs that prepare what a karaoke machine plays: km-package-builder \
+curates a folder of songs into packages, km-admin fetches wallpapers and instrument \
+banks, and km-remote is the singer's remote for a machine that is not running. Each \
+serves its own page and opens it in your browser; none has a window of its own here."""
+assets = [
+    # /opt rather than /usr/bin, so `$ORIGIN/../lib` reaches the machine's ffmpeg. postinst puts the
+    # three names on PATH the way the machine's does.
+    ["target/release/km-package-builder", "opt/karaokemachine/tools/km-package-builder", "755"],
+    ["target/release/km-remote", "opt/karaokemachine/tools/km-remote", "755"],
+    ["target/release/km-admin", "opt/karaokemachine/tools/km-admin", "755"],
+]
+maintainer-scripts = "debian-tools"

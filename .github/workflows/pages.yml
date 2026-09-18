@@ -1,0 +1,76 @@
+name: pages
+
+# The landing page, published to https://rrgmc.github.io/karaokemachine/.
+#
+# A checkout and a copy: `tools/dist/site.sh` needs no toolchain and no cache. It runs when the page,
+# its pictures, its favicon or its own build script change.
+#
+# **No `pull_request` trigger.** There is one deployment environment and a pull request cannot have
+# it, so a PR job could only build and discard the result, which `tools/dist/site.sh` answers locally
+# in two seconds. The page is never a required check for that reason.
+#
+# **The `if:` keeps a fork green.** A fork has no Pages site of this name, and a job whose `if` is
+# false is skipped, which does not count as a failure. `deploy` needs `build`, so it skips too.
+#
+# **Pages is switched on by hand, once:** Settings -> Pages -> Source: "GitHub Actions".
+# `actions/configure-pages` can do it over the API with `enablement: true`, which needs a token with
+# repository-administration scope that this workflow otherwise never wants.
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'site/**'
+      - 'docs/images/**'        # staged into the page; a retaken screenshot republishes
+      - 'icon/icon-32.png'      # the favicon
+      - 'icon/icon-512.png'     # the home-screen and card image
+      - 'tools/dist/site.sh'
+      - '.github/workflows/pages.yml'
+  workflow_dispatch:
+
+# All three are needed: `pages: write` to create a deployment, `id-token: write` because
+# deploy-pages authenticates with an OIDC token, and `contents: read` for the checkout.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# **Queued, not cancelled.** A superseded check is worth nothing, but a deploy cancelled mid-flight
+# can leave the live site part-published. The group is a constant because there is one live site.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: build the page
+    runs-on: ubuntu-latest
+    if: github.repository == 'rrgmc/karaokemachine'
+
+    steps:
+      - uses: actions/checkout@v7
+
+      # The same script a local preview runs. It refuses a picture the page names that docs/images
+      # does not have, an absolute path that would 404 under /karaokemachine/, and anything the page
+      # would fetch from another server.
+      - name: Stage the site
+        run: bash tools/dist/site.sh
+
+      - uses: actions/configure-pages@v6
+
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: dist/site
+
+  deploy:
+    name: deploy
+    needs: build
+    runs-on: ubuntu-latest
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5

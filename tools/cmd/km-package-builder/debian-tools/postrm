@@ -1,0 +1,30 @@
+#!/bin/sh
+# Takes the three names back off PATH.
+#
+# **Only if they still point where this package put them.** dpkg removes the files under /opt between
+# prerm and postrm, so by the time this runs the targets are gone and the symlinks dangle -- but a
+# later install of the same package, or somebody's own link of the same name, must not be removed by
+# an upgrade's postrm. Reading the target before unlinking is what tells those apart.
+set -e
+
+case "$1" in
+  remove | purge)
+    for tool in km-package-builder km-remote km-admin; do
+      link="/usr/bin/$tool"
+      if [ -L "$link" ] && [ "$(readlink "$link")" = "/opt/karaokemachine/tools/$tool" ]; then
+        rm -f "$link"
+      fi
+    done
+    ;;
+
+  upgrade | failed-upgrade | abort-install | abort-upgrade | disappear) ;;
+
+  *)
+    echo "postrm called with unknown argument \`$1'" >&2
+    exit 1
+    ;;
+esac
+
+#DEBHELPER#
+
+exit 0

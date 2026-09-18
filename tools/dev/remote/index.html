@@ -1,0 +1,2066 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KaraokeMachine — dev remote</title>
+<!-- Served by km-api from the icon compiled into the binary, so this stays one file with nothing
+     vendored into it. The page works without it; a favicon is the one asset whose absence costs
+     nothing but a gray square. -->
+<link rel="icon" href="/icon.png">
+
+<!--
+  The development remote.
+
+  One file. No framework, no build step, no dependencies, nothing fetched from the network. That is
+  what lets it be compiled straight into the binary — see DEV_REMOTE_HTML in km-api — so no build can
+  ship without it. A dev_remote_dir holding an index.html wins over the compiled-in copy, which is how
+  this file gets edited and reloaded without a rebuild.
+
+  SERVED ONLY WHEN TWO SWITCHES ARE ON: debug.enabled and api.serve_dev_remote, or --dev-remote for
+  one run, which turns both on. See km_api::routes::dev_console_served. Both are switches on /admin/'s
+  Debugging pane and on km-admin's.
+
+  ITS API IS /dev/api/v1, WHICH CHECKS NO PERMISSIONS. The same routes as /api/v1, including the ones
+  filed under /admin/, with nothing gated. That is why there is no password box on this page. It is
+  what the two switches above are buying, and it is argued in `The development console has an API
+  that needs no password` in docs/decisions/.
+
+  Its purpose is not to be a good remote. It is to exercise EVERY endpoint by hand, so the API can be
+  proven complete before a real client exists — including the awkward ones a polished UI would hide:
+  the debugging switch, debug/play-file, install/uninstall, and a raw event log. If something is missing
+  from this page, it is missing from the tests too. `routes.rs` sweeps every api() call on this page
+  against SURFACE, so a route that moves out from under one fails a test rather than a click.
+
+  IT FITS A PHONE NOW, in one column under 30 rem. It is still not a singer's remote — that is
+  `km-remote-pages` at / — but the person carrying this page around is often carrying it to the
+  machine, and a layout that could not be read on the way there was costing something for nothing.
+  See the `Dev remote layout` row in docs/decisions/.
+
+  THE WIDGETS ARE IN FIVE GROUPS, in the order somebody uses them: Session, Playing, Catalog,
+  The machine, Diagnostics. A group is a full-row `h2.group` and nothing else — no wrapper, so every
+  card sizes against the page rather than against its group. Adding a widget is putting a `<section>`
+  in the right group.
+
+  ON-PAGE PROSE IS FOR A DEVELOPER, so it is short. Reasoning goes in a comment beside the control,
+  never on the page — the rule tools/CLAUDE.md sets for every surface here — and this page had drifted
+  a long way from it, explaining in three paragraphs what a route name says.
+
+  Deliberate choices:
+    * Every request shows its method, path and status in the log, so the page doubles as a
+      transcript of what a client has to do.
+    * Errors are shown verbatim, including the stable `error` code, because that code is API and a
+      real client will match on it.
+    * Only the base URL is remembered between reloads, in localStorage.
+    * This is the page that asks for `GET /audio/soundfonts?all=true`. The machine offers nine banks
+      and knows about sixty-odd; the singer's Setup tab gets the nine, and the rest are reachable
+      from a shell and from here. See `Which banks the machine offers` in docs/decisions/.
+-->
+<style>
+  :root {
+    --bg: #f6f6f7; --fg: #16181d; --panel: #fff; --line: #d8dade; --muted: #63676f;
+    --accent: #1b5fbe; --bad: #b1263a; --good: #1d6b3f; --warn: #8a5a00;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14161a; --fg: #e7e9ee; --panel: #1d2027; --line: #2f333c; --muted: #9aa0ab;
+      --accent: #6fa8ff; --bad: #ff8a9a; --good: #74d99f; --warn: #e8b658;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 1rem; background: var(--bg); color: var(--fg);
+    font: 14px/1.45 ui-sans-serif, system-ui, sans-serif;
+  }
+  h1 { font-size: 1.1rem; margin: 0 0 .75rem; }
+  h1 small { color: var(--muted); font-weight: 400; }
+  h3 { font-size: .8rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted);
+       margin: 0 0 .6rem; }
+  /* **`min(20rem, 100%)` and not `20rem`, which is the whole of the phone fix.** `auto-fit` drops
+     columns until one is left, and then keeps that one at its 20rem *minimum* — so on a 360px
+     screen the single track was 320px inside 328px of content box, and any table a few pixels wider
+     than that made the whole page scroll sideways. `min()` lets the last track shrink to the page.
+     Measured on a 360x780 phone, which is where it was reported. */
+  .grid { display: grid; gap: .75rem;
+          grid-template-columns: repeat(auto-fit, minmax(min(20rem, 100%), 1fr)); }
+  section { background: var(--panel); border: 1px solid var(--line); border-radius: .5rem;
+            padding: .75rem; min-width: 0; }
+  section.wide { grid-column: 1 / -1; }
+  /* A group label, and the grouping mechanism entire. It spans the row for the same reason
+     `section.wide` does, and that span is what does the work: a full-row item cannot share a row, so
+     the label both names the widgets under it and forces the break that separates them from the
+     group above. There is no wrapper element, deliberately -- one would have to re-create the grid
+     inside itself, and then every group would size its columns against its own width instead of the
+     page's, so a two-widget group would draw wider cards than a three-widget one. */
+  .grid > h2.group { grid-column: 1 / -1; margin: .9rem 0 -.15rem; font-size: .78rem;
+                     letter-spacing: .02em; color: var(--fg); font-weight: 600; }
+  .grid > h2.group:first-child { margin-top: 0; }
+  label { display: block; font-size: .78rem; color: var(--muted); margin: .4rem 0 .1rem; }
+  input, select, button, textarea {
+    font: inherit; color: inherit; background: var(--bg);
+    border: 1px solid var(--line); border-radius: .3rem; padding: .3rem .45rem; max-width: 100%;
+  }
+  input, select { width: 100%; }
+  button { background: var(--accent); border-color: transparent; color: #fff; cursor: pointer;
+           padding: .35rem .7rem; }
+  button.plain { background: var(--bg); color: var(--fg); border-color: var(--line); }
+  button:disabled { opacity: .45; cursor: default; }
+  .row { display: flex; gap: .4rem; flex-wrap: wrap; align-items: end; }
+  .row > * { flex: 1 1 6rem; }
+  .row > button { flex: 0 0 auto; }
+  table { width: 100%; border-collapse: collapse; font-size: .82rem; }
+  th, td { text-align: left; padding: .25rem .3rem; border-bottom: 1px solid var(--line);
+           vertical-align: middle; }
+  th { color: var(--muted); font-weight: 600; font-size: .72rem; text-transform: uppercase; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .scroll { max-height: 16rem; overflow: auto; }
+  .log { font: 12px/1.4 ui-monospace, monospace; white-space: pre-wrap; word-break: break-word;
+         max-height: 22rem; overflow: auto; }
+  .log div { padding: .1rem 0; border-bottom: 1px solid var(--line); }
+  .muted { color: var(--muted); }
+  .bad { color: var(--bad); }
+  .good { color: var(--good); }
+  .warn { color: var(--warn); }
+  /* The level, in a fixed column so the messages line up down the pane and a run of one level reads
+     as a block rather than as ragged text. */
+  .lv { display: inline-block; width: 3.2rem; }
+  .pill { display: inline-block; padding: .05rem .4rem; border-radius: 1rem; font-size: .72rem;
+          border: 1px solid var(--line); }
+  .now { font-size: 1rem; font-weight: 600; }
+  progress { width: 100%; height: .5rem; }
+
+  /* **One column, and the padding back.** Two rem of body padding is a fifth of a phone's width, and
+     the panels have their own already. The log and the scrollers also give back height, because a
+     phone has a third of the vertical room and the event stream would otherwise be the only thing
+     on screen. Nothing is reordered and nothing is hidden -- see `Dev remote layout` in
+     docs/decisions/, which this query is the amendment to. */
+  @media (max-width: 34rem) {
+    body { padding: .5rem; }
+    h1 { font-size: 1rem; }
+    .scroll { max-height: 12rem; }
+    .log { max-height: 14rem; }
+    /* A thumb, not a mouse pointer, and this is the cheapest half of that: the controls grow, the
+       layout does not change. */
+    button { padding: .45rem .8rem; }
+  }
+</style>
+</head>
+<body>
+
+<h1>KaraokeMachine <small>— development remote</small></h1>
+
+<div class="grid">
+
+  <h2 class="group">Session</h2>
+
+  <section>
+    <h3>Connection</h3>
+    <label for="base">API base</label>
+    <input id="base" placeholder="http://192.168.1.x:8177">
+    <div class="row" style="margin-top:.5rem">
+      <button id="reconnect">Reconnect</button>
+      <button class="plain" id="refresh-all">Refresh all</button>
+    </div>
+    <p id="ws-status" class="muted" style="margin:.5rem 0 0"></p>
+    <p id="connect-info" class="muted" style="margin:.25rem 0 0"></p>
+    <!-- **The token box was here, and so was an Admin section with Log in and Log out.** They are
+         gone with the thing they were for: every call on this page now goes to /dev/api/v1/, which
+         is the same API again under a prefix that checks no permissions at all. There is nothing to
+         log in to and nothing a password would buy.
+
+         What replaced them is upstream of this page. The console is served only while *two*
+         switches are on -- debugging mode and the console's own -- so a passwordless copy of the
+         API cannot be one tick away from a machine in a living room, and the machine draws a marker
+         on its own screen the whole time it is. Both switches are on /admin/'s Debugging pane and on
+         km-admin's; either surface can turn this off.
+
+         The address box above still works. Pointed at a machine whose console is off, every call
+         here answers 404 -- not 401, and not an HTML page with a 200, which is what it did until
+         `/dev/api/{*rest}` was mounted unconditionally to say so. -->
+    <p class="muted" style="margin:.5rem 0 0">
+      Every route here is reachable without a password. This page is served only while debugging
+      mode and the development console are both on.
+    </p>
+  </section>
+
+  <h2 class="group">Playing</h2>
+
+  <section>
+    <h3>Now playing</h3>
+    <p class="now" id="now-title">—</p>
+    <p class="muted" id="now-detail"></p>
+    <progress id="now-progress" value="0" max="1"></progress>
+    <p class="muted" id="now-position">—</p>
+    <div class="row" style="margin-top:.5rem">
+      <button id="t-play">Play</button>
+      <button class="plain" id="t-pause">Pause</button>
+      <button class="plain" id="t-skip">Skip</button>
+      <button class="plain" id="t-restart">Restart</button>
+      <button class="plain" id="t-stop">Stop</button>
+    </div>
+    <div class="row" style="margin-top:.4rem">
+      <button class="plain" id="t-back-30">&laquo; 30s</button>
+      <button class="plain" id="t-back-10">&laquo; 10s</button>
+      <button class="plain" id="t-fwd-10">10s &raquo;</button>
+      <button class="plain" id="t-fwd-30">30s &raquo;</button>
+    </div>
+    <div class="row" style="margin-top:.4rem">
+      <input id="seek-ms" type="number" min="0" step="1000" placeholder="ms">
+      <button class="plain" id="t-seek">Seek</button>
+    </div>
+  </section>
+
+  <section>
+    <h3>Settings</h3>
+    <label for="transpose">Transpose <span id="transpose-value" class="pill">0</span></label>
+    <input id="transpose" type="range" min="-6" max="6" step="1" value="0">
+    <label for="tempo">Tempo <span id="tempo-value" class="pill">1.00×</span></label>
+    <input id="tempo" type="range" min="0.75" max="1.25" step="0.01" value="1">
+    <label for="volume">Music volume <span id="volume-value" class="pill">1.00</span></label>
+    <input id="volume" type="range" min="0" max="1" step="0.01" value="1">
+    <label for="lyric-offset">Lyric offset <span id="lyric-offset-value" class="pill">0 ms</span></label>
+    <input id="lyric-offset" type="range" min="-200" max="200" step="10" value="0">
+    <!-- Positive means the lyrics lead the audio, which is what a television's own picture delay
+         needs. It calibrates the machine's own screen, so it is not reset between songs and does not
+         move the lyrics on this page. -->
+    <p class="muted">Positive leads the audio. Calibrates the machine's screen, not this one.</p>
+    <div class="row" style="margin-top:.5rem">
+      <button class="plain" id="melody-toggle">Guide melody: —</button>
+      <button class="plain" id="reload-settings">Reload</button>
+    </div>
+    <p class="muted" id="melody-note"></p>
+  </section>
+
+  <section>
+    <h3>Microphones</h3>
+    <div id="mics"></div>
+    <p class="muted" id="mics-note"></p>
+  </section>
+
+  <h2 class="group">Catalog</h2>
+
+  <section class="wide">
+    <h3>Search</h3>
+    <div class="row">
+      <input id="q" placeholder="title or artist">
+      <input id="artist" placeholder="artist">
+      <input id="language" size="4" placeholder="lang">
+      <!-- Comma-joined and OR: `rock,brasil` is the songs that are one or the other. One box because
+           the wire takes one scalar -- `Query` is `serde_urlencoded` and refuses a repeated key. -->
+      <input id="tags" size="12" placeholder="tags (rock,brasil)">
+      <input id="min-suitability" type="number" min="0" max="10" placeholder="min suitability">
+      <select id="sort">
+        <option value="relevance">relevance</option>
+        <option value="title">title</option>
+        <option value="artist">artist</option>
+        <option value="number">number</option>
+        <option value="suitability">suitability</option>
+      </select>
+      <input id="limit" type="number" min="1" max="500" value="25">
+      <label style="flex:0 0 auto;margin:0">
+        <input id="melody-only" type="checkbox" style="width:auto"> melody only
+      </label>
+      <button id="do-search">Search</button>
+      <!-- The printed song book. A plain link rather than a `fetch` through `api()`, because it is a
+           download: the browser has to own the response. `?language=` follows the box beside it, so
+           the same filter that narrows the table narrows the book. -->
+      <a id="book-link" href="/dev/api/v1/songs/book.pdf" download
+         style="flex:0 0 auto;align-self:center">Book (PDF)</a>
+      <button class="plain" id="do-export">Export</button>
+    </div>
+    <div class="scroll" style="margin-top:.5rem">
+      <table>
+        <thead><tr>
+          <th class="num">No.</th><th>Title</th><th>Artist</th><th>Lang</th>
+          <th class="num">Score</th><th class="num">Length</th><th>Melody</th>
+          <th></th><th></th><th></th>
+        </tr></thead>
+        <tbody id="results"></tbody>
+      </table>
+    </div>
+    <p class="muted" id="search-note"></p>
+  </section>
+
+  <section class="wide">
+    <h3>Queue</h3>
+    <div class="row">
+      <!-- Seven digits, which is what a song number runs to: bank * 1000 + slot, the bank at most
+           9999 and the slot at most 999. -->
+      <input id="queue-number" type="text" inputmode="numeric" maxlength="7" placeholder="song number, e.g. 3005">
+      <input id="queue-singer" placeholder="singer (optional)">
+      <button id="do-queue">Queue by number</button>
+      <button class="plain" id="do-clear">Clear queue</button>
+    </div>
+    <div class="scroll" style="margin-top:.5rem">
+      <table>
+        <thead><tr>
+          <th class="num">#</th><th class="num">No.</th><th>Title</th><th>Artist</th>
+          <th>Singer</th><th class="num">Entry id</th><th></th>
+        </tr></thead>
+        <tbody id="queue"></tbody>
+      </table>
+    </div>
+    <p class="muted" id="queue-note"></p>
+  </section>
+
+  <h2 class="group">The machine</h2>
+
+  <section>
+    <h3>Audio output</h3>
+    <!-- Installation configuration rather than a performance knob, which is why the write is under
+         /admin/ on the real prefix. `audio.write` was the ACL id and is gone with the ACL.
+         The 409 is not a permission: the player lives inside the audio stream a change has to drop,
+         so `AudioOutputs::changeable` is false while anything is playing or queued. -->
+    <p class="muted">409 while anything is playing or queued.</p>
+    <select id="audio-output"></select>
+    <label style="flex:0 0 auto;margin:0">
+      <input id="audio-all" type="checkbox" style="width:auto"> show every device
+    </label>
+    <button id="audio-apply">Use this output</button>
+    <p class="muted" id="audio-note">—</p>
+
+    <!-- The level the card itself runs at, which is the gain into the amplifier and sits downstream
+         of `music_volume` and the limiter alike. Decibels and never percent: a control spanning
+         0-128 steps with a floor of -128 dB puts -20 dB at "84%", which reads as almost all the way
+         up and is a tenth of the voltage.
+         Absent where the output has none to set -- HDMI hands the volume to the receiver.
+         No confirmation here, unlike /admin/: this whole surface is unauthenticated by design, and
+         a guard against a careless drag is not what a debugging console is for. -->
+    <p class="muted" id="audio-level-note">—</p>
+    <input id="audio-level" type="range" step="1" disabled>
+    <button id="audio-level-apply" disabled>Use this level</button>
+  </section>
+
+  <section>
+    <h3>Wallpapers</h3>
+    <p id="wallpaper-state" class="muted">—</p>
+    <button class="plain" id="wallpaper-next">Next wallpaper</button>
+  </section>
+
+  <!-- Beside the wallpapers on purpose: those two are what the machine does while nobody is using
+       it, and the pair reads as one subject. This page is also the only place the switch exists —
+       the singer's remote deliberately has no control for it, since turning demo mode on
+       reconfigures the machine rather than adjusting a performance, which is why `PUT /demo` ships
+       admin while `GET /demo` ships public. -->
+  <section>
+    <h3>Demo mode</h3>
+    <!-- The delay only runs down while nothing is loaded and nothing is queued, and any deliberate
+         act — queueing, skipping, stopping — buys the whole of it back. The read is public because a
+         remote has to know a demo song is on the deck before it can tell a singer that skipping,
+         not queueing, is what takes the machine. -->
+    <p class="muted">Plays when nobody is singing. The delay resets on any deliberate act.</p>
+    <!-- Not a `.row`, for the reason the uploads checkbox gives: that class stretches a checkbox
+         across the column and strands its label at the far edge. -->
+    <label for="demo-enabled"
+           style="display:flex; align-items:center; gap:.4rem; margin:.5rem 0">
+      <input id="demo-enabled" type="checkbox" style="width:auto; flex:0 0 auto">
+      Play something when nobody is singing
+    </label>
+    <!-- **This one is a modifier on the write, not a piece of state, and it is never repainted from
+         the machine.** `persist` says what the *next* click should do; `stored` says what the
+         settings file currently holds, and the line below is where that is reported. Seeding this
+         box from `stored` would make an intention look like a reading, which is the confusion the
+         two-questions-two-answers note under SoundFont exists to avoid. -->
+    <label for="demo-persist"
+           style="display:flex; align-items:center; gap:.4rem; margin:.5rem 0">
+      <input id="demo-persist" type="checkbox" style="width:auto; flex:0 0 auto">
+      and write it into settings, so it survives a restart
+    </label>
+    <p class="muted" id="demo-state">—</p>
+    <!-- **No `persist` beside this one, and that is the route rather than a shortcut here.** A delay
+         is installation configuration and `PUT /admin/demo/delay` always writes it down, which is
+         why it is a path under the switch instead of a third field in its body. Saved on change, so
+         a refusal repaints the box with what the machine actually holds. -->
+    <label for="demo-delay"
+           style="display:flex; align-items:center; gap:.4rem; margin:.5rem 0">
+      <input id="demo-delay" type="number" min="0" max="3600" step="1"
+             style="width:6rem; flex:0 0 auto">
+      seconds of quiet before it starts — always written into settings
+    </label>
+    <!-- Read-only, and said out loud rather than left as a silence: the floor is a settings-file
+         value with no route behind it. The same labeling the microphone knobs get. -->
+    <p class="muted" id="demo-config">—</p>
+  </section>
+
+  <section class="wide">
+    <h3>SoundFont</h3>
+    <!-- A machine with no bank still plays: the lyrics scroll in time over a sine test tone, which
+         is why nothing else on this page says anything is wrong. -->
+    <p id="soundfont-state">—</p>
+    <p class="muted" id="soundfont-path">—</p>
+
+    <!-- **Two questions, two answers, and they disagree on purpose.** `GET /audio/soundfont` is what
+         is *sounding*, which is where Ctrl+1…Ctrl+9 leave the machine during an A/B;
+         `GET /audio/soundfonts` is what the *setting* names, and so what it comes back on. -->
+    <p class="muted">
+      Above: <code>GET /audio/soundfont</code>, sounding now. Below:
+      <code>GET /audio/soundfonts</code>, what the setting names.
+      Choosing is <code>audio.write</code>, admin by default, and takes effect on the song already
+      playing at the cost of an audible gap.
+    </p>
+    <div class="scroll">
+      <table>
+        <thead><tr>
+          <th>Bank</th><th class="num">Size</th><th>Id</th><th></th>
+        </tr></thead>
+        <tbody id="soundfont-banks"></tbody>
+      </table>
+    </div>
+    <p class="muted" id="soundfont-note">—</p>
+
+    <p id="soundfont-fetch" class="muted">—</p>
+    <progress id="soundfont-fetch-bar" max="100" value="0" hidden></progress>
+
+    <div class="row" style="margin-top:.5rem">
+      <label style="flex:0 0 auto;margin:0">
+        <input id="soundfont-all" type="checkbox" style="width:auto"> the whole catalog, not just
+        what the machine offers
+      </label>
+      <button class="plain" id="refresh-soundfonts">Reload</button>
+    </div>
+    <!-- The machine offers nine banks and knows about sixty-odd; the rest are the wider survey,
+         reachable from a shell, from here, and from nowhere a singer looks. **The terms are on the
+         row because most of these are not this project's to give away** — fetching one for your own
+         machine is a different thing from redistributing it, and a row whose license forbids even
+         pointing a downloader at it gets a link to the publisher instead of a button. -->
+    <p class="muted">Nine offered, sixty-odd known. Some rows link out instead of fetching.</p>
+    <div class="scroll">
+      <table>
+        <thead><tr>
+          <th>Bank</th><th class="num">Size</th><th>Terms</th><th></th>
+        </tr></thead>
+        <tbody id="soundfont-offers"></tbody>
+      </table>
+    </div>
+    <p class="muted" id="soundfont-offers-note">—</p>
+  </section>
+
+  <section class="wide">
+    <h3>Packages</h3>
+    <div class="row">
+      <input id="package-path" placeholder="D:/packages/vol1.kmpkg">
+      <button id="do-install">Install</button>
+      <button class="plain" id="refresh-packages">Refresh</button>
+    </div>
+    <div class="scroll" style="margin-top:.5rem">
+      <table>
+        <thead><tr>
+          <th>Id</th><th>Name</th><th>Version</th><th class="num">Songs</th>
+          <th class="num">Bank</th><th>Installed</th><th></th>
+        </tr></thead>
+        <tbody id="packages"></tbody>
+      </table>
+    </div>
+    <p class="muted" id="packages-note"></p>
+  </section>
+
+  <h2 class="group">Diagnostics</h2>
+
+  <section>
+    <h3>Debug: play a file</h3>
+    <label for="play-path">Path on the machine</label>
+    <input id="play-path" placeholder="fixtures/generated/lyric_events.mid">
+    <div class="row" style="margin-top:.5rem">
+      <button class="plain" id="do-play-file">Play it</button>
+    </div>
+    <p class="muted">Bypasses the catalog. <code>POST /debug/play-file</code>.</p>
+  </section>
+
+  <!-- The same act from the other side of the network. The widget beside this one names a path and
+       the machine opens it on its own disk, which is meaningless when the corpus being curated is on
+       this box and the machine is under a television somewhere else; here the body is the song.
+
+       Its own section rather than the second half of that one, which is what it was until the page
+       was grouped. Two routes, two permissions and two failure modes do not read as one form with a
+       fold in the middle of it. -->
+  <section>
+    <h3>Debug: send a song</h3>
+    <!-- The same switch as the Debugging section below, ticked from where a curator meets it. It
+         drives PUT /admin/debug and takes effect when the machine next starts, because the routes are
+         mounted at construction rather than checked per request.
+         There is no narrower debug.accept_uploads over this one route: one switch covers the
+         whole debug surface. -->
+    <!-- Deliberately not a `.row`: that class gives every child `flex: 1 1 6rem`, which stretches a
+         checkbox across the column and strands its label at the far edge. -->
+    <label for="accept-uploads"
+           style="display:flex; align-items:center; gap:.4rem; margin:.5rem 0">
+      <input id="accept-uploads" type="checkbox" style="width:auto; flex:0 0 auto">
+      This machine is in debugging mode
+    </label>
+    <label for="upload-stem">Name to stage it under</label>
+    <input id="upload-stem" placeholder="lyric_events">
+    <label for="upload-files" style="margin-top:.5rem">The song</label>
+    <input id="upload-files" type="file" multiple>
+    <div class="row" style="margin-top:.5rem">
+      <button class="plain" id="do-play-upload">Play the upload</button>
+    </div>
+    <!-- Two files at most, because an MP3+G pair is the only song that is more than one; a gigabyte,
+         which is there for a video. Both halves are staged under the name above rather than under
+         their own, so a pair can find itself. -->
+    <p class="muted" id="upload-note">
+      Two files, 1 GB. <code>POST /debug/play-upload</code>, mounted only while debugging is on.
+    </p>
+  </section>
+
+  <!-- The access-control editor was here, and it is gone with the thing it edited. Which routes need
+       the password is fixed now: everything under /api/v1/admin/ and nothing else — and none of it
+       under this page prefix, which is why the password box went too. -->
+  <section class="wide">
+    <h3>Debugging</h3>
+    <p class="muted" id="debug-note"></p>
+    <div class="row">
+      <button id="debug-on">Turn debugging on</button>
+      <button class="plain" id="debug-off">Turn debugging off</button>
+    </div>
+    <!-- Off, those two routes are not there at all — a 404, not a refusal — because they are mounted
+         at router-construction time rather than checked per request. -->
+    <p class="muted">
+      Mounts the two <code>debug/play-*</code> routes and enables the <code>debug.</code> settings
+      section. Next start.
+    </p>
+  </section>
+
+  <!-- **The switch that turns this page off, on this page.** A foot-gun and kept anyway: the API
+       here has no permissions, so anybody who can load this can already curl the route, and a
+       console that could not report its own state was how somebody ended up at a 404 with nothing
+       saying debugging was the reason. -->
+  <section class="wide">
+    <h3>This console</h3>
+    <p class="muted" id="console-note"></p>
+    <div class="row">
+      <button id="console-on">Turn the console on</button>
+      <button class="plain" id="console-off">Turn the console off</button>
+    </div>
+    <p class="muted">
+      <code>/dev/</code> and <code>/dev/api/v1</code> need this <em>and</em> debugging on. Next
+      start.
+    </p>
+  </section>
+
+  <!-- The F12 panel, which on the appliance is a key nobody can press. Unlike the two switches above
+       it mounts nothing, so it takes effect on the next frame -- and nothing is written down, which
+       is what keeps the overlay a diagnostic rather than a setting. -->
+  <section class="wide">
+    <h3>Frame statistics</h3>
+    <p class="muted" id="performance-note"></p>
+    <div class="row">
+      <button id="performance-on">Draw the panel</button>
+      <button class="plain" id="performance-off">Hide it</button>
+    </div>
+    <p class="muted">
+      What <code>F12</code> draws, on the machine's own screen. Takes effect on the next frame.
+      <code>--frame-stats</code> is the separate switch that writes the same numbers to the log.
+    </p>
+  </section>
+
+  <section class="wide">
+    <h3>Event stream <span id="event-count" class="pill">0</span></h3>
+    <div class="row">
+      <label style="flex:0 0 auto;margin:0">
+        <input id="hide-state" type="checkbox" checked style="width:auto"> hide <code>state</code>
+      </label>
+      <button class="plain" id="clear-log">Clear</button>
+    </div>
+    <div class="log" id="log"></div>
+  </section>
+
+  <!-- **Its own pane and its own socket, deliberately not the one above.** That log is a transcript
+       of what a *client* does, and folding the machine's own lines into it would leave neither
+       legible.
+
+       Two routes, and the tail is the one that matters on arrival: a pane that filled up from empty
+       would be no use for the question this whole thing answers, which is always about a moment that
+       has already passed. The socket sends the tail itself, so `refreshAll` deliberately does not
+       fetch it -- see the note there.
+
+       No password box, for the same reason nothing on this page has one: `/dev/api/v1` is the
+       prefix the permission rule does not reach. -->
+  <section class="wide">
+    <h3>The machine's log <span id="log-count" class="pill">0</span></h3>
+    <p class="muted" id="machine-log-note"></p>
+    <div class="row">
+      <select id="log-level" style="flex:0 0 auto">
+        <option value="trace">everything</option>
+        <option value="debug">debug and above</option>
+        <option value="info" selected>info and above</option>
+        <option value="warn">warnings and errors</option>
+        <option value="error">errors only</option>
+      </select>
+      <input id="log-find" placeholder="filter by target or text">
+      <button class="plain" id="log-reload">Reload the tail</button>
+      <button class="plain" id="clear-machine-log">Clear</button>
+    </div>
+    <p class="muted" id="log-status"></p>
+    <div class="log" id="machine-log"></div>
+    <!-- Filtering is here rather than a query on the route: it is instant, it applies to lines that
+         have already arrived, and it keeps the surface at two rows. -->
+    <p class="muted">
+      <code>GET /admin/logs</code> and <code>/admin/logs/stream</code>. Filtered in the page.
+    </p>
+  </section>
+
+</div>
+
+<script>
+"use strict";
+
+const $ = (id) => document.getElementById(id);
+const STORE = { base: "km.dev.base" };
+
+// **This page's own prefix, and it is not /api/v1.** `/dev/api/v1` is the whole API mounted a second
+// time, by `km_api::routes::DEV_API_PREFIX`, under a prefix the permission rule does not reach --
+// so every route below is open, including the ones filed under /admin/. One constant, used by the
+// four places that build a URL: the fetch below, the event socket, the song book link and its
+// refresh. `km.dev.token` is gone from localStorage with the box that filled it.
+const API = "/dev/api/v1";
+
+let socket = null;
+let events = 0;
+let lastState = null;
+
+
+// How far apart the event stream's reconnection attempts grow, and where they stop growing. The
+// same 1s doubling to 30s that the offline remote's `spawn_event_stream` uses
+// (`crates/remote/km-remote-core/src/client.rs`), for the same reason: coming back to an address
+// that is coming back is cheap and worth trying often, and a machine left switched off should not
+// be asked every second for the rest of the afternoon.
+const RETRY_START = 1000;
+const RETRY_MAX = 30000;
+
+let retry = null;              // the pending reconnection, or null when none is scheduled
+let backoff = RETRY_START;
+let dropped = false;           // a socket has closed since the last one opened
+// The upload section's own status line doubles as its documentation, so what the markup says is the
+// resting state to come back to once a refusal or an error has been shown there.
+const UPLOAD_NOTE = $("upload-note").innerHTML;
+
+// The machine's own log: its own socket, and its own everything else. Sharing the event socket's
+// state would mean one stream reconnecting reset the other's backoff, and a machine that is down is
+// down for both -- which reads as one stream retrying twice as fast as it was told to.
+let logSocket = null;
+let logRetry = null;
+let logBackoff = RETRY_START;
+let logDropped = false;
+// Kept as records rather than as rendered lines, because the level and text filters re-draw the pane
+// from what has already arrived. Capped at the same 400 the transcript is.
+let logRecords = [];
+const LOG_KEEP = 400;
+// What `GET /admin/logs` last said about itself -- the ring's size, what has already fallen off it,
+// and the filter directive this run is keeping records under. Drawn above the pane.
+let logTail = null;
+// The highest sequence number drawn, which is how the same record arriving twice is drawn once.
+//
+// It arrives twice on purpose. The stream opens with the machine's tail, and this page fetches that
+// tail as well -- the fetch is what reports a machine keeping no log, which a socket can only do by
+// closing. The machine overlaps them for its own reason too: a subscription and a snapshot that
+// cannot duplicate are one that can lose. Both are answered here, by the number the machine puts on
+// every record.
+//
+// Reset with the records whenever the stream reopens, because a restarted machine counts from one
+// again and every line would otherwise read as one already seen.
+let lastLogSeq = 0;
+// How the levels order, for "this level and above". Names rather than numbers on the wire, because a
+// number is unreadable in a body somebody is looking at with curl.
+const LEVELS = { error: 0, warn: 1, info: 2, debug: 3, trace: 4 };
+
+// -- plumbing -----------------------------------------------------------------------------------
+
+function base() {
+  const value = $("base").value.trim().replace(/\/+$/, "");
+  return value || location.origin;
+}
+
+function log(text, kind) {
+  const line = document.createElement("div");
+  if (kind) line.className = kind;
+  const now = new Date();
+  const stamp = now.toTimeString().slice(0, 8) + "." +
+    String(now.getMilliseconds()).padStart(3, "0");
+  line.textContent = `${stamp}  ${text}`;
+  const box = $("log");
+  box.prepend(line);
+  while (box.childElementCount > 400) box.lastElementChild.remove();
+}
+
+// Every call goes through here, so the log is a complete transcript of what a client must do.
+//
+// Two shapes other than "JSON in, JSON out" pass through unchanged so that stays true. A `FormData`
+// body is sent as it is and **must not** be given a content-type: the boundary is part of that
+// header and only the browser knows it, so setting it by hand produces a body the server cannot
+// split. `options.raw` returns the response text and the response itself instead of parsed JSON,
+// for a body that is not JSON or a caller that needs a header off it.
+async function api(method, path, body, options) {
+  const form = body instanceof FormData;
+  const headers = {};
+  if (body !== undefined && !form) headers["content-type"] = "application/json";
+  // No `authorization` header, ever. `API` is the prefix that checks nothing.
+
+  let response;
+  try {
+    response = await fetch(base() + API + path, {
+      method,
+      headers,
+      body: body === undefined ? undefined : form ? body : JSON.stringify(body),
+    });
+  } catch (error) {
+    log(`${method} ${path} — network error: ${error}`, "bad");
+    throw error;
+  }
+
+  const text = await response.text();
+  let parsed = null;
+  try { parsed = text ? JSON.parse(text) : null; } catch { /* not JSON; show it raw */ }
+
+  if (!response.ok) {
+    const code = parsed && parsed.error ? parsed.error : "?";
+    const message = parsed && parsed.message ? parsed.message : text;
+    log(`${method} ${path} → ${response.status} [${code}] ${message}`, "bad");
+    // **No branch here clears an expired token.** Nothing on this page holds a token, so a 401 is
+    // not a state this page can be in — and if one arrives it means somebody has pointed the
+    // address box at a path outside `API`, which the log line above already says plainly.
+    //
+    // A 404 *is* a state worth recognising, and it needs no branch either: pointed at a machine
+    // whose console is off, every call answers `unknown_endpoint`, whose message names the prefix.
+    const error = new Error(message);
+    error.status = response.status;
+    error.code = code;
+    throw error;
+  }
+  log(`${method} ${path} → ${response.status}`, "good");
+  return options && options.raw ? { text, response } : parsed;
+}
+
+function ms(value) {
+  if (value === null || value === undefined) return "—";
+  const total = Math.round(value / 1000);
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
+}
+
+// -- the WebSocket ------------------------------------------------------------------------------
+
+// Schedules the next attempt and grows the wait. Called only from `connectSocket`'s own failure
+// paths, so there is never more than one of these outstanding.
+function retryLater() {
+  const wait = backoff;
+  backoff = Math.min(backoff * 2, RETRY_MAX);
+  retry = setTimeout(connectSocket, wait);
+  $("ws-status").innerHTML = '<span class="bad">disconnected</span> — reconnecting in ' +
+    Math.round(wait / 1000) + "s, or press Reconnect";
+}
+
+// The stream comes back on its own, because on this page a machine going away is usually somebody
+// restarting it on purpose — this is the page you leave open across a rebuild. Unbounded, like the
+// display retry in `karaokemachine`: there is no attempt at which the right answer becomes giving
+// up and making somebody notice a button.
+function connectSocket() {
+  clearTimeout(retry);
+  retry = null;
+  if (socket) { socket.onclose = null; socket.close(); socket = null; }
+  const url = new URL(base() + API + "/events");
+  url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
+  $("ws-status").textContent = "connecting to " + url.href;
+  let opened;
+  try {
+    opened = new WebSocket(url.href);
+  } catch (error) {
+    // A URL the constructor refuses outright throws here and fires neither handler below, which
+    // without this would leave the page with no socket and nothing scheduled — the one way this
+    // could still end up stuck.
+    log("websocket refused: " + error, "bad");
+    retryLater();
+    return;
+  }
+  socket = opened;
+
+  opened.onopen = () => {
+    $("ws-status").innerHTML = '<span class="good">connected</span> — ' + url.href;
+    backoff = RETRY_START;
+    // A reconnection is worth telling apart from the first connection, and worth re-reading
+    // everything after: whatever closed the socket was very likely a restart, and a restarted
+    // machine agrees with this page about nothing — an empty queue, settings off disk again.
+    if (dropped) {
+      dropped = false;
+      log("websocket reopened — re-reading everything", "good");
+      refreshAll();
+    } else {
+      log("websocket open", "good");
+    }
+  };
+  opened.onclose = () => {
+    if (socket !== opened) return;
+    // Said once and not once an attempt. A machine switched off for an hour would otherwise push
+    // every useful line out of a log whose whole job is to be a readable record of what a client
+    // does — the same reason the display retry logs once and then keeps quiet.
+    if (!dropped) log("websocket closed", "bad");
+    dropped = true;
+    retryLater();
+  };
+  opened.onerror = () => { if (!dropped) log("websocket error", "bad"); };
+  opened.onmessage = (message) => {
+    let event;
+    try { event = JSON.parse(message.data); } catch { log("unparseable event", "bad"); return; }
+    events += 1;
+    $("event-count").textContent = events;
+    if (!($("hide-state").checked && event.event === "state")) {
+      log("⇠ " + JSON.stringify(event));
+    }
+    handleEvent(event);
+  };
+}
+
+function handleEvent(event) {
+  switch (event.event) {
+    case "state": renderState(event.state); break;
+    case "queue_changed": renderQueue(event.queue); break;
+    // `refreshDemo` rides along on both because a demo song starting *is* a `song_started`, and
+    // because the countdown only becomes a countdown again once the deck is empty.
+    case "song_started": refreshState(); refreshDemo(); break;
+    case "song_ended": refreshState(); refreshDemo(); break;
+    case "settings_changed": renderSettings(event.settings); break;
+    case "mics_changed": renderMics(event.mics); break;
+    case "wallpaper_changed": refreshWallpapers(); break;
+    case "lyric_line": break; // shown in the raw log; a real remote would highlight it
+    case "desync":
+      // The honest response to a desync is to re-fetch everything, which is why the server
+      // bothers to send it.
+      log(`desync: ${event.skipped} events missed — re-fetching`, "bad");
+      refreshAll();
+      break;
+  }
+}
+
+// -- the machine's log ---------------------------------------------------------------------------
+
+// The same 1s-to-30s backoff the event socket uses, kept in its own variables. See `connectLogSocket`.
+function logRetryLater() {
+  const wait = logBackoff;
+  logBackoff = Math.min(logBackoff * 2, RETRY_MAX);
+  logRetry = setTimeout(connectLogSocket, wait);
+  $("log-status").innerHTML = '<span class="bad">disconnected</span> — reconnecting in ' +
+    Math.round(wait / 1000) + "s";
+}
+
+// Opens the log stream, which sends what the machine has already said and then what it says next.
+//
+// A 404 here is the ordinary answer on a machine that keeps no log -- the routes are not mounted
+// rather than mounted and empty -- but a WebSocket that fails gives the page no status code to read,
+// only a close. So the tail is fetched alongside, and its refusal is what says which case this is.
+function connectLogSocket() {
+  clearTimeout(logRetry);
+  logRetry = null;
+  if (logSocket) { logSocket.onclose = null; logSocket.close(); logSocket = null; }
+  const url = new URL(base() + API + "/admin/logs/stream");
+  url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
+  $("log-status").textContent = "connecting…";
+  let opened;
+  try {
+    opened = new WebSocket(url.href);
+  } catch (error) {
+    $("log-status").innerHTML = '<span class="bad">could not open the log stream</span>';
+    logRetryLater();
+    return;
+  }
+  logSocket = opened;
+
+  opened.onopen = () => {
+    $("log-status").innerHTML = '<span class="good">streaming</span>';
+    logBackoff = RETRY_START;
+    // A reconnection means the machine restarted, so what is on screen is the previous run's. The
+    // stream is about to send this run's tail, and leaving the old lines above it would put two
+    // runs in one pane with nothing marking the seam.
+    if (logDropped) {
+      logDropped = false;
+      logRecords = [];
+      lastLogSeq = 0;
+      $("machine-log").textContent = "";
+    }
+    refreshLogNote();
+  };
+  opened.onclose = () => {
+    if (logSocket !== opened) return;
+    logDropped = true;
+    logRetryLater();
+  };
+  opened.onmessage = (message) => {
+    let frame;
+    try { frame = JSON.parse(message.data); } catch { return; }
+    if (frame.event === "lagged") {
+      // Not a record: the machine did not say this, the stream did. Shown whatever the level filter
+      // says, because "you are missing lines" is not something to filter away.
+      addLogRecord({ lagged: frame.skipped });
+      return;
+    }
+    addLogRecord(frame.record);
+  };
+}
+
+// Takes one record, keeps the newest `LOG_KEEP`, and draws it if the filters let it through.
+function addLogRecord(record) {
+  // A record already drawn, from the tail this page fetched or the one the stream opened with.
+  if (record.seq !== undefined) {
+    if (record.seq <= lastLogSeq) return;
+    lastLogSeq = record.seq;
+  }
+  logRecords.push(record);
+  if (logRecords.length > LOG_KEEP) logRecords.shift();
+  $("log-count").textContent = logRecords.length;
+  if (!passesLogFilter(record)) return;
+  prependLogLine(record);
+  const box = $("machine-log");
+  while (box.childElementCount > LOG_KEEP) box.lastElementChild.remove();
+}
+
+function passesLogFilter(record) {
+  if (record.lagged !== undefined) return true;
+  const wanted = LEVELS[$("log-level").value];
+  if (LEVELS[record.level] > wanted) return false;
+  const find = $("log-find").value.trim().toLowerCase();
+  if (!find) return true;
+  // Target as well as message, so `km_api` narrows to one crate without a dropdown that would have
+  // to be kept in step with the targets that actually exist.
+  return (record.target + " " + record.message + " " + (record.fields || ""))
+    .toLowerCase().includes(find);
+}
+
+function prependLogLine(record) {
+  const line = document.createElement("div");
+  if (record.lagged !== undefined) {
+    line.className = "bad";
+    line.textContent = `⚠ ${record.lagged} lines went past while this page was behind`;
+    $("machine-log").prepend(line);
+    return;
+  }
+  // The machine sends milliseconds and this turns them into a time, which is why nothing in the
+  // machine needs a date library to serve a log.
+  const at = new Date(record.at_ms);
+  const stamp = at.toTimeString().slice(0, 8) + "." +
+    String(at.getMilliseconds()).padStart(3, "0");
+  const level = document.createElement("span");
+  level.className = "lv " + logLevelClass(record.level);
+  level.textContent = record.level;
+  line.append(stamp + "  ", level, " " + record.target + "  " + record.message);
+  if (record.fields) {
+    const fields = document.createElement("span");
+    fields.className = "muted";
+    fields.textContent = "  " + record.fields;
+    line.append(fields);
+  }
+  $("machine-log").prepend(line);
+}
+
+function logLevelClass(level) {
+  if (level === "error") return "bad";
+  if (level === "warn") return "warn";
+  if (level === "info") return "";
+  return "muted";
+}
+
+// Draws the pane again from what has already arrived, which is what makes the two filters instant.
+function redrawLog() {
+  const box = $("machine-log");
+  box.textContent = "";
+  for (const record of logRecords) {
+    if (passesLogFilter(record)) prependLogLine(record);
+  }
+}
+
+function refreshLogNote() {
+  const note = $("machine-log-note");
+  if (!logTail) { note.textContent = ""; return; }
+  // The directive is the half people forget: a machine started without `-v` keeps nothing below
+  // `info`, and a pane with no debug lines in it needs to say which of the two reasons that is.
+  const filter = logTail.filter ? `kept under ${logTail.filter}` : "keeping whatever it was told to";
+  const lost = logTail.dropped > 0 ? `, ${logTail.dropped} already dropped` : "";
+  note.textContent = `The last ${logTail.capacity} lines, ${filter}${lost}.`;
+}
+
+// -- rendering ----------------------------------------------------------------------------------
+
+function renderState(state) {
+  lastState = state;
+  const now = state.now_playing;
+  $("now-title").textContent = now ? now.title : "—";
+  if (now) {
+    // A demo song carries a number like a queued one but no entry id, so it reads the same way
+    // here; the "demo" bit below is what says nobody asked for it and skipping is the way past.
+    const origin = now.origin.kind === "file"
+      ? `file ${now.origin.path}`
+      : `no. ${now.origin.number}`;
+    const bits = [state.transport, origin];
+    if (now.artist) bits.splice(1, 0, now.artist);
+    if (now.origin.kind === "demo") bits.push("demo — skip to sing");
+    if (now.singer) bits.push("for " + now.singer);
+    if (!now.has_lyrics) bits.push("no lyrics");
+    $("now-detail").textContent = bits.join(" · ");
+    $("now-progress").max = Math.max(now.duration_ms, 1);
+    $("now-progress").value = state.position_ms;
+    $("now-position").textContent = `${ms(state.position_ms)} / ${ms(now.duration_ms)}`;
+    $("melody-toggle").textContent =
+      "Guide melody: " + (state.settings.melody_enabled ? "on" : "off");
+    $("melody-toggle").disabled = !now.melody_available;
+    $("melody-note").textContent = now.melody_available
+      ? `melody on channel ${now.melody_channel}`
+      : "no melody channel was confidently detected — the toggle is unavailable";
+  } else {
+    $("now-detail").textContent = state.transport + " · " + state.queue_len + " queued";
+    $("now-progress").value = 0;
+    $("now-position").textContent = "—";
+    $("melody-toggle").textContent =
+      "Guide melody: " + (state.settings.melody_enabled ? "on" : "off");
+    $("melody-toggle").disabled = false;
+    $("melody-note").textContent = "";
+  }
+  renderSettings(state.settings, true);
+}
+
+function renderSettings(settings, quiet) {
+  $("transpose").value = settings.transpose;
+  $("transpose-value").textContent =
+    settings.transpose > 0 ? "+" + settings.transpose : settings.transpose;
+  $("tempo").value = settings.tempo_ratio;
+  $("tempo-value").textContent = settings.tempo_ratio.toFixed(2) + "×";
+  $("volume").value = settings.music_volume;
+  $("volume-value").textContent = settings.music_volume.toFixed(2);
+  $("lyric-offset").value = settings.lyric_offset_ms;
+  $("lyric-offset-value").textContent = settings.lyric_offset_ms + " ms";
+  if (!quiet) {
+    $("melody-toggle").textContent =
+      "Guide melody: " + (settings.melody_enabled ? "on" : "off");
+  }
+}
+
+function renderResults(page) {
+  const body = $("results");
+  body.textContent = "";
+  for (const song of page.songs) {
+    const row = body.insertRow();
+    row.insertCell().outerHTML = `<td class="num">${song.number}</td>`;
+    row.insertCell().textContent = song.title;
+    row.insertCell().textContent = song.artist || "—";
+    row.insertCell().textContent = song.language || "—";
+    row.insertCell().outerHTML =
+      `<td class="num">${song.suitability === null ? "—" : song.suitability}</td>`;
+    row.insertCell().outerHTML = `<td class="num">${ms(song.duration_ms)}</td>`;
+    row.insertCell().textContent = song.melody_available ? "yes" : "—";
+
+    const queueCell = row.insertCell();
+    const queueButton = document.createElement("button");
+    queueButton.textContent = "Queue";
+    queueButton.onclick = () => queueNumber(song.number, $("queue-singer").value);
+    queueCell.append(queueButton);
+
+    // The one song, on its own. The table above is already most of a `SongDto`, so what this is
+    // for is the rest of it — kind, default transpose, which package it came from, the lyric
+    // preview — and the fact that a client can reach a song it already knows the number of without
+    // searching for it first. A phone restoring a favorites list does exactly that.
+    const songCell = row.insertCell();
+    const songButton = document.createElement("button");
+    songButton.className = "plain";
+    songButton.textContent = "Song";
+    songButton.onclick = async () => {
+      const one = await api("GET", `/songs/${song.number}`);
+      log(`song ${one.number}: ${one.title} — ${one.artist || "no artist"} · ${one.kind} · ` +
+        `${one.language || "no language"} · package ${one.package_id} · ` +
+        `default transpose ${one.default_transpose}`);
+      for (const line of one.lyric_preview || []) log(`  ${line}`);
+    };
+    songCell.append(songButton);
+
+    const lyricsCell = row.insertCell();
+    const lyricsButton = document.createElement("button");
+    lyricsButton.className = "plain";
+    lyricsButton.textContent = "Lyrics";
+    lyricsButton.onclick = async () => {
+      const lyrics = await api("GET", `/songs/${song.number}/lyrics`);
+      log(`lyrics: ${lyrics.lines.length} lines, ${lyrics.granularity}, ${lyrics.flavor}`);
+      for (const line of lyrics.lines.slice(0, 5)) {
+        log(`  ${ms(line.start_ms)}  ${line.text}`);
+      }
+    };
+    lyricsCell.append(lyricsButton);
+  }
+  $("search-note").textContent =
+    `${page.songs.length} shown, offset ${page.offset}, limit ${page.limit}` +
+    (page.more ? " — more available" : "");
+}
+
+function renderQueue(queue) {
+  const body = $("queue");
+  body.textContent = "";
+  for (const entry of queue.entries) {
+    const row = body.insertRow();
+    row.insertCell().outerHTML = `<td class="num">${entry.position + 1}</td>`;
+    row.insertCell().outerHTML = `<td class="num">${entry.number}</td>`;
+    row.insertCell().textContent = entry.title;
+    row.insertCell().textContent = entry.artist || "—";
+    row.insertCell().textContent = entry.singer || "—";
+    row.insertCell().outerHTML = `<td class="num">${entry.id}</td>`;
+
+    const actions = row.insertCell();
+    // Moves and removals are by entry id, never by position: somebody else queueing a song shifts
+    // every position, and acting on a stale one would hit the wrong song.
+    for (const [label, handler] of [
+      ["▲", () => move(entry.id, Math.max(entry.position - 1, 0))],
+      ["▼", () => move(entry.id, entry.position + 1)],
+      ["✕", () => remove(entry.id)],
+    ]) {
+      const button = document.createElement("button");
+      button.className = "plain";
+      button.textContent = label;
+      button.style.marginRight = ".2rem";
+      button.onclick = handler;
+      actions.append(button);
+    }
+  }
+  $("queue-note").textContent = `${queue.len} of ${queue.capacity} queued`;
+}
+
+function renderMics(mics) {
+  const host = $("mics");
+  host.textContent = "";
+  for (const mic of mics.mics) {
+    const block = document.createElement("div");
+    block.style.borderBottom = "1px solid var(--line)";
+    block.style.padding = ".35rem 0";
+
+    const title = document.createElement("div");
+    title.innerHTML = `<strong>${mic.name}</strong> <span class="pill">${mic.id}</span>` +
+      (mic.device_hint ? ` <span class="muted">${mic.device_hint}</span>` : "");
+    block.append(title);
+
+    for (const field of ["gain", "reverb", "echo"]) {
+      const label = document.createElement("label");
+      label.textContent = `${field} ${mic[field].toFixed(2)}`;
+      const slider = document.createElement("input");
+      slider.type = "range";
+      slider.min = 0;
+      slider.max = field === "gain" ? 2 : 1;
+      slider.step = 0.01;
+      slider.value = mic[field];
+      slider.onchange = () => api("PUT", `/mics/${mic.id}`, { [field]: Number(slider.value) })
+        .then(renderMics);
+      block.append(label, slider);
+    }
+
+    const mute = document.createElement("button");
+    mute.className = "plain";
+    mute.textContent = mic.muted ? "Unmute" : "Mute";
+    mute.onclick = () => api("PUT", `/mics/${mic.id}`, { muted: !mic.muted }).then(renderMics);
+    block.append(mute);
+    host.append(block);
+  }
+  $("mics-note").textContent = mics.applies_dsp
+    ? "this machine applies processing"
+    : "settings only — mic audio is mixed in hardware, nothing here applies DSP";
+}
+
+function renderPackages(payload) {
+  const body = $("packages");
+  body.textContent = "";
+  for (const item of payload.packages) {
+    const row = body.insertRow();
+    row.insertCell().textContent = item.id;
+    row.insertCell().textContent = item.name;
+    row.insertCell().textContent = item.version;
+    row.insertCell().outerHTML = `<td class="num">${item.song_count}</td>`;
+    // The bank, and the range it puts this package's songs in. A bank is the thousands part of every
+    // number in the package, so saying it as a range is saying where to dial without a song list.
+    const first = item.bank * 1000 + 1;
+    row.insertCell().outerHTML =
+      `<td class="num" title="songs ${first}-${item.bank * 1000 + 999}">${item.bank}</td>`;
+    row.insertCell().textContent = item.installed_at;
+    const cell = row.insertCell();
+
+    // `PUT .../bank` is admin by default and 409s while anything is playing or queued, and it is
+    // the one route with nothing else to drive it by hand -- which is what this page is for.
+    // Bank 0 is refused: it is the machine's own, and no package may be given it.
+    const move = document.createElement("button");
+    move.className = "plain";
+    move.textContent = "Move";
+    move.onclick = async () => {
+      const asked = prompt(
+        `Which bank for ${item.id}? 1 to 9999.\n\n` +
+          "Every song in it is renumbered, so a printed book goes stale. Bank 0 is the machine's " +
+          "own and cannot hold a package.",
+        String(item.bank),
+      );
+      if (asked === null) return;
+      const bank = Number.parseInt(asked.trim(), 10);
+      if (!Number.isInteger(bank) || bank < 1 || bank > 9999) {
+        log(`not a bank: ${asked}`);
+        return;
+      }
+      // Caught rather than left to throw, unlike Uninstall beside it: the expected failure here is
+      // a 409 while something is playing or queued, which `api` has already logged in full, and the
+      // list is worth refreshing either way since a refusal leaves it exactly as it was.
+      try {
+        const done = await api("PUT", `/admin/packages/${encodeURIComponent(item.id)}/bank`, { bank });
+        log(`${done.package_id} is now bank ${done.bank}: ${done.songs_renumbered} songs renumbered`);
+      } catch { /* already logged, with the machine's own message */ }
+      refreshPackages();
+    };
+    cell.append(move);
+
+    const button = document.createElement("button");
+    button.className = "plain";
+    button.textContent = "Uninstall";
+    button.onclick = async () => {
+      // Two changes, and they are one change. `DELETE /packages/{id}` deletes the .kmpkg itself
+      // now, so this is the only control on this page that destroys a file somebody may not have
+      // another copy of — it asks first, with a `confirm()`, which is this file's own idiom (Move
+      // above already uses `prompt()`) rather than /admin/'s confirmation page. That surface has no
+      // script by decision and this one is nothing but script; each asks in the way it can.
+      //
+      // And it catches, which it never did — the asymmetry Move's comment names. A refusal went
+      // into an unhandled rejection, so the machine's own sentence reached nobody and the list was
+      // left unrefreshed. Now that the route answers 400 with that sentence rather than a bare 404,
+      // there is something worth reaching the transcript.
+      if (!confirm(
+        `Uninstall ${item.id}?\n\n` +
+          `Its ${item.song_count} songs go, and the .kmpkg file itself is deleted from the machine.`,
+      )) return;
+      try {
+        const report = await api("DELETE", `/admin/packages/${encodeURIComponent(item.id)}`);
+        log(`removed ${report.package_id}: ${report.songs_removed} songs`);
+      } catch { /* already logged, with the machine's own message */ }
+      refreshPackages();
+    };
+    cell.append(button);
+  }
+  $("packages-note").textContent = `${payload.packages.length} packages, ` +
+    `${payload.song_count} songs catalogd`;
+}
+
+// `enabled` is this run and `stored` is the next one, and they disagree the whole time between a
+// press and a restart -- so both are said. A line reporting only the running value made the switch
+// look as though it had not worked.
+function renderDebug(payload) {
+  const now = payload.enabled
+    ? "on: anybody on this network can play a file from this machine's disk"
+    : "off: the two debug/play routes are not mounted";
+  const next = payload.stored === payload.enabled
+    ? ""
+    : ` — set to ${payload.stored ? "on" : "off"} at the next start`;
+  $("debug-note").textContent = now + next;
+}
+
+// The same pair, plus the answer to "I turned it on and /dev/ still 404s": `served` is false while
+// debugging is off, and saying which switch is missing is the whole reason the route reports two
+// fields.
+function renderConsole(payload) {
+  const parts = [payload.enabled ? "asked for" : "off"];
+  if (payload.served) {
+    parts.push("serving");
+  } else if (payload.enabled) {
+    parts.push("not serving: debugging mode is off, and this needs both");
+  }
+  $("console-note").textContent = parts.join(" — ");
+}
+
+function renderPerformance(payload) {
+  $("performance-note").textContent = payload.enabled
+    ? "on the machine's screen now"
+    : "not drawn";
+}
+
+// -- actions ------------------------------------------------------------------------------------
+
+const refreshState = () => api("GET", "/state").then(renderState).catch(() => {});
+const refreshQueue = () => api("GET", "/queue").then(renderQueue).catch(() => {});
+const refreshMics = () => api("GET", "/mics").then(renderMics).catch(() => {});
+const refreshPackages = () => api("GET", "/packages").then(renderPackages).catch(() => {});
+const refreshDebug = () => api("GET", "/debug").then(renderDebug).catch(() => {});
+const refreshConsole = () => api("GET", "/dev-remote").then(renderConsole).catch(() => {});
+const refreshPerformance = () =>
+  api("GET", "/performance").then(renderPerformance).catch(() => {});
+
+// The tail on its own, for the numbers above the pane and for the machine that keeps no log at all.
+//
+// The stream sends the same records, so this is not how the pane is normally filled -- but a socket
+// that fails says only "closed", where this says 404 with a message, which is the difference between
+// "the machine is not answering" and "this machine keeps no log". Its refusal is already a line in
+// the transcript above, which is where somebody looks next.
+function reloadLogTail() {
+  return api("GET", "/admin/logs").then((payload) => {
+    logTail = payload;
+    logRecords = payload.records;
+    // Everything the tail holds counts as drawn, so the stream's copy of the same records is
+    // dropped rather than doubling the pane.
+    lastLogSeq = logRecords.reduce((high, record) => Math.max(high, record.seq), lastLogSeq);
+    $("log-count").textContent = logRecords.length;
+    redrawLog();
+    refreshLogNote();
+  }).catch(() => {
+    logTail = null;
+    $("machine-log-note").textContent = "This machine is not keeping a log in memory.";
+  });
+}
+
+// Kept so the checkbox below re-renders without asking the machine again — nothing about the list
+// changes when somebody decides they want to see more of it.
+let audioOutputs = null;
+
+async function refreshAudioOutputs() {
+  try {
+    audioOutputs = await api("GET", "/audio/outputs");
+    renderAudioOutputs();
+  } catch { /* already logged */ }
+}
+
+function audioOption(output) {
+  const option = document.createElement("option");
+  option.value = output.id;
+  const marks = [];
+  if (output.usb) marks.push("USB");
+  if (output.system_default) marks.push("system default today");
+  // Listed rather than hidden: a saved device that has been unplugged is still the choice, and
+  // a remote that dropped it would look like the machine had forgotten.
+  if (!output.available) marks.push("not present");
+  option.textContent = output.name + (marks.length ? `  (${marks.join(", ")})` : "");
+  option.selected = output.selected;
+  return option;
+}
+
+function renderAudioOutputs() {
+  const state = audioOutputs;
+  if (!state) return;
+  const select = $("audio-output");
+  select.replaceChildren();
+
+  // One row per physical output, which on Linux is a small fraction of what the backend enumerates:
+  // ALSA layers channel maps, plugin chains and aliases over the kernel's own device list and gives
+  // every one of them the card's description, so an unfiltered list is thirty-odd rows carrying the
+  // same handful of names. `preferred` is the machine saying which row it would put in front of
+  // somebody. A `selected` row is always among them, but it is checked here too, because a chooser
+  // that cannot show the current value is worse than a long one.
+  const offered = state.outputs.filter((o) => o.preferred || o.selected);
+  const rest = state.outputs.filter((o) => !o.preferred && !o.selected);
+  for (const output of offered) select.appendChild(audioOption(output));
+
+  // The rest are shown on request rather than never. Every one of them is a legal `PUT`, one of
+  // them may be what somebody deliberately saved, and picking `dmix:` or a bare `hw:` on purpose is
+  // a real thing to want when working out why a box will not make a sound.
+  if (rest.length && $("audio-all").checked) {
+    const group = document.createElement("optgroup");
+    group.label = "Other names for those same outputs";
+    for (const output of rest) group.appendChild(audioOption(output));
+    select.appendChild(group);
+  }
+
+  // `active` and `selected` disagree exactly when the saved device is absent, which is the state
+  // worth showing rather than smoothing over.
+  let note = state.fell_back
+    ? `saved device not present — playing through ${state.active_name}`
+    : `playing through ${state.active_name}`;
+  if (rest.length && !$("audio-all").checked) {
+    note += ` · ${rest.length} other names for these same outputs are hidden`;
+  }
+  $("audio-apply").disabled = !state.changeable;
+  if (!state.changeable) {
+    note += " · cannot change while anything is playing or queued";
+  }
+  $("audio-note").textContent = note;
+  renderAudioLevel();
+}
+
+// The level is read from the same answer the picker is drawn from, so it costs no second request.
+// It moves with the device: choosing a different output redraws this from whatever that card says,
+// including saying it has none.
+function renderAudioLevel() {
+  const level = audioOutputs && audioOutputs.level;
+  const slider = $("audio-level");
+  const apply = $("audio-level-apply");
+  if (!level) {
+    slider.disabled = true;
+    apply.disabled = true;
+    $("audio-level-note").textContent =
+      "output level: none to set — whatever this is plugged into holds the volume";
+    return;
+  }
+  // The slider stops at -60 dB where the control goes deeper, because a control reaching -128 dB
+  // would spend five sixths of its travel below anything audible. A level already set below that
+  // draws from where it actually is, so the slider can always show the current value.
+  const floor = Math.min(Math.max(level.db_min, -60), level.db);
+  slider.min = floor;
+  slider.max = level.db_max;
+  slider.step = Math.max(level.step_db, 0.01);
+  // Only when the pointer is elsewhere, so a redraw mid-drag does not fight the hand on it.
+  if (document.activeElement !== slider) slider.value = level.db;
+  slider.disabled = false;
+  apply.disabled = false;
+  const deeper = level.db_min < floor ? ` · the control reaches ${level.db_min.toFixed(1)} dB` : "";
+  $("audio-level-note").textContent =
+    `output level: ${level.db.toFixed(1)} dB of ${level.db_min.toFixed(1)}…${level.db_max.toFixed(1)}${deeper}`;
+}
+
+// Chosen once, when the machine started, so this is fetched with everything else and never polled.
+// The interesting answer is the failing one: a machine on a test tone is playing perfectly happily
+// through a device this page already reports, and nothing else here would say a word about it.
+async function refreshSoundfont() {
+  try {
+    const bank = await api("GET", "/audio/soundfont");
+    const state = $("soundfont-state");
+    const path = $("soundfont-path");
+    if (bank.playing === "soundfont") {
+      // The file name leads because that is what identifies a bank to somebody who knows the
+      // research note; the full path is below it, because that is what distinguishes the bundled
+      // one from an override that happens to share a name.
+      const name = (bank.path || "").split(/[\\/]/).pop();
+      // Three answers, not two. `fallback` is a working machine whose *setting* is stale — the
+      // bundled bank is playing despite somebody having chosen another — and calling that
+      // "bundled" would hide the one thing here worth acting on.
+      const chosen = {
+        setting: "audio.soundfont",
+        fallback: "bundled, and audio.soundfont is stale",
+      }[bank.chosen_by] || "bundled";
+      state.className = bank.chosen_by === "fallback" ? "bad" : "good";
+      state.textContent = `${name} · ${chosen}`;
+      // The caveat rather than the path when there is one: a stale setting is what somebody needs
+      // to read, and the bank that stepped in is already named above it.
+      path.textContent = bank.fallback || bank.path || "";
+    } else {
+      state.className = "bad";
+      state.textContent = bank.playing === "silent"
+        ? "no audio device — playback is refused"
+        : "no bank — a test tone is standing in, so instruments will sound wrong";
+      // The reason comes from the synthesizer or from the resolution rule and names the file it
+      // tried, so it is shown verbatim rather than summarized.
+      path.textContent = bank.problem || "";
+    }
+  } catch { /* already logged */ }
+}
+
+// -- the banks, as against the one that is sounding ----------------------------------------------
+//
+// `GET /audio/soundfonts` is a different question from `GET /audio/soundfont` above it: this one
+// answers what the *setting* names, and during an A/B through the debug slots the two genuinely
+// disagree. Both are drawn, and the prose in the panel says which is which.
+
+// The pending poll while a download runs, so a second answer cannot start a second timer. Nothing
+// else is cached here: unlike the device list, every redraw this panel does follows a fresh answer.
+let soundfontPoll = null;
+
+function renderSoundfontBanks(state) {
+  const banks = $("soundfont-banks");
+  banks.textContent = "";
+  for (const bank of state.banks) {
+    const row = banks.insertRow();
+
+    const name = row.insertCell();
+    name.textContent = bank.name;
+    if (bank.bundled) {
+      const pill = document.createElement("span");
+      pill.className = "pill";
+      pill.style.marginLeft = ".3rem";
+      pill.title = "ships with the machine; it cannot be removed";
+      pill.textContent = "bundled";
+      name.append(pill);
+    }
+    row.insertCell().outerHTML = `<td class="num">${humanBytes(bank.bytes)}</td>`;
+    row.insertCell().textContent = bank.id;
+
+    const actions = row.insertCell();
+    if (bank.selected) {
+      // No button on the row that is already chosen: choosing it again would drop and rebuild the
+      // audio stream to arrive where the machine already is, which costs a hole in the sound.
+      const tick = document.createElement("span");
+      tick.className = "good";
+      tick.textContent = "✓ selected";
+      actions.append(tick);
+    } else {
+      const button = document.createElement("button");
+      button.className = "plain";
+      button.textContent = "Use this";
+      button.style.marginRight = ".2rem";
+      button.onclick = () => chooseSoundfont(bank.id);
+      actions.append(button);
+    }
+    // `removable` rather than `!bundled`, which is not the whole rule: a bank a
+    // `debug.soundfonts` slot names is not bundled and is not the machine's to delete either, so a
+    // button on that row could only ever be refused. Every row that can go gets one — a bank
+    // fetched by mistake reaches a gigabyte, and on a television there is no shell and no file
+    // manager that can reach the folder it landed in.
+    //
+    // It asks first, like Uninstall in the packages panel and for the same reason: this is a file
+    // being deleted, not a row.
+    if (bank.removable) {
+      const remove = document.createElement("button");
+      remove.className = "plain";
+      remove.textContent = "Delete";
+      remove.onclick = () => {
+        if (!confirm(
+          `Delete ${bank.name}?\n\n` +
+            `The ${humanBytes(bank.bytes)} .sf2 file is deleted from the machine.`,
+        )) return;
+        deleteSoundfont(bank.id);
+      };
+      actions.append(remove);
+    }
+  }
+  $("soundfont-note").textContent = state.banks.length > 1
+    ? `${state.banks.length} banks · the setting names ${state.selected}`
+    : `only the bundled bank · put more in the soundfonts folder, or fetch one below`;
+
+  renderSoundfontFetch(state.fetching);
+  renderSoundfontOffers(state.offers);
+}
+
+// The one place on this page that draws a byte count for a person. Banks run from 6 MiB to a
+// gigabyte, so the unit has to move; everything else here is small enough to print raw.
+function humanBytes(bytes) {
+  const mib = bytes / (1024 * 1024);
+  return mib >= 1024 ? `${(mib / 1024).toFixed(1)} GiB` : `${mib.toFixed(1)} MiB`;
+}
+
+// A download reports through the list rather than through an event: a byte count moving four times a
+// second is the last thing that belongs on a stream every phone in the room is reading. So this
+// polls, and only while something is actually running.
+function renderSoundfontFetch(fetch) {
+  const line = $("soundfont-fetch");
+  const bar = $("soundfont-fetch-bar");
+  clearTimeout(soundfontPoll);
+  soundfontPoll = null;
+
+  if (!fetch) {
+    line.className = "muted";
+    line.textContent = "nothing has been fetched this run";
+    bar.hidden = true;
+    return;
+  }
+  if (fetch.state === "working") {
+    // Clamped, because a server over-reporting its own progress should look wrong rather than draw
+    // a bar past its end.
+    const done = Math.min(fetch.done, fetch.total);
+    const percent = fetch.total ? Math.round((done * 100) / fetch.total) : 0;
+    line.className = "";
+    line.textContent =
+      `fetching ${fetch.name} — ${percent}% (${humanBytes(done)} of ${humanBytes(fetch.total)})`;
+    bar.hidden = false;
+    bar.value = percent;
+    soundfontPoll = setTimeout(refreshSoundfontBanks, 2000);
+    return;
+  }
+  // `done` and `total` are reported as zero once a fetch has finished either way, so the message is
+  // the whole of what there is to say. It stays on screen until the next fetch rather than fading:
+  // the interesting one is the failure, and it names a URL or a digest.
+  bar.hidden = true;
+  line.className = fetch.state === "done" ? "good" : "bad";
+  line.textContent = fetch.state === "done"
+    ? `${fetch.name} is installed and can be chosen above`
+    : `${fetch.name} failed — ${fetch.problem || "no reason given"}`;
+}
+
+function renderSoundfontOffers(offers) {
+  const body = $("soundfont-offers");
+  body.textContent = "";
+  for (const offer of offers) {
+    const row = body.insertRow();
+
+    const name = row.insertCell();
+    name.textContent = offer.name;
+    if (offer.recommended) {
+      const pill = document.createElement("span");
+      pill.className = "pill";
+      pill.style.marginLeft = ".3rem";
+      pill.textContent = "recommended";
+      name.append(pill);
+    }
+    if (!offer.offered) {
+      // The rows the machine knows and does not offer. Marked rather than hidden, because telling
+      // them apart is the whole reason this page asks for the wider list.
+      const pill = document.createElement("span");
+      pill.className = "pill muted";
+      pill.style.marginLeft = ".3rem";
+      pill.textContent = "not offered";
+      name.append(pill);
+    }
+    const note = document.createElement("div");
+    note.className = "muted";
+    note.textContent = offer.note;
+    name.append(note);
+
+    row.insertCell().outerHTML = `<td class="num">${offer.size}</td>`;
+    // Free prose from the research note, quotes and dashes and all — text, never markup.
+    row.insertCell().textContent = offer.license;
+
+    const actions = row.insertCell();
+    if (offer.fetchable) {
+      const button = document.createElement("button");
+      button.className = "plain";
+      button.textContent = "Get";
+      button.onclick = () => fetchSoundfont(offer.id);
+      actions.append(button);
+    } else if (offer.page) {
+      // Nothing here may point a downloader at this one, so the honest control is a link to the
+      // page that does publish it.
+      const link = document.createElement("a");
+      link.href = offer.page;
+      link.target = "_blank";
+      link.rel = "noreferrer noopener";
+      link.textContent = "By hand";
+      actions.append(link);
+    } else {
+      actions.textContent = "by hand";
+    }
+  }
+  const all = $("soundfont-all").checked;
+  $("soundfont-offers-note").textContent = offers.length
+    ? `${offers.length} available · ${all ? "the whole catalog" : "what the machine offers"}` +
+      " · banks already installed are not listed"
+    : "nothing left to fetch at this width";
+}
+
+async function refreshSoundfontBanks() {
+  try {
+    // Unlike `show every device` beside it, this checkbox asks the machine: the rest of the
+    // catalog is not held here, and going and getting it is the point of the parameter.
+    const all = $("soundfont-all").checked ? "?all=true" : "";
+    renderSoundfontBanks(await api("GET", "/audio/soundfonts" + all));
+  } catch { /* already logged */ }
+}
+
+async function chooseSoundfont(id) {
+  try {
+    // The answer is the whole new list, so nothing is re-fetched — except that it is the *narrow*
+    // list whatever was asked for a moment ago, so a page showing the catalog asks again.
+    const state = await api("PUT", "/admin/audio/soundfont", { id });
+    if ($("soundfont-all").checked) refreshSoundfontBanks(); else renderSoundfontBanks(state);
+    // ...and the *other* question has changed too, which the list cannot say. Choosing a bank puts
+    // it in force, so the line above this panel is stale until it is asked again — it is the one
+    // thing on the page that reports the synthesizer rather than the setting.
+    refreshSoundfont();
+  } catch (error) {
+    $("soundfont-note").innerHTML = `<span class="bad">${error.code}: ${error.message}</span>`;
+  }
+}
+
+// Removing a bank from the machine's folder. `audio.write`, like choosing and fetching, and refused
+// for the bundled row and while a download is running.
+//
+// **Deleting the bank that is selected is allowed, and the machine falls back to the bundled one**
+// rather than refusing — because the bank somebody wants gone may be exactly the one they chose by
+// mistake, and a refusal there is a dead end. So the answer can move the tick as well as remove a
+// row, and it is the whole list for that reason.
+async function deleteSoundfont(id) {
+  try {
+    // **The plural, and it is not a typo.** `/audio/soundfont` is the singleton — what is in force —
+    // and `/audio/soundfonts` is the collection this row came out of, which is where a member delete
+    // belongs, exactly as `DELETE /admin/packages/{id}` sits under `/packages`. It also keeps `{id}` away
+    // from the static `/audio/soundfont/fetch`, which would win the match and answer 405 for a bank
+    // whose filename happened to slug to `fetch`.
+    const state = await api("DELETE", `/admin/audio/soundfonts/${encodeURIComponent(id)}`);
+    if ($("soundfont-all").checked) refreshSoundfontBanks(); else renderSoundfontBanks(state);
+    refreshSoundfont();
+  } catch (error) {
+    $("soundfont-note").innerHTML = `<span class="bad">${error.code}: ${error.message}</span>`;
+  }
+}
+
+async function fetchSoundfont(id) {
+  try {
+    // Answers when the download has *started*, not when it has finished — these reach a gigabyte.
+    // Everything after this arrives through the poll `renderSoundfontFetch` starts.
+    await api("POST", "/admin/audio/soundfont/fetch", { id });
+    refreshSoundfontBanks();
+  } catch (error) {
+    $("soundfont-fetch").innerHTML = `<span class="bad">${error.code}: ${error.message}</span>`;
+  }
+}
+
+async function refreshWallpapers() {
+  try {
+    const state = await api("GET", "/wallpapers");
+    $("wallpaper-state").textContent = state.problem
+      ? state.problem
+      : `${state.current || "—"} · ${state.count} images · every ${state.interval_secs}s` +
+        (state.shuffle ? " · shuffled" : "");
+  } catch { /* already logged */ }
+}
+
+async function refreshDemo() {
+  try {
+    const demo = await api("GET", "/demo");
+    // Follows the machine rather than the click, the same way the uploads box does and for the same
+    // reason: on a route that ships admin, a tick refused for want of a password has to spring back,
+    // and it does that by itself because nothing sets this except a fresh answer.
+    $("demo-enabled").checked = demo.enabled;
+    const bits = [demo.enabled ? "on" : "off", demo.stored ? "in settings" : "this run only"];
+    if (demo.playing) {
+      bits.push("a demo song is on the deck — skipping is what lets somebody sing");
+    } else if (demo.starts_in_secs !== null) {
+      bits.push(`starts in ${demo.starts_in_secs}s`);
+    } else if (demo.enabled) {
+      // `starts_in_secs` is deliberately null rather than zero once the deadline has passed, and
+      // null again whenever something is loaded or queued. Both are "no countdown to show", and
+      // saying which is the difference between a page that looks broken and one that does not.
+      bits.push("no countdown: something is loaded or queued, or it is already due");
+    }
+    $("demo-state").textContent = bits.join(" · ");
+    // Repainted from the machine like the switch above, and for the same reason: this is state the
+    // machine holds, not an intention the way `persist` is.
+    $("demo-delay").value = demo.delay_secs;
+    $("demo-config").textContent =
+      (demo.min_suitability === null
+        ? "no suitability floor"
+        : `suitability ${demo.min_suitability}+ out of ten`) +
+      " — a settings-file value; no route changes it.";
+  } catch { /* already logged */ }
+}
+
+async function refreshConnect() {
+  try {
+    const [connect, discovery] = await Promise.all([
+      api("GET", "/connect"),
+      api("GET", "/discover"),
+    ]);
+    const where = connect.reachable
+      ? connect.urls.join("  ")
+      : `unreachable (${connect.problem ? connect.problem.kind : "unknown"})`;
+    $("connect-info").textContent =
+      `${discovery.name} · ${where} · ${discovery.factory_password ? "factory PIN" : "own password"} · ` +
+      `${discovery.song_count === null ? "?" : discovery.song_count} songs`;
+    // `debug_enabled` is on `/discover` — always public, always cheap — precisely so a client can
+    // ask before it sends. A machine that refuses an upload after taking it answers mid-request and
+    // closes, which the sending half reads as a dropped connection: the refusal that matters most
+    // is the one least likely to arrive. So the button goes gray and says why, rather than
+    // disappearing or failing a gigabyte later.
+    $("do-play-upload").disabled = !discovery.debug_enabled;
+    // The checkbox follows the machine rather than the click, which matters on a route that ships
+    // `admin`: a tick that is refused for want of a password has to spring back, and it does that
+    // by itself here because nothing sets this except a fresh answer from `/discover`.
+    $("accept-uploads").checked = discovery.debug_enabled;
+    $("upload-note").innerHTML = discovery.debug_enabled
+      ? UPLOAD_NOTE
+      : '<span class="bad">This machine is not in debugging mode.</span> Tick the box above ' +
+        "and restart it, or use the path above if the song is on its own disk.";
+  } catch { /* already logged */ }
+}
+
+function refreshAll() {
+  refreshConnect();
+  refreshState();
+  refreshQueue();
+  refreshMics();
+  refreshAudioOutputs();
+  refreshSoundfont();
+  refreshSoundfontBanks();
+  refreshWallpapers();
+  refreshDemo();
+  refreshPackages();
+  refreshDebug();
+  refreshConsole();
+  refreshPerformance();
+  // **The log tail is deliberately not here.** This runs on every reconnection, and the log socket
+  // sends the tail itself when it opens — fetching it as well would put every line in the pane
+  // twice on every restart. `connectLogSocket` and the Reload button are the two ways it arrives.
+}
+
+async function queueNumber(number, singer) {
+  // A string, not an integer, even though a code is all digits: the API takes one spelling and
+  // refuses the other rather than accepting both.
+  const body = { number: String(number).trim() };
+  const trimmed = (singer || "").trim();
+  if (trimmed) body.singer = trimmed;
+  try {
+    const added = await api("POST", "/queue", body);
+    log(`queued ${added.title} as entry ${added.entry_id} at position ${added.position}`);
+  } catch { /* already logged */ }
+}
+
+const move = (id, index) =>
+  api("POST", `/queue/${id}/move`, { to_index: index }).then(renderQueue).catch(() => {});
+const remove = (id) => api("DELETE", `/queue/${id}`).then(renderQueue).catch(() => {});
+const transport = (what) =>
+  api("POST", "/transport/" + what).then(renderState).catch(() => {});
+
+// Advance or rewind by a number of milliseconds.
+//
+// The API only seeks to an absolute position, which is the right shape for it: a machine that
+// answered a relative one would have to agree with the caller about where "now" is, and over a
+// network they cannot. So the position is read first rather than taken from `lastState` — that copy
+// is as old as the last state event, and a jump computed from it lands somewhere the person did not
+// ask for. On loopback the extra round trip is free.
+async function seekBy(delta) {
+  try {
+    const state = await api("GET", "/state");
+    renderState(state);
+    if (!state.now_playing) return;             // `seek` would refuse anyway; say nothing twice
+    const target = Math.min(
+      Math.max((state.position_ms || 0) + delta, 0),
+      state.now_playing.duration_ms,
+    );
+    renderState(await api("POST", "/transport/seek", { ms: target }));
+  } catch { /* already logged */ }
+}
+
+// -- wiring -------------------------------------------------------------------------------------
+
+$("base").value = localStorage.getItem(STORE.base) || location.origin;
+$("base").onchange = () => localStorage.setItem(STORE.base, $("base").value);
+
+// The button stays, and not only as a way back from a wait that has grown to thirty seconds: it is
+// also how the page is pointed at a different machine, and it means *refresh everything* besides.
+// Pressing it resets the backoff, because a person pressing it is saying they think the machine is
+// back — which is a better guess than the interval a run of failures had arrived at.
+$("reconnect").onclick = () => { backoff = RETRY_START; connectSocket(); refreshAll(); };
+$("refresh-all").onclick = refreshAll;
+$("clear-log").onclick = () => { $("log").textContent = ""; events = 0; $("event-count").textContent = 0; };
+
+// The machine's log. Both filters redraw from what has already arrived rather than asking again,
+// which is what makes them instant and what lets them widen as well as narrow.
+$("log-level").onchange = redrawLog;
+$("log-find").oninput = redrawLog;
+$("log-reload").onclick = reloadLogTail;
+// Clears what this page is holding, not what the machine is: the next reload brings it all back,
+// which is the honest meaning of a button on a pane that is a view onto somewhere else.
+$("clear-machine-log").onclick = () => {
+  logRecords = [];
+  $("machine-log").textContent = "";
+  $("log-count").textContent = 0;
+};
+
+for (const what of ["play", "pause", "skip", "restart", "stop"]) {
+  $("t-" + what).onclick = () => transport(what);
+}
+$("t-seek").onclick = () =>
+  api("POST", "/transport/seek", { ms: Number($("seek-ms").value || 0) })
+    .then(renderState).catch(() => {});
+
+for (const [id, delta] of [["t-back-30", -30000], ["t-back-10", -10000],
+                           ["t-fwd-10", 10000], ["t-fwd-30", 30000]]) {
+  $(id).onclick = () => seekBy(delta);
+}
+
+$("transpose").oninput = () => { $("transpose-value").textContent = $("transpose").value; };
+$("transpose").onchange = () =>
+  api("PUT", "/settings", { transpose: Number($("transpose").value) })
+    .then((s) => renderSettings(s)).catch(refreshState);
+$("tempo").oninput = () => { $("tempo-value").textContent = Number($("tempo").value).toFixed(2) + "×"; };
+$("tempo").onchange = () =>
+  api("PUT", "/settings", { tempo_ratio: Number($("tempo").value) })
+    .then((s) => renderSettings(s)).catch(refreshState);
+$("volume").oninput = () => { $("volume-value").textContent = Number($("volume").value).toFixed(2); };
+$("volume").onchange = () =>
+  api("PUT", "/settings", { music_volume: Number($("volume").value) })
+    .then((s) => renderSettings(s)).catch(refreshState);
+$("lyric-offset").oninput = () => { $("lyric-offset-value").textContent = $("lyric-offset").value + " ms"; };
+$("lyric-offset").onchange = () =>
+  api("PUT", "/settings", { lyric_offset_ms: Number($("lyric-offset").value) })
+    .then((s) => renderSettings(s)).catch(refreshState);
+$("melody-toggle").onclick = () =>
+  api("PUT", "/settings", { melody_enabled: !(lastState && lastState.settings.melody_enabled) })
+    .then((s) => renderSettings(s)).catch(refreshState);
+
+// Settings on their own. Everywhere else on this page they arrive folded into `GET /state`, which
+// is right for a client that wants both four times a second and wrong as a demonstration: a client
+// that only wants to know what the dials say should not have to read a whole state to find out, and
+// `settings.read` is a separate route id an owner can restrict separately. Not in `refreshAll()`
+// for that same reason — `refreshState()` already covers this ground there, and a second call would
+// be noise in the transcript rather than a second fact.
+$("reload-settings").onclick = () =>
+  api("GET", "/settings").then((s) => renderSettings(s)).catch(() => {});
+
+$("do-search").onclick = async () => {
+  const params = new URLSearchParams();
+  if ($("q").value.trim()) params.set("q", $("q").value.trim());
+  if ($("artist").value.trim()) params.set("artist", $("artist").value.trim());
+  if ($("language").value.trim()) params.set("language", $("language").value.trim());
+  if ($("tags").value.trim()) params.set("tags", $("tags").value.trim());
+  if ($("min-suitability").value) params.set("min_suitability", $("min-suitability").value);
+  if ($("melody-only").checked) params.set("melody_only", "true");
+  params.set("sort", $("sort").value);
+  params.set("limit", $("limit").value || "25");
+  try { renderResults(await api("GET", "/songs?" + params)); } catch { /* already logged */ }
+};
+$("q").onkeydown = (event) => { if (event.key === "Enter") $("do-search").click(); };
+
+// One page of the export, and deliberately only one. This is what a client keeping its own copy of
+// the catalog reads: NDJSON, one song per line and no wrapping array, paged by `after=<the last
+// number>` rather than by an offset because SQLite walks an offset row by row. A page comes back
+// shorter than the limit when there are no more. Proving the endpoint answers is this page's job;
+// mirroring a six-figure catalog into a browser tab is not, so `after` is shown rather than
+// followed.
+//
+// `raw`, because the body is not JSON and because the interesting part is a header:
+// `X-Km-Catalog-Version` moves on every install and uninstall and on nothing else, so a client
+// that stored it can ask the always-public `/discover` and skip the download entirely.
+$("do-export").onclick = async () => {
+  const limit = $("limit").value || "25";
+  try {
+    const { text, response } = await api("GET", `/songs/export?limit=${limit}`, undefined, { raw: true });
+    const lines = text.split("\n").filter((line) => line);
+    const version = response.headers.get("x-km-catalog-version");
+    const last = lines.length ? JSON.parse(lines[lines.length - 1]).number : null;
+    $("search-note").textContent =
+      `export: ${lines.length} rows, catalog version ${version === null ? "?" : version}` +
+      (lines.length < Number(limit) ? " — the last page" : `, next page after=${last}`);
+    log(`export: ${lines.length} rows, catalog version ${version === null ? "?" : version}`);
+    for (const line of lines.slice(0, 3)) log(`  ${line}`);
+  } catch { /* already logged */ }
+};
+
+// The book link follows the language and tag boxes, so the filter that narrows the table narrows the
+// PDF too. `base()` rather than a bare path: this page can be served from one machine while pointed
+// at another, and a relative href would fetch the wrong catalog's book.
+function updateBookLink() {
+  const params = new URLSearchParams();
+  if ($("language").value.trim()) params.set("language", $("language").value.trim());
+  if ($("tags").value.trim()) params.set("tags", $("tags").value.trim());
+  const query = params.toString();
+  $("book-link").href = base() + API + "/songs/book.pdf" + (query ? "?" + query : "");
+}
+$("language").oninput = updateBookLink;
+$("tags").oninput = updateBookLink;
+$("base").oninput = updateBookLink;
+updateBookLink();
+
+$("do-queue").onclick = () => queueNumber($("queue-number").value, $("queue-singer").value);
+$("queue-number").onkeydown = (event) => { if (event.key === "Enter") $("do-queue").click(); };
+$("do-clear").onclick = () => api("DELETE", "/queue").then(renderQueue).catch(() => {});
+
+$("audio-apply").onclick = () =>
+  api("PUT", "/admin/audio/output", { id: $("audio-output").value })
+    .then(() => refreshAudioOutputs())
+    .catch(() => {});
+
+// Answers with the device list, so the reading redraws from where the level actually landed rather
+// than from what was asked for: a control with coarse steps rounds, and it rounds down.
+$("audio-level-apply").onclick = () =>
+  api("PUT", "/admin/audio/level", { db: Number($("audio-level").value) })
+    .then((state) => {
+      audioOutputs = state;
+      renderAudioOutputs();
+    })
+    .catch(() => {});
+
+// Re-rendered from what is already held: showing more of a list is not a question for the machine.
+$("audio-all").onchange = renderAudioOutputs;
+
+// ...and this one is, which is the difference worth noticing between two checkboxes that read the
+// same. The machine answers with the nine banks it offers unless asked for the rest.
+$("soundfont-all").onchange = refreshSoundfontBanks;
+$("refresh-soundfonts").onclick = () => { refreshSoundfont(); refreshSoundfontBanks(); };
+
+$("wallpaper-next").onclick = () =>
+  api("POST", "/wallpapers/next").then(refreshWallpapers).catch(() => {});
+
+// The Log in and Log out handlers were here. `POST /admin/login` and `POST /admin/logout` are still
+// routes and are still mounted under `API` -- they are simply the two routes on this page that had
+// nothing left to do, since a token this page cannot send is a token it need not ask for.
+
+$("do-play-file").onclick = () =>
+  api("POST", "/debug/play-file", { path: $("play-path").value })
+    .then(renderState).catch(() => {});
+
+// Turning the route above on and off. `refreshConnect` is what repaints the box, deliberately: it
+// reads `/discover`, so the tick ends up showing what the machine says rather than what was
+// clicked — and a refusal for want of a password puts it back without any handling here.
+$("accept-uploads").onchange = (event) =>
+  api("PUT", "/admin/debug", { enabled: event.target.checked })
+    .then(refreshConnect)
+    .catch(refreshConnect);
+
+// The same shape, and for the same reason. `persist` is read off the box beside it at click time
+// rather than held as state, because it is what this write should do and not something the machine
+// has an opinion about; `refreshDemo` is what repaints, so a refusal springs the tick back.
+$("demo-enabled").onchange = (event) =>
+  api("PUT", "/admin/demo", { enabled: event.target.checked, persist: $("demo-persist").checked })
+    .then(refreshDemo)
+    .catch(refreshDemo);
+
+// **No `persist` in this body**, because the route does not take one: a delay is always written
+// down. `Number()` rather than the string the input hands over, since the body is JSON and
+// `deny_unknown_fields` is not the only thing on the far side that is strict. An empty box reads as
+// `NaN`, which would serialize to `null` and be refused, so it repaints instead of asking.
+$("demo-delay").onchange = (event) => {
+  const delay_secs = Number(event.target.value);
+  if (!Number.isInteger(delay_secs) || delay_secs < 0) {
+    refreshDemo();
+    return;
+  }
+  api("PUT", "/admin/demo/delay", { delay_secs }).then(refreshDemo).catch(refreshDemo);
+};
+
+$("do-play-upload").onclick = async () => {
+  const files = Array.from($("upload-files").files || []);
+  if (!files.length) {
+    $("upload-note").innerHTML = '<span class="bad">pick a song first</span>';
+    return;
+  }
+  // The stem is a form field and never the parts' filenames, because a multipart filename is a
+  // header the client wrote and the server will not trust one. Deriving a default from `File.name`
+  // here is the client's side of that bargain and not a way around it — what goes in the field is
+  // ordinary UTF-8, and the machine still reduces it to something safe before it opens anything.
+  // Written back into the box so it is visible what was sent.
+  if (!$("upload-stem").value.trim()) {
+    $("upload-stem").value = files[0].name.replace(/\.[^.]*$/, "");
+  }
+  const stem = $("upload-stem").value.trim();
+  const form = new FormData();
+  // `stem` first, and this ordering is the contract rather than a habit: the machine names each
+  // part as it streams it to disk, so a file arriving before the name it is to be staged under is
+  // refused rather than buffered. Both halves of a pair get this one stem, which is what lets them
+  // find each other on the other side.
+  form.append("stem", stem);
+  for (const file of files) form.append("file", file);
+
+  $("upload-note").textContent = `sending ${files.length} file(s)…`;
+  try {
+    renderState(await api("POST", "/debug/play-upload", form));
+    $("upload-note").textContent =
+      `sent ${files.map((file) => file.name).join(", ")} as ${stem}`;
+  } catch (error) {
+    $("upload-note").innerHTML = `<span class="bad">${error.code}: ${error.message}</span>`;
+  }
+};
+
+$("do-install").onclick = async () => {
+  try {
+    const report = await api("POST", "/admin/packages", { path: $("package-path").value });
+    log(`installed ${report.package_id}: ${report.songs_added} songs` +
+        (report.replaced_existing ? " (replaced an earlier install)" : "") +
+        (report.duplicate_content.length
+          ? ` — ${report.duplicate_content.length} duplicate recordings`
+          : ""));
+    refreshPackages();
+  } catch { /* already logged */ }
+};
+$("refresh-packages").onclick = refreshPackages;
+
+const setDebugging = async (enabled) => {
+  try {
+    renderDebug(await api("PUT", "/admin/debug", { enabled }));
+    log(`debugging ${enabled ? "on" : "off"} — takes effect at the next start`);
+  } catch { /* already logged */ }
+};
+$("debug-on").onclick = () => setDebugging(true);
+$("debug-off").onclick = () => setDebugging(false);
+
+const setConsole = async (enabled) => {
+  try {
+    renderConsole(await api("PUT", "/admin/dev-remote", { enabled }));
+    log(`the console ${enabled ? "on" : "off"} — takes effect at the next start`);
+  } catch { /* already logged */ }
+};
+$("console-on").onclick = () => setConsole(true);
+$("console-off").onclick = () => setConsole(false);
+
+// No "takes effect at the next start" here, and the difference is the point of the line beside the
+// buttons: this one is drawn by the frame after the reply.
+const setPerformance = async (enabled) => {
+  try {
+    renderPerformance(await api("PUT", "/admin/performance", { enabled }));
+  } catch { /* already logged */ }
+};
+$("performance-on").onclick = () => setPerformance(true);
+$("performance-off").onclick = () => setPerformance(false);
+
+connectSocket();
+// The tail before the stream, so the numbers above the pane are there from the first draw and a
+// machine keeping no log says so rather than showing a socket that quietly never opens.
+reloadLogTail();
+connectLogSocket();
+refreshAll();
+</script>
+</body>
+</html>

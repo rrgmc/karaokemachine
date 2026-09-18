@@ -1,0 +1,73 @@
+<div data-sse="player" class="player" id="player">
+
+  <div class="now-title">
+    {% match view.song_title() %}
+    {% when Some with (title) %}{{ title }}
+    {% when None %}{{ view.title_key()|t }}
+    {% endmatch %}
+  </div>
+  {% match view.artist() %}
+  {% when Some with (artist) %}<div class="now-artist">{{ artist }}</div>
+  {% when None %}
+  {% endmatch %}
+  {% match view.singer() %}
+  {% when Some with (singer) %}<div class="now-singer">{{ "now-singer-for"|t }} {{ singer }}</div>
+  {% when None %}
+  {% endmatch %}
+
+  {% if view.is_demo() %}
+  <div class="now-demo">{{ "demo-hint"|t }}</div>
+  {% endif %}
+
+  {{ position|safe }}
+
+  <div class="control-row">
+    <span class="label">{{ "nobody-singing"|t }}</span>
+    <button class="quiet" hx-post="/control/demo" hx-target="#player" hx-swap="outerHTML"
+            {% if !view.can_start_demo() %}disabled{% endif %}>{{ "play-something"|t }}</button>
+  </div>
+
+  <div class="control-row">
+    <span class="label">{{ "control-key"|t }}</span>
+    <button class="icon-btn" aria-label="{{ "control-key-down"|t }}"
+            hx-post="/control/transpose-down" hx-target="#player" hx-swap="outerHTML"
+            {% if !view.can_transpose() %}disabled{% endif %}>&minus;</button>
+    <span class="value">{{ view.transpose() }}</span>
+    <button class="icon-btn" aria-label="{{ "control-key-up"|t }}"
+            hx-post="/control/transpose-up" hx-target="#player" hx-swap="outerHTML"
+            {% if !view.can_transpose() %}disabled{% endif %}>+</button>
+    <button class="quiet" hx-post="/control/transpose-reset" hx-target="#player" hx-swap="outerHTML"
+            {% if !view.can_transpose() %}disabled{% endif %}>{{ "reset"|t }}</button>
+  </div>
+
+  <div class="control-row">
+    <span class="label">{{ "control-tempo"|t }}</span>
+    <button class="icon-btn" aria-label="{{ "control-slower"|t }}"
+            hx-post="/control/tempo-down" hx-target="#player" hx-swap="outerHTML"
+            {% if !view.can_tempo() %}disabled{% endif %}>&minus;</button>
+    <span class="value">{{ view.tempo_percent() }}%</span>
+    <button class="icon-btn" aria-label="{{ "control-faster"|t }}"
+            hx-post="/control/tempo-up" hx-target="#player" hx-swap="outerHTML"
+            {% if !view.can_tempo() %}disabled{% endif %}>+</button>
+    <button class="quiet" hx-post="/control/tempo-reset" hx-target="#player" hx-swap="outerHTML"
+            {% if !view.can_tempo() %}disabled{% endif %}>{{ "reset"|t }}</button>
+  </div>
+
+  <div class="control-row">
+    <span class="label">{{ "control-music"|t }}</span>
+    <input type="range" name="value" min="0" max="100" step="5" value="{{ view.volume_percent() }}"
+           aria-label="{{ "control-volume"|t }}"
+           hx-post="/control/volume" hx-trigger="change" hx-target="#player" hx-swap="outerHTML">
+    <span class="value">{{ view.volume_percent() }}%</span>
+  </div>
+
+  <div class="control-row">
+    <span class="label">{{ "control-melody"|t }}</span>
+    <button class="icon-btn {% if view.melody_on() %}starred{% endif %}"
+            aria-pressed="{% if view.melody_on() %}true{% else %}false{% endif %}"
+            hx-post="/control/melody" hx-target="#player" hx-swap="outerHTML"
+            {% if !view.can_melody() %}disabled{% endif %}>{% if view.melody_on() %}{{ "toggle-on"|t }}{% else %}{{ "toggle-off"|t }}{% endif %}</button>
+    {% if !view.can_melody() %}<span class="hint">{{ "no-lyric-match"|t }}</span>{% endif %}
+  </div>
+
+</div>

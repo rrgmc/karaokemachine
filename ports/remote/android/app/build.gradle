@@ -1,0 +1,142 @@
+plugins {
+    id 'com.android.application'
+}
+
+// `KM_ANDROID_KEYSTORE` names the release key, and absent it the debug key signs the release build.
+// The machine's project carries the same four lines and the same one key signs both applications:
+// they are two application IDs with no shared-signature permission between them, so a second key
+// would be a second thing to hold and back up for a separation neither product uses.
+//
+// **Named but missing is an error rather than a fallback.** See `How the Android applications are
+// signed` in docs/decisions/remotes.md.
+def releaseKeystore = System.getenv('KM_ANDROID_KEYSTORE')
+if (releaseKeystore && !file(releaseKeystore).exists()) {
+    throw new GradleException("KM_ANDROID_KEYSTORE names a keystore that is not there: ${releaseKeystore}")
+}
+
+android {
+    namespace = 'com.rrgmc.karaokemachine.remote'
+    compileSdk = 36
+    // Pinned so a side-by-side NDK upgrade does not silently change what the APK was built against.
+    // The same pin as the machine's: cargo builds against whatever `tools/port/ndk.sh`
+    // finds, and the two must not disagree about which NDK that was.
+    ndkVersion = '28.2.13676358'
+
+    defaultConfig {
+        // **Must differ from the machine's** so both install on one device -- which is the ordinary
+        // case, since a phone running this may well be the one used to test the machine's APK.
+        applicationId = 'com.rrgmc.karaokemachine.remote'
+        // 26, and the reason is *not* the machine's. There the floor is `libaaudio.so`, which cpal
+        // links unconditionally; this library links `liblog`, `libdl`, `libm` and `libc` and nothing
+        // else -- verified with `llvm-readelf -d`. 26 is kept for consistency with the machine and
+        // because it is where the modern notification and adaptive-icon APIs settle, not because
+        // anything here requires it.
+        minSdk = 26
+        targetSdk = 36
+        // Must increase for every build that might be installed over an earlier one; Android refuses
+        // a downgrade or an equal versionCode outright. Not the same number as versionName and not
+        // meant to be.
+        versionCode = 15
+        versionName = '1.17.0'
+        // Only what cargo actually builds. Adding an ABI here without building it produces an APK
+        // that installs on a device and then cannot find its own library.
+        //
+        // Both, matching the machine -- though for a weaker reason. There it is compulsory, because
+        // every Google TV device runs a 32-bit OS and loads `armeabi-v7a` alone. A remote is a phone
+        // application and every phone shipped for years is arm64; armv7 is here for old hardware and
+        // because a second cross-build costs about a minute.
+        ndk {
+            abiFilters 'arm64-v8a', 'armeabi-v7a'
+        }
+    }
+
+    // No externalNativeBuild. cargo builds the native side; Gradle only packages it. That rule is
+    // the machine's and it is repeated here rather than inherited, because it is the thing about
+    // both projects most likely to be "fixed" by somebody adding a CMake block.
+    sourceSets {
+        main {
+            jniLibs.srcDirs = ['src/main/jniLibs']
+        }
+    }
+
+    signingConfigs {
+        if (releaseKeystore) {
+            release {
+                storeFile = file(releaseKeystore)
+                storePassword = System.getenv('KM_ANDROID_KEYSTORE_PASSWORD')
+                keyAlias = System.getenv('KM_ANDROID_KEY_ALIAS') ?: 'karaokemachine'
+                keyPassword = System.getenv('KM_ANDROID_KEY_PASSWORD') ?: System.getenv('KM_ANDROID_KEYSTORE_PASSWORD')
+                // v3 for the rotation it buys, which matters more here than in the machine: this is
+                // the application whose uninstall takes `favorites.sqlite`. The machine's project
+                // carries the argument in full.
+                enableV2Signing = true
+                enableV3Signing = true
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled = false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            // **The release key signs this, and the debug key signs it where there is none.** Android
+            // refuses to install an APK over one signed with a different key, so a device holding an
+            // older build uninstalls before it takes this one -- and an uninstall takes
+            // `favorites.sqlite` with it, which is the one file here nothing else can rebuild. Save a
+            // backup from the share pages first and restore it afterwards; that is what makes the
+            // change survivable, and `DEPLOYING.md` carries the sequence. See `How the Android
+            // applications are signed` in docs/decisions/remotes.md.
+            //
+            // The machine's release build type reads the same variables, so `assembleRelease` is a
+            // real thing to ask for in both projects and `RELEASE=1` reaches Gradle in both.
+            signingConfig = releaseKeystore ? signingConfigs.release : signingConfigs.debug
+        }
+        // No debug block, and no `packaging { jniLibs { useLegacyPackaging } }` anywhere.
+        //
+        // The Go remote this application follows needs `useLegacyPackaging = true` and
+        // `extractNativeLibs="true"`, because it ships a Go *executable* under a `lib*.so` name and
+        // `exec`s it -- and a compressed entry inside an APK is not a file anything can execute.
+        // Nothing here is executed: `System.loadLibrary` maps a real shared library straight out of
+        // the APK. Setting either would keep two copies of it on the device for no reason.
+    }
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+
+    lint {
+        abortOnError = false
+    }
+}
+
+// No dependencies at all, and that is achievable rather than aspirational: an Activity and a WebView
+// are framework classes. It keeps the build offline and the APK small, and it is why the back
+// gesture is wired by hand below -- there is no androidx `OnBackPressedDispatcher` to do it.
+dependencies {}
+
+// Fail early and clearly rather than shipping an APK with no native library in it: the error a
+// device gives for that is `UnsatisfiedLinkError` at launch, which says nothing about the cause.
+//
+// The shape is the machine's, not the code -- two independent Gradle projects cannot share a task
+// without a `buildSrc` or a convention plugin, which is more machinery than seven lines saves.
+tasks.register('checkNativeLibs') {
+    doLast {
+        def dir = file('src/main/jniLibs')
+        def missing = !dir.exists() || dir.listFiles()?.every { abi ->
+            !new File(abi, 'libkm_remote_android.so').exists()
+        }
+        if (missing) {
+            throw new GradleException(
+                "no native libraries in ${dir}.\n" +
+                "Build and stage them first:\n" +
+                "  tools/port/remote/android/build.sh\n" +
+                "  tools/port/remote/android/stage.sh")
+        }
+    }
+}
+tasks.configureEach { task ->
+    if (task.name.startsWith('merge') && task.name.endsWith('JniLibFolders')) {
+        task.dependsOn('checkNativeLibs')
+    }
+}

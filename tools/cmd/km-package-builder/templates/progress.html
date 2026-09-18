@@ -1,0 +1,70 @@
+{# `hx-sync` because a poll on a timer is not a poll that waits its turn: htmx fires the next one
+   when the interval comes round whether or not the last has answered, so a response slower than the
+   interval leaves requests stacking. A browser allows six to one host, and once they are spent
+   nothing else on the page loads either — the embedded stylesheet included, which reads as the whole
+   tool having died rather than as one bar being late. `replace` drops the request in flight, which
+   is the right one to lose: what it would draw is a second older than what its replacement draws. #}
+<div id="progress" class="panel{% if running %} polling{% endif %}{% if progress.succeeded() %} succeeded{% endif %}"
+     {% if running %}hx-get="/scan/progress" hx-trigger="every 1s" hx-swap="outerHTML" hx-sync="this:replace"{% endif %}>
+  <div class="bar"><span style="width: {{ progress.percent }}%"></span></div>
+  <p>
+    {# The phase is a key, because it is named on the worker thread where no language is in reach.
+       Empty until a run has named one, and a key filter handed an empty string would draw `⟦⟧`. The
+       counts are seven numbers in one line, so they are composed in Rust. #}
+    {%- if !progress.phase.is_empty() %}
+    <strong>{{ progress.phase|t }}</strong> &mdash;
+    {%- endif %}
+    {{ progress.tally }}
+    {%- match progress.failed_said %}{% when Some with (said) %} &middot; <span class="bad">{{ said }}</span>{% when None %}{% endmatch %}
+    {%- match progress.waiting_said %}
+    {%- when Some with (said) %}
+    &middot; <span class="tag warn" title="{{ "scan-waiting-title"|t }}">{{ said }}</span>
+    {%- when None %}{% endmatch %}
+  </p>
+  {# Stopping sets a flag and answers at once; the run then writes what it has read, which is up to
+     a few batches, so the sentence stands in for the button until the run says it has stopped. #}
+  {% if running %}
+  <div class="row">
+    {% if progress.stopping %}
+    <span class="dim">{{ "scan-stopping"|t }}</span>
+    {% else %}
+    <button hx-post="/scan/stop" hx-target="#progress" hx-swap="outerHTML"
+            title="{{ "scan-stop-title"|t }}">{{ "scan-stop"|t }}</button>
+    {% endif %}
+  </div>
+  {% endif %}
+  {% match progress.error %}
+  {% when Some with (error) %}<div class="message error">{{ error }}</div>
+  {% when None %}{% endmatch %}
+  {% if progress.canceled %}
+  <div class="message">{{ "scan-stopped-early"|t }}</div>
+  {% endif %}
+  {# **Every step of the run, listed before it runs**, so what is still to come is on the page as well
+     as what is over. The mark is drawn by the class, so the list carries no characters of its own.
+     A step that waits on `if_changed` may yet be skipped, and says so. #}
+  {% if !progress.steps.is_empty() %}
+  <ol class="scan-steps" aria-label="{{ "scan-steps"|t }}">
+    {%- for step in progress.steps %}
+    <li class="step {{ step.state }}">
+      <span class="step-name">{{ step.key|t }}</span>
+      {%- match step.took %}{% when Some with (took) %} <span class="mono dim">{{ took }}</span>{% when None %}{% endmatch %}
+      {%- if step.state == "running" %}
+        {%- if step.key == "scan-phase-looking" %} &middot; {{ progress.found_said }}{% endif %}
+        {%- if step.key == "scan-phase-reading" %}
+          {%- match progress.rate_said %}{% when Some with (said) %} &middot; {{ said }}{% when None %}{% endmatch %}
+          {%- match progress.remaining_said %}{% when Some with (said) %} &middot; <strong>{{ said }}</strong>{% when None %}{% endmatch %}
+        {%- endif %}
+      {%- endif %}
+      {%- if step.state == "waiting" && step.if_changed %} <span class="dim">{{ "scan-step-if-changed"|t }}</span>{% endif %}
+      {%- if step.state == "skipped" %}
+        {%- if progress.canceled || progress.error.is_some() %} <span class="dim">{{ "scan-step-not-reached"|t }}</span>
+        {%- else %} <span class="dim">{{ "scan-step-not-needed"|t }}</span>{% endif %}
+      {%- endif %}
+    </li>
+    {%- endfor %}
+  </ol>
+  {% endif %}
+  {% if progress.finished && progress.total > 0 %}
+  <p><a href="/songs">{{ "scan-browse-what-was-found"|t }} &rarr;</a></p>
+  {% endif %}
+</div>

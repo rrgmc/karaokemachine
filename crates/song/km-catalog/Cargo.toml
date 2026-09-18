@@ -1,0 +1,41 @@
+[package]
+name = "km-catalog"
+description = "SQLite catalog of installed song packages"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+km-songcode = { workspace = true }
+km-kmpkg = { workspace = true }
+# The fix list, stored as the manifest wrote it. `serde_json` beside it for exactly that column: the
+# list is carried whole rather than split into columns, so a fix this build cannot read still
+# reaches the machine that can.
+km-fixes = { workspace = true }
+serde_json = { workspace = true }
+# For `text::fold` alone, which fills the two sort-key columns. Not a layering problem: `km-song` is
+# below this crate in the `crates/song/` order, it depends on no workspace crate at all, and every
+# binary that reaches `km-catalog` — the machine, `km-api`, `km-remote-core` — already links
+# `km-song` too, so this adds no crate to any artifact.
+#
+# The `km-songbook` arrangement, where the caller folds and the crate only sorts, was rejected here:
+# the fold has to happen inside `Library::install`, so pushing it out means handing `install` either
+# pre-folded strings or a fold function — and a caller able to supply a *different* fold is exactly
+# the drift `km_song::text`'s own header refuses.
+km-song = { workspace = true }
+rusqlite = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+km-kmpkg = { workspace = true }
+km-fixes = { workspace = true }
+# For building a catalog with the *old* schema by hand, so the migration has something real to
+# migrate. Nothing else in the tests touches SQL directly.
+rusqlite = { workspace = true }

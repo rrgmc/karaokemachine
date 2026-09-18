@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The adaptive launcher icon.
+
+  From API 26 up, `@mipmap/ic_launcher` resolves to this file rather than to the PNGs in the
+  `mipmap-<density>` folders, and the launcher composites the two layers and then crops the result to
+  whatever mask it has chosen - a circle, a squircle, a rounded square, or on some OEM skins a shape
+  nobody else uses. That is why the layers are 108 dp when the icon is 48: the outer 18 dp on each
+  side is margin the system is allowed to throw away, and only the middle 66 dp is guaranteed to
+  survive. `crates/playback/km-display/examples/icon.rs` sizes the microphone to fit inside that circle.
+
+  Both layers are generated. The background is not a flat color because the icon's ground is a
+  radial wash, and a `<color>` element cannot hold one; the PNG carries the same wash the foreground
+  was drawn against, so the two line up into a single image whatever the mask does to the edges.
+
+  The PNGs in `mipmap-<density>` are unreachable at our minSdk of 26 - nothing that can install the
+  app is old enough to read them. They are kept because they are 68 KB in total and they are what the
+  platform falls back to if this file is ever wrong or the minimum ever drops, which is a cheaper
+  insurance premium than the failure it covers.
+-->
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@mipmap/ic_launcher_background" />
+    <foreground android:drawable="@mipmap/ic_launcher_foreground" />
+</adaptive-icon>

@@ -1,0 +1,105 @@
+[package]
+name = "km-remote-core"
+description = "The offline karaoke remote as a library: the mirror, the favorites, the machine client, and a server with no command line in it"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+# **A library and nothing else, and deliberately not `crate-type = ["lib", "cdylib"]`** the way
+# `crates/machine/karaokemachine` is. That crate is the Android application itself -- SDL's activity loads one
+# library and calls `SDL_main` in it -- so the cdylib has to be the crate that holds the program.
+# Here the Android and iOS shells will be crates of their own *over* this one, exactly as
+# `km-remote` is, so that `jni`, `ndk-context` and a `JNI_OnLoad` export never enter a desktop
+# build and a `cargo build --workspace` never produces a shared object nothing loads.
+[lib]
+name = "km_remote_core"
+path = "src/lib.rs"
+
+[features]
+default = ["mdns"]
+# Finding a machine without anybody typing an address.
+#
+# **Default-on and separable**, and what the separability buys is the `Mdns` *implementation* rather
+# than the dependency. A host that cannot browse -- an Android build before the `MulticastLock` is
+# wired up, an iOS build before the usage description is in the bundle -- passes `NoLocator` and
+# links no daemon it is not allowed to start. See `Config::locator`.
+#
+# **It does not drop `mdns-sd` from the tree, and the claim that it did was never true.** `km-api` is
+# a non-optional dependency of this crate and declares `mdns-sd` unconditionally, because the machine
+# advertises itself and now also keeps a registry -- so the crate is in every dependent's build
+# whatever this flag says. `km-remote-host`'s manifest has said as much all along. Corrected here
+# rather than left standing, because a feature that reads as saving a dependency is one somebody
+# eventually contorts a design to preserve.
+mdns = ["dep:mdns-sd"]
+# Finding a machine **without** multicast, for the one platform that will not grant it.
+#
+# The second implementation of the seam `Locator` was invented for, and the evidence that it was a
+# trait rather than a `cfg`: iOS has needed `com.apple.developer.networking.multicast` since 14,
+# Apple grants it only after a manual review, and a browse without it finds nothing *and reports
+# success*. `find::Sweep` asks each address on the local subnet instead.
+#
+# **Off by default, and this feature gates less than it looks like.** The subnet walk and its
+# refusals are `std`-only arithmetic and are compiled and tested always, which is what keeps them in
+# `cargo km-test` rather than behind a flag nothing on a desktop turns on. What is gated is the one
+# line that asks the operating system for its interfaces, and the HTTP probe.
+sweep = ["dep:if-addrs"]
+
+[dependencies]
+# The pages. Everything a person sees comes from here; this crate is the half that knows where the
+# songs are kept and how to reach a machine.
+km-remote-pages = { workspace = true }
+# The DTOs on the wire, parsed rather than re-described. See the header of `km-api`'s `dto` module.
+km-api = { workspace = true }
+km-songcode = { workspace = true }
+# `fts_match_query` for the mirror's own FTS5 index, so a search here means exactly what the same
+# search means on the machine, and `SongKind` for the row.
+km-catalog = { workspace = true }
+# `text::fold` and `text::initial` -- the folded sort key and the A-Z bucket the mirror stores.
+km-song = { workspace = true }
+# `Tag`, so what arrives on the wire is folded into the mirror's own alphabet rather than trusted
+# as the machine at the other end happened to spell it. Reached already through `km-catalog`, which
+# re-exports `SongKind` from it; named here because this crate uses it directly.
+km-kmpkg = { workspace = true }
+
+axum = { workspace = true }
+tokio = { workspace = true }
+async-trait = { workspace = true }
+# Talking to a machine. No TLS, deliberately: this speaks to a box on the same home network over
+# plain HTTP, and `default-features = false` in the workspace entry keeps rustls and a platform
+# certificate verifier out of a binary that would never use them.
+reqwest = { workspace = true }
+# Following the machine's event stream. The remote holds this one connection so that browsers do not
+# have to -- see `km_remote_pages::sse` for why a page cannot.
+tokio-tungstenite = { workspace = true }
+futures-util = { workspace = true }
+# The mirror and the favorites, in two files. Bundled, so it behaves identically on every platform
+# -- and so it cross-compiles, which `km-catalog` inside `km-app` has already proved for both
+# Android ABIs.
+rusqlite = { workspace = true }
+# Finding a machine on the network without anybody typing an address. Optional; see the `mdns`
+# feature above.
+mdns-sd = { workspace = true, optional = true }
+# This host's own addresses and netmasks, which is what a sweep needs and `std` does not offer.
+# Optional; see the `sweep` feature above. Already a direct dependency of `km-api` and already in
+# the tree through `mdns-sd` besides, so it is new to this manifest and to nothing else.
+if-addrs = { workspace = true, optional = true }
+
+serde = { workspace = true }
+serde_json = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+
+# **Nothing below this line, and the absences are the design.** No `clap`, no `tracing-subscriber`,
+# no `directories`, no `km-console`. Every one of those answers a question that belongs to a *host*
+# rather than to a server -- how it was invoked, where it logs, where its files go, whether anybody
+# is reading -- and every one of them has a different answer on Android and iOS than on a desktop.
+# They live in `crates/remote/km-remote`, and their absence here is what makes a second and third shell
+# possible. Three of them being absent from this table is a compile error rather than a review
+# comment, which is the point of writing it down as a dependency list instead of a rule.

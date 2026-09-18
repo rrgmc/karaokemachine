@@ -1,0 +1,23 @@
+[package]
+name = "km-logtap"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+description = "Holding a program's most recent log records in memory, for a surface that shows them as they happen."
+
+[lints]
+workspace = true
+
+[dependencies]
+# The events themselves, and the `Level` a record carries. Nothing here emits one.
+tracing = { workspace = true }
+# `Layer` is the seam this crate fills. It sits a level below the `MakeWriter` its two sibling
+# crates implement, because a record is wanted in parts rather than as a formatted line.
+tracing-subscriber = { workspace = true }
+# `broadcast` and nothing else. One subscriber per reader receives the same record without the tap
+# knowing how many there are, and the channel needs no reactor to exist -- which is what lets a tap
+# be built before the runtime is.
+tokio = { workspace = true, features = ["sync"] }

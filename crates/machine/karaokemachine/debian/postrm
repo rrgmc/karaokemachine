@@ -1,0 +1,31 @@
+#!/bin/sh
+# Removes the symlink postinst created. dpkg does not know about it, so nothing else will.
+#
+# The service was already stopped and disabled by prerm, back when its unit file still existed; all
+# that is left here is to tell systemd the file has gone.
+#
+# Deliberately not removed on purge: the `karaoke` user and /var/lib/karaoke. That directory holds
+# the catalog and the settings, and a purge that silently discarded somebody's song library would
+# be the wrong trade for tidiness. Removing it is one `userdel -r karaoke` for anyone who means it.
+set -e
+
+case "$1" in
+  remove|purge)
+    if [ -L /usr/bin/karaokemachine ]; then
+      rm -f /usr/bin/karaokemachine
+    fi
+    # dpkg has taken the MIME definition and the desktop entry away; the caches still name them
+    # until they are rebuilt, which is what leaves a removed program in a file manager's
+    # "Open with" list. Advisory and guarded for postinst's reason -- the appliance has neither
+    # command.
+    if command -v update-mime-database >/dev/null 2>&1; then
+      update-mime-database /usr/share/mime >/dev/null 2>&1 || true
+    fi
+    if command -v update-desktop-database >/dev/null 2>&1; then
+      update-desktop-database /usr/share/applications >/dev/null 2>&1 || true
+    fi
+    if [ -d /run/systemd/system ]; then
+      systemctl daemon-reload >/dev/null 2>&1 || true
+    fi
+    ;;
+esac

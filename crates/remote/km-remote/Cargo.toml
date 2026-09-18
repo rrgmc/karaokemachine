@@ -1,0 +1,106 @@
+[package]
+name = "km-remote"
+description = "Offline karaoke remote: keeps a local copy of the catalog and controls the machine when it is reachable"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+# **Required once there are two binaries**, not a nicety: without it `cargo run -p km-remote`
+# refuses with "could not determine which binary to run", and CLAUDE.md writes that command five
+# times. Same fix and same reason as `crates/machine/karaokemachine` and `tools/cmd/km-package-builder`. The windowed one
+# is the default because it is the product; the twin is asked for by name.
+default-run = "km-remote"
+
+[lints]
+workspace = true
+
+# A library with two binaries hanging off it, because `#![windows_subsystem]` is a property of a
+# binary crate root and the two builds disagree about it. Everything is here; each binary is three
+# lines and a `Shell`.
+[lib]
+name = "km_remote"
+path = "src/lib.rs"
+
+[[bin]]
+name = "km-remote"
+path = "src/main.rs"
+
+# The console twin, only where there is a window to be the alternative to. Without `desktop` the
+# executable above already is this one, and shipping the same program twice under two names is a
+# choice nobody can make correctly.
+[[bin]]
+name = "km-remote-console"
+path = "src/bin/km-remote-console.rs"
+required-features = ["desktop"]
+
+[features]
+# A window of its own, rather than a tab in whatever browser is default.
+#
+# Off in cargo so a fresh clone needs no GUI libraries, on when staging for Windows and macOS, and
+# **never for Linux** -- `wry` links libwebkit2gtk at load time, so such a build would not *start* on
+# a machine without that library and `--browser` could not rescue it, the failure being in the
+# dynamic loader before `main`. Identical terms to `tools/cmd/km-package-builder`; see `The remote's
+# window` in docs/decisions/remotes.md.
+#
+# **The tray rides on this feature and does not get one of its own.** It is the same two platforms
+# for the same reason -- `tray-icon`'s Linux backend links `libayatana-appindicator` at load time,
+# which is the dependency this feature already refuses to take on for `wry` -- and a second feature
+# would be a second thing for five staging scripts, `tools/setup/features.sh` and `.cargo/config.toml` to
+# keep in step. See `A running server has an icon in the bar` in docs/decisions/interface.md.
+desktop = ["dep:wry", "dep:tao", "dep:km-tray", "dep:km-webshell"]
+
+[dependencies]
+# Everything this program actually does. The shell around it is this crate, and the shell is now
+# genuinely thin: the command line, where the files go, what gets printed, and how it is asked to
+# stop. Nothing here knows what a song is -- `km-remote-pages`, `km-api`, `km-catalog`, `km-song`, `axum`,
+# `rusqlite`, `reqwest` and the rest all left this manifest when the server moved behind
+# `km-remote-core`'s own entry point, which is the measure of whether that move was real.
+# `mdns` named rather than inherited: the workspace entry turns that crate's default off so each
+# host says how it looks for a machine. A desktop may browse freely and does.
+km-remote-core = { workspace = true, features = ["mdns"] }
+# Whether anything printed will be read. **This is the third program in the workspace to need it**,
+# and the first to need it for a reason other than the machine's own: a GUI-subsystem executable has
+# a null standard output handle when it is double-clicked, and `println!` on one is a panic rather
+# than a lost line.
+km-console = { workspace = true }
+# Handing this remote's own address to whatever the operating system calls a browser: `--open`, and
+# the fallback when a webview will not build. It was a module in this crate until the machine became
+# the third caller; the crate's own header carries the rule that promoted it.
+km-osopen = { workspace = true }
+# Where the log goes when nothing is reading, which is the other half of the `km-console` note two
+# lines up: a double-clicked window has no console, so `--log-file` puts the same stream in the data
+# directory instead of discarding it.
+km-logfile = { workspace = true }
+# ...and where they go when somebody *is* reading, live: `--ecapplog` sends the same stream to the
+# viewer in place of the console.
+km-ecapplog = { workspace = true }
+
+tokio = { workspace = true }
+clap = { workspace = true }
+anyhow = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+# Where this device's copy lives, on a desktop. The one call `km-remote-core` refuses to make for
+# itself, because the answer is wrong on both of the platforms this is heading for -- see that
+# crate's header.
+directories = { workspace = true }
+
+# The window, behind the `desktop` feature above. Workspace dependencies so that this crate and
+# `tools/cmd/km-package-builder` cannot end up on two webview versions.
+wry = { workspace = true, optional = true }
+tao = { workspace = true, optional = true }
+# The window geometry the three desktop shells share. Optional beside them, because it is only ever
+# reached from behind the `desktop` feature.
+km-webshell = { workspace = true, optional = true }
+# The icon in the bar, behind the same feature. It takes no `tao` of its own -- the event loop stays
+# this crate's -- so it is one more optional dependency and not a second window library.
+km-tray = { workspace = true, optional = true }
+
+# `build.rs` attaches the application icon and version information to the Windows executable. Under
+# `[target.'cfg(windows)']` because build-dependencies resolve for the *host*, so this is absent
+# from a Linux or macOS build entirely. Same arrangement as `crates/machine/karaokemachine` and
+# `tools/cmd/km-package-builder`.
+[target.'cfg(windows)'.build-dependencies]
+winresource = { workspace = true }

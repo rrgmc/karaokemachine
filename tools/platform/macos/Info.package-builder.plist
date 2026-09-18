@@ -1,0 +1,161 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  The curation tool's bundle manifest. `tools/dist/cmd.sh` substitutes @VERSION@ and copies this in;
+  everything else is fixed.
+
+  A second plist rather than a parameterised one. It used to say the reason was that this bundle
+  declares a document type and the machine has none -- which stopped being true when the machine
+  claimed `.kmpkg`. The reason that survives is smaller and still sufficient: two bundles, two
+  identifiers, two icons, two names and two document types, with almost nothing shared but the
+  version string that is substituted into both.
+
+  The two declarations are worth reading side by side, because they differ where the products do.
+  This one is an `Editor` of its type; the machine is a `Viewer` of its own, since installing a
+  package is not writing one. And the delivery mechanism differs underneath: `tao`'s delegate
+  receives the Apple Event here, while the machine gets it as an SDL drop event -- see the note in
+  `Info.plist`.
+-->
+<plist version="1.0">
+<dict>
+    <key>CFBundleName</key>
+    <string>KM Package Builder</string>
+    <key>CFBundleDisplayName</key>
+    <string>KM Package Builder</string>
+    <!-- Distinct from `com.karaokemachine.app`. Two bundles cannot share an identifier: LaunchServices
+         keys its whole database on it, and a collision means one of them silently replaces the
+         other. -->
+    <key>CFBundleIdentifier</key>
+    <string>com.karaokemachine.packagebuilder</string>
+    <key>CFBundleExecutable</key>
+    <string>km-package-builder</string>
+    <!-- Without extension. macOS looks for `<this>.icns` in Contents/Resources.
+
+         The tool's own mark: the theme's accent blue, the same drawing the machine wears in amber.
+         Written by crates/playback/km-display/examples/icon.rs and staged by tools/dist/cmd.sh, which is
+         also what makes this bundle at all. This string is the file's name without its extension,
+         so renaming icon/km-package-builder.icns means changing it here -- and in the two icon keys
+         further down, which name the same file for the document rather than for the application. -->
+    <key>CFBundleIconFile</key>
+    <string>km-package-builder</string>
+    <key>CFBundleShortVersionString</key>
+    <string>@VERSION@</string>
+    <key>CFBundleVersion</key>
+    <string>@VERSION@</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleInfoDictionaryVersion</key>
+    <string>6.0</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>11.0</string>
+    <!-- Utilities rather than Music: this plays nothing. It reads a folder of somebody's songs
+         and writes a package -- a tool about files, which is what that shelf is for. -->
+    <key>LSApplicationCategoryType</key>
+    <string>public.app-category.utilities</string>
+    <key>NSHighResolutionCapable</key>
+    <true/>
+
+    <!--
+      The document type, which is the whole reason this bundle exists rather than a bare executable.
+      **Both halves are needed and they do different jobs.**
+
+      `CFBundleDocumentTypes` says "this application opens files of this type". On its own that is a
+      claim about a type nobody has defined, so it does nothing.
+
+      `UTExportedTypeDeclarations` is the definition: it says the type exists, that `.kmbuild` is how
+      you recognize it, and that it is ordinary data. Exported rather than imported because this
+      product invents the type -- an imported declaration is for describing somebody else's format.
+
+      What follows from having them is the reason for the whole macOS branch of this milestone: a
+      double-clicked document is delivered to a *running* application as a `kAEOpenDocuments` Apple
+      Event, never in `argv`. `tao`'s application delegate is what receives it. See src/desktop.rs.
+    -->
+    <key>CFBundleDocumentTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleTypeName</key>
+            <string>Karaoke corpus</string>
+            <key>LSItemContentTypes</key>
+            <array>
+                <string>com.karaokemachine.kmbuild</string>
+            </array>
+            <!-- Editor rather than Viewer: opening a corpus is how you change it. -->
+            <key>CFBundleTypeRole</key>
+            <string>Editor</string>
+            <!-- Owner, because this product defines the type and nothing else can read it. -->
+            <key>LSHandlerRank</key>
+            <string>Owner</string>
+            <key>CFBundleTypeIconFile</key>
+            <string>km-package-builder</string>
+        </dict>
+    </array>
+
+    <key>UTExportedTypeDeclarations</key>
+    <array>
+        <dict>
+            <key>UTTypeIdentifier</key>
+            <string>com.karaokemachine.kmbuild</string>
+            <key>UTTypeDescription</key>
+            <string>Karaoke corpus</string>
+            <!-- `public.data` rather than `public.database`: the latter is not a system type, and a
+                 conformance to something undefined is silently ignored. What matters to the system is
+                 that this is an opaque file. -->
+            <key>UTTypeConformsTo</key>
+            <array>
+                <string>public.data</string>
+            </array>
+            <key>UTTypeIconFile</key>
+            <string>km-package-builder</string>
+            <key>UTTypeTagSpecification</key>
+            <dict>
+                <key>public.filename-extension</key>
+                <array>
+                    <string>kmbuild</string>
+                </array>
+            </dict>
+        </dict>
+    </array>
+
+    <!--
+      **Why this tool asks for file access, in its own words.**
+
+      A bundle has a TCC identity of its own, and that is the surprise a folder does not prepare you
+      for: the same executable run from a terminal inherits the terminal's grants and is never asked
+      about anything, while the `.app` is asked the first time it looks at a Desktop, a Documents
+      folder, a Downloads folder or an external drive. Found by opening this bundle for the first
+      time -- it stops on the prompt before it serves a page, so the window is white until somebody
+      answers.
+
+      These four keys do not remove the prompt and are not meant to. What they do is make it say why:
+      with no string macOS shows a bare "would like to access files in your Desktop folder", which is
+      a question about a program you have just unzipped with nothing to judge it by. Four keys and not
+      one, because they are asked separately and a karaoke corpus genuinely lives in any of them --
+      Downloads for something just fetched, and an external drive for a collection too big for the
+      internal one.
+
+      Still no microphone, camera or location: this tool reads karaoke files and writes packages.
+      Declaring a permission it never uses would make macOS prompt for one.
+    -->
+    <key>NSDesktopFolderUsageDescription</key>
+    <string>KM Package Builder reads the karaoke files in the folder you choose, so that you can browse and curate them into packages.</string>
+    <key>NSDocumentsFolderUsageDescription</key>
+    <string>KM Package Builder reads the karaoke files in the folder you choose, so that you can browse and curate them into packages.</string>
+    <key>NSDownloadsFolderUsageDescription</key>
+    <string>KM Package Builder reads the karaoke files in the folder you choose, so that you can browse and curate them into packages.</string>
+    <key>NSRemovableVolumeUsageDescription</key>
+    <string>KM Package Builder reads the karaoke files in the folder you choose, which is often a collection kept on an external drive.</string>
+
+    <!--
+      **Added when the offline remote got a bundle of its own**, because writing that one's manifest is
+      what turned this up here. Since M29 this tool has a Discover button that browses
+      `_karaokemachine._tcp.local.` for machines, and it installs packages onto whichever one is set --
+      so it sends to a local address, which macOS 14 and later ask about. The prompt was already being
+      raised by a bundle that said nothing about why.
+
+      Declining it costs the Discover button and the install, and nothing else: scanning, browsing,
+      rating and building a package are all local work.
+    -->
+    <key>NSLocalNetworkUsageDescription</key>
+    <string>KM Package Builder looks for your karaoke machine on this network, so that it can test-play a song and install the packages you build.</string>
+</dict>
+</plist>

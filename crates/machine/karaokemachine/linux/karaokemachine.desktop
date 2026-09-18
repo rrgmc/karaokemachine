@@ -1,0 +1,51 @@
+[Desktop Entry]
+Type=Application
+Version=1.5
+Name=KaraokeMachine
+GenericName=Karaoke player
+Comment=Plays karaoke MIDI files with the lyrics highlighted in time with the music
+# The /usr/bin symlink the package's postinst creates, not the /opt path the binary lives at: a
+# desktop entry naming /opt breaks if the install layout ever changes, and the symlink is the
+# supported way in.
+# `%f` is one local file path, which is what a double-clicked .kmpkg delivers; `%U` would offer
+# URLs the machine cannot read. A launcher that passes nothing at all is the ordinary case and
+# `%f` expands to nothing, so this line still starts the machine from an application menu.
+Exec=karaokemachine %f
+# No path and no extension. A desktop looks this name up in the icon theme, which is why the package
+# installs the PNGs under /usr/share/icons/hicolor/<size>x<size>/apps/ -- so the shell picks the size
+# it needs instead of scaling one.
+Icon=karaokemachine
+Terminal=false
+Categories=AudioVideo;Audio;Player;
+# The document type this machine claims. Declared here *and* installed as a shared-mime-info
+# file by the package -- the two are both needed and do different jobs: this says the program
+# can open the type, and the XML in /usr/share/mime/packages says the type exists at all. Without
+# the second, a desktop has no idea what a .kmpkg is and never consults the first.
+MimeType=application/x-km-package;
+Keywords=karaoke;midi;lyrics;singing;
+# What ties the running window back to this entry, and so to the icon and the name. SDL takes the
+# window's X11 class from the executable's own name, which is what this has to match. On Wayland the
+# equivalent is the surface's app_id, which SDL sets from its application metadata rather than from
+# argv -- so a Wayland session may show the window with a generic icon even though this file is
+# correct. Recorded as a known gap in docs/ARCHITECTURE.md.
+StartupWMClass=karaokemachine
+StartupNotify=false
+# A second way to start the same program, offered on the launcher's own menu -- a right-click in most
+# shells. This is what `--stream` has instead of the Start Menu entry Windows gives it: Linux has no
+# icon bar here, so a streaming run started from a desktop is otherwise reachable only by typing.
+Actions=stream;
+
+[Desktop Action stream]
+Name=Stream to a television
+# The badged mark, looked up in the icon theme exactly as the entry's own `Icon=` is, and installed
+# by the package into the same `hicolor` directories under this name. An action may carry one, and
+# this is the one place on Linux where the two ways of starting the machine are offered side by side
+# -- a menu with both on it, where the same picture twice says only that they are the same program.
+Icon=karaokemachine-stream
+# Read by `desktop_entry_for`, which points the command at this executable. It rewrites every line
+# beginning `Exec=karaokemachine` and inserts `TryExec` for the first of them only, which is the
+# group the specification gives that key a meaning in.
+#
+# No `%f`: a package handed to a streaming run would be installed by a machine with no screen to say
+# so, and a document dropped on a launcher is not asking for that.
+Exec=karaokemachine --stream

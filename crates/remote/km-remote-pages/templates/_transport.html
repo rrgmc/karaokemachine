@@ -1,0 +1,17 @@
+<div class="transport">
+  {% if view.is_playing() %}
+  <button class="icon-btn" title="{{ "transport-pause"|t }}" aria-label="{{ "transport-pause"|t }}"
+          hx-post="/control/pause?fragment=nowbar" hx-target="#nowbar" hx-swap="outerHTML">&#10074;&#10074;</button>
+  {% else %}
+  <button class="icon-btn primary" title="{{ "transport-play"|t }}" aria-label="{{ "transport-play"|t }}"
+          hx-post="/control/play?fragment=nowbar" hx-target="#nowbar" hx-swap="outerHTML">&#9654;</button>
+  {% endif %}
+  <button class="icon-btn" title="{{ "transport-restart"|t }}" aria-label="{{ "transport-restart"|t }}"
+          hx-post="/control/restart?fragment=nowbar" hx-target="#nowbar" hx-swap="outerHTML"
+          {% if !view.has_song() %}disabled{% endif %}>&#8635;</button>
+  <button class="icon-btn" title="{{ "transport-skip"|t }}" aria-label="{{ "transport-skip"|t }}"
+          hx-post="/control/skip?fragment=nowbar" hx-target="#nowbar" hx-swap="outerHTML">&#9197;</button>
+  <button class="icon-btn danger" title="{{ "transport-stop"|t }}" aria-label="{{ "transport-stop"|t }}"
+          hx-post="/control/stop?fragment=nowbar" hx-target="#nowbar" hx-swap="outerHTML"
+          {% if !view.has_song() %}disabled{% endif %}>&#9632;</button>
+</div>

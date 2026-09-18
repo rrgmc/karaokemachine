@@ -1,0 +1,70 @@
+{# The lists, and every control that changes one.
+
+   **A fragment because all five writes on this page change it** — making a list, renaming one,
+   setting one aside, tidying one and deleting one — and each answers with a sentence rather than a
+   new page. Without it the list somebody just made is not there and the one they just deleted still
+   is, until they reload, which is not a thing this tool asks anywhere else. #}
+<div id="favorites-table"{% if oob %} hx-swap-oob="true"{% endif %}>
+{% if favorites.is_empty() %}
+<p class="dim">{{ "favorites-none-yet"|t }}</p>
+{% else %}
+<div class="panel">
+<table>
+  <thead><tr><th>{{ "favorites-name"|t }}</th><th class="num">{{ "favorites-songs"|t }}</th>
+      <th class="num" title="{{ "favorites-second-copies-title"|t }}">{{ "favorites-second-copies"|t }}</th>
+      <th title="{{ "favorites-working-list-title"|t }}">{{ "favorites-working-list"|t }}</th>
+      <th></th></tr></thead>
+  <tbody>
+  {% for f in favorites %}
+    {# The working lists below a named rule, as the row's chooser draws them: a working list is
+       where a song waits instead of being filed. #}
+    {% if f.rule_before %}
+    <tr class="rule-row"><td colspan="5"><span class="picker-rule">{{ "row-working-lists"|t }}</span></td></tr>
+    {% endif %}
+    <tr>
+      <td>
+        <form class="row" hx-post="/favorites/{{ f.node.id }}/rename" hx-target="#action-result" hx-swap="innerHTML">
+          <input name="name" value="{{ f.node.name }}" size="24">
+          <button>{{ "favorites-rename"|t }}</button>
+        </form>
+      </td>
+      <td class="num"><a href="/songs?favorite={{ f.node.id }}">{{ f.node.song_count }}</a></td>
+      {# The count and the button that clears it are one cell, because the number is only ever read
+         as *should I press that*. A list with none says nothing at all rather than a reassuring 0:
+         a column of zeroes is a column nobody reads, and the ones that matter hide in it. #}
+      <td class="num">
+        {% if f.node.second_copies > 0 %}
+        <span class="tag warn">{{ f.node.second_copies }}</span>
+        <button hx-post="/favorites/{{ f.node.id }}/tidy"
+                hx-confirm="{{ f.tidy_confirm }}"
+                hx-target="#action-result" hx-swap="innerHTML">{{ "favorites-tidy"|t }}</button>
+        {% else %}<span class="dim">&mdash;</span>{% endif %}
+      </td>
+      {# Set here and nowhere else. What kind of list this is is a judgment about the list rather
+         than about the song being filed, so it belongs where the lists are read side by side --
+         where a row of *to-check* beside a row of *Bossa nova* is the comparison that answers it.
+
+         A box with no Save: this writes one flag, takes no song with it, and turning it back makes
+         the list what it was, so a second click is the whole of the undo. An unticked box sends
+         nothing at all, which is how the handler reads it. #}
+      <td>
+        <form hx-post="/favorites/{{ f.node.id }}/temporary" hx-trigger="change"
+              hx-target="#action-result" hx-swap="innerHTML">
+          <label><input type="checkbox" name="temporary" value="1"
+                        {% if f.node.temporary %}checked{% endif %}
+                        title="{{ "favorites-set-aside-title"|t }}"></label>
+        </form>
+      </td>
+      <td>
+        <button class="danger"
+                hx-post="/favorites/{{ f.node.id }}/delete"
+                hx-confirm="{{ f.delete_confirm }}"
+                hx-target="#action-result" hx-swap="innerHTML">{{ "favorites-delete"|t }}</button>
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endif %}
+</div>

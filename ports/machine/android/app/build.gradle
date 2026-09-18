@@ -1,0 +1,126 @@
+plugins {
+    id 'com.android.application'
+}
+
+// `KM_ANDROID_KEYSTORE` names the release key, and absent it the debug key signs the release build.
+// A fresh clone, another developer's machine and a CI runner hold no keystore, so requiring one would
+// make Android the only platform here that cannot be built without a secret — the rule
+// `KM_SIGN_IDENTITY` follows on macOS, read across.
+//
+// **Named but missing is an error rather than a fallback.** A command that asked for a signed APK and
+// silently produced a debug-signed one would hand out a build that installs over nothing and that
+// anybody's debug key can replace.
+//
+// The remote's project carries the same four lines; see `How the Android applications are signed` in
+// docs/decisions/remotes.md for the one key covering two applications.
+def releaseKeystore = System.getenv('KM_ANDROID_KEYSTORE')
+if (releaseKeystore && !file(releaseKeystore).exists()) {
+    throw new GradleException("KM_ANDROID_KEYSTORE names a keystore that is not there: ${releaseKeystore}")
+}
+
+android {
+    namespace = 'com.rrgmc.karaokemachine'
+    compileSdk = 36
+    // Pinned so a side-by-side NDK upgrade does not silently change what the APK was built against.
+    ndkVersion = '28.2.13676358'
+
+    defaultConfig {
+        applicationId = 'com.rrgmc.karaokemachine'
+        // 26, not 21. `libaaudio.so` does not exist below it and the audio backend links against it.
+        // See the decision in docs/decisions/.
+        minSdk = 26
+        targetSdk = 36
+        // Must increase for every build that might be installed over an earlier one: 0.1.0 APKs
+        // were installed on the Galaxy S23 and the Google TV Streamer during M8, and Android refuses
+        // a downgrade or an equal versionCode outright.
+        versionCode = 20
+        versionName = '1.17.0'
+        // Only what cargo actually builds. Adding an ABI here without building it produces an APK
+        // that installs on a device and then cannot find its own library.
+        ndk {
+            abiFilters 'arm64-v8a', 'armeabi-v7a'
+        }
+    }
+
+    // No externalNativeBuild. cargo builds the native side; Gradle only packages it.
+    sourceSets {
+        main {
+            jniLibs.srcDirs = ['src/main/jniLibs']
+        }
+    }
+
+    signingConfigs {
+        if (releaseKeystore) {
+            release {
+                storeFile = file(releaseKeystore)
+                storePassword = System.getenv('KM_ANDROID_KEYSTORE_PASSWORD')
+                // One password covers the store and the key, which is what PKCS12 requires, so the
+                // second variable is separate for a keystore that predates that and not for a second
+                // secret to hold.
+                keyAlias = System.getenv('KM_ANDROID_KEY_ALIAS') ?: 'karaokemachine'
+                keyPassword = System.getenv('KM_ANDROID_KEY_PASSWORD') ?: System.getenv('KM_ANDROID_KEYSTORE_PASSWORD')
+                // **v3 is what makes this key rotatable**, and it is off unless asked for. A v2-only
+                // APK ties every device to this one key for ever: replacing it means an uninstall,
+                // which is what takes `favorites.sqlite` with it. With v3 in the APK, Android 9 and
+                // above accept a new key presenting a signing lineage, so the same decision costs a
+                // rotation rather than everybody's data. v1 is for Android below 7 and minSdk is 26.
+                enableV2Signing = true
+                enableV3Signing = true
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled = false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            // **The release key signs this, and the debug key signs it where there is none.** A build
+            // type that names no key produces an unsigned APK, and an unsigned APK does not install,
+            // so there is always one named.
+            //
+            // What a release build buys over the debug one either way is `android:debuggable` off,
+            // which is what makes it the one to hand somebody: anything holding ADB access can attach
+            // to a debuggable application and run code as it. See `How the Android applications are
+            // signed` in docs/decisions/remotes.md for what a key change costs a device that already
+            // holds a build.
+            signingConfig = releaseKeystore ? signingConfigs.release : signingConfigs.debug
+        }
+        // No debug block. `useLegacyPackaging` lived here once and is not a build-type property —
+        // it belongs to `android.packaging.jniLibs` and applies to the whole build. The AGP default
+        // for minSdk 23+ is what we want anyway: native libraries stored uncompressed and mapped
+        // straight out of the APK, rather than compressed and extracted into /data at install,
+        // which would keep two copies of a very large library on the device.
+    }
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+
+    lint {
+        abortOnError = false
+    }
+}
+
+// Fail early and clearly rather than shipping an APK with no native library in it: the error a
+// device gives for that is `UnsatisfiedLinkError` at launch, which says nothing about the cause.
+tasks.register('checkNativeLibs') {
+    doLast {
+        def dir = file('src/main/jniLibs')
+        def missing = !dir.exists() || dir.listFiles()?.every { abi ->
+            !new File(abi, 'libkm_app.so').exists()
+        }
+        if (missing) {
+            throw new GradleException(
+                "no native libraries in ${dir}.\n" +
+                "Build and stage them first:\n" +
+                "  tools/port/machine/android/build.sh\n" +
+                "  tools/port/machine/android/stage.sh")
+        }
+    }
+}
+tasks.configureEach { task ->
+    if (task.name.startsWith('merge') && task.name.endsWith('JniLibFolders')) {
+        task.dependsOn('checkNativeLibs')
+    }
+}

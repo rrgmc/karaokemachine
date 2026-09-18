@@ -1,0 +1,58 @@
+{% extends "layout.html" %}
+{% block content %}
+
+<section class="card">
+  <h2>{{ "songs-add"|t }}</h2>
+  <p class="hint">{{ "songs-add-hint"|t }}</p>
+  <form method="post" action="/admin/songs/upload" enctype="multipart/form-data">
+    <input type="file" name="file" accept="{{ accepts }}" required>
+    <button type="submit">{{ "action-add"|t }}</button>
+  </form>
+</section>
+
+<section class="card">
+  <h2>{{ "action-on-machine"|t }}</h2>
+  {% if packages.is_empty() %}
+  <p class="empty">{{ "songs-empty"|t }}</p>
+  {% else %}
+  <p class="hint">{{ songs_count }}</p>
+  {# **The count survives when the table does not**, which is the line `installed_packages` draws:
+     what a surface without it loses is *removing a package and moving one between blocks*, not
+     knowing what is on the machine. A tool that could not say how many songs a machine holds would
+     be unable to confirm that the package it just sent arrived. #}
+  {% if chrome.capabilities.installed_packages %}
+  <table>
+    <thead>
+      <tr><th>{{ "column-package"|t }}</th><th>{{ "column-version"|t }}</th><th>{{ "tab-songs"|t }}</th><th>{{ "column-numbers"|t }}</th><th></th></tr>
+    </thead>
+    <tbody>
+    {% for package in packages %}
+      <tr>
+        <td>{{ package.title }}</td>
+        <td>{{ package.version }}</td>
+        <td class="num">{{ package.songs }}</td>
+        <td class="num">
+          <form method="post" action="/admin/songs/{{ package.id }}/bank" class="inline">
+            <input type="number" name="bank" value="{{ package.bank }}" min="1" max="9999"
+                   aria-label="{{ package.bank_label }}">
+            <button type="submit">{{ "column-move"|t }}</button>
+          </form>
+        </td>
+        <td>
+          {% match package.why_not_removable %}
+          {% when Some with (why) %}
+          <span class="hint">{{ why }}</span>
+          {% when None %}
+          <a class="danger" href="/admin/songs/{{ package.id }}/remove"
+             aria-label="{{ package.remove_label }}">{{ "action-remove"|t }}</a>
+          {% endmatch %}
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+  {% endif %}
+</section>
+
+{% endblock %}

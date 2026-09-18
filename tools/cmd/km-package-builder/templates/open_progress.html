@@ -1,0 +1,44 @@
+{# **The two endings that are not a redirect have to put the chooser back**, and they do it by name
+   because this fragment swaps into `#opening` and the chooser is its sibling. `open.html` draws that
+   element `hidden` while a job is running, so without these lines a failed open would leave the page
+   showing one red sentence and nothing to act on. An inline `<script>` is this file's own idiom —
+   the success arm below has always redirected that way. #}
+{% match opening %}
+{% when Some with (job) %}
+  {% if job.finished %}
+    {% match job.error %}
+    {% when Some with (reason) %}
+      <p class="message error">{{ reason }}</p>
+      <script>document.querySelector(".chooser")?.removeAttribute("hidden");</script>
+    {% when None %}
+      <p class="message ok">{{ "open-opened"|t }} {{ job.root }}.</p>
+      <script>window.location = "/songs";</script>
+    {% endmatch %}
+  {% else %}
+  {# A `div` and not the `p` the two arms above are, because a paragraph may not hold the bar.
+
+     **Three things move here and each covers what the others cannot.** The phase names the step, and
+     the longest of them is minutes — so between two of them the sentence is fixed. The seconds climb
+     through that, and go on climbing if the animation is throttled, disabled or in a tab the browser
+     is not painting. The bar is what says *working* at a glance, to somebody who has not read either.
+
+     `aria-hidden`, because it carries no information the sentence beside it does not. #}
+    <div class="message opening-now polling" hx-get="/open/progress" hx-trigger="load delay:500ms"
+         hx-target="#opening" hx-swap="innerHTML">
+      <div class="bar working" aria-hidden="true"><span></span></div>
+      <p>
+        {{ said }}
+        <span class="hint">{{ "open-migrating-hint"|t }}</span>
+      </p>
+    </div>
+  {% endif %}
+{% when None %}
+  {% if open %}
+    <script>window.location = "/songs";</script>
+  {% else %}
+  {# The slot emptied with no workspace to show for it, which nothing does today — `begin_open` fills
+     it before the server answers and clears it only by finishing. Handled anyway, because the state
+     this page must never be left in is one where the chooser is hidden and no job is reporting. #}
+  <script>document.querySelector(".chooser")?.removeAttribute("hidden");</script>
+  {% endif %}
+{% endmatch %}

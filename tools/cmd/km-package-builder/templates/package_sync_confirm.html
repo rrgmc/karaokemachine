@@ -1,0 +1,27 @@
+{# What a sync would do, before it does it.
+
+   **It names what comes out as well as what goes in**, which the add confirmation beside it has no
+   need of: an add only adds, and this is the one write on a package that also takes songs away. The
+   number leaving is the one somebody has to read before pressing rather than in the sentence
+   afterwards.
+
+   The source lists are chips for the reason `PackageAddConfirm` draws its filter as chips: they are
+   what decides the set, and a set nobody can see in full is legible only as the thing that chose it.
+
+   Cancel goes through the shared route the other confirmations use -- one empty fragment, not five. #}
+<span class="row">
+  <strong>{{ name }}</strong>
+  {{ "sync-from"|t }} {% for s in sources %}<span class="tag {% if s.temporary %}warn{% else %}good{% endif %}">{{ s.name }}</span>{% endfor %}
+  &rarr; <strong>{{ adding }}</strong>, <strong>{{ removing }}</strong>, {{ keeping }}
+  {% match new_volumes %}
+  {% when Some with (says) %}
+  {# A count in a clause, so it is composed in Rust like the counts before it. Not a warning: a
+     volume starting is what a package whose lists have grown is for. #}
+  <span>&mdash; {{ says }}</span>
+  {% when None %}
+  {% endmatch %}
+  <button class="primary" hx-post="/packages/{{ package_id }}/sync?confirm=1" hx-include="#package-volume"
+          hx-target="#action-result" hx-swap="innerHTML">{{ "action-ok"|t }}</button>
+  <button type="button" hx-get="/songs/language-bulk/cancel"
+          hx-target="#action-result" hx-swap="innerHTML">{{ "action-cancel"|t }}</button>
+</span>

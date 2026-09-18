@@ -1,0 +1,144 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Adapted from SDL's android-project template. What differs from it, and why:
+
+    * the activity is our MainActivity, which names the libraries to load;
+    * INTERNET is enabled, because the whole point of the machine is a remote controlling it;
+    * CHANGE_WIFI_MULTICAST_STATE is enabled, because mDNS is multicast and Android drops multicast
+      packets while the Wi-Fi radio is dozing unless a multicast lock is held;
+    * the orientation is locked to landscape — a karaoke display is a landscape thing, and letting it
+      rotate mid-song would rebuild the GL surface and interrupt playback. This attribute is
+      necessary and is NOT sufficient: SDL overrules it at window creation unless the
+      SDL_ORIENTATIONS hint is set, which km_app does. See the port README.
+
+  What is deliberately NOT here: keepScreenOn. It is a View attribute, so an activity element has
+  no such thing and it was silently ignored for as long as it sat here. The screen stays on
+  regardless, because SDL_VideoInit disables the screensaver by default and on Android that is
+  window.addFlags(FLAG_KEEP_SCREEN_ON). SDL owns this; the manifest cannot help and should not
+  look as though it does.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    android:installLocation="auto">
+
+    <!-- OpenGL ES 2.0 -->
+    <uses-feature android:glEsVersion="0x00020000" />
+
+    <!-- Touch is how a song number gets entered on a phone. It must NOT be required, though:
+         Android documents a required touchscreen as preventing installation on TV devices
+         altogether, and a television is the machine's natural home. A remote's D-pad reaches the
+         same on-screen keypad — SDL delivers it as arrow keys, and `km_display::keypad` moves a
+         highlight. -->
+    <uses-feature
+        android:name="android.hardware.touchscreen"
+        android:required="false" />
+
+    <!-- Works on a television, but is not television-only, so `required` is false. -->
+    <uses-feature
+        android:name="android.software.leanback"
+        android:required="false" />
+
+    <!-- Game controller support, all optional. A controller is a perfectly good karaoke remote. -->
+    <uses-feature
+        android:name="android.hardware.bluetooth"
+        android:required="false" />
+    <uses-feature
+        android:name="android.hardware.gamepad"
+        android:required="false" />
+    <uses-feature
+        android:name="android.hardware.usb.host"
+        android:required="false" />
+
+    <!-- The API and its remotes. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+    <!-- mDNS. Without the multicast permission the advertisement is silently not seen by phones on
+         the same network, which is the worst kind of failure: everything logs success. -->
+    <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
+
+    <!-- Declared only to un-require it. The multicast permission above makes Android *imply*
+         `android.hardware.wifi` as required, which filters the app off any device without Wi-Fi —
+         an Ethernet-only television box being exactly the case we would not want to lose. The
+         machine wants a network, not specifically a wireless one; wired works as well or better.
+         Found by reading `aapt2 dump badging` on the first APK, which reported it as
+         `uses-implied-feature`. -->
+    <uses-feature
+        android:name="android.hardware.wifi"
+        android:required="false" />
+
+    <!-- No RECORD_AUDIO: microphone audio is mixed in hardware and this app never opens an input
+         stream. See the decision in docs/decisions/. -->
+
+    <!-- `banner` is the tile on a television's home row. The leanback launcher draws no label of its
+         own, so the name has to be in the image; it is generated from the display's own theme by the
+         `banner` example in `km-display`. (Spelling the full cargo command here is not possible: a
+         double hyphen cannot appear inside an XML comment, and doing it anyway is what made this
+         manifest unparseable once already.) -->
+    <application
+        android:label="@string/app_name"
+        android:icon="@mipmap/ic_launcher"
+        android:banner="@drawable/banner"
+        android:allowBackup="true"
+        android:theme="@style/AppTheme"
+        android:enableOnBackInvokedCallback="false"
+        android:hardwareAccelerated="true">
+
+        <activity
+            android:name=".MainActivity"
+            android:label="@string/app_name"
+            android:alwaysRetainTaskState="true"
+            android:launchMode="singleInstance"
+            android:screenOrientation="userLandscape"
+            android:configChanges="layoutDirection|locale|grammaticalGender|fontScale|fontWeightAdjustment|orientation|uiMode|screenLayout|screenSize|smallestScreenSize|keyboard|keyboardHidden|navigation"
+            android:preferMinimalPostProcessing="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <!-- Without this the app is invisible on a television: not in the Play listing, and not
+                 on the home row even after a successful `adb install`. Kept alongside LAUNCHER so
+                 one APK serves phones and TVs both. -->
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+            </intent-filter>
+            <!-- So a USB controller attaching wakes the app rather than being ignored. -->
+            <intent-filter>
+                <action android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED" />
+            </intent-filter>
+            <!-- A `.kmpkg` opened from a file manager installs itself, which on this platform is
+                 the only route in that needs no cable: Android 11 closed
+                 /Android/data/<pkg>/files/ to file managers and hides it over MTP, so the packages
+                 folder can be written by `adb push` and by nothing else a person has to hand.
+
+                 The type is named where a provider knows it. Android has no MIME entry for
+                 `.kmpkg` and no way for an application to add one, so what Downloads, Files and a
+                 browser's download notification actually send is `application/octet-stream`, which
+                 is the second filter, and it is the one that fires. The cost is that the machine
+                 appears in "Open with" for any unknown binary; a file picked by mistake is
+                 refused by name before it is read, which is what every other platform does with a
+                 dropped `.mp3`.
+
+                 There is deliberately no `file:` filter matching on `pathPattern`. That attribute
+                 cannot express "ends in .kmpkg" for a name with a dot anywhere else in it without a
+                 ladder of patterns, and a `file:` URI is not what an application on this platform
+                 may hand another one. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="content" android:mimeType="application/x-km-package" />
+                <data android:scheme="file" android:mimeType="application/x-km-package" />
+            </intent-filter>
+            <!-- Its own element and not a third `data` above: within one filter the schemes, hosts,
+                 paths and types are merged into sets that match in any combination, so a broad type
+                 sitting beside a narrow one widens the narrow one. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="content" android:mimeType="application/octet-stream" />
+            </intent-filter>
+        </activity>
+    </application>
+
+</manifest>

@@ -1,0 +1,22 @@
+{# Which song leaves a number, before another takes it.
+
+   The values ride in hidden fields rather than being read again from the form on the song's page, so
+   the confirmed write is the replacement that was named here. The write checks it again inside its
+   own transaction, because the package can change while this sits on screen.
+
+   Cancel goes through the shared route the other confirmations use. #}
+<form class="row" hx-post="/packages/replace?confirm=1"
+      hx-target="#action-result" hx-swap="innerHTML">
+  <input type="hidden" name="slot" value="{{ slot }}">
+  <input type="hidden" name="number" value="{{ number }}">
+  <input type="hidden" name="song_id" value="{{ song_id }}">
+  <span>{{ question }}</span>
+  {% match favorites %}
+  {% when Some with (says) %}
+  <span class="dim">{{ says }}</span>
+  {% when None %}
+  {% endmatch %}
+  <button class="primary">{{ "action-ok"|t }}</button>
+  <button type="button" hx-get="/songs/language-bulk/cancel"
+          hx-target="#action-result" hx-swap="innerHTML">{{ "action-cancel"|t }}</button>
+</form>

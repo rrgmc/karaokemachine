@@ -1,0 +1,238 @@
+{% import "play_button.html" as play %}
+{# One song is a `<tbody>`, which a table may have as many of as it likes.
+
+   **It is what lets the favorite chooser open under the row instead of over it.** The chooser is a
+   second `<tr>`, and a swap has to replace the pair as one thing or leave half of it behind — so the
+   element every control here targets is the group, not the line. `closest tbody` then works in both
+   directions with no out-of-band delete and no ids to keep in step, and the song being filed stays
+   readable while the choice is made.
+
+   The id moves with it, and the row keeps none of its own: nothing in this crate addresses a row by
+   id, and two ids for one song would be two things to keep in step. #}
+<tbody id="row-{{ song.id }}">
+  <tr{% if picking %} class="picked"{% endif %}>
+    {# The quality hint's number sits with the tick rather than in a column of its own. A column on
+       this row is paid for by Title and Artist, which are what the row is read for and the first to
+       be squeezed when the table outgrows its width -- and this one is empty on all but a handful of
+       rows anybody ever ticks. The cell holding the checkbox already means *this row is selected*,
+       which is what the number is about.
+
+       **Drawn whether or not there is a number**, because the badge is what `hint_marks.html`
+       addresses out of band and htmx silently drops a swap whose id is not on the page. #}
+    <td class="tick"><input type="checkbox" name="song_id" value="{{ song.id }}"
+        ><span id="hint-{{ song.id }}" class="place">{{ song.hint_text() }}</span></td>
+    {# How alike this song's name is to the one searched for, on the similar-names list only. Drawn on
+       every row and shown by `table.similar` in style.css, because a row does not know the list it is
+       on.
+
+       **`hx-preserve` is what keeps the number across a redraw.** A star, a score or a rename swaps
+       the row back in from `/songs/{id}/row`, which never saw the search, so the new cell is empty.
+       htmx keeps the cell already on the page when the new one carries the same id, and with it the
+       mark on the song the search started from. #}
+    <td class="num likeness{% if song.likeness_is_high() %} good{% endif %}{% if song.searched_from %} searched-from{% endif %}"
+        {% if song.searched_from %}title="{{ "similar-searched-from-title"|t }}"{% endif %}
+        id="likeness-{{ song.id }}" hx-preserve>{{ song.likeness_text() }}</td>
+    {% if editing %}
+    <td colspan="2">
+      <form class="row" hx-post="/songs/{{ song.id }}/rename"
+            hx-target="closest tbody" hx-swap="outerHTML">
+        {# The two boxes in the order of the two columns they replace, so nothing appears to move when
+           the cell opens. `autofocus` stays on the title and does not follow the order: what this
+           button is pressed for is a title the file did not carry, and a corpus is full of them. #}
+        <input name="row_artist" size="18" placeholder="{{ "column-artist"|t }}"
+               value="{% match song.artist %}{% when Some with (a) %}{{ a }}{% when None %}{% endmatch %}">
+        <input name="title" size="26" autofocus placeholder="{{ "column-title"|t }}"
+               value="{{ song.title }}">
+        <button class="primary">{{ "action-save"|t }}</button>
+        <button type="button" hx-get="/songs/{{ song.id }}/row"
+                hx-target="closest tbody" hx-swap="outerHTML">{{ "action-cancel"|t }}</button>
+      </form>
+    </td>
+    {% else %}
+    {# **Artist first, and the list still arrives sorted by title.** A corpus is walked by performer --
+       *what else did they do?* is the question this column raises and the one somebody fills a package
+       by -- so it is the column read first and the one that must not be the first squeezed when the
+       table outgrows its width. The order says what the page is for; the sort says what order the
+       answers come in, and those are two decisions. See `<select name="sort">` in songs.html.
+
+       The artist is a link to every other song by them, which is the question this column raises and
+       could not answer -- the box in the bar is exact, and clicking a name is the only way to fill it
+       without retyping a spelling the corpus chose. An ordinary `<a>` and not htmx: it is outside
+       `#filters`, so it sends nothing and cannot be caught by that form's `change`, and a full page
+       load is what the Folders and Favorites pages' own filter links already do.
+
+       `artist_url()` is empty for a song with no artist, which is how the em dash keeps its place: a
+       link to `?artist=` would be a filter matching nothing.
+
+       **An artist recorded as blank draws the dash too**, which is the one place the two are shown
+       alike. `eff_artist` keeps them apart everywhere else -- `''` is *explicitly nobody* and NULL is
+       *nobody has said*, and the list sorts them into different ends -- but a cell has only the one
+       thing to say, and saying it with nothing at all reads as a column that failed to render.
+       *Title from file name* writes `''` over every row it touches, so this is the common case and
+       not a corner. #}
+    <td>{% match song.artist %}{% when Some with (a) %}{% if a.is_empty() %}<span
+        class="dim">&mdash;</span>{% else if song.artist_url().is_empty() %}{{ a }}{% else %}<a
+        href="{{ song.artist_url() }}" title="{{ song.artist_title }}">{{ a }}</a>{% endif %}{% when None %}<span class="dim">&mdash;</span>{% endmatch %}</td>
+    {# The title asks for a window of its own, like ≈ below and for the same reason. #}
+    <td>
+      <a href="/songs/{{ song.id }}" target="_blank" title="{{ song.path_tooltip() }}">{{ song.title }}</a>
+      {% if !song.kind.is_midi() %}<span class="tag video"
+         title="{{ song.kind.key()|t }}">{{ song.kind.key()|t }}</span>{% endif %}
+      {% if song.from_filename %}<span class="tag"
+         title="{{ "row-no-title-title"|t }}">{{ "row-from-file-name"|t }}</span>{% endif %}
+      {% if song.edited %}<span class="tag edit" title="{{ "row-edited-title"|t }}">{{ "row-edited"|t }}</span>{% endif %}
+      {% for tag in song.tags %}<span class="tag song-tag">{{ tag }}</span>{% endfor %}
+      {% if !song.from_filename %}<span class="tag mono filename"
+         title="{{ "row-file-name-title"|t }}">{{ song.file_name() }}</span>{% endif %}
+    </td>
+    {% endif %}
+    <td class="lang">
+      {% if choosing_language %}
+      <form class="row" hx-post="/songs/{{ song.id }}/language?as=row"
+            hx-target="closest tbody" hx-swap="outerHTML">
+        <select name="row_language" autofocus>
+          <option value="">&mdash; {{ "row-language-unknown"|t }}</option>
+          {% for choice in all_languages %}
+          <option value="{{ choice.value }}" {% if choice.selected %}selected{% endif %}>{{ choice.label }}</option>
+          {% endfor %}
+        </select>
+        <button class="primary">{{ "row-set"|t }}</button>
+        <button type="button" hx-get="/songs/{{ song.id }}/row"
+                hx-target="closest tbody" hx-swap="outerHTML">{{ "action-cancel"|t }}</button>
+      </form>
+      {% else %}
+      <select class="mini" name="row_language" title="{{ song.language_name() }}"
+              hx-post="/songs/{{ song.id }}/language?as=row"
+              hx-target="closest tbody" hx-swap="outerHTML">
+        <option value="" {% if song.language.is_none() %}selected{% endif %}>&mdash;</option>
+        {% for choice in languages %}
+        <option value="{{ choice.value }}"
+                {% if song.language_text() == choice.value %}selected{% endif %}>{{ choice.value }}</option>
+        {% endfor %}
+        <option value="more">{{ "row-language-more"|t }}&hellip;</option>
+      </select>
+      {% endif %}
+    </td>
+    <td class="num">{{ song.duration() }}</td>
+    <td class="num"><span class="suitability {{ crate::views::suitability_class(song.suitability) }}">{% match song.suitability %}{% when Some with (s) %}{{ s }}{% when None %}&mdash;{% endmatch %}</span></td>
+    <td class="num">
+      {# **Filled when somebody has rated this song**, because the column is blank in almost every row
+         of a real corpus -- see `SongRow::user_score_text`, which makes the unrated case blank rather
+         than a dash for that reason. A column of blanks is quiet, and it also means a set score is
+         three characters wide in a field of nothing and has to be hunted for. The fill is the accent,
+         which is what this tool already colors a value somebody typed: the `ed` tag two columns
+         left. #}
+      <select class="mini{% if song.user_score.is_some() %} set{% endif %}" name="score" title="{{ "row-score-title"|t }}"
+              hx-post="/songs/{{ song.id }}/user-score?as=row"
+              hx-target="closest tbody" hx-swap="outerHTML">
+        <option value=""></option>
+        {% for choice in ratings %}
+        <option value="{{ choice.value }}"
+                {% if song.user_score_text() == choice.value %}selected{% endif %}>{{ choice.value }}</option>
+        {% endfor %}
+      </select>
+    </td>
+    <td class="num">
+      {%- match song.melody_channel %}{% when Some with (c) %}<span class="good"
+        title="{{ song.melody_title }}">&#10003;</span>{% when None %}{% endmatch -%}
+    </td>
+    <td class="num">{% if song.file_count > 1 %}<span class="tag warn">{{ song.file_count }}</span>{% else %}1{% endif %}</td>
+    {# A second badge beside Copies, which the note on `SongRow::path_tooltip` refuses for anything
+       already on screen -- and this is not that. Copies counts files with identical bytes; this counts
+       files that are the same song saved differently, and the row is standing in for all of them.
+
+       A hidden version carries the group's count too, and a mark beside it naming the version the
+       list shows in its place. Such a row is only reached through *every version*, a favorite or a
+       search, and without the mark it reads as a song nobody grouped. #}
+    <td class="num">{% if song.version_count > 1 %}<a class="tag" title="{{ song.versions_title }}"
+        href="/songs/{{ song.id }}">{{ song.version_count }}</a>{% else %}<span class="dim">&mdash;</span>{% endif %}
+      {%- match song.duplicate_of %}{% when Some with (shown) %} <a class="tag hidden-version"
+        title="{{ "row-hidden-version-title"|t }}" href="/songs/{{ shown }}">{{ "row-hidden-version"|t }}</a>{% when None %}{% endmatch -%}
+    </td>
+    <td class="actions">
+      <span class="row">
+        {% call play::button(song.id, last_played.as_deref() == Some(song.id.as_str()), false) %}{% endcall %}
+        {# Gold and not merely filled when the song has been filed: at row height ★ and ☆ differ by a
+           few pixels of interior, and this is the one mark on a row somebody scans a whole column for.
+           The class is on the button rather than a span inside it so the border carries the color too;
+           see `button.star.filed` in style.css.
+
+           **The fill and the color answer different questions.** The fill says the song is in a list;
+           the color says one of those lists is a filing rather than a working list somebody made to
+           hold what they have not decided about yet. A song set aside is a song still to do, and gold
+           down that column has to mean done.
+
+           It closes the chooser it opened, because the row it is on stays on the page while the
+           chooser is under it -- so a second click on the same button meaning nothing at all would be
+           the odd behavior rather than the safe one. #}
+        <button type="button" class="star{% if song.permanent_count > 0 %} filed{% endif %}"
+                title="{{ song.favorite_title }}"
+                hx-get="/songs/{{ song.id }}/row{% if !picking %}?picking=1{% endif %}"
+                hx-target="closest tbody" hx-swap="outerHTML">{% if song.favorite_count > 0 %}&#9733;{% if song.favorite_count > 1 %}{{ song.favorite_count }}{% endif %}{% else %}&#9734;{% endif %}</button>
+        <button type="button" title="{{ "row-edit-title"|t }}"
+                hx-get="/songs/{{ song.id }}/row?editing=1"
+                hx-target="closest tbody" hx-swap="outerHTML">&#9998;</button>
+        {# ≈, *almost equal to*: other files whose name is like this one. On the similar list itself it
+           starts a new search from that row.
+
+           **`target="_blank"` asks for a window of its own, and where it lands is the host's call.**
+           A browser opens a tab, so the list being curated stays where it is behind it. The tool's own
+           window loads the page in place, because `desktop.rs` keeps an address on this server inside
+           the webview and sends only the rest out to a browser. No `rel="noopener"`: the page is this
+           tool's own. #}
+        {% let similar = song.similar_url() %}
+        {% if !similar.is_empty() %}
+        <a href="{{ similar }}" target="_blank"><button type="button"
+           title="{{ "row-similar-title"|t }}">&#8776;</button></a>
+        {% endif %}
+        {% if song.searchable() %}
+        <a href="{{ song.youtube_url() }}" target="_blank" rel="noopener"><button type="button"
+           title="{{ "row-youtube-title"|t }}">&#9834;</button></a>
+        {% endif %}
+      </span>
+    </td>
+  </tr>
+
+  {% if picking %}
+  {# Under the song rather than over it, so the row being filed is still readable while the choice is
+     made -- which is the whole reason one `<tbody>` holds both. The title is not repeated here for
+     the same reason: it is on the line directly above.
+
+     **The favorites and the two buttons are told apart, because they are not the same kind of
+     thing.** Each favorite is a place this song could go; `Create & file` and `Cancel` are what to do
+     about the chooser. A favorite the song is already in takes the star's own gold, which is the
+     claim the row's star makes in the color it makes it in -- and that leaves the accent to mean what
+     it means everywhere else in this tool: the action. #}
+  <tr>
+    <td colspan="12" class="picker">
+      <span class="row">
+        <span class="dim">{{ "row-which-favorite"|t }}</span>
+        {# The filings come first and the working lists after a named divider: a working list is where
+           a song waits instead of being filed. `PickerFavorite::list` orders them and marks the first
+           working list. The divider is a full-width item, so it also breaks the wrapping row, and it
+           carries a word because a bare line between two runs of identical buttons does not read. #}
+        {% for f in favorites %}
+        {% if f.rule_before %}<span class="picker-rule">{{ "row-working-lists"|t }}</span>{% endif %}
+        <button type="button"
+                title="{{ f.title }}"
+                hx-post="/songs/{{ song.id }}/favorites/{{ f.id }}?as=row"
+                hx-target="closest tbody" hx-swap="outerHTML"
+                class="{% if f.filed %}filed{% endif %}">{% if f.filed %}&#9733;{% else %}&#9734;{% endif %} {{ f.name }}</button>
+        {% endfor %}
+        {% if favorites.is_empty() %}
+        <span class="dim">{{ "row-no-favorites"|t }}</span>
+        {% endif %}
+        <span class="row picker-actions">
+          <form class="row" hx-post="/songs/{{ song.id }}/favorites/new?as=row"
+                hx-target="closest tbody" hx-swap="outerHTML">
+            <input name="name" size="16" placeholder="{{ "favorites-new-placeholder"|t }}" required>
+            <button class="primary">{{ "row-create-and-file"|t }}</button>
+          </form>
+          <button type="button" hx-get="/songs/{{ song.id }}/row"
+                  hx-target="closest tbody" hx-swap="outerHTML">{{ "action-cancel"|t }}</button>
+        </span>
+      </span>
+    </td>
+  </tr>
+  {% endif %}
+</tbody>

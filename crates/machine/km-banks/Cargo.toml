@@ -1,0 +1,29 @@
+[package]
+name = "km-banks"
+description = "The General MIDI banks this project knows how to fetch, and how a fetched one is checked"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+# **Kept as close to nothing as the job allows, because of who reads it.** The table itself needs no
+# dependency at all -- it is `include_str!` and a parser over `&'static str`. The two below are the
+# price of `digest`, and they are here rather than left in the machine because the alternative is a
+# second copy of the rule that decides *which* hash a row is pinned with, in a program that
+# downloads the same files. A second copy of a digest rule is a download that verifies against the
+# wrong number, which is the hazard the table's own header opens with.
+#
+# Both are pure Rust with no C and no TLS, so this crate stays safe to depend on from
+# `tools/cmd/assets/km-admin`, which lives outside the workspace and must not drag a second feature graph
+# into one -- see the `exclude` note in the root manifest.
+[dependencies]
+sha1 = { workspace = true }
+sha2 = { workspace = true }
+# Two banks in the table are published only inside an archive, so taking a member out of one is part
+# of what "fetch this row" means rather than a caller's problem.
+zip = { workspace = true }

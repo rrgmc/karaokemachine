@@ -1,0 +1,52 @@
+<div class="crumbs">
+  {% match listing.here %}
+  {% when Some with (here) %}
+    <button class="crumb" hx-get="/open/list?drives=1" hx-target="#listing" hx-swap="innerHTML"
+            title="{{ "open-top-title"|t }}">&#x23F6;</button>
+    {% match listing.parent %}
+    {% when Some with (parent) %}
+      <button class="crumb" hx-get="/open/list?at={{ parent|urlencode }}"
+              hx-target="#listing" hx-swap="innerHTML">..</button>
+    {% when None %}
+    {% endmatch %}
+    <span class="here">{{ here }}</span>
+    {% if listing.indexed.openable() %}
+      <button hx-post="/open/open" hx-vals='{"path": {{ here|json|safe }}}'
+              hx-target="#opening" hx-swap="innerHTML">{{ "open-this-folder"|t }}</button>
+    {% else %}
+      <button hx-post="/open/open" hx-vals='{"path": {{ here|json|safe }}, "create": "1"}'
+              hx-target="#opening" hx-swap="innerHTML">{{ "open-create-database"|t }}</button>
+    {% endif %}
+  {% when None %}
+    <span class="here">{{ "open-this-computer"|t }}</span>
+  {% endmatch %}
+</div>
+
+{% match listing.error %}
+{% when Some with (reason) %}
+  <p class="message error">{{ reason }}</p>
+{% when None %}
+{% endmatch %}
+
+{# Outside `#folders`, which is what it swaps, so that the box being typed into survives its own
+   result -- the arrangement the browse bar and `#rows` already use. Walking into a folder replaces
+   the whole listing and empties the box with it, which is right: a name typed here is about the
+   folder it was typed in. #}
+{% match listing.here %}
+{% when Some with (here) %}
+<form class="filters" id="folder-filter"
+      hx-get="/open/list" hx-target="#folders" hx-swap="outerHTML"
+      hx-trigger="keyup changed delay:400ms from:#folder-name, search from:#folder-name"
+      hx-indicator="#folders"
+      onsubmit="return false">
+  <input type="hidden" name="rows" value="1">
+  <input type="hidden" name="at" value="{{ here }}">
+  <label>{{ "open-folders-named"|t }}
+    <input type="search" id="folder-name" name="filter" size="24"
+           placeholder="{{ "open-part-of-a-name"|t }}" value="{{ listing.filter }}">
+  </label>
+</form>
+{% when None %}
+{% endmatch %}
+
+{% include "open_folders.html" %}

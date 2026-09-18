@@ -1,0 +1,205 @@
+name: CI
+
+# **One workflow, and one required check: `CI ok`.** Branch protection names a check, and a check
+# from a workflow that a path filter kept from starting never reports, so a pull request waiting on
+# it can never merge. Every job here therefore starts on every event, and the expensive ones skip
+# themselves when `changes` says nothing they read has moved. GitHub counts a skipped job as passed.
+#
+# | Job       | Runs on                         | Checks                                              |
+# |-----------|---------------------------------|-----------------------------------------------------|
+# | guards    | ubuntu                          | every text check `task check` runs, shellcheck, fmt |
+# | linux     | debian:13, the appliance's base | `cargo km-lint`, `cargo km-test`: the video build   |
+# | desktop   | windows, macos                  | the `-no-video` twins                               |
+# | assets    | ubuntu                          | `tools/cmd/assets`, the second workspace            |
+#
+# Linux carries the video build because Debian 13 is the ffmpeg the appliance links, and the other
+# two platforms find ffmpeg through a download that `tools/setup/fetch-ffmpeg.sh` owns and that
+# finds nothing the Linux job does not. Android and iOS are not built here.
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+  # Weekly, so a fault arriving from outside the repository -- a runner image, a Debian ffmpeg
+  # update, a new bindgen -- is found without waiting for a change to reveal it.
+  schedule:
+    - cron: "0 3 * * 0"
+
+# Only the newest commit on a ref is worth checking.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+# Read-only. `pull-requests: read` is what `dorny/paths-filter` lists a pull request's files with.
+permissions:
+  contents: read
+  pull-requests: read
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+  # SDL3_ttf vendors FreeType, whose CMakeLists.txt asks for CMake 3.0, and CMake 4 refuses anything
+  # below 3.5. CMake's own suggested workaround, and a no-op where nothing needs it.
+  CMAKE_POLICY_VERSION_MINIMUM: "3.5"
+
+jobs:
+  # What moved. A schedule or a dispatch runs everything.
+  #
+  # `code` is false only when every changed file is Markdown or under `docs/`: nothing the build
+  # reads lives there. The filter is written as exclusions, so a new directory is code until listed,
+  # and a move can only make a job run that could have skipped. `assets` is an inclusion and can
+  # fail open after a move of `tools/cmd/assets`; the weekly run is its backstop.
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      code: ${{ steps.filter.outputs.code == 'true' || (github.event_name != 'push' && github.event_name != 'pull_request') }}
+      assets: ${{ steps.filter.outputs.assets == 'true' || (github.event_name != 'push' && github.event_name != 'pull_request') }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dorny/paths-filter@v4
+        id: filter
+        if: github.event_name == 'push' || github.event_name == 'pull_request'
+        with:
+          # `every`: a file counts for a filter only when it matches all of that filter's patterns,
+          # which is what makes the two exclusions under `code` mean "neither".
+          predicate-quantifier: every
+          filters: |
+            code:
+              - '!**/*.md'
+              - '!docs/**'
+            assets:
+              - '{tools/cmd/assets/**,rust-toolchain.toml,.github/workflows/ci.yml}'
+
+  # The conventions `task check` runs locally, made unskippable. They read the same files on every
+  # platform, so they run once. `check-prose.sh` reads the whole tree, and on a pull request the
+  # commit messages as well, which is why that checkout carries history.
+  guards:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: ${{ github.event_name == 'pull_request' && '0' || '1' }}
+          # The pull request's own head, not the merge commit GitHub builds: `--commits` reads the
+          # messages between `origin/master` and HEAD, and the merge commit's message is GitHub's.
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      # The toolchain comes from `rust-toolchain.toml`, components included, and is named nowhere
+      # else. `tools/dev/check-toolchain-pin.sh` fails on an action that installs a named one.
+      # `--no-self-update`: a rustup replacing itself mid-job gains nothing.
+      - run: rustup toolchain install --no-self-update
+
+      - name: Repository guards
+        run: |
+          tools/dev/check-no-local-refs.sh
+          tools/dev/check-toolchain-pin.sh
+          tools/dev/check-version-pin.sh
+          tools/dev/check-mdns.sh
+          tools/dev/check-cargo-config.sh
+          tools/dev/check-prose.sh
+
+      - name: Commit messages
+        if: github.event_name == 'pull_request'
+        run: tools/dev/check-prose.sh --commits
+
+      # `-S error` is clean. `warning` adds SC2034 "appears unused" throughout the sourced libraries
+      # -- `features.sh`, `common.sh` -- whose variables the caller reads.
+      - name: Shellcheck
+        run: find tools -name '*.sh' -exec shellcheck -S error {} +
+
+      - name: Formatting
+        run: |
+          cargo fmt --all --check
+          cargo fmt --manifest-path tools/cmd/assets/Cargo.toml --all --check
+
+  # The video build, in the distribution the appliance and the `.deb` are built on. Ubuntu's ffmpeg
+  # is an older major than Debian 13's, so a runner's own would compile against API the appliance
+  # does not have, or refuse API it does. The package list is the first half of
+  # `tools/platform/linux/Dockerfile`'s, and `apt-deps.sh --video` is the second.
+  #
+  # Never `--all-features`: it turns on `km-package-builder/desktop`, whose `wry` links
+  # libwebkit2gtk, which no Linux build here installs. The aliases name every feature explicitly.
+  linux:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    container: debian:13-slim
+    steps:
+      - name: Base packages
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            ca-certificates curl git build-essential pkg-config cmake ninja-build \
+            nasm xz-utils fonts-dejavu-core
+
+      - uses: actions/checkout@v7
+
+      - name: Rust
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
+            | sh -s -- -y --no-modify-path --profile minimal --default-toolchain none
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+
+      - run: rustup toolchain install --no-self-update
+
+      # After the install: the cache key includes the rustc version. Saved from `master` only, so
+      # pull requests read one cache per job rather than each writing their own into the 10 GB limit.
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: video
+          save-if: ${{ github.ref == 'refs/heads/master' }}
+
+      - run: tools/platform/linux/apt-deps.sh --video
+
+      # No separate build: `clippy --all-targets` type-checks every target and `cargo test` links them.
+      - run: cargo km-lint
+      - run: cargo km-test
+
+  desktop:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    strategy:
+      # Both answers, always: a Windows fault and a macOS fault are rarely the same fault.
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - run: rustup toolchain install --no-self-update
+      - uses: Swatinem/rust-cache@v2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/master' }}
+      - run: cargo km-lint-no-video
+      - run: cargo km-test-no-video
+
+  # A second workspace on purpose: its programs need TLS from reqwest and km-package-builder needs
+  # reqwest to have none, and cargo unifies features across a workspace. Excluded from the main
+  # workspace means excluded from every other job here. Pure Rust with none of the main workspace's
+  # C dependencies, so Ubuntu and no apt step. Its tests drive the providers against `wiremock`
+  # and never touch the network. Formatting is in `guards`.
+  assets:
+    needs: changes
+    if: needs.changes.outputs.assets == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - run: rustup toolchain install --no-self-update
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: tools/cmd/assets
+          save-if: ${{ github.ref == 'refs/heads/master' }}
+      - run: cargo km-lint-assets
+      - run: cargo km-test-assets
+
+  # The one check branch protection requires. It fails when any job failed or was cancelled, and
+  # passes when the rest passed or skipped.
+  ci-ok:
+    name: CI ok
+    if: always()
+    needs: [changes, guards, linux, desktop, assets]
+    runs-on: ubuntu-latest
+    steps:
+      - if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
+        run: exit 1
+      - run: echo "CI ok"

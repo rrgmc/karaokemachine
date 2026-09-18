@@ -1,0 +1,32 @@
+<div data-sse="queue" id="queue">
+{% if rows.is_empty() %}
+  <p class="empty">{{ "queue-empty-hint"|t }}&nbsp;<b>+</b>.</p>
+{% else %}
+<div class="queue-head">
+  <label for="queue-actions" class="icon-btn actions-toggle"
+         title="{{ "row-actions"|t }}">&hellip;</label>
+</div>
+<ul class="song-list">
+  {% for row in rows %}
+  <li class="queue-row">
+    <span class="queue-pos">{{ row.position() }}</span>
+    <div class="queue-body">
+      <div class="song-name">{{ row.title() }}</div>
+      <div class="song-sub">{{ row.artist() }}{% match row.singer() %}{% when Some with (singer) %} &middot; {{ singer }}{% when None %}{% endmatch %}</div>
+    </div>
+    <div class="song-actions">
+      <button class="icon-btn" aria-label="{{ "queue-move-up"|t }}" title="{{ "queue-move-up"|t }}"
+              hx-post="/queue/{{ row.id() }}/up" hx-target="#queue" hx-swap="outerHTML"
+              {% if row.first || !online %}disabled{% endif %}>&#8593;</button>
+      <button class="icon-btn" aria-label="{{ "queue-move-down"|t }}" title="{{ "queue-move-down"|t }}"
+              hx-post="/queue/{{ row.id() }}/down" hx-target="#queue" hx-swap="outerHTML"
+              {% if row.last || !online %}disabled{% endif %}>&#8595;</button>
+      <button class="icon-btn danger" aria-label="{{ "queue-remove"|t }}" title="{{ "queue-remove"|t }}"
+              hx-post="/queue/{{ row.id() }}/remove" hx-target="#queue" hx-swap="outerHTML"
+              {% if !online %}disabled{% endif %}>&#10005;</button>
+    </div>
+  </li>
+  {% endfor %}
+</ul>
+{% endif %}
+</div>

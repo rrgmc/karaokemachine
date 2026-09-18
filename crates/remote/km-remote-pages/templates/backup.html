@@ -1,0 +1,41 @@
+{% extends "layout.html" %}
+{% block title %}{{ head.title }}{% endblock %}
+{% block content %}
+
+{{ head|safe }}
+
+{# Saving and restoring are two intentions, and this never guesses which — the same reason the share
+   page asks which side of the exchange you are on rather than showing both halves at once. #}
+
+{% if any %}
+{# A plain link, not htmx: the response is a file, and an htmx swap would read it as markup and put
+   the JSON in the page instead of saving it.
+
+   And no `download` attribute either. What makes this a file is the `Content-Disposition` header,
+   which is the one mechanism both phone shells watch for — WebKit ignores the attribute on iOS
+   entirely, and on Android it would only be a second way to reach the same `DownloadListener`. The
+   header already carries the name. #}
+<a class="big-choice" href="/favorites/backup.json">
+  <span class="big-choice-icon" aria-hidden="true">&#8681;</span>
+  <span class="big-choice-text">
+    <span class="big-choice-name">{{ "backup-save"|t }}</span>
+    <span class="big-choice-sub">{{ holds }}</span>
+  </span>
+  <span class="chevron">&rsaquo;</span>
+</a>
+{% else %}
+<p class="step-note">{{ "backup-nothing"|t }}</p>
+{% endif %}
+
+<a class="big-choice" href="/favorites/backup/restore">
+  <span class="big-choice-icon" aria-hidden="true">&#8679;</span>
+  <span class="big-choice-text">
+    <span class="big-choice-name">{{ "backup-restore"|t }}</span>
+    <span class="big-choice-sub">{{ "backup-restore-sub"|t }}</span>
+  </span>
+  <span class="chevron">&rsaquo;</span>
+</a>
+
+<p class="step-note">{{ "backup-add-only"|t }}</p>
+
+{% endblock %}

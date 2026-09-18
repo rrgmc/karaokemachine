@@ -1,0 +1,7 @@
+Your song list and your favorites are not touched by installing or removing this.
+They are under:
+
+  ~/Library/Application Support/km-remote     catalog.sqlite, favorites.sqlite
+
+catalog.sqlite is the copy of a machine's song list, and favorites.sqlite is your
+folders and the songs in them. Delete these by hand if you want them gone.

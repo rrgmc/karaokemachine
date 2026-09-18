@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  The offline remote's bundle manifest. `tools/dist/cmd.sh` substitutes @VERSION@ and copies this
+  in; everything else is fixed.
+
+  A third plist rather than a parameterised one, on the same reasoning the builder's gives: these are
+  different *kinds* of thing. The builder declares a document type and the machine does not; this one
+  declares neither a document type nor any file access, and is the only one of the three that talks to
+  the local network. Three short manifests that each say what is true beat one with three conditions
+  in it.
+-->
+<plist version="1.0">
+<dict>
+    <key>CFBundleName</key>
+    <string>KM Remote</string>
+    <key>CFBundleDisplayName</key>
+    <string>KM Remote</string>
+    <!-- Distinct from `com.karaokemachine.app` and `com.karaokemachine.packagebuilder`. Two bundles
+         cannot share an identifier: LaunchServices keys its whole database on it, and a collision
+         means one of them silently replaces the other. -->
+    <key>CFBundleIdentifier</key>
+    <string>com.karaokemachine.remote</string>
+    <key>CFBundleExecutable</key>
+    <string>km-remote</string>
+    <!-- Without extension. macOS looks for `<this>.icns` in Contents/Resources.
+
+         The remote's own mark: the theme's second accent, green, the same drawing the machine wears
+         in amber and the builder in blue. Written by crates/playback/km-display/examples/icon.rs and staged by
+         tools/dist/cmd.sh, which is also what makes this bundle at all. This string is the file's
+         name without its extension, so renaming icon/km-remote.icns means changing it here --
+         and here only, unlike the builder's, which names its icon three times because it also
+         dresses a document type. -->
+    <key>CFBundleIconFile</key>
+    <string>km-remote</string>
+    <key>CFBundleShortVersionString</key>
+    <string>@VERSION@</string>
+    <key>CFBundleVersion</key>
+    <string>@VERSION@</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleInfoDictionaryVersion</key>
+    <string>6.0</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>11.0</string>
+    <!-- Music, matching the machine it drives. The remote is the same product's other half, and
+         filing it apart from what it controls would read as two unrelated programs wherever the
+         system lists both. -->
+    <key>LSApplicationCategoryType</key>
+    <string>public.app-category.music</string>
+    <key>NSHighResolutionCapable</key>
+    <true/>
+
+    <!--
+      **The one permission this program genuinely needs, and the only one of the three that needs it.**
+
+      The remote finds a machine by mDNS (`_karaokemachine._tcp.local.`) and then talks to it over
+      HTTP on the house network. Since macOS 14 that is a permission with a prompt attached, asked the
+      first time a bundle sends to a local address -- and, like the builder's file prompts, a bundle
+      has an identity of its own here where the same executable run from a terminal inherits the
+      terminal's grant and is never asked.
+
+      Without this string the prompt is a bare request from a program somebody has just unzipped. With
+      it, it says what the network is for. It does not remove the prompt and is not meant to.
+
+      **Declining it is not fatal**, which is worth knowing before treating this as a prerequisite:
+      browsing, searching, the favorites and the top list are all answered out of this device's own
+      copy of the catalog, which is the whole reason the offline remote exists. What stops working
+      is discovery, queueing and the catalog refresh.
+    -->
+    <key>NSLocalNetworkUsageDescription</key>
+    <string>KM Remote looks for your karaoke machine on this network, and sends it the songs you queue.</string>
+
+    <!--
+      **The camera, for the share page's scanner**, which reads a favorites folder's code off another
+      device's screen. Worded identically to the iOS bundle's key in ports/remote/ios/project.yml:
+      one product asking one permission should not word it two ways.
+
+      Needed here as well as there because this bundle's window is a WKWebView too, and the same page
+      runs in it -- `wry`'s permission handler grants the camera, and without this key macOS refuses
+      the grant rather than asking. Declining it is not fatal: that page also takes a pasted code,
+      and it hides its own Scan button when there is no camera to use.
+    -->
+    <key>NSCameraUsageDescription</key>
+    <string>KaraokeMachine Remote reads a favorites folder's code shown on another phone's screen, to copy those songs onto this one.</string>
+
+    <!--
+      **No NS*FolderUsageDescription keys here, and that is a difference from the builder rather than
+      an omission.** That tool is pointed at a folder of somebody's songs, so it is asked about the
+      Desktop, Documents, Downloads and external drives -- it walks a corpus, and a corpus lives
+      wherever its owner put it.
+
+      This one opens exactly two files a person chose, and neither needs a grant. Saving a backup is
+      a download, so the *browser engine* writes it wherever downloads go and the app never names a
+      path; restoring one reads a file the person handed to a file input, which arrives already
+      granted. Declaring those four keys would make macOS prompt for access this program never asks
+      for.
+
+      No microphone either -- microphone audio is mixed in hardware and nothing here opens an input
+      stream, which is why the camera grant above is for `.camera` alone. See the decision in
+      docs/decisions/.
+    -->
+</dict>
+</plist>

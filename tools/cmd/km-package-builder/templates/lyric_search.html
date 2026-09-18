@@ -1,0 +1,40 @@
+{% extends "layout.html" %}
+{% block title %}{{ "nav-lyrics"|t }} &middot; {{ crate::APP_NAME }}{% endblock %}
+{% block content %}
+
+<form class="filters" id="lyric-search"
+      hx-get="/lyrics/hits" hx-target="#hits" hx-swap="outerHTML"
+      hx-trigger="keyup changed delay:400ms from:#q"
+      hx-indicator="#hits"
+      onsubmit="return false">
+  <label>{{ "lyrics-contain"|t }}
+    <input type="search" id="q" name="q" size="46" autofocus
+           placeholder="{{ "lyrics-part-of-a-lyric"|t }}" value="{{ q }}">
+  </label>
+  <span class="dim">{{ "lyrics-how-it-matches"|t }}</span>
+</form>
+
+{# **One action, so no strip.** A lyric search answers *which song goes like this?*, and what is done
+   with the answer is to set it aside for the pass that decides. Building a package is done from a
+   filter, which this page does not have. See `The curation actions are tabs` in
+   docs/decisions/curation.md. #}
+<form class="filters" id="favorite-file"
+      hx-post="/favorites/add?as=toast" hx-include="#hits"
+      hx-target="#favorite-result" hx-swap="innerHTML">
+  <label>{{ "curate-put-ticked-in"|t }}
+    <select name="favorite_id">
+      {% for f in favorites %}
+      <option value="{{ f.id }}">{{ f.name }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <button class="primary">{{ "curate-file"|t }}</button>
+  {% if favorites.is_empty() %}
+  <span class="dim">{{ "curate-no-favorites"|t }}</span>
+  {% endif %}
+  <span id="favorite-result"></span>
+</form>
+
+{{ hits|safe }}
+
+{% endblock %}

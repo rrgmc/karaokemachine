@@ -1,0 +1,102 @@
+{# The Build tab, for one volume.
+
+   **A fragment, with a volume picker of its own.** A build writes one file, and which file is a choice
+   made here rather than one carried over from the song list. Picking another volume swaps the whole
+   tab, because the version, both file names, the raise label and the install button all belong to the
+   volume. The picker is not drawn while the package has one volume.
+
+   Three cards, one per thing that is done here: which file, where and at what version; writing the
+   package; writing its description. Every field sits in the same two-column grid, label on the left,
+   so the eye runs down one edge.
+
+   **One folder, and two boxes holding only names.** A full path in a box puts the file name past its
+   right edge, which is the part somebody is reading for. Both forms `hx-include` the folder, so it is
+   typed once for both. #}
+<div id="package-build"{% if oob %} hx-swap-oob="true"{% endif %}>
+  <div class="panel">
+    <div class="fields">
+      {% if !volumes.is_empty() %}
+      <label for="build-volume">{{ "package-volume"|t }}</label>
+      <div>
+        <select id="build-volume" name="volume"
+                hx-get="/packages/{{ package.id }}/build/pane" hx-target="#package-build" hx-swap="outerHTML">
+          {% for v in volumes %}
+          <option value="{{ v.number }}"{% if v.current %} selected{% endif %}>{{ v.label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      {% endif %}
+      {# `pattern` only saves a round trip; `handlers::version_refusal` is the authority, because a
+         version reaches the database from `import` as well and a browser cannot police that one. #}
+      <label for="build-version">{{ "package-version"|t }}</label>
+      <form class="row" hx-post="/packages/{{ package.id }}/volume?volume={{ package.volume }}"
+            hx-target="#action-result" hx-swap="innerHTML">
+        <input id="build-version" name="version" value="{{ package.version }}" style="width:8rem"
+               required pattern="[0-9]+\.[0-9]+\.[0-9]+" title="{{ "packages-version-title"|t }}">
+        <button>{{ "action-save"|t }}</button>
+      </form>
+      <label for="build-folder">{{ "package-folder"|t }}</label>
+      <input id="build-folder" name="folder" value="{{ folder }}" class="wide">
+    </div>
+  </div>
+
+  <div class="panel">
+    <form hx-post="/packages/{{ package.id }}/build?volume={{ package.volume }}" hx-include="#build-folder"
+          hx-target="#build-progress" hx-swap="outerHTML">
+      <div class="fields">
+        <label for="build-out">{{ "package-file"|t }}</label>
+        <input id="build-out" name="file" value="{{ out_file }}" class="wide">
+        {# On by default, unlike every other box in this tool, because the thing it prevents is silent:
+           two .kmpkg files holding different songs both claiming to be 1.0.0, with nothing on the
+           machine able to tell them apart — an install is keyed on the id and never compares versions.
+
+           Its label carries the number rather than the rule; see `raise_version_says`.
+
+           Moving it re-fetches the name above, because the version is in the file name and a box left
+           showing the other answer would name a file that never exists. `hx-include` sends the box
+           itself, so an unticked one sends nothing and the route reads that as false. #}
+        <span></span>
+        <label class="check"><input type="checkbox" name="raise_version" {% if raise_version %}checked{% endif %}
+                      hx-get="/packages/{{ package.id }}/build/out?volume={{ package.volume }}" hx-include="this"
+                      hx-target="#build-out" hx-swap="outerHTML">
+          {{ raise_version_label }}</label>
+        {# Ticked, where `km-pack build --listing` is not, and the split is who is holding the package.
+           A package built here is built to be handed over, and what it is handed over with is the page
+           saying what is in it. #}
+        <span></span>
+        <label class="check"><input type="checkbox" name="write_listing" checked> {{ "package-write-listing"|t }}</label>
+        {# Build every volume posts the same form elsewhere: the folder and the two boxes apply to every
+           file it writes, and the name box does not, because it names one file. Drawn only once there
+           is more than one volume to build. #}
+        <span></span>
+        <div class="row">
+          <button class="primary">{{ "package-build"|t }}</button>
+          {% if !volumes.is_empty() %}
+          <button type="button" hx-post="/packages/{{ package.id }}/build/all?volume={{ package.volume }}"
+                  hx-include="closest form, #build-folder"
+                  hx-target="#build-progress" hx-swap="outerHTML">{{ "package-build-all"|t }}</button>
+          <span class="dim">{{ "package-build-all-note"|t }}</span>
+          {% endif %}
+        </div>
+      </div>
+    </form>
+    <div id="build-progress" hx-get="/packages/{{ package.id }}/build/progress?volume={{ package.volume }}"
+         hx-trigger="load" hx-swap="outerHTML"></div>
+    {{ install|safe }}
+  </div>
+
+  <div class="panel">
+    <form hx-post="/packages/{{ package.id }}/spec?volume={{ package.volume }}" hx-include="#build-folder"
+          hx-target="#action-result" hx-swap="innerHTML">
+      <div class="fields">
+        <label for="spec-out">{{ "package-spec-file"|t }}</label>
+        <input id="spec-out" name="file" value="{{ spec_file }}" class="wide">
+        <span></span>
+        <div class="row">
+          <button>{{ "package-write-spec"|t }}</button>
+          <span class="dim">{{ "package-spec-for"|t }} <span class="mono">km-pack build</span>.</span>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>

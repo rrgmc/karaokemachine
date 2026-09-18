@@ -1,0 +1,682 @@
+{% extends "layout.html" %}
+{% block title %}{{ "nav-songs"|t }} &middot; {{ crate::APP_NAME }}{% endblock %}
+{% block content %}
+
+{# **The box is this element, and the form is inside it.** Every band that narrows the list is a
+   control the form owns, and the two bands below it are not — the saved strip holds a form of its
+   own, which a browser will not keep nested, and a text box under `#filters`' `hx-trigger="change"`
+   would fire a filter request per keystroke. See templates/saved_filters.html.
+
+   So the chrome is a level up rather than those bands being inside the form: they are the form's
+   siblings, no htmx attribute here knows about this element, and the border goes round all three —
+   which is what a band belonging with the bands above it looks like. #}
+<div class="filter-box">
+
+<form class="filters banded" id="filters"
+      hx-get="/songs/rows" hx-target="#rows" hx-swap="outerHTML"
+      hx-trigger="change, keyup delay:300ms from:#q"
+      hx-indicator="#rows"
+      hx-sync="#rows-slot:replace"
+      onsubmit="return false">
+
+  <div class="band find">
+    <input type="search" id="q" name="q" placeholder="{{ "songs-find-placeholder"|t }}"
+           title="{{ "songs-find-title"|t }}" value="{{ query.q }}" size="28">
+
+    {# **Exact, where the box beside it is a substring search**, and the two are next to each other so
+       the difference is visible rather than something to discover. `Queen` on the left brings back
+       Queensrÿche and every song with the word in its title; here it brings back Queen. Both are
+       typed text, which is why they share a band and neither is with the pickers below.
+
+       Normally filled by clicking an artist in a row rather than typed -- so it rides the form's
+       plain `change` and not the 300ms `keyup`, which is bound `from:#q` alone. Matching folds
+       accents and case, so what is typed does not have to be exact to be exact. #}
+    <input type="search" name="artist" placeholder="{{ "songs-only-this-artist"|t }}"
+           value="{{ query.artist }}" size="22" title="{{ "songs-artist-title"|t }}">
+
+    <label>{{ "songs-sort"|t }}
+      <select name="sort">
+        <option value="title" {% if query.sort == "title" || query.sort == "" %}selected{% endif %}>{{ "songs-sort-title"|t }}</option>
+        <option value="artist" {% if query.sort == "artist" %}selected{% endif %}>{{ "songs-sort-artist"|t }}</option>
+        <option value="suitability" {% if query.sort == "suitability" %}selected{% endif %}>{{ "songs-sort-suitability"|t }}</option>
+        <option value="user_score" {% if query.sort == "user_score" %}selected{% endif %}>{{ "songs-your-score"|t }}</option>
+        <option value="duration" {% if query.sort == "duration" %}selected{% endif %}>{{ "songs-sort-length"|t }}</option>
+        <option value="copies" {% if query.sort == "copies" %}selected{% endif %}>{{ "songs-copies"|t }}</option>
+        <option value="language" {% if query.sort == "language" %}selected{% endif %}>{{ "songs-language"|t }}</option>
+        {# The one sort with no column beside it, deliberately: the question it answers is *what was
+           I working on*, which is an order rather than a field, and a row already carries as much as
+           a row can be read at a glance. See `When a song was last edited` in
+           `docs/decisions/curation.md`. #}
+        <option value="updated" {% if query.sort == "updated" %}selected{% endif %}>{{ "songs-sort-updated"|t }}</option>
+        {# No column beside it either, for the same reason as the sort above. #}
+        <option value="added" {% if query.sort == "added" %}selected{% endif %}>{{ "songs-sort-added"|t }}</option>
+      </select>
+    </label>
+
+    <label class="view"><input type="checkbox" name="filename" value="1" {% if query.filename %}checked{% endif %}
+           title="{{ "songs-show-filenames-title"|t }}"> {{ "songs-show-filenames"|t }}</label>
+  </div>
+
+  <div class="band alphabet-band">
+    <div class="alphabet">
+      {% for choice in query.initials() %}
+      <label>
+        <input type="radio" name="initial" value="{{ choice.value }}" {% if choice.selected %}checked{% endif %}>
+        <span>{{ choice.label }}</span>
+      </label>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="band">
+    <span class="band-name">{{ "songs-band-quality"|t }}</span>
+
+    <label>{{ "songs-sort-suitability"|t }}
+      <select name="suitability" title="{{ "songs-suitability-title"|t }}">
+        {% for band in query.suitabilities() %}
+        <option value="{{ band.value }}" {% if band.selected %}selected{% endif %}>{{ band.label }}</option>
+        {% endfor %}
+      </select>
+    </label>
+
+    <label>{{ "songs-your-score"|t }}
+      <select name="user_score" title="{{ "songs-your-score-title"|t }}">
+        <option value="" {% if query.user_score == "" %}selected{% endif %}>{{ "songs-any"|t }}</option>
+        <option value="unset" {% if query.user_score == "unset" %}selected{% endif %}>{{ "songs-unset"|t }}</option>
+        <option value="set" {% if query.user_score == "set" %}selected{% endif %}>{{ "songs-set"|t }}</option>
+        {% for n in ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10"] %}
+        <option value="{{ n }}" {% if query.user_score_is(n) %}selected{% endif %}>&ge; {{ n }}</option>
+        {% endfor %}
+      </select>
+    </label>
+
+    <label>{{ "songs-melody-channel"|t }}
+      <select name="melody">
+        <option value="" {% if query.melody == "" %}selected{% endif %}>{{ "songs-any"|t }}</option>
+        <option value="yes" {% if query.melody == "yes" %}selected{% endif %}>{{ "songs-melody-found"|t }}</option>
+        <option value="no" {% if query.melody == "no" %}selected{% endif %}>{{ "songs-melody-not-found"|t }}</option>
+      </select>
+    </label>
+  </div>
+
+  <div class="band">
+    <span class="band-name">{{ "songs-band-song"|t }}</span>
+
+    <label>{{ "songs-media-type"|t }}
+      <select name="kind" title="{{ "songs-media-type-title"|t }}">
+        <option value="" {% if query.kind == "" %}selected{% endif %}>{{ "songs-any"|t }}</option>
+        <option value="midi" {% if query.kind == "midi" %}selected{% endif %}>{{ "kind-midi"|t }}</option>
+        <option value="video" {% if query.kind == "video" %}selected{% endif %}>{{ "kind-video"|t }}</option>
+        <option value="cdg" {% if query.kind == "cdg" %}selected{% endif %}>{{ "kind-cdg"|t }}</option>
+        <option value="ultrastar" {% if query.kind == "ultrastar" %}selected{% endif %}>{{ "kind-ultrastar"|t }}</option>
+      </select>
+    </label>
+
+    <label>{{ "songs-language"|t }}
+      <select name="language">
+        <option value="" {% if query.language_is("") %}selected{% endif %}>{{ "songs-any"|t }}</option>
+        <option value="unset" {% if query.language_is("unset") %}selected{% endif %}>&mdash; {{ "row-language-unknown"|t }}</option>
+        <option value="set" {% if query.language_is("set") %}selected{% endif %}>&mdash; {{ "songs-any-if-set"|t }}</option>
+        {% for choice in query.languages() %}
+        <option value="{{ choice.value }}" {% if choice.selected %}selected{% endif %}>{{ choice.label }}</option>
+        {% endfor %}
+      </select>
+    </label>
+
+    <input type="hidden" name="tags" value="{{ query.tags_value() }}">
+    {% if !query.tag_choices().is_empty() %}
+    <label>{{ "songs-tags"|t }}
+      <select name="add_tag" title="{{ "songs-add-tag-title"|t }}">
+        <option value="">&mdash; {{ "songs-add-one"|t }}</option>
+        {# A suggestion is annotated rather than colored: inside a `<select>` a browser draws the
+           options however it likes, and a rule that worked on one would be furniture on another.
+           The chips and the datalist say the same thing their own way. #}
+        {% for tag in query.tag_choices() %}
+        <option value="{{ tag }}">{{ tag }}{% if query.is_suggestion(tag) %} &mdash; {{ "songs-suggested"|t }}{% endif %}</option>
+        {% endfor %}
+      </select>
+    </label>
+    {% endif %}
+
+    <label>{{ "songs-lyrics"|t }}
+      <select name="granularity">
+        <option value="" {% if query.granularity == "" %}selected{% endif %}>{{ "songs-any"|t }}</option>
+        <option value="syllablelevel" {% if query.granularity == "syllablelevel" %}selected{% endif %}>{{ "songs-per-syllable"|t }}</option>
+        <option value="linelevel" {% if query.granularity == "linelevel" %}selected{% endif %}>{{ "songs-per-line"|t }}</option>
+        <option value="none" {% if query.granularity == "none" %}selected{% endif %}>{{ "songs-lyrics-none"|t }}</option>
+      </select>
+    </label>
+
+    <label>{{ "songs-encoding"|t }}
+      <select name="encoding_source" title="{{ "songs-encoding-title"|t }}">
+        <option value="" {% if query.encoding_source == "" %}selected{% endif %}>{{ "songs-any"|t }}</option>
+        <option value="fallback" {% if query.encoding_source == "fallback" %}selected{% endif %}>{{ "songs-encoding-guessed"|t }}</option>
+        <option value="detected" {% if query.encoding_source == "detected" %}selected{% endif %}>{{ "songs-encoding-detected"|t }}</option>
+        <option value="utf8" {% if query.encoding_source == "utf8" %}selected{% endif %}>UTF-8</option>
+        <option value="declared" {% if query.encoding_source == "declared" %}selected{% endif %}>{{ "songs-encoding-pinned"|t }}</option>
+      </select>
+    </label>
+  </div>
+
+  <div class="band">
+    <span class="band-name">{{ "songs-band-state"|t }}</span>
+
+    <label>{{ "songs-favorite"|t }}
+      <select name="favorite">
+        <option value="">{{ "songs-any"|t }}</option>
+        {# The filings first and the working lists in a group naming them, as the row's chooser orders
+           them: a working list is where a song waits instead of being filed. The group is drawn only
+           when it holds something. See `A favorite can be a working list` in
+           `docs/decisions/curation.md`. #}
+        {% for f in favorites %}
+        {% if !f.temporary %}
+        <option value="{{ f.id }}" {% if query.favorite == f.id.to_string() %}selected{% endif %}>{{ f.name }}</option>
+        {% endif %}
+        {% endfor %}
+        {% if self.has_working_lists() %}
+        <optgroup label="{{ "row-working-lists"|t }}">
+          {% for f in favorites %}
+          {% if f.temporary %}
+          <option value="{{ f.id }}" {% if query.favorite == f.id.to_string() %}selected{% endif %}>{{ f.name }}</option>
+          {% endif %}
+          {% endfor %}
+        </optgroup>
+        {% endif %}
+      </select>
+    </label>
+
+    {# Beside the picker above it, because the two ask about the same thing at two scopes -- that one
+       says *which favorite*, this one says *any at all*. Five options and not the checkbox this
+       replaces: a box can only ask which songs are filed, and the other readings are the questions a
+       curation pass is made of -- *what have I not looked at* and, part-way through one, *what have I
+       settled* and *what is left to settle*, which count a filing and not a working list. See
+       `FavoritedFilter`. #}
+    <label>{{ "songs-filed"|t }}
+      <select name="favorited" title="{{ "songs-filed-title"|t }}">
+        <option value="" {% if query.favorited_is("") %}selected{% endif %}>{{ "songs-any"|t }}</option>
+        <option value="in" {% if query.favorited_is("in") %}selected{% endif %}>{{ "songs-in-any-favorite"|t }}</option>
+        <option value="filed" {% if query.favorited_is("filed") %}selected{% endif %}>{{ "songs-in-filed-favorite"|t }}</option>
+        <option value="out" {% if query.favorited_is("out") %}selected{% endif %}>{{ "songs-in-no-favorite"|t }}</option>
+        <option value="unfiled" {% if query.favorited_is("unfiled") %}selected{% endif %}>{{ "songs-in-no-filed-favorite"|t }}</option>
+      </select>
+    </label>
+
+    {# Replaced the `has copies` checkbox, which could only ever say *two or more*.
+
+       **`2 or more` was here and has gone**, for the same reason the suitability ladder above did:
+       it is not a fourth bucket, it is the union of the two below it, so picking it and picking
+       either of them showed overlapping lists and the dropdown had no shape a reader could hold.
+       What is left partitions the column -- `1` is what a folder looks like once a dedupe pass has
+       finished with it, `2-10` is an ordinary duplicate, and `more than 10` is where to start when
+       the pass has not run. The union arm survived for a while as something only the *Duplicates*
+       page could reach; that page has gone and so has it. #}
+    <label>{{ "songs-copies"|t }}
+      <select name="copies" title="{{ "songs-copies-title"|t }}">
+        <option value="" {% if query.copies_is("") %}selected{% endif %}>{{ "songs-any"|t }}</option>
+        <option value="1" {% if query.copies_is("1") %}selected{% endif %}>1</option>
+        <option value="2-10" {% if query.copies_is("2-10") %}selected{% endif %}>2&ndash;10</option>
+        <option value="10+" {% if query.copies_is("10+") %}selected{% endif %}>{{ "songs-more-than-ten"|t }}</option>
+      </select>
+    </label>
+
+    {# Added is the date a scan first found the song, measured back from now. #}
+    <label>{{ "songs-added"|t }}
+      <select name="added" title="{{ "songs-added-title"|t }}">
+        <option value="" {% if query.added_is("") %}selected{% endif %}>{{ "songs-any"|t }}</option>
+        <option value="1d" {% if query.added_is("1d") %}selected{% endif %}>{{ "songs-added-day"|t }}</option>
+        <option value="7d" {% if query.added_is("7d") %}selected{% endif %}>{{ "songs-added-week"|t }}</option>
+        <option value="30d" {% if query.added_is("30d") %}selected{% endif %}>{{ "songs-added-month"|t }}</option>
+        <option value="30d+" {% if query.added_is("30d+") %}selected{% endif %}>{{ "songs-added-over-month"|t }}</option>
+      </select>
+    </label>
+
+    {# A checkbox rather than a select, because it has two states and one of them is the default that
+       needs no saying. Ticked, the list stops collapsing a group of near-identical files to its best
+       copy -- which is the one judgment here nothing can make for somebody: whether two files really
+       are the same recording is answered by listening to both. #}
+    <label><input type="checkbox" name="versions" value="all" {% if query.every_version() %}checked{% endif %}
+           title="{{ "songs-every-version-title"|t }}"> {{ "songs-every-version"|t }}</label>
+
+    <label><input type="checkbox" name="unpackaged" value="1" {% if query.unpackaged %}checked{% endif %}> {{ "songs-not-packaged"|t }}</label>
+  </div>
+
+</form>
+
+{# Filters somebody named, in the bar they were made in. Rendered in Rust and written in here the way
+   the chips below are, so the same template can also be sent out of band by the two routes that
+   change what is in it. See templates/saved_filters.html for why it sits outside the form above.
+
+   **The slot the strip's own actions answer into is outside the strip**, deliberately: a save
+   replaces `#saved-filters` out of band, and a swap target inside the element being replaced is the
+   hazard `filter_chips.html` documents from the other direction. It is inside the box, though, so a
+   name already taken asks about it where the name was typed — and outside `#filters`, so the
+   confirmation's own button submits nothing. #}
+{{ saved|safe }}
+<div id="saved-filter-result"></div>
+
+{# **What is narrowing the list, last in the box and directly above the rows it describes.** A chip
+   answers *why am I looking at these three thousand songs*, which is a question asked with the rows
+   in view, so the answer belongs against them rather than four bands up among the controls that
+   produced it.
+
+   Drawn here on a page load and replaced out of band by every `/songs/rows` after it, which is what
+   makes it tell the truth about a filter picked from the bar rather than about the page as it
+   arrived — and an out-of-band swap names an element by id, so where the element sits is the page's
+   business and not htmx's.
+
+   Outside `#filters` as the strip above it is, and for a different reason: each chip is a link
+   rather than a form control, because removing a filter is a page load, so the form that comes back
+   no longer holds it. See templates/filter_chips.html. #}
+{{ chips|safe }}
+</div>
+
+
+{# Every tag offerable, for the tag box in the tabs below and for the song page. One datalist per
+   page rather than one per control: a `list=` attribute names an element by id and several may name
+   the same one.
+
+   It holds what the corpus is filed under **and** the suggestions from settings, which is what makes
+   an empty corpus tagable at all -- see `settings::Settings::default_tags`. The two are told apart
+   by colour where they are drawn as chips; inside a datalist a browser draws what it likes, so the
+   suggestion is annotated instead.
+
+   Outside `.curate` rather than in the panel that uses it: a datalist draws nothing anywhere, so
+   there is no reason to put one inside a block whose whole job is to be `display: none` half the
+   time. #}
+<datalist id="known-tags">
+  {% for tag in query.known_tags %}
+  <option value="{{ tag }}"{% if query.is_suggestion(tag) %} label="{{ tag }} — {{ "songs-suggested"|t }}"{% endif %}></option>
+  {% endfor %}
+</datalist>
+
+{# The things that can be done to what the bar above has selected are alternatives rather than a
+   sequence. Stacked as a column of panels down the page they read as the latter -- the eye goes
+   top to bottom and nothing says the second is not the next step after the first -- and the two
+   that act on the ticked rows sat among the two that act on the whole filter with nothing to tell
+   them apart. So one strip, one tab per action, and the page says what it is by its shape.
+
+   **Radios and the sibling combinator; no script and deliberately no `:has()`.** The obvious markup
+   is the alphabet strip's, `<label><input><span>Tags</span></label>`, with the input inside the
+   strip -- and it cannot work here, because a selector then has to reach out of the strip and across
+   to a panel, which is `:has()`. That is the wrong failure polarity for this: `.panel { display:
+   none }` is a plain rule that always applies, so a browser that cannot evaluate the `:has()` would
+   show *no* panel at all and the whole of this page's curation would be gone. Flat siblings need
+   only `:checked ~`, which every browser has had for a decade, and a stylesheet that fails to load
+   leaves every form on the page -- which is a usable page.
+
+   **The radios are outside every form on the page**, which is what keeps them out of the form
+   bodies: `#filters` carries `hx-trigger="change"`, so a radio inside it would fire a filter
+   request on every tab click, and any of the action forms would post a `curate` key nobody reads.
+
+   **Nothing remembers which tab was open.** It means *this page*, like the box in the table head --
+   see `Ticking a whole page of songs`. None of these panels is inside `#rows`, so no htmx swap
+   disturbs the choice; a fresh page load starts at Language, which is where the work is on a real
+   corpus. #}
+<div class="curate">
+  <input type="radio" name="curate" id="curate-language" checked>
+  <input type="radio" name="curate" id="curate-tags">
+  <input type="radio" name="curate" id="curate-package">
+  <input type="radio" name="curate" id="curate-favorites">
+  <input type="radio" name="curate" id="curate-titles">
+  <input type="radio" name="curate" id="curate-analysis">
+  <input type="radio" name="curate" id="curate-quality">
+
+  {# Labels rather than buttons, so a click is the radio's own and needs nothing bound to it. The
+     order is the order the work happens in on a corpus nobody has curated: classify, file, package.
+     Analysis is last because it is the one tab that reads files rather than writing judgments, and
+     is reached after a threshold revision rather than during a pass of curation. #}
+  <nav class="tabstrip">
+    <label for="curate-language">{{ "songs-tab-language"|t }}</label>
+    <label for="curate-tags">{{ "songs-tab-tags"|t }}</label>
+    <label for="curate-package">{{ "curate-package"|t }}</label>
+    <label for="curate-favorites">{{ "nav-favorites"|t }}</label>
+    <label for="curate-titles">{{ "songs-tab-titles"|t }}</label>
+    <label for="curate-analysis">{{ "songs-tab-analysis"|t }}</label>
+    <label for="curate-quality">{{ "songs-band-quality"|t }}</label>
+  </nav>
+
+  {# Over everything the filters above match, not over the ticked rows -- which is the point. Most of
+     a real corpus has no language (92% of songs here), so one action per filter replaces
+     hundreds of thousands of clicks.
+
+     **The filter is the bar itself, included in the body.** The query string that produced *this
+     page* reads like the safe choice and is not, because the bar swaps `#rows` and never re-renders
+     the page: the moment somebody picks a filter, that query string describes a page that is gone.
+     Narrowing the list and pressing the button then asks the server about the whole corpus.
+
+     The select is `set_language`, not `language`, because the bar riding in the same body has a
+     `language` select of its own and one key cannot mean two things. See `FilterQuery::from_body`.
+
+     It answers with a count and a confirm button first, because this is the one control on the page
+     that can write hundreds of thousands of rows. #}
+  {# `#rows` is included as well as `#filters`, so the ticked boxes reach the handler. That is legal
+     for the reason `FilterQuery::from_body` gives: a repeated key it does not know is ignored, and
+     the keys `#rows` sends -- `song_id`, `score`, `title`, `artist`, `name` -- are none of the bar's.
+     It is the same inclusion *Title from file name* already makes. #}
+  <div class="panel language">
+    <form class="filters" id="bulk-language"
+          hx-post="/songs/language-bulk" hx-include="#filters, #rows"
+          hx-target="#bulk-language-result" hx-swap="innerHTML">
+      {# **Which songs, and it is the ticked ones unless somebody says otherwise.** `Acting on a whole
+         filter` says a filter-wide action is right when the judgment is about a set somebody has
+         already described, and that is still true of a folder -- but it was the *only* thing this
+         control could do, so setting the language of three songs meant ticking nothing and describing
+         them in the bar first. Ticked is the smaller act and the safer default; the union of the two
+         is what the decision now records. #}
+      <label>{{ "songs-set-language-of"|t }}
+        <select name="scope">
+          <option value="ticked">{{ "songs-scope-ticked"|t }}</option>
+          <option value="matching">{{ "songs-scope-matching"|t }}</option>
+        </select>
+      </label>
+      {# Two groups, unlike the filter select above, and the difference is that this one *sets* a
+         value. Restricted to what the corpus already holds it could never classify the first
+         Portuguese song in one -- the language would have to be there to be choosable, which is a
+         picker that cannot fix an empty column. So the short list is first, where the cursor is, and
+         the standard is one group down. It costs nothing: this is rendered once per page, not once
+         per row. #}
+      <label>{{ "songs-to"|t }}
+        <select name="set_language">
+          <option value="">&mdash; {{ "row-language-unknown"|t }}</option>
+          {% if !query.corpus_languages().is_empty() %}
+          <optgroup label="{{ "package-in-this-corpus"|t }}">
+            {% for choice in query.corpus_languages() %}
+            <option value="{{ choice.value }}">{{ choice.label }}</option>
+            {% endfor %}
+          </optgroup>
+          {% endif %}
+          <optgroup label="{{ "package-every-language"|t }}">
+            {% for choice in query.every_language() %}
+            <option value="{{ choice.value }}">{{ choice.label }}</option>
+            {% endfor %}
+          </optgroup>
+        </select>
+      </label>
+      {# **And optionally only the ones nobody has said** -- last, and the position is the whole
+         point. Between the scope select and the *to* select, the controls read left to right as
+         "only where nobody has said **to** Portuguese", which is a sentence about something else
+         entirely: two labels of two different controls running together into a third meaning.
+         Last, the sentence completes before the box is reached, and the box qualifies a statement
+         already made.
+
+         The wording is the other half. *Nobody has said* is this tool's own term for a NULL a person
+         could have filled in, and it is exactly right in the schema, in `LanguageFilter::Unset` and
+         in the decision -- but on a control it is asking somebody to know the house vocabulary before
+         they can tick a box. What it does is skip the songs that already have a language, so that is
+         what it says. The confirmation chip reads `no language yet`, which is the same
+         words.
+
+         What it is *not* is the bar's own `language=unset`, which is the obvious objection: that
+         narrows the *list*, so the rows you were looking at disappear and the ones you meant to leave
+         alone are no longer in front of you. This narrows the write alone -- look at a folder, set the
+         language of the ones nothing has said, leave every judgment already made exactly where it
+         is. #}
+      <label class="check">
+        <input type="checkbox" name="only_unset" value="1">
+        {{ "songs-only-if-not-set"|t }}
+      </label>
+      <button>{{ "row-set"|t }}&hellip;</button>
+      <span id="bulk-language-result"></span>
+    </form>
+  </div>
+
+  {# The tag equivalent, in the tab beside the language one and shaped exactly like it -- same scope
+     select with the same default, same two steps, same `#filters, #rows` inclusion for the same
+     reasons.
+
+     **Two differences, and both are about what a tag is.** It *adds* or *removes* where that one
+     *sets*: a song has one language, so writing it is a complete statement, but a song has many tags
+     and a set would silently destroy tagging work done elsewhere -- in one click, over a filter that
+     can point at hundreds of thousands of rows. And there is no *only where nobody has said* box,
+     because that is not a state a tag has: every song starts with none, so the equivalent narrowing
+     is the bar's own tag filter, which unlike `language=unset` does not take the rows being looked at
+     off the page.
+
+     The field is `set_tag` and never `tags`, for `set_language`'s reason one tab over: the bar rides
+     in the same body and has a `tags` field of its own. #}
+  <div class="panel tags">
+    <form class="filters" id="bulk-tag"
+          hx-post="/songs/tag-bulk" hx-include="#filters, #rows"
+          hx-target="#bulk-tag-result" hx-swap="innerHTML">
+      <label>
+        <select name="tag_action">
+          <option value="add">{{ "songs-tag-add"|t }}</option>
+          <option value="remove">{{ "songs-tag-remove"|t }}</option>
+        </select>
+      </label>
+      {# A text box with a datalist rather than a select, and that is the open vocabulary showing: a
+         tag exists because somebody typed it, so the control has to accept a word that is not in the
+         list yet. A datalist is the native element that both offers what exists and takes something
+         new.
+
+         Whatever is typed goes through `Tag::parse` on the way in, so `Rock & Roll` is `rock-roll`
+         and `Forró` is `forro` -- and the confirmation shows the slug before the write, which is
+         where somebody finds that out. A word that does not fold to ASCII is refused rather than
+         trimmed down, so this box can say no; see the `Song tags` decision. #}
+      <label>{{ "songs-the-tag"|t }}
+        <input type="text" name="set_tag" list="known-tags" autocomplete="off"
+               placeholder="rock" size="14"
+               title="{{ "songs-tag-title"|t }}">
+      </label>
+      <label>{{ "songs-to"|t }}
+        <select name="scope">
+          <option value="ticked">{{ "songs-scope-ticked"|t }}</option>
+          <option value="matching">{{ "songs-scope-matching"|t }}</option>
+        </select>
+      </label>
+      <button>{{ "songs-apply"|t }}&hellip;</button>
+      <span id="bulk-tag-result"></span>
+    </form>
+  </div>
+
+  {# One subject, which is why the two forms share a tab: both put the songs the bar has selected
+     into a package, and what separates them is whether the package exists yet. Each offers both
+     scopes `Acting on a whole filter` names -- the first always makes a package of everything
+     matching, and the second takes the ticked rows or the whole filter.
+
+     The first **creates** rather than adds, so it asks for a name and nothing else, and the id the
+     file will be named after is derived from it and shown in the confirmation before anything is
+     written. Version, publisher and start number get the same defaults the Packages page's own form
+     gives them, and are edited there.
+
+     The filter comes from the bar in the body, and the comment on the language form says why -- it is
+     the same trap, and this is the form it was found on: a list narrowed to seventeen thousand songs,
+     and a confirmation offering to package hundreds of thousands. #}
+  <div class="panel package">
+    <form class="filters" id="package-from-filter"
+          hx-post="/packages/from-filter" hx-include="#filters"
+          hx-target="#from-filter-result" hx-swap="innerHTML">
+      <label>{{ "songs-make-package-called"|t }}
+        <input name="name" size="24" placeholder="Brasil vol 2" required>
+      </label>
+      <button>{{ "songs-make"|t }}&hellip;</button>
+      <span id="from-filter-result"></span>
+    </form>
+
+    {# **A form of its own, and so are the two tabs after it.** One bar holding all three -- three
+       unrelated actions divided by two dim pipes -- makes the button that files songs into a
+       favorite `hx-include` its own form to reach the select two controls to its left. Split, each
+       posts what it holds plus the ticks, and no button reaches sideways for anything.
+
+       It answers with a toast rather than into the slot beside it, like every other action taken from
+       a list: the button is above a hundred rows and a message printed here is off the screen for
+       anybody who pressed it from the bottom. The slot stays for the failures htmx will not swap,
+       and for the confirmation the filter-wide scope asks. #}
+    {# `#filters` rides in the body beside the ticks, for the reason the four tabs around this one
+       give: a filter rendered into the attribute describes the page as it loaded, and the bar never
+       re-renders the page. Neither key this form sends is one of theirs -- `#filters` has no
+       `package_id` and no `scope`, and neither does `#rows`. See `FilterQuery::from_body`.
+
+       **The button says Add and not Add&hellip;**, unlike the tabs either side. The ellipsis promises
+       a question, and the ticked scope -- which is the common one, and the only one the song page and
+       the Lyrics page can send -- does not ask one. #}
+    <form class="filters" id="package-add"
+          hx-post="/packages/add?as=toast" hx-include="#filters, #rows"
+          hx-target="#package-add-result" hx-swap="innerHTML">
+      <label>{{ "songs-add"|t }}
+        <select name="scope">
+          <option value="ticked">{{ "songs-scope-ticked"|t }}</option>
+          <option value="matching">{{ "songs-scope-matching"|t }}</option>
+        </select>
+      </label>
+      <label>{{ "songs-to"|t }}
+        <select name="package_id">
+          {% for p in packages %}
+          <option value="{{ p.id }}">{{ p.name }} ({{ p.song_count }})</option>
+          {% endfor %}
+        </select>
+      </label>
+      <button class="primary">{{ "curate-add"|t }}</button>
+      {% if packages.is_empty() %}
+      <span class="dim">{{ "songs-no-packages-lead"|t }} <a href="/packages">{{ "nav-packages"|t }}</a> {{ "songs-page-tail"|t }}</span>
+      {% endif %}
+      <span id="package-add-result"></span>
+    </form>
+  </div>
+
+  {# **Drawn whether or not there are any favorites.** Wrapping the whole control in an `{% if %}`
+     leaves it absent on a corpus nobody has filed anything in: fine for a group inside a bar of
+     other controls and wrong for a tab, which would be an empty panel behind a label promising
+     something -- so it says what is missing and where to fix it, exactly as the Package tab does. #}
+  {# Shaped like the tag tab and for its reasons -- same scope select with the same default, same two
+     steps, same `#filters, #rows` inclusion.
+
+     **Which way it goes is a select and never the state of the song**, which is what makes *take
+     out* safe to offer beside *file*. One control that put a song in or out depending on where it
+     already was would be one tick meaning two opposite things, and an evening's filing could go in a
+     click. Named, counted and confirmed, taking songs out is as ordinary as putting them in: a list
+     somebody over-filled is as much work to fix as one they under-filled.
+
+     The field is `favorite_id` and never `favorite`, for `set_tag`'s reason one tab over: the bar
+     rides in the same body and narrows by favorite, so one key spelled two ways is how this would
+     come to file a set chosen by the favorite it was filing into. #}
+  <div class="panel favorites">
+    <form class="filters" id="bulk-favorite"
+          hx-post="/songs/favorite-bulk" hx-include="#filters, #rows"
+          hx-target="#bulk-favorite-result" hx-swap="innerHTML">
+      {# The verb carries its own preposition, so both directions read as English with one fixed
+         connector after them. *Remove &hellip; to* is what a bare add/remove pair would have said. #}
+      <label>
+        <select name="favorite_action">
+          <option value="add">{{ "songs-put-into"|t }}</option>
+          <option value="remove">{{ "songs-take-out-of"|t }}</option>
+        </select>
+      </label>
+      <label>
+        <select name="favorite_id">
+          {% for f in favorites %}
+          <option value="{{ f.id }}">{{ f.name }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>&mdash;
+        <select name="scope">
+          <option value="ticked">{{ "songs-scope-ticked"|t }}</option>
+          <option value="matching">{{ "songs-scope-matching"|t }}</option>
+        </select>
+      </label>
+      <button>{{ "songs-apply"|t }}&hellip;</button>
+      {% if favorites.is_empty() %}
+      <span class="dim">{{ "songs-no-favorites-lead"|t }} <a href="/favorites">{{ "nav-favorites"|t }}</a> {{ "songs-page-tail"|t }}</span>
+      {% endif %}
+      <span id="bulk-favorite-result"></span>
+    </form>
+  </div>
+
+  {# The two actions here answer with the table rather than with a line of text, because they are the
+     two whose result is already on the screen: a name that changed goes on showing its old value
+     until something redraws the rows. So they target `#rows` and the handler re-renders them for the
+     current filter -- which it reads from the bar, included here beside the ticks. A query string
+     rendered into these attributes instead brings the table back showing the filter the page loaded
+     with rather than the one on screen.
+
+     **Three forms in one tab, which `The curation actions are tabs` allows for exactly this
+     shape**: each answers *this name is wrong*, in the three ways a name is wrong -- there is no
+     title worth keeping, there is one and it is shouting, or there is one and it holds the artist
+     as well. One tab per subject, not per button.
+
+     `data-keeps-the-page` is read by `static/ui.js`, which puts `#rows`'s own offset into the body
+     so that a write redraws the page it was pressed on. Neither action changes a filter, so the page
+     still means what it meant; `What keeps the page you are on` has the rest.
+
+     `hx-sync` for the reason the filter bar carries one: these write `#rows`, and so do the paging
+     buttons inside it. #}
+  <div class="panel titles">
+    <form class="filters" id="titles-from-filename" data-keeps-the-page
+          hx-post="/songs/titles-from-filename" hx-include="#rows, #filters"
+          hx-target="#rows" hx-swap="outerHTML" hx-sync="#rows-slot:replace">
+      <button class="primary">{{ "songs-title-from-filename"|t }}</button>
+      <span class="dim">{{ "songs-title-from-filename-note"|t }}</span>
+    </form>
+    <form class="filters" id="fix-name-case" data-keeps-the-page
+          hx-post="/songs/fix-name-case" hx-include="#rows, #filters"
+          hx-target="#rows" hx-swap="outerHTML" hx-sync="#rows-slot:replace">
+      <button>{{ "songs-fix-capitals"|t }}</button>
+      <span class="dim">{{ "songs-fix-capitals-note"|t }}</span>
+    </form>
+    <form class="filters" id="split-artist-from-title" data-keeps-the-page
+          hx-post="/songs/split-artist-from-title" hx-include="#rows, #filters"
+          hx-target="#rows" hx-swap="outerHTML" hx-sync="#rows-slot:replace">
+      <button>{{ "songs-split-artist"|t }}</button>
+      <span class="dim">{{ "songs-split-artist-note"|t }}</span>
+    </form>
+  </div>
+
+  {# **The one tab that reads files rather than writing a judgment**, and the only one whose work
+     outlives the request: a suitability is derived from notes, channels and lyric timings, none of
+     which the database keeps, so recomputing one means opening the file again. That is a scan of a
+     named set of files, with the same worker threads, the same bar and the same Stop button -- so
+     the button starts a job and says where to watch it rather than holding a request open for an
+     hour.
+
+     **Nothing a person typed is at risk.** A scan writes the `det_` columns and the analysis; the
+     title, artist, language, rating and notes are the other half of `schema.sql`'s split and no
+     scan touches them.
+
+     Same scope select as the three tabs above, same default, same two steps. #}
+  <div class="panel analysis">
+    <form class="filters" id="reanalyze"
+          hx-post="/songs/reanalyze" hx-include="#filters, #rows"
+          hx-target="#reanalyze-result" hx-swap="innerHTML">
+      <label>{{ "songs-recalculate-of"|t }}
+        <select name="scope">
+          <option value="ticked">{{ "songs-scope-ticked"|t }}</option>
+          <option value="matching">{{ "songs-scope-matching"|t }}</option>
+        </select>
+      </label>
+      <button>{{ "songs-recalculate"|t }}&hellip;</button>
+      <span class="dim">{{ "songs-recalculate-note"|t }}</span>
+      <span id="reanalyze-result"></span>
+    </form>
+  </div>
+
+  {# **Which of these to play first.** A corpus holds several files of one song and the suitability
+     ties across most of them, so the number here is decided by the four components behind that 10
+     and by three columns beside them -- see `crate::hint`. It is a position and not a rating: the
+     row already carries the one 0-10 this tool measures and the one a person types, and a third
+     number claiming to be a third judgment is exactly what this must not become.
+
+     **Two buttons and no scope select.** The other tabs offer *every matching song* because a
+     language or a tag is worth writing over a folder of thousands; a hint over a quarter of a
+     million rows is a sort of the corpus wearing a badge, and the thing it is for is the six files
+     in front of somebody. There is no confirmation either -- Clear is what undoes this, and it
+     writes nothing to undo.
+
+     `#filters` is deliberately not included: no filter is read here, so the bar has no reason to
+     ride along in the body. #}
+  <div class="panel quality">
+    <form class="filters" id="quality-hint"
+          hx-post="/songs/quality-hint" hx-include="#rows"
+          hx-target="#quality-hint-result" hx-swap="innerHTML">
+      <button>{{ "songs-hint"|t }}</button>
+      <button type="button" hx-post="/songs/quality-hint/clear"
+              hx-target="#quality-hint-result" hx-swap="innerHTML">{{ "songs-hint-clear"|t }}</button>
+      <span class="dim">{{ "songs-hint-note"|t }}</span>
+      <span id="quality-hint-result"></span>
+    </form>
+  </div>
+</div>
+
+<div id="rows-slot">{{ rows|safe }}</div>
+
+{% endblock %}

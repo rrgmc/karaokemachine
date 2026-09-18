@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  KM Admin's bundle manifest. `tools/dist/cmd.sh` substitutes @VERSION@ and copies this
+  in; everything else is fixed.
+
+  A fourth plist rather than a parameterised one, on the reasoning the other three already give:
+  these are different *kinds* of thing, and four short manifests that each say what is true beat one
+  with four conditions in it. This one declares no document type — it opens no files somebody
+  double-clicks — and, like the remote's, it does talk to the local network.
+-->
+<plist version="1.0">
+<dict>
+    <key>CFBundleName</key>
+    <string>KM Admin</string>
+    <key>CFBundleDisplayName</key>
+    <string>KM Admin</string>
+    <!-- Distinct from the other three. Two bundles cannot share an identifier: LaunchServices keys
+         its whole database on it, and a collision means one silently replaces the other. -->
+    <key>CFBundleIdentifier</key>
+    <string>com.karaokemachine.admin</string>
+    <key>CFBundleExecutable</key>
+    <string>km-admin</string>
+    <!-- Without extension. macOS looks for `<this>.icns` in Contents/Resources.
+
+         This program's own mark: the theme's magenta, the same drawing the machine wears in amber,
+         the builder in blue and the remote in green. Written by
+         crates/playback/km-display/examples/icon.rs and staged by tools/dist/cmd.sh. This string is
+         the file's name without its extension, so renaming icon/km-admin.icns means changing it
+         here — and here only, as with the remote's. -->
+    <key>CFBundleIconFile</key>
+    <string>km-admin</string>
+    <key>CFBundleShortVersionString</key>
+    <string>@VERSION@</string>
+    <key>CFBundleVersion</key>
+    <string>@VERSION@</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleInfoDictionaryVersion</key>
+    <string>6.0</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>11.0</string>
+    <!-- Utilities, for the package builder's reason: it fetches soundfonts and wallpapers and
+         plays none of them. -->
+    <key>LSApplicationCategoryType</key>
+    <string>public.app-category.utilities</string>
+    <key>NSHighResolutionCapable</key>
+    <true/>
+
+    <!--
+      **Two networks, and only one of them is this key's business.**
+
+      This program reaches the internet — stock photograph APIs and the addresses SoundFont banks are
+      published at — and macOS asks no permission for that. What it does ask about, since macOS 14, is
+      the *local* network, and this program uses that too: the karaoke machine it sends files to is on
+      the house network, named by address on its own page.
+
+      Without this string the prompt is a bare request from a program somebody has just unzipped. With
+      it, it says what the network is for. It does not remove the prompt and is not meant to.
+
+      **Declining it leaves half the program working**, which is worth knowing before treating this as
+      a prerequisite: searching, measuring, building a pack and downloading a bank all go out to the
+      internet and are unaffected, and everything is written into this program's own folder either
+      way. What stops working is sending any of it to the machine.
+    -->
+    <key>NSLocalNetworkUsageDescription</key>
+    <string>KM Admin sends the pictures and instrument banks you choose to your karaoke machine on this network.</string>
+
+    <!--
+      **No NS*FolderUsageDescription keys, and no document type.** Like the remote and unlike the
+      package builder, this never opens a file the user chose: everything it downloads, builds and
+      remembers lives in its own data directory under ~/Library/Application Support, which no TCC
+      grant covers. Declaring the Desktop, Documents and Downloads keys would make macOS prompt for
+      access this program never uses.
+
+      No microphone either — see the decision in docs/decisions/.
+    -->
+</dict>
+</plist>

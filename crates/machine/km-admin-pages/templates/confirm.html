@@ -1,0 +1,28 @@
+{% extends "layout.html" %}
+{% block content %}
+
+<section class="card">
+  <h2>{{ heading }}</h2>
+
+  <dl class="facts">
+    {% for fact in facts %}
+    <dt>{{ fact.label }}</dt>
+    <dd>{{ fact.value }}</dd>
+    {% endfor %}
+  </dl>
+
+  <p class="banner banner-warn">{{ warning }}</p>
+
+  {% match extra %}
+  {% when Some with (extra) %}
+  <p class="hint">{{ extra }}</p>
+  {% when None %}
+  {% endmatch %}
+
+  <form method="post" action="{{ action }}" class="inline">
+    <button type="submit" class="danger">{{ confirm }}</button>
+  </form>
+  <a href="{{ back }}">{{ "action-cancel"|t }}</a>
+</section>
+
+{% endblock %}

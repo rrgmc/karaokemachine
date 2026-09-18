@@ -1,0 +1,10 @@
+<div class="band chips{% if active.is_empty() %} nothing{% endif %}" id="filter-chips"{% if oob %} hx-swap-oob="true"{% endif %}>
+  {% if !active.is_empty() %}
+  <span class="band-name">{{ "chips-showing"|t }}</span>
+  {% for filter in active %}
+  <span class="tag good">{{ filter.label }}
+    <a href="/songs?{{ filter.remove }}" title="{{ "chips-remove-title"|t }}">&times;</a></span>
+  {% endfor %}
+  <a class="clear" href="/songs?{{ cleared }}">{{ "chips-clear-all"|t }}</a>
+  {% endif %}
+</div>

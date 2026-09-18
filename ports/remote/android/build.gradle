@@ -1,0 +1,23 @@
+// Top-level build file. The same AGP as `ports/machine/android/`, deliberately: two Android projects in
+// one repository disagreeing about the plugin version is two sets of build failures to diagnose,
+// and there is no reason for them to differ.
+buildscript {
+    repositories {
+        mavenCentral()
+        google()
+    }
+    dependencies {
+        classpath 'com.android.tools.build:gradle:8.7.3'
+    }
+}
+
+allprojects {
+    repositories {
+        mavenCentral()
+        google()
+    }
+}
+
+tasks.register('clean', Delete) {
+    delete rootProject.layout.buildDirectory
+}

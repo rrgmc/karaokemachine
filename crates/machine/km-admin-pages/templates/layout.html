@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="{{ chrome.lang }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>{{ chrome.title }}</title>
+  {# **This crate's own route and not the machine's `/icon.png`**, which exists in one host and was
+     being asked of every host. The bytes are the host's — four programs in this product can be open
+     at once and the favicon is what tells two tabs apart. See `Admin::icon_png`. #}
+  <link rel="icon" href="/admin/static/icon.png?v={{ chrome.assets }}">
+  <link rel="stylesheet" href="/admin/static/admin.css?v={{ chrome.assets }}">
+  {# **The scripts a host asked for, on every page that host serves.**
+
+     `/admin/ is the owner's page` says the machine's pages carry no script, and they still do not:
+     the machine declares none, so this loop draws nothing and every page it serves is byte-for-byte
+     scriptless — `no_page_the_machine_serves_carries_a_script` holds that. What a host declares
+     reaches the tabs as well as its own pages, because the upload forms are this crate's markup and
+     a form post that reports nothing while it runs cannot be told from a program that has stopped.
+
+     `defer`, in the order given: htmx first, then the script that listens to it. #}
+  {% for script in chrome.scripts %}<script src="{{ script }}" defer></script>
+  {% endfor %}
+  {# Empty for every page but the farewell, which is the only one that has anything to put in a
+     head — a meta refresh bringing the tab back after a restart. #}
+  {% block head %}{% endblock %}
+</head>
+<body>
+
+<header class="top">
+  <h1>{{ chrome.machine_name }}</h1>
+  {# The heading is the *machine's* name on both surfaces, because that is what the page is about.
+     **Which program is drawing it is a second fact and only one host has one**: `What the tool calls
+     itself` requires km-admin's pages to say *KaraokeMachine Admin*, and on the machine's own pages a label
+     would be the box introducing itself to somebody already looking at its address. #}
+  <p class="sub">
+    {{ "admin-title"|t }}{% match chrome.program %}{% when Some with (program) %} <span class="program">{{ program }}</span>{% when None %}{% endmatch %}
+  </p>
+</header>
+
+{% if chrome.factory_password %}
+<p class="banner banner-warn">
+  {{ "factory-password-banner"|t }}
+  <a href="/admin/machine?pane=password">{{ "factory-password-change"|t }}</a>
+</p>
+{% endif %}
+
+{# **The strip is one order on both surfaces**, which is `Two admin surfaces, one vocabulary`: a page
+   existing on both has the same name, in the same case, in the same place. *This machine* leads
+   because every other page can do nothing until this one has an address — the tool's reason — and
+   because it is the tab about the machine on the machine's own pages, which is a different reason for
+   the same answer.
+
+   Two entries are gated, and neither is a divergence. **Different machine** is the way back to a
+   tool's front door, and the machine needs none: it has no say over which machine it is. **Problems**
+   reads faults out of the machine's own state and identifies its rows by a path the API refuses to
+   publish, so a tool has nothing to draw. Both were argued in `Two admin surfaces, one vocabulary`
+   long before either was a flag.
+
+   **The whole strip is absent on a front door**, which is the one page with no machine to be about --
+   see `Admin::door`. It is also why the *Different machine* entry is never `aria-current`: the page
+   it leads to has no strip to mark it on, so unlike a tab it cannot be the page you are looking at
+   while this is drawn. #}
+{% if !chrome.front_door %}
+<nav class="tabs">
+  {% if chrome.capabilities.choose_machine %}
+  <a href="/admin/connect">{{ "machine-elsewhere"|t }}</a>
+  {% endif %}
+  <a href="/admin/machine" {% if chrome.tab.is(Tab::Machine) %}aria-current="page"{% endif %}>{{ "tab-machine"|t }}</a>
+  <a href="/admin/songs" {% if chrome.tab.is(Tab::Songs) %}aria-current="page"{% endif %}>{{ "tab-songs"|t }}</a>
+  <a href="/admin/pictures" {% if chrome.tab.is(Tab::Pictures) %}aria-current="page"{% endif %}>{{ "tab-pictures"|t }}</a>
+  <a href="/admin/sound" {% if chrome.tab.is(Tab::Sound) %}aria-current="page"{% endif %}>{{ "tab-sound"|t }}</a>
+  {% if chrome.capabilities.problems %}
+  <a href="/admin/problems" {% if chrome.tab.is(Tab::Problems) %}aria-current="page"{% endif %}>{{ "tab-problems"|t }}{% if chrome.problems > 0 %} <span class="badge badge-bad">{{ chrome.problems }}</span>{% endif %}</a>
+  {% endif %}
+</nav>
+{% endif %}
+
+{% match notice %}
+{% when Some with (notice) %}
+<p class="banner banner-{{ notice.kind }}">{{ notice.text }}</p>
+{% when None %}
+{% endmatch %}
+
+<main>
+{% block content %}{% endblock %}
+</main>
+
+{# The live region a host's script fills, under the same condition as the script itself, so one
+   field decides both: a host that declares none gets no tray, and the machine's pages stay free of
+   an element nothing there could fill. Outside `<main>` because a fixed-position live region is not
+   part of the document's reading order -- it announces what just happened, where the banner above
+   says it in place.
+
+   `data-sending` is what an upload's indicator says while a form post is in flight. It rides here
+   rather than on each form because the tray is already the one element gated on a script, and a
+   catalog string has to reach a script somehow. #}
+{% if !chrome.scripts.is_empty() %}
+<div id="toasts" aria-live="polite" data-sending="{{ "upload-sending"|t }}"></div>
+{% endif %}
+{% block trays %}{% endblock %}
+
+</body>
+</html>

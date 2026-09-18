@@ -1,0 +1,123 @@
+[package]
+name = "km-admin"
+description = "Find pictures and SoundFont banks for a karaoke machine, and send them to it"
+# Without a default, `cargo run -p km-admin --features desktop` refuses with "could not determine
+# which binary to run", because the console twin below only exists with that feature. The package
+# builder carries the same trap: a plain `cargo run` has one binary to choose from, and the
+# documented lines that turn the feature on are the two that do not.
+default-run = "km-admin"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+# **A library with two binaries hanging off it**, because `#![windows_subsystem]` is a property of a
+# binary crate root and the two builds disagree about it. Everything real is in the library; each
+# binary is three lines and a `Shell`. The same shape as `km-package-builder` and `km-remote`.
+[lib]
+name = "km_admin"
+path = "src/lib.rs"
+
+[[bin]]
+name = "km-admin"
+path = "src/main.rs"
+
+# The console twin. **Only when there is a window to be the alternative to**: without `desktop` the
+# executable above is already a console program, and a second identical one under a longer name is a
+# choice nobody can make correctly.
+[[bin]]
+name = "km-admin-console"
+path = "src/bin/km-admin-console.rs"
+required-features = ["desktop"]
+
+[features]
+# A window of its own, rather than a tab in whatever browser is default.
+#
+# **Off in cargo, on when staging for Windows and macOS, and never on for Linux.** `wry` links
+# libwebkit2gtk at load time, so a Linux build with this feature does not *start* on a machine
+# without it, and `--browser` cannot rescue that because the failure is in the dynamic loader before
+# `main`. The tray rides on the same feature and does not get one of its own: `tray-icon`'s Linux
+# backend links `libayatana-appindicator`, which is the dependency this feature already refuses.
+desktop = ["dep:wry", "dep:tao", "dep:km-tray", "dep:km-webshell"]
+
+[dependencies]
+# The pipeline. This crate is a page over `km-wallpaper-pack`'s three phases rather than a second
+# implementation of any of them -- which is what the `Keys`, `progress::Sink` and `Cache::thumb`
+# seams were added for.
+km-wallpaper-pack = { path = "../km-wallpaper-pack" }
+# The bank table and the rules for checking a download. Reached across the workspace boundary
+# on purpose; see the `exclude` note in the repository root's manifest.
+km-banks = { workspace = true }
+# The machine's DTOs and its mDNS discovery, so the shapes this talks to are stated once. It carries
+# no HTTP client of its own, which is what makes it safe to take from here.
+km-api = { workspace = true }
+# **The owner's page**, which this program serves rather than reimplementing. It is a *host* for that
+# crate: it implements the traits in `km_admin_pages::machine` over the HTTP client in
+# `src/machine.rs`, and merges its own searching half over the shared router.
+km-admin-pages = { workspace = true }
+# This program's own words, in `i18n/` beside its own templates. The `askama` feature is the `|t`
+# filter; `km-wallpaper-pack` beside it needs none, having no markup.
+km-locale = { workspace = true, features = ["askama"] }
+# What the seam's traits are made of. `dyn` and `async` together still need it.
+async-trait = { workspace = true }
+
+# Whether anything this process prints will be read. A GUI-subsystem executable on Windows has a null
+# stdout handle, where `println!` *panics* -- so every line this program says goes through here.
+km-console = { workspace = true }
+# ...and where those lines go when nothing is reading them.
+km-logfile = { workspace = true }
+# ...and where they go when somebody *is* reading, live: `--ecapplog` sends the same stream to the
+# viewer in place of the console.
+km-ecapplog = { workspace = true }
+# ...and what this program's own settings file says about both, plus how much detail there is and
+# how many runs are kept. The `logging` section, shared with the machine and the package builder.
+km-logsettings = { workspace = true }
+# Opening a browser, and a folder in the file manager.
+km-osopen = { workspace = true }
+# The machine passwords this computer was told to remember. Shared with `km-package-builder`, which
+# meets the same closed door; where the file goes is `crate::passwords`.
+km-passwords = { workspace = true }
+
+axum = { workspace = true }
+askama = { workspace = true }
+tokio = { workspace = true }
+reqwest = { workspace = true }
+rustls = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+clap = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+directories = { workspace = true }
+image = { workspace = true }
+# `StreamExt`, for reading a gigabyte bank off the socket a chunk at a time rather than into memory
+# whole. The same reason `km-wallpaper-pack` takes it.
+futures-util = { workspace = true }
+
+# The desktop shell, behind the `desktop` feature. `tao` owns the window and the event loop, `wry`
+# puts a platform webview in it: WebView2 on Windows, WKWebView on macOS.
+wry = { workspace = true, optional = true }
+tao = { workspace = true, optional = true }
+# The icon in the bar, behind the same feature. It takes no `tao` of its own -- the event loop stays
+# this crate's.
+km-tray = { workspace = true, optional = true }
+km-webshell = { workspace = true, optional = true }
+
+[dev-dependencies]
+# Driving the real router as a service, without a listening socket. The pattern `km-api`'s and
+# `km-package-builder`'s page tests both use.
+tower = { workspace = true }
+tempfile = { workspace = true }
+# Recorded provider and machine responses, so nothing here reaches the network.
+wiremock = { workspace = true }
+
+[target.'cfg(windows)'.build-dependencies]
+# `build.rs` attaches the application icon and version information to the Windows executable.
+winresource = { workspace = true }

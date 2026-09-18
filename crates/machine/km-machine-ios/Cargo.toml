@@ -1,0 +1,40 @@
+[package]
+name = "km-machine-ios"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+description = "The machine as an iOS application: SDL over the machine's own library, in the app binary."
+
+# **`staticlib`, for the reason `km-remote-ios` is one**: iOS will not load an arbitrary dynamic
+# library and forbids `fork` and `exec`, so a static archive linked into the app binary is the only
+# shape available. Android's `cdylib` is loaded by `SDLActivity` where this one is linked by the
+# linker, which is a calling convention rather than a redesign.
+#
+# **A shim crate rather than a third `crate-type` on `karaokemachine`.** It mirrors `km-remote-ios`
+# over `km-remote-host`, leaves the desktop and Android crate alone, and gives `km_machine_configure`
+# somewhere to live that is not the machine's own library.
+#
+# `cargo build --workspace` on any desktop compiles this to an empty archive, exactly as it compiles
+# the two Android shells: everything in here is behind `cfg(target_os = "ios")`.
+[lib]
+name = "km_machine_ios"
+crate-type = ["staticlib"]
+
+[lints]
+workspace = true
+
+[features]
+# The decoder, passed straight through to the machine. One word, for the reason `KM_FEATURES_ANDROID`
+# is one word: the shell names what the application is, and the crate below it knows what that costs.
+video = ["karaokemachine/video"]
+
+[dependencies]
+# The machine itself, which is what links SDL3 and SDL3_ttf. Everything that thinks is in there; what
+# belongs here is a paths handoff, a `catch_unwind` and a call.
+karaokemachine = { workspace = true }
+# For the two lines this crate says itself: what the container named, and which export swallowed a
+# panic. The subscriber they reach is installed by the crate above, not here.
+tracing = { workspace = true }

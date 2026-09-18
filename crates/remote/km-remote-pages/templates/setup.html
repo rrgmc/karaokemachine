@@ -1,0 +1,128 @@
+{% extends "layout.html" %}
+{% block title %}{{ "tab-setup"|t }}{% endblock %}
+{% block content %}
+
+{# Two tabs at the top when there are packages to choose between, drawn as the Songs tab draws its
+   modes. With one package there is nothing to hide, so the page keeps its plain heading. #}
+{% if packages_tab %}
+<div class="modes setup-tabs">
+  <a class="mode-btn active" href="/setup" aria-current="page">{{ "tab-setup"|t }}</a>
+  <a class="mode-btn" href="/setup/packages">{{ "tab-packages"|t }}</a>
+</div>
+{% else %}
+<div class="page-head">
+  <h1>{{ "tab-setup"|t }}</h1>
+</div>
+{% endif %}
+
+{# The groups run in the order somebody opens this tab for: the machine first, because a remote that
+   is talking to the wrong one is why anybody came here; then what this device prefers; then the
+   rarest thing, which is the backup offline and the owner's page online. A rule between them, and
+   never above the first — which is the machine card offline and the preferences online.
+
+   **No mode draws all four**, and the count is not the invariant: `.setup-group + .setup-group`
+   means the rule is drawn by whichever group *follows* another, so a group appearing or going away
+   cannot leave a line above nothing. That is why this is safe to add to. #}
+
+{% if chrome.capabilities.connection %}
+{% match machine %}
+{% when Some with (machine) %}
+<div class="machine-card">
+  <div class="machine-title">{{ "tab-machine"|t }}</div>
+  {{ machine|safe }}
+
+  <div id="machine-found"></div>
+
+  {# Outside `#machine`, and that is load-bearing: the pump replaces that element whenever the
+     connection changes, and a half-typed address inside it would be thrown away mid-word. #}
+  <details class="machine-change">
+    <summary>{{ "machine-change"|t }}</summary>
+    <form class="field-row" hx-post="/machine/connect" hx-target="#machine" hx-swap="outerHTML">
+      <input type="text" name="address" inputmode="url" autocomplete="off"
+             placeholder="{{ "machine-address-example"|t }}" aria-label="{{ "machine-address"|t }}"
+             value="{{ machine.address_value() }}">
+      <button type="submit">{{ "machine-use"|t }}</button>
+    </form>
+    <p class="hint">{{ "machine-pin-hint"|t }}</p>
+  </details>
+</div>
+{% when None %}
+{% endmatch %}
+{% endif %}
+
+{# The two preferences that are about the person holding the phone rather than about a song. The one
+   group that is on both remotes, which is why the rule above it is drawn by the group before it
+   rather than by this one. #}
+<div class="setup-group">
+  <form class="pref-row field-row" hx-post="/singer">
+    <label for="singer">{{ "singing-as"|t }}</label>
+    <input type="text" id="singer" name="singer" value="{{ chrome.singer.as_deref().unwrap_or("") }}"
+           placeholder="{{ "singer-placeholder"|t }}" autocomplete="given-name" enterkeyhint="done"
+           aria-label="{{ "singer-name"|t }}">
+    <button class="icon-btn">{{ "machine-save"|t }}</button>
+  </form>
+
+  <form class="pref-row field-row" hx-post="/locale">
+    <label for="locale">{{ "language-picker"|t }}</label>
+    <select id="locale" name="locale" onchange="this.form.requestSubmit()"
+            aria-label="{{ "language-picker"|t }}">
+      {% for choice in chrome.locales %}
+      <option value="{{ choice.tag }}"{% if choice.chosen %} selected{% endif %}>{{ choice.name }}</option>
+      {% endfor %}
+    </select>
+  </form>
+</div>
+
+
+{# A backup is the whole collection, so it is offered where nothing has already narrowed which part
+   of it you mean -- which is here rather than inside the list of folders. #}
+{% if chrome.capabilities.favorites %}
+<div class="setup-group">
+<a class="big-choice" href="/favorites/backup">
+  <span class="big-choice-icon" aria-hidden="true">&#8681;</span>
+  <span class="big-choice-text">
+    <span class="big-choice-name">{{ "backup-link"|t }}</span>
+    <span class="big-choice-sub">{{ "backup-setup-sub"|t }}</span>
+  </span>
+  <span class="chevron">&rsaquo;</span>
+</a>
+</div>
+{% endif %}
+
+{# The owner's door, last because for most people holding this phone it is the rarest row on the
+   tab. Online only: `/admin/` is a page the machine serves, so this is same-origin here and points
+   at nothing in the offline app.
+
+   **A link, not a control.** A guest's tap reaches a password prompt, which is what keeps the
+   singer's remote the singer's — being unlinked was never the protection. Until this existed
+   nothing anywhere pointed at that page: the television's QR code goes to `/`, and an owner had to
+   know to type the path. #}
+{% if chrome.capabilities.owner_page %}
+<div class="setup-group">
+{# **A pencil and deliberately not a gear.** The gear is this tab's own mark in the bar, and
+   `The gear is this tab's` refuses one mark meaning two things in one application — a gear inside
+   the gear tab is exactly that. What this row does is change the machine, so a pencil says it and
+   competes with nothing. The lock the row also implies is in the sub-line's words instead: Unicode's
+   only padlock is emoji-presentation, and nothing else here is. #}
+<a class="big-choice" href="/admin">
+  <span class="big-choice-icon" aria-hidden="true">&#9998;</span>
+  <span class="big-choice-text">
+    <span class="big-choice-name">{{ "owner-page-link"|t }}</span>
+    <span class="big-choice-sub">{{ "owner-page-sub"|t }}</span>
+  </span>
+  <span class="chevron">&rsaquo;</span>
+</a>
+</div>
+{% endif %}
+
+{# **Which build is answering, at the foot of the one tab that is about this program rather than
+   about a song.** Every other program here puts it in a header chip; this one has no header — the
+   bottom tab bar is the only chrome a phone gets, and a version number in it would be taking a
+   quarter of a thumb's worth of room for something read once.
+
+   Not a catalog string. The product's name and a number are the same in every language, and a
+   translator handed `KaraokeMachine 1.8.0` can only make it wrong. See `Every program says which
+   build it is` in docs/decisions/interface.md. #}
+<p class="setup-version">KaraokeMachine {{ chrome.version }}</p>
+
+{% endblock %}
