@@ -91,17 +91,24 @@ with `gh workflow run release.yml -f tag=vX.Y.0`.
 
 ## 7. Add the macOS packages, on a Mac
 
-Once the draft exists, on a Mac, at the tag:
+Once the draft exists, on a Mac:
 
 ```sh
 git fetch --tags && git checkout vX.Y.0
-task dist:setup:notarized
-task dist:setup:remote:notarized
+task release:macos
+```
+
+That is three commands, which are the same step without `task`:
+
+```sh
+tools/platform/macos/installer.sh --notarize
+tools/platform/macos/installer-remote.sh --notarize
 tools/dist/release.sh --add --platforms macos
 ```
 
-`--add` uploads the two notarized packages to the draft and leaves its text alone. It refuses when
-there is no draft yet. See
+It first checks that the checkout is at the tag with no changed tracked file, so the packages are
+built from what the tag names. `--add` uploads the two notarized packages to the draft and leaves
+its text alone. It refuses when there is no draft yet. See
 [`CI builds the release, and a Mac adds its packages`](docs/decisions/distribution.md#ci-builds-the-release-and-a-mac-adds-its-packages).
 
 ## By hand, from a desk

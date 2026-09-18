@@ -517,6 +517,7 @@ tools/dist/release.sh --platforms windows,linux,android  # ...the carriers one m
 tools/dist/release.sh --upload --platforms windows,linux,android,ios --elsewhere macos
                                 #   ...and a page that also names what a Mac adds
 tools/dist/release.sh --add --platforms macos   # on the Mac: add its packages to that draft
+task release:macos              #   ...both notarized packages built, then that, at the tag only
 ```
 
 **`--platforms` is for the release no one machine can cut.** A Mac produces the two `.pkg` files and

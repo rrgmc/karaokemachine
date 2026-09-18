@@ -9,6 +9,7 @@
 #   tools/dist/release.sh --upload --platforms windows,linux,android,ios --elsewhere macos
 #                                              # ...and a body that also names what a Mac adds later
 #   tools/dist/release.sh --add --platforms macos   # upload these carriers to the draft, body untouched
+#   tools/dist/release.sh --check-tag          # is this checkout at the version's tag, unchanged?
 #   tools/dist/release.sh --notes-file <path>  # a body other than tools/dist/release-notes.md
 #   tools/dist/release.sh -v
 #
@@ -84,6 +85,7 @@ ALL_PLATFORMS="windows macos linux android ios any"
 
 UPLOAD=0
 ADD=0
+CHECK_TAG=0
 NOTES_FILE="tools/dist/release-notes.md"
 PLATFORMS="$ALL_PLATFORMS"
 PLATFORMS_NAMED=0
@@ -108,6 +110,7 @@ while [ $# -gt 0 ]; do
   case "$1" in
     --upload) UPLOAD=1 ;;
     --add) ADD=1; UPLOAD=1 ;;
+    --check-tag) CHECK_TAG=1 ;;
     --elsewhere)
       shift
       [ $# -gt 0 ] || { echo "dist-release: --elsewhere needs a list" >&2; exit 2; }
@@ -128,6 +131,7 @@ while [ $# -gt 0 ]; do
     -h|--help)
       echo "usage: tools/dist/release.sh [--upload] [--platforms <list>] [--elsewhere <list>] [--notes-file <path>] [-v]"
       echo "       tools/dist/release.sh --add --platforms <list> [-v]"
+      echo "       tools/dist/release.sh --check-tag"
       exit 0
       ;;
     *) echo "dist-release: unknown option $1" >&2; exit 2 ;;
@@ -178,6 +182,36 @@ fi
 VERSION="$(dist_manifest_version)"
 TAG="v$VERSION"
 OUT="dist/release/$VERSION"
+
+# -- the checkout a second machine builds from -----------------------------------------------------
+
+# **What `--add` uploads is built from what the tag names, or not at all.** The first run's carriers
+# come from a checkout of the tag, and a package built from a commit after it would sit on the same
+# page under the same version. So the checkout has to be at the tag, with no change to a tracked
+# file. `--check-tag` asks this alone, so `task release:macos` can ask before ten minutes of builds.
+at_tag() {
+  local want
+  if ! want="$(git rev-parse -q --verify "refs/tags/$TAG^{commit}")"; then
+    echo "dist-release: there is no tag $TAG in this checkout -- git fetch --tags" >&2
+    return 1
+  fi
+  if [ "$(git rev-parse HEAD)" != "$want" ]; then
+    echo "dist-release: this checkout is not at $TAG, so what it builds is not what $TAG names." >&2
+    echo "              git checkout $TAG" >&2
+    return 1
+  fi
+  if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
+    echo "dist-release: this checkout changes tracked files, so what it builds is not $TAG" >&2
+    return 1
+  fi
+}
+
+if [ "$CHECK_TAG" -eq 1 ]; then
+  at_tag || exit 2
+  dist_step "at $TAG"
+  exit 0
+fi
+[ "$ADD" -eq 0 ] || at_tag || exit 2
 
 # -- the table -------------------------------------------------------------------------------------
 

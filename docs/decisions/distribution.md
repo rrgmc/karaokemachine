@@ -2321,7 +2321,12 @@ published notarized or not at all, and notarizing takes two Developer ID certifi
 account, which stay on the Mac rather than in the repository's secrets. So the workflow runs
 `release.sh --platforms windows,linux,android,ios --elsewhere macos`: the page names the packages
 and says how they are signed from its first draft, and the Mac adds them with
-`tools/dist/release.sh --add --platforms macos`. The draft is published once both halves are on it.
+`tools/dist/release.sh --add --platforms macos`, which `task release:macos` runs after building
+both. The draft is published once both halves are on it.
+
+**The Mac builds from the tag or uploads nothing.** `--add` refuses a checkout that is not at the
+version's tag, or that changes a tracked file, because a package built from a later commit would sit
+on the page under the same version as everything CI built from the tag.
 
 **The Android job refuses before it builds when the keystore secret is missing.** Without it Gradle
 signs with the runner's own debug key, and `release.sh` refuses that APK after an hour of building.
