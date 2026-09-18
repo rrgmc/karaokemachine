@@ -89,18 +89,20 @@ jobs:
       # `--no-self-update`: a rustup replacing itself mid-job gains nothing.
       - run: rustup toolchain install --no-self-update
 
+      # Through `bash`, as the Taskfile runs them: a script's executable bit does not survive a
+      # commit made on Windows, and the checks do not depend on it.
       - name: Repository guards
         run: |
-          tools/dev/check-no-local-refs.sh
-          tools/dev/check-toolchain-pin.sh
-          tools/dev/check-version-pin.sh
-          tools/dev/check-mdns.sh
-          tools/dev/check-cargo-config.sh
-          tools/dev/check-prose.sh
+          bash tools/dev/check-no-local-refs.sh
+          bash tools/dev/check-toolchain-pin.sh
+          bash tools/dev/check-version-pin.sh
+          bash tools/dev/check-mdns.sh
+          bash tools/dev/check-cargo-config.sh
+          bash tools/dev/check-prose.sh
 
       - name: Commit messages
         if: github.event_name == 'pull_request'
-        run: tools/dev/check-prose.sh --commits
+        run: bash tools/dev/check-prose.sh --commits
 
       # `-S error` is clean. `warning` adds SC2034 "appears unused" throughout the sourced libraries
       # -- `features.sh`, `common.sh` -- whose variables the caller reads.
