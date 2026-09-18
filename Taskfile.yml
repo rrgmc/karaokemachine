@@ -946,7 +946,7 @@ tasks:
   # Keeps the current version and takes the rest. **It knows about no product in particular**, which
   # is the property to preserve: one number covers everything under `dist/` now that the excluded
   # workspace follows the machine, where it used to need an arm for each of the two programs in it.
-  # The one thing left is explained where it is handled, in tools/dist/clean.sh: `KaraokeMachine.app`
+  # The one thing left is explained where it is handled, in tools/dist/clean.sh: `Karaoke Machine.app`
   # carries no version at all, so `clean:old` can never remove a macOS bundle and `clean` is what does.
   clean:old:
     desc: 'Remove staged releases from older versions, keeping the current one (--dry-run to look first)'
@@ -1001,7 +1001,7 @@ tasks:
     cmds:
       - task: _staged_bundle
         vars:
-          BUNDLE: 'dist/karaokemachine/macos/KaraokeMachine.app'
+          BUNDLE: 'dist/karaokemachine/macos/Karaoke Machine.app'
           BIN: karaokemachine
           STAGE: 'dist:app'
 

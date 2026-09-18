@@ -431,10 +431,10 @@ whole of the reason.
 
 ### The second bundle, and the one thing that can be wrong with it
 
-`KaraokeMachine Stream.app` is what `--stream` has instead of the Start Menu entry Windows gives it
+`KM Stream.app` is what `--stream` has instead of the Start Menu entry Windows gives it
 and the desktop action Linux gives it, and the reason it is a bundle rather than a line in one is that
 a macOS manifest has nowhere to put a launch argument. It holds a plist, an icon and a four-line
-script, and it copies nothing: what it runs is the binary inside `KaraokeMachine.app` beside it.
+script, and it copies nothing: what it runs is the binary inside `Karaoke Machine.app` beside it.
 
 - **`exec`, never a symlink**, which is the reason `/usr/local/bin/karaokemachine` is a shim — Rust's
   `current_exe()` on Apple is `_NSGetExecutablePath` with no realpath, so a machine that sees this
@@ -679,7 +679,7 @@ the one that runs second takes it.
 
 ## The four macOS bundles
 
-`KaraokeMachine.app`, `KM Package Builder.app`, `KM Remote.app` and `KM Admin.app`.
+`Karaoke Machine.app`, `KM Package Builder.app`, `KM Remote.app` and `KM Admin.app`.
 
 **Why a bundle rather than the bare binary.** A bare Mach-O is a terminal program: no icon in the Dock
 or Finder, not double-clickable, no `Info.plist` — so nothing names the window and there is no

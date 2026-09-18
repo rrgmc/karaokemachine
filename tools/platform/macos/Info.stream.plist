@@ -8,7 +8,7 @@
   shortcut and Linux puts it in a desktop action; a macOS bundle carries no argument anywhere in its
   manifest, so the only way to offer the mode as something double-clickable is a bundle whose
   executable supplies it. That executable is a four-line script, and the machine it starts is the one
-  in `KaraokeMachine.app` beside this.
+  in `Karaoke Machine.app` beside this.
 
   **`CFBundleIdentifier` is its own, and that is not cosmetic.** LaunchServices keys a bundle on this,
   and two bundles sharing one identifier are one application to the system: the Finder, the Dock and
@@ -21,9 +21,9 @@
 <plist version="1.0">
 <dict>
     <key>CFBundleName</key>
-    <string>KaraokeMachine Stream</string>
+    <string>KM Stream</string>
     <key>CFBundleDisplayName</key>
-    <string>KaraokeMachine Stream</string>
+    <string>KM Stream</string>
     <key>CFBundleIdentifier</key>
     <string>com.karaokemachine.app.stream</string>
     <key>CFBundleExecutable</key>

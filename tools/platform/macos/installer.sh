@@ -118,11 +118,11 @@ pkg_resolve_signing "$NOTARIZE"
 # `docs` is the hidden always-on one, mirroring the .iss's unconditional README lines.
 claim() { # <basename of a top-level payload entry> -> prints the component, or fails
   case "$1" in
-    "KaraokeMachine.app")      printf 'machine' ;;
+    "Karaoke Machine.app")      printf 'machine' ;;
     # The same component as the bundle above, because it is the same program: it holds a launch
-    # script and an icon, and what it starts is the binary inside `KaraokeMachine.app`. A component
+    # script and an icon, and what it starts is the binary inside `Karaoke Machine.app`. A component
     # of its own could be declined, which would install a launcher pointing at nothing.
-    "KaraokeMachine Stream.app") printf 'machine' ;;
+    "KM Stream.app") printf 'machine' ;;
     "KM Package Builder.app")  printf 'builder' ;;
     "KM Remote.app")           printf 'remote'  ;;
     "KM Admin.app")            printf 'admin'   ;;
@@ -218,8 +218,8 @@ fi
 # thirteen against Homebrew's, and no file here may name any of them.
 missing=()
 compgen -G "$PAYLOAD/lib/libav*.dylib" >/dev/null || missing+=("lib/libav*.dylib")
-compgen -G "$PAYLOAD/KaraokeMachine.app/Contents/Frameworks/libav*.dylib" >/dev/null \
-  || missing+=("KaraokeMachine.app/Contents/Frameworks/libav*.dylib")
+compgen -G "$PAYLOAD/Karaoke Machine.app/Contents/Frameworks/libav*.dylib" >/dev/null \
+  || missing+=("Karaoke Machine.app/Contents/Frameworks/libav*.dylib")
 if [ "${#missing[@]}" -gt 0 ]; then
   echo "installer: the staged folder has no ffmpeg -- missing ${missing[*]}." >&2
   echo "           The setup package is always a video build, so this cannot be packaged." >&2
@@ -258,7 +258,7 @@ fi
 # it means picking the right one of many `version =` lines, and asking the binary cannot disagree with
 # the binary. On macOS the machine has no bare executable at all, so the one inside the bundle is what
 # answers -- and it is the same read that put @VERSION@ in that bundle's Info.plist.
-MACHINE_EXE="$PAYLOAD/KaraokeMachine.app/Contents/MacOS/karaokemachine"
+MACHINE_EXE="$PAYLOAD/Karaoke Machine.app/Contents/MacOS/karaokemachine"
 VERSION="$(dist_version "$MACHINE_EXE")"
 
 TARGET="$(dist_host_triple)"; TARGET="${TARGET%%-*}"      # aarch64 | x86_64
@@ -382,7 +382,7 @@ done
 # is not a carrier; it is a folder this script *draws two files out of*, and it legitimately holds
 # things an installed build must not get: `karaokemachine`, whose installed form is the shim into the
 # bundle, and `assets/`, the SoundFont and wallpapers that bare executable reads, which the machine's
-# own component already carries inside `KaraokeMachine.app`. Both would be a second copy of something
+# own component already carries inside `Karaoke Machine.app`. Both would be a second copy of something
 # already installed, and `claim()` declining them is what says so.
 #
 # `if` rather than `[ … ] && continue`: this script runs under `set -e`, where a bare test that comes
@@ -506,9 +506,19 @@ cat > /usr/local/bin/karaokemachine <<'SHIM'
 #!/bin/sh
 # Installed by the KaraokeMachine setup package. Removed by
 # /usr/local/karaokemachine/uninstall.sh, which recognizes this line.
-exec "/Applications/KaraokeMachine.app/Contents/MacOS/karaokemachine" "$@"
+exec "/Applications/Karaoke Machine.app/Contents/MacOS/karaokemachine" "$@"
 SHIM
 chmod 755 /usr/local/bin/karaokemachine
+
+# **The bundles under their one-word names are this component, and an upgrade takes them.** Installer
+# places the new names and leaves the old ones standing, so /Applications would hold two machines
+# sharing one identifier, and LaunchServices would open whichever it found first. Taken only when the
+# identifier inside says it is ours, which is the test uninstall.sh applies for the same reason.
+for old in "/Applications/KaraokeMachine.app" "/Applications/KaraokeMachine Stream.app"; do
+  [ -d "$old" ] || continue
+  id=$(plutil -extract CFBundleIdentifier raw -o - "$old/Contents/Info.plist" 2>/dev/null) || continue
+  case "$id" in com.karaokemachine.*) rm -rf "$old" ;; esac
+done
 
 # **What makes an installed machine drive a television**, and it rides with the machine's own
 # component rather than the SoundFont's: that one is a tick box somebody chose, and this is what
@@ -933,13 +943,13 @@ done
 #    part of the row: it is the one whose interesting failure is not starting but starting and then
 #    looking in the wrong place for its bank.
 BUNDLE_STARTS=(
-  "machine|KaraokeMachine.app/Contents/MacOS/karaokemachine|--show-paths|machine would not answer --show-paths"
+  "machine|Karaoke Machine.app/Contents/MacOS/karaokemachine|--show-paths|machine would not answer --show-paths"
   # **This row proves the launcher reaches the bundle beside it**, which is the only thing that can
   # be wrong about it and is invisible from the outside: its executable is a script naming a relative
   # path, so a bundle renamed or a layout changed leaves a launcher that starts nothing and says
   # nothing. `--show-paths` returns before anything is opened, so this asks the question without
   # starting an encoder, and it arrives after the `--stream` the script supplies.
-  "machine|KaraokeMachine Stream.app/Contents/MacOS/karaokemachine-stream|--show-paths|streaming launcher would not reach the machine beside it"
+  "machine|KM Stream.app/Contents/MacOS/karaokemachine-stream|--show-paths|streaming launcher would not reach the machine beside it"
   "builder|KM Package Builder.app/Contents/MacOS/km-package-builder|--version|package builder would not start"
   "remote|KM Remote.app/Contents/MacOS/km-remote|--version|remote would not start"
   "admin|KM Admin.app/Contents/MacOS/km-admin|--version|admin tool would not start"
@@ -1075,7 +1085,7 @@ done
 # with no realpath, so through a symlink `discover_asset_dir` sees /usr/local/bin, matches neither
 # the sibling-assets branch nor the Contents/MacOS one, and falls back to $PWD/assets -- the machine
 # comes up on a sine test tone with nothing on screen saying why.
-sim_app="$(payload_of machine)/KaraokeMachine.app"
+sim_app="$(payload_of machine)/Karaoke Machine.app"
 ln -sfn "$sim_app/Contents/MacOS/karaokemachine" "$SIM/bin/karaokemachine-symlink"
 printf '#!/bin/sh\nexec "%s/Contents/MacOS/karaokemachine" "$@"\n' "$sim_app" > "$SIM/bin/karaokemachine"
 chmod 755 "$SIM/bin/karaokemachine"
@@ -1090,12 +1100,12 @@ chmod 755 "$SIM/bin/karaokemachine"
 # `soundfont` line rather than with either assertion.
 shim_paths="$( cd "$SCRATCH" && PATH=/usr/bin:/bin run "$SIM/bin/karaokemachine" --show-paths 2>/dev/null )"
 case "$shim_paths" in
-  *"KaraokeMachine.app/Contents/Resources/assets"*) ;;
+  *"Karaoke Machine.app/Contents/Resources/assets"*) ;;
   *) fail "the machine's shim did not find the assets inside the bundle" ;;
 esac
 symlink_paths="$( cd "$SCRATCH" && PATH=/usr/bin:/bin run "$SIM/bin/karaokemachine-symlink" --show-paths 2>/dev/null || true )"
 case "$symlink_paths" in
-  *"KaraokeMachine.app/Contents/Resources/assets"*)
+  *"Karaoke Machine.app/Contents/Resources/assets"*)
     fail "a symlink now finds the bundle's assets too, so the shim in the machine's postinstall has
         stopped being necessary -- read discover_asset_dir and simplify it rather than leaving a
         shim nobody can justify" ;;
@@ -1154,7 +1164,7 @@ if [ "$INSTALL" -eq 1 ]; then
   # Captured rather than piped, for the EPIPE-panic reason spelled out at the shim check above.
   installed_paths="$( PATH=/usr/bin:/bin /usr/local/bin/karaokemachine --show-paths )"
   case "$installed_paths" in
-    *"KaraokeMachine.app"*) ;;
+    *"Karaoke Machine.app"*) ;;
     *) fail "the machine's shim did not find its assets inside the bundle" ;;
   esac
 

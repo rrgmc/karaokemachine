@@ -1398,7 +1398,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     written += 1;
 
     // macOS. The same small/large split as the four above. `Info.stream.plist` names this file, and
-    // it is the whole of what `KaraokeMachine Stream.app` carries that the bundle beside it does
+    // it is the whole of what `KM Stream.app` carries that the bundle beside it does
     // not.
     let members: Vec<(&[u8; 4], RgbaImage)> = ICNS_MEMBERS
         .iter()

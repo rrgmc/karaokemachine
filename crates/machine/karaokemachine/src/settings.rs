@@ -3117,11 +3117,11 @@ mod tests {
     #[test]
     fn a_macos_bundle_asset_dir_gets_no_overlay() {
         let scratch = Scratch::new("overlay-bundle");
-        let exe_dir = scratch.0.join("KaraokeMachine.app/Contents/MacOS");
+        let exe_dir = scratch.0.join("Karaoke Machine.app/Contents/MacOS");
         std::fs::create_dir_all(&exe_dir).expect("the bundle");
         let resources = scratch
             .0
-            .join("KaraokeMachine.app/Contents/Resources/assets");
+            .join("Karaoke Machine.app/Contents/Resources/assets");
         std::fs::create_dir_all(&resources).expect("the resources");
         let (asset_dir, overlay) = Paths::asset_dirs_from(Some(&exe_dir), Some(scratch.checkout()));
         assert_eq!(asset_dir, resources.canonicalize().unwrap_or(resources));
@@ -3134,7 +3134,7 @@ mod tests {
     #[test]
     fn a_bundle_without_resources_falls_through_and_may_overlay() {
         let scratch = Scratch::new("overlay-bundle-bare");
-        let exe_dir = scratch.0.join("KaraokeMachine.app/Contents/MacOS");
+        let exe_dir = scratch.0.join("Karaoke Machine.app/Contents/MacOS");
         std::fs::create_dir_all(&exe_dir).expect("the bundle");
         let cwd = scratch.checkout().to_path_buf();
         let (asset_dir, overlay) = Paths::asset_dirs_from(Some(&exe_dir), Some(&cwd));
