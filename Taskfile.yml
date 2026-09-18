@@ -313,7 +313,16 @@ tasks:
     cmds:
       - '"{{.SH}}" tools/dev/check-cargo-config.sh'
 
-  # In the order a failure is cheapest to read: the five text checks are a second each and say one
+  # A label naming the platform and the program comes from the bug form's own dropdown, so an option
+  # renamed there and a label declared in `tools/dev/labels.sh` have to keep saying the same thing.
+  # This asserts they do, both ways round. The standing decision is `An issue carries the platform
+  # and the program it is about` in docs/decisions/repository.md. Reads two files and says one line.
+  lint:labels:
+    desc: 'Check that every platform and program the bug form offers has a label'
+    cmds:
+      - '"{{.SH}}" tools/dev/labels.sh check'
+
+  # In the order a failure is cheapest to read: the text checks are a second each and say one
   # line, formatting says one thing, clippy says a few, and the test suite is the long one. `check:linux`
   # below is the part that only fails on Linux, and CI's `linux` job runs its equivalent.
   #
@@ -322,7 +331,7 @@ tasks:
   # `task build:no-video` is how you confirm the video-less tree still compiles. CI's `linux` job runs
   # the same build; its Windows and macOS jobs run the `-no-video` twins.
   check:
-    desc: 'The pass before a push -- local refs, prose, the two pins, the daemon, cargo config, formatting, clippy, then the tests'
+    desc: 'The pass before a push -- local refs, prose, the two pins, the daemon, cargo config, issue labels, formatting, clippy, then the tests'
     cmds:
       - task: lint:local
       - task: lint:prose
@@ -330,6 +339,7 @@ tasks:
       - task: lint:version
       - task: lint:mdns
       - task: lint:cargo
+      - task: lint:labels
       - task: fmt:check
       - task: lint
       - task: test

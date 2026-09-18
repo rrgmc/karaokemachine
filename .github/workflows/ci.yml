@@ -98,6 +98,7 @@ jobs:
           bash tools/dev/check-version-pin.sh
           bash tools/dev/check-mdns.sh
           bash tools/dev/check-cargo-config.sh
+          bash tools/dev/labels.sh check
           bash tools/dev/check-prose.sh
 
       - name: Commit messages
