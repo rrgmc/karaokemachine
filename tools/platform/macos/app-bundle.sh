@@ -23,9 +23,9 @@
 # This is a *release* default and nothing else: the cargo feature is still off by default, so
 # `cargo build -p karaokemachine` needs neither ffmpeg nor libclang.
 #
-# Output: dist/karaokemachine/macos/KaraokeMachine.app
+# Output: dist/karaokemachine/macos/Karaoke Machine.app
 #
-#   KaraokeMachine.app/
+#   Karaoke Machine.app/
 #     Contents/
 #       Info.plist
 #       PkgInfo
@@ -51,7 +51,7 @@
 # this is NOT signed and NOT notarized, so Gatekeeper refuses to open it on a machine it was not
 # built on until somebody clears the quarantine attribute:
 #
-#   xattr -dr com.apple.quarantine "dist/karaokemachine/macos/KaraokeMachine.app"
+#   xattr -dr com.apple.quarantine "dist/karaokemachine/macos/Karaoke Machine.app"
 #
 # Set KM_SIGN_IDENTITY to a Developer ID Application identity and the bundle, its executable and
 # every dylib in Contents/Frameworks are signed with it, with the hardened runtime. The report says
@@ -183,7 +183,7 @@ VERSION="$(dist_version "$BIN")"
 # and `KaraokeMachine 1.1.0.app` would read as a different application every release. The version is
 # in Info.plist, which is where macOS looks for it, and in the zip's name.
 MACOS_DIST="$(dist_dir karaokemachine macos)"
-APP="$MACOS_DIST/KaraokeMachine.app"
+APP="$MACOS_DIST/Karaoke Machine.app"
 CONTENTS="$APP/Contents"
 
 # The second bundle, and what it is for is in `Info.stream.plist`: a macOS bundle carries no launch
@@ -193,7 +193,7 @@ CONTENTS="$APP/Contents"
 #
 # Not exported, and bash could not export it anyway: `common.sh` is sourced, so it reads this shell's
 # own variables.
-STREAM_APP="$MACOS_DIST/KaraokeMachine Stream.app"
+STREAM_APP="$MACOS_DIST/KM Stream.app"
 DIST_MACOS_ALSO_STAGES=("$(basename "$APP")" "$(basename "$STREAM_APP")")
 
 # The executable, the icon, Info.plist and PkgInfo -- the parts every bundle here has, which is why
@@ -256,7 +256,7 @@ dist_seal_macos_bundle "$APP"
 # not obvious and is not an error: the machine starts, streams, and answers its API, but a status
 # item it creates in the menu bar is never drawn -- `NSStatusBar` hands one back and nothing appears.
 # Asking LaunchServices to start the other bundle is what keeps one identity: the machine comes up as
-# `KaraokeMachine.app`, which is what it is.
+# `Karaoke Machine.app`, which is what it is.
 #
 # **It also settles the question `exec` was here for.** `current_exe()` on Apple is
 # `_NSGetExecutablePath` with no realpath, so a machine that finds this script anywhere in its own
@@ -273,12 +273,12 @@ dist_seal_macos_bundle "$APP"
 STREAM_EXE="$(mktemp)"
 cat > "$STREAM_EXE" <<'LAUNCH'
 #!/bin/sh
-# Starts the machine in KaraokeMachine.app beside this bundle, drawing for an encoder rather than for
+# Starts the machine in Karaoke Machine.app beside this bundle, drawing for an encoder rather than for
 # a television. Staged by tools/platform/macos/app-bundle.sh; see the comment there for why it asks
 # LaunchServices to start the other bundle rather than running the binary inside it.
 set -eu
 beside=$(cd -- "$(dirname -- "$0")/../../.." && pwd)
-exec /usr/bin/open -a "$beside/KaraokeMachine.app" --args --stream "$@"
+exec /usr/bin/open -a "$beside/Karaoke Machine.app" --args --stream "$@"
 LAUNCH
 
 dist_stage_macos_bundle "$STREAM_APP" tools/platform/macos/Info.stream.plist \
@@ -301,7 +301,7 @@ echo "   assets    $assets file(s) in Contents/Resources/assets"
 if [ "$VIDEO" -eq 1 ]; then
   echo "   video     yes -- $DYLIBS dylib(s) in Contents/Frameworks, from $FFMPEG_DIR/lib"
   # Said every time. There is no `-no-video` marker in the path to tell the two bundles apart
-  # -- `--no-video` stages over the same `KaraokeMachine.app`, so the last run of this script is the
+  # -- `--no-video` stages over the same `Karaoke Machine.app`, so the last run of this script is the
   # bundle you have -- and this line is the only thing in the output that says which one that was.
   echo "             verified: nothing loads by absolute path, so it plays video on a Mac"
   echo "             that has no ffmpeg installed."

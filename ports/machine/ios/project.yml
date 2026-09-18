@@ -125,10 +125,12 @@ targets:
     info:
       path: KaraokeMachine/Info.plist
       properties:
-        # The home-screen label. `KaraokeMachine` is fifteen characters and fits, unlike the
-        # remote's twenty-one, so this platform's one user-visible name carries the whole product
-        # name and `ports/remote/ios/project.yml`'s argument about a short form does not arise.
-        CFBundleDisplayName: KaraokeMachine
+        # The home-screen label, and the name Spotlight and Settings fall back to. Two words, because
+        # a home screen that cannot fit fourteen characters cuts a single word mid-word and a space
+        # gives it a place to break -- `What the product is called` in docs/decisions/foundations.md.
+        # Both keys, so no surface that labels the icon reads the target's one-word name.
+        CFBundleDisplayName: Karaoke Machine
+        CFBundleName: Karaoke Machine
         # Set here rather than left to XcodeGen, which quietly defaults both to 1.0 and 1 -- the same
         # numbers by accident rather than on purpose, and nothing to notice when one of them should
         # have moved. ShortVersionString tracks the workspace version; CFBundleVersion is the build

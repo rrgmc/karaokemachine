@@ -427,7 +427,7 @@ find "$EXPANDED" -name '*.sf2' | grep -q . \
   && fail "an instrument bank is in the payload; the remote plays nothing"
 [ -e "$DOCS_PAYLOAD/km-remote" ] && fail "the terminal form was archived; this installs the application alone"
 [ -d "$APP_PAYLOAD/KM Remote.app" ] || fail "KM Remote.app is not in the app component"
-for other in KaraokeMachine "KM Package Builder" "KM Admin"; do
+for other in "Karaoke Machine" "KM Stream" "KM Package Builder" "KM Admin"; do
   [ -d "$APP_PAYLOAD/$other.app" ] && fail "$other.app was archived by the remote's own package"
 done
 

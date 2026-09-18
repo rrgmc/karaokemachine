@@ -106,7 +106,7 @@ VERSION="$(pkg_version -p karaokemachine)"
 # is not the wanted one**. Anything unrecognized is left alone rather than guessed at, which is what
 # makes two things safe without special-casing either:
 #
-#   - `KaraokeMachine.app` carries no version at all, by tools/platform/macos/app-bundle.sh's own decision --
+#   - `Karaoke Machine.app` carries no version at all, by tools/platform/macos/app-bundle.sh's own decision --
 #     the number is in Info.plist. It does not begin with the app's name either, so it is never
 #     matched and `--old` can never take a macOS bundle. `--all` is what removes one. The same now
 #     goes for `KM Package Builder.app`, which tools/dist/cmd.sh stages beside that tool's

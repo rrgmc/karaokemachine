@@ -483,7 +483,7 @@ mod platform {
         let Some(bundle) = bundle_of(exe) else {
             bail!(
                 "this is not inside a .app bundle, and on macOS the file type is declared by the \
-                 bundle rather than by a command. Use KaraokeMachine.app -- the one the setup \
+                 bundle rather than by a command. Use Karaoke Machine.app -- the one the setup \
                  package put in /Applications, or the one staged beside this folder."
             );
         };
@@ -503,7 +503,7 @@ mod platform {
     /// Nothing to undo: the declaration lives in the bundle, so removing the bundle removes it.
     pub fn unregister() -> Result<()> {
         bail!(
-            "on macOS the file type belongs to the bundle. Move KaraokeMachine.app to the Trash to \
+            "on macOS the file type belongs to the bundle. Move Karaoke Machine.app to the Trash to \
              remove it."
         )
     }
@@ -778,9 +778,9 @@ mod tests {
         );
         assert_eq!(
             platform::bundle_of(Path::new(
-                "/Applications/KaraokeMachine.app/Contents/MacOS/km"
+                "/Applications/Karaoke Machine.app/Contents/MacOS/km"
             )),
-            Some(PathBuf::from("/Applications/KaraokeMachine.app"))
+            Some(PathBuf::from("/Applications/Karaoke Machine.app"))
         );
     }
 }

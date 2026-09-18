@@ -493,7 +493,7 @@ both and the installer stages only the first.
 
 ```sh
 tools/platform/windows/dist.sh          # portable folder: two exes + assets + ffmpeg's DLLs
-tools/platform/macos/app-bundle.sh      # KaraokeMachine.app, on macOS; finds ffmpeg and libclang itself
+tools/platform/macos/app-bundle.sh      # Karaoke Machine.app, on macOS; finds ffmpeg and libclang itself
 tools/platform/linux/deb.sh             # a Debian 13 .deb, built in Docker
 tools/platform/linux/deb.sh --tools     # ...and karaokemachine-tools, the three curation tools
 tools/platform/linux/verify-deb.sh      # install that .deb in a clean container (--tools for the other)
@@ -678,7 +678,7 @@ Everything lands under `dist/<app>/<platform>/`:
 ```
 dist/karaokemachine/windows/karaokemachine-1.17.0-x86_64-pc-windows-msvc/   (+ .zip with --zip)
 dist/karaokemachine/windows/karaokemachine-1.17.0-x86_64-pc-windows-msvc-no-video/
-dist/karaokemachine/macos/KaraokeMachine.app
+dist/karaokemachine/macos/Karaoke Machine.app
 dist/karaokemachine/linux/karaokemachine_1.17.0-1_amd64.deb
 dist/karaokemachine/linux/no-video/karaokemachine_1.17.0-1_amd64.deb
 dist/karaokemachine-tools/linux/karaokemachine-tools_1.17.0-1_amd64.deb
@@ -1062,7 +1062,7 @@ grant, a terminal application carries its own. So `task dist:bin` and the setup 
 one window and stop in another, on a line that names a path rather than a permission:
 
 ```
-mkdir: dist/karaokemachine/macos/KaraokeMachine.app/Contents: Operation not permitted
+mkdir: dist/karaokemachine/macos/Karaoke Machine.app/Contents: Operation not permitted
 ```
 
 **Nothing prompts for it.** The request is refused where it stands, so the error above is the whole
@@ -1988,7 +1988,7 @@ task dist NO_VIDEO=1  ZIP=1  VERBOSE=1
 | Script | Produces |
 |---|---|
 | `tools/platform/windows/dist.sh` | the portable folder: two exes, four ffmpeg DLLs, assets |
-| `tools/platform/macos/app-bundle.sh` | `KaraokeMachine.app` — must run on macOS |
+| `tools/platform/macos/app-bundle.sh` | `Karaoke Machine.app` — must run on macOS |
 | `tools/platform/linux/deb.sh` | a Debian 13 `.deb`, built in Docker, carrying its own ffmpeg |
 | `tools/platform/linux/deb.sh --system-ffmpeg` | the same, linking Debian's ffmpeg instead |
 | `tools/platform/linux/deb.sh --tools` | `karaokemachine-tools`: the package builder, the remote and km-admin |

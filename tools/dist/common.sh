@@ -1210,7 +1210,7 @@ dist_stage_macos_bundle() { # <app dir> <plist template> <exe src> <exe name> <i
   # would be swept as a fossil by whichever of the two was staged first. Anything not named there is
   # still a fossil and still goes, which is the whole of what this guard is for.
   #
-  # An array rather than a string, because `KM Package Builder.app` and `KaraokeMachine Stream.app`
+  # An array rather than a string, because `KM Package Builder.app` and `KM Stream.app`
   # both have spaces in them and a split list would sweep bundles it had been told to keep.
   local sibling keep
   for sibling in "$(dirname "$app")"/*.app; do

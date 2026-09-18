@@ -179,7 +179,7 @@ for this either.
 | `km-admin.icns` | `tools/dist/cmd.sh`, which puts it in `KM Admin.app/Contents/Resources`. Its name without the extension is what `tools/platform/macos/Info.admin.plist` holds in `CFBundleIconFile` — once, like the remote's, because it declares no document type either |
 | `karaokemachine-stream-16.png` … `-256.png` | `hicolor` again, under the name the desktop entry's stream action gives: the Debian package installs them and `crates/machine/karaokemachine/src/register.rs` compiles them in for `--register`. `-32.png` is also what `src/tray.rs` hands `km-tray` for the **macOS menu bar**, and `-256.png` is what `km_display::icon`'s test samples |
 | `karaokemachine-stream.ico` | `crates/machine/karaokemachine/build.rs`, which puts it in the Windows executable **beside** `karaokemachine.ico` at the next ordinal — so the notification area of a `--stream` run and the Start Menu entry that passes `--stream` both find it without a second file being installed anywhere |
-| `karaokemachine-stream.icns` | `tools/platform/macos/app-bundle.sh`, which puts it in `KaraokeMachine Stream.app/Contents/Resources`. Its name without the extension is what `tools/platform/macos/Info.stream.plist` holds in `CFBundleIconFile` |
+| `karaokemachine-stream.icns` | `tools/platform/macos/app-bundle.sh`, which puts it in `KM Stream.app/Contents/Resources`. Its name without the extension is what `tools/platform/macos/Info.stream.plist` holds in `CFBundleIconFile` |
 
 Committed rather than built, because these are assets: Gradle needs Android's copies present in
 `res/`, `build.rs` needs the `.ico` before the executable can carry it, and nobody should need a Rust

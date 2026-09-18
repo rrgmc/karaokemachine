@@ -165,7 +165,7 @@ and it is one command per platform once prerequisites are in.
 | Platform | What you get |
 |---|---|
 | **Windows** | A setup program, `karaokemachine-setup-<version>-windows-x86_64.exe`, holding all seven products behind component checkboxes. It installs **per-user** into `%LOCALAPPDATA%\Programs` and raises no UAC prompt, and offers to put itself on your `PATH` and to open `.kmbuild` files. Or a **portable folder**: unzip and run. |
-| **macOS** | An installer package, `karaokemachine-setup-<version>-macos-<arch>.pkg` — the same seven products behind six component ticks. Applications go to `/Applications`, command-line tools to `/usr/local/karaokemachine` with symlinks in `/usr/local/bin`. It asks for your administrator password once and fetches nothing. Or `KaraokeMachine.app` on its own. |
+| **macOS** | An installer package, `karaokemachine-setup-<version>-macos-<arch>.pkg` — the same seven products behind six component ticks. Applications go to `/Applications`, command-line tools to `/usr/local/karaokemachine` with symlinks in `/usr/local/bin`. It asks for your administrator password once and fetches nothing. Or `Karaoke Machine.app` on its own. |
 | **Windows or macOS, the remote alone** | A second, small setup program: `km-remote-setup-<version>-windows-x86_64.exe` (about 5 MB) or `km-remote-setup-<version>-macos-<arch>.pkg`. It installs KM Remote and nothing else, for a computer that is never going to play a song — a laptop somebody holds while somebody else's machine does. It sits happily beside a full install and is removed on its own. |
 | **Debian, Ubuntu** | A `.deb`. Its ffmpeg and font dependencies are named rather than bundled. It installs as an ordinary application — menu entry, icon, and `karaokemachine` as a command — and carries the television-appliance service, switched off. A second `.deb`, `karaokemachine-tools`, holds the package builder, the offline remote and the picture-and-bank tool; name both files in one `apt install` to get them, or take the machine alone for a box under a television. |
 | **Any Linux** | A `.tar.gz`. Unpack anywhere, run it, delete it — no root, no package manager. It carries its own ffmpeg, because a folder can name no dependency. |
@@ -414,7 +414,7 @@ of this exists. `http://<the machine>/watch/` is the same stream on a page, for 
 opening an address is what is easiest. A machine that is not streaming serves neither.
 
 **Nothing has to be typed to start it.** A Start Menu entry on Windows, the stream action on the
-Linux desktop entry's right-click menu, and `KaraokeMachine Stream.app` on macOS each start the
+Linux desktop entry's right-click menu, and `KM Stream.app` on macOS each start the
 machine streaming, beside the launcher that opens its television. They wear the machine's mark with
 a broadcast badge in the corner, so the two ways of starting it are told apart wherever they sit
 side by side.

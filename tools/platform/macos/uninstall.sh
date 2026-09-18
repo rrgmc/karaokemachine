@@ -108,8 +108,8 @@ app_candidates() {
     case "$id" in "$APP_ID_PREFIX"*) printf '%s\n' "$app" ;; esac
   done
   printf '%s\n' \
-    "/Applications/KaraokeMachine.app" \
-    "/Applications/KaraokeMachine Stream.app" \
+    "/Applications/Karaoke Machine.app" \
+    "/Applications/KM Stream.app" \
     "/Applications/KM Package Builder.app" \
     "/Applications/KM Remote.app" \
     "/Applications/KM Admin.app"

@@ -1,4 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- **Two spellings of one name, and the manifest decides which shows where.** `app_name` is the
+         application's label: Settings > Apps, the task switcher, anywhere Android has room for a
+         line. `app_name_launcher` is on the `<activity>`, and a launcher reads the activity's label
+         before the application's, so it is the text under the icon and nowhere else.
+
+         The space is for the launcher alone. A launcher that cannot fit fourteen characters cuts or
+         wraps a single word mid-word; two words give it a place to break. See `What the product is
+         called` in docs/decisions/foundations.md. -->
     <string name="app_name">KaraokeMachine</string>
+    <string name="app_name_launcher">Karaoke Machine</string>
 </resources>

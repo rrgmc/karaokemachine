@@ -1,7 +1,9 @@
 [Desktop Entry]
 Type=Application
 Version=1.5
-Name=KaraokeMachine
+# Two words, and only here: a menu that cannot fit fourteen characters cuts a single word mid-word.
+# See `What the product is called` in docs/decisions/foundations.md.
+Name=Karaoke Machine
 GenericName=Karaoke player
 Comment=Plays karaoke MIDI files with the lyrics highlighted in time with the music
 # The /usr/bin symlink the package's postinst creates, not the /opt path the binary lives at: a

@@ -50,7 +50,7 @@ against it. Building for API 21 fails at the link with `unable to find library -
 
 ## What the product is called
 
-**`KaraokeMachine`, one word, wherever a person reads it — and the three siblings are
+**`KaraokeMachine`, one word, wherever a person reads it except under an icon — and the three siblings are
 `KaraokeMachine Package Builder`, `KaraokeMachine Remote` and `KaraokeMachine Admin`, abbreviated to
 `KM …` **on an icon and nowhere else**. A common word between four names is not enough to say they
 are one family; a common *prefix* is, and it is the half that survives being read.
@@ -101,6 +101,21 @@ anything.
 **The machine keeps the whole name everywhere**, because it is the product the other three are named
 after, and because it is the one that appears alone — under a television, with no sibling beside it
 to be told apart from. It has no abbreviated spelling at all, not even on its icon.
+
+**Under an icon the machine's name is two words, `Karaoke Machine`.** A launcher that cannot fit
+fourteen characters on one line cuts or wraps a single word wherever the width runs out, and
+`KaraokeMa` over `chine` reads as neither word. A space gives the launcher the one
+break that reads. The surfaces are the Android activity label, the iOS `CFBundleDisplayName` and
+`CFBundleName`, the macOS `Karaoke Machine.app` and both of its plist fields, the Linux `.desktop`
+`Name`, and the Windows Start menu folder, its shortcut and the desktop shortcut. Everything else,
+the Android application label, the window title, `AppName`, `FileDescription` and every page
+included, keeps the one word.
+
+**The streaming launcher's icon says `KM Stream`.** `Karaoke Machine Stream` reads as a fifth product
+rather than a way of starting the first, and it is the longest label in the list. `KM …` is the icon
+form the siblings already use, so the launcher sits in the list as one of them: `KM Stream.app` on
+macOS and the `KM Stream` Start menu shortcut on Windows. The Linux stream action is an item on the
+machine's own menu rather than an icon of its own, so it keeps `Stream to a television`.
 
 **Android's names are the ones to copy.** `ports/remote/android/…/values/strings.xml` carries
 `app_name` = `KaraokeMachine Remote` beside `app_name_short` = `KM Remote`, wired to the application

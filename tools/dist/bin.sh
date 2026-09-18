@@ -66,7 +66,7 @@
 # something a staging script produced, so it is skipped -- by name and out loud, not by accident.
 #
 # **The folders carry no version, and the zips do.** `dist/bin/windows` is a place you keep the
-# current build, in the way `KaraokeMachine.app` is; the number belongs on the thing you hand over,
+# current build, in the way `Karaoke Machine.app` is; the number belongs on the thing you hand over,
 # which is the archive. One consequence worth knowing: `tools/dist/clean.sh --old` can never remove
 # one of these folders, exactly as it can never remove a `.app`. `--all` is what does.
 
@@ -390,7 +390,7 @@ gather_app() { # <app> <staged dir>
 }
 
 # Rule 1: a bundle sits *beside* the staged folder, at the platform level, and is the GUI form of
-# whatever it wraps. tools/platform/macos/app-bundle.sh puts `KaraokeMachine.app` there and
+# whatever it wraps. tools/platform/macos/app-bundle.sh puts `Karaoke Machine.app` there and
 # tools/dist/cmd.sh puts `KM Package Builder.app` there.
 gather_bundles() { # <app>
   local app="$1" parent bundle
@@ -458,7 +458,7 @@ done
 # sequence `dist_stage_ffmpeg_macos` ends with, and `dist_verify_macho_portable` below covers the
 # result exactly as it covers everything else.
 if [ "$PLATFORM" = "macos" ]; then
-  APP="$(dist_dir karaokemachine macos)/KaraokeMachine.app"
+  APP="$(dist_dir karaokemachine macos)/Karaoke Machine.app"
   if [ ! -d "$APP" ]; then
     echo "dist-bin: $APP is missing -- tools/platform/macos/app-bundle.sh has not run." >&2
     exit 1
@@ -607,7 +607,7 @@ BODY
 The .app bundles here are signed only ad-hoc, so on any Mac other than the one that built them
 macOS refuses to open them until the quarantine flag is cleared:
 
-    xattr -dr com.apple.quarantine "KaraokeMachine.app"
+    xattr -dr com.apple.quarantine "Karaoke Machine.app"
 
 The first launch is slow while macOS assesses the bundle, and immediate afterwards.
 BODY
@@ -746,6 +746,6 @@ fi
 echo
 case "$PLATFORM" in
   windows) echo "now:  cd $CONSOLE && ./karaokemachine-console.exe --show-paths" ;;
-  macos)   echo "now:  open \"$BIN/KaraokeMachine.app\"" ;;
+  macos)   echo "now:  open \"$BIN/Karaoke Machine.app\"" ;;
   *)       echo "now:  cd $BIN && ./karaokemachine --show-paths" ;;
 esac
