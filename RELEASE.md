@@ -108,7 +108,12 @@ tools/dist/release.sh --add --platforms macos
 
 It first checks that the checkout is at the tag with no changed tracked file, so the packages are
 built from what the tag names. `--add` uploads the two notarized packages to the draft and leaves
-its text alone. It refuses when there is no draft yet. See
+its text alone.
+
+**The Mac can start as soon as the tag is pushed.** Its builds take about ten minutes and CI's about
+forty, so the draft is usually not there yet when they finish. The run then uploads nothing and
+prints the command that uploads what it built, `tools/dist/release.sh --add --platforms macos`. Run
+that once the draft exists; it does not build again. See
 [`CI builds the release, and a Mac adds its packages`](docs/decisions/distribution.md#ci-builds-the-release-and-a-mac-adds-its-packages).
 
 ## By hand, from a desk

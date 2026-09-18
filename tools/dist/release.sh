@@ -37,7 +37,8 @@
 # **`--add` is the second machine's half.** It gathers the named platforms through the same table,
 # so the macOS row still takes only the notarized package, and uploads them to the existing draft
 # without rewriting the body. It never gathers the carol pack, which the first run already uploaded,
-# and it refuses when there is no draft to add to. The decisions are
+# and when there is no draft yet it uploads nothing and names the command to run once there is. The
+# decisions are
 # `A release page carries the platforms the machine cutting it can build` and
 # `CI builds the release, and a Mac adds its packages` in docs/decisions/distribution.md.
 #
@@ -380,13 +381,21 @@ need_gh() {
 
 # **The draft has to be there already, and still a draft.** The run that wrote the body made it;
 # an `--add` that created one would make a page with no text and nothing but this machine's files.
+#
+# **No draft yet is the usual state, not a fault.** The Mac's builds take ten minutes and the
+# release workflow about forty, so a Mac started beside the tag finishes first. What it built is
+# gathered and waiting in `$OUT`, so the run says so, names the one command left, and exits 0: the
+# failure that `task` would otherwise print reads as a broken build.
 if [ "$ADD" -eq 1 ]; then
   need_gh
   dist_step "adding to draft release $TAG"
   if ! state="$(gh release view "$TAG" --json isDraft --jq .isDraft 2>/dev/null)"; then
-    echo "dist-release: there is no release $TAG to add to." >&2
-    echo "              The run that writes its body creates it; --add comes after that." >&2
-    exit 2
+    echo "   There is no draft release $TAG yet, so nothing was uploaded."
+    echo "   The release workflow creates it when its builds finish:"
+    echo "     gh run list --workflow release.yml --limit 1"
+    echo "   Once the draft is there, upload what was built here, without building it again:"
+    echo "     tools/dist/release.sh --add --platforms $(printf '%s' "$PLATFORMS" | tr ' ' ',')"
+    exit 0
   fi
   if [ "$state" != "true" ]; then
     echo "dist-release: $TAG is already published, so its assets are not replaced here." >&2
