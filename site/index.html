@@ -9,9 +9,18 @@
 <link rel="apple-touch-icon" href="icon-512.png">
 <link rel="stylesheet" href="style.css">
 
+<!-- The same page in the other language, and the pair a search engine reads to decide which of them
+     to serve whom. A static host negotiates nothing, so `x-default` naming English is what says
+     which is served to a reader whose language is neither. -->
+<link rel="alternate" hreflang="en" href="./">
+<link rel="alternate" hreflang="pt-BR" href="pt-BR/">
+<link rel="alternate" hreflang="x-default" href="./">
+
 <meta property="og:type" content="website">
 <meta property="og:title" content="KaraokeMachine">
 <meta property="og:description" content="A karaoke machine that behaves like a commercial home unit: pick a song by number, it plays, the words highlight in time.">
+<meta property="og:locale" content="en_US">
+<meta property="og:locale:alternate" content="pt_BR">
 <!-- Absolute, and the only absolute URL to our own files here. A card scraper fetches this with no
      page context, so a relative path is not resolvable to it — unlike every src= and href= below,
      which must stay relative because the site is served one path segment down. See the header of
@@ -26,6 +35,10 @@
 
 <header class="hero">
   <div class="wrap">
+    <!-- The language names itself, because the one person who has to read this link is the one who
+         cannot read the page around it. `Locale::endonym` states the rule for the screens that have
+         Rust behind them. -->
+    <p class="lang"><a href="pt-BR/" hreflang="pt-BR" lang="pt-BR">Português (Brasil)</a></p>
     <p class="eyebrow">MIDI · Video · MP3+G · UltraStar &nbsp;·&nbsp; Windows, macOS, Linux, Android, iOS</p>
     <!-- `alt=""`: the name is right beside it, and a description would say it twice. -->
     <h1><img class="mark" src="icon-512.png" width="512" height="512" alt="">Karaoke<span>Machine</span></h1>

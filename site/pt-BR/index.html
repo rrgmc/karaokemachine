@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KaraokeMachine — uma máquina de karaokê que funciona como um aparelho doméstico</title>
+<meta name="description" content="Escolha uma música pelo número, ela toca, e a letra acende no tempo certo. Tela cheia na televisão; todo celular da rede é um controle. Músicas em MIDI, vídeo, MP3+G e UltraStar. Windows, macOS, Linux, Android e iOS.">
+<link rel="icon" type="image/png" href="../favicon.png">
+<link rel="apple-touch-icon" href="../icon-512.png">
+<link rel="stylesheet" href="../style.css">
+
+<!-- A mesma página na outra língua, e o par que um buscador lê para decidir qual delas mostrar a
+     quem. Um servidor estático não negocia nada, então `x-default` apontando para o inglês é o que
+     diz qual das duas vai para quem não lê nenhuma das duas. -->
+<link rel="alternate" hreflang="en" href="../">
+<link rel="alternate" hreflang="pt-BR" href="./">
+<link rel="alternate" hreflang="x-default" href="../">
+
+<meta property="og:type" content="website">
+<meta property="og:title" content="KaraokeMachine">
+<meta property="og:description" content="Uma máquina de karaokê que funciona como um aparelho doméstico: escolha uma música pelo número, ela toca, e a letra acende no tempo certo.">
+<meta property="og:locale" content="pt_BR">
+<meta property="og:locale:alternate" content="en_US">
+<!-- Absoluta, e a única URL absoluta para os nossos próprios arquivos aqui. Quem monta o cartão de
+     link busca isto sem nenhum contexto de página, então um caminho relativo não resolve para ele —
+     ao contrário de todo src= e href= abaixo, que precisam continuar relativos porque o site é
+     servido um nível abaixo da raiz. Veja o cabeçalho de tools/dist/site.sh. -->
+<meta property="og:url" content="https://rrgmc.github.io/karaokemachine/pt-BR/">
+<meta property="og:image" content="https://rrgmc.github.io/karaokemachine/images/screen-playing.png">
+<meta name="twitter:card" content="summary_large_image">
+</head>
+<body>
+
+<a class="skip" href="#what-it-does">Pular para o que ela faz</a>
+
+<header class="hero">
+  <div class="wrap">
+    <!-- A língua se chama pelo próprio nome, porque quem precisa ler este link é justamente quem não
+         lê a página em volta. `Locale::endonym` enuncia a regra para as telas que têm Rust atrás. -->
+    <p class="lang"><a href="../" hreflang="en" lang="en">English</a></p>
+    <p class="eyebrow">MIDI · Vídeo · MP3+G · UltraStar &nbsp;·&nbsp; Windows, macOS, Linux, Android, iOS</p>
+    <!-- `alt=""`: o nome está logo ao lado, e uma descrição diria a mesma coisa duas vezes. -->
+    <h1><img class="mark" src="../icon-512.png" width="512" height="512" alt="">Karaoke<span>Machine</span></h1>
+    <p class="lede">
+      Uma máquina de karaokê que funciona como um aparelho doméstico: <strong>escolha uma música pelo
+      número, ela toca, e a letra acende no tempo certo.</strong> Ela roda em tela cheia numa
+      televisão, e os celulares da mesma rede viram controles através de uma API HTTP — procurar no
+      catálogo, pôr uma música na fila, mudar o tom, pular.
+    </p>
+    <p class="actions">
+      <a class="btn btn-primary" href="https://github.com/rrgmc/karaokemachine/releases/latest">Baixar</a>
+      <a class="btn" href="https://github.com/rrgmc/karaokemachine">Ver o código</a>
+      <a class="btn" href="https://github.com/rrgmc/karaokemachine/blob/master/BUILDING.md">Compilar</a>
+    </p>
+    <p class="honesty">
+      Software livre, <code>MIT OR Apache-2.0</code>. O pacote do macOS é assinado e reconhecido pela
+      Apple; todos os outros downloads não são assinados, e a página de versões diz o que cada
+      sistema vai perguntar.
+    </p>
+  </div>
+
+  <figure class="shot shot-hero">
+    <img src="../images/screen-playing.png" width="1920" height="1080" fetchpriority="high"
+         alt="A tela tocando numa televisão: o número, o título e o artista da música no alto, com
+              selos de tom e melodia e um disco no canto contando quantas músicas esperam; a linha
+              que está sendo cantada em letras grandes, com a sílaba atual preenchida pela metade em
+              âmbar; a linha seguinte logo abaixo em cinza; e uma barra de progresso no rodapé">
+  </figure>
+</header>
+
+<main>
+
+<section class="wrap" id="what-it-looks-like">
+  <h2>Como ela é</h2>
+
+  <div class="gallery gallery-2">
+    <figure class="shot">
+      <img loading="lazy" src="../images/screen-idle-connect.png" width="1920" height="1080"
+           alt="A tela de espera: um número de música sendo digitado em azul, um disco no canto
+                contando quantas músicas esperam, e um painel com o endereço da máquina na rede ao
+                lado de um QR code">
+      <figcaption><b>Em espera.</b> Digite um número, ou aponte o celular para o código.</figcaption>
+    </figure>
+    <figure class="shot">
+      <img loading="lazy" src="../images/screen-queue.png" width="1920" height="1080"
+           alt="A fila aberta por cima da tela que está tocando, escurecida, listando quatro músicas
+                à espera por número e título, com o nome de quem pediu cada uma em azul à direita">
+      <figcaption><b>A fila.</b> O que está esperando, e quem pediu.</figcaption>
+    </figure>
+  </div>
+
+  <h3 class="gallery-title">Todo celular é um controle</h3>
+  <div class="gallery gallery-4">
+    <figure class="shot shot-phone">
+      <img loading="lazy" src="../images/remote-browse.png"
+           alt="O controle do cantor num celular: botões de modo para músicas, artistas e livro
+                impresso, uma caixa de busca, um filtro de língua, e uma lista de músicas com
+                artista, duração e número, cada uma com um botão para procurar no YouTube e um botão
+                para pôr na fila">
+      <figcaption><b>Procure e ponha na fila</b> de qualquer celular. Sem instalar nada.</figcaption>
+    </figure>
+    <figure class="shot shot-phone">
+      <img loading="lazy" src="../images/remote-now.png"
+           alt="A página do que está tocando, no controle: a música, para quem ela foi posta na fila,
+                uma barra de progresso, botões de mais e menos para tom e ritmo, um controle
+                deslizante de volume da música e um botão para ligar e desligar a melodia guia">
+      <figcaption><b>A música enquanto toca</b> — tom, ritmo, melodia guia, volume.</figcaption>
+    </figure>
+    <figure class="shot shot-phone">
+      <img loading="lazy" src="../images/remote-queue.png"
+           alt="A página da fila, no controle: a música tocando no alto, com os controles recolhidos
+                atrás de um botão; embaixo, as músicas da fila por posição, título, artista e quem
+                pediu cada uma, com os botões de mover e tirar recolhidos atrás de um segundo botão">
+      <figcaption><b>Quem é o próximo</b>, e qualquer um pode mudar. Os controles ficam recolhidos
+        até alguém pedir.</figcaption>
+    </figure>
+    <figure class="shot shot-phone">
+      <img loading="lazy" src="../images/remote-offline.png"
+           alt="O controle offline mostrando sua lista de músicas, com um modo de favoritas, um
+                seletor de A a Z, e uma estrela ao lado de cada música para guardá-la como favorita">
+      <figcaption><b>O controle offline</b> tem favoritas e um seletor de A a Z, e funciona com a
+        máquina desligada.</figcaption>
+    </figure>
+  </div>
+
+  <figure class="shot shot-wide">
+    <img loading="lazy" src="../images/package-builder-songs.png"
+         alt="O km-package-builder num navegador: um painel largo de filtros cuja lista reduzida pode
+              ser salva com um nome, sobre uma tabela de músicas com colunas de artista, título,
+              língua, duração, adequação, sua própria nota, melodia e número de duplicatas, e botões
+              por linha para tocar uma música, guardá-la numa lista de favoritas, corrigir título e
+              artista, e procurar no YouTube">
+    <figcaption><b>km-package-builder</b>, para deixar uma pasta de arquivos em ordem antes de virar
+      pacote.</figcaption>
+  </figure>
+</section>
+
+<section class="wrap" id="what-it-does">
+  <h2>O que ela faz</h2>
+
+  <div class="cards">
+    <article class="card card-amber">
+      <h3>Músicas</h3>
+      <ul>
+        <li><b>Arquivos MIDI e KAR com letra de karaokê embutida</b>, nas três convenções que existem
+          por aí. Codificações antigas são detectadas, não supostas.</li>
+        <li><b>Músicas em vídeo</b> — MP4 com H.264/AAC.</li>
+        <li><b>Músicas em MP3+G</b> — um MP3 com um <code>.cdg</code> de mesmo nome, que é o que a
+          maioria dos discos de karaokê comerciais tem dentro. Os gráficos CD+G são desenhados aqui,
+          em Rust.</li>
+        <li><b>Músicas em UltraStar</b> — o <code>.txt</code> em que um jogo de cantar marca o tempo
+          das palavras, ao lado do MP3 que ele nomeia. A letra acende sílaba por sílaba.</li>
+        <li><b>Uma nota de adequação de 0 a 10</b> para cada arquivo, com o detalhamento — e o canal
+          de melodia quando dá para achar com segurança, com o motivo dito quando não dá.</li>
+      </ul>
+    </article>
+
+    <article class="card card-amber">
+      <h3>Tocando</h3>
+      <ul>
+        <li>Em tela cheia numa televisão, desenhada pelo SDL3, ou numa janela no computador —
+          <code>F</code> alterna e a escolha fica guardada. No Linux ela desenha direto no DRM/KMS a
+          partir de um terminal puro, sem nenhum ambiente gráfico instalado.</li>
+        <li><b>Ou numa televisão em outro cômodo.</b> Iniciada com <code>--stream</code>, a máquina
+          não abre janela nenhuma e serve o que teria mostrado, imagem e som juntos, como uma única
+          transmissão HLS contínua. Um aparelho, um celular ou um computador abre a página
+          <code>/watch/</code> da própria máquina — e, como a lista de reprodução é a interface,
+          qualquer coisa que toque uma delas aceita <code>/stream/live.m3u8</code> no VLC, no Kodi ou
+          no próprio aparelho de televisão, sem precisar de navegador nenhum.</li>
+        <li><b>A letra acende no tempo certo</b>, sílaba por sílaba, pelo relógio do próprio
+          sequenciador.</li>
+        <li><b>Tom e ritmo</b> por música, e uma <b>melodia guia</b> que pode ser silenciada.</li>
+        <li><b>Um ajuste de sincronia da letra em milissegundos</b>, regulável com a música tocando,
+          porque uma televisão atrasa a imagem e uma mesa de som adianta o áudio. Ele move só o
+          destaque da letra — nunca o áudio, porque os microfones estão nesse áudio.</li>
+        <li><b>Papéis de parede fotográficos</b> atrás da letra, com transição suave, cada um medido
+          para dar contraste na faixa da tela em que a letra fica.</li>
+      </ul>
+    </article>
+
+    <article class="card card-green">
+      <h3>Controles, e a API</h3>
+      <ul>
+        <li><b>A máquina serve um controle no próprio endereço dela</b> — qualquer celular da rede,
+          sem instalar nada, e um QR code na tela de espera.</li>
+        <li><b>Um controle offline avulso</b>, que guarda a própria cópia do catálogo de uma máquina,
+          então procurar, navegar e marcar favoritas funciona com a máquina desligada.</li>
+        <li><b>Uma API HTTP com eventos por WebSocket</b>, cobrindo busca, fila, controles de
+          reprodução, configurações, pacotes, papéis de parede, modo demonstração, microfones e saída
+          de áudio.</li>
+        <li>Encontrada na rede por <b>mDNS</b>. <b>Uma senha de administrador, que a própria máquina
+          escolhe</b> — um PIN de seis dígitos na tela de espera. Tudo que reconfigura a máquina pede
+          a senha; nada do que um cantor faz pede. As rotas de administração ficam todas sob
+          <code>/api/v1/admin/</code>.</li>
+      </ul>
+    </article>
+
+    <article class="card card-blue">
+      <h3>Pondo uma coleção em ordem</h3>
+      <ul>
+        <li><b><code>km-package-builder</code></b>, um servidor web local sobre uma pasta de
+          arquivos: navegar, procurar <em>dentro da própria letra</em>, dar nota, corrigir os nomes,
+          agrupar duplicatas e escolher músicas para os pacotes na mão.</li>
+        <li><b><code>km-pack</code></b> para montar e conferir pacotes,
+          <b><code>km-lyrics</code></b> para ver a linha do tempo de um arquivo já interpretada, e
+          <b><code>km-wallpaper-pack</code></b> para montar um conjunto de papéis de parede filtrado
+          pelo que deixa a letra legível.</li>
+        <li><b>Um livro de músicas impresso.</b> Quatro colunas — artista, número, título e o começo
+          da letra — no formato do livro que uma máquina comercial traz num fichário. A máquina serve
+          um para o próprio catálogo, então ele não é só uma peça de curadoria.</li>
+      </ul>
+    </article>
+  </div>
+</section>
+
+<section class="band band-admin" id="pictures-and-instruments">
+  <div class="wrap">
+    <h2>Imagens e instrumentos, achados para ela</h2>
+    <p>
+      O <b><code>km-admin</code></b> acha fotografias em que a letra continua legível — medindo na
+      faixa da tela que a letra ocupa — e bancos General MIDI a partir de uma tabela de sessenta e
+      três, e manda os dois para a máquina. <b>Ele também manda um arquivo que você já tem</b>: um
+      pacote, um banco, uma fotografia sua.
+    </p>
+    <p>
+      <b>Ele é a metade que a máquina não consegue fazer sozinha.</b> Uma caixa embaixo da televisão
+      não tem teclado nem janela, pode não ter como chegar à internet, e não é lugar para guardar as
+      suas contas.
+    </p>
+    <p class="dim">
+      As imagens vêm do Openverse por padrão, e os conjuntos feitos com ele podem ser repassados. O
+      Pixabay e o Pexels funcionam com uma chave de API sua, e os termos deles, que não permitem
+      redistribuição, aparecem ao lado do campo da chave.
+    </p>
+  </div>
+</section>
+
+<section class="band" id="numbers">
+  <div class="wrap">
+    <h2>Números que não podem colidir</h2>
+    <p>
+      O número de uma música é <b class="mono">banco&nbsp;×&nbsp;1000&nbsp;+&nbsp;vaga</b> — a vaga é
+      o número que o pacote deu à música, de 1 a 999, e o banco é o bloco de mil em que ela fica.
+      Dois pacotes que numeraram uma música como 500 não colidem: uma é 3500 e a outra é 611500.
+    </p>
+    <p>
+      <b>O banco de um pacote vem do identificador dele</b>, então os números dele são os mesmos em
+      qualquer máquina. Instale o mesmo volume aqui e na casa de um amigo, em qualquer ordem — ele
+      recebe o mesmo banco nas duas, então uma lista de músicas impressa viaja junto com o arquivo.
+    </p>
+    <p>
+      Um pacote tem no máximo 999 músicas. Não é um limite de armazenamento — a máquina aguenta mil
+      pacotes, quase um milhão de músicas — é um empurrão na direção de <em>fazer curadoria</em> de
+      um volume, em vez de apontar uma ferramenta para uma pasta. A coleção contra a qual isto foi
+      construído é enorme, e a diferença entre um catálogo e um monte está inteira no que alguém
+      deixou de fora.
+    </p>
+  </div>
+</section>
+
+<section class="wrap" id="deliberately-not">
+  <h2>Deliberadamente, não</h2>
+  <p class="prose">
+    <b>Cantor não recebe nota.</b>
+    <b>Nada de arquivos de áudio soltos</b> — um MP3 sem um <code>.cdg</code> ao lado não tem letra
+    nenhuma dentro — e nada de imagens de disco CD+G, só o par de arquivos.
+    <b>Nada de papel de parede em vídeo</b>: uma música em vídeo não é um fundo em vídeo.
+    <b>Nada de mudar o tom de áudio gravado.</b>
+    <b>Nada de tratamento de microfone no programa</b> — o áudio dos microfones é misturado no
+    hardware, e o programa cuida só do controle e do estado.
+    <b>Nada de escritas com formação de glifos</b>: tailandês, árabe e as escritas índicas precisam
+    de um formatador de texto que esta compilação não inclui, e não há suporte a escrita da direita
+    para a esquerda. CJK funciona — uma música em japonês ou chinês usa uma fonte do sistema, e a
+    leitura da letra já lida com as codificações antigas citadas acima.
+  </p>
+  <p class="prose dim">
+    Estas são decisões deliberadas, não funcionalidades faltando. Para propor uma mudança, comece
+    pelas <a href="https://github.com/rrgmc/karaokemachine/tree/master/docs/decisions">decisões</a>.
+  </p>
+</section>
+
+<section class="wrap" id="getting-it">
+  <h2>Como obter</h2>
+  <p class="prose">
+    <b>Todo pacote abaixo está na
+    <a href="https://github.com/rrgmc/karaokemachine/releases/latest">página de versões</a></b>, um
+    arquivo por sistema, com as dezesseis canções de Natal ao lado como download separado. Compilar a
+    partir do código é o outro caminho —
+    <a href="https://github.com/rrgmc/karaokemachine/blob/master/BUILDING.md"><code>BUILDING.md</code></a>
+    diz como, e é um comando por sistema depois que os pré-requisitos estão no lugar.
+  </p>
+
+  <div class="table-scroll">
+  <table class="carriers">
+    <thead>
+      <tr><th>Sistema</th><th>O que você recebe</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <th scope="row">Windows</th>
+        <td>Um instalador com os sete programas atrás de caixas de seleção. Ele instala <b>só para o
+          seu usuário</b> e não pede permissão de administrador, e oferece se colocar no seu
+          <code>PATH</code> e abrir arquivos de coleção <code>.kmbuild</code>. Ou uma <b>pasta
+          portátil</b>: descompacte e execute.</td>
+      </tr>
+      <tr>
+        <th scope="row">macOS</th>
+        <td>Um instalador da Apple — os mesmos sete programas atrás de seis caixas de seleção. Os
+          aplicativos vão para <code>/Applications</code> e as ferramentas de linha de comando para
+          <code>/usr/local</code>, já no seu <code>PATH</code>. Ele pede a sua senha de administrador
+          uma vez, e não baixa nada.</td>
+      </tr>
+      <tr>
+        <th scope="row">Debian, Ubuntu</th>
+        <td>Um <code>.deb</code>. As dependências de ffmpeg e de fontes são declaradas em vez de
+          embutidas, então o apt as fornece. Ele instala como um aplicativo comum — entrada no menu,
+          ícone, e <code>karaokemachine</code> como comando — e traz também o serviço de aparelho de
+          televisão, desligado.</td>
+      </tr>
+      <tr>
+        <th scope="row">Qualquer Linux</th>
+        <td>Um <code>.tar.gz</code>. Descompacte em qualquer lugar, execute, apague — sem root e sem
+          gerenciador de pacotes. Ele carrega o próprio ffmpeg, porque uma pasta não declara
+          dependência nenhuma.</td>
+      </tr>
+      <tr>
+        <th scope="row">Android, Google TV</th>
+        <td>Um APK com as duas arquiteturas, então ele instala num celular e numa televisão.</td>
+      </tr>
+      <tr>
+        <th scope="row">iPhone, iPad</th>
+        <td>Um <code>.ipa</code> para a máquina e outro para o controle, os dois <b>sem
+          assinatura</b>: o iOS não aceita assinatura de desconhecido, então você assina com o seu
+          próprio Apple ID. É a máquina inteira — o mesmo sintetizador, catálogo, tela e API — e as
+          músicas chegam pelo aplicativo Arquivos.</td>
+      </tr>
+    </tbody>
+  </table>
+  </div>
+
+</section>
+
+<section class="band" id="carols">
+  <div class="wrap">
+    <h2>Dezesseis canções de Natal, de graça</h2>
+    <p>
+      <b>Tem um pacote que você pode simplesmente baixar</b> — Noite Feliz, Joy to the World, The
+      First Noel, Hark! The Herald Angels Sing, O Come All Ye Faithful, What Child Is This e mais
+      dez. Todas em domínio público, quatro ou cinco estrofes cada, setenta e seis minutos de canto
+      num arquivo de 28&nbsp;KiB.
+    </p>
+    <p>
+      É um <b>download separado e não vem instalado com a máquina</b>: uma instalação nova começa
+      vazia de propósito, porque as músicas são suas.
+    </p>
+    <p class="dim">
+      É o único pacote desse tipo. Um MIDI de karaokê não é uma obra só, são quatro ou cinco — a
+      melodia, o arranjo, a letra, a tradução se houver, e quem digitou as notas — e quase nada no
+      mundo tem todas essas livres e escritas. Canções de Natal têm.
+    </p>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="foot-grid">
+      <div>
+        <h3>KaraokeMachine</h3>
+        <p class="dim">Escrito em Rust. <code>MIT OR Apache-2.0</code>, à sua escolha.</p>
+        <p class="dim">Isso cobre só o aplicativo. As bibliotecas do ffmpeg incluídas numa versão são
+          LGPL, e o banco de instrumentos que vem junto tem licença própria. Cada um traz o próprio
+          texto de licença.</p>
+      </div>
+      <nav aria-label="Documentação">
+        <h3>Leia mais</h3>
+        <ul>
+          <li><a href="https://github.com/rrgmc/karaokemachine">O repositório</a></li>
+          <li><a href="https://github.com/rrgmc/karaokemachine/blob/master/README.md">README</a> — para quem já tem a máquina</li>
+          <li><a href="https://github.com/rrgmc/karaokemachine/blob/master/BUILDING.md">Compilar</a> — pré-requisitos, a compilação, as versões</li>
+          <li><a href="https://github.com/rrgmc/karaokemachine/blob/master/docs/ARCHITECTURE.md">Arquitetura</a> — como ela é feita</li>
+          <li><a href="https://github.com/rrgmc/karaokemachine/tree/master/docs/decisions">Decisões</a> — por que ela é assim</li>
+        </ul>
+      </nav>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>

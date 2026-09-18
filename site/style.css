@@ -115,6 +115,19 @@ a:hover { text-decoration-color: var(--amber); }
     var(--bg);
 }
 
+/* The other language, above a hero that is otherwise centered. It sits right and quiet: a reader who
+   wants it is looking for it, and a reader who does not is looking at the title. */
+.lang {
+  margin: 0 0 1.4rem;
+  text-align: right;
+  font-size: 0.85rem;
+}
+.lang a {
+  color: var(--dim);
+  text-decoration-color: rgba(154, 146, 170, 0.4);
+}
+.lang a:hover { color: var(--text); text-decoration-color: currentColor; }
+
 .eyebrow {
   margin: 0 0 1.1rem;
   color: var(--dim);

@@ -11,6 +11,13 @@
 # than the workflow spelling out a few `cp` lines**: there is one code path, so what you preview
 # locally is what gets published, and a page that works here cannot break there.
 #
+# ** One page per language, and one of everything else. ** English is served at the root and every
+# other language one segment down under its own tag, so `site/pt-BR/index.html` reaches the shared
+# stylesheet and the shared pictures as `../style.css` and `../images/`. The pages are checked
+# against each other as well as on their own: the same sections, the same pictures and the same
+# links out, which is the drift a grep can see. Prose is not checked, and a page that fell behind in
+# words is found by reading it.
+#
 # ** The screenshots are staged, never committed twice. ** `site/index.html` asks for `images/*.png`
 # and this is what puts them there, out of `docs/images/` -- which `tools/dev/screenshots.sh`
 # regenerates and which the README links directly. A second tracked copy would be 1.3 MB of PNG that
@@ -40,6 +47,12 @@ dist_assert_root
 OUT=dist/site
 OPEN=0
 
+# The page, once per language, and the tag each one declares. A path here is relative to `site/` and
+# to the staged folder alike, so one name serves the source, the copy and the address a reader sees.
+# English is first because it is the source language and what `x-default` names.
+PAGES=(index.html pt-BR/index.html)
+LANGS=(en pt-BR)
+
 # -- arguments -------------------------------------------------------------------------------------
 
 while [ $# -gt 0 ]; do
@@ -54,7 +67,7 @@ done
 
 # -- what has to be here ---------------------------------------------------------------------------
 
-for f in site/index.html site/style.css icon/icon-32.png icon/icon-512.png; do
+for f in "${PAGES[@]/#/site/}" site/style.css icon/icon-32.png icon/icon-512.png; do
   [ -f "$f" ] || { echo "$DIST_SCRIPT: missing $f" >&2; exit 1; }
 done
 
@@ -79,8 +92,13 @@ fi
 dist_step "staging the site into $OUT"
 dist_clear "$OUT"
 
-cp site/index.html site/style.css "$OUT/"
-dist_detail "page      site/index.html + style.css"
+for page in "${PAGES[@]}"; do
+  mkdir -p "$OUT/$(dirname "$page")"
+  cp "site/$page" "$OUT/$page"
+  dist_detail "page      site/$page"
+done
+cp site/style.css "$OUT/"
+dist_detail "style     site/style.css, shared by every page"
 
 # `site/README.md` is for somebody reading the repository, not for the web.
 mkdir -p "$OUT/images"
@@ -108,9 +126,9 @@ dist_detail "icons     favicon.png + icon-512.png from icon/"
 # caught by the same pattern and is worse, being somebody else's server. Every path in the page is
 # relative, which is also why nothing here reads `configure-pages`' `base_url`: the whole class of
 # problem a Jekyll `baseurl` exists to solve is avoided by not having absolute paths.
-if grep -Eqn '(src|href)="/' site/index.html site/style.css; then
+if grep -Eqn '(src|href)="/' "${PAGES[@]/#/site/}" site/style.css; then
   echo "$DIST_SCRIPT: an absolute path -- this is served under /karaokemachine/, so it would 404:" >&2
-  grep -En '(src|href)="/' site/index.html site/style.css >&2
+  grep -En '(src|href)="/' "${PAGES[@]/#/site/}" site/style.css >&2
   exit 1
 fi
 
@@ -119,37 +137,123 @@ fi
 # should not have a home page that fetches a stylesheet from somebody else, and that is exactly the
 # sort of thing that arrives inside a copy-pasted snippet. Ordinary `<a href="https://…">` links are
 # navigation rather than a request and are left alone -- this looks for things the browser *fetches*.
-if grep -Eqn 'src="https?:|<link[^>]+href="https?:|url\(\s*["'"'"']?https?:' site/index.html site/style.css; then
+#
+# `<link rel="alternate">` names a sibling page relatively and is skipped by the pattern already:
+# what it looks for is a `<link>` whose href is `http`, and every one of those is somebody else's.
+if grep -Eqn 'src="https?:|<link[^>]+href="https?:|url\(\s*["'"'"']?https?:' "${PAGES[@]/#/site/}" site/style.css; then
   echo "$DIST_SCRIPT: the page would fetch something from another server:" >&2
-  grep -En 'src="https?:|<link[^>]+href="https?:|url\(\s*["'"'"']?https?:' site/index.html site/style.css >&2
+  grep -En 'src="https?:|<link[^>]+href="https?:|url\(\s*["'"'"']?https?:' "${PAGES[@]/#/site/}" site/style.css >&2
   exit 1
 fi
 
 # -- every link has to land ------------------------------------------------------------------------
 
 # The one failure this arrangement can actually produce, and it is invisible until somebody loads the
-# page: a relative path in `index.html` naming a file the staging does not put there. Renaming a
-# screenshot is all it takes. Absolute URLs are somebody else's business and are skipped.
+# page: a relative path in a page naming a file the staging does not put there. Renaming a screenshot
+# is all it takes. Absolute URLs are somebody else's business and are skipped.
+#
+# **Each reference is resolved against its own page's directory**, so `../style.css` from a language
+# one segment down lands on the one staged stylesheet. Resolving everything against `$OUT` instead
+# would pass a page that names a file above the artifact root -- which is the fault that makes a
+# `../docs/images/` path 404 in production only.
 dist_step "checking relative links"
 MISSING=0
-while IFS= read -r ref; do
-  [ -n "$ref" ] || continue
-  case "$ref" in
-    http:*|https:*|//*|"#"*|mailto:*|data:*) continue ;;
-  esac
-  # Anchors and query strings are not part of the path on disk.
-  path="${ref%%#*}"; path="${path%%\?*}"
-  [ -n "$path" ] || continue
-  if [ ! -e "$OUT/$path" ]; then
-    echo "$DIST_SCRIPT: index.html asks for '$path', which is not in $OUT" >&2
-    MISSING=$((MISSING + 1))
-  else
-    dist_detail "link      $path"
-  fi
-done < <(grep -o -E '(src|href)="[^"]*"' "$OUT/index.html" | sed -E 's/^[a-z]+="//; s/"$//' | sort -u)
+
+check_links() {
+  local page="$1" ref path base
+  base="$(dirname "$OUT/$page")"
+  while IFS= read -r ref; do
+    [ -n "$ref" ] || continue
+    case "$ref" in
+      http:*|https:*|//*|"#"*|mailto:*|data:*) continue ;;
+    esac
+    # Anchors and query strings are not part of the path on disk.
+    path="${ref%%#*}"; path="${path%%\?*}"
+    [ -n "$path" ] || continue
+    if [ ! -e "$base/$path" ]; then
+      echo "$DIST_SCRIPT: $page asks for '$path', which is not in $OUT" >&2
+      MISSING=$((MISSING + 1))
+    else
+      dist_detail "link      $page -> $path"
+    fi
+  done < <(grep -o -E '(src|href)="[^"]*"' "$OUT/$page" | sed -E 's/^[a-z]+="//; s/"$//' | sort -u)
+}
+
+for page in "${PAGES[@]}"; do
+  check_links "$page"
+done
 
 if [ "$MISSING" -gt 0 ]; then
   echo "$DIST_SCRIPT: $MISSING broken relative link(s); the page would publish with holes in it" >&2
+  exit 1
+fi
+
+# -- the pages have to say the same thing ------------------------------------------------------------
+
+# **Structure is compared and prose is not.** A page per language is the same page twice, and what
+# reaches one and not the other -- a section, a picture, a link out -- has a shape a grep can see. A
+# paragraph that fell behind in words does not, and is found by reading it. This is what stands in
+# for the catalog parity tests every translated crate owes, in a script that may not compile anything.
+dist_step "checking the pages against each other"
+
+# `../images/x.png` and `images/x.png` name one staged file, so the step up comes off before the two
+# sets meet.
+page_set() {
+  case "$2" in
+    id)    grep -o -E 'id="[^"]*"' "$OUT/$1" ;;
+    image) grep -o -E 'src="[^"]*"' "$OUT/$1" | sed -E 's|"\.\./|"|' ;;
+    link)  grep -o -E 'href="https://[^"]*"' "$OUT/$1" ;;
+  esac | sort -u
+}
+
+# Every language declares its own tag, names every language including itself, and says which one a
+# reader who asked for neither is served. A page in Portuguese declaring `lang="en"` lies to every
+# reader that believes it.
+page_langs() {
+  grep -o -E '<link rel="alternate" hreflang="[^"]*"' "$OUT/$1" |  sed -E 's/.*hreflang="//; s/"$//' | sort -u
+}
+
+WANT_LANGS=$(printf '%s\n' "${LANGS[@]}" x-default | sort -u)
+DRIFT=0
+
+for i in "${!PAGES[@]}"; do
+  page="${PAGES[$i]}"
+  lang="${LANGS[$i]}"
+
+  if ! grep -q "^<html lang=\"$lang\">" "$OUT/$page"; then
+    echo "$DIST_SCRIPT: $page has to declare <html lang=\"$lang\">" >&2
+    DRIFT=$((DRIFT + 1))
+  fi
+
+  if ! diff_out=$(diff <(echo "$WANT_LANGS") <(page_langs "$page")); then
+    echo "$DIST_SCRIPT: $page does not name every language in a <link rel=\"alternate\">:" >&2
+    echo "$diff_out" | sed -e 's|^<|  wanted |' -e "s|^>|  $page has |" >&2
+    DRIFT=$((DRIFT + 1))
+  fi
+
+  # The link a reader clicks, which is not the same thing as the `<link>` a search engine reads. It
+  # names the other language in that language, so the one person who needs it can read it.
+  for other in "${LANGS[@]}"; do
+    [ "$other" = "$lang" ] && continue
+    if ! grep -q "hreflang=\"$other\" lang=\"$other\"" "$OUT/$page"; then
+      echo "$DIST_SCRIPT: $page offers the reader no way to reach $other" >&2
+      DRIFT=$((DRIFT + 1))
+    fi
+  done
+
+  # Against the source language, which is where a section or a picture is added first.
+  [ "$i" -eq 0 ] && continue
+  for what in id image link; do
+    if ! diff_out=$(diff <(page_set "${PAGES[0]}" "$what") <(page_set "$page" "$what")); then
+      echo "$DIST_SCRIPT: ${PAGES[0]} and $page do not carry the same ${what}s:" >&2
+      echo "$diff_out" | sed -e "s|^<|  ${PAGES[0]} |" -e "s|^>|  $page |" >&2
+      DRIFT=$((DRIFT + 1))
+    fi
+  done
+done
+
+if [ "$DRIFT" -gt 0 ]; then
+  echo "$DIST_SCRIPT: the pages have drifted apart in $DRIFT way(s)" >&2
   exit 1
 fi
 
