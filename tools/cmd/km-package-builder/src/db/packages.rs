@@ -100,8 +100,9 @@ impl Db {
         }
         let transaction = self.conn.unchecked_transaction()?;
         transaction.execute(
-            "INSERT INTO packages(id, name, publisher, default_language, volume_format, created_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            "INSERT INTO packages(id, name, publisher, default_language, volume_format,
+                                  number_one_volume, created_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
             params![
                 id,
                 if package.name.trim().is_empty() {
@@ -112,6 +113,7 @@ impl Db {
                 package.publisher,
                 package.default_language,
                 package.volume_format,
+                package.number_one_volume,
                 now
             ],
         )?;
@@ -493,7 +495,7 @@ impl Db {
     }
 
     /// Updates what is said about the whole package: its name, publisher, default language and how
-    /// its volumes are numbered in their names.
+    /// its volumes are numbered in their names, and whether its only volume is numbered too.
     ///
     /// **Narrow, beside [`Self::update_package`]**, because the Details form carries these three and
     /// nothing about a volume. Writing a whole row from it would set a volume's version back to
@@ -505,11 +507,13 @@ impl Db {
         publisher: Option<&str>,
         default_language: Option<&str>,
         volume_format: &str,
+        number_one_volume: bool,
     ) -> Result<(), DbError> {
         self.conn.execute(
-            "UPDATE packages SET name = ?2, publisher = ?3, default_language = ?4, volume_format = ?5
+            "UPDATE packages SET name = ?2, publisher = ?3, default_language = ?4, volume_format = ?5,
+                                 number_one_volume = ?6
               WHERE id = ?1",
-            params![id, name, publisher, default_language, volume_format],
+            params![id, name, publisher, default_language, volume_format, number_one_volume],
         )?;
         Ok(())
     }

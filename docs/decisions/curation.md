@@ -1202,6 +1202,12 @@ number, so `vol{n}` names them `Brasil Axé vol1` and `Brasil Axé vol2`. The de
 because a bare number lands beside the version in a file name and `brasil-2-1.0.0` reads as one run of
 digits. A format without `{n}` is refused, because every volume would then take one name and one file.
 
+**A package can number its only volume.** A tick box under the volume name field names a package of
+one volume `Brasil Axé vol1` from its first build. It is for a set its curator knows will outgrow 999
+songs: the first file then keeps its name when the second volume starts, and nothing built from it is
+renamed. The box is off by default, because most packages never grow a second volume. It changes the
+name and nothing else, so the page still draws no volume strip until there are two.
+
 **The Songs tab picks a volume above its song list, and the Build tab picks its own.** On Songs a row
 of tab-like links sits directly over the songs, and the first number, Re-flow and the songs follow it;
 the link is in the address, so a reload keeps it. The Build tab has a volume picker of its own,

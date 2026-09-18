@@ -50,6 +50,13 @@
                style="width:8rem" title="{{ "package-volume-format-title"|t }}">
         <span class="dim">{{ "package-volume-format-note"|t }}</span>
       </div>
+      {# For a set its curator knows will outgrow 999 songs: the first file is `vol1` from its first
+         build, so it keeps its name when the second volume starts. Unticked sends nothing, which the
+         route reads as false. #}
+      <span></span>
+      <label class="check" title="{{ "package-number-one-volume-title"|t }}"><input type="checkbox" name="number_one_volume"
+             {% if package.number_one_volume %}checked{% endif %}>
+        {{ "package-number-one-volume"|t }}</label>
       <span class="label" title="{{ "package-id-title"|t }}">{{ "package-id"|t }}</span>
       <span class="dim mono" title="{{ "package-id-title"|t }}">{{ package.id }}</span>
       <span></span>

@@ -299,7 +299,7 @@ pub(super) const PACKAGE_COLUMNS: &str =
         v.volume, v.id,
         (SELECT COUNT(*) FROM package_volumes x WHERE x.package_id = p.id),
         (SELECT COUNT(*) FROM package_songs ps WHERE ps.package_id = p.id),
-        p.volume_format
+        p.volume_format, p.number_one_volume
    FROM packages p JOIN package_volumes v ON v.package_id = p.id";
 
 pub(super) fn package_row(row: &Row<'_>) -> rusqlite::Result<PackageRow> {
@@ -318,5 +318,6 @@ pub(super) fn package_row(row: &Row<'_>) -> rusqlite::Result<PackageRow> {
         volumes: row.get::<_, i64>(11)? as u32,
         total_songs: row.get::<_, i64>(12)? as u32,
         volume_format: row.get(13)?,
+        number_one_volume: row.get(14)?,
     })
 }

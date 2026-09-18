@@ -11,6 +11,12 @@ Entries are written for somebody who has the machine. Why any of it is the way i
 
 ## [Unreleased]
 
+### Added
+
+- **The package builder can number a package's only volume.** Tick the box under the volume name, and
+  a package that will pass 999 songs is named `vol1` from its first build, so its file keeps that
+  name when a second volume starts.
+
 ## [1.17.0] - 2026-09-17
 
 ### Added

@@ -11,9 +11,8 @@ use super::*;
 
 /// The schema this build writes and understands, stamped into `PRAGMA user_version`.
 ///
-/// Bump this and add an arm to [`step_to`] in the same change. The number keeps counting: the next
-/// schema change is 15.
-pub(super) const SCHEMA_VERSION: u32 = 14;
+/// Bump this and add an arm to [`step_to`] in the same change. The number keeps counting.
+pub(super) const SCHEMA_VERSION: u32 = 15;
 
 /// The oldest schema this build opens. Everything from here to [`SCHEMA_VERSION`] is an arm of
 /// [`step_to`].
@@ -81,12 +80,20 @@ pub(super) fn migrate(conn: &Connection, phase: Phase<'_>) -> Result<(), DbError
 /// One numbered migration step.
 ///
 /// **Each arm knows exactly what the database looked like before it**, because the version says so.
-/// There are none while [`OLDEST_SCHEMA_VERSION`] equals [`SCHEMA_VERSION`]; the next schema change
-/// adds the arm for 15 here and raises the constant.
-fn step_to(_conn: &Connection, version: u32) -> Result<(), DbError> {
-    Err(DbError::Rejected(format!(
-        "no migration leads to schema {version}; this build writes {SCHEMA_VERSION}"
-    )))
+fn step_to(conn: &Connection, version: u32) -> Result<(), DbError> {
+    match version {
+        // The box that numbers a package's only volume. Off, so every package keeps its name.
+        15 => {
+            conn.execute_batch(
+                "ALTER TABLE packages
+                   ADD COLUMN number_one_volume INTEGER NOT NULL DEFAULT 0",
+            )?;
+            Ok(())
+        }
+        _ => Err(DbError::Rejected(format!(
+            "no migration leads to schema {version}; this build writes {SCHEMA_VERSION}"
+        ))),
+    }
 }
 
 /// The three names on a song row that [`Db::clean_detected_text`] rewrites.

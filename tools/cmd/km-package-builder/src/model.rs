@@ -1046,6 +1046,8 @@ pub struct PackageRow {
     pub total_songs: u32,
     /// How a volume's number is written after the name, with `{n}` standing for the number.
     pub volume_format: String,
+    /// Numbers the volume while the package has only one, for a set that will outgrow 999 songs.
+    pub number_one_volume: bool,
 }
 
 impl PackageRow {
@@ -1066,15 +1068,18 @@ impl PackageRow {
             volumes: 1,
             total_songs: 0,
             volume_format: DEFAULT_VOLUME_FORMAT.to_owned(),
+            number_one_volume: false,
         }
     }
 
     /// What this volume's file and manifest are called.
     ///
     /// **The package's name while it has one volume, and numbered once it has two**, every volume
-    /// alike: `Brasil 1`, `Brasil 2`. A curator who never outgrows 999 songs never sees a number.
+    /// alike: `Brasil vol1`, `Brasil vol2`. A curator who never outgrows 999 songs never sees a
+    /// number. [`number_one_volume`](Self::number_one_volume) numbers the only volume too, so a set
+    /// that will outgrow 999 keeps its first file name when the second volume starts.
     pub fn volume_name(&self) -> String {
-        if self.volumes > 1 {
+        if self.volumes > 1 || self.number_one_volume {
             format!(
                 "{} {}",
                 self.name,
