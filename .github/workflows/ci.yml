@@ -14,7 +14,7 @@ name: CI
 #
 # Linux carries the video build because Debian 13 is the ffmpeg the appliance links, and the other
 # two platforms find ffmpeg through a download that `tools/setup/fetch-ffmpeg.sh` owns and that
-# finds nothing the Linux job does not. Android and iOS are not built here.
+# finds nothing the Linux job does not. Android and iOS are built by `release.yml`, from a tag.
 
 on:
   push:

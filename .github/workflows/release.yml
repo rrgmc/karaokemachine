@@ -1,0 +1,340 @@
+name: Release
+
+# **A pushed `v*` tag builds the release carriers and fills a draft release.** Each platform's job
+# runs the staging scripts a person runs by hand, uploads what they staged, and the `release` job
+# lays those files back out where `tools/dist/release.sh` looks for them and runs it with `--upload`.
+# The draft is still published by somebody who has opened the page:
+# `gh release edit v<version> --draft=false`.
+#
+# | Job     | Runs on        | Carriers                                                  |
+# |---------|----------------|-----------------------------------------------------------|
+# | windows | windows        | the setup program, and the remote's own                   |
+# | linux   | ubuntu, Docker | the machine's `.deb`, `karaokemachine-tools`, the tarball |
+# | android | ubuntu         | the machine's APK, and the remote's                       |
+# | ios     | macos          | both unsigned `.ipa` files                                |
+# | carols  | ubuntu         | the carol pack                                            |
+#
+# **macOS is not built here.** Its two `.pkg` files are published notarized or not at all, and
+# notarizing takes two Developer ID certificates and an Apple account that this repository holds no
+# secrets for. `--platforms` leaves them off the page, as it does for a cut made on a machine that
+# cannot build them. The decision is `CI builds the release, and a person publishes it` in
+# docs/decisions/distribution.md.
+#
+# **Separate from `ci.yml`, because it is not a pull-request check.** Branch protection requires
+# `CI ok` alone, and a tag is not a pull request.
+#
+# Every job calls the scripts through `bash` rather than `task`, as `ci.yml` does: `task` is optional
+# everywhere, and a script's executable bit does not survive a commit made on Windows.
+
+on:
+  push:
+    tags: ["v*"]
+  # Re-running a cut whose tag is already pushed, for a job that failed on something outside the
+  # tree. The tag is checked out, so what is built is still what the tag names.
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "The tag to build, such as v1.17.0"
+        required: true
+
+concurrency:
+  group: release-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  TAG: ${{ inputs.tag || github.ref_name }}
+  CARGO_TERM_COLOR: always
+  # SDL3_ttf vendors FreeType, whose CMakeLists.txt asks for CMake 3.0, and CMake 4 refuses anything
+  # below 3.5. The same line as `ci.yml`'s, for the same reason.
+  CMAKE_POLICY_VERSION_MINIMUM: "3.5"
+
+jobs:
+  # **The tag names the manifest's version, or nothing is built.** `release.sh` reads the version
+  # from the manifest and uploads to `v<that>`, so a tag that disagrees would spend an hour of
+  # runners on a draft for a different tag. Checked first, where it costs half a minute.
+  tag:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.TAG }}
+      - run: rustup toolchain install --no-self-update
+      - name: Tag matches the manifest
+        run: |
+          version="$(bash -c '. tools/dist/common.sh && dist_manifest_version')"
+          if [ "$TAG" != "v$version" ]; then
+            echo "release: the tag is $TAG and the manifest says $version" >&2
+            exit 1
+          fi
+
+  # Both setup programs round-trip themselves -- install, run every executable on a bare PATH,
+  # uninstall -- which needs no elevation because both install per user.
+  windows:
+    needs: tag
+    runs-on: windows-latest
+    timeout-minutes: 120
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.TAG }}
+      - run: rustup toolchain install --no-self-update
+      - uses: actions/cache@v6
+        with:
+          path: ~/.cache/karaokemachine/assets
+          key: assets-windows-${{ hashFiles('tools/setup/ffmpeg-pin.sh', 'tools/setup/fetch-*.sh') }}
+
+      # The runner image may carry Inno Setup and may not. Chocolatey installs it where
+      # `inno_find_compiler` already looks.
+      - name: Inno Setup
+        run: |
+          if ! command -v iscc >/dev/null 2>&1 \
+             && [ ! -f "/c/Program Files (x86)/Inno Setup 6/ISCC.exe" ] \
+             && [ ! -f "/c/Program Files/Inno Setup 6/ISCC.exe" ]; then
+            choco install innosetup -y --no-progress
+          fi
+
+      - run: bash tools/setup/fetch-ffmpeg.sh
+      - run: bash tools/platform/windows/installer.sh
+      - run: bash tools/platform/windows/installer-remote.sh
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: windows
+          path: |
+            dist/setup/windows/*.exe
+          if-no-files-found: error
+
+  # All three in one job, so the Debian image and the build volume holding ffmpeg and the cargo
+  # target are made once. The SoundFont is fetched on the host because the container's own cache is
+  # thrown away with it. Each carrier is then installed or unpacked in a clean container, which is
+  # the only look anybody takes at it before the draft.
+  linux:
+    needs: tag
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.TAG }}
+      - uses: actions/cache@v6
+        with:
+          path: ~/.cache/karaokemachine/assets
+          key: assets-linux-${{ hashFiles('tools/setup/fetch-assets.sh') }}
+      - run: bash tools/setup/fetch-assets.sh
+
+      - run: bash tools/platform/linux/deb.sh
+      - run: bash tools/platform/linux/deb.sh --tools
+      - run: bash tools/platform/linux/tarball.sh
+
+      - run: bash tools/platform/linux/verify-deb.sh
+      - run: bash tools/platform/linux/verify-deb.sh --tools
+      - run: bash tools/platform/linux/verify-tarball.sh
+
+      # The container writes as root through the bind mount; reading is all that follows.
+      - uses: actions/upload-artifact@v7
+        with:
+          name: linux
+          path: |
+            dist/karaokemachine/linux/*.deb
+            dist/karaokemachine/linux/*.tar.gz
+            dist/karaokemachine-tools/linux/*.deb
+          if-no-files-found: error
+
+  # **Signed with the release key or not built.** Without `KM_ANDROID_KEYSTORE` the build signs with
+  # a debug key the runner made for itself, which `release.sh` refuses an hour later; the missing
+  # secret is named here instead. See `How the Android applications are signed` in
+  # docs/decisions/remotes.md.
+  #
+  # The NDK is installed at the version both `build.gradle` files pin and named in
+  # `ANDROID_NDK_HOME`, because the runner exports its own default there and `tools/port/ndk.sh`
+  # reads that first -- which would build the Rust half and the Gradle half with two NDKs.
+  #
+  # The alias and key password are optional secrets. An unset one reaches Gradle as an empty string,
+  # which its `?:` treats as absent, so the defaults in `build.gradle` still apply.
+  android:
+    needs: tag
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      KM_ANDROID_KEYSTORE_B64: ${{ secrets.KM_ANDROID_KEYSTORE_B64 }}
+      KM_ANDROID_KEYSTORE_PASSWORD: ${{ secrets.KM_ANDROID_KEYSTORE_PASSWORD }}
+      KM_ANDROID_KEY_ALIAS: ${{ secrets.KM_ANDROID_KEY_ALIAS }}
+      KM_ANDROID_KEY_PASSWORD: ${{ secrets.KM_ANDROID_KEY_PASSWORD }}
+    steps:
+      - name: Release key
+        run: |
+          if [ -z "$KM_ANDROID_KEYSTORE_B64" ] || [ -z "$KM_ANDROID_KEYSTORE_PASSWORD" ]; then
+            echo "release: the repository secrets KM_ANDROID_KEYSTORE_B64 and" >&2
+            echo "         KM_ANDROID_KEYSTORE_PASSWORD are not both set, so no APK is built." >&2
+            exit 1
+          fi
+          printf '%s' "$KM_ANDROID_KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.keystore"
+          echo "KM_ANDROID_KEYSTORE=$RUNNER_TEMP/release.keystore" >> "$GITHUB_ENV"
+
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.TAG }}
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: NDK
+        run: |
+          ndk="$(sed -n "s/.*ndkVersion = '\([^']*\)'.*/\1/p" ports/machine/android/app/build.gradle)"
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;$ndk" > /dev/null
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/$ndk" >> "$GITHUB_ENV"
+
+      # ffmpeg-sys-next runs bindgen, which needs the host's libclang; the NDK ships none.
+      - name: Host tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ninja-build libclang-dev
+          echo "LIBCLANG_PATH=$(dirname "$(find /usr/lib/llvm-* -name 'libclang.so' | sort -V | tail -1)")" >> "$GITHUB_ENV"
+
+      - name: Rust
+        run: |
+          rustup toolchain install --no-self-update
+          rustup target add aarch64-linux-android armv7-linux-androideabi
+          cargo install cargo-ndk --locked
+
+      - uses: actions/cache@v6
+        with:
+          path: ~/.cache/karaokemachine/assets
+          key: assets-android-${{ hashFiles('tools/setup/ffmpeg-pin.sh', 'tools/setup/fetch-assets.sh', 'tools/port/machine/android/ffmpeg.sh') }}
+      - run: bash tools/setup/fetch-assets.sh
+      - run: bash tools/port/machine/android/ffmpeg.sh
+
+      - name: The machine
+        run: |
+          bash tools/port/machine/android/build.sh --release
+          bash tools/port/machine/android/stage.sh --release
+          bash tools/port/machine/android/assets.sh
+          bash ports/machine/android/gradlew -p ports/machine/android assembleRelease
+          bash tools/port/apk-signer.sh ports/machine/android/app/build/outputs/apk/release/app-release.apk
+
+      - name: The remote
+        run: |
+          bash tools/port/remote/android/build.sh --release
+          bash tools/port/remote/android/stage.sh --release
+          bash ports/remote/android/gradlew -p ports/remote/android assembleRelease
+          bash tools/port/apk-signer.sh ports/remote/android/app/build/outputs/apk/release/app-release.apk
+
+      # Both are `app-release.apk`, so the artifact keeps the tree from `ports/` down and the
+      # `release` job restores it there.
+      - uses: actions/upload-artifact@v7
+        with:
+          name: android
+          path: |
+            ports/machine/android/app/build/outputs/apk/release/app-release.apk
+            ports/remote/android/app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error
+
+      - if: always()
+        run: rm -f "$RUNNER_TEMP/release.keystore"
+
+  # Unsigned on purpose: the person installing signs with their own Apple ID. See `An iOS carrier is
+  # unsigned, and the person installing signs it` in docs/decisions/distribution.md. So this job,
+  # alone among the Mac's, needs no secret.
+  ios:
+    needs: tag
+    runs-on: macos-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.TAG }}
+      - name: Tools
+        run: |
+          rustup toolchain install --no-self-update
+          rustup target add aarch64-apple-ios aarch64-apple-ios-sim
+          brew install xcodegen
+      - uses: actions/cache@v6
+        with:
+          path: ~/Library/Caches/karaokemachine/assets
+          key: assets-ios-${{ hashFiles('tools/setup/ffmpeg-pin.sh', 'tools/setup/fetch-assets.sh', 'tools/port/machine/ios/ffmpeg.sh') }}
+      - run: bash tools/setup/fetch-assets.sh
+
+      - run: bash tools/port/machine/ios/build.sh --release --device-only --ipa
+      - run: bash tools/port/remote/ios/build.sh --release --device-only --ipa
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ios
+          path: |
+            dist/karaokemachine/ios/*.ipa
+            dist/km-remote/ios/*.ipa
+          if-no-files-found: error
+
+  # Debian's `abcmidi` package is the abc2midi `carols.sh` looks for on PATH, so nothing is built
+  # into the cache for it.
+  carols:
+    needs: tag
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.TAG }}
+      - run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends abcmidi
+      - run: rustup toolchain install --no-self-update
+      - uses: actions/cache@v6
+        with:
+          path: ~/.cache/karaokemachine/assets
+          key: assets-carols-${{ hashFiles('tools/dist/carols.sh') }}
+      - run: bash tools/dist/carols.sh
+      - uses: actions/upload-artifact@v7
+        with:
+          name: carols
+          path: dist/carols/*.kmpkg
+          if-no-files-found: error
+
+  # **The one job that writes to the repository.** It checks out the tag, puts each artifact back
+  # where its staging script left it, and lets `release.sh` do what it does on a desk: refuse a
+  # carrier that is missing or debug-signed, check the body against the files, and fill the draft.
+  release:
+    needs: [windows, linux, android, ios, carols]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.TAG }}
+      - run: rustup toolchain install --no-self-update
+
+      # An artifact's paths start below the deepest folder its files share, which is a different
+      # folder for each job; each is named here rather than guessed.
+      - uses: actions/download-artifact@v8
+        with:
+          name: windows
+          path: dist/setup/windows
+      - uses: actions/download-artifact@v8
+        with:
+          name: linux
+          path: dist
+      - uses: actions/download-artifact@v8
+        with:
+          name: android
+          path: ports
+      - uses: actions/download-artifact@v8
+        with:
+          name: ios
+          path: dist
+      - uses: actions/download-artifact@v8
+        with:
+          name: carols
+          path: dist/carols
+
+      - run: bash tools/dist/release.sh --upload --platforms windows,linux,android,ios
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

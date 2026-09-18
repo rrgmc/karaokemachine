@@ -2274,10 +2274,12 @@ name the build gave it, so one name holds in `dist/`, in the documents and on th
 for every other platform leave the table, the count and the body's download table together. A run
 that names none carries all twelve, which is the full release and the default.
 
-**No one machine builds all twelve.** The two `.pkg` files and the two `.ipa` files are produced on a
-Mac and the rest are not, so a machine without one has four carriers it cannot stage and a refusal
-it can do nothing about. Holding a release until every platform can be built on one computer waits
-on hardware rather than on the software being ready.
+**No one desk machine builds all twelve.** The two `.pkg` files and the two `.ipa` files are
+produced on a Mac and the rest are not, so a machine without one has four carriers it cannot stage
+and a refusal it can do nothing about. Holding a release until every platform can be built on one
+computer waits on hardware rather than on the software being ready. The release workflow names its
+platforms the same way, for the carriers it holds no secrets for; see
+[`CI builds the release, and a person publishes it`](#ci-builds-the-release-and-a-person-publishes-it).
 
 **A platform that is named and not staged still stops the run.** That refusal is what makes a
 gathering step worth having, so `--platforms` narrows what is asked for rather than softening the
@@ -2299,3 +2301,35 @@ carrier, in two shapes and neither a second copy of the table:
 **The body names what the run gathered, so one machine writes the page.** A second machine adding
 its carriers to the same draft uploads them and leaves the body alone; a second run of the gathering
 step rewrites the body to its own platforms and takes the rows the first one wrote with it.
+
+## CI builds the release, and a person publishes it
+
+**A pushed `v*` tag runs `.github/workflows/release.yml`, which builds every carrier it can and
+fills the draft release.** Each platform's job runs the same staging script a person types, and a
+last job runs `tools/dist/release.sh --upload` over what they staged. Publishing stays
+`gh release edit v<version> --draft=false`, typed by somebody who has opened the page.
+
+**The runners build more of the release than any one desk machine.** A public repository's standard
+runners cost nothing, macOS included, so Windows, Linux, Android and iOS come from one run: ten of
+the twelve carriers. That takes one set of secrets, the Android release keystore.
+
+**macOS stays out until the repository holds Apple secrets.** Its `.pkg` files are published
+notarized or not at all, and notarizing takes two Developer ID certificates and an Apple account.
+The workflow passes `--platforms windows,linux,android,ios`, which leaves them off the page exactly
+as a hand cut on a machine without a Mac does. A Mac adds them to the draft afterwards with
+`gh release upload`, which leaves the body alone.
+
+**The Android job refuses before it builds when the keystore secret is missing.** Without it Gradle
+signs with the runner's own debug key, and `release.sh` refuses that APK after an hour of building.
+
+**The job that builds a carrier also checks it.** Both setup programs round-trip an install, and the
+Linux job installs the `.deb` files and unpacks the tarball in clean containers, so the artifacts on
+the draft have been started once before anybody opens the page.
+
+**A tag that disagrees with the manifest stops the run first.** `release.sh` uploads to
+`v<manifest version>`, so a mismatched tag would build everything for a draft under a different
+name.
+
+**`--platforms` and the hand cut remain.** A job that fails on something outside the tree is re-run
+through `workflow_dispatch` with the tag, and a person can still stage and upload from a desk with
+the commands in [`RELEASE.md`](../../RELEASE.md).

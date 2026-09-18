@@ -201,8 +201,12 @@ job rather than each writing their own into the repository's 10 GB.
   `tools/dist/site.sh` change. It has no `pull_request` trigger, because a pull request has no
   deployment environment, and it is never a required check. It queues rather than cancels, because a
   cancelled deploy can leave the site part-published.
+- **`release.yml`** builds the release carriers from a pushed `v*` tag and fills the draft release.
+  It has no `pull_request` trigger and is never a required check. See
+  [`Releases`](BUILDING.md#releases) for the secrets it needs.
 - **`dependabot.yml`** opens one grouped pull request a month for the actions. Cargo is left out: a
-  dependency bump wants the Android and iOS builds, which CI does not run.
+  dependency bump wants the Android and iOS builds, which run from a tag and never on a pull
+  request.
 
 **`tools/platform/linux/check.sh` is the local twin of the `linux` job**: the same fmt, clippy and
 tests in the image the `.deb` is built in, about a minute against a warm cache.
