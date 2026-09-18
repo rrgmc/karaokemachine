@@ -116,6 +116,26 @@ fn a_file_that_marks_no_word_ends_parses_with_narrow_dividers() {
 }
 
 #[test]
+fn a_file_that_marks_its_lines_but_no_word_ends_parses_with_narrow_dividers() {
+    let song = parse(&testing::word_ends_unmarked_lines_marked());
+
+    assert!(song.lyrics.word_ends.divided());
+    assert_eq!(song.lyrics.syllable_count(), 240);
+    assert_eq!(
+        song.lyrics.line_count(),
+        24,
+        "the file's own lines are kept"
+    );
+
+    let text = song.lyrics.plain_text();
+    assert!(text.contains(km_song::SYLLABLE_DIVIDER));
+    assert!(
+        !text.contains(' '),
+        "no space is left to read as a word end: {text:?}"
+    );
+}
+
+#[test]
 fn a_file_that_marks_no_word_boundary_at_all_parses_with_narrow_dividers() {
     let song = parse(&testing::word_boundaries_unmarked());
 

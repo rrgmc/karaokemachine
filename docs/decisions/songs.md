@@ -727,9 +727,11 @@ still closes the gap rather than narrowing it.
 the line is fitted into is usually the same one. What changes is that each gap stops reading as a
 word end.
 
-**Only a file that marks nothing is touched.** A single break marker, or a single leading space,
-is the file saying where a line or a word begins, and a file that says anything is trusted
-completely. What is left is judged on two measurements, and the second matters as much as the first:
+**Only a file that marks no word is touched.** A single leading space is the file saying where a
+word begins, and a file that says so anywhere is trusted completely. **A break marker does not count
+as saying so.** It says where a line ends and nothing about the words inside it, and a file can place
+every one of its lines and still space every syllable. The file is judged on its words and not on
+its line markers, on two measurements, and the second matters as much as the first:
 a file with one event per *whole word* also spaces every event and marks no ends, and its words are
 exactly where it says they are — so mean fragment length is what separates the two, with the syllable
 files at 2.17 to 2.75 characters and the nearest word-per-event files at 3.40.
