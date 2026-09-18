@@ -514,6 +514,9 @@ task build:ios:remote RELEASE=1 DEVICE=1 IPA=1  #   ...and the offline remote
 tools/dist/release.sh           # gather the carriers into dist/release/<version>/ under release names
 tools/dist/release.sh --upload  #   ...and put them, and the body, on the draft GitHub release
 tools/dist/release.sh --platforms windows,linux,android  # ...the carriers one machine builds
+tools/dist/release.sh --upload --platforms windows,linux,android,ios --elsewhere macos
+                                #   ...and a page that also names what a Mac adds
+tools/dist/release.sh --add --platforms macos   # on the Mac: add its packages to that draft
 ```
 
 **`--platforms` is for the release no one machine can cut.** A Mac produces the two `.pkg` files and
@@ -522,12 +525,14 @@ of the table, out of the count and out of the body's download table at once. A c
 that *was* named and is not staged stops the run exactly as before. The rule is
 [`A release page carries the platforms the machine cutting it can build`](docs/decisions/distribution.md#a-release-page-carries-the-platforms-the-machine-cutting-it-can-build).
 
-**A pushed `v*` tag runs all of this in CI.** `.github/workflows/release.yml` stages ten of the
-twelve carriers on hosted runners and runs `release.sh --upload --platforms windows,linux,android,ios`.
-It needs the repository secrets `KM_ANDROID_KEYSTORE_B64` (the keystore, base64-encoded) and
+**A pushed `v*` tag runs all of this in CI, except the Mac's half.** `.github/workflows/release.yml`
+stages ten of the twelve carriers on hosted runners and runs
+`release.sh --upload --platforms windows,linux,android,ios --elsewhere macos`. The two `.pkg` files
+are built on a Mac and added with `release.sh --add --platforms macos`; the order is
+[`RELEASE.md`](RELEASE.md). The workflow needs the repository secrets `KM_ANDROID_KEYSTORE_B64` (the keystore, base64-encoded) and
 `KM_ANDROID_KEYSTORE_PASSWORD`, plus `KM_ANDROID_KEY_ALIAS` and `KM_ANDROID_KEY_PASSWORD` where they
 differ from the defaults. See
-[`CI builds the release, and a person publishes it`](docs/decisions/distribution.md#ci-builds-the-release-and-a-person-publishes-it).
+[`CI builds the release, and a Mac adds its packages`](docs/decisions/distribution.md#ci-builds-the-release-and-a-mac-adds-its-packages).
 
 **`tools/dist/release.sh` gathers and never builds**, for the reason `tools/dist/bin.sh --no-build`
 exists: it names the command behind any carrier that is not staged and stops, so a release is cut

@@ -14,11 +14,11 @@ name: Release
 # | ios     | macos          | both unsigned `.ipa` files                                |
 # | carols  | ubuntu         | the carol pack                                            |
 #
-# **macOS is not built here.** Its two `.pkg` files are published notarized or not at all, and
-# notarizing takes two Developer ID certificates and an Apple account that this repository holds no
-# secrets for. `--platforms` leaves them off the page, as it does for a cut made on a machine that
-# cannot build them. The decision is `CI builds the release, and a person publishes it` in
-# docs/decisions/distribution.md.
+# **macOS is built on a Mac, not here.** Its two `.pkg` files are published notarized or not at all,
+# and notarizing takes two Developer ID certificates and an Apple account, which stay on the Mac.
+# `--elsewhere macos` keeps their rows on the page, and the Mac adds them to this draft with
+# `tools/dist/release.sh --add --platforms macos`. The decision is
+# `CI builds the release, and a Mac adds its packages` in docs/decisions/distribution.md.
 #
 # **Separate from `ci.yml`, because it is not a pull-request check.** Branch protection requires
 # `CI ok` alone, and a tag is not a pull request.
@@ -340,6 +340,6 @@ jobs:
           name: carols
           path: dist/carols
 
-      - run: bash tools/dist/release.sh --upload --platforms windows,linux,android,ios
+      - run: bash tools/dist/release.sh --upload --platforms windows,linux,android,ios --elsewhere macos
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
