@@ -739,6 +739,10 @@ CREATE TABLE IF NOT EXISTS packages (
     -- the number, so `vol{n}` names them `Brasil vol1`, `Brasil vol2`. Always holds `{n}`, because
     -- without it every volume would take one name and one file.
     volume_format  TEXT    NOT NULL DEFAULT 'vol{n}',
+    -- Numbers the volume while the package has only one, so a set its curator knows will outgrow 999
+    -- songs is `Brasil vol1` from its first build and keeps that file name when a second volume
+    -- starts. Off by default, because most packages never grow a second volume.
+    number_one_volume INTEGER NOT NULL DEFAULT 0,
     created_at     TEXT    NOT NULL
 );
 

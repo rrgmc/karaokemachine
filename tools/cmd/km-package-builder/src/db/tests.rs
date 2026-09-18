@@ -1167,9 +1167,36 @@ fn a_volume_name_follows_the_package_format() {
     };
     assert_eq!(named(&db), ["vol1 vol1", "vol1 vol2"]);
 
-    db.update_package_details("vol1", "Brasil", None, None, "vol{n}")
+    db.update_package_details("vol1", "Brasil", None, None, "vol{n}", false)
         .expect("a format");
     assert_eq!(named(&db), ["Brasil vol1", "Brasil vol2"]);
+}
+
+/// A package of one volume carries its bare name, and is numbered from the first when asked.
+///
+/// **The box is for a set that will outgrow 999 songs**, whose first file would otherwise be renamed
+/// when the second volume starts.
+#[test]
+fn a_package_of_one_volume_is_numbered_when_asked() {
+    let mut db = db();
+    sourced_package(&mut db, "vol1", 1);
+    let named = |db: &Db| {
+        db.package_volume("vol1", 1)
+            .expect("the volume")
+            .volume_name()
+    };
+    db.update_package_details("vol1", "Brasil", None, None, "vol{n}", false)
+        .expect("unticked");
+    assert_eq!(named(&db), "Brasil");
+
+    db.update_package_details("vol1", "Brasil", None, None, "vol{n}", true)
+        .expect("ticked");
+    assert_eq!(named(&db), "Brasil vol1");
+    assert!(
+        db.package_volume("vol1", 1)
+            .expect("the volume")
+            .number_one_volume
+    );
 }
 
 /// The first number and the version are two forms on two tabs, and each leaves the other alone.
@@ -3310,6 +3337,36 @@ fn a_database_this_build_made_carries_its_schema_version() {
         SCHEMA_VERSION.to_string(),
         "a fresh database must be stamped, or the next open refuses it as unstamped"
     );
+}
+
+/// A database at schema 14 opens, gains the box that numbers a package's only volume, and keeps its
+/// packages under their bare names.
+#[test]
+fn a_database_at_schema_14_steps_to_15() {
+    let scratch = Scratch::new("schema-14");
+    {
+        let db = Db::create(&scratch.0).expect("create");
+        db.create_package(
+            &PackageRow::new("1f4a9c8e2b7d0356", "Brasil"),
+            "2026-09-18T00:00:00Z",
+        )
+        .expect("a package");
+        db.execute_for_test(
+            "ALTER TABLE packages DROP COLUMN number_one_volume; PRAGMA user_version = 14;",
+        )
+        .expect("put it back at schema 14");
+    }
+
+    let db = Db::open(&scratch.0).expect("a schema-14 database opens");
+    assert_eq!(
+        db.pragma_for_test("user_version").expect("pragma"),
+        SCHEMA_VERSION.to_string()
+    );
+    let volume = db
+        .package_volume("1f4a9c8e2b7d0356", 1)
+        .expect("the package survives the step");
+    assert!(!volume.number_one_volume);
+    assert_eq!(volume.volume_name(), "Brasil");
 }
 
 /// A database written by a newer build is refused rather than opened.

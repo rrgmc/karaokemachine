@@ -4514,6 +4514,8 @@ fn package_row(form: &Fields, id: &str) -> PackageRow {
             .filter(|format| !format.is_empty())
             .unwrap_or(crate::model::DEFAULT_VOLUME_FORMAT)
             .to_owned(),
+        // A tick box, so unticked sends nothing and reads as false.
+        number_one_volume: form.has("number_one_volume"),
         // Clamped at both ends rather than lifted at the low one only. A number above the limit
         // cannot be dialled, and silently taking it would push the whole package past the ceiling
         // one song at a time.
@@ -4638,6 +4640,7 @@ pub async fn package_settings(
                 row.publisher.as_deref(),
                 row.default_language.as_deref(),
                 &row.volume_format,
+                row.number_one_volume,
             )
         })
         .await

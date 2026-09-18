@@ -1688,6 +1688,26 @@ mod tests {
         assert_ne!(package.parent(), Some(root));
     }
 
+    /// A package of one volume set to number it writes `vol1` into both file names from the first
+    /// build, which are the names its first volume keeps when a second starts.
+    #[test]
+    fn a_numbered_single_volume_names_its_files_as_volume_one() {
+        let root = Path::new("/corpus");
+        let row = crate::model::PackageRow {
+            number_one_volume: true,
+            ..built_row("Brasil", "1.0.0", false)
+        };
+        assert_eq!(row.volume_name(), "Brasil vol1");
+        assert_eq!(
+            default_out_path(root, &row, true),
+            crate::db::data_dir(root).join("brasil-vol1-1.0.0.kmpkg")
+        );
+        assert_eq!(
+            default_spec_path(root, &row),
+            crate::db::data_dir(root).join("brasil-vol1.kmspec.yaml")
+        );
+    }
+
     /// The name on the box is the file the build will actually write.
     ///
     /// The raise happens before the write, so a default built from the *stored* version would put a

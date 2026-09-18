@@ -215,9 +215,9 @@ chooser beside it. SQLite hands back rows from a table with columns this build h
 so without the number a `.kmbuild` written by a newer build would open *silently*, and the tool would
 curate a corpus while ignoring whatever that build had added.
 
-**The ladder is `step_to`, one arm per version above the floor.** It has none while
-`OLDEST_SCHEMA_VERSION` equals `SCHEMA_VERSION`; the next schema change adds the arm for 15 and bumps
-the constant. A current database answers in one `PRAGMA`.
+**The ladder is `step_to`, one arm per version above the floor.** A schema change adds the arm for
+the next number and bumps the constant in the same change. A current database answers in one
+`PRAGMA`.
 
 **An unstamped file is either new or refused.** A brand-new database reaches `migrate` at 0 with no
 tables at all, because `Db::prepare` checks the version before the schema batch runs, so the triggers
