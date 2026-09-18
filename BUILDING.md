@@ -103,10 +103,11 @@ of scripts can do for you.
 | `task test` | `cargo km-test`, video included; `task test:no-video` declines it |
 | `task lint` | `cargo km-lint` — clippy over every target, warnings denied, video included |
 | `task fmt` | formats both workspaces: this one's members, and the excluded `tools/cmd/assets` |
-| `task check` | `lint:local`, `lint:prose`, `lint:pin`, `lint:version`, `lint:mdns`, `lint:cargo`, `fmt:check`, `lint`, then `test` — the pass before a push |
+| `task check` | `lint:local`, `lint:prose`, `lint:pin`, `lint:version`, `lint:mdns`, `lint:cargo`, `lint:labels`, `fmt:check`, `lint`, then `test` — the pass before a push |
 | `task lint:local` | asserts no tracked file names a local path, address or person |
 | `task lint:prose` | asserts the prose this branch adds, and the messages it commits them in, state the rule rather than narrating it |
 | `task lint:cargo` | asserts every value in `.cargo/config.toml` is a string, which is what a worktree can inherit without doubling it |
+| `task lint:labels` | asserts every platform and program the bug form offers has a label in `tools/dev/labels.sh` |
 | `task check:linux` | what CI's Linux job runs, in Docker, on this machine |
 | `task dist` | stages every release this platform can carry — the machine, then all six tools |
 | `task run` | starts the staged machine, at whatever version this workspace is on, and hands the prompt back |
@@ -1967,6 +1968,28 @@ It refuses three things that would otherwise be found only after publishing — 
 names that `docs/images/` does not have, an absolute path (the site is served under
 `/karaokemachine/`, so `/images/x.png` would 404), and anything the page would fetch from another
 server.
+
+## Issue labels
+
+```sh
+tools/dev/labels.sh list                        # the table, for a person   (task lint:labels checks it)
+tools/dev/labels.sh table                       # the same rows, for a script
+tools/dev/labels.sh check                       # or: task lint:labels
+tools/dev/labels.sh sync --dry-run              # what declaring them would do
+tools/dev/labels.sh sync                        # create and update them on GitHub
+tools/dev/labels.sh sync --prune --dry-run      # ...and which labels it would delete
+printf '### Platform\n\nWindows\n' | tools/dev/issue-labels.sh   # the labels a body asks for
+```
+
+**`tools/dev/labels.sh` is the one place a label is written down**, and `sync` is what puts the table
+on GitHub. `--prune` deletes every label the repository carries that the table does not name, which
+is a change to GitHub rather than to a checkout, so run it behind `--dry-run` first.
+
+**`.github/workflows/issue-labels.yml` applies the platform and program labels** from the bug form's
+own dropdown answers, when an issue opens and when its body is edited. `tools/dev/issue-labels.sh` is
+what it runs, and it reads a body on stdin, so it is tried on a hand-written one without opening an
+issue. The standing decision is
+[`An issue carries the platform and the program it is about`](docs/decisions/repository.md#an-issue-carries-the-platform-and-the-program-it-is-about).
 
 ## Releases
 

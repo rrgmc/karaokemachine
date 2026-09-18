@@ -1,0 +1,44 @@
+name: Issue labels
+
+# **An issue carries the platform and the program its body names.** The bug form requires both, and
+# an answer sitting in the body cannot be filtered on, so this reads the answer and applies the
+# label. `tools/dev/labels.sh` holds the option-to-label table and `task lint:labels` asserts that a
+# dropdown option and a label still agree.
+#
+# **The `issues` trigger never fires on a pull request**, so this workflow reports no check and the
+# one `CI ok` requires stays in `ci.yml`. It carries no path filter for the same reason that one
+# does not: a filter and a required check cannot both be had.
+#
+# **An edit reconciles rather than adds**, so an answer corrected to drop a platform drops the label
+# with it. A facet the body does not answer at all is left alone, which is what keeps a label put on
+# by hand.
+
+on:
+  issues:
+    types: [opened, edited]
+
+# The issue is all this touches.
+permissions:
+  issues: write
+
+# An issue edited twice in a moment is worth labelling once, and a cancelled run is the older body.
+concurrency:
+  group: issue-labels-${{ github.event.issue.number }}
+  cancel-in-progress: true
+
+jobs:
+  label:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # The body arrives through the environment and never through the command line. It is written
+      # by anybody, and `${{ github.event.issue.body }}` inside a shell line is that person choosing
+      # what runs. Through `bash`, as the other guards are: a script's executable bit does not
+      # survive a commit made on Windows.
+      - name: Apply the platform and program labels
+        env:
+          GH_TOKEN: ${{ github.token }}
+          KM_ISSUE_BODY: ${{ github.event.issue.body }}
+          KM_ISSUE: ${{ github.event.issue.number }}
+        run: printf '%s' "$KM_ISSUE_BODY" | bash tools/dev/issue-labels.sh --apply "$KM_ISSUE"

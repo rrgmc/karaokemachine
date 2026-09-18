@@ -18,6 +18,7 @@ tools/dev/check-prose.sh --commits   # ...and the messages it adds them in
 tools/dev/check-toolchain-pin.sh     # or: task lint:pin
 tools/dev/check-version-pin.sh       # or: task lint:version
 tools/dev/check-cargo-config.sh      # or: task lint:cargo  — every value a worktree can inherit
+tools/dev/labels.sh check            # or: task lint:labels — a label for every platform and program
 cargo fmt --all
 cargo km-lint                        # clippy over every target, -D warnings
 cargo km-test                        # the test suite

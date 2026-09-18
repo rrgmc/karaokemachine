@@ -1138,6 +1138,48 @@ fixture here is built from. See
 form points at the non-goals and `docs/decisions/` first: a request for something decided against is
 a request to change that decision, and it names the entry.
 
+## An issue carries the platform and the program it is about
+
+**A label names the platform and the program, because that is what an issue list is asked.** The bug
+form requires both, and an answer that reaches only the body cannot be filtered on: "what is broken
+on Android" or "what is wrong with the remote" means opening every issue to find out. The labels are
+`windows`, `macos`, `linux`, `android` and `ios`, and `machine`, `remote`, `package-builder`,
+`admin`, `tools` and `api`.
+
+**The form's answer is the source of the label**, and
+[`.github/workflows/issue-labels.yml`](../../.github/workflows/issue-labels.yml) applies it when an
+issue opens and when its body is edited. A person filling the form answers the question once, in the
+place the question is asked; a label applied by hand is a second answer that agrees with the first
+only as long as somebody keeps it agreeing. **An edit reconciles**, so an answer corrected to drop a
+platform drops the label with it, and a facet the body does not answer at all is left alone, which is
+what keeps a label somebody applied by hand.
+
+**The optional kind-of-song answer stays unlabelled.** It is given only when the problem is with a
+song, so four more labels sort a part of the list rather than the list.
+
+**Every label is declared in [`tools/dev/labels.sh`](../../tools/dev/labels.sh), which is the only
+place one is written down**, and `tools/dev/labels.sh sync` puts that table on GitHub. A label
+created in the web interface is a label no checkout knows about and no guard can read, and the four
+GitHub creates in every new repository that this table leaves out go the same way: `good first issue`
+and `help wanted` offer work to a crowd that is not here, `question` cannot arrive while blank issues
+are off, and `invalid` says what closing the issue says. `dependencies` is in the table although
+nothing here applies it, because Dependabot applies it and creates it again when it is gone.
+
+**The type labels keep GitHub's stock names.** `bug` and `enhancement` are what the two forms apply,
+and a name every reader of a GitHub repository already knows is worth more than a shorter one.
+
+**`task lint:labels` asserts that a dropdown option and a label still say the same thing**, both ways
+round, and that an option carries no comma — a rendered multiple choice joins its answers with one,
+so an option containing a comma cannot be told from two options. An option renamed in the form
+without the table is the fault it catches, and the alternative is an issue that quietly arrives with
+no label.
+
+**The workflow reports no check.** The `issues` trigger never fires on a pull request, so it stands
+outside [`master` takes pull requests, and CI is one required check](#master-takes-pull-requests-and-ci-is-one-required-check)
+rather than against it, and it carries no path filter for the same reason that workflow carries none.
+**The issue body reaches the script through the environment**, never through a command line: a body
+is written by anybody, and interpolating one into a shell line is that person choosing what runs.
+
 ## One version number for the whole repository
 
 **Every program here carries the machine's version, including the two in the excluded workspace.** A
