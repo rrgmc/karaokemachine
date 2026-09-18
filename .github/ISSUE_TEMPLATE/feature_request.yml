@@ -1,0 +1,30 @@
+name: Feature request
+description: Something the machine does not do and should.
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Some things are left out by decision**, and the README lists them under
+        [Not supported, by decision](https://github.com/rrgmc/karaokemachine#what-it-does): singer
+        scoring, bare audio files, video wallpapers, pitch shifting of audio and others. Every
+        decision, with its reason, is in [`docs/decisions/`](https://github.com/rrgmc/karaokemachine/tree/master/docs/decisions).
+
+        A request for one of those is a request to change that decision, so name the entry and say
+        what its reasoning misses.
+  - type: textarea
+    id: want
+    attributes:
+      label: What you want it to do
+      description: The situation you are in, and what the machine should do in it.
+    validations:
+      required: true
+  - type: input
+    id: decision
+    attributes:
+      label: The decision this changes, if any
+      description: A link to the entry in `docs/decisions/`.
+  - type: textarea
+    id: now
+    attributes:
+      label: What you do now instead

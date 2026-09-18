@@ -451,6 +451,7 @@ it are the same entry. How the thing is built is [`ARCHITECTURE.md`](../ARCHITEC
 - [The Rust toolchain is pinned exactly](repository.md#the-rust-toolchain-is-pinned-exactly)
 - [Why the pass checks everything](repository.md#why-the-pass-checks-everything)
 - [`master` takes pull requests, and CI is one required check](repository.md#master-takes-pull-requests-and-ci-is-one-required-check)
+- [A vulnerability is reported privately, through GitHub](repository.md#a-vulnerability-is-reported-privately-through-github)
 - [One version number for the whole repository](repository.md#one-version-number-for-the-whole-repository)
 - [A release keeps what it changed, and the changelog is where it is kept](repository.md#a-release-keeps-what-it-changed-and-the-changelog-is-where-it-is-kept)
 - [Catalogs live beside the words they translate](repository.md#catalogs-live-beside-the-words-they-translate)

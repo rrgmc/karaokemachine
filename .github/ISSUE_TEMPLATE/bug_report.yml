@@ -1,0 +1,74 @@
+name: Bug report
+description: Something the machine, the remote or a tool does wrong.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **A security problem does not go here.** Report it privately through the
+        [Security tab](https://github.com/rrgmc/karaokemachine/security/advisories/new).
+
+        **Do not attach a song file.** Almost every song is somebody's copyright, and an attachment
+        here is public. Describe the file instead: its kind, where the words are, what is odd about it.
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: "`karaokemachine --version`, or the version on the release you downloaded."
+      placeholder: "1.17.0"
+    validations:
+      required: true
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      multiple: true
+      options:
+        - Windows
+        - macOS
+        - Linux
+        - Android
+        - iOS
+    validations:
+      required: true
+  - type: dropdown
+    id: program
+    attributes:
+      label: Program
+      multiple: true
+      options:
+        - The machine (karaokemachine)
+        - The remote (KM Remote)
+        - km-package-builder
+        - km-admin
+        - km-pack or another command-line tool
+        - The HTTP API
+    validations:
+      required: true
+  - type: dropdown
+    id: song-kind
+    attributes:
+      label: Kind of song, if the problem is with one
+      multiple: true
+      options:
+        - MIDI or KAR
+        - Video
+        - MP3+G
+        - UltraStar
+        - Not about a song
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened, and what you expected
+      description: The steps that lead to it, if you know them.
+    validations:
+      required: true
+  - type: textarea
+    id: log
+    attributes:
+      label: Log
+      description: |
+        Run with `--log-file` and paste the relevant part of the newest file in the `logs` folder;
+        `--show-paths` says where that folder is. Replace your own folder names and network
+        addresses before pasting.
+      render: text
