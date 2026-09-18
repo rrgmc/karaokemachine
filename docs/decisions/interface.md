@@ -198,7 +198,7 @@ two products.
 the M is a badge drawn on top of the mark instead of beside it.
 
 **It is for the launchers and the icon bar, and nowhere else.** A Start Menu entry that passes
-`--stream`, the Linux desktop entry's stream action, `KaraokeMachine Stream.app`, and the
+`--stream`, the Linux desktop entry's stream action, `KM Stream.app`, and the
 notification-area or menu-bar icon a streaming run puts up — those are the places where the two ways
 of starting the machine are offered or running side by side. The window icon, the favicons, the
 `hicolor` entry the plain machine registers, the Plymouth logo, the phone launchers and the site all
@@ -1475,10 +1475,10 @@ inside it.** A process that execs its way from one bundle into another holds the
 launched under and the one its new image belongs to at the same time, and a status item created
 under that disagreement is handed back by `NSStatusBar` and never drawn. There is no error and
 nothing in a log: the machine starts, streams and answers its API, and the menu bar stays empty. So
-the streaming launcher `open`s `KaraokeMachine.app` and the machine runs as the one bundle it is.
+the streaming launcher `open`s `Karaoke Machine.app` and the machine runs as the one bundle it is.
 
 **What that costs is the name on the run, and it is the right name.** The program in the menu bar and
-in the app switcher is *KaraokeMachine*, not *KaraokeMachine Stream* — the second bundle is a way of
+in the app switcher is the machine, not *KM Stream* — the second bundle is a way of
 starting the machine, not a second program, which is what
 [`A badge says how the machine was started`](#a-badge-says-how-the-machine-was-started) already says
 about its mark.

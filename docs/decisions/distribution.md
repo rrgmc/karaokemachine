@@ -649,7 +649,7 @@ is asked — and it decides both the refusal and the sentence the generated READ
 README cannot lie about a folder whatever flags produced it.
 
 **The folders carry no version and the archives do.** A folder is where you keep the current build,
-in the way `KaraokeMachine.app` is; a number belongs on the thing you hand over. The cost:
+in the way `Karaoke Machine.app` is; a number belongs on the thing you hand over. The cost:
 `clean:old` can never remove a versionless folder, exactly as it cannot remove a bundle, so `--all`
 is what does (it does sweep the zips), and on Windows and macOS the two folders are are a second
 copy of a 31 MiB instrument bank. On Linux they are byte-identical, because nothing has two forms
@@ -762,7 +762,7 @@ anything:
 - **Linux**: an action on the desktop entry, which is what a launcher's right-click menu is for. The
   `.deb` and `--register` ship the same file, so both carriers get it from one place.
 - **macOS**: a second bundle, because a bundle carries no launch argument anywhere in its manifest.
-  It holds a launch script and an icon and nothing else, and what it starts is `KaraokeMachine.app`
+  It holds a launch script and an icon and nothing else, and what it starts is `Karaoke Machine.app`
   beside it — the bundle, through LaunchServices, and never the binary inside it, for the reason
   [`The icon in a macOS menu bar is a silhouette, and the run behind it takes no Dock tile`](interface.md#the-icon-in-a-macos-menu-bar-is-a-silhouette-and-the-run-behind-it-takes-no-dock-tile)
   gives. So there is one machine, one set of assets and one set of ffmpeg libraries however it was
