@@ -2904,8 +2904,10 @@ mod tests {
         let reported = Arc::clone(&got_in);
 
         let held = db.lock();
+        // The flag is set while the writer holds the connection, so the scan taking it back below
+        // cannot see the connection free and the flag unset.
         let writing = std::thread::spawn(move || {
-            if waiter.lock_within(Duration::from_secs(5)).is_some() {
+            if let Some(_connection) = waiter.lock_within(Duration::from_secs(5)) {
                 reported.store(true, Ordering::Relaxed);
             }
         });
@@ -2919,13 +2921,18 @@ mod tests {
         assert!(db.wanted(), "the write should be queued by now");
 
         // The batch boundary: the guard goes, and the scan stands aside rather than taking it again.
+        // The scan then carries on, which means taking the connection again. `wanted()` goes false
+        // the moment the writer is handed the lock, before it has used it, so the flag is read under
+        // the lock rather than straight after `stand_off`.
         drop(held);
         stand_off(&db);
+        let carried_on = db.lock();
 
         assert!(
             got_in.load(Ordering::Relaxed),
             "the waiting write has to have been through before the scan carries on"
         );
+        drop(carried_on);
         writing.join().expect("the writer finished");
     }
 }
