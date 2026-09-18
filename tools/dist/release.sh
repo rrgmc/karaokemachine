@@ -250,11 +250,15 @@ fi
 #
 # **A machine with no apksigner says so rather than passing.** It lives in the Android SDK's
 # build-tools and a release can be gathered on a machine that never builds an APK, so silence here
-# would read as a check that ran.
+# would read as a check that ran. The same message covers an apksigner whose output names no
+# certificate, which is the other way `--cn` fails.
+#
+# Through `bash`, because the script's executable bit does not survive a commit made on Windows.
 for apk in "$OUT"/*.apk; do
   [ -f "$apk" ] || continue
-  if ! cn="$(tools/port/apk-signer.sh --cn "$apk")"; then
-    echo "dist-release: no apksigner, so $(basename "$apk") was not checked for its signing key" >&2
+  if ! cn="$(bash tools/port/apk-signer.sh --cn "$apk")"; then
+    echo "dist-release: no apksigner, or none that named a certificate, so $(basename "$apk")" >&2
+    echo "              was not checked for its signing key" >&2
     continue
   fi
   if [ "$cn" = "Android Debug" ]; then
