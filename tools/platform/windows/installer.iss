@@ -72,7 +72,9 @@ VersionInfoVersion={#Version}
 ; {group} to this user's own Start Menu.
 PrivilegesRequired=lowest
 DefaultDirName={autopf}\{#AppName}
-DefaultGroupName={#AppName}
+; The Start menu folder is a label in a list, so it takes the icon spelling rather than AppName --
+; see [Icons]. An upgrade keeps whatever folder the first install chose (`UsePreviousGroup`).
+DefaultGroupName=Karaoke Machine
 AllowNoIcons=yes
 
 ArchitecturesAllowed=x64compatible
@@ -256,7 +258,11 @@ Source: "{#Payload}\README-*.txt";   DestDir: "{app}"; Flags: ignoreversion
 Name: "{userappdata}\karaokemachine\data\packages"; Components: machine; Flags: uninsneveruninstall
 
 [Icons]
-Name: "{group}\KaraokeMachine";                 Filename: "{app}\karaokemachine.exe";     Components: machine
+; **Two words on the shortcuts and the folder, and one everywhere else.** A Start menu that cannot fit
+; fourteen characters cuts a single word mid-word; `What the product is called` in
+; docs/decisions/foundations.md. The streaming entry says `KM Stream` for the same reason and to sit
+; in the list as a sibling rather than a fifth product.
+Name: "{group}\Karaoke Machine";                Filename: "{app}\karaokemachine.exe";     Components: machine
 ; **The same machine, drawing for an encoder instead of for a television.** `--stream` is a way of
 ; running it rather than a build of it -- it overrides `display.enabled` for this process and writes
 ; nothing back -- so the two entries are one program, and an install started this way once still
@@ -274,7 +280,7 @@ Name: "{group}\KaraokeMachine";                 Filename: "{app}\karaokemachine.
 ; and the notification area both already use: there is one copy of the picture and nothing to keep in
 ; step with it. `IconFilename` has to be given for `IconIndex` to be read at all, which is why it names
 ; the file the shortcut points at anyway.
-Name: "{group}\KaraokeMachine (stream)";        Filename: "{app}\karaokemachine.exe";     Parameters: "--stream"; \
+Name: "{group}\KM Stream";                      Filename: "{app}\karaokemachine.exe";     Parameters: "--stream"; \
   IconFilename: "{app}\karaokemachine.exe"; IconIndex: 1; Components: machine
 ; **The answer to "where do I put my songs?" on a machine with no console.** `--show-paths` prints
 ; the folder, and that is no use to somebody who installed this by double-clicking a setup program
@@ -287,7 +293,14 @@ Name: "{group}\KM Remote";          Filename: "{app}\km-remote.exe";      Compon
 Name: "{group}\KM Admin";          Filename: "{app}\km-admin.exe";      Components: assets
 Name: "{group}\Read me first";                  Filename: "{app}\README.txt"
 Name: "{group}\Uninstall {#AppName}";           Filename: "{uninstallexe}"
-Name: "{autodesktop}\KaraokeMachine";           Filename: "{app}\karaokemachine.exe";     Components: machine; Tasks: desktopicon
+Name: "{autodesktop}\Karaoke Machine";          Filename: "{app}\karaokemachine.exe";     Components: machine; Tasks: desktopicon
+
+[InstallDelete]
+; The shortcuts under the one-word spelling. Inno creates the new names and leaves an old shortcut
+; standing, so an upgrade over such an install would show the machine twice in one folder.
+Type: files; Name: "{group}\KaraokeMachine.lnk"
+Type: files; Name: "{group}\KaraokeMachine (stream).lnk"
+Type: files; Name: "{autodesktop}\KaraokeMachine.lnk"
 
 [Run]
 ; **The association is made by the program, not by this installer**, and that is deliberate:
