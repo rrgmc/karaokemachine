@@ -1115,6 +1115,27 @@ runners cost nothing, and a fault found on the pull request is cheaper than one 
 built on, so it compiles against the ffmpeg they link. Android and iOS are built by their own scripts,
 not by CI.
 
+## A vulnerability is reported privately, through GitHub
+
+**A security report goes through GitHub's private vulnerability reporting, and nowhere else.**
+[`SECURITY.md`](../../SECURITY.md) links the form and names no email address. A report arrives as a
+draft advisory, which holds the discussion, a private fork for the fix and the advisory text in one
+place, and publishes them together with the release. A mailbox would be a second place to watch and
+would hold none of that. **The form is a repository setting**, so a fork or a move of the repository
+has to turn it on again before `SECURITY.md` points at anything.
+
+**Only the latest release is supported.** There is one version number for the whole repository and
+no maintained branch below it, so a fix ships as the next release.
+
+**No issue form asks for a song file.** Attaching one publishes it, and almost every song in the
+world is somebody's copyright. The bug form asks for the file's shape instead, which is also what a
+fixture here is built from. See
+[`Every fixture in the tree is synthetic`](#every-fixture-in-the-tree-is-synthetic).
+
+**Blank issues are off.** Every issue starts from the bug form or the feature form, and the feature
+form points at the non-goals and `docs/decisions/` first: a request for something decided against is
+a request to change that decision, and it names the entry.
+
 ## One version number for the whole repository
 
 **Every program here carries the machine's version, including the two in the excluded workspace.** A
