@@ -855,6 +855,22 @@ tasks:
     cmds:
       - '"{{.SH}}" tools/platform/macos/installer-remote.sh --notarize {{if .VERBOSE}}--verbose{{end}} {{.CLI_ARGS}}'
 
+  # The Mac's half of a release, after the release workflow has made the draft: both notarized
+  # packages, then `release.sh --add`, which uploads them to that draft and leaves its text alone.
+  # Forwards only, so RELEASE.md step 7 typed by hand is the same thing.
+  #
+  # **`--check-tag` runs first**, because the packages must be built from what the tag names, and
+  # the builds are ten minutes that a checkout on the wrong commit would spend for nothing.
+  # `--add` asks the same question again before it uploads.
+  release:macos:
+    desc: 'On a Mac, at the release tag: build both notarized packages and add them to the draft release'
+    platforms: [darwin]
+    cmds:
+      - '"{{.SH}}" tools/dist/release.sh --check-tag'
+      - task: dist:setup:notarized
+      - task: dist:setup:remote:notarized
+      - '"{{.SH}}" tools/dist/release.sh --add --platforms macos {{if .VERBOSE}}--verbose{{end}}'
+
   # -- onto the appliance ------------------------------------------------------------------------
   #
   # The last mile: the box under the television, reached over ssh. `deploy.sh` builds the package,

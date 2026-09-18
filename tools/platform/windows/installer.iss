@@ -4,8 +4,8 @@
 ; script stages the payload, reads the version out of a binary and passes the five defines below.
 ; Compiling this file by hand is possible and needs all five:
 ;
-;   ISCC.exe /DPayload=C:\...\dist\bin\windows /DVersion=1.17.0 /DOutDir=C:\...\dist\setup\windows \
-;            /DOutBase=karaokemachine-setup-1.17.0-windows-x86_64 \
+;   ISCC.exe /DPayload=C:\...\dist\bin\windows /DVersion=1.18.0 /DOutDir=C:\...\dist\setup\windows \
+;            /DOutBase=karaokemachine-setup-1.18.0-windows-x86_64 \
 ;            /DGenerated=C:\...\dist\setup\windows\generated tools\windows\installer.iss
 ;
 ; **This file names every file it installs.** installer.sh reads the [Files] section back out and

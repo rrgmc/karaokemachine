@@ -107,8 +107,8 @@ targets:
         # numbers by accident rather than on purpose, and nothing to notice when one of them should
         # have moved. ShortVersionString tracks the workspace version; CFBundleVersion is the build
         # within it, and is the one that must rise between uploads of the same version.
-        CFBundleShortVersionString: "1.17.0"
-        CFBundleVersion: "15"
+        CFBundleShortVersionString: "1.18.0"
+        CFBundleVersion: "16"
         UILaunchScreen:
           UIColorName: LaunchBackground
         # Not locked, matching the Android application. This is a phone held in a hand and the page

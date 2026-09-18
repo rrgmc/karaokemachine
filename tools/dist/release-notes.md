@@ -2,21 +2,12 @@ A karaoke machine that plays MIDI files, video files, MP3+G pairs and UltraStar 
 highlights the words in time with the music, takes song requests from a phone, and has an HTTP API
 for search, queueing and control.
 
-## What it does
+## What changed
 
-- **Songs are MIDI and KAR files, video files, MP3+G pairs and UltraStar songs.** They arrive in
-  packages, each carrying its own queue numbers, titles, artists and analysis, and a package dropped
-  in the packages folder goes in without a restart.
-- **The words highlight syllable by syllable** on the sequencer's own clock. Transpose, tempo and a
-  lyric timing offset are per song, and the offset moves the highlight without touching the audio the
-  microphones are in.
-- **Any phone on the network is a remote** — search, queue, now playing, and whatever controls the
-  song allows — with a QR code on the idle screen and no app to install. A standalone remote keeps
-  its own copy of the catalog and works with the machine switched off.
-- **A television in another room works too.** Started with `--stream` the machine serves what it
-  would have shown at one address, and anything that plays a playlist can take it.
-- **One admin password, which the machine gives itself and shows on screen.** Everything that
-  reconfigures the machine wants it; everything a singer does wants nothing.
+- **The machine is "Karaoke Machine" under its icon**, and its streaming launcher is "KM Stream", so
+  no launcher cuts the name mid-word. Upgrading removes the old shortcuts and applications.
+- **The package builder can number a package's only volume.** A package that will pass 999 songs can
+  be named `vol1` from its first build, so its file keeps that name when a second volume starts.
 
 ## Which file to download
 

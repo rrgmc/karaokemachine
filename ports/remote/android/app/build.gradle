@@ -36,8 +36,8 @@ android {
         // Must increase for every build that might be installed over an earlier one; Android refuses
         // a downgrade or an equal versionCode outright. Not the same number as versionName and not
         // meant to be.
-        versionCode = 15
-        versionName = '1.17.0'
+        versionCode = 16
+        versionName = '1.18.0'
         // Only what cargo actually builds. Adding an ABI here without building it produces an APK
         // that installs on a device and then cannot find its own library.
         //

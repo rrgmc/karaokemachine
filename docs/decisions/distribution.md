@@ -2278,8 +2278,8 @@ that names none carries all twelve, which is the full release and the default.
 produced on a Mac and the rest are not, so a machine without one has four carriers it cannot stage
 and a refusal it can do nothing about. Holding a release until every platform can be built on one
 computer waits on hardware rather than on the software being ready. The release workflow names its
-platforms the same way, for the carriers it holds no secrets for; see
-[`CI builds the release, and a person publishes it`](#ci-builds-the-release-and-a-person-publishes-it).
+platforms the same way, leaving the two `.pkg` files to a Mac; see
+[`CI builds the release, and a Mac adds its packages`](#ci-builds-the-release-and-a-mac-adds-its-packages).
 
 **A platform that is named and not staged still stops the run.** That refusal is what makes a
 gathering step worth having, so `--platforms` narrows what is asked for rather than softening the
@@ -2298,26 +2298,35 @@ carrier, in two shapes and neither a second copy of the table:
   whoever edits it, and a section written for a platform later is dropped by its own marker rather
   than by the script learning its heading.
 
-**The body names what the run gathered, so one machine writes the page.** A second machine adding
-its carriers to the same draft uploads them and leaves the body alone; a second run of the gathering
-step rewrites the body to its own platforms and takes the rows the first one wrote with it.
+**One run writes the page, and it names what another machine will add.** `--elsewhere <platforms>`
+keeps those platforms' rows and prose in the body, and the check that every row names an asset
+accepts one of theirs as still to come. The other machine runs `release.sh --add --platforms
+<platforms>`, which gathers through the same table and uploads to the existing draft without
+touching its body. A second run *without* `--add` rewrites the body to its own platforms and takes
+the rows the first one wrote with it.
 
-## CI builds the release, and a person publishes it
+## CI builds the release, and a Mac adds its packages
 
-**A pushed `v*` tag runs `.github/workflows/release.yml`, which builds every carrier it can and
-fills the draft release.** Each platform's job runs the same staging script a person types, and a
-last job runs `tools/dist/release.sh --upload` over what they staged. Publishing stays
+**A pushed `v*` tag runs `.github/workflows/release.yml`, which builds ten of the twelve carriers
+and fills the draft release.** Each platform's job runs the same staging script a person types, and
+a last job runs `tools/dist/release.sh --upload` over what they staged. Publishing stays
 `gh release edit v<version> --draft=false`, typed by somebody who has opened the page.
 
-**The runners build more of the release than any one desk machine.** A public repository's standard
-runners cost nothing, macOS included, so Windows, Linux, Android and iOS come from one run: ten of
-the twelve carriers. That takes one set of secrets, the Android release keystore.
+**The runners build Windows, Linux, Android and iOS.** A public repository's standard runners cost
+nothing, so they carry every platform whose build needs no Apple account. That takes one set of
+secrets, the Android release keystore.
 
-**macOS stays out until the repository holds Apple secrets.** Its `.pkg` files are published
-notarized or not at all, and notarizing takes two Developer ID certificates and an Apple account.
-The workflow passes `--platforms windows,linux,android,ios`, which leaves them off the page exactly
-as a hand cut on a machine without a Mac does. A Mac adds them to the draft afterwards with
-`gh release upload`, which leaves the body alone.
+**Every release's two macOS packages are built on a Mac, and added to the same draft.** They are
+published notarized or not at all, and notarizing takes two Developer ID certificates and an Apple
+account, which stay on the Mac rather than in the repository's secrets. So the workflow runs
+`release.sh --platforms windows,linux,android,ios --elsewhere macos`: the page names the packages
+and says how they are signed from its first draft, and the Mac adds them with
+`tools/dist/release.sh --add --platforms macos`, which `task release:macos` runs after building
+both. The draft is published once both halves are on it.
+
+**The Mac builds from the tag or uploads nothing.** `--add` refuses a checkout that is not at the
+version's tag, or that changes a tracked file, because a package built from a later commit would sit
+on the page under the same version as everything CI built from the tag.
 
 **The Android job refuses before it builds when the keystore secret is missing.** Without it Gradle
 signs with the runner's own debug key, and `release.sh` refuses that APK after an hour of building.

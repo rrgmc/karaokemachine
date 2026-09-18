@@ -6,6 +6,10 @@
 #   tools/dist/release.sh                      # gather into dist/release/<version>/ and report
 #   tools/dist/release.sh --upload             # ...and create or update the draft release
 #   tools/dist/release.sh --platforms windows,linux,android   # ...the carriers one machine builds
+#   tools/dist/release.sh --upload --platforms windows,linux,android,ios --elsewhere macos
+#                                              # ...and a body that also names what a Mac adds later
+#   tools/dist/release.sh --add --platforms macos   # upload these carriers to the draft, body untouched
+#   tools/dist/release.sh --check-tag          # is this checkout at the version's tag, unchanged?
 #   tools/dist/release.sh --notes-file <path>  # a body other than tools/dist/release-notes.md
 #   tools/dist/release.sh -v
 #
@@ -25,12 +29,17 @@
 # and leaves every other refusal exactly as it was: a carrier of a platform that *was* named and is
 # not staged still stops the run.
 #
-# **The body names what the run gathered, so one machine writes the page.** A second machine adding
-# its own carriers to the same draft uploads them with `gh release upload --clobber` and leaves the
-# body alone; a second *run of this script* would rewrite the body to its own platforms and drop the
-# rows the first one wrote. The decision is
-# `A release page carries the platforms the machine cutting it can build` in
-# docs/decisions/distribution.md.
+# **The body names what the run gathered, plus what `--elsewhere` says is coming, so one run writes
+# the page.** The release workflow builds everything but the two `.pkg` files, and a Mac adds those
+# to the same draft. `--elsewhere macos` keeps their rows and their prose in the body, and the check
+# that every row names an asset accepts a row of an elsewhere platform as one still to come.
+#
+# **`--add` is the second machine's half.** It gathers the named platforms through the same table,
+# so the macOS row still takes only the notarized package, and uploads them to the existing draft
+# without rewriting the body. It never gathers the carol pack, which the first run already uploaded,
+# and it refuses when there is no draft to add to. The decisions are
+# `A release page carries the platforms the machine cutting it can build` and
+# `CI builds the release, and a Mac adds its packages` in docs/decisions/distribution.md.
 #
 # **The table is the point of the file.** A release name is written down once, here, and the copy
 # into `dist/release/<version>/` happens before anything is uploaded -- so the folder can be read,
@@ -75,11 +84,38 @@ DIST_SCRIPT=dist-release
 ALL_PLATFORMS="windows macos linux android ios any"
 
 UPLOAD=0
+ADD=0
+CHECK_TAG=0
 NOTES_FILE="tools/dist/release-notes.md"
 PLATFORMS="$ALL_PLATFORMS"
+PLATFORMS_NAMED=0
+ELSEWHERE=""
+
+# A comma-separated list of platform names, checked against the ones this file knows.
+platform_list() { # <option> <list>  -> prints the names space-separated, or fails
+  local p list
+  list="$(printf '%s' "$2" | tr ',' ' ')"
+  for p in $list; do
+    case " $ALL_PLATFORMS " in
+      *" $p "*) ;;
+      *) echo "dist-release: $1 names no such platform -- $p" >&2
+         echo "              one or more of: $ALL_PLATFORMS" >&2
+         return 1 ;;
+    esac
+  done
+  printf '%s' "$list"
+}
+
 while [ $# -gt 0 ]; do
   case "$1" in
     --upload) UPLOAD=1 ;;
+    --add) ADD=1; UPLOAD=1 ;;
+    --check-tag) CHECK_TAG=1 ;;
+    --elsewhere)
+      shift
+      [ $# -gt 0 ] || { echo "dist-release: --elsewhere needs a list" >&2; exit 2; }
+      ELSEWHERE="$(platform_list --elsewhere "$1")" || exit 2
+      ;;
     --notes-file)
       shift
       [ $# -gt 0 ] || { echo "dist-release: --notes-file needs a path" >&2; exit 2; }
@@ -88,20 +124,14 @@ while [ $# -gt 0 ]; do
     --platforms)
       shift
       [ $# -gt 0 ] || { echo "dist-release: --platforms needs a list" >&2; exit 2; }
-      # `any` carries what belongs to no platform, so it is never opted out of.
-      PLATFORMS="$(printf '%s' "$1" | tr ',' ' ') any"
-      for p in $PLATFORMS; do
-        case " $ALL_PLATFORMS " in
-          *" $p "*) ;;
-          *) echo "dist-release: no such platform -- $p" >&2
-             echo "              one or more of: $ALL_PLATFORMS" >&2
-             exit 2 ;;
-        esac
-      done
+      PLATFORMS="$(platform_list --platforms "$1")" || exit 2
+      PLATFORMS_NAMED=1
       ;;
     -v|--verbose) DIST_VERBOSE=1 ;;
     -h|--help)
-      echo "usage: tools/dist/release.sh [--upload] [--platforms <list>] [--notes-file <path>] [-v]"
+      echo "usage: tools/dist/release.sh [--upload] [--platforms <list>] [--elsewhere <list>] [--notes-file <path>] [-v]"
+      echo "       tools/dist/release.sh --add --platforms <list> [-v]"
+      echo "       tools/dist/release.sh --check-tag"
       exit 0
       ;;
     *) echo "dist-release: unknown option $1" >&2; exit 2 ;;
@@ -109,8 +139,37 @@ while [ $# -gt 0 ]; do
   shift
 done
 
-# `selected <platform>` is the one question the rest of the file asks about a platform.
+# `any` carries what belongs to no platform, so a run that writes the page never opts out of it. An
+# `--add` run is the one that leaves it out: the carol pack went up with the page.
+if [ "$ADD" -eq 1 ]; then
+  if [ "$PLATFORMS_NAMED" -eq 0 ]; then
+    echo "dist-release: --add needs --platforms, naming what this machine adds" >&2
+    exit 2
+  fi
+  if [ -n "$ELSEWHERE" ]; then
+    echo "dist-release: --add leaves the body alone, so --elsewhere has nothing to say" >&2
+    exit 2
+  fi
+  PLATFORMS="$(printf ' %s ' "$PLATFORMS" | sed 's/ any / /g; s/^ *//; s/ *$//')"
+else
+  case " $PLATFORMS " in *" any "*) ;; *) PLATFORMS="$PLATFORMS any" ;; esac
+fi
+
+# `selected <platform>` and `elsewhere <platform>` are the two questions the rest of the file asks
+# about a platform.
 selected() { case " $PLATFORMS " in *" $1 "*) return 0 ;; *) return 1 ;; esac; }
+elsewhere() { case " $ELSEWHERE " in *" $1 "*) return 0 ;; *) return 1 ;; esac; }
+
+for p in $ELSEWHERE; do
+  if [ "$p" = "any" ]; then
+    echo "dist-release: the carol pack belongs to no platform, so no other machine adds it" >&2
+    exit 2
+  fi
+  if selected "$p"; then
+    echo "dist-release: $p is both gathered here and added elsewhere; name it in one list" >&2
+    exit 2
+  fi
+done
 
 if [ ! -f "$NOTES_FILE" ]; then
   echo "dist-release: no such notes file -- $NOTES_FILE" >&2
@@ -123,6 +182,36 @@ fi
 VERSION="$(dist_manifest_version)"
 TAG="v$VERSION"
 OUT="dist/release/$VERSION"
+
+# -- the checkout a second machine builds from -----------------------------------------------------
+
+# **What `--add` uploads is built from what the tag names, or not at all.** The first run's carriers
+# come from a checkout of the tag, and a package built from a commit after it would sit on the same
+# page under the same version. So the checkout has to be at the tag, with no change to a tracked
+# file. `--check-tag` asks this alone, so `task release:macos` can ask before ten minutes of builds.
+at_tag() {
+  local want
+  if ! want="$(git rev-parse -q --verify "refs/tags/$TAG^{commit}")"; then
+    echo "dist-release: there is no tag $TAG in this checkout -- git fetch --tags" >&2
+    return 1
+  fi
+  if [ "$(git rev-parse HEAD)" != "$want" ]; then
+    echo "dist-release: this checkout is not at $TAG, so what it builds is not what $TAG names." >&2
+    echo "              git checkout $TAG" >&2
+    return 1
+  fi
+  if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
+    echo "dist-release: this checkout changes tracked files, so what it builds is not $TAG" >&2
+    return 1
+  fi
+}
+
+if [ "$CHECK_TAG" -eq 1 ]; then
+  at_tag || exit 2
+  dist_step "at $TAG"
+  exit 0
+fi
+[ "$ADD" -eq 0 ] || at_tag || exit 2
 
 # -- the table -------------------------------------------------------------------------------------
 
@@ -212,13 +301,24 @@ skipped=0
 # of a platform this machine cannot build never will. The pattern is what the body's name has to
 # match anyway -- `karaokemachine-setup-1.2.0-macos-*[0-9].pkg` covers the architecture the table
 # spells out.
+#
+# **A row of an `--elsewhere` platform is neither gathered nor omitted.** Its glob goes into
+# `awaited_globs` instead, which keeps its line in the body and lets the check below accept a name
+# that has no file here yet.
 omitted_globs=""
+awaited_globs=""
+awaited=0
 while IFS='|' read -r platform dir pat name cmd; do
   [ -n "$dir" ] || continue
   if ! selected "$platform"; then
     [ "$name" = "=" ] && name="$pat"
-    omitted_globs="$omitted_globs|$name"
-    skipped=$((skipped + 1))
+    if elsewhere "$platform"; then
+      awaited_globs="$awaited_globs|$name"
+      awaited=$((awaited + 1))
+    else
+      omitted_globs="$omitted_globs|$name"
+      skipped=$((skipped + 1))
+    fi
     continue
   fi
   if ! src="$(one_match "$dir" "$pat")"; then
@@ -269,6 +369,37 @@ for apk in "$OUT"/*.apk; do
   dist_detail "signed $(basename "$apk") -- $cn"
 done
 
+need_gh() {
+  command -v gh >/dev/null 2>&1 || {
+    echo "dist-release: gh is not installed -- https://cli.github.com" >&2
+    exit 2
+  }
+}
+
+# -- adding to a draft another run made ------------------------------------------------------------
+
+# **The draft has to be there already, and still a draft.** The run that wrote the body made it;
+# an `--add` that created one would make a page with no text and nothing but this machine's files.
+if [ "$ADD" -eq 1 ]; then
+  need_gh
+  dist_step "adding to draft release $TAG"
+  if ! state="$(gh release view "$TAG" --json isDraft --jq .isDraft 2>/dev/null)"; then
+    echo "dist-release: there is no release $TAG to add to." >&2
+    echo "              The run that writes its body creates it; --add comes after that." >&2
+    exit 2
+  fi
+  if [ "$state" != "true" ]; then
+    echo "dist-release: $TAG is already published, so its assets are not replaced here." >&2
+    echo "              Upload to a published release by hand, deliberately." >&2
+    exit 2
+  fi
+  dist_run "gh release upload" gh release upload "$TAG" --clobber "$OUT"/*
+  dist_step "added $count assets to $TAG"
+  echo "   gh release view $TAG --web"
+  echo "   (still a draft: gh release edit $TAG --draft=false publishes it)"
+  exit 0
+fi
+
 # -- the body --------------------------------------------------------------------------------------
 
 # Rendered beside the folder it describes, and for the reason the table is written down once: a
@@ -297,12 +428,13 @@ carols="$(basename "$(one_match "$OUT" '*.kmpkg')")"
 #   learning its heading.
 #
 # The markers come out on every run, selected or not: they are how the file is written, not
-# something a reader of the page has any use for.
+# something a reader of the page has any use for. An `--elsewhere` platform's prose stays, because
+# its files are on the page before anybody publishes it.
 #
 # **The substitution runs first**, because the globs being matched against carry this run's version
 # and a body still holding `@VERSION@` matches none of them.
 sed -e "s/@VERSION@/$VERSION/g" -e "s/@CAROLS@/$carols/g" "$NOTES_FILE" |
-awk -v selected="$PLATFORMS" -v omitted="$omitted_globs" '
+awk -v selected="$PLATFORMS $ELSEWHERE" -v omitted="$omitted_globs" '
   function is_selected(p,   i, n, a) {
     n = split(selected, a, " ")
     for (i = 1; i <= n; i++) if (a[i] == p) return 1
@@ -360,6 +492,20 @@ fi
 #
 # A row's first cell is a file name when it holds a dot. The carol pack is named in the prose under
 # the table rather than in it, and the first direction is what covers it.
+#
+# **A row naming an `--elsewhere` carrier is not a mismatch**: its file is the one `--add` uploads.
+# The match is a glob for the reason the omitted rows' is, and `case` is bash's own glob match.
+is_awaited() { # <name>
+  local g
+  local IFS='|'
+  for g in $awaited_globs; do
+    [ -n "$g" ] || continue
+    # shellcheck disable=SC2254
+    case "$1" in $g) return 0 ;; esac
+  done
+  return 1
+}
+
 mismatch=0
 
 for asset in "$OUT"/*; do
@@ -372,7 +518,7 @@ done
 
 while read -r named; do
   [ -n "$named" ] || continue
-  if [ ! -f "$OUT/$named" ]; then
+  if [ ! -f "$OUT/$named" ] && ! is_awaited "$named"; then
     echo "dist-release: the body's download table names $named, which is not an asset" >&2
     mismatch=$((mismatch + 1))
   fi
@@ -387,11 +533,10 @@ fi
 
 dist_detail "body  $NOTES"
 
-if [ "$skipped" -gt 0 ]; then
-  dist_step "$count assets, $(human "$(dist_bytes "$OUT")") -- $skipped left to another machine"
-else
-  dist_step "$count assets, $(human "$(dist_bytes "$OUT")")"
-fi
+summary="$count assets, $(human "$(dist_bytes "$OUT")")"
+[ "$awaited" -eq 0 ] || summary="$summary -- $awaited to be added from another machine"
+[ "$skipped" -eq 0 ] || summary="$summary -- $skipped left off the page"
+dist_step "$summary"
 
 if [ "$UPLOAD" -eq 0 ]; then
   echo "   (--upload creates or updates the draft release for $TAG)"
@@ -400,10 +545,7 @@ fi
 
 # -- upload ----------------------------------------------------------------------------------------
 
-command -v gh >/dev/null 2>&1 || {
-  echo "dist-release: gh is not installed -- https://cli.github.com" >&2
-  exit 2
-}
+need_gh
 
 dist_step "draft release $TAG"
 
@@ -427,10 +569,12 @@ else
 fi
 
 # `--clobber` so a re-run after rebuilding one carrier replaces that asset instead of failing on
-# every other one already up there. It is also how a second machine adds the carriers this one could
-# not build, to the same draft.
+# every other one already up there.
 dist_run "gh release upload" gh release upload "$TAG" --clobber "$OUT"/*
 
 dist_step "uploaded $count assets to $TAG"
 echo "   gh release view $TAG --web"
+if [ -n "$ELSEWHERE" ]; then
+  echo "   (the page names $awaited more: tools/dist/release.sh --add --platforms $(printf '%s' "$ELSEWHERE" | tr ' ' ','))"
+fi
 echo "   (still a draft: gh release edit $TAG --draft=false publishes it)"

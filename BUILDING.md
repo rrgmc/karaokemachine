@@ -514,6 +514,10 @@ task build:ios:remote RELEASE=1 DEVICE=1 IPA=1  #   ...and the offline remote
 tools/dist/release.sh           # gather the carriers into dist/release/<version>/ under release names
 tools/dist/release.sh --upload  #   ...and put them, and the body, on the draft GitHub release
 tools/dist/release.sh --platforms windows,linux,android  # ...the carriers one machine builds
+tools/dist/release.sh --upload --platforms windows,linux,android,ios --elsewhere macos
+                                #   ...and a page that also names what a Mac adds
+tools/dist/release.sh --add --platforms macos   # on the Mac: add its packages to that draft
+task release:macos              #   ...both notarized packages built, then that, at the tag only
 ```
 
 **`--platforms` is for the release no one machine can cut.** A Mac produces the two `.pkg` files and
@@ -522,12 +526,14 @@ of the table, out of the count and out of the body's download table at once. A c
 that *was* named and is not staged stops the run exactly as before. The rule is
 [`A release page carries the platforms the machine cutting it can build`](docs/decisions/distribution.md#a-release-page-carries-the-platforms-the-machine-cutting-it-can-build).
 
-**A pushed `v*` tag runs all of this in CI.** `.github/workflows/release.yml` stages ten of the
-twelve carriers on hosted runners and runs `release.sh --upload --platforms windows,linux,android,ios`.
-It needs the repository secrets `KM_ANDROID_KEYSTORE_B64` (the keystore, base64-encoded) and
+**A pushed `v*` tag runs all of this in CI, except the Mac's half.** `.github/workflows/release.yml`
+stages ten of the twelve carriers on hosted runners and runs
+`release.sh --upload --platforms windows,linux,android,ios --elsewhere macos`. The two `.pkg` files
+are built on a Mac and added with `release.sh --add --platforms macos`; the order is
+[`RELEASE.md`](RELEASE.md). The workflow needs the repository secrets `KM_ANDROID_KEYSTORE_B64` (the keystore, base64-encoded) and
 `KM_ANDROID_KEYSTORE_PASSWORD`, plus `KM_ANDROID_KEY_ALIAS` and `KM_ANDROID_KEY_PASSWORD` where they
 differ from the defaults. See
-[`CI builds the release, and a person publishes it`](docs/decisions/distribution.md#ci-builds-the-release-and-a-person-publishes-it).
+[`CI builds the release, and a Mac adds its packages`](docs/decisions/distribution.md#ci-builds-the-release-and-a-mac-adds-its-packages).
 
 **`tools/dist/release.sh` gathers and never builds**, for the reason `tools/dist/bin.sh --no-build`
 exists: it names the command behind any carrier that is not staged and stops, so a release is cut
@@ -676,22 +682,22 @@ ffmpeg at all: nothing it was asked for has such a feature, so nothing checks fo
 Everything lands under `dist/<app>/<platform>/`:
 
 ```
-dist/karaokemachine/windows/karaokemachine-1.17.0-x86_64-pc-windows-msvc/   (+ .zip with --zip)
-dist/karaokemachine/windows/karaokemachine-1.17.0-x86_64-pc-windows-msvc-no-video/
+dist/karaokemachine/windows/karaokemachine-1.18.0-x86_64-pc-windows-msvc/   (+ .zip with --zip)
+dist/karaokemachine/windows/karaokemachine-1.18.0-x86_64-pc-windows-msvc-no-video/
 dist/karaokemachine/macos/Karaoke Machine.app
-dist/karaokemachine/linux/karaokemachine_1.17.0-1_amd64.deb
-dist/karaokemachine/linux/no-video/karaokemachine_1.17.0-1_amd64.deb
-dist/karaokemachine-tools/linux/karaokemachine-tools_1.17.0-1_amd64.deb
-dist/karaokemachine/linux/karaokemachine-1.17.0-x86_64-unknown-linux-gnu/   (+ .tar.gz)
-dist/km-pack/windows/km-pack-1.17.0-x86_64-pc-windows-msvc/
-dist/km-lyrics/windows/km-lyrics-1.17.0-x86_64-pc-windows-msvc/
-dist/km-package-builder/windows/km-package-builder-1.17.0-x86_64-pc-windows-msvc/
-dist/setup/windows/karaokemachine-setup-1.17.0-windows-x86_64.exe
-dist/setup/macos/karaokemachine-setup-1.17.0-macos-aarch64.pkg              (notarized)
-dist/setup/macos/karaokemachine-setup-1.17.0-macos-aarch64-unnotarized.pkg  (signed only)
-dist/setup/macos/karaokemachine-setup-1.17.0-macos-aarch64-unsigned.pkg     (ad-hoc, the default)
-dist/setup/windows/km-remote-setup-1.17.0-windows-x86_64.exe
-dist/setup/macos/km-remote-setup-1.17.0-macos-aarch64.pkg                   (the same three signing states)
+dist/karaokemachine/linux/karaokemachine_1.18.0-1_amd64.deb
+dist/karaokemachine/linux/no-video/karaokemachine_1.18.0-1_amd64.deb
+dist/karaokemachine-tools/linux/karaokemachine-tools_1.18.0-1_amd64.deb
+dist/karaokemachine/linux/karaokemachine-1.18.0-x86_64-unknown-linux-gnu/   (+ .tar.gz)
+dist/km-pack/windows/km-pack-1.18.0-x86_64-pc-windows-msvc/
+dist/km-lyrics/windows/km-lyrics-1.18.0-x86_64-pc-windows-msvc/
+dist/km-package-builder/windows/km-package-builder-1.18.0-x86_64-pc-windows-msvc/
+dist/setup/windows/karaokemachine-setup-1.18.0-windows-x86_64.exe
+dist/setup/macos/karaokemachine-setup-1.18.0-macos-aarch64.pkg              (notarized)
+dist/setup/macos/karaokemachine-setup-1.18.0-macos-aarch64-unnotarized.pkg  (signed only)
+dist/setup/macos/karaokemachine-setup-1.18.0-macos-aarch64-unsigned.pkg     (ad-hoc, the default)
+dist/setup/windows/km-remote-setup-1.18.0-windows-x86_64.exe
+dist/setup/macos/km-remote-setup-1.18.0-macos-aarch64.pkg                   (the same three signing states)
 ```
 
 The `.deb` gets a subfolder rather than a suffix because cargo-deb names the file from the package

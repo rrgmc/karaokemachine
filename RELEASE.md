@@ -85,13 +85,35 @@ lightweight. A published tag is never moved or deleted; a mistake is the next pa
 ## 6. Stage the carriers, and upload
 
 **The pushed tag does this.** `.github/workflows/release.yml` builds Windows, Linux, Android and iOS
-from the tag, checks each carrier, and fills the draft. Watch it with `gh run watch`. A job that
-failed on something outside the tree is re-run with
-`gh workflow run release.yml -f tag=vX.Y.0`. The two macOS `.pkg` files are not built there; a Mac
-adds them to the draft with `gh release upload vX.Y.0 <files>`. See
-[`CI builds the release, and a person publishes it`](docs/decisions/distribution.md#ci-builds-the-release-and-a-person-publishes-it).
+from the tag, checks each carrier, and fills the draft. The draft's text already names the two macOS
+packages. Watch it with `gh run watch`. A job that failed on something outside the tree is re-run
+with `gh workflow run release.yml -f tag=vX.Y.0`.
 
-**By hand, from a desk**, the same step is:
+## 7. Add the macOS packages, on a Mac
+
+Once the draft exists, on a Mac:
+
+```sh
+git fetch --tags && git checkout vX.Y.0
+task release:macos
+```
+
+That is three commands, which are the same step without `task`:
+
+```sh
+tools/platform/macos/installer.sh --notarize
+tools/platform/macos/installer-remote.sh --notarize
+tools/dist/release.sh --add --platforms macos
+```
+
+It first checks that the checkout is at the tag with no changed tracked file, so the packages are
+built from what the tag names. `--add` uploads the two notarized packages to the draft and leaves
+its text alone. It refuses when there is no draft yet. See
+[`CI builds the release, and a Mac adds its packages`](docs/decisions/distribution.md#ci-builds-the-release-and-a-mac-adds-its-packages).
+
+## By hand, from a desk
+
+Steps 6 and 7 without CI are:
 
 ```sh
 tools/dist/release.sh           # gather what is staged into dist/release/<version>/
@@ -108,10 +130,10 @@ than failing on four carriers the machine cannot build. Everything else holds: a
 whose carrier is missing still stops the run. See
 [`A release page carries the platforms the machine cutting it can build`](docs/decisions/distribution.md#a-release-page-carries-the-platforms-the-machine-cutting-it-can-build).
 
-## 7. Publish
+## 8. Publish
 
-Either way, the result is a **draft**. Publishing is typed by somebody who has opened the page and
-looked at it:
+Either way, the result is a **draft**. Publishing is typed by somebody who has opened the page,
+seen all twelve files on it, and looked at it:
 
 ```sh
 gh release edit vX.Y.0 --draft=false
