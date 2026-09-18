@@ -56,18 +56,31 @@ task check
 
 **A failure stops the release.** Nothing below is worth doing over a tree that does not pass.
 
-## 5. Commit and tag
+## 5. Commit, merge, and tag
 
-One commit carrying the bump, the changelog and the notes:
+One commit carrying the bump, the changelog and the notes, on a branch of its own. `master` takes
+pull requests only, so the release reaches it the way every other change does:
 
 ```sh
+git checkout -b release-X.Y.0
 git commit -m "chore(release): X.Y.0, <short phrase naming the release>"
-git tag -a vX.Y.0 -m "karaokemachine X.Y.0"
-git push origin master --follow-tags
+git push -u origin release-X.Y.0
+gh pr create --fill
+gh pr merge --merge --delete-branch   # once `CI ok` has passed
 ```
 
-Annotated, never lightweight — `--follow-tags` carries no other kind. A published tag is never moved
-or deleted; a mistake is the next patch version.
+**The tag goes on the merge commit, after the merge.** That commit is the one on `master`, so it is
+what the tag names and what the release is built from:
+
+```sh
+git checkout master
+git pull --ff-only
+git tag -a vX.Y.0 -m "karaokemachine X.Y.0"
+git push origin vX.Y.0
+```
+
+**Pushing the tag starts the release build**, so it is pushed last and alone. Annotated, never
+lightweight. A published tag is never moved or deleted; a mistake is the next patch version.
 
 ## 6. Stage the carriers, and upload
 
@@ -95,8 +108,10 @@ than failing on four carriers the machine cannot build. Everything else holds: a
 whose carrier is missing still stops the run. See
 [`A release page carries the platforms the machine cutting it can build`](docs/decisions/distribution.md#a-release-page-carries-the-platforms-the-machine-cutting-it-can-build).
 
-`--upload` creates a **draft**. Publishing is typed by somebody who has opened the page and looked at
-it:
+## 7. Publish
+
+Either way, the result is a **draft**. Publishing is typed by somebody who has opened the page and
+looked at it:
 
 ```sh
 gh release edit vX.Y.0 --draft=false
