@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Assembles the landing page into one folder, ready to publish.
+# Assembles the landing pages into one folder, ready to publish.
 #
 #   tools/dist/site.sh                 # stage into dist/site
 #   tools/dist/site.sh --open          # ...and open it in a browser
@@ -18,12 +18,13 @@
 # links out, which is the drift a grep can see. Prose is not checked, and a page that fell behind in
 # words is found by reading it.
 #
-# ** The screenshots are staged, never committed twice. ** `site/index.html` asks for `images/*.png`
-# and this is what puts them there, out of `docs/images/` -- which `tools/dev/screenshots.sh`
-# regenerates and which the README links directly. A second tracked copy would be 1.3 MB of PNG that
-# goes stale the first time the pictures are retaken, silently, in the one place nobody looks. The
-# cost is that opening `site/index.html` straight from the checkout shows broken images; `site/README.md`
-# says so in its first paragraph, and this script is the answer.
+# ** The screenshots are staged, never committed twice. ** The English page asks for `images/*.png`
+# and the Portuguese one for `../images/*.png`, and this is what puts them there, out of
+# `docs/images/` -- which `tools/dev/screenshots.sh` regenerates and which the README links directly.
+# A second tracked copy would be 1.3 MB of PNG that goes stale the first time the pictures are
+# retaken, silently, in the one place nobody looks. The cost is that opening either page straight
+# from the checkout shows broken images; `site/README.md` says so in its first paragraph, and this
+# script is the answer.
 #
 # ** Nothing here needs a toolchain. ** No cargo, no rustc, not even for the platform check below --
 # `dist_platform` asks `rustc -vV` and is therefore deliberately not used. A checkout, a copy and a
@@ -59,7 +60,9 @@ while [ $# -gt 0 ]; do
   case "$1" in
     -v|--verbose)  DIST_VERBOSE=1 ;;
     --open)        OPEN=1 ;;
-    -h|--help)     sed -n '2,30p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    # The header down to the first line that is not a comment. A hand-counted range truncates the
+    # help the moment a paragraph is added to the header, and says nothing when it does.
+    -h|--help)     awk 'NR == 1 { next } /^#/ { sub(/^# ?/, ""); print; next } { exit }' "$0"; exit 0 ;;
     *)             echo "$DIST_SCRIPT: unknown argument: $1" >&2; exit 2 ;;
   esac
   shift
@@ -72,12 +75,27 @@ for f in "${PAGES[@]/#/site/}" site/style.css icon/icon-32.png icon/icon-512.png
 done
 
 # The one mistake this arrangement exists to prevent, caught where it is made rather than months
-# later when the two copies have drifted.
-if [ -e site/images ]; then
-  echo "$DIST_SCRIPT: site/images exists, and the screenshots are staged rather than committed." >&2
-  echo "  They live in docs/images/ because README.md shows them too. Remove site/images." >&2
+# later when the two copies have drifted. Once per language folder as well as at the root: a
+# screenshot committed beside a translated page is the same mistake one directory down, where the
+# pictures are a step further away and copying them in looks like the obvious fix.
+for page in "${PAGES[@]}"; do
+  d="site/$(dirname "$page")/images"
+  d="${d#site/./}"; case "$d" in images) d="site/images" ;; esac
+  [ -e "$d" ] || continue
+  echo "$DIST_SCRIPT: $d exists, and the screenshots are staged rather than committed." >&2
+  echo "  They live in docs/images/ because README.md shows them too. Remove $d." >&2
   exit 1
-fi
+done
+
+# A page folder nothing here stages is a language that publishes nowhere, and no other check sees it:
+# the page is never copied, so it never names a missing file and never drifts from anything.
+while IFS= read -r d; do
+  [ -n "$d" ] || continue
+  case " ${PAGES[*]} " in *" $d/index.html "*) continue ;; esac
+  echo "$DIST_SCRIPT: site/$d holds a page nothing here stages." >&2
+  echo "  Name it in PAGES and LANGS at the top of this script, or it reaches no reader." >&2
+  exit 1
+done < <(find site -mindepth 1 -maxdepth 1 -type d | sed 's|^site/||' | LC_ALL=C sort)
 
 # Not a formality: the pictures are the page. An empty `docs/images` stages a page of broken frames
 # and says nothing, which is the failure this whole arrangement is otherwise vulnerable to.
@@ -160,7 +178,7 @@ dist_step "checking relative links"
 MISSING=0
 
 check_links() {
-  local page="$1" ref path base
+  local page="$1" ref path base target
   base="$(dirname "$OUT/$page")"
   while IFS= read -r ref; do
     [ -n "$ref" ] || continue
@@ -170,7 +188,12 @@ check_links() {
     # Anchors and query strings are not part of the path on disk.
     path="${ref%%#*}"; path="${path%%\?*}"
     [ -n "$path" ] || continue
-    if [ ! -e "$base/$path" ]; then
+    # What a static host serves from a directory is its `index.html`, so that is what a reference
+    # ending in `/` has to reach. `[ -e ]` on the directory alone is satisfied by an empty one, which
+    # is exactly the hole a language link would fall through.
+    target="$base/$path"
+    [ -d "$target" ] && target="${target%/}/index.html"
+    if [ ! -e "$target" ]; then
       echo "$DIST_SCRIPT: $page asks for '$path', which is not in $OUT" >&2
       MISSING=$((MISSING + 1))
     else

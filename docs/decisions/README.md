@@ -448,7 +448,7 @@ it are the same entry. How the thing is built is [`ARCHITECTURE.md`](../ARCHITEC
 - [What a committed file may say about the machine it was written on](repository.md#what-a-committed-file-may-say-about-the-machine-it-was-written-on)
 - [Every fixture in the tree is synthetic](repository.md#every-fixture-in-the-tree-is-synthetic)
 - [A downloadable song pack](repository.md#a-downloadable-song-pack)
-- [The website is one page, and it links one download](repository.md#the-website-is-one-page-and-it-links-one-download)
+- [The website is one page per language, and it links one download](repository.md#the-website-is-one-page-per-language-and-it-links-one-download)
 - [The Rust toolchain is pinned exactly](repository.md#the-rust-toolchain-is-pinned-exactly)
 - [Why the pass checks everything](repository.md#why-the-pass-checks-everything)
 - [`master` takes pull requests, and CI is one required check](repository.md#master-takes-pull-requests-and-ci-is-one-required-check)

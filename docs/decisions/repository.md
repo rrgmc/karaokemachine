@@ -975,10 +975,36 @@ manifests from the same songs is a defect nobody notices until a package behaves
 build-time dependency on the same footing as `ffmpeg` the command and Inno Setup — nothing links it,
 nothing ships it, and its GPL therefore reaches no released artifact.
 
-## The website is one page, and it links one download
+## The website is one page per language, and it links one download
 
-**One hand-written `index.html` and one stylesheet in `site/`, in the machine's own theme colors,
-deployed by Actions to `rrgmc.github.io/karaokemachine`.**
+**One hand-written `index.html` per language and one stylesheet in `site/`, in the machine's own theme
+colors, deployed by Actions to `rrgmc.github.io/karaokemachine`.**
+
+**Every screen this product has speaks the reader's language, and the page describing it does too.**
+English is served at the root and every other language one segment down under its own tag —
+`site/pt-BR/index.html`, the same tag `i18n/pt-BR.ftl` carries and the same one `Locale::tag` returns.
+A page is whole rather than a body filled from a catalog, because a Fluent catalog holds no markup and
+this page's sentences are inseparable from their own emphasis: splitting one around its `<b>` forces
+English word order onto every language that follows. `Translations are governed by their own language`
+in [`foundations.md`](foundations.md#what-a-user-reads-is-written-in-plain-application-language)
+governs the words, so a page reads as though written in its language rather than rendered into it.
+
+**The language is offered, never chosen for the reader.** A static host negotiates no
+`Accept-Language` and the page runs no script, so each page carries a link naming the other language
+in that language — `Locale::endonym`'s rule, on a page with no Rust behind it to read an endonym from.
+`<link rel="alternate" hreflang>` is what tells a search engine which page to serve whom, and
+`x-default` names English, which is also what the root serves.
+
+**`tools/dist/site.sh` refuses drift between the pages**: the same sections, the same pictures, the
+same links out, and each page declaring its own `lang` and reaching every other. That is the drift a
+grep can see, and it is what stands in for the three catalog parity tests
+[`Catalogs live beside the words they translate`](#catalogs-live-beside-the-words-they-translate)
+owes from every translated crate. A paragraph that fell behind in *words* has no shape, and is found
+by reading it.
+
+**The links out stay English.** The repository, `BUILDING.md`, the architecture notes, the decisions
+and the release page are English wherever the reader came from, and the Download button goes on
+naming the repository the page deploys from.
 
 **Not a generated documentation site**: the documents are some twelve thousand lines of markdown that
 GitHub already renders with anchors, a file tree and search, and a generator would buy a second
