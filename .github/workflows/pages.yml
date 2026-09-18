@@ -50,9 +50,10 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      # The same script a local preview runs. It refuses a picture the page names that docs/images
-      # does not have, an absolute path that would 404 under /karaokemachine/, and anything the page
-      # would fetch from another server.
+      # The same script a local preview runs. It refuses a picture a page names that docs/images does
+      # not have, an absolute path that would 404 under /karaokemachine/, anything a page would fetch
+      # from another server, and two language pages that have drifted apart in their sections, their
+      # pictures or their links out.
       - name: Stage the site
         run: bash tools/dist/site.sh
 
