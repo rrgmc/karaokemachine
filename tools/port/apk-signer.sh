@@ -51,8 +51,11 @@ if ! SIGNER="$(find_apksigner)"; then
   exit 0
 fi
 
-# apksigner prints one `Signer #N certificate DN:` line per signer; there is one here.
-CERT="$("$SIGNER" verify --print-certs "$APK" 2>/dev/null | sed -n 's/^Signer #1 certificate DN: //p' | head -1)"
+# apksigner prints one certificate line per signer, and there is one signer here. Build-tools 36
+# and older label it `Signer #1 certificate DN:`; 37 labels it by scheme, `V3.0 Signer: certificate
+# DN:`. Both forms are read, because the newest build-tools installed is the one used.
+CERT="$("$SIGNER" verify --print-certs "$APK" 2>/dev/null |
+  sed -n -E 's/^(Signer #1|V[0-9.]+ Signer:) certificate DN: //p' | head -1)"
 
 if [ -z "$CERT" ]; then
   [ "$CN_ONLY" -eq 1 ] && exit 1
