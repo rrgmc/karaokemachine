@@ -54,6 +54,13 @@ gradlew   text eol=lf
 # that step reproduces the failure exactly and reads as "the fix did not work".
 *.conf    text eol=lf
 
+# The prose checker's two data files. `check-prose.sh` hands `prose-sentences.awk` to `awk -f`, and
+# it matches a path in `prose-converted.txt` with `grep -xF`. A CR ends every line of the program and
+# every path in the list, so both stay LF wherever they are checked out. The other `.txt` files here
+# are UltraStar fixtures, which carry whatever bytes the case under test needs.
+*.awk     text eol=lf
+tools/dev/prose-converted.txt text eol=lf
+
 # Linker version scripts, meaning tools/port/libc_n.map, which `.cargo/config.toml` passes as
 # `--version-script`. Unlike the shell scripts above this is *not* load-bearing: lld was tested with
 # a CRLF copy and linked it without complaint, so this is consistency rather than a fix. Pinned

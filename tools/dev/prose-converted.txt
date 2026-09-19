@@ -1,0 +1,9 @@
+# The documents written to the sentence shapes in `How a document in this repository is written`.
+#
+# `check-prose.sh` reads the sentence shapes over every file named here, whatever mode it runs in. A
+# file that is not named here is read over the lines a branch adds and no further, so the tree
+# converts one document at a time and a converted one cannot slide back.
+#
+# One path per line, from the repository root, exactly as `git ls-files` spells it.
+
+README.md

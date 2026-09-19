@@ -584,6 +584,41 @@ When unsure, keep the sentence and delete the paragraph around it.
 **This applies to code comments too**, on the same test. A comment saying why a line is the way it is
 earns its place; one describing a state that is gone does not.
 
+**A sentence takes the shape ASD-STE100 gives it.** The standard is Simplified Technical English, and
+aerospace maintenance manuals are its home. The half above says what a sentence may be about. This
+half says what shape it takes. Both bind every word this repository holds.
+
+- **The active voice.** The sentence names the thing that acts.
+- **One idea in a sentence.** Split a sentence before it carries two.
+- **Twenty-five words, and the limit is hard.** A longer sentence becomes two. The standard sets
+  twenty for a procedure and twenty-five for a description, and what this repository writes
+  describes.
+- **Simple tenses.** Present, past and future.
+- **One word for one idea.** Never a synonym for variety, which
+  [`One spelling per concept, across every surface`](foundations.md#one-spelling-per-concept-across-every-surface)
+  already asks of a name.
+- **No idiom, no slang, no metaphor**, in body prose.
+- **The articles stay.** Write *the function* and *a race*.
+- **Three words in a noun string.** A preposition breaks a longer one.
+- **Six sentences in a paragraph.**
+
+**An exact item keeps its spelling.** A path, a flag, a config key and an environment variable are
+exact. So are an error string, a number, a version and an id. A plainer version of a name is a wrong
+name. A concept word goes the other way: write *use*, never *leverage*.
+
+**A longer document becomes more short sentences.** It never becomes fewer facts. The keep-test above
+decides what a document says. The word limit decides only where the full stops fall.
+
+**A full stop is not the only join, and a run of fragments is the failure to watch for.** Two clauses
+that carry one idea keep their conjunction, their colon or their semicolon. A clause with no verb is
+a fragment rather than a sentence, and three in a row read like a telegram. Where a split leaves
+that, join the pieces back and spend the words the limit allows.
+
+**A heading keeps the voice it has.** The rule above defends a heading that instructs, and this
+machine's vocabulary lives in those headings. No word limit and no one-idea test reaches a heading.
+The same holds for a table cell, a fenced block, a quoted block and a block of HTML. A picture's
+`alt` describes one image in one breath, so it stays outside too.
+
 **A commit message states the fault the change answers and the rule that holds after it.** The
 subject is that rule in the declarative the log is written in. The body is the fault as somebody
 standing in front of the tree would meet it, and the reason this change is the answer to it. A fault
@@ -614,6 +649,17 @@ with no file behind it, and `karaokemachine X.Y.0` is all it says.
 have one -- `what something used to be`, `chronology`, `meta-commentary` -- and cannot see the
 appositive tail or the paragraph of reassurance, so a clean run is a floor rather than a pass.
 
+**`tools/dev/prose-sentences.awk` reads the sentence shapes.** It counts the words in a sentence and
+the sentences in a paragraph. It catches a passive verb that names its agent. Idiom, metaphor and a
+long noun string have no shape, so a person still reads new prose. It reads `*.md` and commit
+messages, and it hands a code comment to that person.
+
+**The tree converts one document at a time.** `tools/dev/prose-converted.txt` names the documents
+somebody has already written to the shape, and every mode reads those whole. Outside that list the
+checker reads only the lines a branch adds. More than a third of the sentences in this tree run past
+twenty-five words. A tree-wide sentence run would therefore fail every branch, and a gate that always
+fails teaches a session to skip the gate.
+
 **`--commits` puts the same shapes over the messages, and its reach is `origin/master..HEAD`.** The
 subject and the body both, merges included, because a merge here carries a written subject rather
 than git's default. A hit names the short sha and whether it fell in the subject or the body, so the
@@ -631,12 +677,13 @@ against `origin/master` exactly as the task does. A push to `master` has no bran
 `master` takes pull requests only.
 
 **`--changed` in the gate and the whole tree by hand, and the reason is a cost.** Fourteen shapes
-over 700 files is ~10,000 `grep` spawns -- 2m21s on this repository's Windows box, of which two
-thirds is process creation, against 3.3 s for a branch's own lines. Reading everything before every
-push would put the slowest guard in the repository in front of a 13-second one, which is the
-opposite of the order `task check` is arranged in. The whole-tree form is what to run after a large
-rewrite, and what a runner should be given: it needs no history and no remote ref, where `--changed`
-resolves a base against `origin/master`.
+over 700 files is ~10,000 `grep` spawns -- 2m27s on this repository's Windows box, of which two
+thirds is process creation, against 3.3 s for a branch's own lines. The sentence shapes are one
+`awk` per converted document, which is six of those seconds. Reading everything before every push
+would put the slowest guard in the repository in front of a 13-second one. That is the opposite of
+the order `task check` is arranged in. The whole-tree form is what to run after a large rewrite, and
+what a runner should be given. It needs no history and no remote ref, where `--changed` resolves a
+base against `origin/master`.
 
 **A run that reads nothing fails.** Both modes had a path to reporting a clean tree having opened no
 file at all: `--changed` fell back to diffing HEAD against itself where `origin/master` was absent,

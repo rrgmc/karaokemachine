@@ -112,6 +112,15 @@ feat(builder): a filter lives as long as the folder it names
 docs(decisions): a release keeps what it changed
 ```
 
+**The sentence shape reaches a message too.** The active voice, one idea to a sentence, twenty-five
+words at most, and the same decision sets the rest of it out. A subject is a sentence like any other.
+A long body becomes more short sentences, never fewer facts, and two clauses that carry one idea keep
+their conjunction rather than becoming two fragments.
+
+**A document you convert to that shape joins `tools/dev/prose-converted.txt`.** The checker then
+reads it whole in every mode, so nothing slides back. Run `tools/dev/check-prose.sh` over the tree
+before you add the line.
+
 `task lint:prose` reads the subject and body of every commit above `origin/master`, so a message is
 judged while the branch is unmerged and `git commit --amend` or `git rebase -i --reword` still costs
 nothing. **A message already on the default branch is out of its reach** — rewording one changes

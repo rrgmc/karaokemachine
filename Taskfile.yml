@@ -255,8 +255,13 @@ tasks:
   # one -- `what something used to be`, `chronology`, `meta-commentary` -- and cannot see the appositive
   # tail or the paragraph of reassurance, so it is a floor rather than a pass.
   #
+  # **The same decision sets the sentence shape, and `prose-sentences.awk` counts it.** A body
+  # sentence stops at twenty-five words and a paragraph at six sentences. It reads `*.md` and the commit
+  # messages, and `tools/dev/prose-converted.txt` names the documents the whole-tree form reads for
+  # it. Idiom and metaphor have no shape, so a person reads for those.
+  #
   # **`check` runs this form, and `--changed` is what makes that affordable.** Fourteen shapes over
-  # 700 files is 2m21s on Windows, where a branch's own lines are three seconds -- so the whole-tree
+  # 700 files is 2m27s on Windows, where a branch's own lines are three seconds -- so the whole-tree
   # form is the audit to run by hand after a large rewrite, and this one is the guard. Reading the
   # whole tree in `check` would put the slowest guard in the repository in front of a 13-second one.
   #
@@ -267,7 +272,7 @@ tasks:
   # CI reads the whole tree on every run and `--commits` on a pull request, whose checkout carries
   # the history to resolve the branch against.
   lint:prose:
-    desc: 'Check that the prose and the commit messages this branch adds state the rule rather than narrating it'
+    desc: 'Check that the prose and the commit messages this branch adds state the rule, and take the sentence shape'
     cmds:
       - '"{{.SH}}" tools/dev/check-prose.sh --changed'
       - '"{{.SH}}" tools/dev/check-prose.sh --commits'

@@ -105,7 +105,7 @@ of scripts can do for you.
 | `task fmt` | formats both workspaces: this one's members, and the excluded `tools/cmd/assets` |
 | `task check` | `lint:local`, `lint:prose`, `lint:pin`, `lint:version`, `lint:mdns`, `lint:cargo`, `lint:labels`, `fmt:check`, `lint`, then `test` — the pass before a push |
 | `task lint:local` | asserts no tracked file names a local path, address or person |
-| `task lint:prose` | asserts the prose this branch adds, and the messages it commits them in, state the rule rather than narrating it |
+| `task lint:prose` | asserts the prose this branch adds, and the messages it commits them in, state the rule rather than narrating it, and take the sentence shape |
 | `task lint:cargo` | asserts every value in `.cargo/config.toml` is a string, which is what a worktree can inherit without doubling it |
 | `task lint:labels` | asserts every platform and program the bug form offers has a label in `tools/dev/labels.sh` |
 | `task check:linux` | what CI's Linux job runs, in Docker, on this machine |
@@ -907,9 +907,10 @@ Measured on this repository's Windows box, over a tree that is already built and
 - **Clippy and the test build share nothing.** Whichever runs second pays its own full traversal, so
   the two orders cost the same 200s cold. Dependencies are 62% of that compilation, members 38%, so
   no selection among members reaches most of it.
-- **The whole-tree form of `check-prose.sh` is 141s**, and is the audit rather than the gate;
+- **The whole-tree form of `check-prose.sh` is 147s**, and it is the audit rather than the gate.
   `task check` runs `--changed`, and `--commits` beside it reads a branch's own messages in under a
-  second.
+  second. The sentence shapes cost one `awk` per converted document. That is six of those seconds;
+  the fourteen phrase shapes are the other 141.
 
 `Why the pass checks everything` in [`docs/decisions/repository.md`](docs/decisions/repository.md) is
 what these figures decide.
