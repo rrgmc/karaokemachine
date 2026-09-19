@@ -17,6 +17,15 @@ Entries are written for somebody who has the machine. Why any of it is the way i
   songs are in each one and beneath it. Each folder opens the songs list narrowed to that folder,
   and a song page links each copy to the songs beside it. A scan that finds changes builds the
   folder list as its last step, which adds several minutes to it on a large corpus.
+- **A song with no language is placed by its own words.** Where neither the file's header nor its
+  lyric encoding says anything, the words themselves are read, and what comes back counts as the
+  song's language — so it can be filtered to, sorted by and packaged without anybody classifying it
+  by hand. A reading is kept only when it is certain, so a song nothing can place stays blank rather
+  than being guessed at, and a song page says which language was read and how sure the reading was.
+  The first open of an existing corpus reads its songs once, showing its progress.
+- **The browse bar can leave languages out**, any number of them at once, which is the short way to
+  put a folder in a language you do not read out of every list at once. Songs nothing has classified
+  stay, and the filter writes nothing to the corpus.
 
 ## [1.18.0] - 2026-09-18
 

@@ -357,12 +357,31 @@ at all, which lands under `zh`. Preferred for how it reads and types, and the do
 code here is a valid BCP 47 primary subtag, so nothing stored would have to change, only gain
 suffixes.
 
-**Two sources say what a song is in, and the stronger wins.** The lyrics' text **encoding** is tried
-first — a Shift-JIS track is Japanese whatever the header claims — and only what is unambiguous is
-mapped, so `windows-1252` (a dozen languages), `windows-1251` (a region) and UTF-8 all say nothing.
-The Soft Karaoke `@L` header is the fallback, and reading it is **transcription rather than
-inference**: the file made a statement and this reads it. A title is a guess; Shift-JIS bytes are
-evidence.
+**Three witnesses say what a song is in, and they are read in order of what stands behind them.**
+What a person typed comes first: somebody looked at the song. Then what the file said about itself.
+Then what the song's own words read as.
+
+**The file's two witnesses are transcription rather than inference**, and the stronger of them is the
+lyrics' text **encoding** — a Shift-JIS track is Japanese whatever the header claims. Only what is
+unambiguous is mapped, so `windows-1252` (a dozen languages), `windows-1251` (a region) and UTF-8 all
+say nothing. The Soft Karaoke `@L` header is the weaker: the file made a statement and this reads it.
+
+**The words are read last because a reading is worth less than a statement**, and it is admitted at
+all because over 90% of a real corpus has neither witness above it — a column that is empty on nine
+songs in ten answers no question. What reads them is a trigram and alphabet model over the lyrics,
+falling back to the title, in `km-langguess`.
+
+**A reading is stored only when it is certain enough to be a fact**, above a named confidence, and
+below that nothing is written. That gate is what makes the ordering safe rather than merely tidy: a
+guess counts as the song's language, so it satisfies the packaging gate, and one admitted on a
+balance of probabilities would put a fabricated language into a package. The confidence is not a
+proxy for how much text there was — it already holds that, a two-word title in a shared alphabet
+scoring around 0.49 where a verse of 262 letters is certain, and a title carrying characters only one
+language writes is certain at ten letters.
+
+**How sure it was is shown wherever a guessed language is.** It is the one witness that can be wrong
+about a song it read correctly, so a close call has to look different from a certainty to a curator
+deciding what to check.
 
 **`ENGL` is taken at face value, and the measurements say that is uncomfortable.** Sampling 60
 `.kar` files from each language-named folder: `Ingles/` says `ENGL` 59 times and is right; `Brasil/`
@@ -372,9 +391,10 @@ over 90% of a real corpus with no language at all — **a column that is empty o
 answers no question, whereas a populated one that is sometimes wrong can be corrected in one
 action.**
 
-**When neither source speaks, nothing is written** — not `und`, which is a claim somebody made, and
+**When no witness speaks, nothing is written** — not `und`, which is a claim somebody made, and
 writing it automatically would satisfy the packaging rule on every song in a corpus nobody had looked
-at.
+at. A song whose words nothing could place confidently reaches the end of all three and is honestly
+unclassified, which is what the browse list's `unset` filter is for.
 
 **A package build refuses a song with no language**, in `km-pack build` and in the curation tool's
 build, and **deliberately not in the manifest's own validity check**: `Package::open` runs that same

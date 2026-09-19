@@ -456,6 +456,17 @@ precedence: the lyric encoding wins where it speaks, the Soft Karaoke header is 
 unambiguous encodings map** — an entry naming a *region* rather than a language is absent, since it is
 one language or another depending on who wrote the file.
 
+**A third source reads the words, and it is a crate of its own.** `km-langguess` takes the lyrics,
+falling back to the title, and answers with a `Language` and a confidence; `km_kmpkg::Language::detect`
+knows nothing about it, and the ordering between the three is `eff_language()` in the curation tool.
+The crate exists rather than a module or a feature because the detector compiles a trigram model of
+every language it knows into the binary, `km-kmpkg` is linked by the machine, both remotes and every
+application shell, and only the packaging tools ask the question — a crate nothing else names is a
+crate nothing else carries.
+
+Its answer maps ISO 639-3 onto ISO 639-1, which is transcription; a test walks every language the
+detector can return and fails on one nothing maps.
+
 **Folding strips accents as well as case**, which is why every lookup table can stay ASCII. That is
 not fussiness: a non-ASCII key is a key that a careless `perl -i` silently replaces with `U+FFFD`,
 which is exactly how the function came to be written. 194 corpus files declare `Français`.
