@@ -1618,6 +1618,10 @@ pub fn router(state: State) -> Router {
         .route("/songs/{id}/edit", post(handlers::edit_song))
         .route("/songs/{id}/corrections", post(handlers::save_corrections))
         .route("/songs/{id}/user-score", post(handlers::user_score))
+        .route(
+            "/songs/{id}/lyrics-hidden",
+            post(handlers::set_lyrics_hidden),
+        )
         .route("/songs/{id}/favorites", post(handlers::song_favorites))
         // Before the `{favorite}` route: `new` is a word, not an id, and axum would otherwise try to
         // parse it as one.
@@ -5435,6 +5439,56 @@ mod tests {
             "{said}"
         );
         assert!(said.contains("Rated 9/10."), "{said}");
+    }
+
+    /// The three answers about a song's words, and the column each one leaves behind.
+    ///
+    /// **`show` storing a 0 rather than a NULL is the assertion that matters.** NULL is nobody
+    /// having said, and a build reads it as *take whatever the analysis concludes* — so a person
+    /// who has just overruled the analysis and a person who has never opened the page would leave
+    /// the same row, and the next build would undo the first one's answer.
+    #[tokio::test]
+    async fn the_three_answers_about_a_songs_words_store_three_different_rows() {
+        let (_corpus, state) = two_folders("lyrics-hidden-states");
+        let id = a_song(&state);
+
+        let stored = |state: &State, id: &str| -> Option<bool> {
+            let workspace = state.workspace().expect("open");
+            let db = workspace.db.lock();
+            db.song(id).expect("song").lyrics_hidden
+        };
+        assert_eq!(stored(&state, &id), None, "nobody has said yet");
+
+        for (posted, expected) in [
+            ("lyrics_hidden=hide", Some(true)),
+            ("lyrics_hidden=show", Some(false)),
+            ("lyrics_hidden=auto", None),
+        ] {
+            let (status, said) = post(
+                &state,
+                &format!("/songs/{id}/lyrics-hidden?as=toast"),
+                posted,
+            )
+            .await;
+            assert_eq!(status, axum::http::StatusCode::OK, "{said}");
+            assert_eq!(stored(&state, &id), expected, "after {posted}");
+        }
+    }
+
+    /// The Advanced tab is offered for every song whose words the machine draws, and no others.
+    #[tokio::test]
+    async fn the_advanced_tab_follows_the_words_rather_than_the_channels() {
+        let (_corpus, state) = two_folders("advanced-tab-words");
+        let id = a_song(&state);
+        let (_, html) = get(&state, &format!("/songs/{id}")).await;
+        assert!(
+            html.contains("song-tab-advanced\">") || html.contains("for=\"song-tab-advanced\""),
+            "a MIDI song is offered the tab: {html}"
+        );
+        assert!(
+            html.contains("/lyrics-hidden?as=toast"),
+            "and the words control is on it: {html}"
+        );
     }
 
     /// Corrections are written by their own route, and the details form does not touch them.

@@ -494,6 +494,30 @@ pub struct SongEntry {
     /// Transposition to apply by default, for a file written in an awkward key.
     #[serde(default, skip_serializing_if = "is_zero")]
     pub default_transpose: i8,
+    /// Whether the machine plays this song and draws none of its words.
+    ///
+    /// What it is for: a file can be a good arrangement and a bad karaoke song, because its lyric
+    /// track is mistimed, is the arranger's business card, or is a chord chart. An empty screen is
+    /// better than text nobody can follow, and the television says `no lyrics` in the corner so the
+    /// emptiness is explained rather than mysterious.
+    ///
+    /// **Both detected and edited**, which is [`Self::fixes`]'s shape rather than
+    /// [`Self::default_transpose`]'s. `km_suitability::Suitability::words_cannot_be_followed` names
+    /// the three faults that answer this without a person, so a rebuild re-derives it; a person who
+    /// disagrees is carried over by [`EditedField::LyricsHidden`] — **including a person who says
+    /// the words are to be drawn**, which is this field false with the marker set, the one state
+    /// the field alone cannot express.
+    ///
+    /// **Only a song whose words the machine draws can carry it.** A video or MP3+G song's words are
+    /// pixels in a picture, so there is nothing here to suppress — see [`SongKind::draws_words`].
+    ///
+    /// **This does not move the format version, deliberately**, for the reason [`Self::tags`] and
+    /// [`Self::loudness`] did not: the version is chosen by content (see
+    /// [`FORMAT_VERSION_MIDI_ONLY`]) and nothing here sets `deny_unknown_fields`, so a build that
+    /// predates this field ignores it and a package whose songs all draw their words is
+    /// byte-identical to what an earlier build wrote.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub lyrics_hidden: bool,
     /// Corrections for defects in the file's own MIDI events.
     ///
     /// **The one field that is both detected and edited**, where [`Self::default_transpose`] is only
@@ -651,6 +675,14 @@ pub enum EditedField {
     /// which is the one state the field alone cannot express — absent otherwise means detection
     /// abstained, and the two must not be confused by a rebuild.
     Melody,
+    /// Whether the song's words are drawn.
+    ///
+    /// Marked for [`Self::Fixes`]'s reason: the field has a detected half, and the marker is what
+    /// makes a rebuild keep a person's answer rather than the detector's. **A song somebody said is
+    /// to draw its words carries the marker with [`SongEntry::lyrics_hidden`] false**, which is the
+    /// one state the field alone cannot express — false otherwise means detection found nothing
+    /// wrong, and a rebuild must not confuse the two.
+    LyricsHidden,
     /// A field named by a build newer than this one. Never constructed here.
     ///
     /// Carried through a round trip untouched, so a rebuild by an older build does not silently drop
@@ -676,6 +708,7 @@ impl EditedField {
             Self::Number => "number",
             Self::Fixes => "fixes",
             Self::Melody => "melody",
+            Self::LyricsHidden => "lyrics_hidden",
             Self::Unknown => "unknown",
         }
     }
@@ -726,6 +759,15 @@ impl SongEntry {
                     self.melody = previous.melody.clone();
                     self.melody_abstained = previous.melody_abstained.clone();
                 }
+                // The preview travels with it, because a song whose words are not drawn carries
+                // none. It is otherwise detected, so a rebuild fills it again from the file, and
+                // carrying the flag without it would put the words back into the song book.
+                EditedField::LyricsHidden => {
+                    self.lyrics_hidden = previous.lyrics_hidden;
+                    if self.lyrics_hidden {
+                        self.lyric_preview.clear();
+                    }
+                }
                 // A field name from a later build: left alone rather than guessed at. Exhaustive
                 // now, so adding a variant above is a compile error here rather than a silent drop.
                 EditedField::Unknown => continue,
@@ -737,6 +779,10 @@ impl SongEntry {
 
 fn is_zero(value: &i8) -> bool {
     *value == 0
+}
+
+fn is_false(value: &bool) -> bool {
+    !*value
 }
 
 /// A confidently detected melody channel.
@@ -1522,6 +1568,7 @@ mod tests {
             duration_ms: 200_000,
             lyric_encoding: None,
             default_transpose: 0,
+            lyrics_hidden: false,
             fixes: Vec::new(),
             melody: None,
             melody_abstained: None,
@@ -1983,6 +2030,63 @@ mod tests {
         assert!(!json.contains("\"melody\""), "got {json}");
         assert!(!json.contains("\"suitability\""));
         assert!(!json.contains("\"default_transpose\""));
+        // The same argument as the tags below: a package whose songs all draw their words is
+        // byte-identical to what a build predating this field wrote, which is why the format
+        // version did not move for it.
+        assert!(!json.contains("\"lyrics_hidden\""));
+    }
+
+    /// The three answers about a song's words, across a rebuild from source.
+    ///
+    /// **The `show` answer is the one worth the test.** A person saying the words *are* to be drawn
+    /// leaves the field false — exactly what a song nobody has touched carries — so the marker is
+    /// the only thing that tells a rebuild not to hand the song back to measurement.
+    #[test]
+    fn a_persons_answer_about_the_words_outlives_a_rebuild_in_both_directions() {
+        // Somebody silenced a song measurement was content with.
+        let mut hidden = song(1);
+        hidden.lyrics_hidden = true;
+        hidden.mark_edited(EditedField::LyricsHidden);
+
+        let mut rebuilt = song(1);
+        rebuilt.inherit_edits_from(&hidden);
+        assert!(rebuilt.lyrics_hidden);
+        assert!(rebuilt.is_edited(EditedField::LyricsHidden));
+
+        // And somebody overruled measurement the other way, on a song a rebuild silences again.
+        let mut shown = song(1);
+        shown.lyrics_hidden = false;
+        shown.mark_edited(EditedField::LyricsHidden);
+
+        let mut remeasured = song(1);
+        remeasured.lyrics_hidden = true;
+        remeasured.inherit_edits_from(&shown);
+        assert!(
+            !remeasured.lyrics_hidden,
+            "a rebuild must not put the words back out of sight over somebody's answer"
+        );
+        assert!(remeasured.is_edited(EditedField::LyricsHidden));
+
+        // A song nobody has answered for takes whatever the rebuild measured.
+        let untouched = song(1);
+        let mut measured = song(1);
+        measured.lyrics_hidden = true;
+        measured.inherit_edits_from(&untouched);
+        assert!(measured.lyrics_hidden);
+        assert!(!measured.is_edited(EditedField::LyricsHidden));
+    }
+
+    /// The preview is the words on every surface the television is not, so it goes with them.
+    #[test]
+    fn inheriting_a_silenced_song_takes_its_preview_with_it() {
+        let mut hidden = song(1);
+        hidden.lyrics_hidden = true;
+        hidden.mark_edited(EditedField::LyricsHidden);
+
+        let mut rebuilt = song(1);
+        rebuilt.lyric_preview = vec!["first line".to_owned(), "second line".to_owned()];
+        rebuilt.inherit_edits_from(&hidden);
+        assert!(rebuilt.lyric_preview.is_empty());
     }
 
     /// An untagged package is byte-identical to what a build predating tags wrote.
@@ -2220,6 +2324,7 @@ mod tests {
             ("\"title\"", EditedField::Title),
             ("\"lyric_encoding\"", EditedField::LyricEncoding),
             ("\"default_transpose\"", EditedField::DefaultTranspose),
+            ("\"lyrics_hidden\"", EditedField::LyricsHidden),
             ("\"fixes\"", EditedField::Fixes),
         ] {
             let field: EditedField = serde_json::from_str(wire).expect("a known name");

@@ -223,6 +223,14 @@ pub struct Frame<'a> {
     /// Guide melody: `None` when the song declares no melody channel, so the control is hidden
     /// rather than shown doing nothing.
     pub melody: Option<bool>,
+    /// Whether this song's words are turned off, so none of them is drawn.
+    ///
+    /// **Not [`Self::picture`], although both empty the lyric band.** That one also suppresses the
+    /// key and tempo badges, because the songs it is true of have neither; a MIDI song with its
+    /// words turned off still transposes and still changes tempo, so sharing the field would take
+    /// away two controls that work. What this adds instead is a badge of its own — the empty band
+    /// needs a sentence, and `(no lyrics in this file)` would be false about a file that has some.
+    pub lyrics_hidden: bool,
     /// Whether the background layer carries the song's own words.
     ///
     /// True for a video song, whose words are pixels in somebody else's picture, and for an MP3+G
@@ -386,6 +394,7 @@ impl<'a> Frame<'a> {
             transpose: 0,
             tempo_ratio: 1.0,
             melody: None,
+            lyrics_hidden: false,
             picture: false,
             show_position: false,
             connect: None,
@@ -1873,6 +1882,65 @@ fn fill_pill<T: RenderTarget>(canvas: &mut Canvas<T>, color: Color, rect: FRect)
 /// can keep the badge run off the pill, and [`draw`] asks so it can fill it. Threading the rect
 /// through `draw_playing`'s signature was the alternative and would have coupled the two to the
 /// order they happen to be called in.
+/// The badges over a playing song, in the order they are drawn.
+///
+/// **A function of the frame and nothing else**, so what the run says can be read without a canvas.
+/// The drawing beside it is a join, a cut to fit and one `draw_text`.
+///
+/// **Order is the content here.** The run is right-aligned and ellipsized against the queue pill,
+/// so a screen too narrow for all four loses the last — and the words badge is the one that
+/// explains an empty middle of the screen, where a key and a tempo report settings the singer chose
+/// and can see the effect of. So it goes first.
+///
+/// Key and tempo are absent over a picture: the settings behind them are the ones the *next* MIDI
+/// song will use, and a badge reading `key +2` over a video whose key has not moved is a plain lie.
+/// The words badge has no such exception, because a picture song never carries the flag.
+fn badge_run(frame: &Frame<'_>) -> Vec<String> {
+    let words = frame.words();
+    let mut badges: Vec<String> = Vec::new();
+    if frame.lyrics_hidden {
+        badges.push(words.msg(crate::words::BADGE_LYRICS_HIDDEN).into_owned());
+    }
+    if frame.transpose != 0 && !frame.picture {
+        // The sign is formatted here and passed as text, not as a number: `+2` is what a singer
+        // reads, and Fluent would render an integer argument as `2`.
+        badges.push(
+            words
+                .msg_with(
+                    crate::words::BADGE_KEY,
+                    &[("semitones", format!("{:+}", frame.transpose).into())],
+                )
+                .into_owned(),
+        );
+    }
+    if (frame.tempo_ratio - 1.0).abs() > 0.001 && !frame.picture {
+        badges.push(
+            words
+                .msg_with(
+                    crate::words::BADGE_TEMPO,
+                    &[("ratio", format!("{:.2}", frame.tempo_ratio).into())],
+                )
+                .into_owned(),
+        );
+    }
+    // Shown only when the song actually has a melody channel, so the display never advertises a
+    // control that would do nothing.
+    if frame.melody == Some(true) {
+        badges.push(words.msg(crate::words::BADGE_MELODY).into_owned());
+    }
+    badges
+}
+
+/// Whether the lyric rows are drawn at all this frame.
+///
+/// Two reasons not to, and they are separate: the song brings its own picture with the words in it,
+/// or somebody turned the words off. The second suppresses the
+/// [`crate::words::NO_LYRICS`] fallback with the rows, which is the part worth stating — that
+/// sentence is true of a file with no words and false of a file whose words were withheld.
+fn draws_lyric_rows(frame: &Frame<'_>) -> bool {
+    !frame.picture && !frame.lyrics_hidden
+}
+
 fn queue_pill(fonts: &Fonts, layout: Layout, count: usize) -> (String, FRect, f32) {
     let digits = count.to_string();
     // **The measured line height, not `Theme::glyph_box_px`.** The two disagree by more than they
@@ -2513,35 +2581,7 @@ fn draw_playing<T: RenderTarget, C>(
     // None of the three exists for a video song, and a badge reading "key +2" over a video whose key
     // has not moved would be a plain lie — the settings behind these are the ones the *next* MIDI
     // song will use.
-    let words = frame.words();
-    let mut badges: Vec<String> = Vec::new();
-    if frame.transpose != 0 && !frame.picture {
-        // The sign is formatted here and passed as text, not as a number: `+2` is what a singer
-        // reads, and Fluent would render an integer argument as `2`.
-        badges.push(
-            words
-                .msg_with(
-                    crate::words::BADGE_KEY,
-                    &[("semitones", format!("{:+}", frame.transpose).into())],
-                )
-                .into_owned(),
-        );
-    }
-    if (frame.tempo_ratio - 1.0).abs() > 0.001 && !frame.picture {
-        badges.push(
-            words
-                .msg_with(
-                    crate::words::BADGE_TEMPO,
-                    &[("ratio", format!("{:.2}", frame.tempo_ratio).into())],
-                )
-                .into_owned(),
-        );
-    }
-    // Shown only when the song actually has a melody channel, so the display never advertises a
-    // control that would do nothing.
-    if frame.melody == Some(true) {
-        badges.push(words.msg(crate::words::BADGE_MELODY).into_owned());
-    }
+    let badges = badge_run(frame);
     if !badges.is_empty() {
         // Anchored off the queue pill rather than off the margin: the corner is the pill's now, and
         // this run ends where the pill begins. Asked for rather than passed in, because `draw` fills
@@ -2575,8 +2615,13 @@ fn draw_playing<T: RenderTarget, C>(
     // Skipped entirely for a video song, the "(no lyrics in this file)" fallback included. That
     // message is a true and useful thing to say about a MIDI file and a misleading one over a video,
     // whose words are on screen already — in its own picture, where the machine did not put them.
-    if frame.picture {
-        // Nothing to draw: the video is the words.
+    //
+    // Skipped for a song whose words are turned off, fallback and all, and the fallback is the
+    // reason this is a second term rather than the same one: the file *has* words, so a line
+    // saying it has none would be a lie told by the machine that hid them. What says so is the
+    // badge in the corner, which names the decision rather than the file.
+    if !draws_lyric_rows(frame) {
+        // Nothing to draw: the picture is the words, or somebody turned them off.
     } else if let Some(timeline) = frame.timeline {
         // From the theme, because `tools/cmd/assets/km-wallpaper-pack` measures legibility inside the band these
         // two numbers define. See `Theme::lyric_band`.
@@ -3924,6 +3969,50 @@ mod tests {
                  `key -12   melody`"
             );
         }
+    }
+
+    /// What the badge run says about a song whose words are turned off, and where it says it.
+    #[test]
+    fn the_words_badge_stands_first_and_beside_the_others() {
+        let entry = NumberEntry::default();
+        let mut frame = Frame::idle(&entry);
+        frame.screen = Screen::Playing;
+
+        // On its own: the guide melody is off and nothing is transposed, and the badge still
+        // stands, because it is a fact about the song rather than about a control.
+        frame.lyrics_hidden = true;
+        frame.melody = Some(false);
+        assert_eq!(badge_run(&frame), ["no lyrics"]);
+
+        // Beside the others, and first, because the run is cut from the right.
+        frame.transpose = -2;
+        frame.tempo_ratio = 0.9;
+        frame.melody = Some(true);
+        assert_eq!(
+            badge_run(&frame),
+            ["no lyrics", "key -2", "tempo 0.90x", "melody"]
+        );
+
+        // And absent from a song nobody has silenced.
+        frame.lyrics_hidden = false;
+        assert_eq!(badge_run(&frame), ["key -2", "tempo 0.90x", "melody"]);
+    }
+
+    /// The rows and the fallback line go together, and for two separate reasons.
+    #[test]
+    fn a_song_whose_words_are_turned_off_draws_no_rows_and_no_fallback() {
+        let entry = NumberEntry::default();
+        let mut frame = Frame::idle(&entry);
+        frame.screen = Screen::Playing;
+        assert!(draws_lyric_rows(&frame));
+
+        frame.lyrics_hidden = true;
+        assert!(!draws_lyric_rows(&frame));
+
+        // A picture song was already the other reason, and neither depends on the other.
+        frame.lyrics_hidden = false;
+        frame.picture = true;
+        assert!(!draws_lyric_rows(&frame));
     }
 
     /// The fault line stays centered on the screen and still clears the pill.

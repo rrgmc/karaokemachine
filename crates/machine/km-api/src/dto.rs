@@ -1931,6 +1931,15 @@ pub struct PlayFileRequest {
     /// the timeline arrives in the form a package stores it in.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub lyrics: Option<km_song::LyricTimeline>,
+    /// Play the song and draw none of its words, in place of whatever this machine would detect.
+    ///
+    /// **Absent is not the same as `false`**, on [`Self::fixes`]'s terms: absent leaves the machine
+    /// to measure the file as it does for any loose file, and `false` is a curator saying the words
+    /// are to be drawn on a song that measurement silences. A preview is for seeing what the
+    /// packaged song will look like, and a curator who has just overruled detection is checking
+    /// precisely that.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub lyrics_hidden: Option<bool>,
 }
 
 /// Reads a key that is present, so `null` arrives as `Some(None)` rather than as the key's absence.
@@ -2131,6 +2140,7 @@ mod tests {
             duration_ms: 1000,
             melody_channel: None,
             has_lyrics: true,
+            lyrics_hidden: false,
         };
         let dto = NowPlayingDto::from(&now);
         assert!(!dto.melody_available);
@@ -2473,6 +2483,7 @@ mod tests {
             duration_ms: 1000,
             lyric_encoding: None,
             default_transpose: 0,
+            lyrics_hidden: false,
             fixes: Vec::new(),
             melody_channel: None,
             suitability: Some(8),

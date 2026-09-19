@@ -160,6 +160,11 @@ pub struct SongDetail {
     pub lyric_encoding: Option<String>,
     /// Transposition a person chose.
     pub default_transpose: Option<i64>,
+    /// Whether somebody said to play the song and draw none of its words.
+    ///
+    /// Three states: `None` is nobody has said and the analysis stands, `Some(true)` silences the
+    /// words, and `Some(false)` draws them on a file the analysis would have silenced.
+    pub lyrics_hidden: Option<bool>,
     /// The corrections a person decided on, as stored JSON. `None` means nobody has said.
     ///
     /// Held as text rather than parsed, because the page shows it beside what detection proposes
@@ -345,6 +350,16 @@ impl SongDetail {
             .unwrap_or_default()
     }
 
+    /// What the analysis concludes about drawing this song's words, where nobody has said.
+    ///
+    /// Read off the warnings this row already carries rather than measured again, which is what
+    /// makes the automatic half cost no rescan: the three faults that answer it were named when the
+    /// file was scanned. An UltraStar song has no analysis, so the answer is always to draw them.
+    pub fn words_cannot_be_followed(&self) -> bool {
+        let warnings = self.parsed_warnings();
+        km_pack::warnings_hide_words(warnings.iter().map(|warning| warning.code.as_str()))
+    }
+
     /// Whether the encoding was the CP1252 fallback, so the text may be wrong.
     ///
     /// False for a video, which has no text of ours to have decoded wrongly.
@@ -404,6 +419,13 @@ pub struct SongEdit {
     pub lyric_encoding: Option<Option<String>>,
     /// New default transposition.
     pub default_transpose: Option<Option<i8>>,
+    /// Whether to draw the song's words. `Some(None)` hands the song back to the analysis.
+    ///
+    /// **`Some(Some(false))` is not the same as `Some(None)`**, which is the whole reason this
+    /// field nests two options over a type whose own range is two. Clearing it lets the analysis
+    /// speak again; writing a false overrules it. A song whose words the analysis would silence
+    /// reads those two answers as opposite ones.
+    pub lyrics_hidden: Option<Option<bool>>,
     /// The corrections to record, as JSON. `Some(None)` hands the song back to detection.
     pub fixes: Option<Option<String>>,
     /// The melody channel to record. `Some(None)` hands that question back to detection too.

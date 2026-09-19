@@ -685,6 +685,26 @@ being stood above rather than being a second constant either could contradict.
 comes and goes. A reserve that followed the bar would move every button on the strip each time a song
 crossed into the middle of itself, which is a worse answer than a band of empty pixels nobody can see.
 
+## Two reasons not to draw the words, and why they are two fields
+
+`Frame::picture` and `Frame::lyrics_hidden` both empty the lyric band and are deliberately not one
+field. `picture` says the song brings its own words in its own image, so it suppresses the key and
+tempo badges with the rows — those name adjustments a video and an MP3+G song do not have.
+`lyrics_hidden` says somebody withheld the words of a song that has them, and a MIDI song still
+transposes and still changes tempo with them withheld, so sharing the field would take away two
+controls that work.
+
+What they do share is the `(no lyrics in this file)` fallback, which both suppress: that sentence is
+true of a file with no words and false over a picture and over a withheld timeline alike.
+`draws_lyric_rows` is where the two terms meet, so neither the rows nor the fallback can come to
+disagree about which frames draw words.
+
+`badge_run` is a function of the frame and nothing else, which is what lets a test read what the run
+says without a canvas — the drawing beside it is a join, a cut to fit and one `draw_text`. **Order is
+content there**: the run is right-aligned and ellipsized against the queue pill, so a screen too
+narrow for all four loses the last, and the words badge goes first because it is the one that
+explains an empty middle of the screen.
+
 ## When the bar is drawn, and the furniture over a picture
 
 **`Frame::show_position` is the whole of the rule and the caller's fact**, so `km-display` composes

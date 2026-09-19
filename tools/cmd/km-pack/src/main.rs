@@ -163,6 +163,12 @@ struct EditArgs {
     /// New default transposition, in semitones.
     #[arg(long)]
     transpose: Option<i8>,
+    /// Play this song and draw none of its words, or draw them on one detection silenced.
+    ///
+    /// `--lyrics-hidden true` for a file whose words are mistimed or are not the song's;
+    /// `--lyrics-hidden false` to overrule detection the other way.
+    #[arg(long = "lyrics-hidden", value_name = "BOOL")]
+    lyrics_hidden: Option<bool>,
     /// Write here instead of updating the package in place.
     #[arg(long)]
     out: Option<PathBuf>,
@@ -439,6 +445,9 @@ const EXPORT_HEADERS: &[&str] = &[
     "tags",
     "encoding",
     "transpose",
+    // Read back, unlike the three below it: `true` and `false` are the whole of a boolean, so this
+    // column carries a value rather than a summary of one.
+    "lyrics_hidden",
     "suitability",
     "melody",
     // Shown and not read back, as `suitability` and `melody` beside it are. A fix carries arguments
@@ -486,6 +495,7 @@ fn export(args: &ExportArgs) -> Result<()> {
             song.tags.join(","),
             song.lyric_encoding.clone().unwrap_or_default(),
             song.default_transpose.to_string(),
+            song.lyrics_hidden.to_string(),
             song.suitability
                 .as_ref()
                 .map(|s| s.value.to_string())
@@ -507,8 +517,8 @@ fn export(args: &ExportArgs) -> Result<()> {
     writer.flush()?;
 
     println!(
-        "wrote {} row(s) to {}\n\nEdit the title, artist, language, tags, encoding and transpose \
-         columns, \
+        "wrote {} row(s) to {}\n\nEdit the title, artist, language, tags, encoding, transpose and \
+         lyrics_hidden columns, \
          then apply them with:\n  km-pack apply {} --index {}",
         package.len(),
         out.display(),
@@ -659,6 +669,7 @@ fn edit(args: &EditArgs) -> Result<()> {
         tags,
         encoding: optional(&args.encoding),
         transpose: args.transpose,
+        lyrics_hidden: args.lyrics_hidden,
         // No flag sets a fix list. It is a list of structures rather than a value, and the place
         // that offers one is the curation tool.
         fixes: None,
@@ -952,6 +963,9 @@ fn seed_from_package(spec: &mut km_pack::Spec, dir: &Path, package: &Path) -> Re
         }
         if prior.is_edited(EditedField::DefaultTranspose) {
             song.transpose = Some(prior.default_transpose);
+        }
+        if prior.is_edited(EditedField::LyricsHidden) {
+            song.lyrics_hidden = Some(prior.lyrics_hidden);
         }
         if prior.is_edited(EditedField::Fixes) {
             song.fixes = Some(prior.fixes.clone());

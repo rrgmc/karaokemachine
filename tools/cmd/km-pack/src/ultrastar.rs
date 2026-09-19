@@ -228,6 +228,8 @@ pub struct UltraStarRequest {
     pub language: Option<String>,
     /// What to file the song under.
     pub tags: Vec<String>,
+    /// Play the song and draw none of its words, where somebody asked for that.
+    pub lyrics_hidden: Option<bool>,
     /// Measure how loud the audio is.
     pub measure_loudness: bool,
     /// Work out what would happen without writing anything.
@@ -266,6 +268,12 @@ pub struct UltraStarFields {
     pub loudness: Option<km_kmpkg::LoudnessRecord>,
     /// The first lines of the words.
     pub lyric_preview: Vec<String>,
+    /// Whether the machine plays the song and draws none of its words.
+    ///
+    /// **Hand-set only for this kind.** The three faults that answer it without a person are
+    /// measured from MIDI events, and an UltraStar song has none — a person timed its words to a
+    /// recording, so the file says nothing about whether they are the right words.
+    pub lyrics_hidden: bool,
     /// Hash of the audio and the `.txt` together.
     pub content_hash: Option<String>,
 }
@@ -276,7 +284,7 @@ pub struct UltraStarFields {
 /// words to this recording. No MIDI fact is set, because the song has no MIDI in it.
 #[must_use]
 pub fn entry_from_ultrastar(fields: UltraStarFields) -> SongEntry {
-    SongEntry {
+    let mut entry = SongEntry {
         number: fields.number,
         title: fields.title,
         artist: fields.artist,
@@ -287,16 +295,24 @@ pub fn entry_from_ultrastar(fields: UltraStarFields) -> SongEntry {
         // The timeline is stored as UTF-8 text already decoded, so there is nothing left to decode.
         lyric_encoding: None,
         default_transpose: 0,
+        lyrics_hidden: fields.lyrics_hidden,
         fixes: Vec::new(),
         melody: None,
         melody_abstained: None,
         suitability: Some(km_kmpkg::SuitabilityRecord::purpose_made()),
-        lyric_preview: fields.lyric_preview,
+        lyric_preview: crate::preview_for(fields.lyrics_hidden, || fields.lyric_preview),
         tags: fields.tags,
         loudness: fields.loudness,
         content_hash: fields.content_hash,
         edited: Vec::new(),
+    };
+    // Marked here where a MIDI song is marked in `apply_edits`, because this path does not go
+    // through it. Nothing measures the field for this kind, so a package that carried the value
+    // without the marker would hand a re-import a silence it could not tell from detection's.
+    if entry.lyrics_hidden {
+        entry.mark_edited(km_kmpkg::EditedField::LyricsHidden);
     }
+    entry
 }
 
 /// Adds one UltraStar song to a package: its audio, and the timeline read from its `.txt`.
@@ -375,6 +391,9 @@ pub fn add_ultrastar_song(
         duration_ms: info.duration_ms,
         loudness: measured.record,
         lyric_preview: source.song.timeline.preview(crate::LYRIC_PREVIEW_LINES),
+        // Nothing detects this for an UltraStar song, so the description is the only voice, and its
+        // silence means the words are drawn.
+        lyrics_hidden: request.lyrics_hidden.unwrap_or(false),
         content_hash: Some(source_hash.clone()),
     });
     builder.add_ultrastar_source(
@@ -483,6 +502,7 @@ mod tests {
             artist: None,
             language: Some("pt".to_owned()),
             tags: Vec::new(),
+            lyrics_hidden: false,
             file: "media/4.mp3".to_owned(),
             duration_ms: 1_000,
             loudness: None,

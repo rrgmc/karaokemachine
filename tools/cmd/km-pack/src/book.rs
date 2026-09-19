@@ -360,6 +360,7 @@ mod tests {
             duration_ms: 1000,
             lyric_encoding: None,
             default_transpose: 0,
+            lyrics_hidden: false,
             fixes: Vec::new(),
             melody: None,
             melody_abstained: None,

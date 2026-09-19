@@ -339,6 +339,22 @@ satisfy the four criteria the rubric was asked to measure. Improving discriminat
 something the rubric cannot see — narrowing sync to the melody is one such measurement, and these
 figures were taken before it, so a fresh sweep is what they should be compared against.
 
+### Which faults mean there is nothing on screen to follow
+
+`Suitability::words_cannot_be_followed` is a second question over the same warnings, asked about the
+*display* rather than about the file: it decides whether a build tells the machine to draw the words
+at all. Three answer yes — `lyrics_all_at_zero`, `negligible_lyrics` and `chord_names_only` — and in
+each the text on screen either never moves or is not words, so withholding it takes nothing away.
+
+It is narrower than `has_hard_defect` on purpose. `partial_lyrics` is a hard defect and is left out,
+because those are the song's own words timed for as long as they last; `no_lyrics` is left out
+because such a file draws none already, and reporting it would claim a decision nobody took.
+
+**No new warning, no new threshold, no new field.** The judgement is a function over warnings a scan
+already produced, which is what keeps `ANALYSIS_REVISION` still and means nothing has to be rescanned
+for it — and `km-lyrics scan` already tallies warning codes, so how much of a corpus it reaches is
+measurable with the tool as it stands.
+
 ## `km-fixes` — corrections for what a file gets wrong about itself
 
 One module per defect, holding its detector, what the correction does, and the shape it addresses.

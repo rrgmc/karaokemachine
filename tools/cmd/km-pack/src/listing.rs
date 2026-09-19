@@ -127,6 +127,7 @@ mod tests {
             duration_ms,
             lyric_encoding: None,
             default_transpose: 0,
+            lyrics_hidden: false,
             fixes: Vec::new(),
             melody: None,
             melody_abstained: None,

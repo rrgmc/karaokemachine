@@ -206,6 +206,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         transpose: -2,
         tempo_ratio: 1.0,
         melody: Some(true),
+        lyrics_hidden: false,
         connect: None,
         catalog: None,
         number_entry: &empty_entry,

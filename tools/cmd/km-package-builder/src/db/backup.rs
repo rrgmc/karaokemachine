@@ -48,7 +48,7 @@ impl Db {
     pub fn hand_set_songs(&self) -> Result<Vec<HandSetSong>, DbError> {
         let mut statement = self.conn.prepare(&format!(
             "SELECT id, title, artist, language, lyric_encoding, default_transpose, fixes,
-                    user_score, notes, merged_into, melody_chosen, {}
+                    user_score, notes, merged_into, melody_chosen, {}, lyrics_hidden
              FROM songs WHERE {} ORDER BY id",
             eff_title(""),
             Self::hand_set_predicate()
@@ -69,6 +69,9 @@ impl Db {
                 // is positional and an insertion renumbers the lot.
                 melody_chosen: row.get(10)?,
                 seen_as: row.get(11)?,
+                // Appended past `seen_as` for the reason above, even though that one is a computed
+                // expression rather than a column: what the rule protects is the numbering.
+                lyrics_hidden: row.get(12)?,
             })
         })?;
         Ok(rows.collect::<Result<Vec<_>, _>>()?)
@@ -244,7 +247,9 @@ impl Db {
                                            ELSE coalesce(user_score, ?8) END,
                          notes = CASE WHEN ?10 THEN coalesce(?9, notes) ELSE coalesce(notes, ?9) END,
                          melody_chosen = CASE WHEN ?10 THEN coalesce(?11, melody_chosen)
-                                              ELSE coalesce(melody_chosen, ?11) END
+                                              ELSE coalesce(melody_chosen, ?11) END,
+                         lyrics_hidden = CASE WHEN ?10 THEN coalesce(?12, lyrics_hidden)
+                                              ELSE coalesce(lyrics_hidden, ?12) END
                      WHERE id = ?1",
                 )?;
                 for song in &plan.songs {
@@ -262,6 +267,7 @@ impl Db {
                         // Past `?10`, which is the overwrite flag every arm reads: appended so the
                         // numbering of the nine above is untouched.
                         song.melody_chosen,
+                        song.lyrics_hidden,
                     ])?;
                 }
             }

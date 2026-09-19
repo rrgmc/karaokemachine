@@ -86,6 +86,7 @@ it are the same entry. How the thing is built is [`ARCHITECTURE.md`](../ARCHITEC
 - [A half-read file plays, and says which track was lost](songs.md#a-half-read-file-plays-and-says-which-track-was-lost)
 - [A declared lyric encoding must name a real one, and packaging is where that is said](songs.md#a-declared-lyric-encoding-must-name-a-real-one-and-packaging-is-where-that-is-said)
 - [A name made of marks is not a name](songs.md#a-name-made-of-marks-is-not-a-name)
+- [A song's words can be turned off, and three faults turn them off without being asked](songs.md#a-songs-words-can-be-turned-off-and-three-faults-turn-them-off-without-being-asked)
 
 ## [Song sources — video, MP3+G and UltraStar](song-sources.md)
 
@@ -360,6 +361,7 @@ it are the same entry. How the thing is built is [`ARCHITECTURE.md`](../ARCHITEC
 - [The connect panel's box is the size of what is in it](interface.md#the-connect-panels-box-is-the-size-of-what-is-in-it)
 - [The song book](interface.md#the-song-book)
 - [A lyric line that will not fit](interface.md#a-lyric-line-that-will-not-fit)
+- [A song whose words are turned off draws none, and says so in the corner](interface.md#a-song-whose-words-are-turned-off-draws-none-and-says-so-in-the-corner)
 - [What the machine does when nobody is singing](interface.md#what-the-machine-does-when-nobody-is-singing)
 - [Skip into silence asks demo mode for a song](interface.md#skip-into-silence-asks-demo-mode-for-a-song)
 - [The remote can ask for a demo song without turning demo mode on](interface.md#the-remote-can-ask-for-a-demo-song-without-turning-demo-mode-on)

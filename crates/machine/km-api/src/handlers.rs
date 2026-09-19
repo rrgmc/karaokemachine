@@ -1346,6 +1346,7 @@ pub async fn play_file(
         transpose,
         melody,
         lyrics,
+        lyrics_hidden,
         ..
     } = body;
     if let Some(Some(channel)) = melody {
@@ -1361,6 +1362,7 @@ pub async fn play_file(
                 fixes: fixes.as_deref(),
                 melody,
                 lyrics: lyrics.as_ref(),
+                lyrics_hidden,
             },
         )?;
         Ok(())
@@ -1420,6 +1422,13 @@ pub const MELODY_FIELD: &str = "melody";
 /// will not read, for the corrections' reason: a song playing with no words looks like a fault in
 /// the song rather than in the request.
 pub const LYRICS_FIELD: &str = "lyrics";
+
+/// The optional text part saying whether to draw the song's words: `true` or `false`.
+///
+/// Refused when it will not read, like the corrections and the melody channel: a curator sends this
+/// having just disagreed with what the machine would measure, and a value that failed to arrive
+/// shows them the answer they were overruling while telling them it is theirs.
+pub const LYRICS_HIDDEN_FIELD: &str = "lyrics_hidden";
 
 /// Refuses a melody channel outside the sixteen a MIDI file has.
 fn melody_channel_in_range(channel: u8) -> ApiResult<()> {
@@ -1510,6 +1519,7 @@ pub async fn play_upload(
     let mut transpose: Option<i8> = None;
     let mut melody: Option<Option<u8>> = None;
     let mut lyrics: Option<km_song::LyricTimeline> = None;
+    let mut lyrics_hidden: Option<bool> = None;
     let mut names: Vec<String> = Vec::new();
     let mut total: usize = 0;
 
@@ -1579,6 +1589,18 @@ pub async fn play_upload(
                 lyrics = Some(serde_json::from_str(&text).map_err(|error| {
                     ApiError::BadRequest(format!("the {LYRICS_FIELD} are not a timeline: {error}"))
                 })?);
+            } else if field.name() == Some(LYRICS_HIDDEN_FIELD) {
+                let text = field.text().await.map_err(|error| {
+                    ApiError::BadRequest(format!(
+                        "the {LYRICS_HIDDEN_FIELD} could not be read: {}",
+                        error.body_text()
+                    ))
+                })?;
+                lyrics_hidden = Some(text.trim().parse::<bool>().map_err(|_| {
+                    ApiError::BadRequest(format!(
+                        "the {LYRICS_HIDDEN_FIELD} is neither `true` nor `false`: {text}"
+                    ))
+                })?);
             }
             continue;
         }
@@ -1631,6 +1653,7 @@ pub async fn play_upload(
                 fixes: fixes.as_deref(),
                 melody,
                 lyrics: lyrics.as_ref(),
+                lyrics_hidden,
             },
         )?;
         Ok(())

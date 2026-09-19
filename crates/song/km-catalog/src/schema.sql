@@ -85,6 +85,11 @@ CREATE TABLE IF NOT EXISTS songs (
     duration_ms       INTEGER NOT NULL,
     lyric_encoding    TEXT,
     default_transpose INTEGER NOT NULL DEFAULT 0,
+    -- Whether the machine plays this song and draws none of its words, because they are mistimed,
+    -- are the arranger's business card, or are a chord chart. The package decides it -- by
+    -- measurement, or because a curator said so -- and this is what the machine reads at song
+    -- start. 0 is what every song is and was, so the default is the whole migration for a row.
+    lyrics_hidden     INTEGER NOT NULL DEFAULT 0,
     -- The corrections in force on the song's own MIDI events, as the manifest's JSON array. Stored
     -- whole rather than split into columns so that a fix this build cannot read still reaches the
     -- machine that can: the list is carried, not interpreted, until playback resolves it.
@@ -148,12 +153,12 @@ CREATE INDEX IF NOT EXISTS songs_package      ON songs(package_id);
 CREATE INDEX IF NOT EXISTS songs_artist       ON songs(artist);
 CREATE INDEX IF NOT EXISTS songs_suitability  ON songs(suitability);
 -- Narrowing a search to one language. An index rather than a column, so `execute_batch` alone brings
--- it to a machine already in service -- `migrate` in lib.rs is only for columns.
+-- it to a machine already in service -- `prepare_existing` in lib.rs is only for columns.
 CREATE INDEX IF NOT EXISTS songs_language     ON songs(language);
 -- Duplicate detection across packages: the same recording filed under two numbers.
 CREATE INDEX IF NOT EXISTS songs_content_hash ON songs(content_hash);
 -- Browsing by name. Indexes rather than columns as far as an installed machine is concerned:
--- `execute_batch` alone brings these two, where the columns they key on needed `migrate`.
+-- `execute_batch` alone brings these two, where the columns they key on needed `prepare_existing`.
 -- `songs_artist` above stays -- it serves `GROUP BY artist` in the artist list, which still groups
 -- on the name somebody typed and not on the fold.
 CREATE INDEX IF NOT EXISTS songs_sort_key    ON songs(sort_key);
@@ -167,7 +172,7 @@ CREATE INDEX IF NOT EXISTS songs_sort_artist ON songs(sort_artist);
 -- one is written by `Library::install`, because a trigger cannot split a string without a recursive
 -- CTE and `install` is the only path that writes a song here at all.
 --
--- A new table, so `execute_batch` alone brings it to a machine already in service -- `migrate` in
+-- A new table, so `execute_batch` alone brings it to a machine already in service -- `prepare_existing` in
 -- lib.rs is only for columns, which is where `songs.tags` needed an entry.
 CREATE TABLE IF NOT EXISTS song_tags (
     song_id INTEGER NOT NULL REFERENCES songs(id) ON DELETE CASCADE,

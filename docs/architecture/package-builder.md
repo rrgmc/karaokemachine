@@ -952,6 +952,35 @@ which one is dropped decides where a chain breaks, and that must not depend on t
 returned its rows in.
 
 
+## The Advanced tab follows the words, not the channels
+
+The tab was drawn for a file with channels to show, which is a MIDI song whose bytes are still
+readable. It now holds two unrelated things: the channel table, and one control saying whether the
+machine draws the song's words. So `SongPage::shows_advanced` is *has channels **or** draws its own
+words*, the channel table keeps a condition of its own inside the pane, and an UltraStar song opens
+onto the words control alone. A video or an MP3+G song is still offered no tab, because its words are
+pixels in a picture.
+
+**One method answering for the label and the pane** is what the split buys: a tab whose label is
+drawn and whose pane is not opens onto nothing, and two copies of the condition in a template are two
+chances to change only one.
+
+**A route of its own, beside the two forms the page already has.** The Details form treats every box
+on it as authoritative, so a field it does not send is a field it clears; the corrections form posts
+the whole channel table, which an UltraStar song does not have. `POST /songs/{id}/lyrics-hidden`
+writes one column and leaves the rest of `SongEdit` at `None`, which is what keeps the three forms
+from writing over each other.
+
+The select spells three answers because the column holds three states: `auto` stores null and hands
+the song back to the analysis, and `show` and `hide` store a person's answer. **`show` storing a `0`
+rather than a null is the part that matters** — `Db::hand_set_predicate` reads *set at all* as
+`IS NOT NULL`, so a person overruling the analysis and a person who never opened the page would
+otherwise leave the same row.
+
+The *Automatic* option names what the analysis concluded, the way the encoding box names a guess.
+That answer is read off the warnings the row already carries — `km_pack::warnings_hide_words` against
+the spelling `warning_code` wrote — so the automatic half costs no rescan and no column.
+
 ## Building a package
 
 The build runs on its own thread in three phases: a short lock to read the description, then the

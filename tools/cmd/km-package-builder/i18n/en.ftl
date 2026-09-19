@@ -886,6 +886,19 @@ song-tab-filing = Filing
 song-tab-lyrics = Lyrics
 song-tab-advanced = Advanced
 
+# The Advanced tab's words control. A file can be a good arrangement and a bad karaoke song, and
+# only somebody listening can tell the difference in the cases the analysis cannot name.
+song-lyrics-heading = Words on screen
+song-lyrics-automatic = Automatic
+song-lyrics-automatic-hidden = not shown, because there is nothing to follow
+song-lyrics-automatic-shown = shown
+song-lyrics-show = Always show them
+song-lyrics-hide = Never show them
+song-lyrics-note =
+    The machine plays the song either way. Turn the words off for a file whose lyrics are mistimed,
+    are the arranger's own details, or belong to another song; the television then says "no lyrics"
+    in the corner. Rebuild the package for a change here to reach a machine.
+
 package-tab-songs = Songs
 package-tab-sources = Sources
 package-tab-build = Build
@@ -1043,6 +1056,9 @@ said-package-created = Created { $name }. Open it to choose what goes in and to 
 said-package-deleted = Deleted. Any .kmpkg already written is untouched.
 said-rated = Rated { $value }/10.
 said-rating-cleared = Rating cleared.
+said-lyrics-hidden = The words will not be shown while this song plays.
+said-lyrics-shown = The words will be shown while this song plays.
+said-lyrics-automatic = The words follow what the analysis finds.
 said-removed-from-favorite = Removed from that favorites folder.
 said-removed = Removed from this package. The song itself is untouched.
 said-renumbered = { $count ->

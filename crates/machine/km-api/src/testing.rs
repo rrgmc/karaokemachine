@@ -520,6 +520,7 @@ impl TestMachine {
                     duration_ms: 180_000 + offset * 1_000,
                     lyric_encoding: None,
                     default_transpose: 0,
+                    lyrics_hidden: false,
                     fixes: Vec::new(),
                     // Every other song abstained on melody detection, so the "toggle hidden" path
                     // is reachable without constructing a second machine.
@@ -659,6 +660,7 @@ impl Inner {
             duration_ms: song.as_ref().map_or(0, |song| song.duration_ms),
             melody_channel: song.as_ref().and_then(|song| song.melody_channel),
             has_lyrics: true,
+            lyrics_hidden: false,
         });
         self.transport = Transport::Playing;
         self.position_ms = 0;
@@ -1657,6 +1659,7 @@ fn begin_file(inner: &mut Inner, path: &Path) {
         duration_ms: 60_000,
         melody_channel: None,
         has_lyrics: true,
+        lyrics_hidden: false,
     });
     inner.transport = Transport::Playing;
     inner.position_ms = 0;

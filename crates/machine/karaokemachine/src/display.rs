@@ -2598,6 +2598,10 @@ fn run_with(
                 .now_playing
                 .as_ref()
                 .and_then(|now| now.melody_channel.map(|_| snapshot.settings.melody_enabled)),
+            lyrics_hidden: snapshot
+                .now_playing
+                .as_ref()
+                .is_some_and(|now| now.lyrics_hidden),
             connect: Some(&connect),
             catalog,
             number_entry: &entry,
@@ -3680,6 +3684,7 @@ mod tests {
                 duration_ms: 1_000,
                 melody_channel: None,
                 has_lyrics: true,
+                lyrics_hidden: false,
             };
 
             let idle: Option<(String, Option<String>)> = None;

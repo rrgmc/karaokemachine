@@ -50,6 +50,7 @@ fn song(number: u32, title: &str, artist: Option<&str>) -> SongEntry {
         duration_ms: 200_000,
         lyric_encoding: None,
         default_transpose: 0,
+        lyrics_hidden: false,
         fixes: Vec::new(),
         melody: None,
         melody_abstained: None,
@@ -1234,6 +1235,50 @@ fn a_package_whose_only_change_is_its_tags_moves_the_catalog_version() {
     assert!(
         library.catalog_version().expect("version") > before,
         "a tag change has to reach the phones"
+    );
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// A song whose words are turned off reaches the machine saying so, and tells the phones.
+///
+/// Two assertions for one column, both of which the machine depends on: the flag has to survive
+/// the install, because playback reads it at song start, and it has to move `catalog_version`,
+/// because a package rebuilt for nothing but this really is a different package to look at.
+#[test]
+fn a_song_whose_words_are_turned_off_survives_the_install_and_moves_the_version() {
+    let dir = temp_dir("lyrics-hidden");
+
+    let mut library = Library::open_in_memory().expect("open");
+    let plain = build_package(&dir, VOL1, vec![song(1, "One", Some("A"))]);
+    library.install(&plain, 1, NOW).expect("install");
+    let before = library.catalog_version().expect("version");
+
+    let code = SongCode::in_bank(1, 1).expect("code");
+    assert!(
+        !library
+            .song(code)
+            .expect("song")
+            .expect("installed")
+            .lyrics_hidden
+    );
+
+    let mut silenced = song(1, "One", Some("A"));
+    silenced.lyrics_hidden = true;
+    let rebuilt = build_package(&dir, VOL1, vec![silenced]);
+    library.install(&rebuilt, 1, NOW).expect("reinstall");
+
+    assert!(
+        library
+            .song(code)
+            .expect("song")
+            .expect("installed")
+            .lyrics_hidden,
+        "playback reads this at song start, so it has to be on the row"
+    );
+    assert!(
+        library.catalog_version().expect("version") > before,
+        "what a song puts on a television is part of the package, so the mirrors re-read"
     );
 
     let _ = std::fs::remove_dir_all(&dir);

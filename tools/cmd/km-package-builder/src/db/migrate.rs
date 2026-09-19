@@ -12,7 +12,7 @@ use super::*;
 /// The schema this build writes and understands, stamped into `PRAGMA user_version`.
 ///
 /// Bump this and add an arm to [`step_to`] in the same change. The number keeps counting.
-pub(super) const SCHEMA_VERSION: u32 = 16;
+pub(super) const SCHEMA_VERSION: u32 = 17;
 
 /// The oldest schema this build opens. Everything from here to [`SCHEMA_VERSION`] is an arm of
 /// [`step_to`].
@@ -98,6 +98,13 @@ fn step_to(conn: &Connection, version: u32) -> Result<(), DbError> {
                 "ALTER TABLE songs ADD COLUMN det_language_guess TEXT;
                  ALTER TABLE songs ADD COLUMN det_language_guess_confidence REAL",
             )?;
+            Ok(())
+        }
+        // Whether a song plays with none of its words drawn. NULL on every row, which is the state
+        // that takes whatever the analysis concludes -- so a corpus already curated keeps every
+        // answer it has and gains the new one where nobody has spoken.
+        17 => {
+            conn.execute_batch("ALTER TABLE songs ADD COLUMN lyrics_hidden INTEGER")?;
             Ok(())
         }
         _ => Err(DbError::Rejected(format!(

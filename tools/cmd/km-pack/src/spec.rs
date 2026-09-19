@@ -181,6 +181,14 @@ pub struct SpecSong {
     /// Default transposition in semitones.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub transpose: Option<i8>,
+    /// Whether the machine plays this song and draws none of its words.
+    ///
+    /// **Three states, and YAML spells all three**: the key absent takes whatever detection finds,
+    /// `lyrics_hidden: true` silences the words on a song detection was content with, and
+    /// `lyrics_hidden: false` draws them on a song detection would have silenced. The last is why
+    /// the key being present matters at all — see `Edits::lyrics_hidden`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub lyrics_hidden: Option<bool>,
     /// The corrections in force on this song's own MIDI events.
     ///
     /// **Stating any list at all is an edit**, including an empty one, which is how a description

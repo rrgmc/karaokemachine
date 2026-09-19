@@ -425,7 +425,7 @@ impl Db {
                     cdg_graphics_path, cdg_sample_rate, cdg_channels, cdg_packets,
                     cdg_graphics_ms, cdg_short_by_ms, cdg_tiles, cdg_unknown,
                     duplicate_of, fixes, melody_chosen, first_seen,
-                    det_language_guess, det_language_guess_confidence
+                    det_language_guess, det_language_guess_confidence, lyrics_hidden
              FROM songs WHERE id = ?1",
         )?;
         let detail = statement
@@ -520,6 +520,7 @@ impl Db {
                     // Appended for the same positional reason, one and two past `first_seen` at 49.
                     det_language_guess: row.get(50)?,
                     det_language_guess_confidence: row.get(51)?,
+                    lyrics_hidden: row.get(52)?,
                     files: Vec::new(),
                     favorites: Vec::new(),
                     packages: Vec::new(),
@@ -785,6 +786,15 @@ impl Db {
         if let Some(transpose) = &edit.default_transpose {
             sets.push("default_transpose = ?");
             values.push(match transpose {
+                Some(value) => Binding::Integer(i64::from(*value)),
+                None => Binding::Null,
+            });
+        }
+        // Stored as 1 and 0 rather than as a SQLite boolean type, which there is not one of. NULL
+        // is the third state and means nobody has said -- see the column's own note.
+        if let Some(lyrics_hidden) = &edit.lyrics_hidden {
+            sets.push("lyrics_hidden = ?");
+            values.push(match lyrics_hidden {
                 Some(value) => Binding::Integer(i64::from(*value)),
                 None => Binding::Null,
             });
