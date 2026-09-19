@@ -1,7 +1,7 @@
 //! Timing what a page and a scan batch cost, on a database too large to reason about.
 //!
-//! **Two `#[ignore]`d tests, and they are the only ones in this repository.** They are ignored
-//! because neither can run anywhere but on a machine holding a real corpus, and because each takes
+//! **Three `#[ignore]`d tests, and they are the only ones in this repository.** They are ignored
+//! because none of them runs anywhere but on a machine holding a real corpus, and because each takes
 //! minutes to hours — so `cargo km-test` skips them and nothing in CI reaches them. `KM_CORPUS` says
 //! which folder, `KM_MMAP` says which of the two settings this run is measuring, and one run measures
 //! one setting: the figures mean nothing unless the operating system's cache has been emptied first,
@@ -12,6 +12,8 @@
 //!     --ignored --exact db::measure::a_cold_page_load_over_a_real_corpus --nocapture
 //! KM_CORPUS=<...> KM_MMAP=off KM_SAMPLE=4000 cargo km-test --release -- \
 //!     --ignored --exact db::measure::a_bounded_forced_pass_over_a_real_corpus --nocapture
+//! KM_CORPUS=<...> KM_MMAP=on cargo km-test --release -- \
+//!     --ignored --exact db::measure::where_the_same_words_threshold_sits --nocapture
 //! ```
 //!
 //! **A child of `db` rather than an example**, because this has to call the program's own queries
@@ -330,3 +332,201 @@ fn a_bounded_forced_pass_over_a_real_corpus() {
     );
     map_this_much_for_test(-1);
 }
+
+/// Where the same-words threshold sits, and whether the phrases reach the files it is set for.
+///
+/// **The corpus supplies its own ground truth, which is what makes this a measurement.**
+///
+/// - The **true pairs** are the ones the duplicate pass already proposes from a matching structure
+///   *and* a matching name, whose two lyric keys differ. Shape and name agreeing is an independent
+///   statement that the two files are one recording; the keys differing means the transcriptions are
+///   not identical, which is the case the exact key cannot reach and this page exists for.
+/// - The **false pairs** are songs the pass proposed nothing for, taken two at a time. What they
+///   score is what a coincidence can reach.
+///
+/// [`crate::lyric_likeness::THRESHOLD`] belongs in the gap between the true pairs' low tail and the
+/// false pairs' high tail, and the table prints both so it can be read off them.
+///
+/// **Recall is the figure that decides whether this works, and it is not the threshold.** A true pair
+/// the phrases never return as a candidate is invisible whatever the threshold says, and the answer
+/// to a low number is more [`crate::lyric_likeness::PROBES`] or a shorter
+/// [`crate::lyric_likeness::SHINGLE`] — never a lower threshold.
+///
+/// ```sh
+/// KM_CORPUS=<a folder holding one .kmbuild> KM_MMAP=on cargo km-test --release -- \
+///     --ignored --exact db::measure::where_the_same_words_threshold_sits --nocapture
+/// ```
+#[test]
+#[ignore = "needs a real corpus; see the module header"]
+fn where_the_same_words_threshold_sits() {
+    use crate::lyric_likeness::{THRESHOLD, likeness};
+
+    let root = corpus();
+    let (mapping, pages) = mapping();
+    map_this_much_for_test(pages);
+    let db = Db::open(&root).expect("open the corpus");
+    println!("## Where the same-words threshold sits\n");
+    println!("`{mapping}`, `mmap_size` = {}\n", says(&db, "mmap_size"));
+
+    // The pass's own reading of the corpus, which is where both sets of pairs come from.
+    let (reading, songs) = timed(|| db.fingerprints().expect("fingerprints"));
+    println!(
+        "reading every song's shape and words took {}\n",
+        took(reading)
+    );
+
+    let lyrics_of = |id: &str| -> Option<String> {
+        db.conn
+            .query_row("SELECT lyrics FROM songs WHERE id = ?1", [id], |row| {
+                row.get::<_, Option<String>>(0)
+            })
+            .ok()
+            .flatten()
+    };
+    let scored = |a: &str, b: &str| -> Option<f32> {
+        let mine = crate::lyric_likeness::Shingles::of(&lyrics_of(a)?)?;
+        Some(likeness(&mine, &lyrics_of(b)?))
+    };
+
+    let proposed = crate::dupes::suggest(&songs);
+    let keyed: std::collections::HashMap<&str, &Option<String>> = songs
+        .iter()
+        .map(|song| (song.id.as_str(), &song.lyric_key))
+        .collect();
+
+    // True pairs: proposed by shape and name, and not already caught by the exact key.
+    let mut agreed: Vec<f32> = Vec::new();
+    let mut reached = 0usize;
+    for (a, b, _, reason) in &proposed {
+        if reason == "same words" {
+            continue;
+        }
+        let (Some(left), Some(right)) = (keyed.get(a.as_str()), keyed.get(b.as_str())) else {
+            continue;
+        };
+        if left.is_none() || left == right {
+            continue;
+        }
+        let Some(likeness) = scored(a, b) else {
+            continue;
+        };
+        agreed.push(likeness);
+        // Whether the phrases would have returned the other file at all, which no threshold can fix.
+        if db
+            .similar_words(a, &Filter::default())
+            .is_ok_and(|(hits, _)| hits.iter().any(|song| &song.id == b))
+        {
+            reached += 1;
+        }
+    }
+
+    // False pairs: songs the pass proposed nothing for at all.
+    let paired: std::collections::HashSet<&str> = proposed
+        .iter()
+        .flat_map(|(a, b, _, _)| [a.as_str(), b.as_str()])
+        .collect();
+    let alone: Vec<&Fingerprint> = songs
+        .iter()
+        .filter(|song| song.lyric_key.is_some() && !paired.contains(song.id.as_str()))
+        .collect();
+    let mut coincidence: Vec<f32> = Vec::new();
+    for pair in alone.chunks(2) {
+        let [a, b] = pair else { continue };
+        if let Some(likeness) = scored(&a.id, &b.id) {
+            coincidence.push(likeness);
+        }
+    }
+
+    agreed.sort_by(f32::total_cmp);
+    coincidence.sort_by(f32::total_cmp);
+    let at = |sorted: &[f32], share: f64| -> String {
+        if sorted.is_empty() {
+            return "--".to_owned();
+        }
+        let nth = ((sorted.len() - 1) as f64 * share).round() as usize;
+        format!("{:.3}", sorted[nth])
+    };
+
+    println!("| pairs | sampled | 5th | 50th | 95th |");
+    println!("|---|---|---|---|---|");
+    println!(
+        "| the same recording, keyed differently | {} | {} | {} | {} |",
+        agreed.len(),
+        at(&agreed, 0.05),
+        at(&agreed, 0.50),
+        at(&agreed, 0.95)
+    );
+    println!(
+        "| paired with nothing | {} | {} | {} | {} |",
+        coincidence.len(),
+        at(&coincidence, 0.05),
+        at(&coincidence, 0.50),
+        at(&coincidence, 0.95)
+    );
+    println!();
+
+    let kept = |sorted: &[f32], floor: f32| -> String {
+        if sorted.is_empty() {
+            return "--".to_owned();
+        }
+        let over = sorted.iter().filter(|value| **value >= floor).count();
+        format!("{:.1}%", 100.0 * over as f64 / sorted.len() as f64)
+    };
+    println!("| threshold | true pairs kept | false pairs let through |");
+    println!("|---|---|---|");
+    for floor in [0.4_f32, 0.5, 0.6, 0.7, 0.8, 0.9] {
+        println!(
+            "| {floor:.2} | {} | {} |",
+            kept(&agreed, floor),
+            kept(&coincidence, floor)
+        );
+    }
+    println!();
+
+    if !agreed.is_empty() {
+        println!(
+            "the phrases reached the other file in {:.1}% of true pairs\n",
+            100.0 * reached as f64 / agreed.len() as f64
+        );
+    }
+
+    // What one page costs, over songs that have words to compare.
+    let mut timings: Vec<Duration> = songs
+        .iter()
+        .filter(|song| song.lyric_key.is_some())
+        .take(SEARCHES_TIMED)
+        .map(|song| timed(|| db.similar_words(&song.id, &Filter::default())).0)
+        .collect();
+    timings.sort();
+    if let Some(worst) = timings.last() {
+        println!("| one search, over {} songs | took |", timings.len());
+        println!("|---|---|");
+        println!("| median | {} |", took(timings[timings.len() / 2]));
+        println!(
+            "| 95th | {} |",
+            took(timings[(timings.len() * 95 / 100).min(timings.len() - 1)])
+        );
+        println!("| worst | {} |", took(*worst));
+        println!();
+    }
+
+    // **The assertion that holds whatever the corpus is.** The loose reading has to agree with the
+    // strict one wherever the strict one fires, which is what *the loose counterpart* means.
+    for (a, b, _, reason) in &proposed {
+        if reason == "same words" {
+            assert_eq!(
+                scored(a, b),
+                Some(1.0),
+                "two songs the exact key joins must score 1.0"
+            );
+        }
+    }
+
+    println!("`THRESHOLD` is {THRESHOLD}, and belongs between the two tails above.");
+    println!("local only: {}", root.display());
+    map_this_much_for_test(-1);
+}
+
+/// How many searches the measurement times. Enough for a median to mean something, few enough that
+/// the run is not itself the slow part.
+const SEARCHES_TIMED: usize = 50;
