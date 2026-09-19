@@ -251,6 +251,134 @@ impl Db {
         Ok(hits)
     }
 
+    /// How many songs sing each of `words`, out of the lyric index's own term list.
+    ///
+    /// One statement stepped once per word, which is a seek into a b-tree FTS5 maintains anyway.
+    /// Reading the whole vocabulary instead would be a scan of every distinct word the corpus sings
+    /// to learn about the few hundred asked about. A word no song holds is simply absent.
+    fn songs_holding(
+        &self,
+        words: &std::collections::HashSet<String>,
+    ) -> Result<std::collections::HashMap<String, u64>, DbError> {
+        let mut statement = self
+            .conn
+            .prepare("SELECT doc FROM lyrics_vocab WHERE term = ?1")?;
+        let mut held_by = std::collections::HashMap::with_capacity(words.len());
+        for word in words {
+            let doc: Option<i64> = statement.query_row([word], |row| row.get(0)).optional()?;
+            if let Some(doc) = doc {
+                held_by.insert(word.clone(), doc.max(0) as u64);
+            }
+        }
+        Ok(held_by)
+    }
+
+    /// Songs that sing what this one sings, likeliest first, and whether it had words to compare.
+    ///
+    /// **The counterpart of [`Self::similar_names`] over the other index**, and the same two halves:
+    /// `lyrics_fts` gathers candidates cheaply, [`crate::lyric_likeness::likeness`] scores them in
+    /// Rust. What differs is the question asked of the index — a name is a few words and is ORed as
+    /// prefixes, a lyric is hundreds and is asked for as whole phrases, because a song's words ORed
+    /// one at a time match most of the corpus.
+    ///
+    /// **It takes an id and no text.** The subject is the song's whole lyric body, which no search box
+    /// could hold, so the words come from the row rather than from the address.
+    ///
+    /// The returned flag is false when this song has too few words to say anything — an instrumental,
+    /// or a file whose lyric track holds nothing but the sequencer's card. An empty list means nothing
+    /// matched, and those are different things to tell somebody.
+    ///
+    /// **`filter` narrows the candidates before they are scored**, for [`Self::similar_names`]'s
+    /// reason: a match the filter keeps is reached even when unfiltered files crowd it past
+    /// [`crate::lyric_likeness::CANDIDATES`]. The song searched from ignores it, and a file another
+    /// has been merged into is left out.
+    pub fn similar_words(
+        &self,
+        from: &str,
+        filter: &Filter,
+    ) -> Result<(Vec<SongRow>, bool), DbError> {
+        let lyrics: Option<String> = self
+            .conn
+            .query_row("SELECT lyrics FROM songs WHERE id = ?1", [from], |row| {
+                row.get(0)
+            })
+            .optional()?
+            .flatten();
+        let Some(lyrics) = lyrics else {
+            return Ok((Vec::new(), false));
+        };
+        let Some(mine) = crate::lyric_likeness::Shingles::of(&lyrics) else {
+            return Ok((Vec::new(), false));
+        };
+        let probes = crate::lyric_likeness::probes(&lyrics);
+        let held_by = self.songs_holding(&crate::lyric_likeness::probe_words(&probes))?;
+        let Some(query) = crate::lyric_likeness::match_query(&probes, &held_by) else {
+            return Ok((Vec::new(), false));
+        };
+
+        let (where_sql, bindings) = filter.to_sql();
+        let sql = format!(
+            "SELECT {}, s.lyrics
+             FROM lyrics_fts
+             JOIN songs s ON s.rowid = lyrics_fts.rowid
+             WHERE lyrics_fts MATCH ?{} AND s.id <> ?{} AND {where_sql}
+             ORDER BY bm25(lyrics_fts)
+             LIMIT ?{}",
+            browse_columns(),
+            bindings.len() + 1,
+            bindings.len() + 2,
+            bindings.len() + 3,
+        );
+        let mut values = bindings;
+        values.push(Binding::Text(query));
+        values.push(Binding::Text(from.to_owned()));
+        values.push(Binding::Integer(i64::from(
+            crate::lyric_likeness::CANDIDATES,
+        )));
+        let mut statement = self.conn.prepare(&sql)?;
+        let rows = statement.query_map(
+            params_from_iter(values.iter()),
+            |row| -> rusqlite::Result<(SongRow, String)> {
+                let song = song_row(row)?;
+                // One past the browse columns, whose count is a detail of `browse_columns`.
+                let words: String = row.get(row.as_ref().column_count() - 1)?;
+                Ok((song, words))
+            },
+        )?;
+        let mut hits = Vec::new();
+        for row in rows {
+            let (mut song, words) = row?;
+            let likeness = crate::lyric_likeness::likeness(&mine, &words);
+            if likeness >= crate::lyric_likeness::THRESHOLD {
+                song.likeness = Some(likeness);
+                hits.push((likeness, song));
+            }
+        }
+        // Stable, so equally alike songs keep the index's order, which puts the ones matching the
+        // most phrases first.
+        hits.sort_by(|a, b| b.0.total_cmp(&a.0));
+        let mut hits: Vec<SongRow> = hits.into_iter().map(|(_, song)| song).collect();
+
+        let origin = self
+            .conn
+            .query_row(
+                &format!(
+                    "SELECT {} FROM songs s WHERE s.id = ?1 AND s.merged_into IS NULL",
+                    browse_columns()
+                ),
+                [from],
+                song_row,
+            )
+            .optional()?;
+        if let Some(mut song) = origin {
+            song.likeness = Some(1.0);
+            song.searched_from = true;
+            hits.insert(0, song);
+        }
+        hits.truncate(crate::lyric_likeness::SHOWN);
+        Ok((hits, true))
+    }
+
     /// Whether any song's words have been indexed at all.
     ///
     /// `EXISTS` rather than a count on purpose: the question the page asks is "has a scan ever

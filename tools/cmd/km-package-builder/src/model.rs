@@ -523,6 +523,12 @@ pub struct SongRow {
     pub version_count: u32,
     /// The version the song list shows in this one's place, when this one is hidden behind it.
     pub duplicate_of: Option<String>,
+    /// Whether the song has any words at all, which decides whether the row offers to look for the
+    /// songs that sing them.
+    ///
+    /// Most of a real corpus is instrumental, and a button that can only lead to a page saying *this
+    /// song has no words* is a button worth not drawing.
+    pub has_words: bool,
     /// The first file's path, for the "open" and "play" actions.
     pub path: String,
     /// Every copy's path, newline-separated, straight from the query.
@@ -1338,6 +1344,7 @@ mod tests {
             file_count: 1,
             version_count: 1,
             duplicate_of: None,
+            has_words: false,
             path: path.to_owned(),
             paths: paths.to_owned(),
             from_filename: false,

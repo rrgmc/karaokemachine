@@ -3165,6 +3165,7 @@ mod tests {
             path: path.to_owned(),
             paths: path.to_owned(),
             from_filename: title.is_empty(),
+            has_words: false,
         };
         // Worded as a page would, so a test asserting on a tooltip sees the sentence and not a gap.
         row.say(km_locale::Locale::English, false);

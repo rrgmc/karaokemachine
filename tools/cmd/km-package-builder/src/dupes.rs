@@ -47,9 +47,10 @@ pub fn fingerprint(song: &Song) -> String {
 /// **Measured, not chosen.** With the credit lines already gone, the false groups left on the real
 /// corpus were legal boilerplate — *all rights reserved, not for broadcast* — of 17 and 20 words,
 /// while every true group had 90 or more. The gap is wide and the floor sits in it.
-const MIN_LYRIC_WORDS: usize = 25;
+pub const MIN_LYRIC_WORDS: usize = 25;
 
-/// A song's words, as a key two files can be compared by, or `None` when it has too few to matter.
+/// The words a song is identified by: what it sings, folded, or `None` when there are too few to
+/// matter.
 ///
 /// **The one signal here that needs no name**, which is the whole reason it exists beside
 /// [`fingerprint`]. A shape match has to be confirmed by a title or an artist — see [`compare`] —
@@ -68,23 +69,77 @@ const MIN_LYRIC_WORDS: usize = 25;
 ///
 /// **A false positive costs a key nothing**, which is what makes the wider rule safe here where a
 /// narrower one is wanted elsewhere: both files are folded by the same rule, so a line dropped from
-/// one is dropped from the other and the two still meet. The floor below is what a false positive
+/// one is dropped from the other and the two still meet. [`MIN_LYRIC_WORDS`] is what a false positive
 /// can reach, and a floor is the safe direction to be wrong in.
 ///
 /// Folded with [`km_song::text::fold`], the alphabet the whole product orders and searches by, so
-/// `Coração` and `CORACAO` key alike. Hashed with [`km_kmpkg::content_hash`], whose own note says it
-/// identifies duplicates and is not a security boundary — one hasher in this workspace, not two.
-pub fn lyric_key(lyrics: &str) -> Option<String> {
+/// `Coração` and `CORACAO` come out alike — and the same folding the `unicode61 remove_diacritics 2`
+/// tokenizer does, so a word here is a word `lyrics_fts` holds.
+///
+/// **One rule, two readings of it.** [`lyric_key`] hashes these words and asks whether two songs sing
+/// exactly the same ones; [`crate::lyric_likeness`] asks how much of them two songs share. Restating
+/// the rule for the second would let the loose reading drift from the strict one, and a page saying a
+/// pair is alike while the pass says it is not is worse than either answer.
+pub fn sung_words(lyrics: &str) -> Option<Vec<String>> {
     let sung: Vec<&str> = lyrics
         .lines()
         .filter(|line| !km_song::looks_like_a_banner(line))
         .collect();
     let folded = km_song::text::fold(&sung.join(" "));
-    // `fold` collapses runs and trims, so counting the gaps is counting the words.
-    if folded.split(' ').filter(|word| !word.is_empty()).count() < MIN_LYRIC_WORDS {
-        return None;
+    // `fold` collapses runs and trims, so splitting on the gaps is splitting into words.
+    let words: Vec<String> = folded
+        .split(' ')
+        .filter(|word| !word.is_empty())
+        .map(str::to_owned)
+        .collect();
+    (words.len() >= MIN_LYRIC_WORDS).then_some(words)
+}
+
+/// The same words, in runs of lines the banner rule kept next to each other.
+///
+/// **A run ends where a line was dropped, and that boundary is load-bearing for anything asking the
+/// search index a question.** `lyrics_fts` indexes the whole `lyrics` column, banners included, so the
+/// last word before a dropped line and the first word after it are *not* next to each other in the
+/// index however adjacent they are here. A phrase built across that seam asks for something no
+/// document holds and quietly matches nothing.
+///
+/// **[`sung_words`] folds the whole lyric at once and this folds a line at a time**, which is the
+/// same words either way — the only thing a line boundary contributes is a space, and folding
+/// collapses it on both sides. They are written separately because one of them is read once per page
+/// and the other once per song in a pass over the whole corpus, and the cheaper shape belongs to the
+/// one that is read a corpus at a time.
+pub fn sung_runs(lyrics: &str) -> Vec<Vec<String>> {
+    let mut runs: Vec<Vec<String>> = Vec::new();
+    let mut run: Vec<String> = Vec::new();
+    for line in lyrics.lines() {
+        if km_song::looks_like_a_banner(line) {
+            if !run.is_empty() {
+                runs.push(std::mem::take(&mut run));
+            }
+            continue;
+        }
+        // `fold` collapses runs and trims, so splitting on the gaps is splitting into words.
+        run.extend(
+            km_song::text::fold(line)
+                .split(' ')
+                .filter(|word| !word.is_empty())
+                .map(str::to_owned),
+        );
     }
-    Some(km_kmpkg::content_hash(folded.as_bytes()))
+    if !run.is_empty() {
+        runs.push(run);
+    }
+    runs
+}
+
+/// A song's words, as a key two files can be compared by, or `None` when it has too few to matter.
+///
+/// Hashed with [`km_kmpkg::content_hash`], whose own note says it identifies duplicates and is not a
+/// security boundary — one hasher in this workspace, not two. What counts as a word is
+/// [`sung_words`], which carries the reasoning.
+pub fn lyric_key(lyrics: &str) -> Option<String> {
+    let words = sung_words(lyrics)?;
+    Some(km_kmpkg::content_hash(words.join(" ").as_bytes()))
 }
 
 /// Suggests near-duplicate pairs from every song's fingerprint and names, and from its words.
