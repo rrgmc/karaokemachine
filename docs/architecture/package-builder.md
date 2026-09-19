@@ -274,9 +274,21 @@ Two of them are said under `announce`'s size threshold on the console and uncond
 a terminal has something else to show, and the page has only the sentence it is already holding.
 
 `Opening` carries a `started: Instant` and `OpeningView` an `elapsed_secs`, which is what moves through
-the one step long enough to matter. The panel's bar is `.bar.working` — full width, since an open has
-no denominator to draw, and given its resting opacity by the rule rather than by the keyframe's 0%, so
-a tab the browser has stopped painting shows a bar rather than a faded-out one.
+the one step long enough to matter.
+
+**Beside it `Opening` carries a `step::Ladder`, which is the Scan page's checklist under a name that
+is not the scan's.** Its rungs are `db::OPENING_LADDER`, eleven catalog keys in the order an open
+climbs them, and `set_phase` moves it with `Ladder::advance_to` rather than `Ladder::say`: an open
+names only the rungs it takes, so a rung nothing reported is marked skipped by being climbed past.
+`advance_to` leaves a rung already running where it is, because `Folding` and `ReadingWords` report on
+every chunk they write and restarting the clock at each would draw a step that has run for minutes as
+one that has just begun. `Opening::finish` closes the list inside the lock that already decides which
+caller wins, so the rung a failed open stopped at survives the `Drop` guard behind it.
+
+The panel's bar is `.bar.working` — full width, given its resting opacity by the rule rather than by
+the keyframe's 0%, so a tab the browser has stopped painting shows a bar rather than a faded-out one —
+except while a rung that counts is running. `OpeningPhase::counted` answers for the two that do, and
+`OpeningView::percent` is `Some` only there.
 
 **The schema has a version, and its first job is to refuse.** `PRAGMA user_version` is stamped with
 `SCHEMA_VERSION`, and a database outside `OLDEST_SCHEMA_VERSION` to `SCHEMA_VERSION` is turned away
@@ -696,10 +708,12 @@ commits, so the bar is `(skipped + written) / total`; a skipped file never reach
 at once. Paging is still `OFFSET`-based, so a song can be missed across a page boundary during a scan;
 keyset paging on the existing `ORDER BY` tuple is the fix if that matters.
 
-**The panel under the bar is the run's steps, listed before they run.** `run_inner` plans them from the
-options first: a scoped run lists no forgetting and no duplicates, and the three steps that depend on
-`changed` carry `if_changed` and are skipped when it is false. `Progress::say` closes the running step
-and starts the next, `end` settles whatever is left, and `timings()` is read off the finished steps.
+**The panel under the bar is the run's steps, listed before they run.** They are a `step::Ladder`, the
+same type the Open page's rungs are, and `run_inner` plans them from the options first: a scoped run
+lists no forgetting and no duplicates, and the three steps that depend on `changed` carry `if_changed`
+and are skipped when it is false. `Ladder::say` closes the running step and starts the next, `skip`
+names the ones this run will not take, `end` settles whatever is left, and `timings()` is read off the
+finished steps.
 The walk goes through `km_pack::collect_songs_observed`, which reports the count after each folder into
 `found` and breaks off when the run is asked to stop; a broken walk ends the run before reading,
 because its list is part of the folder. **The time left comes from a 30-second window** of settled

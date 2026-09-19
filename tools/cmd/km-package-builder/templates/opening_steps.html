@@ -1,0 +1,29 @@
+{% macro list(steps, count_said, failed_at) %}
+{# **Every rung of an open, listed before it is climbed**, so what is still to come is on the page as
+   well as what is over. The mark is drawn by the class, so the list carries no characters of its own.
+
+   **A rung is skipped by being passed.** An open names only the rungs it takes — which of them it
+   takes is decided by `if`s with no page in reach — so a rung nothing reported is one there was
+   nothing to do.
+
+   **Which is why the dash means two things, told apart by where it sits.** Before the rung a failure
+   stopped at, a skipped rung is one the open climbed past and did not need; after it, it is one the
+   open was never going to reach. `failed_at` is the position of the rung that failed, and
+   `usize::MAX` where none did.
+
+   Called from both of `open_progress.html`'s arms that have a job to draw: the one still running,
+   and the one that failed, where the list is what says *which rung*. #}
+<ol class="steps" aria-label="{{ "steps"|t }}">
+  {%- for step in steps %}
+  <li class="step {{ step.state }}">
+    <span class="step-name">{{ step.key|t }}</span>
+    {%- match step.took %}{% when Some with (took) %} <span class="mono dim">{{ took }}</span>{% when None %}{% endmatch %}
+    {%- if step.state == "running" %}{% match count_said %}{% when Some with (said) %} &middot; {{ said }}{% when None %}{% endmatch %}{% endif %}
+    {%- if step.state == "skipped" %}
+      {%- if loop.index0 > failed_at %} <span class="dim">{{ "step-not-reached"|t }}</span>
+      {%- else %} <span class="dim">{{ "step-not-needed"|t }}</span>{% endif %}
+    {%- endif %}
+  </li>
+  {%- endfor %}
+</ol>
+{% endmacro %}

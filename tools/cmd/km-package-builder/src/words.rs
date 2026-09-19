@@ -284,6 +284,7 @@ mod tests {
             // failing test here rather than a bracketed key on the Scan page.
             .chain(crate::model::ScanStatus::KEYS)
             .chain(crate::scan::phase::ALL)
+            .chain(crate::db::OPENING_LADDER)
             .chain(crate::model::SongKind::KEYS)
             .chain(crate::handlers::ABSTENTION_KEYS)
             .map(|key| (*key).to_owned())

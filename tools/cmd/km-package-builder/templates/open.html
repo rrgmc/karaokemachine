@@ -53,8 +53,16 @@
 {% match opening %}
 {% when Some with (job) %}
   {% if !job.finished %}
-    <p class="message opening-now polling" hx-get="/open/progress" hx-trigger="load"
-       hx-target="#opening" hx-swap="innerHTML">{{ "open-opening"|t }} {{ job.root }}&hellip;</p>
+    {# **The same shape the poll will replace this with**, bar included. This frame is on screen for
+       one interval, and a panel that grows a bar and a checklist a moment after it is first read
+       moves the words somebody was in the middle of. The rungs are left to the poll: this frame is
+       drawn before any of them has been climbed, and a list of eleven waiting rings says less than
+       the sentence above it. #}
+    <div class="message opening-now polling" hx-get="/open/progress" hx-trigger="load"
+         hx-target="#opening" hx-swap="innerHTML">
+      <div class="bar working" aria-hidden="true"><span></span></div>
+      <p>{{ "open-opening"|t }} {{ job.root }}&hellip;</p>
+    </div>
   {% else %}
     {% match job.error %}
     {% when Some with (reason) %}

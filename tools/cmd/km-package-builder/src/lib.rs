@@ -66,6 +66,8 @@ mod scan;
 mod server;
 mod settings;
 mod similar;
+/// The checklist of steps the Scan page and the Open page both draw. See the module note.
+mod step;
 /// What the tests need and the tool does not — the scratch directory, in one copy.
 #[cfg(test)]
 mod testing;
