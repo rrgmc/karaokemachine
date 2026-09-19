@@ -3154,3 +3154,26 @@ reading, because an estimate from less misleads.
 and draws none of a finished run's conclusions. The press answers at once, and the panel says
 *stopping* until the run has written its last batch, because a request that waited would hold the
 page for as long as that takes.
+
+## How many files a scan reads at once
+
+**One for each processor.** A scan reads files that many at a time and writes what they hold through
+a single writer, and the number reaches the Scan page's buttons as much as `--scan` and
+`--reanalyze`.
+
+**The count does not change how fast a scan runs, and that is measured rather than assumed.** Over a
+real corpus on a spinning disk, one reader and twenty-four are the same speed to within less than the
+noise between two runs at the same count. A scan's disk traffic is the writer's index maintenance;
+the files being read are a twenty-fifth of it, so dividing that twenty-fifth differently cannot move
+the total. The table is in
+[the architecture note](../architecture/package-builder.md#scanning).
+
+**Settable anyway, because that is a fact about one disk and not about disks.** `--jobs` holds for a
+single run, `KM_SCAN_JOBS` says the same where a shortcut has nowhere to put a flag, and `scan_jobs`
+in the settings file is where somebody who has measured their own disk keeps the answer. What holds
+for one run outranks what is kept. The settings file rather than the corpus folder because a disk is
+a fact about the box, so it should follow a curator from one folder to the next.
+
+**A value naming no number leaves the processor count standing rather than ending the run.** It is
+read on the way into a scan somebody has just asked for, and taking that scan away from them to
+report a stale variable in a shortcut costs more than starting it.

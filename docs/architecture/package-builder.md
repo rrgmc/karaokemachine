@@ -937,6 +937,39 @@ corpus, a batch commits about once a minute while every reader thread sits in a 
 fraction of one core between commits, and the readers' own speed shows only in the moment a commit
 frees the channel, when they empty it at streaming speed and block again.
 
+**The readers do not make the writer slower either, and the byte counts are why.** The corpus and
+its `.kmbuild` sit on one platter, so the worry is that the readers seek against the arm the writer
+descends its scattered pages with. Measured over a real corpus at six reader counts, each count twice
+and each arm over 4,000 files no other arm read:
+
+| readers | files a second, the two arms | drift-adjusted mean |
+|---|---|---|
+| 1 | 32.0, 29.4 | 30.7 |
+| 2 | 30.6, 28.1 | 29.4 |
+| 4 | 32.1, 34.0 | 33.1 |
+| 8 | 35.1, 31.8 | 33.5 |
+| 16 | 34.5, 32.3 | 33.4 |
+| 24 | 31.9, 26.6 | 29.1 |
+
+The spread across the counts is 13.9% and the largest spread *within* one count is 16.8%, so no count
+is distinguishable from any other. **An arm moves 2 to 3.6 GB off the platter and its 4,000 song files
+are about 120 MB of that**: the traffic is the writer's index maintenance, the readers are a
+twenty-fifth of it, and a twenty-fifth cannot be made to matter by dividing it differently. The same
+arms run with the files in the page cache read 112 files a second against 32, which is the measure of
+how far this is from being bound by anything but the disk.
+
+**Two things that measurement needs, and a sweep without either reports its own artefacts.** The arms
+drifted 14.5% slower across the run for reasons nothing here explains, so each count is run twice at
+mirrored positions, which cancels a linear drift exactly. And an arm whose files are already cached
+reads zero bytes and runs three times too fast, so each arm is bracketed by the platform's disk
+counters and one reading zero is discarded rather than averaged in.
+
+The count stays settable for the disk that disagrees, through `--jobs`, `KM_SCAN_JOBS` and
+`scan_jobs` in the settings file, and `db::measure::how_many_readers_a_disk_wants` is how another
+disk is asked. `KM_SLICE` is what lets each arm be its own process, which is what gives each one its
+own page cache and its own counters. The decision is
+[`How many files a scan reads at once`](../decisions/curation.md#how-many-files-a-scan-reads-at-once).
+
 **A process at a fraction of one core is what waiting looks like as much as what seeking looks like**,
 so a rate alone says nothing about which stage is the slow one. Reading one folder end to end runs at
 243 files a second, and extrapolating from that under-calls a scattered read by an order of magnitude;

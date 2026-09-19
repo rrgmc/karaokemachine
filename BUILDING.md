@@ -1897,6 +1897,12 @@ KM_CORPUS=<a folder holding one .kmbuild> KM_MMAP=on cargo km-test --release -- 
     --ignored --exact db::measure::a_cold_page_load_over_a_real_corpus --nocapture
 KM_CORPUS=<...> KM_MMAP=off KM_SAMPLE=4000 cargo km-test --release -- \
     --ignored --exact db::measure::a_bounded_forced_pass_over_a_real_corpus --nocapture
+# How many files a scan should read at once, on the disk the corpus lives on. One arm per value in
+# KM_JOBS, each over files no other arm read -- so this is the one that needs no emptied page cache.
+# Give the list twice in opposite order: a value whose two arms disagree measured the warming.
+KM_CORPUS=<...> KM_MMAP=on KM_SAMPLE=4000 KM_JOBS=24,1,16,2,8,4,4,8,2,16,1,24 \
+    cargo km-test --release -- \
+    --ignored --exact db::measure::how_many_readers_a_disk_wants --nocapture
 # Where the same-words threshold sits: what two files of one recording score against what a
 # coincidence scores, how often the phrases reach the other file, and what one search costs.
 KM_CORPUS=<...> KM_MMAP=on cargo km-test --release -- \

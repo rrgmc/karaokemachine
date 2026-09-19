@@ -1,17 +1,23 @@
 //! Timing what a page and a scan batch cost, on a database too large to reason about.
 //!
-//! **Three `#[ignore]`d tests, and they are the only ones in this repository.** They are ignored
+//! **The `#[ignore]`d tests, and they are the only ones in this repository.** They are ignored
 //! because none of them runs anywhere but on a machine holding a real corpus, and because each takes
 //! minutes to hours — so `cargo km-test` skips them and nothing in CI reaches them. `KM_CORPUS` says
 //! which folder, `KM_MMAP` says which of the two settings this run is measuring, and one run measures
 //! one setting: the figures mean nothing unless the operating system's cache has been emptied first,
 //! and that cannot be done from inside this process.
 //!
+//! [`how_many_readers_a_disk_wants`] is the exception to that last part, and it is the exception
+//! because it gives each arm files no other arm read.
+//!
 //! ```sh
 //! KM_CORPUS=<a folder holding one .kmbuild> KM_MMAP=on cargo km-test --release -- \
 //!     --ignored --exact db::measure::a_cold_page_load_over_a_real_corpus --nocapture
 //! KM_CORPUS=<...> KM_MMAP=off KM_SAMPLE=4000 cargo km-test --release -- \
 //!     --ignored --exact db::measure::a_bounded_forced_pass_over_a_real_corpus --nocapture
+//! KM_CORPUS=<...> KM_MMAP=on KM_SAMPLE=4000 KM_JOBS=24,1,16,2,8,4,4,8,2,16,1,24 \
+//!     cargo km-test --release -- \
+//!     --ignored --exact db::measure::how_many_readers_a_disk_wants --nocapture
 //! KM_CORPUS=<...> KM_MMAP=on cargo km-test --release -- \
 //!     --ignored --exact db::measure::where_the_same_words_threshold_sits --nocapture
 //! ```
@@ -321,6 +327,147 @@ fn a_bounded_forced_pass_over_a_real_corpus() {
     println!("|---|---|");
     for (phase, at) in progress.timings() {
         println!("| {phase} | {} |", took(at));
+    }
+    println!();
+
+    // Checkpointed and the mapping dropped, so the corpus is left as an ordinary close leaves it.
+    let pages = shared.lock().close();
+    println!(
+        "local only: {} — {pages} page(s) of journal folded back",
+        root.display()
+    );
+    map_this_much_for_test(-1);
+}
+
+/// How many files a scan should read at once, over a corpus on the disk it actually lives on.
+///
+/// **One arm per value in `KM_JOBS`, and each arm reads files no other arm has touched.** A sample
+/// taken the way [`a_bounded_forced_pass_over_a_real_corpus`] takes it is the same files every run,
+/// so a second arm over it would be timing the page cache the first arm filled — the failure the
+/// architecture note's *measure a change against a drive that is actually being read* warns about.
+/// Arm *n* takes `skip(n).step_by(stride)`: the same count, the same scatter, and no file in common.
+/// That is what removes the emptied page cache from this one's requirements, and the assertion below
+/// is what keeps the arms from silently overlapping when the sample is large enough to close the
+/// stride.
+///
+/// **The database pages are shared and cannot be**, since every arm writes into the one corpus. So
+/// give the list twice in opposite order and read the two halves against each other: a value whose
+/// two arms disagree is measuring the warming rather than the readers.
+///
+/// **One arm per process is the stronger way to run it**, and `KM_SLICE` is what makes that
+/// possible: a run of its own per count carries its own page cache and can be bracketed by the
+/// platform's disk counters, which is the evidence that the arms read a disk rather than memory.
+/// `KM_SLICE` says which slice the run's first arm takes, so no two runs read the same files.
+///
+/// ```sh
+/// KM_CORPUS=<a folder holding one .kmbuild> KM_MMAP=on KM_SAMPLE=4000 \
+///     KM_JOBS=24,1,16,2,8,4,4,8,2,16,1,24 cargo km-test --release -- \
+///     --ignored --exact db::measure::how_many_readers_a_disk_wants --nocapture
+/// ```
+#[test]
+#[ignore = "needs a real corpus; see the module header"]
+fn how_many_readers_a_disk_wants() {
+    let root = corpus();
+    let (name, bytes) = mapping();
+    let wanted: usize = std::env::var("KM_SAMPLE")
+        .ok()
+        .and_then(|count| count.parse().ok())
+        .expect("KM_SAMPLE must say how many files each arm re-reads");
+    let arms: Vec<usize> = std::env::var("KM_JOBS")
+        .expect("KM_JOBS must list the reader counts to compare, as 24,4,4,24")
+        .split(',')
+        .map(|value| {
+            value
+                .trim()
+                .parse()
+                .expect("every value in KM_JOBS is a number of readers")
+        })
+        .collect();
+    assert!(!arms.is_empty(), "KM_JOBS names no arm to run");
+    // **Which slice the first arm takes, so that one arm per process is a way to run this.** A run
+    // of its own per count is what gives each arm its own disk counters and its own page cache, and
+    // every such run would otherwise be handed slice zero and read the files the run before it had
+    // just warmed.
+    let first_slice: usize = std::env::var("KM_SLICE")
+        .ok()
+        .and_then(|nth| nth.parse().ok())
+        .unwrap_or(0);
+
+    map_this_much_for_test(bytes);
+
+    let mut paths = Vec::new();
+    km_pack::collect_songs(&root, &mut paths);
+    paths.sort();
+    assert!(!paths.is_empty(), "no songs under {}", root.display());
+    let stride = (paths.len() / wanted).max(1);
+    assert!(
+        stride >= first_slice + arms.len(),
+        "KM_SAMPLE is too large for {} arms from slice {first_slice} to get one each; lower it",
+        arms.len()
+    );
+
+    let slice = |nth: usize| -> std::collections::HashSet<String> {
+        paths
+            .iter()
+            .skip(nth)
+            .step_by(stride)
+            .take(wanted)
+            .map(|path| {
+                path.strip_prefix(&root)
+                    .unwrap_or(path)
+                    .to_string_lossy()
+                    .replace('\\', "/")
+            })
+            .collect()
+    };
+
+    let db = Db::open(&root).expect("open the corpus for writing");
+    println!("## {name}, one forced pass per reader count\n");
+    println!("- `mmap_size` in force: {}", says(&db, "mmap_size"));
+    println!("- files sampled per arm: {wanted}\n");
+
+    let shared = std::sync::Arc::new(Shared::new(db));
+    let mut rows: Vec<(usize, usize, Duration, Option<Duration>)> = Vec::new();
+
+    for (nth, jobs) in arms.iter().enumerate() {
+        let sample = slice(first_slice + nth);
+        let read = sample.len();
+        let progress = std::sync::Arc::new(crate::scan::Progress::default());
+        let options = crate::scan::ScanOptions {
+            jobs: *jobs,
+            ..crate::scan::ScanOptions::only(sample)
+        };
+        assert!(
+            options.only.is_some(),
+            "a whole forced pass must be unreachable from here"
+        );
+        let (whole, outcome) = timed(|| crate::scan::run(&shared, options, &progress));
+        outcome.expect("the arm finished");
+        let reading = progress
+            .timings()
+            .into_iter()
+            .find(|(phase, _)| phase == crate::scan::phase::READING)
+            .map(|(_, at)| at);
+        // Printed as it goes, because the whole run is an hour and a terminal that says nothing for
+        // that long is one somebody kills.
+        println!("- {jobs} readers: {} over {read} files", took(whole));
+        rows.push((*jobs, read, whole, reading));
+    }
+    println!();
+
+    println!("| readers | files | the whole pass | reading and analyzing | files a second |");
+    println!("|---|---|---|---|---|");
+    for (jobs, read, whole, reading) in &rows {
+        let rate = if whole.as_secs_f64() > 0.0 {
+            format!("{:.1}", *read as f64 / whole.as_secs_f64())
+        } else {
+            "--".to_owned()
+        };
+        println!(
+            "| {jobs} | {read} | {} | {} | {rate} |",
+            took(*whole),
+            reading.map(took).unwrap_or_else(|| "--".to_owned())
+        );
     }
     println!();
 

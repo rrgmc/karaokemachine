@@ -194,6 +194,18 @@ struct Cli {
     #[arg(long)]
     scan: bool,
 
+    /// How many files a scan reads at once. One for each processor by default.
+    ///
+    /// Lower it when the folder is on a slow disk. The files are read this many at a time while a
+    /// single writer records what they hold, and on one spinning disk the reading and the writing
+    /// are the same disk arm.
+    ///
+    /// For this run only, and it is not saved. It covers the Scan page's buttons as well as
+    /// `--scan` and `--reanalyze`. `KM_SCAN_JOBS` says the same thing for a shortcut that has
+    /// nowhere to put a flag.
+    #[arg(long, value_name = "N")]
+    jobs: Option<usize>,
+
     /// Save everything you have edited in this folder to a JSON file, then exit.
     ///
     /// Includes titles, artists, languages, encodings, transpositions, the rating, notes, merges
@@ -987,6 +999,13 @@ async fn reanalyze_and_exit(root: Option<&Path>) -> Result<Started> {
 /// log file comes with it for the same reason, opened by [`init_logging`] and passed here only so
 /// that the banner can name it.
 async fn start(cli: Cli, log_file: Option<km_logfile::LogFile>, shell: Shell) -> Result<Started> {
+    // First of all, because every later branch can reach a scan and one of them is the server, whose
+    // Scan page builds its options where no command line is in reach. `scan::use_jobs` is the one
+    // place both that page and `--reanalyze` read the number from.
+    if let Some(jobs) = cli.jobs {
+        scan::use_jobs(jobs);
+    }
+
     // Before anything is bound or opened: these do one thing and leave. Reported through the same
     // `say` as everything else, so a `--register` run that was launched by double-clicking an
     // installer shortcut does not panic trying to print its result.
@@ -1408,6 +1427,25 @@ mod tests {
         .expect("--overwrite beside --restore is the whole point of it");
         assert!(paired.overwrite);
         assert_eq!(paired.restore.as_deref(), Some(Path::new("kept.json")));
+    }
+
+    /// `--jobs` is a number every way of scanning reads, so it pairs with each of them.
+    #[test]
+    fn the_reader_count_rides_with_whichever_scan_was_asked_for() {
+        use clap::Parser as _;
+
+        assert_eq!(
+            Cli::parse_from(["km-package-builder", "/tunes/karaoke"]).jobs,
+            None,
+            "unasked is what leaves the processor count standing"
+        );
+        for other in [vec!["--scan"], vec!["--reanalyze"], vec![]] {
+            let mut argv = vec!["km-package-builder", "/tunes/karaoke", "--jobs", "4"];
+            argv.extend(other.iter().copied());
+            let cli = Cli::try_parse_from(&argv)
+                .unwrap_or_else(|_| panic!("--jobs beside {}", other.join(" ")));
+            assert_eq!(cli.jobs, Some(4));
+        }
     }
 
     /// `--reanalyze` reads the whole corpus and writes over every detected column, so pairing it
