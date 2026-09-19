@@ -44,9 +44,9 @@
     <h1><img class="mark" src="icon-512.png" width="512" height="512" alt="">Karaoke<span>Machine</span></h1>
     <p class="lede">
       A karaoke machine that behaves like a commercial home unit: <strong>pick a song by number, it
-      plays, the words highlight in time.</strong> It runs full-screen on a television, and phones on
-      the same network act as remotes through an HTTP API — search the catalog, queue a song,
-      change the key, skip.
+      plays, the words highlight in time.</strong> It runs full-screen on a television, and any phone
+      on the network is a remote over an HTTP API. Search the catalog, queue a song, change the key,
+      skip.
     </p>
     <p class="actions">
       <a class="btn btn-primary" href="https://github.com/rrgmc/karaokemachine/releases/latest">Download</a>
@@ -148,8 +148,8 @@
           commercial karaoke discs hold. The CD+G graphics are drawn here, in Rust.</li>
         <li><b>UltraStar songs</b> — the <code>.txt</code> a singing game times its words in, beside
           the MP3 it names. The words are highlighted syllable by syllable.</li>
-        <li><b>A 0–10 suitability rating</b> for every file, with a breakdown — and the melody channel
-          when it can be found confidently, with a stated reason when it cannot.</li>
+        <li><b>A 0–10 suitability rating</b> for every file, with a breakdown. It also names the
+          melody channel where it finds one confidently, and gives a reason where it cannot.</li>
       </ul>
     </article>
 
@@ -162,9 +162,9 @@
         <li><b>Or on a television in another room.</b> Started with <code>--stream</code> the machine
           opens no window and serves what it would have shown, picture and sound together, as one
           continuous HLS stream. A set, a phone or a computer opens the machine's own
-          <code>/watch/</code> page — and because the playlist is the interface, anything that plays
-          one takes <code>/stream/live.m3u8</code> in VLC, in Kodi or in the television's own media
-          pipeline and needs no browser at all.</li>
+          <code>/watch/</code> page. The playlist is the interface, so anything that plays one takes
+          <code>/stream/live.m3u8</code>. VLC, Kodi and the television's own media pipeline all do,
+          with no browser at all.</li>
         <li><b>Words highlight in time</b>, syllable by syllable, on the sequencer's own clock.</li>
         <li><b>Transpose and tempo</b> per song, and a <b>guide melody</b> that can be muted.</li>
         <li><b>A lyric timing offset in milliseconds</b>, adjustable mid-song, because a television
@@ -178,7 +178,7 @@
     <article class="card card-green">
       <h3>Remotes, and the API</h3>
       <ul>
-        <li><b>The machine serves a remote at its own address</b> — any phone on the network, no app
+        <li><b>The machine serves a remote at its own address.</b> Any phone on the network, no app
           to install, and a QR code on the idle screen.</li>
         <li><b>A standalone offline remote</b> keeping its own copy of a machine's catalog, so
           browsing, searching and favorites work with the machine switched off.</li>
@@ -194,16 +194,16 @@
     <article class="card card-blue">
       <h3>Getting a corpus into shape</h3>
       <ul>
-        <li><b><code>km-package-builder</code></b>, a local web server over a folder of source files:
-          browse, search <em>the lyrics themselves</em>, rate, fix the names, group duplicates, and
-          select songs into packages by hand.</li>
-        <li><b><code>km-pack</code></b> to build and validate packages,
-          <b><code>km-lyrics</code></b> to dump one file's parsed timeline, and
-          <b><code>km-wallpaper-pack</code></b> to build a wallpaper set filtered to what lyrics stay
+        <li><b><code>km-package-builder</code></b>, a local web server over a folder of source files.
+          Browse, search <em>the lyrics themselves</em>, rate, fix the names, group duplicates, and
+          pick songs into packages by hand.</li>
+        <li><b><code>km-pack</code></b> builds and validates packages, and
+          <b><code>km-lyrics</code></b> dumps one file's parsed timeline.
+          <b><code>km-wallpaper-pack</code></b> builds a wallpaper set, keeping what lyrics stay
           readable over.</li>
-        <li><b>A printed song book.</b> Four columns — artist, number, title and the first line of
-          the words — modeled on the book a commercial machine ships in a ring binder. The machine
-          serves one for its own catalog, so it is not only a curation artifact.</li>
+        <li><b>A printed song book.</b> Four columns — artist, number, title and first line —
+          modeled on the book a commercial machine ships in a ring binder. The machine serves one for
+          its own catalog, so it is not only a curation artifact.</li>
       </ul>
     </article>
   </div>
@@ -213,10 +213,10 @@
   <div class="wrap">
     <h2>Pictures and instruments, found for it</h2>
     <p>
-      <b><code>km-admin</code></b> finds photographs the lyrics stay readable over — measured in the
-      band of the screen the words occupy — and General MIDI banks from a table of sixty-three, then
-      sends either to the machine. <b>It also sends a file you already have</b>: a package, a bank, a
-      photograph of your own.
+      <b><code>km-admin</code></b> finds photographs the lyrics stay readable over, measured in the
+      band of the screen the words occupy. It also offers General MIDI banks from a table of
+      sixty-three, and it sends either to the machine. <b>It sends a file you already have too</b>: a
+      package, a bank, a photograph of your own.
     </p>
     <p>
       <b>It is the half the machine cannot do itself.</b> A box under a television has no shell, may
@@ -234,38 +234,39 @@
   <div class="wrap">
     <h2>Numbers that cannot clash</h2>
     <p>
-      A song's number is <b class="mono">bank&nbsp;×&nbsp;1000&nbsp;+&nbsp;slot</b> — the slot is
-      what the package numbered the song, 1 to 999, and the bank is the block of a thousand it sits
-      in. Two packages that both number a song 500 cannot collide: one is 3500, the other 611500.
+      A song's number is <b class="mono">bank&nbsp;×&nbsp;1000&nbsp;+&nbsp;slot</b>. The slot is what
+      the package numbered the song, 1 to 999, and the bank is the block of a thousand it sits in.
+      Two packages that both number a song 500 cannot collide: one is 3500, the other 611500.
     </p>
     <p>
       <b>A package's bank comes from its id</b>, so its numbers are the same on every machine.
-      Install the same volume here and at a friend's house, in any order — it gets the same bank
-      both times, so a printed song list travels with the file.
+      Install the same volume here and at a friend's house, in any order, and it takes the same bank
+      both times. A printed song list therefore travels with the file.
     </p>
     <p>
-      A package holds at most 999 songs. It is not a storage limit — the machine will hold a
-      thousand packages, so very nearly a million songs — it is a nudge towards <em>curating</em> a
+      A package holds at most 999 songs. It is not a storage limit, because the machine holds a
+      thousand packages and so very nearly a million songs. It is a nudge towards <em>curating</em> a
       volume rather than pointing a tool at a folder. The corpus this was built against is a large
-      one, and the difference between a catalog and a heap is entirely in what somebody left out.
+      one, and what somebody left out is the whole difference between a catalog and a heap.
     </p>
   </div>
 </section>
 
 <section class="wrap" id="deliberately-not">
   <h2>Deliberately not</h2>
-  <p class="prose">
-    <b>No scoring of singers.</b>
-    <b>No bare audio files</b> — an MP3 with no <code>.cdg</code> beside it contains no lyrics — and
-    no CD+G disc images, only the file pair.
-    <b>No video wallpapers</b>: a video song is not a video background.
-    <b>No pitch shifting of audio.</b>
-    <b>No microphone processing in the app</b> — mic audio is mixed in hardware, and the app handles
-    control and state only.
-    <b>No shaped scripts</b>: Thai, Arabic and Indic need a text shaper this build does not include,
-    and there is no right-to-left support. CJK is supported — a Japanese or Chinese song uses a font
-    from the system, and lyric decoding already handles the legacy encodings listed above.
-  </p>
+  <ul class="prose">
+    <li><b>No scoring of singers.</b></li>
+    <li><b>No bare audio files</b>, because an MP3 with no <code>.cdg</code> beside it contains no
+      lyrics. No CD+G disc images either, only the file pair.</li>
+    <li><b>No video wallpapers</b>: a video song is not a video background.</li>
+    <li><b>No pitch shifting of audio.</b></li>
+    <li><b>No microphone processing in the app.</b> Hardware mixes the microphones, and the app
+      handles control and state only.</li>
+    <li><b>No shaped scripts</b>: Thai, Arabic and Indic need a text shaper this build does not
+      include, and there is no right-to-left support. CJK works, though. A Japanese or Chinese song
+      uses a font from the system, and lyric decoding already handles the legacy encodings listed
+      above.</li>
+  </ul>
   <p class="prose dim">
     These are deliberate decisions rather than missing features. To propose a change, start with
     <a href="https://github.com/rrgmc/karaokemachine/tree/master/docs/decisions">the
@@ -307,9 +308,9 @@
       <tr>
         <th scope="row">Debian, Ubuntu</th>
         <td>A <code>.deb</code>. Its ffmpeg and font dependencies are named rather than bundled, so
-          apt supplies them. It installs as an ordinary application — a menu entry, an icon, and
-          <code>karaokemachine</code> as a command — and also carries the television-appliance
-          service, switched off.</td>
+          apt supplies them. It installs as an ordinary application, with a menu entry, an icon and
+          <code>karaokemachine</code> as a command. It also carries the television-appliance service,
+          switched off.</td>
       </tr>
       <tr>
         <th scope="row">Any Linux</th>
@@ -322,7 +323,7 @@
       </tr>
       <tr>
         <th scope="row">iPhone, iPad</th>
-        <td>An <code>.ipa</code> for the machine and one for the remote, both <b>unsigned</b>: iOS
+        <td>An <code>.ipa</code> for the machine and one for the remote, both <b>unsigned</b>. iOS
           takes no signature from a stranger, so you sign it yourself with your own Apple ID. It is
           the machine itself — the same synthesizer, catalog, display and API — and songs arrive
           through the Files app.</td>
@@ -343,13 +344,13 @@
       28&nbsp;KiB file.
     </p>
     <p>
-      It is a <b>separate download and is not installed with the machine</b>: a fresh install starts
-      empty on purpose, because you supply your own songs.
+      It is a <b>separate download, and no install carries it</b>. A fresh install starts empty on
+      purpose, because you supply your own songs.
     </p>
     <p class="dim">
-      It is the only pack of its kind. A karaoke MIDI is not one work but four or five — the tune,
-      the arrangement, the words, any translation, and whoever typed the notes in — and almost
-      nothing in the world has all of those free and written down. Carols do.
+      It is the only pack of its kind. A karaoke MIDI is not one work but four or five: the tune,
+      the arrangement, the words, any translation, and whoever typed the notes in. Almost nothing in
+      the world has all of those free and written down. Carols do.
     </p>
   </div>
 </section>

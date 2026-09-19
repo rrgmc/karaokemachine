@@ -47,8 +47,8 @@ open ports/machine/ios/KaraokeMachine.xcodeproj     # pick the device, press Run
 - **Never edit the project in Xcode.** It is generated from `project.yml` by every build, and the
   next one discards the change. Edit `project.yml`.
 - **`build.sh` compiles the app rather than stopping at the project.** `xcodegen` writes a project
-  without reading a line of `main.m`, so a script that stopped there would report success over a
-  target that does not build. `--no-app` opts out.
+  without reading a line of `main.m`. A script that stopped there would report success over a target
+  that does not build. `--no-app` opts out.
 - **Signing is Automatic**, from the development team named in `project.yml`. That is an Apple
   Development certificate for putting a build on your own devices, a different thing from the
   Developer ID used for macOS releases.

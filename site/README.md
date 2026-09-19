@@ -24,42 +24,46 @@ tools/dist/site.sh            # just stage it
 | `pt-BR/index.html` | the same page in Brazilian Portuguese, served at `/pt-BR/`, reaching the stylesheet and the pictures as `../` |
 | `style.css` | the only stylesheet, shared by both pages. No webfont, no CDN, no external request of any kind |
 
-Everything else in the published folder is staged by the script: `images/` from `docs/images/`,
+The script stages everything else in the published folder: `images/` from `docs/images/`,
 `favicon.png` and `icon-512.png` from [`icon/`](../icon), and a `.nojekyll`.
 
 A language is a folder named for its tag, holding one whole page. Adding one is that page, one line
-in `PAGES` and one in `LANGS` at the top of `tools/dist/site.sh`, and nothing else: the stylesheet,
-the pictures and the icons are shared. The script refuses a page folder it has not been told about,
-because a page nothing stages reaches no reader and breaks nothing that would say so.
+in `PAGES` and one in `LANGS` at the top of `tools/dist/site.sh`, and nothing else. The stylesheet,
+the pictures and the icons are shared. The script refuses a page folder nobody told it about, because
+a page nothing stages reaches no reader and breaks nothing that would say so.
 
 ## Invariants
 
 - **The palette is the machine's, not the page's.** The custom properties at the top of `style.css`
   are copied from `Theme::default()` in
   [`crates/playback/km-display/src/theme.rs`](../crates/playback/km-display/src/theme.rs), with the
-  field each came from named beside it. Amber is the color a syllable turns as it is sung and the
-  machine's icon color; blue is `km-package-builder`'s, green `km-remote`'s and magenta
-  `km-admin`'s, which is why two cards and the admin band are not amber. The page's *surfaces* are
-  `icon_ground` and `icon_glow` — the violet-into-magenta the four marks stand on — while `--bg`
-  stays `theme.background`. `km-admin`'s heading is `icon_glow` **lifted 18% toward white**, because
-  straight it measures 3.50:1 on `--ground` where the other three measure about 10 — the same lift
-  `icon.rs` makes for the same reason, and for the same reason it is done where the color is read
-  rather than in `--glow`, which the hero's wash wants dark. `--raised`, `--line`,
-  `--dim` and `--muted` are page-only, have no theme source, and are re-derived toward that violet.
-  If the theme changes, these follow.
-- **Each language is a whole page, and the two say the same things.** The prose is written in its own
-  language rather than rendered word for word out of English, and the structure is not free to
-  differ: `tools/dist/site.sh` refuses two pages that disagree about their sections, their pictures
-  or where they send a reader, and refuses a page that does not declare its own `lang`, name every
-  language in a `<link rel="alternate">`, or carry a link a reader can click to the other. The links
-  out stay English, because the repository and the documents behind them are. What the script cannot
-  see is a paragraph that fell behind in words, and that is found by reading both pages.
+  field each came from named beside it. Amber is the color a syllable turns as it is sung, and the
+  machine's icon color. Blue is `km-package-builder`'s, green `km-remote`'s and magenta `km-admin`'s,
+  which is why two cards and the admin band are not amber. The page's *surfaces* are `icon_ground`
+  and `icon_glow` — the violet-into-magenta the four marks stand on — while `--bg` stays
+  `theme.background`. `--raised`, `--line`, `--dim` and `--muted` are page-only, have no theme
+  source, and are re-derived toward that violet, so they follow when the theme changes.
+- **`km-admin`'s heading is `icon_glow` lifted 18% toward white.** Straight, it measures 3.50:1 on
+  `--ground` where the other three measure about 10. `icon.rs` makes the same lift for the same
+  reason. Both do it where the color is read rather than in `--glow`, which the hero's wash wants
+  dark.
+- **Each language is a whole page, and the two say the same things.** Somebody writes the prose in
+  its own language rather than rendering it word for word out of English. The structure is not free
+  to differ, and `tools/dist/site.sh` refuses four things:
+
+  - two pages that disagree about their sections, their pictures or where they send a reader;
+  - a page that does not declare its own `lang`;
+  - a page that does not name every language in a `<link rel="alternate">`;
+  - a page with no link a reader can click to the other.
+
+  The links out stay English, because the repository and the documents behind them are. The script
+  cannot see a paragraph that fell behind in words, and reading both pages is what finds one.
 - **The hero shows `icon-512.png`**, beside the wordmark the icon's amber `M` is taken from. It is
-  the one mark the page may name: it and `favicon.png` are the only icons `tools/dist/site.sh`
+  the one mark the page may name. It and `favicon.png` are the only icons `tools/dist/site.sh`
   stages, and a link with nothing behind it fails the build. Another would mean editing the script
   and `pages.yml`.
 - **It links one download, and that is the release page.** An asset's name carries the version, so a
-  link to one stops resolving at the next release; the carriers table says what each package is and
+  link to one stops resolving at the next release. The carriers table says what each package is and
   links none of them. The URL names the repository the page deploys from, because GitHub serves a
   release only to whoever can see its repository. See
   [`The website is one page per language, and it links one download`](../docs/decisions/repository.md#the-website-is-one-page-per-language-and-it-links-one-download),

@@ -37,7 +37,7 @@ In scope, for example:
 Out of scope:
 
 - queueing, skipping or searching from the same network, which needs no password by design;
-- a machine whose port was forwarded to the internet while it kept its generated PIN, which the admin
-  page warns about until the owner sets a password of their own;
+- a machine whose port was forwarded to the internet while it kept its generated PIN. The admin page
+  warns about that until the owner sets a password of their own;
 - a problem that only exists in a dependency. Report that to its own project, and open an issue here
   once it has a fixed version.

@@ -81,10 +81,11 @@ SHAPES=(
 )
 
 # `docs/HISTORY.md` and `docs/learning-rust.md` are exempt and say so in place: one is the origin
-# story and the other a teaching document, where the arc from wrong to right *is* the content. This
-# script's own header names the shapes it hunts, so it excludes itself for the reason
-# `check-no-local-refs.sh` does.
-EXEMPT='^(docs/HISTORY\.md|docs/learning-rust\.md|tools/dev/check-prose\.sh)$'
+# story and the other a teaching document, where the arc from wrong to right *is* the content.
+# `CODE_OF_CONDUCT.md` is the Contributor Covenant word for word, and its last paragraph says which
+# version it is, so rewriting a sentence there would make that line false. This script's own header
+# names the shapes it hunts, so it excludes itself for the reason `check-no-local-refs.sh` does.
+EXEMPT='^(docs/HISTORY\.md|docs/learning-rust\.md|CODE_OF_CONDUCT\.md|tools/dev/check-prose\.sh)$'
 
 # The sentence shapes, and the files that have been written to them.
 SENTENCES=tools/dev/prose-sentences.awk
@@ -124,7 +125,7 @@ list_shapes() {
     printf '  %-34s %s\n' "${entry%%|*}" "${entry#*|}"
   done
   echo
-  echo "check-prose: the sentence shapes, over *.md and commit messages"
+  echo "check-prose: the sentence shapes, over *.md, a named page and commit messages"
   for entry in "${SENTENCE_RULES[@]}"; do
     printf '  %-34s %s\n' "${entry%%|*}" "${entry#*|}"
   done
@@ -299,8 +300,9 @@ scan() {
 # A hit arrives as `<line>|<rule>|<text>` and meets the same scope filter, so `--changed` reads the
 # lines a branch added here too. The line is the one the sentence *starts* on.
 sentence_scan() {
-  local label="$1" scope="$2" kind="${3:-file}" src="${4:-}"
-  local hit number rule text where
+  local label="$1" scope="$2" kind="${3:-file}" src="${4:-}" page="${5:-0}"
+  local hit number rule text where mode=()
+  [ "$page" -eq 1 ] && mode=(-v page=1)
   while IFS= read -r hit; do
     [ -z "$hit" ] && continue
     number="${hit%%|*}"
@@ -325,7 +327,7 @@ sentence_scan() {
     if [ "$kind" = "message" ]; then
       awk -f "$SENTENCES"
     else
-      awk -f "$SENTENCES" -- "$src" 2>/dev/null
+      awk "${mode[@]}" -f "$SENTENCES" -- "$src" 2>/dev/null
     fi
   )
 }
@@ -341,12 +343,21 @@ if [ "$FILES_MODE" -eq 1 ]; then
       scope=" $scope"
     fi
     scan "$file" "$scope" file "$file"
-    # A document only. A comment's sentence wraps over a syntax this does not read, and the decision
-    # says so rather than leaving a session to find it.
+    # A document, and a page the list names. A comment's sentence wraps over a syntax this does not
+    # read, and the decision says so rather than leaving a session to find it.
+    #
+    # **A page is read only where `prose-converted.txt` names it, in every mode.** The tracked pages
+    # are mostly Fluent templates, where a line is markup and a sentence counter would report the
+    # markup; naming a page is what makes it prose.
     case "$file" in
       *.md)
         if [ "$CHANGED" -eq 1 ] || converted "$file"; then
           sentence_scan "$file" "$scope" file "$file"
+        fi
+        ;;
+      *.html)
+        if converted "$file"; then
+          sentence_scan "$file" "$scope" file "$file" 1
         fi
         ;;
     esac

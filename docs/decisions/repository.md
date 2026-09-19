@@ -654,6 +654,18 @@ the sentences in a paragraph. It catches a passive verb that names its agent. Id
 long noun string have no shape, so a person still reads new prose. It reads `*.md` and commit
 messages, and it hands a code comment to that person.
 
+**A page is prose only where the list names it.** `-v page=1` reads HTML instead of Markdown. A tag
+becomes a space, and a `</p>`, a `</li>` or a heading's close ends a paragraph. It never reads a
+`<script>`, a `<style>`, a comment or a heading's own words. The tracked pages are mostly Fluent
+templates, where a line is markup and a sentence counter would report the markup. Naming the page in
+`prose-converted.txt` is what makes it prose, and the site's two pages are what that is for.
+
+**Structure is what reaches a page in another language.** The active voice, one idea to a sentence,
+the word limit and the paragraph limit hold in any language. The vocabulary half does not travel,
+because the checker cannot read Portuguese idiom. Neither the standard's approved word list nor
+[`The prose and the names are US English`](foundations.md#the-prose-and-the-names-are-us-english)
+reaches a translation, so a person reads a translated page for the rest.
+
 **The tree converts one document at a time.** `tools/dev/prose-converted.txt` names the documents
 somebody has already written to the shape, and every mode reads those whole. Outside that list the
 checker reads only the lines a branch adds. More than a third of the sentences in this tree run past
@@ -692,10 +704,14 @@ inside the Debian image `task check:linux` uses, since it carries no `git`. Each
 two is missing and exits non-zero. A checker that cannot read is worth less than no checker, because
 it answers.
 
-**Two files are exempt and say so in place.** `docs/learning-rust.md` is a teaching document,
+**Three files are exempt and say so in place.** `docs/learning-rust.md` is a teaching document,
 where the arc from wrong to right *is* the content. `docs/HISTORY.md` is the origin story, where the
 chronology and the abandoned attempts *are* the content; it is exempt from the rule and not from rule
 5 in `CLAUDE.md`, because it states what was rather than what will be, and it binds nothing.
+
+**`CODE_OF_CONDUCT.md` is the third, and it is somebody else's text.** It is the Contributor
+Covenant word for word, and its last paragraph names the version it is. A sentence rewritten to the
+shape would make that line false, so the file states the Covenant and this rule leaves it alone.
 
 ## Where a folder-scoped instruction lives
 

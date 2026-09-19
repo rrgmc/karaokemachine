@@ -6,8 +6,9 @@ for search, queueing and control.
 
 - **The machine is "Karaoke Machine" under its icon**, and its streaming launcher is "KM Stream", so
   no launcher cuts the name mid-word. Upgrading removes the old shortcuts and applications.
-- **The package builder can number a package's only volume.** A package that will pass 999 songs can
-  be named `vol1` from its first build, so its file keeps that name when a second volume starts.
+- **The package builder can number a package's only volume.** A package that will pass 999 songs
+  takes the name `vol1` from its first build. Its file then keeps that name when a second volume
+  starts.
 
 ## Which file to download
 
@@ -60,7 +61,7 @@ iOS does not install unsigned applications, and Apple does not issue a signature
 distributed with the file. Both `.ipa` files are marked `unsigned`, and you sign them yourself. It
 takes about five minutes per app and needs a computer.
 
-You need an Apple ID (the one already on the phone is fine) and a free signing tool:
+You need an Apple ID, and the one already on the phone is fine. You also need a free signing tool:
 [Sideloadly](https://sideloadly.io) for macOS or Windows, or [AltStore](https://altstore.io), which
 installs from the phone.
 
