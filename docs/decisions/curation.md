@@ -3157,19 +3157,22 @@ page for as long as that takes.
 
 ## How many files a scan reads at once
 
-**One for each processor, and `--jobs` or `KM_SCAN_JOBS` says otherwise.** The number reaches the
-Scan page's buttons as much as `--scan` and `--reanalyze`, holds for the run, and is saved nowhere.
+**One for each processor.** A scan reads files that many at a time and writes what they hold through
+a single writer, and the number reaches the Scan page's buttons as much as `--scan` and
+`--reanalyze`.
 
-A scan reads files that many at a time and writes what they hold through a single writer. Where the
-corpus is on an SSD the reading is nearly free and one reader per processor is right. Where it is on
-one spinning disk the readers and the writer share a disk arm, and the writer is the stage that sets
-the rate, so readers past a point buy nothing and cost the writer its seeks. Which of the two a
-folder is on cannot be detected, and the person who owns the folder knows.
+**The count does not change how fast a scan runs, and that is measured rather than assumed.** Over a
+real corpus on a spinning disk, one reader and twenty-four are the same speed to within less than the
+noise between two runs at the same count. A scan's disk traffic is the writer's index maintenance;
+the files being read are a twenty-fifth of it, so dividing that twenty-fifth differently cannot move
+the total. The table is in
+[the architecture note](../architecture/package-builder.md#scanning).
 
-**Settable rather than decided for them**, because the answer is a property of their disk rather than
-of this program. What it is on a given one is read off
-`db::measure::how_many_readers_a_disk_wants`, which runs one arm per count over files no other arm
-read.
+**Settable anyway, because that is a fact about one disk and not about disks.** `--jobs` holds for a
+single run, `KM_SCAN_JOBS` says the same where a shortcut has nowhere to put a flag, and `scan_jobs`
+in the settings file is where somebody who has measured their own disk keeps the answer. What holds
+for one run outranks what is kept. The settings file rather than the corpus folder because a disk is
+a fact about the box, so it should follow a curator from one folder to the next.
 
 **A value naming no number leaves the processor count standing rather than ending the run.** It is
 read on the way into a scan somebody has just asked for, and taking that scan away from them to

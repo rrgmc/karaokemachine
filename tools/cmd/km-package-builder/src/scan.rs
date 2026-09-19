@@ -521,31 +521,37 @@ pub fn use_jobs(jobs: usize) {
 
 /// How many files to read at once: what was asked for, else one per processor.
 ///
-/// **One per processor is right for a corpus on an SSD and is the open question on a platter**, where
-/// the readers and the writer share one arm and the writer is the stage that sets the rate. So the
-/// number is settable without a rebuild, which is what makes two settings comparable. A value that
-/// does not parse, or is zero, falls through to the processor count rather than ending the run: this
-/// is read on the way into a scan somebody has just asked for.
+/// **One per processor costs nothing on a platter, which is what the corpus measurement found**, so
+/// it is what a run gets when nobody says otherwise. The number is settable for the disk that
+/// disagrees. A value that does not parse, or is zero, falls through rather than ending the run:
+/// this is read on the way into a scan somebody has just asked for.
 ///
 /// See `How many files a scan reads at once` in `docs/decisions/curation.md`.
 fn jobs() -> usize {
     resolve_jobs(
         JOBS.get().copied(),
         std::env::var(JOBS_ENV_VAR).ok().as_deref(),
+        crate::settings::peek_scan_jobs(),
     )
 }
 
-/// The order the two answers are taken in, and what stands in for neither.
+/// The order the three answers are taken in, and what stands in for none of them.
 ///
-/// **Apart from [`jobs`] so that it can be tested**, which reading a process-wide variable cannot be:
-/// tests run beside each other in one process and none of them owns the environment.
-fn resolve_jobs(asked: Option<usize>, named: Option<&str>) -> usize {
+/// **What holds for one run outranks what is kept**, so a flag beats a variable and both beat the
+/// settings file. The file is where somebody who has measured their own disk puts the answer; the
+/// other two are for the run in front of them.
+///
+/// **Apart from [`jobs`] so that it can be tested**, which reading a process-wide variable and a
+/// file in the config directory cannot be: tests run beside each other in one process and none of
+/// them owns either.
+fn resolve_jobs(asked: Option<usize>, named: Option<&str>, saved: Option<usize>) -> usize {
     if let Some(asked) = asked {
         return asked.max(1);
     }
     named
         .and_then(|value| value.trim().parse::<usize>().ok())
         .filter(|jobs| *jobs > 0)
+        .or_else(|| saved.filter(|jobs| *jobs > 0))
         .unwrap_or_else(|| {
             std::thread::available_parallelism()
                 .map(|n| n.get())
@@ -1515,16 +1521,28 @@ mod tests {
 
     use crate::testing::Scratch;
 
-    /// What was asked for wins, and what the machine has is what is left.
+    /// What holds for one run outranks what is kept, and the machine's own count is what is left.
     #[test]
-    fn a_flag_outranks_the_variable_and_both_outrank_the_processor_count() {
+    fn a_flag_outranks_the_variable_outranks_the_file_outranks_the_processor_count() {
         let processors = std::thread::available_parallelism()
             .map(|n| n.get())
             .unwrap_or(4);
 
-        assert_eq!(resolve_jobs(Some(4), Some("16")), 4);
-        assert_eq!(resolve_jobs(None, Some("16")), 16);
-        assert_eq!(resolve_jobs(None, None), processors);
+        assert_eq!(resolve_jobs(Some(4), Some("16"), Some(8)), 4);
+        assert_eq!(resolve_jobs(None, Some("16"), Some(8)), 16);
+        assert_eq!(resolve_jobs(None, None, Some(8)), 8);
+        assert_eq!(resolve_jobs(None, None, None), processors);
+    }
+
+    /// A kept number nobody can act on is no opinion, exactly as an unreadable variable is.
+    #[test]
+    fn a_saved_reader_count_of_zero_is_no_opinion() {
+        let processors = std::thread::available_parallelism()
+            .map(|n| n.get())
+            .unwrap_or(4);
+
+        assert_eq!(resolve_jobs(None, None, Some(0)), processors);
+        assert_eq!(resolve_jobs(None, Some("nonsense"), Some(6)), 6);
     }
 
     /// **A number nobody can act on falls through rather than ending the run.** This is read on the
@@ -1538,13 +1556,13 @@ mod tests {
 
         for said in ["", "   ", "lots", "-1", "4.5", "0"] {
             assert_eq!(
-                resolve_jobs(None, Some(said)),
+                resolve_jobs(None, Some(said), None),
                 processors,
                 "{said:?} says no number of readers"
             );
         }
         assert_eq!(
-            resolve_jobs(None, Some(" 8 ")),
+            resolve_jobs(None, Some(" 8 "), None),
             8,
             "spaces around it are not"
         );
@@ -1554,7 +1572,7 @@ mod tests {
     /// the half that keeps a zero from ever reaching it.
     #[test]
     fn asking_for_no_readers_still_gets_one() {
-        assert_eq!(resolve_jobs(Some(0), None), 1);
+        assert_eq!(resolve_jobs(Some(0), None, None), 1);
     }
 
     #[test]

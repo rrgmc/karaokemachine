@@ -87,6 +87,19 @@ pub struct Settings {
     /// that the Settings page writing a tag back cannot drop it.
     #[serde(default)]
     pub logging: km_logsettings::LoggingSettings,
+
+    /// How many files a scan reads at once.
+    ///
+    /// **`None` is one for each processor**, which is what a corpus on an SSD wants and what a
+    /// corpus on a platter is not measurably hurt by. A number here is for a disk somebody has
+    /// measured and found disagrees; `--jobs` outranks it for a single run, and `KM_SCAN_JOBS`
+    /// outranks that.
+    ///
+    /// **Beside [`Self::logging`] rather than beside the corpus**, and for its reason: a disk is a
+    /// fact about the box, so a curator moving between folders on one wants the same number for
+    /// every folder. See `How many files a scan reads at once` in `docs/decisions/curation.md`.
+    #[serde(default)]
+    pub scan_jobs: Option<usize>,
 }
 
 impl Default for Settings {
@@ -95,6 +108,7 @@ impl Default for Settings {
             default_tags: DEFAULT_TAGS.iter().map(|tag| (*tag).to_owned()).collect(),
             locale: None,
             logging: km_logsettings::LoggingSettings::default(),
+            scan_jobs: None,
         }
     }
 }
@@ -108,6 +122,18 @@ impl Default for Settings {
 #[must_use]
 pub fn peek_logging() -> km_logsettings::LoggingSettings {
     path().map(km_logsettings::peek).unwrap_or_default()
+}
+
+/// What the settings file says the reader count is, without writing one.
+///
+/// **[`peek_logging`]'s twin, and for its reason.** A scan asking the question must not be what
+/// creates a `settings.json` for a run that has said nothing yet. A file that is absent, unreadable
+/// or holds no number answers as no opinion, which leaves the processor count standing.
+#[must_use]
+pub fn peek_scan_jobs() -> Option<usize> {
+    let file = path()?;
+    let text = std::fs::read_to_string(file).ok()?;
+    serde_json::from_str::<Settings>(&text).ok()?.scan_jobs
 }
 
 /// Where the settings live, given whatever [`ENV_VAR`] was set to.

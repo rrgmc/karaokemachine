@@ -354,6 +354,11 @@ fn a_bounded_forced_pass_over_a_real_corpus() {
 /// give the list twice in opposite order and read the two halves against each other: a value whose
 /// two arms disagree is measuring the warming rather than the readers.
 ///
+/// **One arm per process is the stronger way to run it**, and `KM_SLICE` is what makes that
+/// possible: a run of its own per count carries its own page cache and can be bracketed by the
+/// platform's disk counters, which is the evidence that the arms read a disk rather than memory.
+/// `KM_SLICE` says which slice the run's first arm takes, so no two runs read the same files.
+///
 /// ```sh
 /// KM_CORPUS=<a folder holding one .kmbuild> KM_MMAP=on KM_SAMPLE=4000 \
 ///     KM_JOBS=24,1,16,2,8,4,4,8,2,16,1,24 cargo km-test --release -- \
@@ -379,6 +384,14 @@ fn how_many_readers_a_disk_wants() {
         })
         .collect();
     assert!(!arms.is_empty(), "KM_JOBS names no arm to run");
+    // **Which slice the first arm takes, so that one arm per process is a way to run this.** A run
+    // of its own per count is what gives each arm its own disk counters and its own page cache, and
+    // every such run would otherwise be handed slice zero and read the files the run before it had
+    // just warmed.
+    let first_slice: usize = std::env::var("KM_SLICE")
+        .ok()
+        .and_then(|nth| nth.parse().ok())
+        .unwrap_or(0);
 
     map_this_much_for_test(bytes);
 
@@ -388,8 +401,8 @@ fn how_many_readers_a_disk_wants() {
     assert!(!paths.is_empty(), "no songs under {}", root.display());
     let stride = (paths.len() / wanted).max(1);
     assert!(
-        stride >= arms.len(),
-        "KM_SAMPLE is too large for {} arms to get a slice of their own; lower it",
+        stride >= first_slice + arms.len(),
+        "KM_SAMPLE is too large for {} arms from slice {first_slice} to get one each; lower it",
         arms.len()
     );
 
@@ -417,7 +430,7 @@ fn how_many_readers_a_disk_wants() {
     let mut rows: Vec<(usize, usize, Duration, Option<Duration>)> = Vec::new();
 
     for (nth, jobs) in arms.iter().enumerate() {
-        let sample = slice(nth);
+        let sample = slice(first_slice + nth);
         let read = sample.len();
         let progress = std::sync::Arc::new(crate::scan::Progress::default());
         let options = crate::scan::ScanOptions {
