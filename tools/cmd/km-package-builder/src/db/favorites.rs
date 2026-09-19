@@ -11,13 +11,19 @@ use super::*;
 
 impl Db {
     /// Every favorite, by name.
+    ///
+    /// **The count is of entries the list can show.** A star stays on a song somebody throws away,
+    /// so a count off `song_favorites` alone promises songs that opening the list does not hold.
     pub fn favorites(&self) -> Result<Vec<FavoriteNode>, DbError> {
-        let mut statement = self.conn.prepare(
+        let browsable = browsable("s.");
+        let mut statement = self.conn.prepare(&format!(
             "SELECT f.id, f.name,
-                    (SELECT COUNT(*) FROM song_favorites sf WHERE sf.favorite_id = f.id),
+                    (SELECT COUNT(*) FROM song_favorites sf
+                      JOIN songs s ON s.id = sf.song_id
+                      WHERE sf.favorite_id = f.id AND {browsable}),
                     f.temporary
              FROM favorites f ORDER BY f.name COLLATE NOCASE",
-        )?;
+        ))?;
         let rows: Vec<(i64, String, i64, bool)> = statement
             .query_map([], |row| {
                 Ok((
@@ -53,12 +59,14 @@ impl Db {
     /// which is the thing [`VersionsFilter::Collapsed`] now prevents. This reports what was filed
     /// before it did.
     pub fn redundant_favorites(&self) -> Result<HashMap<i64, u32>, DbError> {
-        let mut statement = self.conn.prepare(
+        let browsable = browsable("s.");
+        let mut statement = self.conn.prepare(&format!(
             "SELECT sf.favorite_id,
                     COUNT(*) - COUNT(DISTINCT coalesce(s.duplicate_of, s.id))
              FROM song_favorites sf JOIN songs s ON s.id = sf.song_id
+             WHERE {browsable}
              GROUP BY sf.favorite_id",
-        )?;
+        ))?;
         let rows = statement.query_map([], |row| {
             Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)? as u32))
         })?;
@@ -73,6 +81,12 @@ impl Db {
     /// starred two poor copies and never the good one keeps a poor copy rather than losing the
     /// song, which is the difference between tidying a list and editing it.
     ///
+    /// **The survivor has to be one the list can show.** A song somebody threw away keeps its star,
+    /// and without the term it wins on suitability and takes every live copy of that recording out
+    /// of the list — which leaves the recording represented by an entry no page draws. Where every
+    /// copy is deleted the subquery answers nothing, `id <> NULL` is never true, and the list is
+    /// left alone.
+    ///
     /// Answers how many entries went, so the sentence afterwards can say it.
     pub fn tidy_favorite(&self, favorite: i64) -> Result<usize, DbError> {
         // `song_favorites` has no id of its own, so the survivor is named by song rather than by
@@ -86,6 +100,7 @@ impl Db {
                    SELECT best.id FROM song_favorites sfb JOIN songs best ON best.id = sfb.song_id
                    WHERE sfb.favorite_id = ?1
                      AND coalesce(best.duplicate_of, best.id) = coalesce(s.duplicate_of, s.id)
+                     AND best.deleted_at IS NULL
                    ORDER BY best.suitability DESC NULLS LAST, best.file_count DESC, best.id ASC
                    LIMIT 1))",
             params![favorite],

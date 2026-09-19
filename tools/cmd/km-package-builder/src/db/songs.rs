@@ -10,6 +10,13 @@
 //! Tags and language are here rather than in files of their own: a tag is a row in a side table but
 //! it is *asked about* as a property of a song, and every one of these methods is either a narrowing
 //! of the browse query or a write that the browse query then has to see.
+//!
+//! **A write that takes a list of ids asks [`browsable`] for itself.** The filter-wide half of each
+//! pair inherits the predicate from `Filter::to_sql`, which emits it always; the ticked half builds
+//! its own `WHERE` out of `id IN (…)` and would otherwise write rows no page can show. Every such
+//! write reports how many it changed, so a row nobody will see is a number that overstates the work
+//! — and the ids come off the page, where a deleted song reaches a tick through *only deleted*, a
+//! saved filter or a stale tab.
 
 use super::*;
 
@@ -112,7 +119,14 @@ impl Db {
     /// Ordered by `bm25`, which is what separates this from the browse page: there the sort is a
     /// property of the song, here it is how well the words matched, and a search for a half-heard
     /// line wants the song that sings it most, not the one with the highest suitability.
+    ///
+    /// **[`browsable`] and not `merged_into IS NULL` alone**, because a hit carries the same buttons
+    /// a browse row does. A song somebody threw away would arrive here with a star and an *add to a
+    /// package* beside it, which is the one route by which a discarded song reaches a machine. Its
+    /// neighbours [`Self::similar_names`] and [`Self::similar_words`] splice a whole `Filter`; this
+    /// one asks the predicate directly, because the words are what narrows it.
     pub fn lyric_search(&self, search: &LyricSearch) -> Result<Vec<LyricHit>, DbError> {
+        let browsable = browsable("s.");
         let Some(query) = search.match_query() else {
             return Ok(Vec::new());
         };
@@ -126,7 +140,7 @@ impl Db {
                     snippet(lyrics_fts, 0, char(2), char(3), char(8230), {SNIPPET_TOKENS})
              FROM lyrics_fts
              JOIN songs s ON s.rowid = lyrics_fts.rowid
-             WHERE lyrics_fts MATCH ?1 AND s.merged_into IS NULL
+             WHERE lyrics_fts MATCH ?1 AND {browsable}
              ORDER BY bm25(lyrics_fts)
              LIMIT ?2 OFFSET ?3",
             browse_columns(),
@@ -145,14 +159,20 @@ impl Db {
     }
 
     /// How many songs the lyric search matches, ignoring its paging.
+    ///
+    /// The same predicate [`Self::lyric_search`] asks, so the number over the list and the list
+    /// itself cannot disagree.
     pub fn lyric_search_count(&self, search: &LyricSearch) -> Result<u32, DbError> {
         let Some(query) = search.match_query() else {
             return Ok(0);
         };
+        let browsable = browsable("s.");
         let count: i64 = self.conn.query_row(
-            "SELECT COUNT(*) FROM lyrics_fts
-             JOIN songs s ON s.rowid = lyrics_fts.rowid
-             WHERE lyrics_fts MATCH ?1 AND s.merged_into IS NULL",
+            &format!(
+                "SELECT COUNT(*) FROM lyrics_fts
+                 JOIN songs s ON s.rowid = lyrics_fts.rowid
+                 WHERE lyrics_fts MATCH ?1 AND {browsable}"
+            ),
             [query],
             |row| row.get(0),
         )?;
@@ -996,6 +1016,7 @@ impl Db {
     /// parameters. Ordering happens once over everything the chunks found, so a set larger than one
     /// chunk is ordered as one set.
     pub fn quality_hint(&self, ids: &[String]) -> Result<Vec<String>, DbError> {
+        let browsable = browsable("s.");
         let mut keys = Vec::with_capacity(ids.len());
         for batch in ids.chunks(ID_CHUNK) {
             let (holes, values) = id_holes(batch, 1);
@@ -1004,7 +1025,7 @@ impl Db {
                         s.suitability_sync, s.suitability_arrangement, s.channel_count,
                         s.det_encoding_source, s.file_count
                    FROM songs s
-                  WHERE s.id IN ({holes}) AND s.kind = 'midi'"
+                  WHERE s.id IN ({holes}) AND s.kind = 'midi' AND {browsable}"
             );
             let mut statement = self.conn.prepare(&sql)?;
             let found = statement.query_map(params_from_iter(values.iter()), |row| {
@@ -1037,12 +1058,13 @@ impl Db {
     /// parameters and the header tick-box ticks a whole page.
     pub fn add_tag_of(&self, ids: &[String], tag: &Tag) -> Result<u32, DbError> {
         self.remember_tag(tag)?;
+        let browsable = browsable("");
         let mut changed = 0u32;
         for batch in ids.chunks(ID_CHUNK) {
             let (holes, mut values) = id_holes(batch, 2);
             let sql = format!(
                 "INSERT OR IGNORE INTO song_tags (song_id, tag)
-                 SELECT id, ?1 FROM songs WHERE id IN ({holes}) AND merged_into IS NULL"
+                 SELECT id, ?1 FROM songs WHERE id IN ({holes}) AND {browsable}"
             );
             values.insert(0, Binding::Text(tag.as_str().to_owned()));
             changed += self.conn.execute(&sql, params_from_iter(values.iter()))? as u32;
@@ -1184,11 +1206,12 @@ impl Db {
             Some(language) => Binding::Text(language.code().to_owned()),
             None => Binding::Null,
         };
+        let browsable = browsable("");
         let mut changed = 0u32;
         for batch in ids.chunks(ID_CHUNK) {
             let (holes, mut values) = id_holes(batch, 2);
             let sql = format!(
-                "UPDATE songs SET language = ?1 WHERE id IN ({holes}){}",
+                "UPDATE songs SET language = ?1 WHERE id IN ({holes}) AND {browsable}{}",
                 unset_narrowing(only_unset)
             );
             values.insert(0, tag.clone());
@@ -1416,13 +1439,19 @@ impl Db {
     ///
     /// Chunked at [`ID_CHUNK`] for [`Self::add_tag_of`]'s reason: SQLite binds at most 999
     /// parameters and the header tick-box ticks a whole page.
+    ///
+    /// **[`browsable`], so the count a reanalysis promises is the number of files it reads.** The
+    /// scan skips a discarded song's files whatever it is handed, so a deleted path here is a
+    /// sentence saying *re-reading N* where fewer than N are read.
     pub fn paths_of(&self, ids: &[String]) -> Result<Vec<String>, DbError> {
+        let browsable = browsable("s.");
         let mut paths = Vec::with_capacity(ids.len());
         for batch in ids.chunks(ID_CHUNK) {
             let (holes, values) = id_holes(batch, 1);
             let sql = format!(
                 "SELECT MIN(f.path) FROM files f
-                  WHERE f.song_id IN ({holes}) AND f.scan_status = 'ok'
+                  JOIN songs s ON s.id = f.song_id
+                  WHERE f.song_id IN ({holes}) AND f.scan_status = 'ok' AND {browsable}
                   GROUP BY f.song_id"
             );
             let mut statement = self.conn.prepare(&sql)?;
@@ -1467,10 +1496,11 @@ impl Db {
         let transaction = self.conn.transaction()?;
         let mut changed = 0usize;
         {
-            let mut update = transaction.prepare(
+            let mut update = transaction.prepare(&format!(
                 "UPDATE songs SET title = stem, artist = '' \
-                 WHERE id = ?1 AND nullif(stem, '') IS NOT NULL",
-            )?;
+                 WHERE id = ?1 AND nullif(stem, '') IS NOT NULL AND {}",
+                browsable("")
+            ))?;
             for song_id in song_ids {
                 changed += update.execute([song_id])?;
             }
@@ -1510,11 +1540,12 @@ impl Db {
         let transaction = self.conn.transaction()?;
         let mut changed = 0usize;
         {
-            let mut read = transaction.prepare(
+            let mut read = transaction.prepare(&format!(
                 "SELECT nullif(title, ''), nullif(det_title, ''), nullif(artist, ''), \
                         nullif(det_artist, '') \
-                 FROM songs WHERE id = ?1",
-            )?;
+                 FROM songs WHERE id = ?1 AND {}",
+                browsable("")
+            ))?;
             let mut write =
                 transaction.prepare("UPDATE songs SET title = ?2, artist = ?3 WHERE id = ?1")?;
             for song_id in song_ids {
@@ -1589,9 +1620,10 @@ impl Db {
         let mut changed = 0usize;
         {
             let mut read = transaction.prepare(&format!(
-                "SELECT {}, nullif({}, '') FROM songs WHERE id = ?1",
+                "SELECT {}, nullif({}, '') FROM songs WHERE id = ?1 AND {}",
                 eff_title(""),
-                eff_artist("")
+                eff_artist(""),
+                browsable("")
             ))?;
             let mut write =
                 transaction.prepare("UPDATE songs SET title = ?2, artist = ?3 WHERE id = ?1")?;

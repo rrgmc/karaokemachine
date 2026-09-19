@@ -1062,6 +1062,7 @@ said-replace-empty = No song has number { $number } in { $package }.
 said-replace-same-song = This song already has number { $number } there.
 said-replace-already-in = This song is already in that package, as number { $number } in { $package }. Remove it there first, or replace another song with it.
 said-replace-merged = This song was merged into another song. Replace with that song instead.
+said-replace-deleted = This song was thrown away. Bring it back first, or choose another song.
 said-nothing-change = Nothing to change.
 said-nothing-is-ticked = Nothing is ticked.
 said-nothing-matches-filter = Nothing matches that filter.

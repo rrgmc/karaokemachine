@@ -398,11 +398,19 @@ impl Db {
     ///
     /// Merged songs are left out, the way every count here leaves them out: a merged row is the same
     /// recording as the one it points at and is shown nowhere.
+    ///
+    /// **A discarded song is left out for a harder reason: no scan will ever take it off this
+    /// count.** `scan::run` skips a deleted song's files whatever it is handed, and
+    /// [`Self::promote_unreached_revisions`] raises nothing for a revision that reaches every song.
+    /// Counting them leaves a number that says a scan is owed and a scan that cannot lower it.
     pub fn stale_analysis_count(&self) -> Result<i64, DbError> {
+        let browsable = browsable("");
         Ok(self.conn.query_row(
-            "SELECT COUNT(*) FROM songs
-              WHERE merged_into IS NULL
-                AND (analysis_revision IS NULL OR analysis_revision <> ?1)",
+            &format!(
+                "SELECT COUNT(*) FROM songs
+                  WHERE {browsable}
+                    AND (analysis_revision IS NULL OR analysis_revision <> ?1)"
+            ),
             [km_suitability::ANALYSIS_REVISION],
             |row| row.get(0),
         )?)

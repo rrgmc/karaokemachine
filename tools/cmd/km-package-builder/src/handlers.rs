@@ -6414,6 +6414,7 @@ pub async fn package_replace(
                     ],
                 ),
                 crate::db::ReplaceRefusal::Merged => words.msg("said-replace-merged"),
+                crate::db::ReplaceRefusal::Deleted => words.msg("said-replace-deleted"),
             });
         }
         Ok(Ok(replacement)) => replacement,

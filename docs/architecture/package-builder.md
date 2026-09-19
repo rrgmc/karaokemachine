@@ -479,6 +479,24 @@ group whose head no list draws, which hides every live copy behind it. The same 
 `release_behind_hidden`, so those copies go back on the page. The next pass collects them behind a
 live head.
 
+**A write that takes a list of ids owes the term what a filter-wide one inherits.** `Filter::to_sql`
+emits the predicate always, so every *every matching song* action carries it. The ticked half of
+each pair builds `id IN (…)` instead. Its ids come off a page, and a page can hold a discarded song
+through *only deleted*, a saved filter or a tab left open. Each of these reports how many rows it
+changed, so a row no page draws is a number claiming work nobody asked for. `set_language_of`,
+`add_tag_of`, `set_names_from_stem`, `fix_name_case`, `split_artist_from_title`, `quality_hint` and
+`paths_of` each ask `browsable` for themselves.
+
+**`package_songs` and `song_favorites` are the two tables a delete does not touch, so the reads
+carry the term.** `package_members` is what `build::spec_for` writes a `.kmpkg` from and what the
+package page draws, and `WANTED_SQL` is the union a sourced package follows. Without the term a
+discarded song ships in the next build. A sync counts its surviving star as a song the package still
+wants, and puts it back after somebody removed it by hand. `WANTED_SQL` spells the clause out
+because it is a `const`.
+
+Neither asks `merged_into`. A merge has a survivor to stand in the song's place, and `WANTED_SQL`
+resolves to it. Dropping the entry is the one thing a merge must not do.
+
 **An index rebuilt under its own name invalidates the statistics that describe it, and nothing used
 to say so.** `missing_indexes` is read before `schema.sql` runs and it holds names; an index whose key
 or predicate changed keeps its name, so it is never missing and no `ANALYZE` is asked for. Its

@@ -121,14 +121,17 @@ impl Db {
     ///
     /// The Duplicates page reports this, and reading it is cheaper than storing it: both are index
     /// scans over a column most rows are NULL in.
+    ///
+    /// [`browsable`] on both, because the page reports what a curator could go and look at.
     pub fn cluster_counts(&self) -> Result<ClusterCounts, DbError> {
+        let browsable = browsable("");
         let clusters: i64 = self.conn.query_row(
-            "SELECT COUNT(*) FROM songs WHERE version_count > 1",
+            &format!("SELECT COUNT(*) FROM songs WHERE version_count > 1 AND {browsable}"),
             [],
             |row| row.get(0),
         )?;
         let set_aside: i64 = self.conn.query_row(
-            "SELECT COUNT(*) FROM songs WHERE duplicate_of IS NOT NULL",
+            &format!("SELECT COUNT(*) FROM songs WHERE duplicate_of IS NOT NULL AND {browsable}"),
             [],
             |row| row.get(0),
         )?;

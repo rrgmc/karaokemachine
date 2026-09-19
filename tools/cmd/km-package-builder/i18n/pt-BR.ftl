@@ -1041,6 +1041,7 @@ said-replace-empty = Nenhuma música tem o número { $number } em { $package }.
 said-replace-same-song = Esta música já tem o número { $number } ali.
 said-replace-already-in = Esta música já está nesse pacote, com o número { $number } em { $package }. Tire-a de lá primeiro, ou troque outra música por ela.
 said-replace-merged = Esta música foi juntada a outra. Troque pela outra.
+said-replace-deleted = Esta música foi jogada fora. Traga ela de volta primeiro, ou escolha outra.
 said-nothing-change = Nada a mudar.
 said-nothing-is-ticked = Nada está marcado.
 said-nothing-matches-filter = Nada corresponde a esse filtro.

@@ -135,7 +135,18 @@ impl Db {
     }
 
     /// What one volume of a package holds, in number order.
+    ///
+    /// **A song somebody threw away is not in it**, which is the promise `Throwing a song away` in
+    /// `docs/decisions/curation.md` makes: deleting a song takes it out of the list its package is
+    /// rebuilt from. This read is that list. `build::spec_for` writes the `.kmpkg` from it and the
+    /// package page draws it, so the term belongs here rather than in either caller — a build that
+    /// shipped what the page did not show would be the worse of the two failures.
+    ///
+    /// **`merged_into` is deliberately not asked.** A merge is somebody's word about which row
+    /// survives, and [`WANTED_SQL`] resolves a member to the survivor rather than dropping it. A
+    /// term here would take the entry away instead, which is the one thing a merge must not do.
     pub fn package_members(&self, id: &str, volume: u32) -> Result<Vec<PackageMember>, DbError> {
+        let live = DeletedFilter::Live.clause("s.");
         let sql = format!(
             "SELECT ps.number, ps.song_id,
                     {} AS eff_title,
@@ -150,7 +161,7 @@ impl Db {
                     {} AS eff_language
              FROM package_songs ps
              JOIN songs s ON s.id = ps.song_id
-             WHERE ps.package_id = ?1 AND ps.volume = ?2
+             WHERE ps.package_id = ?1 AND ps.volume = ?2 AND {live}
              ORDER BY ps.number",
             eff_title("s."),
             eff_artist("s."),
@@ -924,11 +935,18 @@ impl Db {
 /// **`duplicate_of` is deliberately not collapsed.** That column is a machine's guess where
 /// `merged_into` is somebody's word, and two versions of one recording both starred are two members
 /// — counted as [`Added::clashed`] and kept, exactly as a hand add keeps them.
+///
+/// **`deleted_at` is the third column and it excludes rather than resolves**, which is what makes
+/// deleting a starred song mean anything. A star is a filing and a delete is a discard, and nothing
+/// takes the star off when the song goes; without the term a sync counts the discarded song as kept
+/// and puts it back after somebody has removed it by hand. The clause is spelled out because this is
+/// a `const` and because [`Db::package_members`]'s reason for leaving `merged_into` out holds here
+/// too. [`DeletedFilter::Live`] is where the predicate lives.
 pub(super) const WANTED_SQL: &str = "SELECT DISTINCT coalesce(src.merged_into, src.id) AS song_id
      FROM package_favorites pf
      JOIN song_favorites sf ON sf.favorite_id = pf.favorite_id
      JOIN songs src ON src.id = sf.song_id
-    WHERE pf.package_id = :package";
+    WHERE pf.package_id = :package AND src.deleted_at IS NULL";
 
 /// The numbers a volume has free, lowest first, from its first number to the last slot.
 ///
@@ -1118,7 +1136,8 @@ fn plan_replacement(
         .ok_or_else(|| DbError::NotFound(format!("package {package_id} volume {volume}")))?;
 
     let named = format!(
-        "SELECT s.id, {} AS eff_title, {} AS eff_artist, s.merged_into FROM songs s WHERE s.id = ?1",
+        "SELECT s.id, {} AS eff_title, {} AS eff_artist, s.merged_into, s.deleted_at
+           FROM songs s WHERE s.id = ?1",
         eff_title("s."),
         eff_artist("s."),
     );
@@ -1127,15 +1146,22 @@ fn plan_replacement(
             Ok((
                 (row.get::<_, String>(0)?, row.get(1)?, row.get(2)?),
                 row.get::<_, Option<String>>(3)?,
+                row.get::<_, Option<String>>(4)?,
             ))
         })
         .optional()
     };
-    let Some((new, merged_into)) = song(new_song_id)? else {
+    let Some((new, merged_into, deleted_at)) = song(new_song_id)? else {
         return Err(DbError::NotFound(format!("song {new_song_id}")));
     };
     if merged_into.is_some() {
         return Ok(Err(ReplaceRefusal::Merged));
+    }
+    // Refused beside the merge for the same reason and with a different one behind it. A merged song
+    // has a survivor standing in its place; a discarded one has nobody, and `replace_in_package`
+    // stars the substitute into the sourcing favorites, which is how it would reach a build.
+    if deleted_at.is_some() {
+        return Ok(Err(ReplaceRefusal::Deleted));
     }
 
     let old_id: Option<String> = conn
@@ -1166,7 +1192,7 @@ fn plan_replacement(
         .volume_name();
         return Ok(Err(ReplaceRefusal::AlreadyIn(name, held_number)));
     }
-    let Some((old, _)) = song(&old_id)? else {
+    let Some((old, _, _)) = song(&old_id)? else {
         return Err(DbError::NotFound(format!("song {old_id}")));
     };
 
