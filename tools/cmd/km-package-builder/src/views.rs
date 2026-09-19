@@ -2660,6 +2660,14 @@ fn oob(toast: &Toast) -> String {
     format!("{open}{rendered}</div>")
 }
 
+/// An empty element that goes out of band to the slot named, for an answer aimed somewhere else.
+///
+/// The element and not `innerHTML:#id`, matching `hint_marks.html`: the slot carries no class, so
+/// what is sent back is what the page drew.
+fn cleared(id: &str) -> String {
+    format!("<span id=\"{id}\" hx-swap-oob=\"true\"></span>")
+}
+
 /// A toast and nothing else, for an action whose result is not on screen.
 ///
 /// The body is *only* the out-of-band element, so whatever the caller aimed `hx-target` at is
@@ -2669,6 +2677,20 @@ pub fn toast_only(toast: &Toast) -> Response {
     Html(oob(toast)).into_response()
 }
 
+/// A toast for a caller that aimed at content rather than at a message slot.
+///
+/// [`toast_only`]'s emptying is right for a slot and wrong for a table: htmx lifts the toast out,
+/// and the empty remainder left behind takes `#rows` away. `HX-Reswap: none` leaves the target
+/// where it is, and htmx runs out-of-band swaps before it reads the swap style, so the toast still
+/// arrives. The header rides on the response because one route answers both kinds of caller.
+pub fn toast_only_leaving_the_target(toast: &Toast) -> Response {
+    let mut response = toast_only(toast);
+    response
+        .headers_mut()
+        .insert("HX-Reswap", axum::http::HeaderValue::from_static("none"));
+    response
+}
+
 /// A rendered fragment with a toast riding along beside it.
 ///
 /// Both are out of band here — the fragment because it is [`PlayedFragment`], which is nothing but
@@ -2676,8 +2698,27 @@ pub fn toast_only(toast: &Toast) -> Response {
 /// whatever the last action left in it goes away. That is deliberate: a stale "Playing on …" sitting
 /// in the slot while a toast says something newer is the one arrangement worse than either alone.
 pub fn with_toast<T: Template>(template: &T, toast: &Toast, locale: km_locale::Locale) -> Response {
+    with_toast_clearing(template, None, toast, locale)
+}
+
+/// [`with_toast`], and a slot the answer empties on its way past.
+///
+/// For a caller whose `hx-target` is the content it redrew, leaving a confirmation it acted on
+/// sitting where it was. The slot is named by the one handler that has one, so the others spell
+/// nothing.
+pub fn with_toast_clearing<T: Template>(
+    template: &T,
+    clearing: Option<&str>,
+    toast: &Toast,
+    locale: km_locale::Locale,
+) -> Response {
     match render(template, locale) {
-        Ok(body) => Html(format!("{body}{}", oob(toast))).into_response(),
+        Ok(body) => Html(format!(
+            "{body}{}{}",
+            clearing.map(cleared).unwrap_or_default(),
+            oob(toast)
+        ))
+        .into_response(),
         Err(error) => template_error(&error),
     }
 }
@@ -3327,6 +3368,7 @@ mod tests {
     fn row(title: &str, artist: Option<&str>, path: &str) -> SongRow {
         let mut row = SongRow {
             id: "abc123".to_owned(),
+            deleted: false,
             title: title.to_owned(),
             artist: artist.map(ToOwned::to_owned),
             language: Some("pt".to_owned()),
@@ -4620,7 +4662,56 @@ mod tests {
         assert!(html.contains("Playing on http://127.0.0.1:8177."), "{html}");
     }
 
-    /// The bytes of a response, for the two tests above.
+    /// A toast aimed over a table says its sentence and leaves the table where it is.
+    ///
+    /// The header is the whole of it. `toast_only`'s body is out of band and nothing else, so htmx
+    /// lifts the toast out and swaps the empty remainder into whatever the caller aimed at. For the
+    /// bulk-delete and Titles buttons that target is `#rows` with `outerHTML`, and the list would
+    /// go.
+    #[test]
+    fn a_toast_over_a_table_leaves_the_table_where_it_is() {
+        let response =
+            toast_only_leaving_the_target(&Toast::bad("The list could not be drawn again."));
+        assert_eq!(
+            response
+                .headers()
+                .get("HX-Reswap")
+                .map(|value| value.to_str().expect("ascii")),
+            Some("none")
+        );
+
+        let html = std::str::from_utf8(&response_body(response))
+            .expect("utf-8")
+            .to_owned();
+        assert!(
+            html.contains("id=\"toasts\" hx-swap-oob=\"afterbegin\""),
+            "the sentence still reaches the tray: {html}"
+        );
+    }
+
+    /// A redraw can empty a slot it is not aimed at, so a confirmation acted on goes away.
+    #[test]
+    fn a_redraw_can_clear_the_slot_the_confirmation_sat_in() {
+        let response = with_toast_clearing(
+            &PlayedFragment {
+                played_id: "new-song".to_owned(),
+                unlit: Vec::new(),
+            },
+            Some("bulk-delete-result"),
+            &Toast::good("Threw away 2 songs."),
+            km_locale::Locale::English,
+        );
+        let html = std::str::from_utf8(&response_body(response))
+            .expect("utf-8")
+            .to_owned();
+        assert!(
+            html.contains(r#"<span id="bulk-delete-result" hx-swap-oob="true"></span>"#),
+            "{html}"
+        );
+        assert!(html.contains("Threw away 2 songs."), "{html}");
+    }
+
+    /// The bytes of a response, for the tests above.
     fn response_body(response: Response) -> Vec<u8> {
         futures_lite_block_on(async {
             axum::body::to_bytes(response.into_body(), usize::MAX)

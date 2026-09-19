@@ -585,6 +585,8 @@ pub enum ReplaceRefusal {
     AlreadyIn(String, u32),
     /// The song asked for was merged into another, which every query shows in its place.
     Merged,
+    /// The song asked for was thrown away, and a package holds no song somebody has discarded.
+    Deleted,
 }
 
 /// What a sync *would* do, for the question put before it is done.

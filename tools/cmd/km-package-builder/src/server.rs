@@ -2745,14 +2745,23 @@ mod tests {
 
     /// Deleting counts and asks first, then writes and comes back on the page it was pressed on.
     ///
-    /// **Three things the other bulk actions have no equivalent of.** The first pass writes nothing
+    /// **Four things the other bulk actions have no equivalent of.** The first pass writes nothing
     /// and names how many of the set a package holds. The confirmed pass answers with `#rows`
     /// rather than a toast alone, because this one takes songs *out* of the list they were ticked
-    /// in. And the page it was pressed on rides in the frozen query string, so the confirm button
-    /// carries it without `ui.js` reading anything.
+    /// in. The page it was pressed on rides in the frozen query string, so the confirm button
+    /// carries it without `ui.js` reading anything. And that answer empties the confirmation's own
+    /// slot out of band, which is what aiming elsewhere costs.
     #[tokio::test]
     async fn deleting_asks_first_and_comes_back_on_the_page_it_was_pressed_on() {
         let (_corpus, state) = two_folders("bulk-delete");
+
+        // Read first, so the element the answer below sends back is the element the page draws and
+        // the two cannot drift apart.
+        let (_, page) = get(&state, "/songs").await;
+        assert!(
+            page.contains(r#"<span id="bulk-delete-result"></span>"#),
+            "{page}"
+        );
 
         let (status, offered) = post(
             &state,
@@ -2786,7 +2795,12 @@ mod tests {
         // The table, not a sentence on its own — and the songs that went are not in it.
         assert!(done.contains("id=\"rows\""), "{done}");
         assert!(done.contains("2 songs"), "{done}");
-
+        // The confirmation goes with it. A row left behind offers a button over songs that have
+        // gone, and its hidden `song_id` boxes ride in `#bulk-delete` into the next press.
+        assert!(
+            done.contains(r#"<span id="bulk-delete-result" hx-swap-oob="true"></span>"#),
+            "{done}"
+        );
         let db = state.workspace().expect("open");
         let db = db.db.lock();
         assert_eq!(
@@ -2804,6 +2818,51 @@ mod tests {
             2,
             "and the two that went are reachable through the box that asks for them"
         );
+    }
+
+    /// A discarded song says so on its row, and a live one carries no such chip.
+    ///
+    /// **The row is the only thing that can say it.** Browsing hides these, so a row reached
+    /// through *only deleted* is otherwise identical to a live one — same star, same *add to a
+    /// package*, same play button — while every list, search and build leaves the song out.
+    #[tokio::test]
+    async fn a_discarded_song_says_so_on_its_row() {
+        let (_corpus, state) = two_folders("deleted-chip");
+
+        let (status, live) = get(&state, "/songs").await;
+        assert_eq!(status, axum::http::StatusCode::OK);
+        assert!(
+            !live.contains(r#"class="tag deleted""#),
+            "nothing on the browse list is discarded: {live}"
+        );
+
+        let ticked = {
+            let db = state.workspace().expect("open");
+            let db = db.db.lock();
+            db.songs(&crate::db::Filter::default()).expect("browse")[0]
+                .id
+                .clone()
+        };
+        let (_, _) = post(
+            &state,
+            "/songs/delete-bulk?offset=0&confirm=1",
+            &format!("delete_action=delete&scope=ticked&song_id={ticked}"),
+        )
+        .await;
+
+        // The list it is reachable through, and the chip that tells it from the rows beside it.
+        let (status, only) = get(&state, "/songs?deleted=only").await;
+        assert_eq!(status, axum::http::StatusCode::OK);
+        assert!(only.contains(r#"class="tag deleted""#), "{only}");
+        assert_eq!(
+            only.matches(r#"class="tag deleted""#).count(),
+            1,
+            "one chip, on the one song that was thrown away"
+        );
+
+        // And browsing still says nothing, because browsing has nothing to say it about.
+        let (_, live) = get(&state, "/songs?deleted=").await;
+        assert!(!live.contains(r#"class="tag deleted""#), "{live}");
     }
 
     /// The default is the ticked rows, and *only songs with no language yet* narrows the write.

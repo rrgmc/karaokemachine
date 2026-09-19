@@ -8,6 +8,10 @@
    `hx-sync` for the reason the Titles forms carry one: this writes `#rows`, and so do the paging
    buttons inside it.
 
+   That same answer empties `#bulk-delete-result` out of band, which is the other half of aiming
+   elsewhere — a row left here offers a button over songs that have gone, and its hidden `song_id`
+   boxes ride in `#bulk-delete` into the next press.
+
    The page it was pressed on is already in `query`, which the handler froze along with the filter,
    so nothing here has to carry an offset and `data-keeps-the-page` has nothing to do. #}
 <span class="row">
