@@ -1297,3 +1297,20 @@ main.open .by-path form { display: flex; gap: 0.5rem; flex-wrap: wrap; }
    ends the session rather than moving around inside it. */
 header .quit { margin-left: 0.6rem; }
 header .quit:hover { color: var(--bad); border-color: var(--bad); }
+
+/* A held row's volume and number boxes, behind a summary drawn as a button on the title line. The
+   row stays one line until somebody opens it, and the form then drops below the title. */
+details.held-fill { display: inline-block; margin-left: 0.5rem; }
+details.held-fill > summary {
+    display: inline-block;
+    cursor: pointer;
+    padding: 0.15rem 0.5rem;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    background: var(--panel-2);
+    font-size: 0.85rem;
+}
+details.held-fill > summary::marker, details.held-fill > summary::-webkit-details-marker { content: ""; display: none; }
+details.held-fill > summary:hover { border-color: var(--accent); }
+details.held-fill[open] { display: block; margin: 0.4rem 0 0; }
+details.held-fill[open] > summary { margin-bottom: 0.4rem; }

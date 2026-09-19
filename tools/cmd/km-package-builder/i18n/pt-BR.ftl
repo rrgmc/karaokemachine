@@ -662,6 +662,7 @@ package-held-move-volume = Mover o nº { $number } do volume { $volume } para c�
 package-held-from-volume = Do volume
 package-held-from-number = Nº
 package-held-fill = Mover para cá
+package-held-move-open = Mover uma música para cá…
 package-held-release = Liberar
 
 ## Um pacote que vem das favoritas ---------------------------------------------

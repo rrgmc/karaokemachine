@@ -40,12 +40,10 @@
         <span class="tag warn">{{ "package-held-for"|t }}</span>
         {% match h.song_id %}{% when Some with (id) %}<a href="/songs/{{ id }}">{{ h.title }}</a>{% when None %}{{ h.title }} <span class="dim">({{ "package-held-gone"|t }})</span>{% endmatch %}
         {% match h.artist %}{% when Some with (a) %}<span class="dim">&mdash; {{ a }}</span>{% when None %}{% endmatch %}
-        <div class="row">
-          {% for (from_volume, from_number, label) in h.moves %}
-          <button hx-post="/packages/{{ package_id }}/held/fill?volume={{ volume }}"
-                  hx-vals='{"number": {{ h.number }}, "from_volume": {{ from_volume }}, "from_number": {{ from_number }}}'
-                  hx-target="#action-result" hx-swap="innerHTML">{{ label }}</button>
-          {% endfor %}
+        {# The volume and number boxes stay behind a summary: a held row is one line until somebody
+           chooses to fill it. The buttons for the same recording stay out, as one press each. #}
+        <details class="held-fill">
+          <summary>{{ "package-held-move-open"|t }}</summary>
           <form class="row" hx-post="/packages/{{ package_id }}/held/fill?volume={{ volume }}"
                 hx-target="#action-result" hx-swap="innerHTML">
             <input type="hidden" name="number" value="{{ h.number }}">
@@ -55,7 +53,16 @@
               <input name="from_number" type="number" min="1" max="{{ km_songcode::MAX_SLOT }}" required style="width:6rem"></label>
             <button type="submit">{{ "package-held-fill"|t }}</button>
           </form>
+        </details>
+        {% if !h.moves.is_empty() %}
+        <div class="row">
+          {% for (from_volume, from_number, label) in h.moves %}
+          <button hx-post="/packages/{{ package_id }}/held/fill?volume={{ volume }}"
+                  hx-vals='{"number": {{ h.number }}, "from_volume": {{ from_volume }}, "from_number": {{ from_number }}}'
+                  hx-target="#action-result" hx-swap="innerHTML">{{ label }}</button>
+          {% endfor %}
         </div>
+        {% endif %}
       </td>
       <td>
         <button class="danger" hx-post="/packages/{{ package_id }}/held/release?volume={{ volume }}"

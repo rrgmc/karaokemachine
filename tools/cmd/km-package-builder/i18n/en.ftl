@@ -683,6 +683,7 @@ package-held-move-volume = Move No. { $number } of volume { $volume } here
 package-held-from-volume = From volume
 package-held-from-number = No.
 package-held-fill = Move here
+package-held-move-open = Move a song here…
 package-held-release = Release
 
 ## Sourcing a package from favorites ------------------------------------------
