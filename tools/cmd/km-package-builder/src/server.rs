@@ -1740,6 +1740,8 @@ pub fn router(state: State) -> Router {
         .route("/packages/{id}/remove", post(handlers::package_remove))
         .route("/packages/replace", post(handlers::package_replace))
         .route("/packages/{id}/renumber", post(handlers::package_renumber))
+        .route("/packages/{id}/held/fill", post(handlers::held_fill))
+        .route("/packages/{id}/held/release", post(handlers::held_release))
         .route(
             "/packages/{id}/sources/add",
             post(handlers::add_package_source),

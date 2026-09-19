@@ -330,10 +330,142 @@ impl Db {
                 "number {number} is already used by another song in this package"
             )));
         }
-        self.conn.execute(
+        // A held number is free to a person, and a song typed into it fills it. The hold goes in the
+        // same transaction, because a number is a member or a hold and never both.
+        let transaction = self.conn.unchecked_transaction()?;
+        transaction.execute(
             "UPDATE package_songs SET number = ?3 WHERE package_id = ?1 AND song_id = ?2",
             params![package_id, song_id, number],
         )?;
+        transaction.execute(
+            "DELETE FROM package_held
+              WHERE package_id = ?1 AND number = ?3
+                AND volume = (SELECT volume FROM package_songs
+                               WHERE package_id = ?1 AND song_id = ?2)",
+            params![package_id, song_id, number],
+        )?;
+        transaction.commit()?;
+        Ok(())
+    }
+
+    /// The numbers of one volume that a sync holds for a song that left, in number order.
+    ///
+    /// Each carries the songs of the package that are other files of the same recording, by the key
+    /// [`place_songs`]'s clash count reads. They are what the page offers to move into the hold.
+    pub fn package_held(&self, package_id: &str, volume: u32) -> Result<Vec<HeldNumber>, DbError> {
+        let mut statement = self.conn.prepare(
+            "SELECT number, song_id, title, artist FROM package_held
+              WHERE package_id = ?1 AND volume = ?2 ORDER BY number",
+        )?;
+        let rows = statement.query_map(params![package_id, volume], |row| {
+            Ok(HeldNumber {
+                number: row.get::<_, i64>(0)? as u32,
+                song_id: row.get(1)?,
+                title: row.get(2)?,
+                artist: row.get(3)?,
+                candidates: Vec::new(),
+            })
+        })?;
+        let mut held = rows.collect::<Result<Vec<_>, _>>()?;
+
+        let live = DeletedFilter::Live.clause("s.");
+        let mut versions = self.conn.prepare(&format!(
+            "SELECT ps.volume, ps.number, {} AS eff_title
+               FROM package_songs ps
+               JOIN songs s ON s.id = ps.song_id
+               JOIN songs gone ON gone.id = ?2
+              WHERE ps.package_id = ?1 AND {live}
+                AND coalesce(s.duplicate_of, s.id) = coalesce(gone.duplicate_of, gone.id)
+              ORDER BY ps.volume, ps.number",
+            eff_title("s."),
+        ))?;
+        for hold in &mut held {
+            let Some(song_id) = &hold.song_id else {
+                continue;
+            };
+            let rows = versions.query_map(params![package_id, song_id], |row| {
+                Ok((
+                    row.get::<_, i64>(0)? as u32,
+                    row.get::<_, i64>(1)? as u32,
+                    row.get(2)?,
+                ))
+            })?;
+            hold.candidates = rows.collect::<Result<Vec<_>, _>>()?;
+        }
+        Ok(held)
+    }
+
+    /// Moves a song of the package, from any volume, into a number a sync holds.
+    ///
+    /// **The one move between volumes**, and a person makes it: a sync never moves a song, so a
+    /// volume's printed book stays true. The number the song leaves becomes an ordinary free number
+    /// and not a hold, because only a sync makes a hold.
+    pub fn fill_held(
+        &mut self,
+        package_id: &str,
+        volume: u32,
+        number: u32,
+        song_id: &str,
+    ) -> Result<(), DbError> {
+        let transaction = self.conn.transaction()?;
+        let held = transaction
+            .query_row(
+                "SELECT 1 FROM package_held WHERE package_id = ?1 AND volume = ?2 AND number = ?3",
+                params![package_id, volume, number],
+                |_| Ok(()),
+            )
+            .optional()?;
+        if held.is_none() {
+            return Err(DbError::Rejected(format!(
+                "number {number} is not held, so there is nothing to fill"
+            )));
+        }
+        let moved = transaction.execute(
+            "UPDATE package_songs SET volume = ?2, number = ?3 WHERE package_id = ?1 AND song_id = ?4",
+            params![package_id, volume, number, song_id],
+        )?;
+        if moved == 0 {
+            return Err(DbError::Rejected(
+                "that song is not in this package; a held number takes a song the package already \
+                 holds"
+                    .to_owned(),
+            ));
+        }
+        transaction.execute(
+            "DELETE FROM package_held WHERE package_id = ?1 AND volume = ?2 AND number = ?3",
+            params![package_id, volume, number],
+        )?;
+        transaction.commit()?;
+        Ok(())
+    }
+
+    /// The song at a number of one volume, for a form that names a song by where it sits.
+    pub fn member_at(
+        &self,
+        package_id: &str,
+        volume: u32,
+        number: u32,
+    ) -> Result<Option<String>, DbError> {
+        Ok(self
+            .conn
+            .query_row(
+                "SELECT song_id FROM package_songs
+                  WHERE package_id = ?1 AND volume = ?2 AND number = ?3",
+                params![package_id, volume, number],
+                |row| row.get(0),
+            )
+            .optional()?)
+    }
+
+    /// Gives a held number up, so the next sync may hand it to a newcomer.
+    pub fn release_held(&self, package_id: &str, volume: u32, number: u32) -> Result<(), DbError> {
+        let released = self.conn.execute(
+            "DELETE FROM package_held WHERE package_id = ?1 AND volume = ?2 AND number = ?3",
+            params![package_id, volume, number],
+        )?;
+        if released == 0 {
+            return Err(DbError::Rejected(format!("number {number} is not held")));
+        }
         Ok(())
     }
 
@@ -409,6 +541,9 @@ impl Db {
 
     /// Re-flows every member of one volume from that volume's start number, keeping their order.
     ///
+    /// **A held number stays where it is**, and the songs flow around it: the hold names a song a
+    /// printed book still lists there, which a re-flow of the others does not change.
+    ///
     /// Done in two passes through a negative range, because the numbers are a primary key and a
     /// straight update would collide with a row it has not moved yet.
     pub fn renumber_package(&mut self, package_id: &str, volume: u32) -> Result<usize, DbError> {
@@ -423,9 +558,14 @@ impl Db {
             let rows = statement.query_map(params![package_id, volume], |row| row.get(0))?;
             rows.collect::<Result<Vec<_>, _>>()?
         };
+        let held = held_numbers(&transaction, package_id, i64::from(volume))?;
+        let numbers: Vec<i64> = (start..)
+            .filter(|number| !held.contains(number))
+            .take(ids.len())
+            .collect();
         // Refused whole rather than half done: a re-flow is one gesture, and renumbering the first
         // half of a package while leaving the rest parked is worse than not starting.
-        let last = start + ids.len() as i64 - 1;
+        let last = numbers.last().copied().unwrap_or(start - 1);
         if last > i64::from(km_songcode::MAX_SLOT) {
             return Err(DbError::Rejected(format!(
                 "renumbering {} song(s) from {start} would reach {last}, and song numbers stop at {}",
@@ -440,8 +580,8 @@ impl Db {
             for (index, song_id) in ids.iter().enumerate() {
                 park.execute(params![package_id, song_id, -(index as i64) - 1])?;
             }
-            for (index, song_id) in ids.iter().enumerate() {
-                park.execute(params![package_id, song_id, start + index as i64])?;
+            for (song_id, number) in ids.iter().zip(&numbers) {
+                park.execute(params![package_id, song_id, number])?;
             }
         }
         transaction.commit()?;
@@ -735,17 +875,34 @@ impl Db {
             named_params! { ":package": package_id },
             |row| row.get(0),
         )?;
+        // Of those, the songs a sync holds a number for, which go back to it.
+        let would_return: i64 = self.conn.query_row(
+            &format!(
+                "SELECT COUNT(*) FROM ({WANTED_SQL}) w
+                  WHERE w.song_id NOT IN
+                        (SELECT song_id FROM package_songs WHERE package_id = :package)
+                    AND EXISTS (SELECT 1 FROM package_held h JOIN songs gone ON gone.id = h.song_id
+                                 WHERE h.package_id = :package
+                                   AND coalesce(gone.merged_into, gone.id) = w.song_id)"
+            ),
+            named_params! { ":package": package_id },
+            |row| row.get(0),
+        )?;
         // Each volume's free numbers, summed. The numbers below a volume's first number are not
         // free: a member sitting under a start somebody raised after the fact keeps its number, and
         // nothing is ever handed one there. The same reading `next_number`'s `max` gives.
+        //
+        // **Every member counts, the ones leaving too**, because a song leaving holds its number.
+        // So does every hold already there.
         let room: i64 = self.conn.query_row(
-            &format!(
-                "SELECT coalesce(SUM(max(0, :max - v.start_number + 1 -
-                    (SELECT COUNT(*) FROM package_songs ps
-                      WHERE ps.package_id = v.package_id AND ps.volume = v.volume
-                        AND ps.number >= v.start_number AND ps.song_id IN ({WANTED_SQL})))), 0)
-                   FROM package_volumes v WHERE v.package_id = :package"
-            ),
+            "SELECT coalesce(SUM(max(0, :max - v.start_number + 1 -
+                (SELECT COUNT(*) FROM package_songs ps
+                  WHERE ps.package_id = v.package_id AND ps.volume = v.volume
+                    AND ps.number >= v.start_number) -
+                (SELECT COUNT(*) FROM package_held h
+                  WHERE h.package_id = v.package_id AND h.volume = v.volume
+                    AND h.number >= v.start_number))), 0)
+               FROM package_volumes v WHERE v.package_id = :package",
             named_params! { ":package": package_id, ":max": i64::from(km_songcode::MAX_SLOT) },
             |row| row.get(0),
         )?;
@@ -753,26 +910,28 @@ impl Db {
         Ok(SyncPlan {
             sources,
             would_add: u32::try_from(would_add).unwrap_or(u32::MAX),
+            would_return: u32::try_from(would_return).unwrap_or(u32::MAX),
             would_remove: u32::try_from(would_remove).unwrap_or(u32::MAX),
             kept: u32::try_from(kept).unwrap_or(u32::MAX),
-            new_volumes: volumes_needed(would_add - room),
+            new_volumes: volumes_needed(would_add - would_return - room),
         })
     }
 
     /// Makes a package hold exactly what the favorites it is sourced from hold.
     ///
-    /// **One transaction, and the removals come first inside it.** That order is what lets a new song
-    /// take a number this sync has just freed: `number` is half the primary key, so an insert into a
-    /// slot a surviving row still holds is a constraint failure. [`Self::renumber_package`]'s walk
+    /// **One transaction, and the removals come first inside it.** [`Self::renumber_package`]'s walk
     /// through negative numbers is not needed, because nothing already in the package ever moves —
     /// a member keeps the volume and the number it had, which is the promise the whole arrangement
     /// rests on.
     ///
-    /// **New songs fill the freed gaps before they append**, lowest volume first and lowest number
-    /// first inside it. Numbering from the highest — which is what [`Self::add_to_package`] rightly
-    /// does for a hand add whose room has been said out loud — would spend a volume's 999 slots on
-    /// the songs a list has held and lost, so a list edited a few hundred times would run out with
-    /// forty songs in it.
+    /// **A song leaving holds its number**, and the hold names it. A printed songbook still lists
+    /// the song there, so the number goes to nobody else: the song takes it back if a list names it
+    /// again, and otherwise a person fills it with [`Self::fill_held`] or gives it up with
+    /// [`Self::release_held`].
+    ///
+    /// **New songs fill the holes before they append**, lowest volume first and lowest number first
+    /// inside it, skipping every hold. A hole is a number a person emptied: a song moved out of it, a
+    /// song removed by hand, a hold released.
     ///
     /// **What every volume together cannot hold starts new volumes**, as many as it takes, each
     /// numbered from 1 under an id of its own.
@@ -801,6 +960,20 @@ impl Db {
             rows.collect::<Result<Vec<_>, _>>()?
         };
 
+        // Each song leaving holds its number for itself. Written before the delete, which is what
+        // takes away the row this copies from.
+        transaction.execute(
+            &format!(
+                "INSERT OR REPLACE INTO package_held
+                        (package_id, volume, number, song_id, title, artist, held_at)
+                 SELECT ps.package_id, ps.volume, ps.number, ps.song_id, {}, {}, :now
+                   FROM package_songs ps JOIN songs s ON s.id = ps.song_id
+                  WHERE ps.package_id = :package AND ps.song_id NOT IN ({WANTED_SQL})",
+                eff_title("s."),
+                eff_artist("s."),
+            ),
+            named_params! { ":package": package_id, ":now": now },
+        )?;
         let removed = transaction.execute(
             &format!(
                 "DELETE FROM package_songs
@@ -809,17 +982,19 @@ impl Db {
             named_params! { ":package": package_id },
         )? as u32;
 
-        // What survived, and where it sits. Both are read after the delete, so the numbers this walks
-        // are the ones actually still taken.
+        // What survived, and where it sits, with every held number beside it. Read after the
+        // delete, so the numbers this walks are the ones actually still taken.
         let (taken, held) = {
             let mut statement = transaction.prepare(
-                "SELECT volume, number, song_id FROM package_songs WHERE package_id = ?1",
+                "SELECT volume, number, song_id FROM package_songs WHERE package_id = ?1
+                 UNION ALL
+                 SELECT volume, number, NULL FROM package_held WHERE package_id = ?1",
             )?;
             let rows = statement.query_map([package_id], |row| {
                 Ok((
                     row.get::<_, i64>(0)?,
                     row.get::<_, i64>(1)?,
-                    row.get::<_, String>(2)?,
+                    row.get::<_, Option<String>>(2)?,
                 ))
             })?;
             let mut taken: BTreeMap<i64, BTreeSet<i64>> = BTreeMap::new();
@@ -827,7 +1002,7 @@ impl Db {
             for row in rows {
                 let (volume, number, song_id) = row?;
                 taken.entry(volume).or_default().insert(number);
-                held.insert(song_id);
+                held.extend(song_id);
             }
             (taken, held)
         };
@@ -837,6 +1012,21 @@ impl Db {
             .into_iter()
             .filter(|song_id| !held.contains(song_id))
             .collect();
+        // A song coming back goes to its hold in `place_songs` and needs no free number.
+        let returning = {
+            let mut held_for = transaction.prepare(HELD_FOR_SQL)?;
+            let mut count = 0i64;
+            for song_id in &newcomers {
+                if held_for
+                    .query_row(params![package_id, song_id], |_| Ok(()))
+                    .optional()?
+                    .is_some()
+                {
+                    count += 1;
+                }
+            }
+            count
+        };
 
         let mut volumes = volume_starts(&transaction, package_id)?;
         let room: usize = volumes
@@ -845,7 +1035,7 @@ impl Db {
                 free_numbers(taken.get(volume).unwrap_or(&BTreeSet::new()), *start).count()
             })
             .sum();
-        let new_volumes = volumes_needed(newcomers.len() as i64 - room as i64);
+        let new_volumes = volumes_needed(newcomers.len() as i64 - returning - room as i64);
         for _ in 0..new_volumes {
             let next = volumes.last().map_or(1, |(volume, _)| volume + 1);
             add_volume(&transaction, package_id, next, now)?;
@@ -960,6 +1150,27 @@ fn free_numbers(taken: &BTreeSet<i64>, start: i64) -> impl Iterator<Item = i64> 
     (start..=i64::from(km_songcode::MAX_SLOT)).filter(move |number| !taken.contains(number))
 }
 
+/// The numbers of one volume that a sync holds for a song that left.
+fn held_numbers(
+    conn: &rusqlite::Connection,
+    package_id: &str,
+    volume: i64,
+) -> Result<BTreeSet<i64>, DbError> {
+    let mut statement =
+        conn.prepare("SELECT number FROM package_held WHERE package_id = ?1 AND volume = ?2")?;
+    let rows = statement.query_map(params![package_id, volume], |row| row.get(0))?;
+    Ok(rows.collect::<Result<_, _>>()?)
+}
+
+/// The number a sync holds for this song, when it holds one.
+///
+/// The match is [`WANTED_SQL`]'s: a hold made for a song later merged into another is the
+/// survivor's. Lowest first, when a merge leaves two holds for one survivor.
+const HELD_FOR_SQL: &str = "SELECT h.volume, h.number FROM package_held h
+      JOIN songs gone ON gone.id = h.song_id
+     WHERE h.package_id = ?1 AND coalesce(gone.merged_into, gone.id) = ?2
+     ORDER BY h.volume, h.number LIMIT 1";
+
 /// How many volumes it takes to hold `overflow` songs no existing volume has a number for.
 fn volumes_needed(overflow: i64) -> u32 {
     let per_volume = i64::from(km_songcode::MAX_SLOT);
@@ -1027,8 +1238,8 @@ fn add_volume(
 /// **A free function over the connection, for [`next_number`]'s reason**: the two callers number
 /// differently and must not *place* differently. [`Db::add_to_package`] hands it the append it has
 /// always done and [`Db::package_room`] promises; [`Db::sync_package`] hands it [`free_numbers`]
-/// across every volume, which fills the gaps it has just made. Everything else — the already-there
-/// skip, the clash count, the best-file lookup, the insert — is one copy.
+/// across every volume, which fills the holes and skips the holds. Everything else is one copy: the
+/// already-there skip, the return to a hold, the clash count, the best-file lookup, the insert.
 ///
 /// **Both checks read the whole package, not one volume.** A song is in a package once whichever
 /// volume numbered it, and a second file of a recording is a clash wherever the first one sits.
@@ -1048,7 +1259,12 @@ fn place_songs(
     let mut already = 0usize;
     let mut no_room = 0usize;
     let mut clashed = 0usize;
+    let mut returned = 0usize;
 
+    let mut held_for = conn.prepare(HELD_FOR_SQL)?;
+    let mut release = conn.prepare(
+        "DELETE FROM package_held WHERE package_id = ?1 AND volume = ?2 AND number = ?3",
+    )?;
     let mut exists =
         conn.prepare("SELECT 1 FROM package_songs WHERE package_id = ?1 AND song_id = ?2")?;
     let mut best_file = conn.prepare(BEST_FILE_SQL)?;
@@ -1079,8 +1295,19 @@ fn place_songs(
             already += 1;
             continue;
         }
+        // A song coming back takes the number held for it, and spends none of `numbers`: those
+        // skip every hold, so the two never meet.
+        let back: Option<(i64, i64)> = held_for
+            .query_row(params![package_id, song_id], |row| {
+                Ok((row.get(0)?, row.get(1)?))
+            })
+            .optional()?;
+        if let Some((volume, number)) = back {
+            release.execute(params![package_id, volume, number])?;
+            returned += 1;
+        }
         // Asked after the skip above, so a song the package already holds spends no number.
-        let Some((volume, number)) = numbers.next() else {
+        let Some((volume, number)) = back.or_else(|| numbers.next()) else {
             no_room += 1;
             continue;
         };
@@ -1107,6 +1334,7 @@ fn place_songs(
         already: already as u32,
         no_room: no_room as u32,
         clashed: clashed as u32,
+        returned: returned as u32,
         full: false,
     })
 }
@@ -1172,7 +1400,18 @@ fn plan_replacement(
         )
         .optional()?;
     let Some(old_id) = old_id else {
-        return Ok(Err(ReplaceRefusal::Empty(package.volume_name())));
+        let held: Option<String> = conn
+            .query_row(
+                "SELECT title FROM package_held
+                  WHERE package_id = ?1 AND volume = ?2 AND number = ?3",
+                params![package_id, volume, number],
+                |row| row.get(0),
+            )
+            .optional()?;
+        return Ok(Err(match held {
+            Some(title) => ReplaceRefusal::Held(package.volume_name(), title),
+            None => ReplaceRefusal::Empty(package.volume_name()),
+        }));
     };
     if old_id == new_song_id {
         return Ok(Err(ReplaceRefusal::SameSong));
@@ -1253,11 +1492,16 @@ fn fill_full(
 ///
 /// A volume with no members starts at its own `start_number`, and `max` is what keeps a start that
 /// was raised after the fact from handing out a number behind the ones already given.
+///
+/// **A held number counts as used**, so a hand add appends past a hold rather than onto it. That
+/// reaches a package that stopped being sourced with holds still in it.
 fn next_number(conn: &rusqlite::Connection, package_id: &str, volume: u32) -> Result<i64, DbError> {
     let start = start_number(conn, package_id, volume)?;
     let next: i64 = conn.query_row(
-        "SELECT coalesce(MAX(number) + 1, ?3) FROM package_songs
-          WHERE package_id = ?1 AND volume = ?2",
+        "SELECT coalesce(MAX(number) + 1, ?3) FROM
+           (SELECT number FROM package_songs WHERE package_id = ?1 AND volume = ?2
+            UNION ALL
+            SELECT number FROM package_held WHERE package_id = ?1 AND volume = ?2)",
         params![package_id, volume, start],
         |row| row.get(0),
     )?;

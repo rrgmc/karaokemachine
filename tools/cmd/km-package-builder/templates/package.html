@@ -71,7 +71,7 @@
 <div id="action-result"></div>
 
 {# **Three tabs: the songs, where they come from, and how they are written.** Songs holds the volume
-   strip over what it picks -- the first number, Re-flow and the song list -- because a first number
+   strip over what it picks -- the first number, the song list and Re-flow -- because a first number
    means nothing without the numbers it flows into. That is the shape `The curation actions are tabs`
    already names.
 
@@ -91,7 +91,7 @@
   <div class="pane songs">
     {{ chips|safe }}
 
-    {# The strip, then what belongs to the volume it picked: the first number, Re-flow, and the songs.
+    {# The strip, then what belongs to the volume it picked: the first number, the songs, and Re-flow.
        One element around all four, because a volume link swaps it in place from the page it asks
        for, which keeps where somebody had scrolled to. #}
     <div id="package-volume-pane">
@@ -106,11 +106,15 @@
                    value="{{ package.start_number }}" style="width:6rem"></label>
           <button>{{ "action-save"|t }}</button>
         </form>
-        {# Re-flow sits beside the first number, because it acts on it: a button that reads *from 500*
-           belongs beside the field that says 500. #}
-        {{ renumber|safe }}
       </div>
       {{ members|safe }}
+      {# Re-flow is under the songs and behind a closed summary. One press renumbers a whole volume and
+         asks nothing, and it is seldom wanted, so near the tabs it is pressed by mistake. The button
+         still names the number it starts from. #}
+      <details class="advanced">
+        <summary>{{ "package-advanced"|t }}</summary>
+        {{ renumber|safe }}
+      </details>
     </div>
   </div>
 

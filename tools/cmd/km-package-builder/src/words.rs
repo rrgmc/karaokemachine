@@ -104,11 +104,12 @@ const COMPOSED: &[&str] = &[
     // Which of the two the Debugging button answers with is a branch on what it just set.
     "said-debugging-on",
     "said-debugging-off",
-    // The three counts a sync confirmation shows, worded through one closure in `sync_package` for
-    // the reason the header's four are: three near-identical calls to satisfy the scanner would be
+    // The counts a sync confirmation shows, worded through one closure in `sync_package` for
+    // the reason the header's four are: near-identical calls to satisfy the scanner would be
     // the worse code.
     "sync-adding",
     "sync-removing",
+    "sync-returning",
     "sync-keeping",
     "sync-starts-volumes",
 ];

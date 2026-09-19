@@ -916,6 +916,37 @@ CREATE INDEX IF NOT EXISTS package_songs_song ON package_songs(song_id);
 -- files in the tens of thousands, and unindexed that is quadratic.
 CREATE INDEX IF NOT EXISTS package_songs_file ON package_songs(file_id);
 
+-- A number a sync took a song away from, held for the song that left. A printed songbook still names
+-- that song at that number, so a sync hands the number to nobody. The song takes it back if a list
+-- names it again; otherwise a person fills it by moving a song into it, or releases it. See `A sync
+-- holds the number of a song that leaves` in `docs/decisions/curation.md`.
+--
+-- **A number is a member or a hold, never both.** Nothing in the schema says so, because the two are
+-- different tables; every write that puts a song at a number deletes the hold there in the same
+-- transaction.
+--
+-- `title` and `artist` are copied when the hold is made, so the row still says what it held after a
+-- scan forgets the song and `song_id` goes NULL.
+--
+-- A new table, so this file is the whole migration and `SCHEMA_VERSION` does not move, which is the
+-- `package_favorites` arrangement below.
+CREATE TABLE IF NOT EXISTS package_held (
+    package_id TEXT    NOT NULL,
+    volume     INTEGER NOT NULL,
+    number     INTEGER NOT NULL,
+    song_id    TEXT    REFERENCES songs(id) ON DELETE SET NULL,
+    title      TEXT    NOT NULL,
+    artist     TEXT,
+    held_at    TEXT    NOT NULL,
+    PRIMARY KEY (package_id, volume, number),
+    FOREIGN KEY (package_id, volume)
+        REFERENCES package_volumes(package_id, volume) ON DELETE CASCADE
+);
+
+-- The `ON DELETE SET NULL` above scans the table for every song deleted without this, which is
+-- `package_songs_file`'s reason.
+CREATE INDEX IF NOT EXISTS package_held_song ON package_held(song_id);
+
 -- The favorites a package draws its songs from, and a row here is the whole of what makes a package
 -- *sourced*: its songs are the union of these lists, a sync is what reconciles the two, and it is
 -- offered nowhere a song is added to a package one at a time. Clearing the last row makes it an

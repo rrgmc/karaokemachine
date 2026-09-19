@@ -1192,6 +1192,18 @@ negative numbers: nothing already in the package moves, so there is no collision
 `free_numbers` then walks each volume's `start_number ..= MAX_SLOT` filtering out what survived — 999
 candidates a volume, so the naive filter is exact and free.
 
+**Holds are written before the deletes, from the same `NOT IN`.** `package_held` keeps one row per
+held number, keyed like `package_songs` by `(package_id, volume, number)`, with the title and
+performer copied in as the song had them. `song_id` is `ON DELETE SET NULL`, so a hold outlives the
+song it names. A number is a member or a hold and never both. Every write that puts a song at a
+number deletes the hold there in the same transaction.
+
+`free_numbers` treats a hold as taken, `next_number` takes its maximum over both tables, and
+`renumber_package` computes its targets with the holds filtered out. `place_songs` asks
+`HELD_FOR_SQL` first for each song, which matches a hold through `coalesce(merged_into, id)`, and a
+song with a hold takes that number back. `fill_held` is the one write that moves a song between
+volumes.
+
 **`place_songs` is the one copy of the insert.** A free function over the connection, for
 `next_number`'s reason: `add_to_package` hands it the append into the last volume that `package_room`
 promises, the sync hands it `free_numbers` across every volume, and the already-there skip, the clash
@@ -1206,9 +1218,9 @@ it by favorite to word its Delete. A query apiece would be two ideas of what a s
 apiece would be a round trip per package.
 
 **The member table is a fragment** — `templates/package_members.html`, carrying its own id and
-`hx-swap-oob` — because a sync rewrites it. Remove and Re-flow still answer *reload to see them*: each
-changes one row or every number, with the person who pressed it looking at the result, where a sync's
-removals are rows that were never on the screen.
+`hx-swap-oob` — because a sync rewrites it. Remove, Re-flow, a number change, and the fill and
+release on a held row send it back as well, through `said_with_members`. `MembersTable::new` merges
+the members and the holds into one list of `MemberRow`s in number order.
 
 ## Volumes
 

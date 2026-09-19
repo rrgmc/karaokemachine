@@ -191,6 +191,7 @@ install-build-first = Monte o pacote primeiro.
 install-sends = Envia o pacote montado para a máquina de karaokê.
 renumber-button = Renumerar tudo a partir de { $start }
 renumber-note = Mantém a ordem atual. Qualquer número que você tenha posto à mão é substituído.
+package-advanced = Avançado
 
 ## Procurar uma máquina na rede -------------------------------------------------
 
@@ -652,7 +653,17 @@ package-volume-tab = { $count ->
   }
 package-number = Nº
 package-source-missing = origem sumiu
-package-numbering-note = Mudar um número salva quando o campo perde o foco. Um número já usado por outra música deste pacote é recusado; os números não são trocados de lugar automaticamente.
+package-numbering-note = Mudar um número salva quando o campo perde o foco. Um número já usado por outra música deste pacote é recusado; os números não são trocados de lugar automaticamente. Quando uma sincronização tira uma música, o número dela fica reservado para ela: nenhuma outra música recebe esse número até você preenchê-lo ou liberá-lo.
+package-held-for = Reservado para
+package-held-title = Uma sincronização tirou esta música, e um livro de músicas impresso ainda a lista neste número. Ponha aqui outra versão dela, ou libere o número.
+package-held-gone = não está mais no acervo
+package-held-move = Mover o nº { $number } para cá
+package-held-move-volume = Mover o nº { $number } do volume { $volume } para cá
+package-held-from-volume = Do volume
+package-held-from-number = Nº
+package-held-fill = Mover para cá
+package-held-move-open = Mover uma música para cá…
+package-held-release = Liberar
 
 ## Um pacote que vem das favoritas ---------------------------------------------
 
@@ -668,7 +679,7 @@ sync-button = { $count ->
     [one] Sincronizar com { $count } lista…
    *[other] Sincronizar com { $count } listas…
   }
-sync-note = Põe o que as listas têm e tira o que elas não têm mais. Toda música que fica mantém o número dela.
+sync-note = Põe o que as listas têm e tira o que elas não têm mais. Toda música que fica mantém o número dela, e o número de uma música que sai fica reservado.
 sync-no-sources-note = Adicione uma lista acima para este pacote ter o que a lista tem.
 sync-from = com
 sync-adding = { $count ->
@@ -677,9 +688,14 @@ sync-adding = { $count ->
    *[other] { $count } entram
   }
 sync-removing = { $count ->
-    [0] { $count } saem
-    [one] { $count } sai
-   *[other] { $count } saem
+    [0] { $count } saem, com os números reservados
+    [one] { $count } sai, com o número reservado
+   *[other] { $count } saem, com os números reservados
+  }
+sync-returning = { $count ->
+    [0] { $count } voltam aos números reservados
+    [one] { $count } volta ao número reservado
+   *[other] { $count } voltam aos números reservados
   }
 sync-keeping = { $count ->
     [0] { $count } ficam onde estão
@@ -1041,6 +1057,9 @@ confirm-replace-favorites = { $count ->
 said-replaced = { $new } agora é o número { $number } em { $package }, no lugar de { $old }.
 said-replaced-in-favorites = Também entrou no lugar em { $favorites }.
 said-replace-empty = Nenhuma música tem o número { $number } em { $package }.
+said-replace-held = O número { $number } em { $package } está reservado para { $title }. Preencha-o na aba Músicas do pacote, com uma música que já está no pacote.
+said-held-filled = O número { $number } está preenchido.
+said-held-released = O número { $number } está liberado. A próxima sincronização pode dá-lo a outra música.
 said-replace-same-song = Esta música já tem o número { $number } ali.
 said-replace-already-in = Esta música já está nesse pacote, com o número { $number } em { $package }. Tire-a de lá primeiro, ou troque outra música por ela.
 said-replace-merged = Esta música foi juntada a outra. Troque pela outra.
@@ -1292,7 +1311,12 @@ said-nothing-to-sync = { $count ->
     [one] Já tem o que as listas dele têm — { $count } música, nada a pôr e nada a tirar.
    *[other] Já tem o que as listas dele têm — { $count } músicas, nada a pôr e nada a tirar.
   }
-said-synced = Sincronizado: { $added } entraram, { $removed } saíram, { $kept } ficaram com os números delas.
+said-synced = Sincronizado: { $added } entraram, { $removed } saíram com os números reservados, { $kept } ficaram com os números delas.
+said-sync-returned = { $count ->
+    [0] { $count } delas voltaram aos números reservados para elas.
+    [one] { $count } delas voltou ao número reservado para ela.
+   *[other] { $count } delas voltaram aos números reservados para elas.
+  }
 said-sync-new-volumes = { $count ->
     [0] As listas passaram do tamanho do pacote, então ele tem { $count } volumes novos.
     [one] As listas passaram do tamanho do pacote, então ele tem um volume novo.

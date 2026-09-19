@@ -13,6 +13,9 @@
   <strong>{{ name }}</strong>
   {{ "sync-from"|t }} {% for s in sources %}<span class="tag {% if s.temporary %}warn{% else %}good{% endif %}">{{ s.name }}</span>{% endfor %}
   &rarr; <strong>{{ adding }}</strong>, <strong>{{ removing }}</strong>, {{ keeping }}
+  {# Of those going in, the ones a hold was waiting for: they take back the number a printed
+     songbook still lists them at, rather than a new one. #}
+  {% match returning %}{% when Some with (says) %}<span>&mdash; {{ says }}</span>{% when None %}{% endmatch %}
   {% match new_volumes %}
   {% when Some with (says) %}
   {# A count in a clause, so it is composed in Rust like the counts before it. Not a warning: a

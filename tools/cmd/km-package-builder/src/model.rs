@@ -1297,6 +1297,26 @@ impl PackageMember {
     }
 }
 
+/// A number a sync took a song away from, held for that song.
+///
+/// A printed songbook still names the song at this number, so nothing is handed it. The song takes
+/// it back if a list names it again; otherwise a person moves another song into it or releases it.
+#[derive(Debug, Clone)]
+pub struct HeldNumber {
+    /// The number held.
+    pub number: u32,
+    /// The song that left, while the corpus still knows it.
+    pub song_id: Option<String>,
+    /// Its title when it left.
+    pub title: String,
+    /// Its performer when it left.
+    pub artist: Option<String>,
+    /// Songs in the package that are other files of the same recording, as `(volume, number,
+    /// title)`: the likeliest song to put here. The grouping pass does not find every copy, so the
+    /// page offers a number box as well.
+    pub candidates: Vec<(u32, u32, String)>,
+}
+
 /// One warning, as stored in the `warnings` JSON column.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StoredWarning {

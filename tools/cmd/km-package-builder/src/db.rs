@@ -23,8 +23,8 @@ use rusqlite::{
 };
 
 use crate::model::{
-    CdgFacts, FavoriteNode, HandSetSong, LyricHit, PackageMember, PackageRow, SavedFilter,
-    ScanStatus, ScannedFile, SongKind, SongRow, StoredWarning, VideoFacts,
+    CdgFacts, FavoriteNode, HandSetSong, HeldNumber, LyricHit, PackageMember, PackageRow,
+    SavedFilter, ScanStatus, ScannedFile, SongKind, SongRow, StoredWarning, VideoFacts,
 };
 
 // Every one of these is a private child of `db`, and every type they speak in is re-exported below,

@@ -529,6 +529,8 @@ pub struct Added {
     pub no_room: u32,
     /// Of those added, how many joined a package that already held another file of the same recording.
     pub clashed: u32,
+    /// Of those added, how many took back a number a sync held for them when they left.
+    pub returned: u32,
     /// Whether the package holds every song it can, which is what picks the remedy for
     /// [`Self::no_room`]: numbers that ran to the end from a high first number are re-flowed, and a
     /// package holding every slot is full.
@@ -549,7 +551,7 @@ pub struct Added {
 pub struct Synced {
     /// What went in, and what did not and why.
     pub placed: Added,
-    /// Entries taken out because no source names them any more.
+    /// Entries taken out because no source names them any more. Each leaves its number held.
     pub removed: u32,
     /// Entries the union already held, which kept the numbers they had.
     pub kept: u32,
@@ -593,6 +595,9 @@ pub enum ReplaceRefusal {
     Merged,
     /// The song asked for was thrown away, and a package holds no song somebody has discarded.
     Deleted,
+    /// No song holds that number: a sync holds it for the song of this title, and Fill is what
+    /// puts a song there.
+    Held(String, String),
 }
 
 /// What a sync *would* do, for the question put before it is done.
@@ -610,6 +615,8 @@ pub struct SyncPlan {
     pub would_remove: u32,
     /// Songs in both, which would keep the numbers they have.
     pub kept: u32,
+    /// Of [`Self::would_add`], songs that would take back a number held for them.
+    pub would_return: u32,
     /// Volumes the sync would start, because every volume together has fewer free numbers after the
     /// removals than [`Self::would_add`].
     pub new_volumes: u32,
