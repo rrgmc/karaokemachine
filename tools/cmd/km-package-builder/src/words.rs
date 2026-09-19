@@ -220,6 +220,25 @@ mod tests {
         }
     }
 
+    /// A key the markup asks for takes no variables.
+    ///
+    /// `|t` passes none, so a message with a `{ $name }` in it draws that placeholder as `{$name}`
+    /// on the page. Such a message belongs to the Rust, which fills it through `msg_with`.
+    #[test]
+    fn no_key_in_the_markup_wants_a_variable() {
+        for locale in Locale::ALL {
+            let catalog = messages(*locale);
+            for key in markup_keys() {
+                let text = catalog.msg(&key);
+                assert!(
+                    !text.contains("{$"),
+                    "a template asks for `{key}` through `|t`, which passes no variables, \
+                     so {locale} draws `{text}`"
+                );
+            }
+        }
+    }
+
     /// Every key this tool's Rust looks up.
     #[test]
     fn every_key_the_rust_asks_for_exists() {

@@ -181,9 +181,9 @@
       <dd>{{ midi.flavor }} <span class="dim">&middot; {{ midi.granularity }}</span></dd>
       <dt>{{ "column-length-full"|t }}</dt>
       <dd>{{ song.duration() }}</dd>
-      <dt>{{ "song-content"|t }}</dt>
+      <dt>{{ "song-content-label"|t }}</dt>
       <dd>{{ said.content }}</dd>
-      <dt>{{ "songs-encoding"|t }}</dt>
+      <dt>{{ "song-encoding"|t }}</dt>
       <dd>
         {{ midi.det_encoding }}
         <span class="tag {% if song.encoding_guessed() %}warn{% endif %}">{{ midi.det_encoding_source }}</span>
