@@ -648,6 +648,16 @@ impl Db {
         Ok(self.setting("folders_index")?.as_deref() == Some(current.as_str()))
     }
 
+    /// Says the folder tree no longer matches the songs, so the next visit rebuilds it.
+    ///
+    /// **A delete moves nothing the marker reads.** `files` keeps its rows and its top rowid, and
+    /// the last scan is the scan it was — while the counts are of browsable songs and have just
+    /// changed. A writer that changes what `rebuild_folders` would count says so here. The empty
+    /// string can never be a marker, which always carries a colon.
+    fn stale_folder_index(&self) -> Result<(), DbError> {
+        self.set_setting("folders_index", "")
+    }
+
     fn folder_index_marker(&self) -> Result<String, DbError> {
         let top: i64 =
             self.conn
@@ -659,6 +669,10 @@ impl Db {
     }
 
     /// Recomputes the whole folder tree from `files`, and reports how many folders it holds.
+    ///
+    /// **The counts are of browsable songs, because a count is a promise about what clicking the
+    /// folder shows.** A merged song and a deleted one are both in `files` and in neither list, so
+    /// the pass joins `songs` and asks [`browsable`] the question the folder's own page asks.
     ///
     /// One pass, ordered by song, because the counts are of distinct *songs*: a song contributes one
     /// to every folder above any of its copies, however many copies there are and however they are
@@ -673,10 +687,15 @@ impl Db {
         let mut direct: HashMap<String, u32> = HashMap::new();
         let mut beneath: HashMap<String, u32> = HashMap::new();
         {
-            let mut statement = self.conn.prepare(
-                "SELECT song_id, path FROM files
-                 WHERE song_id IS NOT NULL ORDER BY song_id",
-            )?;
+            // Joined to `songs` for `browsable`, which is what the folder's own list is drawn
+            // through. A count off `files` alone says a folder holds songs that clicking it does
+            // not show, and a folder emptied by deleting still says it holds them.
+            let browsable = browsable("s.");
+            let mut statement = self.conn.prepare(&format!(
+                "SELECT f.song_id, f.path FROM files f
+                 JOIN songs s ON s.id = f.song_id
+                 WHERE f.song_id IS NOT NULL AND {browsable} ORDER BY f.song_id",
+            ))?;
             let mut rows = statement.query([])?;
 
             let mut song: Option<String> = None;
@@ -1201,6 +1220,10 @@ impl Db {
             deleted_value(deleted)
         );
         let changed = self.conn.execute(&sql, params_from_iter(values.iter()))?;
+        if changed > 0 {
+            self.stale_folder_index()?;
+            self.release_behind_hidden()?;
+        }
         Ok(changed as u32)
     }
 
@@ -1223,6 +1246,10 @@ impl Db {
                 deleted_value(deleted)
             );
             changed += self.conn.execute(&sql, params_from_iter(values.iter()))? as u32;
+        }
+        if changed > 0 {
+            self.stale_folder_index()?;
+            self.release_behind_hidden()?;
         }
         Ok(changed)
     }

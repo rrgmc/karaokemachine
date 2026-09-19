@@ -105,12 +105,18 @@ impl Db {
     /// name a corpus repeats without meaning anything by it — every `TRACK01.mid` under every folder
     /// would confirm every other, and the review queue this is careful to keep small would fill with
     /// pairs that are not the same song at all.
+    ///
+    /// **[`browsable`] and not `merged_into IS NULL` alone.** A deleted song is one somebody threw
+    /// away, so pairing it wastes a place in the review queue — and worse, `Db::cluster` picks a
+    /// representative by suitability, so a deleted song can win one and hide every live copy behind
+    /// a row no list will draw.
     pub fn fingerprints(&self) -> Result<Vec<Fingerprint>, DbError> {
-        let mut statement = self.conn.prepare(
+        let browsable = browsable("");
+        let mut statement = self.conn.prepare(&format!(
             "SELECT id, fingerprint, coalesce(title, det_title, ''),
                     coalesce(artist, det_artist, ''), duration_ms, lyrics
-             FROM songs WHERE merged_into IS NULL",
-        )?;
+             FROM songs WHERE {browsable}",
+        ))?;
         let rows = statement.query_map([], |row| {
             Ok(Fingerprint {
                 id: row.get(0)?,

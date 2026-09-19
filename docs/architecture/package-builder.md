@@ -467,6 +467,18 @@ stopped matching and fell back to a full scan per recursion step: five seconds, 
 It asks `browsable` for the whole predicate now, which is also the honest list — a song somebody
 threw away should put no language in the picker.
 
+**A table that caches an answer needs the term twice: the pass that fills it, and the delete that
+makes it stale.** Two of them hold answers about browsable songs. `rebuild_folders` fills
+`folders.song_count`, and it joins `songs` so a count promises what clicking the folder shows. Its
+freshness marker reads `files` and the last scan. A delete moves neither, so `set_deleted_for` and
+`set_deleted_of` mark the index stale themselves.
+
+`Db::cluster` fills `songs.duplicate_of`, and it takes its pairs and its fingerprints through
+`browsable`. A song thrown away therefore heads no group. A song deleted *after* a pass leaves a
+group whose head no list draws, which hides every live copy behind it. The same two writers call
+`release_behind_hidden`, so those copies go back on the page. The next pass collects them behind a
+live head.
+
 **An index rebuilt under its own name invalidates the statistics that describe it, and nothing used
 to say so.** `missing_indexes` is read before `schema.sql` runs and it holds names; an index whose key
 or predicate changed keeps its name, so it is never missing and no `ANALYZE` is asked for. Its

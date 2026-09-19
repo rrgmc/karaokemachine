@@ -4665,6 +4665,63 @@ fn a_dismissal_takes_only_the_pair_it_names() {
     assert_eq!(together, 1, "only the named pair is separated");
 }
 
+/// A song somebody threw away is in no cluster, as head or as member.
+///
+/// **Both halves matter, because they fail at different moments.** A deleted song the pass can
+/// still see wins the head on suitability and hides every live copy behind a row no list draws. A
+/// song deleted *after* the pass leaves a cluster whose head has gone, which takes the rest of the
+/// cluster off the page with it.
+#[test]
+fn a_deleted_song_neither_heads_a_cluster_nor_hides_one() {
+    let mut db = db();
+    // The best file of the three, so it wins the head wherever it is still in the running.
+    for (id, suitability) in [("aaa", 9u8), ("bbb", 4), ("ccc", 4)] {
+        add_built(
+            &mut db,
+            id,
+            Some("One Song"),
+            &format!("f/{id}.kar"),
+            |song| {
+                song.suitability.value = suitability;
+            },
+        );
+    }
+    suggest_pair(&mut db, "aaa", "bbb");
+    suggest_pair(&mut db, "bbb", "ccc");
+
+    // Deleted before the pass: it is not in the fingerprints and not in the pairs, so the head is
+    // the best of what is left.
+    assert_eq!(
+        db.set_deleted_of(&["aaa".to_owned()], true)
+            .expect("delete"),
+        1
+    );
+    assert!(
+        db.fingerprints()
+            .expect("fingerprints")
+            .iter()
+            .all(|print| print.id != "aaa"),
+        "a song thrown away is not offered to the duplicate pass"
+    );
+    db.cluster().expect("cluster");
+    let rows = db.songs(&Filter::default()).expect("songs");
+    assert_eq!(ids(&rows), vec!["bbb"], "the best of the two that are left");
+
+    // Deleted after the pass: the head goes, and the song it was hiding comes back rather than
+    // going with it.
+    assert_eq!(
+        db.set_deleted_of(&["bbb".to_owned()], true)
+            .expect("delete"),
+        1
+    );
+    let rows = db.songs(&Filter::default()).expect("songs");
+    assert_eq!(
+        ids(&rows),
+        vec!["ccc"],
+        "the last live copy is on the page rather than behind a head that has gone"
+    );
+}
+
 #[test]
 fn songs_with_the_same_words_group_although_no_name_matches() {
     let mut db = db();
@@ -6560,6 +6617,54 @@ fn an_unchanged_corpus_is_read_from_the_index_rather_than_recomputed() {
     // And an explicit rebuild puts it back.
     assert_eq!(db.rebuild_folders().expect("rebuild"), 2, "root and rock/");
     assert_eq!(db.folders("").expect("folders").len(), 1);
+}
+
+/// A folder's count says how many songs clicking it shows, so a deleted song is in neither.
+///
+/// **The marker is the half that fails silently.** A delete leaves `files` alone and moves neither
+/// the top rowid nor the last scan, so the index would go on answering the number it had — with the
+/// folder's own list already one song shorter.
+#[test]
+fn a_deleted_song_leaves_the_folder_counts_as_well_as_the_list() {
+    let mut db = db();
+    add(&mut db, "a", Some("A"), "rock/a.kar");
+    add(&mut db, "b", Some("B"), "rock/b.kar");
+
+    let counts = |db: &Db| {
+        listing(db, "")
+            .iter()
+            .map(|node| (node.name.clone(), node.song_count))
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(counts(&db), vec![("rock".to_owned(), 2)]);
+
+    assert_eq!(
+        db.set_deleted_of(&["a".to_owned()], true).expect("delete"),
+        1
+    );
+    assert!(
+        !db.folder_index_is_current().expect("marker"),
+        "a delete changes what the pass would count, so the index has to be rebuilt"
+    );
+    assert_eq!(counts(&db), vec![("rock".to_owned(), 1)]);
+    assert_eq!(
+        db.songs(&Filter {
+            folder: Some("rock/".to_owned()),
+            ..Filter::default()
+        })
+        .expect("browse")
+        .len(),
+        1,
+        "the count and the list it promises are one number"
+    );
+
+    // And bringing it back puts the song into both again.
+    assert_eq!(
+        db.set_deleted_of(&["a".to_owned()], false)
+            .expect("undelete"),
+        1
+    );
+    assert_eq!(counts(&db), vec![("rock".to_owned(), 2)]);
 }
 
 #[test]

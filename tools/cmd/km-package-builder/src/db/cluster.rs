@@ -197,14 +197,43 @@ impl Db {
         Ok(rows.collect::<Result<Vec<_>, _>>()?)
     }
 
-    /// Every undismissed pair, as ids, with merged songs left out.
+    /// Releases every song set aside behind a representative no list draws. Returns how many.
+    ///
+    /// **A cluster is written once and read until the next pass, so deleting its representative
+    /// takes the whole cluster off the page.** The representative fails `deleted_at IS NULL` and
+    /// every member it hides fails `duplicate_of IS NULL`, and the songs that are left go nowhere a
+    /// curator can reach. Releasing them shows each copy on its own until the next pass collapses
+    /// them behind a live one, which is the module's rule: a song that has left a cluster is
+    /// released rather than left hidden by a decision nobody can find.
+    ///
+    /// Called by the writers that delete, because they are what can empty a cluster's head.
+    pub(super) fn release_behind_hidden(&self) -> Result<u32, DbError> {
+        let browsable = browsable("r.");
+        let released = self.conn.execute(
+            &format!(
+                "UPDATE songs SET duplicate_of = NULL, version_count = 1
+                  WHERE duplicate_of IS NOT NULL
+                    AND NOT EXISTS (SELECT 1 FROM songs r
+                                     WHERE r.id = songs.duplicate_of AND {browsable})"
+            ),
+            [],
+        )?;
+        Ok(released as u32)
+    }
+
+    /// Every undismissed pair, as ids, with songs no list draws left out.
+    ///
+    /// **[`browsable`] on both sides**, which is what keeps a deleted song out of a cluster. It is
+    /// asked here as well as in `Db::fingerprints` because a candidate row outlives the pass that
+    /// wrote it: a song deleted after the pairs were found is still named by them.
     fn undismissed_pairs(&self) -> Result<Vec<(String, String)>, DbError> {
-        let mut statement = self.conn.prepare(
+        let (a, b) = (browsable("a."), browsable("b."));
+        let mut statement = self.conn.prepare(&format!(
             "SELECT d.a_id, d.b_id FROM duplicate_candidates d
              JOIN songs a ON a.id = d.a_id
              JOIN songs b ON b.id = d.b_id
-             WHERE d.verdict IS NULL AND a.merged_into IS NULL AND b.merged_into IS NULL",
-        )?;
+             WHERE d.verdict IS NULL AND {a} AND {b}",
+        ))?;
         let rows = statement.query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?;
         Ok(rows.collect::<Result<Vec<_>, _>>()?)
     }
