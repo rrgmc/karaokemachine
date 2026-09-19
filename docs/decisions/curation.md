@@ -742,6 +742,75 @@ listen. It is never a reason to group the files.
 **A file whose only name is a short DOS name, such as `DANCIN~1`, is out of reach**, as it is for the
 duplicate pass. No spelling of a title can be recognised in it.
 
+## Finding a song by the words it sings
+
+**Every browse row and every song's own page with words carries a ≋ button that lists the songs
+singing the same ones, likeliest first.** It is the question the ≈ button asks, put to the whole
+lyric instead of the name, and it reaches the file that neither of the other two can: `DANCIN~1` has
+no spelling to recognise, and a copy with a verse missing keys differently from the duplicate pass's
+exact lyric key. Between a name that says nothing and words that must match exactly sits a great many
+of the corpus.
+
+**Tight where the names page is loose, and that is the whole difference between them.** A similar
+name is a reason to look at a file. The same words are close to a statement that two files are one
+recording, so the list is a short one of near-certainties rather than a long ranked one. A false
+match here would be read as fact.
+
+**What counts as the same words:**
+
+- The words are the sung ones: credits, addresses, the legal boilerplate and section labels are left
+  out by `km_song::looks_like_a_banner`, which is the rule the duplicate pass already uses. A song
+  with fewer than 25 words left says nothing and is not compared.
+- Case, accents and punctuation are folded, as `km_song::text::fold` folds them everywhere.
+- Two songs are compared by their runs of three words. One word is a bag that every song in the
+  language fills, and a longer run is broken by a single stray syllable.
+- The score is the share of all the runs either song has that both of them have. A verse missing
+  from one file therefore costs roughly what that verse is worth.
+- **Not the share of the shorter song.** That reading makes a medley hold every song in it at 100%,
+  and a file carrying one verse the whole of the song. Both answer *is this the same recording* with
+  *yes* where the honest answer is *part of it is*.
+- Where a file wraps its lines is not compared, because one sequencer wraps where the next does not.
+
+**What it misses, on purpose**: a cover with reworked verses, which keeps its chorus and little else;
+a medley; and a file whose lyric track holds nothing but the sequencer's business card.
+
+**Candidates come from the lyric index, and the score is worked out outside SQLite.** A dozen
+three-word phrases, spread across the song so a file missing its opening still matches the rest, are
+asked of `lyrics_fts` and the best 400 by `bm25` are scored in Rust. Asking for the words one at a
+time instead would match most of the corpus, because most of it sings *love*.
+
+**A phrase is chosen for how rare its rarest word is.** A phrase is only as selective as that word,
+and `ORDER BY bm25` ranks every row a query matches before any limit cuts one — so a page asking for
+whatever words a song happened to open with would have SQLite score a large part of the corpus to
+return a hundred rows. `lyrics_vocab` is what answers how rare a word is, and costs no storage.
+
+**A phrase never crosses a line the banner rule dropped.** The index holds the whole lyric, credits
+included, so the word before a dropped line and the word after it are not next to each other there. A
+phrase built across that seam asks for something no file holds and quietly matches nothing.
+
+**The address names the song and carries no text.** The similar-names page keeps its two boxes
+editable because a name garbled past matching is loosened by hand; a whole lyric body is not
+something a box can hold or anybody would edit. So the song searched from heads the list, marked, and
+every other row is read against it.
+
+**It narrows by the same five controls as the similar-names page, and remembers them separately.**
+The controls mean the same things, so they are the same controls. What they open at differs: a
+similar *name* is looked for among the files somebody might play, so that page opens at 8–10, while
+a file singing the same words under another name is most often the one nothing else could reach and
+is rough enough to score under 8. One record would let whichever page was opened first decide what
+the other opened at, and this one would say *no other song sings these words* with a match sitting
+behind the band.
+
+**The button is not drawn on a song with no words.** Most of a real corpus is instrumental, and a
+button that can only lead to a page apologising is one on nearly every row.
+
+**Three empty pages, because there are three different problems with three different fixes**: no scan
+has written any words yet, and the corpus is re-read; this song has too few words to find another by;
+and nothing else sings them.
+
+**It writes nothing, and it is not the duplicate pass.** Two files singing one set of words can still
+be two recordings. The same words are a reason to listen, and never a reason to group the files.
+
 ## Acting on a whole filter
 
 **A curation action either takes the rows somebody ticked or everything the filter matches, and which

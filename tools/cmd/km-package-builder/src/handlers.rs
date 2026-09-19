@@ -28,8 +28,8 @@ use crate::views::{
     FavoritesPage, FilterForm, FoldersPage, LyricHits, LyricSearchPage, LyricsFragment,
     MachineAccessFragment, MessageFragment, OpenFolders, OpenListing, OpenPage, OpenProgress,
     PackagePage, PackagesPage, PlayedFragment, ProgressFragment, RawFragment, RecentView, ScanPage,
-    SettingsPage, SimilarHits, SimilarPage, SongPage, SongRowFragment, SongRows, SongsPage, Toast,
-    page,
+    SettingsPage, SimilarHits, SimilarPage, SimilarWordsHits, SimilarWordsPage, SongPage,
+    SongRowFragment, SongRows, SongsPage, Toast, page,
 };
 
 /// Encodings offered when re-decoding lyrics by hand.
@@ -1392,6 +1392,16 @@ pub struct SimilarQuery {
     versions: Option<String>,
 }
 
+/// Which of the two matching pages a query is being settled for.
+///
+/// They share a parser and a set of controls and keep separate records of them, so the one thing
+/// that has to travel is which page is asking.
+#[derive(Debug, Clone, Copy)]
+enum Page {
+    Names,
+    Words,
+}
+
 impl SimilarQuery {
     /// The search as the similar-names page's bar posts it beside the ticks.
     ///
@@ -1420,7 +1430,19 @@ impl SimilarQuery {
     /// empty fields included. A query naming none is a ≈ link, which carries only a name, so it
     /// takes the remembered five. The bar's selects always send their fields, which is what lets a
     /// cleared checkbox, sending nothing, still count as the bar speaking.
-    fn narrowed(mut self, state: &State) -> Self {
+    fn narrowed(self, state: &State) -> Self {
+        self.settled(state, Page::Names)
+    }
+
+    /// The same, against the same-words page's own record of the five.
+    ///
+    /// Two records because the two bars open differently — see [`SimilarNarrowing::for_words`] — and
+    /// one would let whichever page was opened first decide what the other opens at.
+    fn narrowed_for_words(self, state: &State) -> Self {
+        self.settled(state, Page::Words)
+    }
+
+    fn settled(mut self, state: &State, page: Page) -> Self {
         let given = [
             &self.suitability,
             &self.kind,
@@ -1431,15 +1453,22 @@ impl SimilarQuery {
         .iter()
         .any(|field| field.is_some());
         if given {
-            state.remember_similar_narrowing(SimilarNarrowing {
+            let asked = SimilarNarrowing {
                 suitability: self.suitability().to_owned(),
                 kind: self.kind().to_owned(),
                 granularity: self.granularity().to_owned(),
                 copies: self.copies().to_owned(),
                 versions: self.versions().as_str().to_owned(),
-            });
+            };
+            match page {
+                Page::Names => state.remember_similar_narrowing(asked),
+                Page::Words => state.remember_words_narrowing(asked),
+            }
         } else {
-            let remembered = state.similar_narrowing();
+            let remembered = match page {
+                Page::Names => state.similar_narrowing(),
+                Page::Words => state.words_narrowing(),
+            };
             self.suitability = Some(remembered.suitability);
             self.kind = Some(remembered.kind);
             self.granularity = Some(remembered.granularity);
@@ -1575,6 +1604,96 @@ async fn similar_for(state: &State, query: &SimilarQuery) -> Result<SimilarHits,
     Ok(SimilarHits {
         hits,
         searched,
+        ratings: crate::views::rating_choices(),
+        languages: crate::views::Choice::languages_in(&present, None),
+        all_languages: Vec::new(),
+        choosing_language: false,
+        editing: false,
+        picking: false,
+        favorites: Vec::new(),
+        last_played,
+    })
+}
+
+// -- searching by the words a song sings ----------------------------------------------------
+
+/// `GET /similar-words`
+///
+/// **[`SimilarQuery`] again, with its two name boxes unused.** The two pages narrow by the same five
+/// controls with the same spellings and remember one setting between them, so a second parser would
+/// be a second thing to keep in step for the sake of two fields one page leaves empty.
+pub async fn similar_words(
+    AxumState(state): AxumState<State>,
+    Query(query): Query<SimilarQuery>,
+) -> Response {
+    let query = query.narrowed_for_words(&state);
+    let chrome = match chrome(&state, "songs").await {
+        Ok(chrome) => chrome,
+        Err(error) => return failure(error, state.locale()),
+    };
+    let hits = match similar_words_for(&state, &query).await {
+        Ok(hits) => hits,
+        Err(error) => return failure(error, state.locale()),
+    };
+    let favorites = match state.reading(|db| db.favorites()).await {
+        Ok(favorites) => favorites,
+        Err(error) => return failure(error, state.locale()),
+    };
+
+    page(
+        &SimilarWordsPage {
+            chrome,
+            hits,
+            favorites,
+            from: query.from.clone(),
+            query: query.to_form(),
+        },
+        state.locale(),
+    )
+}
+
+/// `GET /similar-words/hits`
+pub async fn similar_words_hits(
+    AxumState(state): AxumState<State>,
+    Query(query): Query<SimilarQuery>,
+) -> Response {
+    let query = query.narrowed_for_words(&state);
+    match similar_words_for(&state, &query).await {
+        Ok(hits) => page(&hits, state.locale()),
+        Err(error) => failure(error, state.locale()),
+    }
+}
+
+async fn similar_words_for(
+    state: &State,
+    query: &SimilarQuery,
+) -> Result<SimilarWordsHits, DbError> {
+    let asked = query.clone();
+    let filter = query.to_filter();
+    let ((hits, comparable), indexed, last_played, present) = state
+        .reading(move |db| {
+            Ok((
+                db.similar_words(&asked.from, &filter)?,
+                db.lyrics_indexed()?,
+                db.setting(LAST_PLAYED_SETTING)?,
+                db.languages_present()?,
+            ))
+        })
+        .await?;
+
+    // A match *is* a browse row, drawn from the same template, so its tooltips are worded the same
+    // way a page of rows is.
+    let mut hits = hits;
+    // A match carries its place in this run's quality hint, so a narrowed list keeps its numbers.
+    state.mark_hints(&mut hits);
+    for song in &mut hits {
+        song.say(state.locale(), false);
+    }
+
+    Ok(SimilarWordsHits {
+        hits,
+        indexed,
+        comparable,
         ratings: crate::views::rating_choices(),
         languages: crate::views::Choice::languages_in(&present, None),
         all_languages: Vec::new(),
@@ -3542,12 +3661,16 @@ pub async fn split_artist_from_title(
 enum Redraw {
     Rows(Box<FilterQuery>),
     Hits(SimilarQuery),
+    Words(SimilarQuery),
 }
 
 impl Redraw {
     fn from_body(reply: &ReplyQuery, body: &str) -> Result<Self, String> {
-        if reply.wants_hits() {
-            Ok(Self::Hits(SimilarQuery::from_fields(&Fields::parse(body))))
+        let posted = || SimilarQuery::from_fields(&Fields::parse(body));
+        if reply.wants_words() {
+            Ok(Self::Words(posted()))
+        } else if reply.wants_hits() {
+            Ok(Self::Hits(posted()))
         } else {
             FilterQuery::from_body(body).map(|query| Self::Rows(Box::new(query)))
         }
@@ -3574,6 +3697,15 @@ async fn redraw_over_the_write(state: &State, redraw: Redraw, said: String) -> R
         Redraw::Hits(query) => {
             let query = query.narrowed(state);
             return match similar_for(state, &query).await {
+                Ok(hits) => crate::views::with_toast(&hits, &Toast::good(said), state.locale()),
+                Err(error) => crate::views::toast_only(&Toast::bad(format!(
+                    "{said} The list could not be drawn again: {error}"
+                ))),
+            };
+        }
+        Redraw::Words(query) => {
+            let query = query.narrowed_for_words(state);
+            return match similar_words_for(state, &query).await {
                 Ok(hits) => crate::views::with_toast(&hits, &Toast::good(said), state.locale()),
                 Err(error) => crate::views::toast_only(&Toast::bad(format!(
                     "{said} The list could not be drawn again: {error}"
@@ -3735,6 +3867,12 @@ impl ReplyQuery {
     /// Songs page's rows.
     fn wants_hits(&self) -> bool {
         self.reply_as.as_deref() == Some("hits")
+    }
+
+    /// `as=words` is the same-words page asking for its own matches, which are found by a different
+    /// question and cannot be drawn by redoing the names search.
+    fn wants_words(&self) -> bool {
+        self.reply_as.as_deref() == Some("words")
     }
 }
 

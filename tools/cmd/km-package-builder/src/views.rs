@@ -653,6 +653,56 @@ pub struct SimilarHits {
     pub last_played: Option<String>,
 }
 
+/// `GET /similar-words`
+#[derive(Template)]
+#[template(path = "similar_words.html")]
+pub struct SimilarWordsPage {
+    /// Page chrome.
+    pub chrome: Chrome,
+    /// The matches.
+    pub hits: SimilarWordsHits,
+    /// Every favorite, for the "put the ticked songs in" form.
+    pub favorites: Vec<FavoriteNode>,
+    /// The song the search started from, which heads the list. The only thing the address carries,
+    /// because the subject is that song's whole lyric body and no box could hold it.
+    pub from: String,
+    /// The narrowing controls, echoed back so they keep their state.
+    pub query: FilterForm,
+}
+
+/// `GET /similar-words/hits` — the matches alone.
+///
+/// Carries the whole cast `song_row.html` asks for, for [`LyricHits`]'s reason.
+#[derive(Template)]
+#[template(path = "similar_words_hits.html")]
+pub struct SimilarWordsHits {
+    /// The matches, likeliest first, headed by the song searched from.
+    pub hits: Vec<SongRow>,
+    /// Whether any song's words have been indexed at all. False sends somebody to the scan page
+    /// rather than leaving them to conclude their corpus holds nothing like this song.
+    pub indexed: bool,
+    /// Whether the song searched from has enough words to find another by. False is an instrumental,
+    /// or a file whose lyric track carries nothing but the sequencer's card — a different thing to
+    /// say from *nothing matched*, and with a different answer.
+    pub comparable: bool,
+    /// The rating options every row's select is built from, made once for the page.
+    pub ratings: Vec<Choice>,
+    /// The languages this corpus holds, for every row's language select.
+    pub languages: Vec<Choice>,
+    /// Always empty: the list never draws a row in its language-choosing state.
+    pub all_languages: Vec<Choice>,
+    /// Always false, for the same reason.
+    pub choosing_language: bool,
+    /// Always false: the list never draws a row in its editing state.
+    pub editing: bool,
+    /// Always false, for the same reason.
+    pub picking: bool,
+    /// The favorites a picking row would offer. Always empty here.
+    pub favorites: Vec<PickerFavorite>,
+    /// The song most recently sent to the karaoke machine.
+    pub last_played: Option<String>,
+}
+
 /// Which page `offset` is on and how many pages `total` rows make, both counting from one.
 ///
 /// **The page count is at least the page being shown**, for the reason `handlers::page_links` clamps
@@ -3165,6 +3215,7 @@ mod tests {
             path: path.to_owned(),
             paths: path.to_owned(),
             from_filename: title.is_empty(),
+            has_words: false,
         };
         // Worded as a page would, so a test asserting on a tooltip sees the sentence and not a gap.
         row.say(km_locale::Locale::English, false);

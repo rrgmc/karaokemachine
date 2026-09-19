@@ -164,6 +164,7 @@ it are the same entry. How the thing is built is [`ARCHITECTURE.md`](../ARCHITEC
 - [When a song was last edited](curation.md#when-a-song-was-last-edited)
 - [When a song was added](curation.md#when-a-song-was-added)
 - [Searching lyrics](curation.md#searching-lyrics)
+- [Finding a song by the words it sings](curation.md#finding-a-song-by-the-words-it-sings)
 - [Acting on a whole filter](curation.md#acting-on-a-whole-filter)
 - [Assigning tags in bulk](curation.md#assigning-tags-in-bulk)
 - [Where a curation action says what it did](curation.md#where-a-curation-action-says-what-it-did)

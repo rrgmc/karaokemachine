@@ -309,7 +309,14 @@ pub(super) fn browse_columns() -> String {
            WHERE sf.song_id = s.id AND f.temporary = 0) AS permanent_count,
          -- The version the song list shows instead of this one, when this one is set aside.
          -- Appended, so `song_row` gains an index and none of the existing ones move.
-         s.duplicate_of",
+         s.duplicate_of,
+         -- Whether the song has words, so a row can decide whether to offer the search for the
+         -- songs that sing them. Appended, for the reason above.
+         --
+         -- Word for word the predicate `lyrics_fts_insert` indexes by, so a row that offers the
+         -- search is a row that can be a candidate. The empty string is never stored, which makes
+         -- the second test redundant today and keeps the two from parting if that ever changes.
+         (s.lyrics IS NOT NULL AND s.lyrics <> '') AS has_words",
         eff_title("s."),
         eff_artist("s."),
         title_is_filename("s."),
@@ -361,6 +368,7 @@ pub(super) fn song_row(row: &Row<'_>) -> rusqlite::Result<SongRow> {
         version_count: row.get::<_, i64>(15)? as u32,
         permanent_count: row.get::<_, i64>(16)? as u32,
         duplicate_of: row.get(17)?,
+        has_words: row.get::<_, i64>(18)? != 0,
     })
 }
 

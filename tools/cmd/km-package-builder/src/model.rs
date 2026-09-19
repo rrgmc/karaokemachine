@@ -523,6 +523,12 @@ pub struct SongRow {
     pub version_count: u32,
     /// The version the song list shows in this one's place, when this one is hidden behind it.
     pub duplicate_of: Option<String>,
+    /// Whether the song has any words at all, which decides whether the row offers to look for the
+    /// songs that sing them.
+    ///
+    /// Most of a real corpus is instrumental, and a button that can only lead to a page saying *this
+    /// song has no words* is a button worth not drawing.
+    pub has_words: bool,
     /// The first file's path, for the "open" and "play" actions.
     pub path: String,
     /// Every copy's path, newline-separated, straight from the query.
@@ -790,6 +796,18 @@ impl SongRow {
         similar_url(&self.title, self.artist.as_deref().unwrap_or(""), &self.id)
     }
 
+    /// Where the ≋ button goes: songs that sing what this row sings, or empty when it has no words.
+    ///
+    /// Empty for most of a real corpus, which is instrumental — and a button leading only to a page
+    /// that says *this song has no words* is a button worth not drawing on every row.
+    pub fn words_url(&self) -> String {
+        if self.has_words {
+            words_url(&self.id)
+        } else {
+            String::new()
+        }
+    }
+
     pub fn searchable(&self) -> bool {
         youtube_query(&self.title, self.artist.as_deref(), &self.path).is_some()
     }
@@ -825,6 +843,17 @@ pub fn similar_url(title: &str, artist: &str, id: &str) -> String {
     }
     url.push_str(&format!("&from={}", encode(id)));
     url
+}
+
+/// The same-words search for one song, headed by that song.
+///
+/// **An id and nothing else.** The similar-names search carries the name it is looking for, because
+/// that name is editable where it lands; the subject here is a whole lyric body, so the address names
+/// the song and the page reads its words out of the row.
+///
+/// Built here so the encoding happens in Rust, as [`similar_url`] is.
+pub fn words_url(id: &str) -> String {
+    format!("/similar-words?from={}", encode(id))
 }
 
 /// A hand-set score as text: the number, or nothing at all when nobody has said.
@@ -1338,6 +1367,7 @@ mod tests {
             file_count: 1,
             version_count: 1,
             duplicate_of: None,
+            has_words: false,
             path: path.to_owned(),
             paths: paths.to_owned(),
             from_filename: false,

@@ -54,6 +54,7 @@ mod fixes;
 mod form;
 mod handlers;
 mod hint;
+mod lyric_likeness;
 mod model;
 mod names;
 /// The machine passwords this computer was told to remember. See the module note for why they are
