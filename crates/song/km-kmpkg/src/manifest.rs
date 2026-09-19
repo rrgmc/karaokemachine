@@ -850,19 +850,20 @@ pub struct SuitabilityRecord {
 }
 
 impl SuitabilityRecord {
-    /// Full marks, for a file that was made to be sung to.
+    /// Full marks, for a file that was made to be sung to and is sung for long enough to be worth it.
     ///
     /// **A video song and an MP3+G song rate 10, by what they are rather than by measurement.** The
     /// 0–10 asks how good a file is as a karaoke source, and these were manufactured as
     /// karaoke: a commercial disc or a karaoke video has the words, has them timed by whoever
-    /// authored it, and is a real backing track rather than somebody's sketch. There is nothing to
-    /// measure because there is nothing in doubt.
+    /// authored it, and is a real backing track rather than somebody's sketch. An absent number
+    /// sorts such a file below a mediocre MIDI file, which is the opposite of the truth. See the
+    /// `Suitability, for a song that was made to be sung to` decision in `docs/decisions/`.
     ///
-    /// This replaces an earlier decision that such songs carry **no** suitability at all, on the reasoning
-    /// that the four things it measures are MIDI facts. That was right about the mechanism
-    /// and wrong about the question: an absent one sorts a professionally produced karaoke track
-    /// below a mediocre MIDI file, which is the opposite of the truth. See the `Suitability, for a
-    /// song that was made to be sung to` decision in `docs/decisions/`.
+    /// **One thing about such a file is in doubt, and it is how much of it is sung.** A thirty-second
+    /// video is a clip or a fragment of a rip rather than a karaoke track, so full marks are for a
+    /// file with enough singing in it and [`Self::too_brief_to_choose`] is for one without.
+    /// `km_pack::purpose_made_suitability` is the one place that decides between them, because it is
+    /// where both the threshold and the name of the warning are in scope.
     ///
     /// The breakdown is filled to match rather than left at zero, so it cannot contradict the number
     /// it is supposed to explain. It is a derivation that does not apply here, not a measurement
@@ -878,6 +879,27 @@ impl SuitabilityRecord {
                 arrangement: 2,
             },
             warnings: Vec::new(),
+        }
+    }
+
+    /// What a file made to be sung to scores when there is too little of it to sing.
+    ///
+    /// The same four points a MIDI file of the same length keeps, the backing being spread across
+    /// channels and a real arrangement, neither of which a short file stops being. Nothing for the
+    /// words or their timing, which is what a file over in forty seconds has to offer. The caller
+    /// supplies the warning, because the name of it belongs to the analysis rather than to the
+    /// container.
+    #[must_use]
+    pub fn too_brief_to_choose(warning: WarningRecord) -> Self {
+        Self {
+            value: 4,
+            breakdown: BreakdownRecord {
+                lyrics: 0,
+                sync: 0,
+                channels: 2,
+                arrangement: 2,
+            },
+            warnings: vec![warning],
         }
     }
 }

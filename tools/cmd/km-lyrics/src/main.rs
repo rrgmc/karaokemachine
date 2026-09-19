@@ -381,6 +381,17 @@ struct Stats {
     melody_abstained: BTreeMap<String, usize>,
     /// Suitability distribution.
     suitability: BTreeMap<String, usize>,
+    /// How long a file is sung for, first counted syllable to last, in buckets of five seconds.
+    ///
+    /// **This is the instrument `min_sung_ms` is set from**, and it is asked only of files that
+    /// score for their lyrics: a file already condemned for a business card in its lyric track says
+    /// nothing about where the line between a song and a fragment falls.
+    sung_seconds: BTreeMap<String, usize>,
+    /// Of the same files, how many are sung for less than each candidate minimum.
+    ///
+    /// The blast radius of every candidate at once: choosing one takes six points off this many
+    /// files.
+    sung_under: BTreeMap<String, usize>,
     /// Warning codes raised, across all files.
     warning: BTreeMap<String, usize>,
     /// Sum of suitabilities, for the mean.
@@ -436,6 +447,13 @@ fn sweep_options(as_written: bool) -> ParseOptions {
 /// speaking, and that shoulder is what these have to bracket.
 const CANDIDATE_BOUNDS: [usize; 8] = [55, 70, 85, 100, 120, 150, 200, 300];
 
+/// Lengths a minimum for the sung span might be drawn at, in seconds.
+///
+/// Spread around three quarters of a minute for the same reason [`CANDIDATE_BOUNDS`] is spread
+/// around a line width: the question is where a file stops being a short song and starts being a
+/// fragment, and these have to bracket that shoulder rather than sample the range evenly.
+const CANDIDATE_SUNG_SECONDS: [usize; 6] = [20, 30, 40, 45, 60, 75];
+
 impl Stats {
     fn merge(&mut self, other: Stats) {
         self.files += other.files;
@@ -464,6 +482,8 @@ impl Stats {
         merge_counts(&mut self.melody_channel, other.melody_channel);
         merge_counts(&mut self.melody_abstained, other.melody_abstained);
         merge_counts(&mut self.suitability, other.suitability);
+        merge_counts(&mut self.sung_seconds, other.sung_seconds);
+        merge_counts(&mut self.sung_under, other.sung_under);
         merge_counts(&mut self.warning, other.warning);
         merge_counts(&mut self.flavor, other.flavor);
         merge_counts(&mut self.encoding, other.encoding);
@@ -553,6 +573,35 @@ impl Stats {
                 .warning
                 .entry(format!("{:?}", warning.code))
                 .or_default() += 1;
+        }
+
+        // Asked only of a file whose lyrics score, so the histogram describes songs rather than the
+        // business cards and chord charts the quantity test has already settled.
+        // **Worked out here rather than read off `breakdown.lyrics`, and that is the whole point.**
+        // The rule this sets scores a file it condemns at zero for its lyrics, so an instrument
+        // reading that column would report the threshold back to itself and show nothing below it.
+        // What is wanted is the population the rule judges, which is every file the quantity tests
+        // pass: enough syllables covering enough of the song, words rather than chord names, and a
+        // span there is something to measure.
+        let content = km_suitability::suitability::LyricContent::measure(&song, song.duration_ms());
+        let thresholds = km_suitability::Thresholds::default();
+        let ticks = song.lyrics.syllable_ticks();
+        let judged = song.lyrics.granularity() != LyricGranularity::None
+            && !content.is_negligible(&thresholds)
+            && !content.is_chord_chart(&thresholds)
+            && !(!ticks.is_empty() && ticks.iter().all(|&t| t == 0))
+            && song.note_count() > 0;
+        if judged {
+            let seconds = (km_suitability::sung_span_ms(&song) / 1_000) as usize;
+            *self.sung_seconds.entry(bucket(seconds, 5)).or_default() += 1;
+            for least in CANDIDATE_SUNG_SECONDS {
+                if seconds < least {
+                    *self
+                        .sung_under
+                        .entry(format!("under {least:>3}s"))
+                        .or_default() += 1;
+                }
+            }
         }
 
         if song.lyrics.granularity() != LyricGranularity::None {
@@ -1252,6 +1301,46 @@ suitability (mean {:.2}/10)",
         }
     }
     print_table_top("warnings raised", &stats.warning, stats.parsed, 20);
+
+    let sung: usize = stats.sung_seconds.values().sum();
+    if sung > 0 {
+        println!("\nhow long a file is sung for ({sung} file(s) scoring for their lyrics)");
+        println!("  seconds, at the floor of a five-wide bucket");
+        for fraction in [0.001, 0.01, 0.05, 0.10, 0.25, 0.50] {
+            println!(
+                "    p{:<5} {:>6}",
+                format!("{:.1}", fraction * 100.0),
+                percentile(&stats.sung_seconds, fraction)
+            );
+        }
+        // Only the low end is printed. The shoulder a minimum has to sit on is down here, and the
+        // long tail of ordinary songs says nothing about where it falls.
+        println!("  the low end, bucket by bucket");
+        for (seconds, count) in &stats.sung_seconds {
+            if seconds.trim().parse::<usize>().is_ok_and(|s| s < 120) {
+                #[expect(
+                    clippy::cast_precision_loss,
+                    reason = "a percentage of a corpus-sized count"
+                )]
+                let share = *count as f64 * 100.0 / sung as f64;
+                println!("    {seconds}s  {count:>7} ({share:.2}%)");
+            }
+        }
+        println!("  files sung for less than");
+        for least in CANDIDATE_SUNG_SECONDS {
+            let under = stats
+                .sung_under
+                .get(&format!("under {least:>3}s"))
+                .copied()
+                .unwrap_or(0);
+            #[expect(
+                clippy::cast_precision_loss,
+                reason = "a percentage of a corpus-sized count"
+            )]
+            let share = under as f64 * 100.0 / sung as f64;
+            println!("    {least:>3}s  {under:>7} ({share:.2}%)");
+        }
+    }
 
     if !stats.failure_reason.is_empty() {
         println!("\nfailure reasons");

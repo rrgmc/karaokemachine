@@ -108,6 +108,15 @@ pub struct MidiDetail {
     pub melody_confidence: Option<f32>,
     /// Why none was claimed.
     pub melody_abstained: Option<String>,
+}
+
+/// The suitability of one song, whatever kind of song it is.
+///
+/// **Outside [`MidiDetail`] because every song has one**, and the song page reads it the same way
+/// for all four kinds: a MIDI file's is measured and the other three are answered by what they are
+/// and by how much of them is sung.
+#[derive(Debug, Clone)]
+pub struct SuitabilityDetail {
     /// Suitability out of 10.
     pub suitability: u8,
     /// Lyrics component.
@@ -122,10 +131,10 @@ pub struct MidiDetail {
     pub warnings: String,
 }
 
-impl MidiDetail {
+impl SuitabilityDetail {
     /// The suitability as the optional the shared color helper takes.
     ///
-    /// A MIDI song always has one, so this is `Some` every time — it exists only so the song page
+    /// A scanned song always has one, so this is `Some` every time — it exists only so the song page
     /// and the browse row color it through the same function rather than two that could come
     /// to disagree about where `mid` ends and `high` begins.
     pub fn suitability_opt(&self) -> Option<u8> {
@@ -177,9 +186,13 @@ pub struct SongDetail {
     pub kind: SongKind,
     /// Length in milliseconds. Both kinds of song have one.
     pub duration_ms: u32,
-    /// Everything only a MIDI file has: the flavor, the counts, the encoding and the suitability.
+    /// How suitable the file is as a karaoke song, and what that is made of.
     ///
-    /// One `Option` around thirteen fields that arrive and are absent together, rather than thirteen
+    /// Every song has one, which is why it is not inside any of the four blocks below.
+    pub suitability: SuitabilityDetail,
+    /// Everything only a MIDI file has: the flavor, the counts and the encoding.
+    ///
+    /// One `Option` around fields that arrive and are absent together, rather than that many
     /// separate ones — see [`MidiFacts`](crate::model::MidiFacts).
     pub midi: Option<MidiDetail>,
     /// Everything only a video has, straight from its probe.
@@ -342,12 +355,10 @@ impl SongDetail {
     /// The warnings, parsed. An unreadable column yields none rather than an error — a warning list
     /// is not worth failing a page render over.
     ///
-    /// A video has none: nothing analyzes it, so there is nothing to have gone wrong.
+    /// Read for every kind, because the one warning a media song can carry is the one that says
+    /// there is too little of it to sing.
     pub fn parsed_warnings(&self) -> Vec<StoredWarning> {
-        self.midi
-            .as_ref()
-            .and_then(|midi| serde_json::from_str(&midi.warnings).ok())
-            .unwrap_or_default()
+        serde_json::from_str(&self.suitability.warnings).unwrap_or_default()
     }
 
     /// What the analysis concludes about drawing this song's words, where nobody has said.

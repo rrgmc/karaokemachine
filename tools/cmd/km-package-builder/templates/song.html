@@ -157,20 +157,18 @@
   <div class="panel">
     <h3>{% if song.kind.is_midi() %}{{ "song-file-analysis"|t }}{% else %}{{ "song-file-info"|t }}{% endif %}</h3>
     <dl class="facts">
-      {% match song.midi %}
-      {% when Some with (midi) %}
+      {# One arm for every kind: the number is stored for all of them, so the page shows the same
+         column the band filter and the sort read. What differs is the line under it — a MIDI file's
+         four components are a measurement, a media song's are a derivation that does not apply. #}
       <dt>{{ "column-suitability"|t }}</dt>
       <dd>
-        <span class="suitability {{ crate::views::suitability_class(&midi.suitability_opt()) }}">{{ midi.suitability }}</span>/10
+        <span class="suitability {{ crate::views::suitability_class(&song.suitability.suitability_opt()) }}">{{ song.suitability.suitability }}</span>/10
+        {% if song.kind.is_midi() %}
         <span class="dim">{{ said.suitability_parts }}</span>
-      </dd>
-      {% when None %}
-      <dt>{{ "column-suitability"|t }}</dt>
-      <dd>
-        <span class="suitability high">10</span>/10
+        {% else %}
         <div class="dim">{{ "song-native-karaoke"|t }}</div>
+        {% endif %}
       </dd>
-      {% endmatch %}
       <dt>{{ "song-your-rating"|t }}</dt>
       <dd>
         <form class="row" hx-post="/songs/{{ song.id }}/user-score?as=toast" hx-target="#action-result" hx-swap="innerHTML">

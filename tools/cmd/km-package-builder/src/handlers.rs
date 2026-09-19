@@ -2118,21 +2118,31 @@ fn song_said(
             .into_owned();
     }
 
+    // Said for every kind, because every kind has a breakdown. A media song's four numbers are a
+    // derivation that does not apply to it rather than a measurement, which is what the note beside
+    // them on the page says.
+    said.suitability_parts = words
+        .msg_with(
+            "song-suitability-parts",
+            &[
+                (
+                    "lyrics",
+                    i64::from(song.suitability.suitability_lyrics).into(),
+                ),
+                ("sync", i64::from(song.suitability.suitability_sync).into()),
+                (
+                    "channels",
+                    i64::from(song.suitability.suitability_channels).into(),
+                ),
+                (
+                    "arrangement",
+                    i64::from(song.suitability.suitability_arrangement).into(),
+                ),
+            ],
+        )
+        .into_owned();
+
     if let Some(midi) = song.midi.as_ref() {
-        said.suitability_parts = words
-            .msg_with(
-                "song-suitability-parts",
-                &[
-                    ("lyrics", i64::from(midi.suitability_lyrics).into()),
-                    ("sync", i64::from(midi.suitability_sync).into()),
-                    ("channels", i64::from(midi.suitability_channels).into()),
-                    (
-                        "arrangement",
-                        i64::from(midi.suitability_arrangement).into(),
-                    ),
-                ],
-            )
-            .into_owned();
         said.melody = match midi.melody_channel {
             Some(channel) => match midi.melody_confidence {
                 Some(confidence) => words

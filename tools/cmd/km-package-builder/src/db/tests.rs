@@ -3343,6 +3343,7 @@ fn sorting_by_language_puts_the_unclassified_last() {
 /// One scanned song with only the fact block its kind implies, for the mapping test below.
 fn scanned(
     id: &str,
+    suitability: crate::model::SuitabilityFacts,
     midi: Option<crate::model::MidiFacts>,
     video: Option<crate::model::VideoFacts>,
     cdg: Option<crate::model::CdgFacts>,
@@ -3363,6 +3364,7 @@ fn scanned(
             duration_ms: 234_567,
             lyrics: Some("the words".to_owned()),
             fingerprint: "12:100:0,1".to_owned(),
+            suitability,
             midi,
             video,
             cdg,
@@ -3402,7 +3404,9 @@ fn every_scanned_column_comes_back_holding_what_was_put_in_it() {
         melody_channel: Some(11),
         melody_confidence: Some(0.625),
         melody_abstained: Some("the-reason".to_owned()),
-        suitability: 9,
+    };
+    let suitability_facts = crate::model::SuitabilityFacts {
+        value: 9,
         breakdown: (1, 2, 3, 4),
         warnings: r#"["the-warning"]"#.to_owned(),
     };
@@ -3426,9 +3430,29 @@ fn every_scanned_column_comes_back_holding_what_was_put_in_it() {
 
     db.write_scanned(
         &[
-            scanned("midi-hash", Some(midi_facts), None, None),
-            scanned("video-hash", None, Some(video_facts), None),
-            scanned("cdg-hash", None, None, Some(cdg_facts)),
+            scanned("midi-hash", suitability_facts, Some(midi_facts), None, None),
+            scanned(
+                "video-hash",
+                crate::model::SuitabilityFacts {
+                    value: 10,
+                    breakdown: (3, 3, 2, 2),
+                    warnings: "[]".to_owned(),
+                },
+                None,
+                Some(video_facts),
+                None,
+            ),
+            scanned(
+                "cdg-hash",
+                crate::model::SuitabilityFacts {
+                    value: 4,
+                    breakdown: (0, 0, 2, 2),
+                    warnings: r#"[{"code":"briefsinging","message":"m"}]"#.to_owned(),
+                },
+                None,
+                None,
+                Some(cdg_facts),
+            ),
         ],
         "2026-09-07T00:00:00Z",
     )
@@ -3458,14 +3482,18 @@ fn every_scanned_column_comes_back_holding_what_was_put_in_it() {
     assert_eq!(midi.melody_channel, Some(11));
     assert_eq!(midi.melody_confidence, Some(0.625));
     assert_eq!(midi.melody_abstained.as_deref(), Some("the-reason"));
-    assert_eq!(midi.suitability, 9);
-    assert_eq!(midi.suitability_lyrics, 1);
-    assert_eq!(midi.suitability_sync, 2);
-    assert_eq!(midi.suitability_channels, 3);
-    assert_eq!(midi.suitability_arrangement, 4);
+    assert_eq!(got.suitability.suitability, 9);
+    assert_eq!(got.suitability.suitability_lyrics, 1);
+    assert_eq!(got.suitability.suitability_sync, 2);
+    assert_eq!(got.suitability.suitability_channels, 3);
+    assert_eq!(got.suitability.suitability_arrangement, 4);
 
     let got = db.song("video-hash").expect("read back");
     assert_eq!(got.kind, SongKind::Video);
+    // Written for a media song too, and read back off the same columns: a browse list, the band
+    // filter and the sort all read this one number.
+    assert_eq!(got.suitability.suitability, 10);
+    assert_eq!(got.suitability.suitability_arrangement, 2);
     let video = got.video.expect("the video facts");
     assert_eq!(video.width, 2_001);
     assert_eq!(video.height, 2_002);
@@ -3911,9 +3939,7 @@ fn the_representative_is_the_best_file_and_stays_the_same_one() {
             Some("One Song"),
             &format!("f/{id}.kar"),
             |song| {
-                if let Some(midi) = song.midi.as_mut() {
-                    midi.suitability = suitability;
-                }
+                song.suitability.value = suitability;
             },
         );
     }
@@ -4362,9 +4388,7 @@ fn tidying_a_favorite_keeps_the_best_copy_that_list_actually_holds() {
             Some("One Song"),
             &format!("f/{id}.kar"),
             |song| {
-                if let Some(midi) = song.midi.as_mut() {
-                    midi.suitability = suitability;
-                }
+                song.suitability.value = suitability;
             },
         );
     }
@@ -4672,6 +4696,11 @@ fn add_built(
         // A shape shared by every song this makes, so a test wanting two of them paired has
         // only to give them matching names, which is the other half `compare` insists on.
         fingerprint: "12:100:0,1".to_owned(),
+        suitability: crate::model::SuitabilityFacts {
+            value: 7,
+            breakdown: (3, 2, 2, 0),
+            warnings: "[]".to_owned(),
+        },
         midi: Some(crate::model::MidiFacts {
             flavor: "soft".to_owned(),
             granularity: "syllablelevel".to_owned(),
@@ -4684,9 +4713,6 @@ fn add_built(
             melody_channel: Some(3),
             melody_confidence: Some(0.9),
             melody_abstained: None,
-            suitability: 7,
-            breakdown: (3, 2, 2, 0),
-            warnings: "[]".to_owned(),
         }),
         video: None,
         cdg: None,
@@ -4814,7 +4840,7 @@ fn the_suitability_bands_partition_the_corpus_by_score() {
     let mut db = db();
     for score in 0..=10u8 {
         add_scanned(&mut db, &format!("s{score:02}"), |song| {
-            song.midi.as_mut().expect("a midi song").suitability = score;
+            song.suitability.value = score;
         });
     }
 
@@ -4926,7 +4952,7 @@ fn the_added_filter_counts_back_from_now_and_a_rescan_keeps_the_date() {
 fn an_unscored_song_falls_outside_every_band() {
     let mut db = db();
     add_scanned(&mut db, "scored", |song| {
-        song.midi.as_mut().expect("a midi song").suitability = 2;
+        song.suitability.value = 2;
     });
     add_scanned(&mut db, "unscored", |_| {});
     db.conn
@@ -7021,8 +7047,8 @@ fn changing_the_corrections_stamps_the_song() {
     );
 }
 
-/// One scanned MIDI song whose analysis says what a test needs it to say.
-fn midi_facts(suitability: u8, breakdown: (u8, u8, u8, u8)) -> crate::model::MidiFacts {
+/// One scanned MIDI song's parse facts, for a test that cares about its suitability.
+fn midi_facts() -> crate::model::MidiFacts {
     crate::model::MidiFacts {
         flavor: "lyric_events".to_owned(),
         granularity: "syllablelevel".to_owned(),
@@ -7035,7 +7061,13 @@ fn midi_facts(suitability: u8, breakdown: (u8, u8, u8, u8)) -> crate::model::Mid
         melody_channel: Some(3),
         melody_confidence: Some(0.9),
         melody_abstained: None,
-        suitability,
+    }
+}
+
+/// A suitability saying what a test needs it to say.
+fn suitability_of(value: u8, breakdown: (u8, u8, u8, u8)) -> crate::model::SuitabilityFacts {
+    crate::model::SuitabilityFacts {
+        value,
         breakdown,
         warnings: "[]".to_owned(),
     }
@@ -7071,9 +7103,27 @@ fn a_quality_hint_leaves_out_what_is_not_a_midi_file() {
 
     db.write_scanned(
         &[
-            scanned("a-midi", Some(midi_facts(9, (3, 2, 2, 2))), None, None),
-            scanned("b-video", None, Some(video), None),
-            scanned("c-cdg", None, None, Some(cdg)),
+            scanned(
+                "a-midi",
+                suitability_of(9, (3, 2, 2, 2)),
+                Some(midi_facts()),
+                None,
+                None,
+            ),
+            scanned(
+                "b-video",
+                suitability_of(10, (3, 3, 2, 2)),
+                None,
+                Some(video),
+                None,
+            ),
+            scanned(
+                "c-cdg",
+                suitability_of(10, (3, 3, 2, 2)),
+                None,
+                None,
+                Some(cdg),
+            ),
         ],
         "2026-09-07T00:00:00Z",
     )
@@ -7105,11 +7155,18 @@ fn two_songs_tied_on_suitability_are_separated_by_their_components() {
             // First by id, and the worse of the two where the words are concerned.
             scanned(
                 "a-line-level",
-                Some(midi_facts(8, (1, 3, 2, 2))),
+                suitability_of(8, (1, 3, 2, 2)),
+                Some(midi_facts()),
                 None,
                 None,
             ),
-            scanned("b-word-ends", Some(midi_facts(8, (3, 1, 2, 2))), None, None),
+            scanned(
+                "b-word-ends",
+                suitability_of(8, (3, 1, 2, 2)),
+                Some(midi_facts()),
+                None,
+                None,
+            ),
         ],
         "2026-09-07T00:00:00Z",
     )
@@ -7136,8 +7193,20 @@ fn a_rating_somebody_typed_decides_nothing_about_which_to_play_first() {
 
     db.write_scanned(
         &[
-            scanned("a-rated", Some(midi_facts(5, (1, 1, 2, 1))), None, None),
-            scanned("b-measured", Some(midi_facts(9, (3, 3, 2, 1))), None, None),
+            scanned(
+                "a-rated",
+                suitability_of(5, (1, 1, 2, 1)),
+                Some(midi_facts()),
+                None,
+                None,
+            ),
+            scanned(
+                "b-measured",
+                suitability_of(9, (3, 3, 2, 1)),
+                Some(midi_facts()),
+                None,
+                None,
+            ),
         ],
         "2026-09-07T00:00:00Z",
     )

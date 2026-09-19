@@ -264,6 +264,12 @@ pub struct UltraStarFields {
     pub file: String,
     /// Length in milliseconds, counted from the audio.
     pub duration_ms: u32,
+    /// The span from the first sung syllable to the last, in milliseconds.
+    ///
+    /// **The one thing about an UltraStar song that is measured rather than taken on trust.** A
+    /// person timed these words to this recording, so the file says exactly how much of it is sung,
+    /// where a video and an MP3+G pair can offer only their own length.
+    pub sung_ms: u32,
     /// How loud the audio is, when it was measured.
     pub loudness: Option<km_kmpkg::LoudnessRecord>,
     /// The first lines of the words.
@@ -280,8 +286,10 @@ pub struct UltraStarFields {
 
 /// Turns an UltraStar song into a manifest entry.
 ///
-/// Scored a flat 10, under `Suitability, for a song that was made to be sung to`: a person timed its
-/// words to this recording. No MIDI fact is set, because the song has no MIDI in it.
+/// Scored under `Suitability, for a song that was made to be sung to`: full marks, because a person
+/// timed its words to this recording, and less where there is too little of it sung to be worth
+/// choosing. It is the one media kind whose span is read rather than stood in for by its length. No
+/// MIDI fact is set, because the song has no MIDI in it.
 #[must_use]
 pub fn entry_from_ultrastar(fields: UltraStarFields) -> SongEntry {
     let mut entry = SongEntry {
@@ -299,7 +307,7 @@ pub fn entry_from_ultrastar(fields: UltraStarFields) -> SongEntry {
         fixes: Vec::new(),
         melody: None,
         melody_abstained: None,
-        suitability: Some(km_kmpkg::SuitabilityRecord::purpose_made()),
+        suitability: Some(crate::purpose_made_suitability(fields.sung_ms)),
         lyric_preview: crate::preview_for(fields.lyrics_hidden, || fields.lyric_preview),
         tags: fields.tags,
         loudness: fields.loudness,
@@ -389,6 +397,12 @@ pub fn add_ultrastar_song(
         tags: request.tags.clone(),
         file: file.clone(),
         duration_ms: info.duration_ms,
+        // Measured off the timeline rather than taken from `words_end` above, which asks a different
+        // question, whether this MP3 is the recording these words were timed to, and answers it with
+        // an end rather than a span.
+        sung_ms: km_suitability::sung_span_ms(&km_song::ultrastar::song_from_timeline(
+            source.song.timeline.clone(),
+        )),
         loudness: measured.record,
         lyric_preview: source.song.timeline.preview(crate::LYRIC_PREVIEW_LINES),
         // Nothing detects this for an UltraStar song, so the description is the only voice, and its
@@ -493,6 +507,7 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
+    /// An UltraStar song with enough of it sung, which is the ordinary case.
     #[test]
     fn an_ultrastar_entry_scores_ten_and_carries_its_first_lines() {
         let song = ultrastar::parse(SONG).expect("parses");
@@ -504,7 +519,8 @@ mod tests {
             tags: Vec::new(),
             lyrics_hidden: false,
             file: "media/4.mp3".to_owned(),
-            duration_ms: 1_000,
+            duration_ms: 210_000,
+            sung_ms: 180_000,
             loudness: None,
             lyric_preview: song.timeline.preview(crate::LYRIC_PREVIEW_LINES),
             content_hash: None,
@@ -513,5 +529,35 @@ mod tests {
         assert_eq!(entry.suitability.map(|record| record.value), Some(10));
         assert_eq!(entry.lyric_preview, ["Hello"]);
         assert!(entry.melody.is_none() && entry.fixes.is_empty());
+    }
+
+    /// **Timed by a person and still not worth choosing.** The span is what this kind is measured on,
+    /// so an UltraStar file holding one line is answered by the words rather than by the recording: a
+    /// twenty-minute MP3 with `Hello` timed over its first second is not a karaoke song.
+    #[test]
+    fn an_ultrastar_song_sung_for_a_moment_loses_the_words_and_their_timing() {
+        let song = ultrastar::parse(SONG).expect("parses");
+        let entry = entry_from_ultrastar(UltraStarFields {
+            number: 4,
+            title: "Song".to_owned(),
+            artist: None,
+            language: Some("pt".to_owned()),
+            tags: Vec::new(),
+            lyrics_hidden: false,
+            file: "media/4.mp3".to_owned(),
+            duration_ms: 1_200_000,
+            sung_ms: 1_000,
+            loudness: None,
+            lyric_preview: song.timeline.preview(crate::LYRIC_PREVIEW_LINES),
+            content_hash: None,
+        });
+        let record = entry.suitability.expect("a suitability");
+        assert_eq!(record.value, 4);
+        assert_eq!(record.breakdown.lyrics, 0);
+        assert_eq!(record.breakdown.sync, 0);
+        assert_eq!(
+            record.warnings.first().map(|w| w.code.as_str()),
+            Some(crate::warning_code(km_suitability::WarningCode::BriefSinging).as_str())
+        );
     }
 }

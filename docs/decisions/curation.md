@@ -1699,11 +1699,11 @@ song sings — [`Suitability`](songs.md#suitability) is where that is argued —
 entitled to spend it than the number is. The row's own column says whether the machine will be able
 to offer the toggle.
 
-**MIDI files only, and the rest are left out and counted.** A video song and an MP3+G song are a
-flat 10 by what they are rather than by measurement
+**MIDI files only, and the rest are left out and counted.** A video song and an MP3+G song are rated
+by what they are rather than by measurement
 ([`Suitability, for a song that was made to be sung to`](songs.md#suitability-for-a-song-that-was-made-to-be-sung-to)),
-and every component behind that 10 is a fill, so an order over them would be the id tie-break wearing
-a badge. Somebody who ticks eight rows and sees six numbers is told why.
+and every component behind that number is a fill, so an order over them would be the id tie-break
+wearing a badge. Somebody who ticks eight rows and sees six numbers is told why.
 
 **It reads what a scan wrote and never a file.** That is what makes it a button that answers at once
 rather than a second *Recalculate suitability*, which reads every file and takes a scan's worth of

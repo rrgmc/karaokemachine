@@ -1636,6 +1636,21 @@ fn measure_packaged_video(
     Err("this build has no `video` feature, so it cannot measure a video".to_owned())
 }
 
+/// How long a media song in a package is sung for.
+///
+/// An UltraStar song carries its timeline, so the span is read from it. A video's words are pixels
+/// and an MP3+G pair's are one-bit tiles, so those two are answered by their own length, and so is
+/// an UltraStar song whose timeline will not open, which is the honest fallback rather than a
+/// refusal: a package that opens far enough to be re-analyzed should be re-analyzed.
+fn media_sung_ms(package: &Package, song: &km_kmpkg::SongEntry) -> u32 {
+    if song.kind.is_ultrastar()
+        && let Ok(timeline) = package.lyric_timeline(song.number)
+    {
+        return km_suitability::sung_span_ms(&km_song::ultrastar::song_from_timeline(timeline));
+    }
+    song.duration_ms
+}
+
 fn reanalyze(args: &ReanalyzeArgs) -> Result<()> {
     let package = Package::open(&args.package)
         .with_context(|| format!("opening {}", args.package.display()))?;
@@ -1645,16 +1660,29 @@ fn reanalyze(args: &ReanalyzeArgs) -> Result<()> {
     let mut changed = 0usize;
 
     for song in &manifest.songs {
-        // None of the 0–10 suitability can be re-analyzed for a media song: it measures separate
-        // channels, lyrics, how well they sync and whether a melody was found, and a video or an
-        // MP3+G pair has none of the four. **How loud it is can be, and this is the one path that
-        // can do it without a rebuild** — the media stays where it is and only the manifest gains a
-        // number, which is what makes a package built before levelling worth re-analyzing at all.
+        // Three of the four components cannot be re-analyzed for a media song: separate channels,
+        // lyrics and how well they sync are MIDI facts, and a video or an MP3+G pair has none of
+        // them. **How much of it is sung can be, and so can how loud it is**, both from what is
+        // already in the package, so this is the one path that corrects either without a rebuild.
         //
         // Carried across with `add_media_copied` either way, so `reanalyze` still writes a complete
         // package and the bytes are copied rather than re-encoded.
         if !song.kind.is_midi() {
             let mut entry = song.clone();
+            let sung_ms = media_sung_ms(&package, song);
+            let before = entry.suitability.as_ref().map(|record| record.value);
+            let record = km_pack::purpose_made_suitability(sung_ms);
+            let after = record.value;
+            if before != Some(after) {
+                changed += 1;
+                println!(
+                    "  {:>8}  {} -> {after}/10  {}",
+                    song.number,
+                    before.map_or_else(|| "-".to_owned(), |value| value.to_string()),
+                    song.title
+                );
+            }
+            entry.suitability = Some(record);
             if !args.no_loudness {
                 let before = entry.loudness.map(|record| record.lufs);
                 entry.loudness = measure_in_package(&package, song).or(entry.loudness);

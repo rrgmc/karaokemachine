@@ -270,8 +270,11 @@ data in the file. That does not give it a timeline. CD+G words are one-bit 6x12 
 character data behind them — there is not even a character to have an encoding — so there is nothing
 to highlight and nothing to search.
 
-Suitability is **absent, not zero**, for the same reason it is for a video: the rubric measures
-separate channels, lyrics, sync and a melody, and a CD+G pair has none of the four.
+Suitability is **full marks, by what the file is**, for the same reason it is for a video: a
+commercial karaoke disc was made to be sung to, so there is nothing for the rubric's four
+measurements to resolve. The one thing in doubt is how long it is sung for, and the pair is answered
+on its own length because CD+G words carry no timing to read. See
+[`Suitability, for a song that was made to be sung to`](songs.md#suitability-for-a-song-that-was-made-to-be-sung-to).
 
 ## How an MP3+G pair is stored
 
@@ -462,7 +465,9 @@ which, for the reasons an MP3+G song has none.
 **Its suitability is a flat 10**, under `Suitability, for a song that was made to be sung to`: a
 person timed its words to this recording. The recording is usually the original with its vocals,
 and community timing is uneven; a file that sings badly is curation's to hide, not a number's to
-guess.
+guess. **How long it is sung for is the exception**, and it is the one media kind measured on its
+words rather than on its length, because the timing a person wrote says exactly where the singing
+starts and stops.
 
 `display.lyric_offset_ms` applies unchanged, because it moves the words and not the sound.
 

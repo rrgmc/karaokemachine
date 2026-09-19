@@ -81,6 +81,19 @@ pub struct Thresholds {
     /// Below this coverage the lyrics are thin enough to say so. Real songs sit well above it: the
     /// tenth percentile of the same sample was 0.64.
     pub sparse_lyric_coverage: f32,
+    /// Least singing a file can hold and still be worth choosing, in milliseconds.
+    ///
+    /// Measured first counted syllable to last, so a long file carrying one verse and a short file
+    /// sung the whole way through are asked the same question. [`Self::min_lyric_coverage`] asks
+    /// what share of the music has words over it, which a short file answers perfectly by being
+    /// short: a fraction cannot tell forty seconds sung throughout from four minutes.
+    ///
+    /// **The one threshold here that sits on a tail rather than in a gap.** Over the whole local
+    /// corpus this condemns 0.88% of the files whose words pass the quantity tests, and the first
+    /// percentile falls on it; there is no empty band to aim at, so it is a judgement about what is
+    /// worth a queue slot with its cost measured. `km-lyrics scan` prints the distribution and the
+    /// cost of every candidate, and revising this means running it again.
+    pub min_sung_ms: u32,
     /// Fewest lines of chord names a file needs before its lyric track is read as a chord chart.
     ///
     /// A floor, so that a short file whose few lines happen to be `A` and `E` is left to the quantity
@@ -125,6 +138,7 @@ impl Default for Thresholds {
             min_lyric_coverage: 0.15,
             sparse_lyric_syllables: 60,
             sparse_lyric_coverage: 0.40,
+            min_sung_ms: 45_000,
             min_chord_lines: 8,
             chord_chart_share: 0.80,
         }
@@ -145,6 +159,11 @@ impl Thresholds {
     /// Whether a duration is plausible for a song.
     pub fn is_plausible_duration(&self, duration_ms: u32) -> bool {
         (self.min_duration_ms..=self.max_duration_ms).contains(&duration_ms)
+    }
+
+    /// Whether there is enough singing in a file for it to be worth choosing.
+    pub fn is_enough_singing(&self, sung_ms: u32) -> bool {
+        sung_ms >= self.min_sung_ms
     }
 }
 

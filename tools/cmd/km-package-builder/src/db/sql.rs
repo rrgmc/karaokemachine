@@ -347,15 +347,10 @@ pub(super) fn song_row(row: &Row<'_>) -> rusqlite::Result<SongRow> {
         artist: row.get(2)?,
         edited: row.get::<_, i64>(3)? != 0,
         duration_ms: row.get::<_, i64>(4)? as u32,
-        // A purpose-made karaoke file scores 10 by what it is, and the scan has no column for that
-        // because there is nothing to measure. Filled in here so the browse list agrees with what
-        // packaging will write and with what the song page shows, rather than showing a dash that
-        // reads as "bad".
-        suitability: if kind.is_midi() {
-            row.get::<_, Option<i64>>(5)?.map(|v| v as u8)
-        } else {
-            Some(10)
-        },
+        // Read from the column for every kind, because the scan writes one for every kind. The
+        // filter and the sort read that same column, so a number worked out here instead would show
+        // one thing on the page and mean another in the `WHERE` clause.
+        suitability: row.get::<_, Option<i64>>(5)?.map(|v| v as u8),
         user_score: row.get::<_, Option<i64>>(6)?.map(|v| v as u8),
         favorite_count: row.get::<_, i64>(7)? as u32,
         melody_channel: row.get::<_, Option<i64>>(8)?.map(|v| v as u8),

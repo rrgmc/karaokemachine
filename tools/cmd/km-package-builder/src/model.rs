@@ -299,6 +299,11 @@ pub struct ScannedSong {
     pub lyrics: Option<String>,
     /// A structural signature, for suggesting near-duplicates.
     pub fingerprint: String,
+    /// How suitable the file is as a karaoke song, whatever kind of file it is.
+    ///
+    /// Not inside either block below, and not an `Option`: every song has one, because a song made
+    /// to be sung to is answered by what it is where a MIDI file is answered by measurement.
+    pub suitability: SuitabilityFacts,
     /// What parsing and analysis found, for a MIDI file.
     pub midi: Option<MidiFacts>,
     /// What a probe found, for a video file.
@@ -356,12 +361,49 @@ pub struct MidiFacts {
     pub melody_confidence: Option<f32>,
     /// Why no melody channel was claimed.
     pub melody_abstained: Option<String>,
+}
+
+/// The suitability of a song of any kind, and what it is made of.
+///
+/// **Outside [`MidiFacts`] because every kind of song has one.** A MIDI file's is measured; a video,
+/// an MP3+G pair and an UltraStar song are answered by what they are and by how much of them is
+/// sung. Keeping the number here and filling it at scan time is what lets the browse list, the
+/// suitability filter and the sort read one column and agree: a number invented on the way out
+/// agrees with the page and not with the `WHERE` clause beside it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SuitabilityFacts {
     /// Suitability, 0 to 10.
-    pub suitability: u8,
-    /// The suitability's four components.
+    pub value: u8,
+    /// Its four components: lyrics, sync, channels, arrangement.
     pub breakdown: (u8, u8, u8, u8),
     /// Everything wrong with the file, as JSON.
     pub warnings: String,
+}
+
+impl SuitabilityFacts {
+    /// What a scan writes for a song that was made to be sung to, given how much of it is sung.
+    ///
+    /// Through `km-pack` rather than derived here, so the number a browse list shows is the number
+    /// packaging will write into the manifest.
+    #[must_use]
+    pub fn purpose_made(sung_ms: u32) -> Self {
+        Self::from(&km_pack::purpose_made_suitability(sung_ms))
+    }
+}
+
+impl From<&km_kmpkg::SuitabilityRecord> for SuitabilityFacts {
+    fn from(record: &km_kmpkg::SuitabilityRecord) -> Self {
+        Self {
+            value: record.value,
+            breakdown: (
+                record.breakdown.lyrics,
+                record.breakdown.sync,
+                record.breakdown.channels,
+                record.breakdown.arrangement,
+            ),
+            warnings: serde_json::to_string(&record.warnings).unwrap_or_else(|_| "[]".to_owned()),
+        }
+    }
 }
 
 /// Everything about a song that only an UltraStar file has.
@@ -496,15 +538,15 @@ pub struct SongRow {
     pub kind: SongKind,
     /// Automatic suitability, 0 to 10.
     ///
-    /// Measured for a MIDI file. **A flat 10 for a video or MP3+G song**, which is not a measurement
+    /// Measured for a MIDI file. **Full marks for a video or MP3+G song**, which is not a measurement
     /// but a fact about what the file is: a purpose-made karaoke file is the best possible answer to
-    /// "how good is this as a karaoke source". `None` only for a row scanned before it
-    /// existed. See the `Suitability, for a song that was made to be sung to` decision in
-    /// `docs/decisions/songs.md`.
+    /// "how good is this as a karaoke source", and less where there is too little of it sung to be
+    /// worth choosing. `None` only for a row scanned before the column was filled for its kind. See the
+    /// `Suitability, for a song that was made to be sung to` decision in `docs/decisions/songs.md`.
     ///
-    /// Only two fields on this row are MIDI-only — this and `melody_channel`, which was already
-    /// optional — so they stay flat here rather than being grouped the way [`MidiFacts`] groups the
-    /// song page's dozen.
+    /// Read from the column rather than worked out here, because the band filter and the suitability
+    /// sort read that same column: a number invented on the way out would show on the page and mean
+    /// nothing in the `WHERE` clause beside it.
     pub suitability: Option<u8>,
     /// The person's own rating, when they have given one.
     pub user_score: Option<u8>,

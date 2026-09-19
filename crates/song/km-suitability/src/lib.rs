@@ -29,7 +29,7 @@ use serde::Serialize;
 
 pub use crate::channel::{ChannelStats, DRUM_CHANNEL};
 pub use crate::melody::{Abstention, MelodyChannel, MelodyEvidence, MelodyOutcome, MelodySignal};
-pub use crate::suitability::{Breakdown, Suitability, Warning, WarningCode};
+pub use crate::suitability::{Breakdown, Suitability, Warning, WarningCode, sung_span_ms};
 pub use crate::thresholds::Thresholds;
 
 /// Which revision of the analysis produced a stored row.
@@ -54,7 +54,7 @@ pub use crate::thresholds::Thresholds;
 /// does not.
 ///
 /// **A bump adds an entry to [`REVISIONS`] saying which rows it can change.**
-pub const ANALYSIS_REVISION: u32 = 5;
+pub const ANALYSIS_REVISION: u32 = 6;
 
 /// Which stored rows one revision of the analysis can answer differently.
 ///
@@ -65,6 +65,14 @@ pub const ANALYSIS_REVISION: u32 = 5;
 pub enum Reach {
     /// Any row may change.
     Everything,
+    /// Every song may change, and nothing that is not one.
+    ///
+    /// Wider than any count below and narrower than [`Self::Everything`], and the difference is the
+    /// row a scan holds for a file it found no song in: a readme, an orphan `.cdg`, a MIDI file
+    /// that does not parse. A revision that decides something new about *songs* decides nothing
+    /// about those, so re-reading them buys nothing; a revision that could turn a failure into a
+    /// song reaches everything and is the variant above.
+    EverySong,
     /// Only a song with at least this many lyric lines, as `km_song`'s `line_count` counts them.
     /// A video, an MP3+G pair and a file with fewer lines are out of reach.
     LyricLinesAtLeast(u32),
@@ -110,6 +118,15 @@ pub const REVISIONS: &[Revision] = &[
     Revision {
         number: 5,
         reach: Reach::SyllablesAtLeast(32),
+    },
+    // How long a file is sung for, which no stored column answers: a four-minute file whose words
+    // run for forty seconds reads as a four-minute file, and the rule reaches a video, an MP3+G pair
+    // and an UltraStar song as well, none of which carries a line or a syllable count to be bounded
+    // by. A file with no song in it has no span and no suitability, which is what stops this being
+    // `Everything`.
+    Revision {
+        number: 6,
+        reach: Reach::EverySong,
     },
 ];
 
@@ -250,7 +267,7 @@ mod tests {
         }
 
         assert_eq!(
-            digest, 2_144_865_604_629_550_133,
+            digest, 5_890_314_546_671_839_065,
             "the analysis of the fixtures has changed, so a corpus scanned by an older build no \
              longer agrees with this one. Bump km_suitability::ANALYSIS_REVISION and put the new \
              digest here; a scan then re-reads what that build decided and nothing else."
