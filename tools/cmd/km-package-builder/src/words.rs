@@ -285,6 +285,7 @@ mod tests {
             .chain(crate::model::ScanStatus::KEYS)
             .chain(crate::scan::phase::ALL)
             .chain(crate::model::SongKind::KEYS)
+            .chain(crate::handlers::ABSTENTION_KEYS)
             .map(|key| (*key).to_owned())
             .collect();
         for source in SOURCES {
