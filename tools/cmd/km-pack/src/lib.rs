@@ -2113,6 +2113,40 @@ mod tests {
         assert!(measured.is_edited(EditedField::LyricsHidden));
     }
 
+    /// The measured half, and the preview going with it before anybody has said anything.
+    ///
+    /// The path a package takes when nothing is hand-set: a credit block in the lyric track is
+    /// silenced by measurement alone, carries no marker — nobody decided anything — and carries no
+    /// first lines, so the song book and the remote say nothing a singer would not be shown.
+    #[test]
+    fn a_credit_block_is_silenced_by_measurement_and_carries_no_first_lines() {
+        let song = km_song::Song::parse(
+            &km_song::testing::credits_in_the_lyric_track(),
+            &km_song::ParseOptions::default(),
+        )
+        .expect("fixture parses");
+        let analysis = Analysis::of(&song);
+        let entry = entry_from_analysis(
+            &song,
+            &analysis,
+            ChosenFields {
+                number: 1,
+                title: "T".to_owned(),
+                artist: None,
+                language: None,
+                file: "midi/1.kar".to_owned(),
+                lyric_encoding: None,
+            },
+        );
+
+        assert!(entry.lyrics_hidden);
+        assert!(
+            !entry.is_edited(EditedField::LyricsHidden),
+            "a measurement is not somebody's decision, and a rebuild has to be free to change it"
+        );
+        assert!(entry.lyric_preview.is_empty());
+    }
+
     /// Agreeing with the measurement records nothing, exactly as confirming a melody channel does.
     #[test]
     fn agreeing_about_the_words_marks_nothing() {

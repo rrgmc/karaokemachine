@@ -399,6 +399,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             },
         ),
         (
+            // The same band, emptied for the opposite reason, and this is the pair to judge side by
+            // side with 07. That one is a file with no words and says so in the middle of the
+            // screen; this one is a file whose words somebody withheld, where that sentence would
+            // be false — so the band is bare and the corner carries the word instead. The key and
+            // the melody stand beside it, because neither is affected by the words going.
+            "07b-playing-lyrics-withheld",
+            Frame {
+                timeline: None,
+                lyrics_hidden: true,
+                transpose: -2,
+                ..playing(&info, &empty_timeline, &view, 0, &empty_entry, &song)
+            },
+        ),
+        (
             "08-playing-connect-overlay",
             Frame {
                 show_connect_overlay: true,
