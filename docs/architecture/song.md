@@ -308,6 +308,38 @@ at 10%:
 
 Nothing fell between 0.49 and 0.75, which is why the gate is safe.
 
+### How long a corpus file is actually sung
+
+**`km-lyrics scan` reports the span**, in five-second buckets with the percentiles and the blast
+radius of each candidate minimum beside them, over every file whose words pass the quantity tests.
+It asks the question independently of the answer: reading `breakdown.lyrics` instead would count only
+the files the rule already keeps, so the histogram would show nothing below the threshold and report
+the threshold back to whoever set it.
+
+**Measured over the whole local corpus**, as a share of the files it judges:
+
+| Sung for under | Share of judged files |
+|---|---|
+| 20s | 0.12% |
+| 30s | 0.30% |
+| 40s | 0.69% |
+| **45s** | **0.88%** |
+| 60s | 1.47% |
+| 75s | 2.25% |
+
+**There is no gap here, and that is the difference from every other threshold on this page.** The
+quantity thresholds sit in an empty band between two clusters; this one sits on a smooth tail. Per
+five-second bucket the share runs 0.01% at 5s, 0.07% at 15s, about 0.09% through the twenties, then
+roughly 0.2% from 30s to 45s and 0.2% to 0.3% through the fifties before climbing. The first
+percentile is at 45 seconds, so the number is a judgement about what is worth a queue slot with the
+cost of it measured, rather than a line the corpus drew.
+
+**What it moves is the top of the distribution and almost nothing else.** Across every file in the
+corpus, the share scoring 8 or above goes from 21.17% to 21.01%, and the 0.16 points leave for 2 and
+3. The whole-corpus mean moves 4.52 to 4.51, which says only that most of a corpus is instrumentals:
+the files this rule is about are the ones that looked packageable at a glance, and about three
+quarters of one percent of those no longer do.
+
 ### Which notes the sync question is asked about
 
 **A full arrangement answers yes to everything.** Sync counts syllables landing within 120 ms of a

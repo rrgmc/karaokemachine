@@ -850,10 +850,17 @@ nothing. So a row climbs until the first revision that reaches it. `LyricLinesAt
 the same over `syllable_count`. A NULL revision is never promoted. On an open with nothing to promote
 each statement matches no row.
 
+**`Reach::EverySong` raises no song and still raises the `files` rows that hold none**, which is the
+one thing separating it from `Reach::Everything`: a readme, an orphan `.cdg` and a MIDI file that
+does not parse have no suitability to have been decided differently, so re-reading them buys nothing.
+A revision that could turn one of those into a song reaches everything instead.
+
 | Revision | Reach | Why |
 |---|---|---|
 | 2 | 1 or more syllables | the melody's presence gate passes every channel when there are no words |
 | 3 | 8 or more lyric lines | a chord chart needs `min_chord_lines` chord lines, each a lyric line |
+| 4, 5 | 32 or more syllables | the divider is judged no lower, by `MIN_JUDGED_SYLLABLES` |
+| 6 | every song | no stored column bounds how long a song is sung for, and the number is written for a video, an MP3+G pair and an UltraStar song for the first time |
 
 **`--reanalyze` is that scan with the set chosen from the database rather than from the disk.** It
 takes `paths_matching(&scan::every_song())` and hands it to `ScanOptions::only`, so it reads one copy

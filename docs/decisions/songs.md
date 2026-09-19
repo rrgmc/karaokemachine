@@ -266,6 +266,14 @@ about.
 are answered by their own length, except an UltraStar song, which carries timed words and so is
 measured the way a MIDI file is.
 
+**The threshold is a judgement with its cost measured, and not a gap the corpus drew.** Three
+quarters of a minute condemns 0.88% of the files whose words pass the quantity tests, and the first
+percentile of how long a file is sung for falls there. Unlike the thresholds above it, this one sits
+on a smooth tail rather than in an empty band: the corpus offers no line to find, only the price of
+each one. Across every file, the share scoring 8 or above moves by 0.16 points. `km-lyrics scan`
+reports the distribution and the cost of every candidate, and revising the number means running it
+again.
+
 ## The sync component asks about the melody, not about the arrangement
 
 **Whether the words were timed to this music is a question about the line being sung.** Asked of the

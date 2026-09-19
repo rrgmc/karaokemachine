@@ -66,12 +66,12 @@ pub enum WarningCode {
     ChordNamesOnly,
     /// Real lyrics, but thin — fewer words than a song usually has, or silent for most of its length.
     SparseLyrics,
-    /// Real words, well timed, and over before there is anything to sing.
+    /// Real words, well timed, and too little of them in time to be worth choosing.
     ///
     /// A different fault from [`Self::PartialLyrics`], which is a file whose words stop early
     /// against the music it has. This is a file with no more music to stop against: the words cover
-    /// it and there is barely any of it. Coverage is a fraction and answers such a file perfectly,
-    /// which is why the span is measured beside it.
+    /// it, and there is barely any of it to cover. Coverage is a fraction and so answers such a file
+    /// perfectly, which is why the span in seconds is measured beside it.
     BriefSinging,
     /// A space after every syllable or after none, so nothing in the file says where a word ends.
     ///
@@ -145,8 +145,8 @@ impl Suitability {
     /// makes it *harder* to spot than an instrumental, not easier.
     ///
     /// `BriefSinging` belongs here on the same reasoning read from the other side: such a file can
-    /// be sung from and is over before it is worth having been chosen, and it is harder to spot than
-    /// either, every measurement but the one passing.
+    /// be sung from, and is over before the queue slot it took was worth taking. It is the hardest
+    /// of the three to spot by eye, because every measurement but the one passes it.
     pub fn has_hard_defect(&self) -> bool {
         self.warnings.iter().any(|w| {
             matches!(
@@ -1074,6 +1074,26 @@ mod tests {
         assert!(thresholds.min_lyric_syllables <= 120, "below the songs");
         assert!(thresholds.min_lyric_coverage > 0.08);
         assert!(thresholds.min_lyric_coverage < 0.56);
+    }
+
+    /// The span threshold is a judgement, so what is asserted is its cost rather than a gap.
+    ///
+    /// Measured over the whole local corpus, of the files whose words pass the quantity tests: 0.12%
+    /// are sung for under 20 seconds, 0.88% under 45 and 2.25% under 75. There is no empty band, so
+    /// nothing here can say the number is *right*. What these bounds hold is the order of magnitude
+    /// it costs: under 20 seconds takes almost nothing and buys almost nothing, and past 75 the rule
+    /// starts taking real songs. A revision belongs between them, against a fresh sweep.
+    #[test]
+    fn the_span_threshold_costs_what_a_judgement_may_cost() {
+        let thresholds = Thresholds::default();
+        assert!(
+            thresholds.min_sung_ms >= 20_000,
+            "below this it condemns a tenth of a percent and is not worth having"
+        );
+        assert!(
+            thresholds.min_sung_ms <= 75_000,
+            "above this it is taking songs somebody would sing"
+        );
     }
 
     /// Plenty of text, timed across the whole song and landing on every bar, and not one word of it.

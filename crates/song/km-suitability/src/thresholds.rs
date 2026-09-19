@@ -87,6 +87,12 @@ pub struct Thresholds {
     /// sung the whole way through are asked the same question. [`Self::min_lyric_coverage`] asks
     /// what share of the music has words over it, which a short file answers perfectly by being
     /// short: a fraction cannot tell forty seconds sung throughout from four minutes.
+    ///
+    /// **The one threshold here that sits on a tail rather than in a gap.** Over the whole local
+    /// corpus this condemns 0.88% of the files whose words pass the quantity tests, and the first
+    /// percentile falls on it; there is no empty band to aim at, so it is a judgement about what is
+    /// worth a queue slot with its cost measured. `km-lyrics scan` prints the distribution and the
+    /// cost of every candidate, and revising this means running it again.
     pub min_sung_ms: u32,
     /// Fewest lines of chord names a file needs before its lyric track is read as a chord chart.
     ///
