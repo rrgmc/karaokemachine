@@ -543,6 +543,7 @@ mod tests {
             artist: None,
             language: Some("pt".to_owned()),
             tags: Vec::new(),
+            lyrics_hidden: false,
             file: "media/4.mp3".to_owned(),
             duration_ms: 1_200_000,
             sung_ms: 1_000,

@@ -174,8 +174,11 @@ impl Suitability {
     ///
     /// [`WarningCode::PartialLyrics`] is deliberately not among them although it is a hard defect:
     /// those are the song's own words, timed for a verse and then stopped, and half a verse somebody
-    /// can sing is worth more than an empty screen. [`WarningCode::NoLyrics`] is not among them
-    /// either, because a file with no words draws none already.
+    /// can sing is worth more than an empty screen. [`WarningCode::BriefSinging`] is left out on the
+    /// same reasoning: forty seconds of a song is the song's own words too, and how much of it there
+    /// is was answered when the file was rated rather than when it was drawn.
+    /// [`WarningCode::NoLyrics`] is not among them either, because a file with no words draws none
+    /// already.
     pub fn words_cannot_be_followed(&self) -> bool {
         self.warnings.iter().any(|w| {
             matches!(
@@ -1211,6 +1214,13 @@ mod tests {
         let (none, _) = assess_bytes(&testing::instrumental());
         assert!(none.has_hard_defect());
         assert!(!none.words_cannot_be_followed());
+
+        // A song too short to be worth choosing is a hard defect for the same reason a verse timed
+        // and abandoned is, and is drawn for the same reason: forty seconds of the song's own words
+        // is forty seconds somebody can sing.
+        let (brief, _) = assess_bytes(&testing::a_complete_short_song());
+        assert!(brief.has_hard_defect());
+        assert!(!brief.words_cannot_be_followed());
 
         // The same arrangement as the credits fixture, differing only in carrying real words.
         let (good, _) = assess_bytes(&testing::high_quality_song());
