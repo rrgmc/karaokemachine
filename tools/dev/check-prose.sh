@@ -14,9 +14,9 @@
 # still needs a human pass, exactly as `check-no-local-refs.sh` says of a brand name.
 #
 # **`--changed` is what `task check` runs, and the whole-tree form is the audit.** The split is a
-# cost: fourteen shapes over 700 files is ~10,000 `grep` spawns, which is 2m21s on this repository's
-# Windows box against 3.3s for a branch's own lines -- and `sys` is two thirds of that 2m21s, so it
-# is process creation rather than matching. A 2m21s guard in front of `check-no-local-refs.sh`'s 13s
+# cost: fourteen shapes over 700 files is ~10,000 `grep` spawns, which is 2m27s on this repository's
+# Windows box against 3.3s for a branch's own lines -- and `sys` is two thirds of that 2m27s, so it
+# is process creation rather than matching. A 2m27s guard in front of `check-no-local-refs.sh`'s 13s
 # would invert the order `task check` is arranged in; three seconds does not.
 #
 # The whole-tree form is the one to run by hand after a large rewrite, and the one CI runs on every
@@ -31,6 +31,16 @@
 # branch's own commits above `origin/master` -- so a message that is already on the default branch is
 # never read, and the shapes are judged where a reword is still free. A hit names the short sha and
 # whether it fell in the subject or the body.
+#
+# **The sentence shapes are a second scanner, and `prose-sentences.awk` holds it.** A body sentence
+# stops at twenty-five words and a paragraph at six sentences, and a passive verb that names its
+# agent is a hit. It reads `*.md` and commit messages, and it is one process per file rather than one
+# per shape.
+#
+# **The whole-tree form reads the sentence shapes over `prose-converted.txt` alone.** A third of the
+# sentences in the tree are longer than the limit, so a tree-wide sentence run would fail on every
+# branch and teach a session to skip the gate. A file converts, it joins that list, and CI reads it
+# whole from then on. A branch's own added lines are read wherever they land.
 
 set -uo pipefail
 
@@ -76,11 +86,58 @@ SHAPES=(
 # `check-no-local-refs.sh` does.
 EXEMPT='^(docs/HISTORY\.md|docs/learning-rust\.md|tools/dev/check-prose\.sh)$'
 
+# The sentence shapes, and the files that have been written to them.
+SENTENCES=tools/dev/prose-sentences.awk
+CONVERTED=tools/dev/prose-converted.txt
+
+# **A sentence rule is named here as well as in the awk**, so `--list` prints all seventeen from one
+# place.
+SENTENCE_RULES=(
+  "sentence length|a body sentence stops at 25 words"
+  "paragraph length|a paragraph stops at 6 sentences"
+  "passive voice|an agent after the verb: \"is read by the runner\""
+)
+
+# A converted file is read whole by every form. A file that is not is read only where a branch added
+# a line.
+#
+# **The list is read once and matched in the shell**, because a pipeline under `pipefail` answers a
+# question it was not asked. `grep -q` stops at the first hit, the `grep` feeding it takes SIGPIPE,
+# and the pipeline's status is that signal rather than the match -- so every path below the first
+# would come back unconverted. The comment lines and the blank ones go here; the padding around each
+# path is what makes the match whole, so `README.md` does not also select `ports/README.md`.
+CONVERTED_PATHS=""
+if [ -f "$CONVERTED" ]; then
+  CONVERTED_PATHS=" $(tr -d '\r' < "$CONVERTED" | grep -Ev '^[[:space:]]*(#|$)' | tr '\n' ' ')"
+fi
+
+converted() {
+  [[ "$CONVERTED_PATHS" == *" $1 "* ]]
+}
+
+# **`--list` prints before anything is gathered**, so it answers in every mode. A branch that adds no
+# prose is a clean early exit, and a list that only printed after it would be a list a session cannot
+# ask for while it works.
+list_shapes() {
+  echo "check-prose: the shapes it looks for"
+  for entry in "${SHAPES[@]}"; do
+    printf '  %-34s %s\n' "${entry%%|*}" "${entry#*|}"
+  done
+  echo
+  echo "check-prose: the sentence shapes, over *.md and commit messages"
+  for entry in "${SENTENCE_RULES[@]}"; do
+    printf '  %-34s %s\n' "${entry%%|*}" "${entry#*|}"
+  done
+  printf '  %-34s %s\n' "written to them" "$CONVERTED"
+  echo
+}
+
 CHANGED=0
 COMMITS=0
 for arg in "$@"; do
   [ "$arg" = "--changed" ] && CHANGED=1
   [ "$arg" = "--commits" ] && COMMITS=1
+  [ "$arg" = "--list" ] && list_shapes
 done
 
 # **`--commits` on its own reads messages and no files.** `lint:prose` names the two forms as two
@@ -144,14 +201,6 @@ if [ "$FILES_MODE" -eq 1 ] && [ "${#FILES[@]}" -eq 0 ]; then
     echo "             Is \`git\` on the PATH, and is this a checkout?" >&2
     exit 2
   fi
-fi
-
-if [ "${1:-}" = "--list" ]; then
-  echo "check-prose: the shapes it looks for"
-  for entry in "${SHAPES[@]}"; do
-    printf '  %-34s %s\n' "${entry%%|*}" "${entry#*|}"
-  done
-  echo
 fi
 
 # In `--changed` mode, only the lines this branch *added* are read. Filtering by file instead would
@@ -243,6 +292,44 @@ scan() {
   done
 }
 
+# **The sentence scanner judges in the awk and reports here**, where `scan` matches here and judges
+# in `judge`. A shape is a phrase a line either holds or does not; a sentence is counted across the
+# lines it wraps over, which is a paragraph's work rather than a line's.
+#
+# A hit arrives as `<line>|<rule>|<text>` and meets the same scope filter, so `--changed` reads the
+# lines a branch added here too. The line is the one the sentence *starts* on.
+sentence_scan() {
+  local label="$1" scope="$2" kind="${3:-file}" src="${4:-}"
+  local hit number rule text where
+  while IFS= read -r hit; do
+    [ -z "$hit" ] && continue
+    number="${hit%%|*}"
+    rule="${hit#*|}"
+    text="${rule#*|}"
+    rule="${rule%%|*}"
+    if [ -n "$scope" ] && [[ "$scope" != *" $number "* ]]; then
+      continue
+    fi
+    if [ "$kind" = "message" ]; then
+      if [ "$number" -eq 1 ]; then
+        where="subject"
+      else
+        where="body:$((number - 2))"
+      fi
+      printf '%s %s: %s\n    ^ %s\n' "$label" "$where" "$text" "$rule"
+    else
+      printf '%s:%s: %s\n    ^ %s\n' "$label" "$number" "$text" "$rule"
+    fi
+    found=1
+  done < <(
+    if [ "$kind" = "message" ]; then
+      awk -f "$SENTENCES"
+    else
+      awk -f "$SENTENCES" -- "$src" 2>/dev/null
+    fi
+  )
+}
+
 found=0
 
 if [ "$FILES_MODE" -eq 1 ]; then
@@ -254,6 +341,15 @@ if [ "$FILES_MODE" -eq 1 ]; then
       scope=" $scope"
     fi
     scan "$file" "$scope" file "$file"
+    # A document only. A comment's sentence wraps over a syntax this does not read, and the decision
+    # says so rather than leaving a session to find it.
+    case "$file" in
+      *.md)
+        if [ "$CHANGED" -eq 1 ] || converted "$file"; then
+          sentence_scan "$file" "$scope" file "$file"
+        fi
+        ;;
+    esac
   done
 fi
 
@@ -269,7 +365,9 @@ if [ "$COMMITS" -eq 1 ]; then
   fi
   for rev in "${REVS[@]}"; do
     # A merge carries a written subject here rather than git's default, so it is read like any other.
-    scan "$(git rev-parse --short "$rev")" "" message < <(git log -1 --format='%s%n%n%b' "$rev")
+    short=$(git rev-parse --short "$rev")
+    scan "$short" "" message < <(git log -1 --format='%s%n%n%b' "$rev")
+    sentence_scan "$short" "" message < <(git log -1 --format='%s%n%n%b' "$rev")
   done
 fi
 
@@ -287,6 +385,9 @@ the same test -- why a line is the way it is earns its place; what it used to be
 A commit message states the fault the change answers and the rule that holds after it. The route the
 session took to get there is what fails, and `git commit --amend` or `git rebase -i --reword` is the
 fix while the branch is unmerged, which is the only range this reads.
+
+A line marked `sentence length`, `paragraph length` or `passive voice` breaks the sentence shape
+instead. A long sentence splits into two short ones. The facts stay; only the full stops move.
 WHY
   exit 1
 fi

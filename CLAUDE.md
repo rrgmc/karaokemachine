@@ -51,6 +51,12 @@ The detail lives in the documents below, opened when needed.
    states the fault the change answers** — the fault's past tense is the content, the session's own is
    what fails. It reads `origin/master..HEAD` and nothing below it, so a message is fixed with
    `git commit --amend` while the branch is unmerged.
+7. **A sentence takes the active voice, one idea, and twenty-five words at most.** Simplified
+   Technical English gives the rest: simple tenses, one word per idea, six sentences to a paragraph,
+   no metaphor and no idiom. A path, a flag, a name and a number stay verbatim. **A full stop is not
+   the only join**: two clauses carrying one idea keep their conjunction. A run of fragments is worse
+   than the long sentence it replaced. **A heading keeps the voice it has**, and so does a table
+   cell; `task lint:prose` counts the words and cannot see a metaphor.
 
 ## Non-goals
 
