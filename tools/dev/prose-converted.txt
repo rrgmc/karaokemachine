@@ -8,25 +8,37 @@
 # read only because it is named here, and a page in another language is judged by its structure.
 
 README.md
+BUILDING.md
 CHANGELOG.md
 CLAUDE.md
+CONTRIBUTING.md
+DEPLOYING.md
 RELEASE.md
 SECURITY.md
 .github/pull_request_template.md
 assets/wallpapers/CREDITS.md
 crates/CLAUDE.md
+crates/machine/km-api/static/README.md
+crates/remote/km-remote-pages/static/README.md
 docs/decisions/README.md
 docs/research/README.md
 fixtures/CLAUDE.md
 fixtures/README.md
 icon/CLAUDE.md
+icon/README.md
 ports/CLAUDE.md
+ports/machine/android/README.md
 ports/machine/ios/README.md
+ports/remote/android/README.md
+ports/remote/ios/README.md
 site/CLAUDE.md
 site/README.md
 site/index.html
 site/pt-BR/index.html
 tools/CLAUDE.md
+tools/cmd/assets/CLAUDE.md
+tools/cmd/assets/km-admin/static/README.md
 tools/cmd/km-pack/CLAUDE.md
 tools/cmd/km-package-builder/static/README.md
+tools/dev/remote/README.md
 tools/dist/release-notes.md
