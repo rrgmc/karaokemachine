@@ -5463,7 +5463,10 @@ pub async fn package(
             Ok((
                 db.package_volume(&lookup, volume)?,
                 db.package_volumes(&lookup)?,
-                db.package_members(&lookup, volume)?,
+                (
+                    db.package_members(&lookup, volume)?,
+                    db.package_held(&lookup, volume)?,
+                ),
                 db.languages_present()?,
                 db.raise_version(&lookup)?,
                 // In the same closure as the rest, so the sources editor costs no extra round trip.
@@ -5472,10 +5475,11 @@ pub async fn package(
             ))
         })
         .await;
-    let (package, volumes, members, present, raise_version, favorites, sources) = match loaded {
-        Ok(loaded) => loaded,
-        Err(error) => return failed_page(error, &state, "packages"),
-    };
+    let (package, volumes, (members, held), present, raise_version, favorites, sources) =
+        match loaded {
+            Ok(loaded) => loaded,
+            Err(error) => return failed_page(error, &state, "packages"),
+        };
     let root = match root_of(&state) {
         Ok(root) => root,
         Err(error) => return failed_page(error, &state, "packages"),
@@ -5510,6 +5514,7 @@ pub async fn package(
                 package.id.clone(),
                 volume,
                 members,
+                held,
                 false,
                 state.locale(),
             ),
@@ -5668,13 +5673,14 @@ pub async fn sync_package(
                 Ok((
                     synced,
                     db.package_members(&package_id, volume)?,
+                    db.package_held(&package_id, volume)?,
                     db.package_volumes(&package_id)?,
                 ))
             })
             .await
         {
             Err(error) => MessageFragment::failed(error.say(state.locale())),
-            Ok((synced, members, volumes)) => {
+            Ok((synced, members, held, volumes)) => {
                 let text = sync_says(&synced, state.locale());
                 // The table comes back with the sentence. A sync is the one write on this page whose
                 // result is not the row in front of the person who pressed it: it adds and removes
@@ -5685,6 +5691,7 @@ pub async fn sync_package(
                         id.clone(),
                         volume,
                         members,
+                        held,
                         true,
                         state.locale(),
                     ),
@@ -5745,6 +5752,8 @@ pub async fn sync_package(
                 .collect(),
             adding: counted("sync-adding", plan.would_add),
             removing: counted("sync-removing", plan.would_remove),
+            returning: (plan.would_return > 0)
+                .then(|| counted("sync-returning", plan.would_return)),
             keeping: counted("sync-keeping", plan.kept),
             // Said only when it is news: what every volume together has no number for starts one.
             new_volumes: (plan.new_volumes > 0)
@@ -5808,6 +5817,13 @@ fn sync_says(result: &crate::db::Synced, locale: km_locale::Locale) -> String {
             ],
         )
         .into_owned();
+    if result.placed.returned > 0 {
+        text.push(' ');
+        text.push_str(&words.msg_with(
+            "said-sync-returned",
+            &[("count", i64::from(result.placed.returned).into())],
+        ));
+    }
     // No clause for songs left out: what every volume together cannot hold starts a volume, so a sync
     // places everything its lists name.
     if result.new_volumes > 0 {
@@ -6296,9 +6312,13 @@ fn made_says(
 }
 
 /// `POST /packages/{id}/number`
+///
+/// The table comes back with the sentence, because a number typed onto a held one fills the hold,
+/// and the held row has to leave the screen.
 pub async fn package_number(
     AxumState(state): AxumState<State>,
     UrlPath(id): UrlPath<String>,
+    Query(volume): Query<VolumeQuery>,
     body: String,
 ) -> Response {
     let form = Fields::parse(&body);
@@ -6308,15 +6328,93 @@ pub async fn package_number(
         );
     };
     let song_id = form.one("song_id").unwrap_or_default().to_owned();
+    let package_id = id.clone();
     match state
-        .blocking(move |db| db.set_package_number(&id, &song_id, number))
+        .blocking(move |db| db.set_package_number(&package_id, &song_id, number))
         .await
     {
-        Ok(()) => crate::views::toast_only(&crate::views::Toast::good(
-            crate::words::messages(state.locale())
+        Ok(()) => {
+            let said = crate::words::messages(state.locale())
                 .msg_with("said-now-number", &[("number", i64::from(number).into())])
-                .into_owned(),
-        )),
+                .into_owned();
+            said_with_members(&state, id, volume.number(), true, said).await
+        }
+        Err(error) => MessageFragment::failed(error.say(state.locale())),
+    }
+}
+
+/// `POST /packages/{id}/held/fill?volume=`
+///
+/// Moves a song of the package into a held number of the volume shown. The form names the song by
+/// where it sits, `from_volume` and `from_number`, because that is what the curator reads off the
+/// tabs; the song may come from any volume.
+pub async fn held_fill(
+    AxumState(state): AxumState<State>,
+    UrlPath(id): UrlPath<String>,
+    Query(volume): Query<VolumeQuery>,
+    body: String,
+) -> Response {
+    let words = crate::words::messages(state.locale());
+    let form = Fields::parse(&body);
+    let (Some(number), Some(from_number)) = (
+        form.parsed::<u32>("number"),
+        form.parsed::<u32>("from_number"),
+    ) else {
+        return MessageFragment::failed(words.msg("said-not-a-number"));
+    };
+    let volume = volume.number();
+    let from_volume = form.parsed::<u32>("from_volume").unwrap_or(volume).max(1);
+    let package_id = id.clone();
+    match state
+        .blocking(move |db| {
+            let Some(song_id) = db.member_at(&package_id, from_volume, from_number)? else {
+                return Err(crate::db::DbError::Rejected(format!(
+                    "no song has number {from_number} in volume {from_volume}"
+                )));
+            };
+            db.fill_held(&package_id, volume, number, &song_id)
+        })
+        .await
+    {
+        Ok(()) => {
+            let said = words
+                .msg_with("said-held-filled", &[("number", i64::from(number).into())])
+                .into_owned();
+            said_with_members(&state, id, volume, true, said).await
+        }
+        Err(error) => MessageFragment::failed(error.say(state.locale())),
+    }
+}
+
+/// `POST /packages/{id}/held/release?volume=`
+///
+/// Gives a hold up, so the next song placed can take the number. The song it was held for is not
+/// touched: it is already out of the package.
+pub async fn held_release(
+    AxumState(state): AxumState<State>,
+    UrlPath(id): UrlPath<String>,
+    Query(volume): Query<VolumeQuery>,
+    body: String,
+) -> Response {
+    let words = crate::words::messages(state.locale());
+    let Some(number) = Fields::parse(&body).parsed::<u32>("number") else {
+        return MessageFragment::failed(words.msg("said-not-a-number"));
+    };
+    let volume = volume.number();
+    let package_id = id.clone();
+    match state
+        .blocking(move |db| db.release_held(&package_id, volume, number))
+        .await
+    {
+        Ok(()) => {
+            let said = words
+                .msg_with(
+                    "said-held-released",
+                    &[("number", i64::from(number).into())],
+                )
+                .into_owned();
+            said_with_members(&state, id, volume, true, said).await
+        }
         Err(error) => MessageFragment::failed(error.say(state.locale())),
     }
 }
@@ -6403,6 +6501,14 @@ pub async fn package_replace(
                     "said-replace-empty",
                     &[("number", number.into()), ("package", name.as_str().into())],
                 ),
+                crate::db::ReplaceRefusal::Held(name, title) => words.msg_with(
+                    "said-replace-held",
+                    &[
+                        ("number", number.into()),
+                        ("package", name.as_str().into()),
+                        ("title", title.as_str().into()),
+                    ],
+                ),
                 crate::db::ReplaceRefusal::SameSong => {
                     words.msg_with("said-replace-same-song", &[("number", number.into())])
                 }
@@ -6487,11 +6593,23 @@ async fn said_with_members(
     }
     let lookup = package_id.clone();
     match state
-        .reading(move |db| db.package_members(&lookup, volume))
+        .reading(move |db| {
+            Ok((
+                db.package_members(&lookup, volume)?,
+                db.package_held(&lookup, volume)?,
+            ))
+        })
         .await
     {
-        Ok(members) => crate::views::with_toast(
-            &crate::views::MembersTable::new(package_id, volume, members, true, state.locale()),
+        Ok((members, held)) => crate::views::with_toast(
+            &crate::views::MembersTable::new(
+                package_id,
+                volume,
+                members,
+                held,
+                true,
+                state.locale(),
+            ),
             &crate::views::Toast::good(text),
             state.locale(),
         ),

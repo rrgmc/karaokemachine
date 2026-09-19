@@ -1278,11 +1278,10 @@ highest — which is what a hand add does, rightly, because the room it has left
 first — would spend a volume's 999 slots on the songs a list has held and lost: a list edited a few
 hundred times would run out with forty songs in it.
 
-**The cost is that a freed number is dialled to a different song.** A songbook printed before a sync
-is not a songbook after one, for the numbers whose songs left. That is accepted because the
-alternative is a package that stops working, and because a rebuild writes a new file and a new listing
-anyway — see
-[`A rebuild raises the version`](#a-rebuild-raises-the-version-and-it-is-the-patch-that-moves).
+**A song leaving does not make a hole.** Its number stays held for it, so a songbook printed before the
+sync stays true. The holes a sync fills are the ones a person made, by releasing a hold or by moving a
+song. See
+[`A sync holds the number of a song that leaves`](#a-sync-holds-the-number-of-a-song-that-leaves).
 
 **A union larger than every volume starts another volume.** A sync places every song its lists name,
 and the confirmation says how many volumes it would start before anything is written. See
@@ -1291,8 +1290,33 @@ and the confirmation says how many volumes it would start before anything is wri
 **Re-flow still means what it meant, inside one volume.** It moves every song of that volume down from
 its first number and closes the holes, which on a volume that has churned is exactly what somebody
 wants; the two do not fight, because a re-flow moves everyone and adds nobody where a sync adds and
-removes and moves nobody.
+removes and moves nobody. A held number is not a hole, so a re-flow flows the songs around it.
 
+## A sync holds the number of a song that leaves
+
+**A song a sync takes out leaves its number held for it.** A printed songbook still lists the song at
+that number. A singer who dials it would hear a different song if the number went to the next arrival.
+So no sync, hand add or re-flow gives a held number to another song.
+
+**The hold names the song it waits for.** The Songs tab draws it as a row at its number, with the
+title and the performer the song had when it left. The title links to the song while the corpus still
+knows it. The row tells the curator to put another version of the same song there.
+
+**A person fills a hold, and only by moving a song the package already holds.** The row offers a button
+for each song of the package that the grouping pass files with the missing one. It also takes a volume
+and a number, because the grouping pass does not find every copy. The song may come from any volume,
+and this is the one move between volumes. The number it leaves is an ordinary free number, because only
+a sync makes a hold. Typing the held number into a song's own number box fills the hold as well.
+
+**A song that comes back to the lists takes back its held number.** Its songbook entry is then true
+again. A merge counts: a list holding the song it was merged into brings that song back to the number.
+
+**Release gives a hold up.** The number becomes free, and the next sync can hand it to another song.
+A hold spends a number until somebody fills or releases it. A list edited many times therefore fills a
+volume with holds, and Release is the answer to that. A replacement at a held number is refused, because
+the hold names what belongs there.
+
+**Re-flow keeps every hold where it is**, and flows the songs around them.
 ## A song in a package can be replaced at its number
 
 **Another song takes the number, in the same volume, and the song that held it leaves the package.**
@@ -1305,14 +1329,14 @@ recording on purpose. The control is on the new song's page, with a number and a
 first and names the song that would leave, because a number typed from memory is the likeliest
 mistake.
 
-**It is refused** when no song has that number, when the song already holds it, when the song is
-already elsewhere in the package, and when the song was merged into another. A package holds a song
-once, and a merged song is shown as the one it was merged into.
+**It is refused** when no song has that number, or when a sync holds the number. It is also refused
+when the song already holds the number, is already elsewhere in the package, or was merged into
+another. A package holds a song once, and a merged song is shown as the one it was merged into.
 
 **In a package that follows favorites, the lists change as well.** A sync cannot tell that the new song
-stands for the old one. On its own it would take the old song out and give the new one the lowest free
-number, which is the old number only by chance. So in each list the package follows, the new song
-takes the old one's place, including where the list holds a song merged into the old one. The next
+stands for the old one. On its own it would take the old song out, hold its number, and give the new
+one a different number. So the new song takes the old one's place in each list the package follows.
+That includes a list holding a song merged into the old one. The next
 sync then has nothing to move. A list the package does not follow is left alone, and the confirmation
 names the lists that change.
 
@@ -1332,8 +1356,8 @@ volume is filled from lists a person curated one song at a time rather than from
 matched.
 
 **A song is in a package once, in one volume, and stays there.** A sync never moves a song between
-volumes, so a volume's printed book stays true for every song still in it. A song leaving frees its
-number, and the next song arriving takes the lowest free number in the first volume that has one.
+volumes, so a volume's printed book stays true for every song still in it. A song leaving keeps its
+number held, and the next song arriving takes the lowest free number in the first volume that has one.
 
 **Volume 1's id is the package's id.** Every package from before volumes therefore became a package of
 one volume without a machine noticing: its bank, which comes from the id, stayed where it was, and a

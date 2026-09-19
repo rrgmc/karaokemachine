@@ -674,7 +674,16 @@ package-volume-tab = { $count ->
   }
 package-number = No.
 package-source-missing = source missing
-package-numbering-note = Changing a number saves when the field loses focus. A number already used by another song in this package is rejected; numbers are not swapped automatically.
+package-numbering-note = Changing a number saves when the field loses focus. A number already used by another song in this package is rejected; numbers are not swapped automatically. When a sync takes a song out, its number is held for it: no other song gets that number until you fill it or release it.
+package-held-for = Held for
+package-held-title = A sync took this song out, and a printed songbook still lists it at this number. Put another version of it here, or release the number.
+package-held-gone = no longer in the corpus
+package-held-move = Move No. { $number } here
+package-held-move-volume = Move No. { $number } of volume { $volume } here
+package-held-from-volume = From volume
+package-held-from-number = No.
+package-held-fill = Move here
+package-held-release = Release
 
 ## Sourcing a package from favorites ------------------------------------------
 
@@ -689,7 +698,7 @@ sync-button = { $count ->
     [one] Sync from { $count } list…
    *[other] Sync from { $count } lists…
   }
-sync-note = Adds what the lists hold and takes out what they no longer do. Every song that stays keeps its number.
+sync-note = Adds what the lists hold and takes out what they no longer do. Every song that stays keeps its number, and a song that leaves has its number held.
 sync-no-sources-note = Add a list above to have this package hold what that list holds.
 sync-from = from
 sync-adding = { $count ->
@@ -697,8 +706,12 @@ sync-adding = { $count ->
    *[other] { $count } go in
   }
 sync-removing = { $count ->
-    [one] { $count } comes out
-   *[other] { $count } come out
+    [one] { $count } comes out, its number held
+   *[other] { $count } come out, their numbers held
+  }
+sync-returning = { $count ->
+    [one] { $count } goes back to its held number
+   *[other] { $count } go back to their held numbers
   }
 sync-keeping = { $count ->
     [one] { $count } stays where it is
@@ -1063,6 +1076,9 @@ confirm-replace-favorites = { $count ->
 said-replaced = { $new } is now number { $number } in { $package }, in place of { $old }.
 said-replaced-in-favorites = It also took its place in { $favorites }.
 said-replace-empty = No song has number { $number } in { $package }.
+said-replace-held = Number { $number } in { $package } is held for { $title }. Fill it on the package's Songs tab, from a song already in the package.
+said-held-filled = Number { $number } is filled.
+said-held-released = Number { $number } is released. The next sync can give it to another song.
 said-replace-same-song = This song already has number { $number } there.
 said-replace-already-in = This song is already in that package, as number { $number } in { $package }. Remove it there first, or replace another song with it.
 said-replace-merged = This song was merged into another song. Replace with that song instead.
@@ -1287,7 +1303,11 @@ said-nothing-to-sync = { $count ->
     [one] Already holds what its lists hold — 1 song, nothing to add and nothing to take out.
    *[other] Already holds what its lists hold — { $count } songs, nothing to add and nothing to take out.
   }
-said-synced = Synced: { $added } in, { $removed } out, { $kept } kept their numbers.
+said-synced = Synced: { $added } in, { $removed } out with their numbers held, { $kept } kept their numbers.
+said-sync-returned = { $count ->
+    [one] { $count } of them took back the number held for it.
+   *[other] { $count } of them took back the numbers held for them.
+  }
 said-sync-new-volumes = { $count ->
     [one] The lists outgrew the package, so it has a new volume.
    *[other] The lists outgrew the package, so it has { $count } new volumes.

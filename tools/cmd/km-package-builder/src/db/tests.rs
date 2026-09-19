@@ -1304,13 +1304,21 @@ fn a_synced_song_keeps_the_number_it_had() {
     }
 }
 
-/// A number a removal freed is handed to the next song, rather than left behind.
+/// The numbers a sync holds in one volume, as number-and-song pairs in number order.
+fn held(db: &Db, package_id: &str, volume: u32) -> Vec<(u32, Option<String>)> {
+    db.package_held(package_id, volume)
+        .expect("held")
+        .into_iter()
+        .map(|hold| (hold.number, hold.song_id))
+        .collect()
+}
+
+/// A song a sync takes out leaves its number held, and a newcomer takes the number after it.
 ///
-/// **What this is really asserting is that a package cannot leak its slots.** Numbering from the
-/// highest would spend the 999 on songs a list has held and lost, so a list edited a few hundred
-/// times would run out with four songs in it — which the second half of this test is.
+/// **A printed songbook still lists the song at that number**, so handing it to another song would
+/// send a singer who dials it to the wrong music.
 #[test]
-fn a_freed_number_is_handed_to_the_next_song() {
+fn a_removed_song_holds_its_number() {
     let mut db = db();
     let list = db.create_favorite("TODO Rock").expect("a list");
     for id in ["aaa", "bbb", "ccc", "ddd"] {
@@ -1320,6 +1328,52 @@ fn a_freed_number_is_handed_to_the_next_song() {
     source_from(&db, "vol1", &[list]).expect("source it");
     db.sync_package("vol1", "2026-09-15T00:00:00Z")
         .expect("first sync");
+
+    db.set_favorite("bbb", list, false).expect("unfile");
+    filed(&mut db, "eee", list);
+    let synced = db
+        .sync_package("vol1", "2026-09-15T01:00:00Z")
+        .expect("second sync");
+    assert_eq!((synced.placed.added, synced.removed), (1, 1));
+    assert_eq!(
+        numbering(&db, "vol1"),
+        [
+            (1, "aaa".to_owned()),
+            (3, "ccc".to_owned()),
+            (4, "ddd".to_owned()),
+            (5, "eee".to_owned())
+        ],
+        "the newcomer took the number after the last, not the held one"
+    );
+    assert_eq!(held(&db, "vol1", 1), [(2, Some("bbb".to_owned()))]);
+    let hold = &db.package_held("vol1", 1).expect("held")[0];
+    assert_eq!(hold.title, "bbb", "the hold keeps the title it left with");
+}
+
+/// A song that comes back to the lists takes back the number held for it.
+#[test]
+fn a_returning_song_takes_back_its_held_number() {
+    let mut db = db();
+    let list = db.create_favorite("TODO Rock").expect("a list");
+    for id in ["aaa", "bbb", "ccc"] {
+        filed(&mut db, id, list);
+    }
+    sourced_package(&mut db, "vol1", 1);
+    source_from(&db, "vol1", &[list]).expect("source it");
+    db.sync_package("vol1", "2026-09-15T00:00:00Z")
+        .expect("first sync");
+    db.set_favorite("bbb", list, false).expect("unfile");
+    db.sync_package("vol1", "2026-09-15T01:00:00Z")
+        .expect("second sync");
+
+    db.set_favorite("bbb", list, true).expect("file it again");
+    filed(&mut db, "ddd", list);
+    let plan = db.package_sync_plan("vol1").expect("plan");
+    assert_eq!((plan.would_add, plan.would_return), (2, 1));
+    let synced = db
+        .sync_package("vol1", "2026-09-15T02:00:00Z")
+        .expect("third sync");
+    assert_eq!((synced.placed.added, synced.placed.returned), (2, 1));
     assert_eq!(
         numbering(&db, "vol1"),
         [
@@ -1329,45 +1383,186 @@ fn a_freed_number_is_handed_to_the_next_song() {
             (4, "ddd".to_owned())
         ]
     );
+    assert!(held(&db, "vol1", 1).is_empty(), "the hold is spent");
+}
 
+/// A released number is an ordinary free number, and the next song takes it.
+#[test]
+fn a_released_number_goes_to_the_next_song() {
+    let mut db = db();
+    let list = db.create_favorite("TODO Rock").expect("a list");
+    for id in ["aaa", "bbb", "ccc"] {
+        filed(&mut db, id, list);
+    }
+    sourced_package(&mut db, "vol1", 1);
+    source_from(&db, "vol1", &[list]).expect("source it");
+    db.sync_package("vol1", "2026-09-15T00:00:00Z")
+        .expect("first sync");
     db.set_favorite("bbb", list, false).expect("unfile");
-    filed(&mut db, "eee", list);
     db.sync_package("vol1", "2026-09-15T01:00:00Z")
         .expect("second sync");
+
+    assert!(
+        db.release_held("vol1", 1, 3).is_err(),
+        "a number nothing holds is refused"
+    );
+    db.release_held("vol1", 1, 2).expect("release");
+    filed(&mut db, "ddd", list);
+    db.sync_package("vol1", "2026-09-15T02:00:00Z")
+        .expect("third sync");
     assert_eq!(
         numbering(&db, "vol1"),
         [
             (1, "aaa".to_owned()),
-            (2, "eee".to_owned()),
-            (3, "ccc".to_owned()),
-            (4, "ddd".to_owned())
-        ],
-        "the newcomer took the hole and not the number after the last"
+            (2, "ddd".to_owned()),
+            (3, "ccc".to_owned())
+        ]
+    );
+}
+
+/// A person fills a held number by moving a song of the package into it, from any volume.
+#[test]
+fn a_held_number_is_filled_from_another_volume() {
+    let mut db = db();
+    let list = db.create_favorite("Everything").expect("a list");
+    sourced_package(&mut db, "vol1", u32::from(km_songcode::MAX_SLOT) - 1);
+    source_from(&db, "vol1", &[list]).expect("source it");
+    for id in ["aaa", "bbb", "ccc"] {
+        filed(&mut db, id, list);
+    }
+    db.sync_package("vol1", "2026-09-15T00:00:00Z")
+        .expect("first sync");
+    db.set_favorite("aaa", list, false).expect("unfile");
+    db.sync_package("vol1", "2026-09-15T01:00:00Z")
+        .expect("second sync");
+    assert_eq!(held(&db, "vol1", 1), [(998, Some("aaa".to_owned()))]);
+
+    assert!(
+        db.fill_held("vol1", 1, 999, "ccc").is_err(),
+        "a number nothing holds is refused"
+    );
+    add(&mut db, "zzz", Some("zzz"), "f/zzz.kar");
+    assert!(
+        db.fill_held("vol1", 1, 998, "zzz").is_err(),
+        "a song outside the package is refused"
     );
 
-    // And it goes on being true: churn the list and the highest number never climbs.
-    for round in 0..40 {
-        let going = format!("churn-{round}");
-        let coming = format!("churn-{}", round + 1);
-        if round == 0 {
-            filed(&mut db, &going, list);
-            db.sync_package("vol1", "2026-09-15T02:00:00Z")
-                .expect("sync");
-        }
-        filed(&mut db, &coming, list);
-        db.set_favorite(&going, list, false).expect("unfile");
-        db.sync_package("vol1", "2026-09-15T02:00:00Z")
-            .expect("sync");
-    }
-    let highest = numbering(&db, "vol1")
-        .into_iter()
-        .map(|(number, _)| number)
-        .max()
-        .expect("a highest number");
     assert_eq!(
-        highest, 5,
-        "forty rounds of churn spent one slot, not forty"
+        db.member_at("vol1", 2, 1).expect("read"),
+        Some("ccc".to_owned())
     );
+    db.fill_held("vol1", 1, 998, "ccc").expect("fill");
+    assert_eq!(
+        volume_numbering(&db, "vol1", 1),
+        [(998, "ccc".to_owned()), (999, "bbb".to_owned())]
+    );
+    assert!(volume_numbering(&db, "vol1", 2).is_empty());
+    assert!(held(&db, "vol1", 1).is_empty(), "the hold is spent");
+    assert!(
+        held(&db, "vol1", 2).is_empty(),
+        "the number the song left is free, not held: only a sync holds"
+    );
+}
+
+/// Typing a held number into a member's box fills the hold.
+#[test]
+fn a_member_numbered_onto_a_hold_fills_it() {
+    let mut db = db();
+    let list = db.create_favorite("TODO Rock").expect("a list");
+    for id in ["aaa", "bbb", "ccc"] {
+        filed(&mut db, id, list);
+    }
+    sourced_package(&mut db, "vol1", 1);
+    source_from(&db, "vol1", &[list]).expect("source it");
+    db.sync_package("vol1", "2026-09-15T00:00:00Z")
+        .expect("first sync");
+    db.set_favorite("bbb", list, false).expect("unfile");
+    db.sync_package("vol1", "2026-09-15T01:00:00Z")
+        .expect("second sync");
+
+    db.set_package_number("vol1", "ccc", 2).expect("renumber");
+    assert_eq!(
+        numbering(&db, "vol1"),
+        [(1, "aaa".to_owned()), (2, "ccc".to_owned())]
+    );
+    assert!(held(&db, "vol1", 1).is_empty());
+}
+
+/// A re-flow keeps every hold and flows the songs around them.
+#[test]
+fn a_reflow_flows_around_held_numbers() {
+    let mut db = db();
+    let list = db.create_favorite("TODO Rock").expect("a list");
+    for id in ["aaa", "bbb", "ccc", "ddd"] {
+        filed(&mut db, id, list);
+    }
+    sourced_package(&mut db, "vol1", 1);
+    source_from(&db, "vol1", &[list]).expect("source it");
+    db.sync_package("vol1", "2026-09-15T00:00:00Z")
+        .expect("first sync");
+    db.set_favorite("bbb", list, false).expect("unfile");
+    db.sync_package("vol1", "2026-09-15T01:00:00Z")
+        .expect("second sync");
+    db.set_package_number("vol1", "ddd", 9).expect("a gap");
+
+    db.renumber_package("vol1", 1).expect("re-flow");
+    assert_eq!(
+        numbering(&db, "vol1"),
+        [
+            (1, "aaa".to_owned()),
+            (3, "ccc".to_owned()),
+            (4, "ddd".to_owned())
+        ]
+    );
+    assert_eq!(held(&db, "vol1", 1), [(2, Some("bbb".to_owned()))]);
+}
+
+/// A replacement at a held number is refused, and names the song held for.
+#[test]
+fn a_replacement_at_a_held_number_is_refused() {
+    let mut db = db();
+    let list = db.create_favorite("TODO Rock").expect("a list");
+    for id in ["aaa", "bbb"] {
+        filed(&mut db, id, list);
+    }
+    add(&mut db, "ccc", Some("ccc"), "f/ccc.kar");
+    sourced_package(&mut db, "vol1", 1);
+    source_from(&db, "vol1", &[list]).expect("source it");
+    db.sync_package("vol1", "2026-09-15T00:00:00Z")
+        .expect("first sync");
+    db.set_favorite("bbb", list, false).expect("unfile");
+    db.sync_package("vol1", "2026-09-15T01:00:00Z")
+        .expect("second sync");
+
+    assert_eq!(
+        db.replacement_at("vol1", 1, 2, "ccc")
+            .expect("read")
+            .expect_err("refused"),
+        ReplaceRefusal::Held("vol1".to_owned(), "bbb".to_owned())
+    );
+}
+
+/// A held number offers the package's other files of the same recording.
+#[test]
+fn a_held_number_offers_other_files_of_its_recording() {
+    let mut db = db();
+    let list = db.create_favorite("TODO Rock").expect("a list");
+    for id in ["aaa", "bbb", "ccc"] {
+        filed(&mut db, id, list);
+    }
+    db.execute_for_test("UPDATE songs SET duplicate_of = 'bbb' WHERE id = 'ccc'")
+        .expect("group");
+    sourced_package(&mut db, "vol1", 1);
+    source_from(&db, "vol1", &[list]).expect("source it");
+    db.sync_package("vol1", "2026-09-15T00:00:00Z")
+        .expect("first sync");
+    db.set_favorite("bbb", list, false).expect("unfile");
+    db.sync_package("vol1", "2026-09-15T01:00:00Z")
+        .expect("second sync");
+
+    let holds = db.package_held("vol1", 1).expect("held");
+    assert_eq!(holds.len(), 1);
+    assert_eq!(holds[0].candidates, [(1, 3, "ccc".to_owned())]);
 }
 
 /// What one volume of a package holds, as number-and-song pairs in number order.
@@ -1443,8 +1638,12 @@ fn a_synced_song_keeps_its_volume_and_holes_fill_from_the_first() {
     db.sync_package("vol1", "2026-09-15T00:00:00Z")
         .expect("first sync");
 
-    // A hole in the first volume, and a newcomer to fill it.
+    // A hole in the first volume, and a newcomer to fill it. The sync holds the number, so the
+    // hole exists once somebody releases it.
     db.set_favorite("aaa", list, false).expect("unfile");
+    db.sync_package("vol1", "2026-09-15T00:30:00Z")
+        .expect("the sync that holds the number");
+    db.release_held("vol1", 1, 998).expect("release");
     filed(&mut db, "ddd", list);
     let synced = db
         .sync_package("vol1", "2026-09-15T01:00:00Z")

@@ -12,7 +12,7 @@ use axum::response::{Html, IntoResponse, Response};
 use km_locale::filters;
 
 use crate::db::{ClusterCounts, Counts, Initial, SongDetail, SuitabilityFilter};
-use crate::model::{FavoriteNode, LyricHit, PackageMember, PackageRow, SongRow};
+use crate::model::{FavoriteNode, HeldNumber, LyricHit, PackageMember, PackageRow, SongRow};
 use crate::scan::ProgressView;
 
 /// The markers `Db::lyric_search` asks FTS5 to wrap each matched term in.
@@ -1959,12 +1959,40 @@ pub struct MembersTable {
     pub package_id: String,
     /// Which of its volumes the table shows.
     pub volume: u32,
-    /// What it holds, in number order.
-    pub members: Vec<PackageMember>,
+    /// What it holds and the numbers a sync holds, merged in number order.
+    pub rows: Vec<MemberRow>,
     /// What the member count says: how many, out of how many a package may hold.
     pub member_count: String,
     /// Whether this copy is the out-of-band one that replaces the copy already on the page.
     pub oob: bool,
+}
+
+/// One number of a volume: a song, or a number held for a song that left.
+///
+/// Two options rather than an enum, because a template reads an option with the `match` it already
+/// uses for every other empty cell.
+#[derive(Debug, Clone)]
+pub struct MemberRow {
+    /// The song at the number.
+    pub member: Option<PackageMember>,
+    /// The hold at the number.
+    pub held: Option<HeldRow>,
+}
+
+/// A held number, as its row draws it.
+#[derive(Debug, Clone)]
+pub struct HeldRow {
+    /// The number held.
+    pub number: u32,
+    /// The song that left, while the corpus still knows it.
+    pub song_id: Option<String>,
+    /// Its title when it left.
+    pub title: String,
+    /// Its performer when it left.
+    pub artist: Option<String>,
+    /// Other files of the same recording in the package, as `(volume, number, label)`. The label is
+    /// composed because it carries values.
+    pub moves: Vec<(u32, u32, String)>,
 }
 
 impl MembersTable {
@@ -1973,26 +2001,79 @@ impl MembersTable {
         package_id: String,
         volume: u32,
         members: Vec<PackageMember>,
+        held: Vec<HeldNumber>,
         oob: bool,
         locale: km_locale::Locale,
     ) -> Self {
+        let words = crate::words::messages(locale);
+        let count = members.len();
+        let mut held_rows: Vec<MemberRow> = held
+            .into_iter()
+            .map(|hold| MemberRow {
+                member: None,
+                held: Some(HeldRow {
+                    moves: hold
+                        .candidates
+                        .into_iter()
+                        .map(|(from_volume, number, _)| {
+                            let label = if from_volume == volume {
+                                words.msg_with(
+                                    "package-held-move",
+                                    &[("number", i64::from(number).into())],
+                                )
+                            } else {
+                                words.msg_with(
+                                    "package-held-move-volume",
+                                    &[
+                                        ("number", i64::from(number).into()),
+                                        ("volume", i64::from(from_volume).into()),
+                                    ],
+                                )
+                            };
+                            (from_volume, number, label.into_owned())
+                        })
+                        .collect(),
+                    number: hold.number,
+                    song_id: hold.song_id,
+                    title: hold.title,
+                    artist: hold.artist,
+                }),
+            })
+            .collect();
+        let mut rows: Vec<MemberRow> = members
+            .into_iter()
+            .map(|member| MemberRow {
+                member: Some(member),
+                held: None,
+            })
+            .collect();
+        rows.append(&mut held_rows);
+        rows.sort_by_key(MemberRow::number);
         Self {
-            member_count: crate::words::messages(locale)
+            member_count: words
                 .msg_with(
                     "package-member-count",
                     &[
-                        (
-                            "count",
-                            i64::try_from(members.len()).unwrap_or(i64::MAX).into(),
-                        ),
+                        ("count", i64::try_from(count).unwrap_or(i64::MAX).into()),
                         ("highest", i64::from(km_songcode::MAX_SLOT).into()),
                     ],
                 )
                 .into_owned(),
             package_id,
             volume,
-            members,
+            rows,
             oob,
+        }
+    }
+}
+
+impl MemberRow {
+    /// The number the row stands at.
+    pub fn number(&self) -> u32 {
+        match (&self.member, &self.held) {
+            (Some(member), _) => member.number,
+            (None, Some(held)) => held.number,
+            (None, None) => 0,
         }
     }
 }
@@ -2017,6 +2098,8 @@ pub struct PackageSyncConfirm {
     pub adding: String,
     /// *3 songs come out*, which no other confirmation here has to say.
     pub removing: String,
+    /// *2 go back to their held numbers*, said only when some do.
+    pub returning: Option<String>,
     /// *200 stay where they are*.
     pub keeping: String,
     /// Shown only when every volume together has fewer free numbers than would go in, and says how
@@ -3963,6 +4046,43 @@ mod tests {
         );
     }
 
+    /// A held number sits among the songs in number order, names the song it waits for, and offers
+    /// the other file of that recording, a number box, and Release.
+    #[test]
+    fn a_held_number_sits_in_order_and_offers_its_ways_out() {
+        let html = package_page(&[]);
+        let wave = html.find("Wave").expect("the second member");
+        let held = html.find("Insensatez").expect("the held row");
+        let gone = html.find("Chega de Saudade").expect("the second hold");
+        assert!(
+            wave < held && held < gone,
+            "rows out of number order:\n{html}"
+        );
+        assert!(html.contains("Held for"), "{html}");
+        assert!(
+            html.contains(r#"<a href="/songs/ghi789">Insensatez</a>"#),
+            "the song held for is not a link:\n{html}"
+        );
+        assert!(
+            html.contains("Move No. 7 of volume 2 here"),
+            "the other file of the recording is not offered:\n{html}"
+        );
+        assert!(
+            html.contains(r#""from_volume": 2, "from_number": 7"#),
+            "the button does not name where the song sits:\n{html}"
+        );
+        assert!(
+            html.contains(r#"hx-post="/packages/vol1/held/release?volume=1""#),
+            "no Release:\n{html}"
+        );
+        assert!(
+            html.contains("no longer in the corpus"),
+            "a hold whose song is gone does not say so:\n{html}"
+        );
+        // The count is of songs; a hold is a number with none in it.
+        assert!(html.contains("2 of "), "{html}");
+    }
+
     /// Every tab on a package's page has the four parts a tab is made of, and its rule.
     ///
     /// The song page's and the settings page's assertion, over the same `.songtabs` arrangement: a
@@ -4093,6 +4213,7 @@ mod tests {
             ],
             adding: "12 go in".to_owned(),
             removing: "3 come out".to_owned(),
+            returning: Some("1 goes back to its held number".to_owned()),
             keeping: "200 stay where they are".to_owned(),
             new_volumes: Some("this starts a new volume".to_owned()),
         }
@@ -4105,6 +4226,7 @@ mod tests {
             "the half an add never says:\n{html}"
         );
         assert!(html.contains("this starts a new volume"), "{html}");
+        assert!(html.contains("1 goes back to its held number"), "{html}");
         assert!(
             html.contains(r#"hx-post="/packages/vol1/sync?confirm=1""#),
             "the button writes what was counted:\n{html}"
@@ -4248,6 +4370,24 @@ mod tests {
                         melody_channel: None,
                         duration_ms: 180_000,
                         path: Some("b/WAVE.kar".to_owned()),
+                    },
+                ],
+                // A hold between and after them: one whose song is another file on volume 2, and
+                // one whose song the corpus no longer knows.
+                vec![
+                    HeldNumber {
+                        number: 3,
+                        song_id: Some("ghi789".to_owned()),
+                        title: "Insensatez".to_owned(),
+                        artist: Some("Jobim".to_owned()),
+                        candidates: vec![(2, 7, "Insensatez".to_owned())],
+                    },
+                    HeldNumber {
+                        number: 5,
+                        song_id: None,
+                        title: "Chega de Saudade".to_owned(),
+                        artist: None,
+                        candidates: Vec::new(),
                     },
                 ],
                 false,
