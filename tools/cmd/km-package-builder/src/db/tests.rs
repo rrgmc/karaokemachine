@@ -333,6 +333,16 @@ fn a_filter_binds_its_values_rather_than_interpolating_them() {
     );
     assert!(!sql.contains("o'brien"), "the text must not reach the SQL");
     assert_eq!(values.len(), 1);
+
+    // A range's ends go the same way, and they can: `parse` reads them as integers and refuses
+    // anything outside 0–10, so what reaches the fragment is a number rather than what was typed.
+    let ranged = Filter {
+        suitability: SuitabilityFilter::parse("2-5"),
+        ..Filter::default()
+    };
+    let (sql, values) = ranged.to_sql();
+    assert!(sql.contains("s.suitability BETWEEN 2 AND 5"), "{sql}");
+    assert!(values.is_empty());
 }
 
 /// The three bands partition 0–10, which the `≥ N` ladder they replaced did not.
@@ -354,7 +364,7 @@ fn every_score_falls_in_exactly_one_band() {
             SuitabilityFilter::High => (8..=10).contains(&score),
             SuitabilityFilter::Middle => (5..=7).contains(&score),
             SuitabilityFilter::Low => score < 5,
-            SuitabilityFilter::Any => unreachable!(),
+            SuitabilityFilter::Any | SuitabilityFilter::Range { .. } => unreachable!(),
         })
         .collect();
         assert_eq!(matched.len(), 1, "score {score} matched {matched:?}");
@@ -373,10 +383,55 @@ fn a_band_survives_a_round_trip_and_nonsense_reads_as_any() {
         SuitabilityFilter::Middle,
         SuitabilityFilter::Low,
     ] {
-        assert_eq!(SuitabilityFilter::parse(band.as_str()), band);
+        assert_eq!(SuitabilityFilter::parse(&band.as_str()), band);
     }
+    // A `<` is escaped by everything that touches a URL, so the control spells the low band `0-4`
+    // and this is not a second spelling of it.
     assert_eq!(SuitabilityFilter::parse("<5"), SuitabilityFilter::Any);
-    assert_eq!(SuitabilityFilter::parse("9"), SuitabilityFilter::Any);
+}
+
+/// The address can name a range the dropdown does not offer, and it survives a page turn.
+///
+/// Worth a test of its own rather than a reading of the `match`: every one of these values reaches
+/// the same select and the same chip, and a range that fell through to *any* would answer *the 2s to
+/// the 5s* with the whole corpus — the fault the three bands are written to prevent one filter over.
+#[test]
+fn a_range_the_address_names_parses_and_round_trips() {
+    let range = |low, high| SuitabilityFilter::Range { low, high };
+    assert_eq!(SuitabilityFilter::parse("2-5"), range(2, 5));
+    assert_eq!(SuitabilityFilter::parse("9"), range(9, 9));
+    assert_eq!(SuitabilityFilter::parse("9-10"), range(9, 10));
+    // A range over the whole column is not *any*: a song with no stored suitability is outside it,
+    // and outside every band, while *any* holds the whole corpus.
+    assert_eq!(SuitabilityFilter::parse("0-10"), range(0, 10));
+
+    // An open end takes the end of the column, and the round trip writes both ends down. One filter,
+    // one spelling, by the rule `initial` already follows.
+    assert_eq!(SuitabilityFilter::parse("7-"), range(7, 10));
+    assert_eq!(SuitabilityFilter::parse("-9"), range(0, 9));
+    assert_eq!(SuitabilityFilter::parse("7-").as_str(), "7-10");
+    assert_eq!(SuitabilityFilter::parse("9").as_str(), "9");
+    assert_eq!(SuitabilityFilter::parse("2-5").as_str(), "2-5");
+    for value in ["2-5", "9", "0-10", "7-10"] {
+        let parsed = SuitabilityFilter::parse(value);
+        assert_eq!(SuitabilityFilter::parse(&parsed.as_str()), parsed);
+    }
+
+    // A range whose ends are a band's ends is that band, so the two spellings draw one chip.
+    assert_eq!(SuitabilityFilter::parse("-4"), SuitabilityFilter::Low);
+    assert_eq!(SuitabilityFilter::parse("5-7"), SuitabilityFilter::Middle);
+    assert_eq!(SuitabilityFilter::parse("8-"), SuitabilityFilter::High);
+
+    // And what no range can mean reads as *any*, so no address produces an empty page in silence.
+    for nonsense in [
+        "7-3", "11", "0-11", "a-b", "-", "", "2-5-7", " 2-5", "2 - 5",
+    ] {
+        assert_eq!(
+            SuitabilityFilter::parse(nonsense),
+            SuitabilityFilter::Any,
+            "{nonsense:?}"
+        );
+    }
 }
 
 #[test]
@@ -5161,6 +5216,15 @@ fn the_suitability_bands_partition_the_corpus_by_score() {
     .flat_map(with)
     .collect::<std::collections::BTreeSet<_>>();
     assert_eq!(banded.len(), 11);
+
+    // And a range the address names cuts the column wherever it says, both ends included.
+    assert_eq!(
+        with(SuitabilityFilter::parse("2-5")),
+        ["s02", "s03", "s04", "s05"]
+    );
+    assert_eq!(with(SuitabilityFilter::parse("9")), ["s09"]);
+    assert_eq!(with(SuitabilityFilter::parse("9-")), ["s09", "s10"]);
+    assert_eq!(with(SuitabilityFilter::parse("0-10")).len(), 11);
 }
 
 /// The added-date filter counts back from now, and a later scan does not move the date.
@@ -5261,6 +5325,10 @@ fn an_unscored_song_falls_outside_every_band() {
     assert_eq!(with(SuitabilityFilter::Low), ["scored"]);
     assert!(with(SuitabilityFilter::Middle).is_empty());
     assert!(with(SuitabilityFilter::High).is_empty());
+
+    // A range keeps the same rule, `0-10` included: it is a clause, so the NULL falls outside it.
+    assert_eq!(with(SuitabilityFilter::parse("0-4")), ["scored"]);
+    assert_eq!(with(SuitabilityFilter::parse("0-10")), ["scored"]);
 
     // Only *any* shows it, because only *any* adds no clause.
     assert_eq!(with(SuitabilityFilter::Any).len(), 2);

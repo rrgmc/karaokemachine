@@ -259,9 +259,14 @@ impl Initial {
 /// did — `≥ 5` and `≥ 8` are nested, so two adjacent options showed mostly the same songs. Nothing
 /// is unreachable: every suitability falls in exactly one band.
 ///
-/// The one thing lost is asking for exactly `≥ 9`, and it is worth naming rather than glossing: sort
-/// by suitability is what answers that now, and it answers it better, because it shows you where the
-/// cliff actually is instead of making you guess a threshold.
+/// **A narrower question is asked in the address, and [`Self::Range`] holds it.** `suitability=2-5`
+/// and `suitability=9` name a span of their own. A fourth option for one would overlap the three
+/// bands and cost the control the shape a reader can hold, so the dropdown keeps the bands. A range
+/// in force draws itself as an option beside them. A filter narrowing the list with no control
+/// saying so disagrees with its own page.
+///
+/// Sorting by suitability answers a threshold better than a threshold does, because it shows where
+/// the cliff falls rather than asking somebody to guess a number.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum SuitabilityFilter {
     /// No constraint.
@@ -273,10 +278,22 @@ pub enum SuitabilityFilter {
     Middle,
     /// Under 5 — something is wrong with the file.
     Low,
+    /// Both ends inclusive, each in 0–10, and the low end no higher than the high one.
+    ///
+    /// A range whose ends are a band's ends parses as that band, so one question keeps one spelling
+    /// and one chip.
+    Range { low: u8, high: u8 },
 }
 
 impl SuitabilityFilter {
-    /// Reads the query parameter: `""` · `8-10` · `5-7` · `0-4`.
+    /// The top of the column, which an open range takes for its missing end.
+    const TOP: u8 = 10;
+
+    /// Reads the query parameter: `""` · `8-10` · `5-7` · `0-4` · a range.
+    ///
+    /// A range is `low-high`, `low-`, `-high`, or a single number naming one suitability. Both ends
+    /// lie in 0–10 and the low end is no higher than the high one. An open end takes the end of the
+    /// column, so `7-` is 7 to 10 and `-4` is 0 to 4.
     ///
     /// Anything else is [`SuitabilityFilter::Any`], by the same rule the rest of the bar follows: a
     /// hand-edited query string must not be able to produce an empty page with no explanation.
@@ -290,17 +307,46 @@ impl SuitabilityFilter {
             "8-10" => Self::High,
             "5-7" => Self::Middle,
             "0-4" => Self::Low,
-            _ => Self::Any,
+            other => Self::parse_range(other),
+        }
+    }
+
+    /// Reads a range, and folds a band's own bounds onto the band.
+    ///
+    /// The fold is what keeps one question to one spelling: `-4` and `0-4` ask for the same songs,
+    /// so both give the low band, and the chip above the list reads the same either way.
+    fn parse_range(value: &str) -> Self {
+        let bound = |text: &str| text.parse::<u8>().ok().filter(|end| *end <= Self::TOP);
+        let (low, high) = match value.split_once('-') {
+            Some(("", high)) => (Some(0), bound(high)),
+            Some((low, "")) => (bound(low), Some(Self::TOP)),
+            Some((low, high)) => (bound(low), bound(high)),
+            None => (bound(value), bound(value)),
+        };
+        let (Some(low), Some(high)) = (low, high) else {
+            return Self::Any;
+        };
+        match (low, high) {
+            (low, high) if low > high => Self::Any,
+            (0, 4) => Self::Low,
+            (5, 7) => Self::Middle,
+            (8, Self::TOP) => Self::High,
+            (low, high) => Self::Range { low, high },
         }
     }
 
     /// The spelling used in URLs and in the `<option>` values, so a round trip keeps the control set.
-    pub fn as_str(self) -> &'static str {
+    ///
+    /// A range gives both its ends, so an open one normalizes on its first page turn: `7-` comes
+    /// back as `7-10`. A range of one number gives that number.
+    pub fn as_str(self) -> String {
         match self {
-            Self::Any => "",
-            Self::High => "8-10",
-            Self::Middle => "5-7",
-            Self::Low => "0-4",
+            Self::Any => String::new(),
+            Self::High => "8-10".to_owned(),
+            Self::Middle => "5-7".to_owned(),
+            Self::Low => "0-4".to_owned(),
+            Self::Range { low, high } if low == high => low.to_string(),
+            Self::Range { low, high } => format!("{low}-{high}"),
         }
     }
 
@@ -308,13 +354,14 @@ impl SuitabilityFilter {
     ///
     /// Not the same string as [`Self::as_str`], which is the low band's whole point: the value is a
     /// range because a URL has to survive being copied, and the label is `<5` because that is how
-    /// somebody reading a filter bar thinks about it.
-    pub fn label(self) -> &'static str {
+    /// somebody reading a filter bar thinks about it. A range reads as what it is.
+    pub fn label(self) -> String {
         match self {
-            Self::Any => "any",
-            Self::High => "8-10",
-            Self::Middle => "5-7",
-            Self::Low => "<5",
+            Self::Any => "any".to_owned(),
+            Self::High => "8-10".to_owned(),
+            Self::Middle => "5-7".to_owned(),
+            Self::Low => "<5".to_owned(),
+            range => range.as_str(),
         }
     }
 
@@ -326,19 +373,28 @@ impl SuitabilityFilter {
             Self::High => words.msg("chip-suitability-high").into_owned(),
             Self::Middle => words.msg("chip-suitability-middle").into_owned(),
             Self::Low => words.msg("chip-suitability-low").into_owned(),
+            range => words
+                .msg_with(
+                    "chip-suitability-range",
+                    &[("range", range.as_str().into())],
+                )
+                .into_owned(),
         }
     }
 
     /// The `WHERE` fragment for a column, or `None` when there is nothing to add.
     ///
     /// The bounds are constants this code owns rather than text from a person, so they go into the
-    /// fragment rather than costing a binding — the same judgment [`CopiesFilter::clause`] makes.
+    /// fragment rather than costing a binding — the same judgment [`CopiesFilter::clause`] makes. A
+    /// range's two ends go the same way: [`Self::parse_range`] reads them as integers and refuses
+    /// anything outside 0–10, so what reaches the fragment is a number rather than what was typed.
     pub(super) fn clause(self, column: &str) -> Option<String> {
         match self {
             Self::Any => None,
             Self::High => Some(format!("{column} BETWEEN 8 AND 10")),
             Self::Middle => Some(format!("{column} BETWEEN 5 AND 7")),
             Self::Low => Some(format!("{column} < 5")),
+            Self::Range { low, high } => Some(format!("{column} BETWEEN {low} AND {high}")),
         }
     }
 }

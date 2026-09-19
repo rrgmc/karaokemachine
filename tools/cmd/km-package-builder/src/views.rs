@@ -903,7 +903,7 @@ pub struct FilterForm {
     /// artists to normalize against, and the corpus's answer to a name nobody in it goes by is an
     /// empty list with a chip saying whose — which is the honest one.
     pub artist: String,
-    /// Which band of the automatic suitability: `` · `8-10` · `5-7` · `0-4`.
+    /// Which suitabilities the automatic score may hold: `` · `8-10` · `5-7` · `0-4` · a range.
     pub suitability: String,
     /// What the person's own rating must be: `` · `unset` · `set` · a number.
     pub user_score: String,
@@ -969,27 +969,35 @@ pub struct FilterForm {
 
 impl FilterForm {
     /// The suitability bands: *any*, `8-10`, `5-7` and `<5`, each knowing whether it is the current
-    /// one.
+    /// one, and a range where the address names one.
     ///
     /// Built here rather than written out in the markup for the reason [`Self::initials`] is, and
     /// for one this control has of its own: the low band's value and its label differ — `0-4` in the
     /// URL against `<5` on screen — which is precisely the split [`Choice`] exists for, and precisely
     /// the pair that a hand-written `<option>` gets the wrong way round.
+    ///
+    /// **A range comes last and only while it is in force.** The four bands are what the control
+    /// offers, and a fifth standing option would overlap them. What a range still owes the page is a
+    /// control agreeing with the rows: a select reading *any* over a narrowed list is the fault
+    /// [`SuitabilityFilter`] draws a chip to prevent, one element further down the bar. Picking a
+    /// band submits the bar and the extra option goes with it.
     pub fn suitabilities(&self) -> Vec<Choice> {
         let current = SuitabilityFilter::parse(&self.suitability);
-        [
+        let bands = [
             SuitabilityFilter::Any,
             SuitabilityFilter::High,
             SuitabilityFilter::Middle,
             SuitabilityFilter::Low,
-        ]
-        .into_iter()
-        .map(|band| Choice {
-            selected: band == current,
-            label: band.label().to_owned(),
-            value: band.as_str().to_owned(),
-        })
-        .collect()
+        ];
+        bands
+            .into_iter()
+            .chain(matches!(current, SuitabilityFilter::Range { .. }).then_some(current))
+            .map(|band| Choice {
+                selected: band == current,
+                label: band.label(),
+                value: band.as_str(),
+            })
+            .collect()
     }
 
     /// Whether the personal-score filter is set to this option.
@@ -5330,6 +5338,51 @@ mod tests {
             "the label reached the markup raw: {html}"
         );
         assert!(!html.contains("min_score"), "the old key is gone: {html}");
+    }
+
+    /// A range the address names is the fifth option, and the four bands are untouched.
+    ///
+    /// What this pins is the pair: the control has to agree with the rows, so a range draws itself,
+    /// and the four standing options have to be the same four whatever the address says, so nobody
+    /// reads a corpus-wide question off a select that quietly grew an option.
+    #[test]
+    fn a_range_in_force_draws_itself_beside_the_bands() {
+        let form = FilterForm {
+            suitability: "2-5".to_owned(),
+            ..FilterForm::default()
+        };
+        let bands = form.suitabilities();
+        assert_eq!(
+            bands.iter().map(|b| b.value.as_str()).collect::<Vec<_>>(),
+            ["", "8-10", "5-7", "0-4", "2-5"]
+        );
+        assert_eq!(
+            bands.iter().map(|b| b.label.as_str()).collect::<Vec<_>>(),
+            ["any", "8-10", "5-7", "<5", "2-5"]
+        );
+        assert_eq!(bands.iter().filter(|b| b.selected).count(), 1);
+        assert!(bands.iter().any(|b| b.value == "2-5" && b.selected));
+
+        // A range whose ends are a band's ends is that band, so no fifth option is drawn for it.
+        let folded = FilterForm {
+            suitability: "8-".to_owned(),
+            ..FilterForm::default()
+        };
+        let bands = folded.suitabilities();
+        assert_eq!(bands.len(), 4);
+        assert!(bands.iter().any(|b| b.value == "8-10" && b.selected));
+
+        let page = SongsPage {
+            chrome: chrome(),
+            rows: rows(vec![row("Corcovado", Some("Tom Jobim"), "a/CORCOVAD.kar")]),
+            favorites: Vec::new(),
+            packages: Vec::new(),
+            query: form,
+            chips: no_chips(),
+            saved: no_saved(),
+        };
+        let html = page.in_english().expect("render");
+        assert!(html.contains("value=\"2-5\" selected"), "{html}");
     }
 
     #[test]
