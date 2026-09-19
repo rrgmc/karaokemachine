@@ -1,0 +1,19 @@
+[package]
+name = "km-langguess"
+description = "Guessing what language a song is sung in from the words themselves"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+# For `Language` alone: a guess has to land in the same closed table as a language somebody typed and
+# a language a file declared, or the column would hold two vocabularies and a filter could only ask
+# about one of them.
+km-kmpkg = { workspace = true }
+whatlang = { workspace = true }
