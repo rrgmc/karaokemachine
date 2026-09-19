@@ -840,13 +840,16 @@ impl Db {
     /// size of the corpus, and it is nothing at all on a corpus nobody has thrown anything away
     /// from.
     ///
-    /// **`merged_into` is tested for the reason the list tests it.** *Only deleted* inverts the
-    /// deleted half of [`browsable`](crate::db::sql) and keeps the merged half, because a song both
-    /// merged and deleted is still a merge and has no row of its own. A count that dropped the
-    /// second half would report more than the list it is a count of.
+    /// **The two halves `Filter::to_sql` composes for *only deleted*, and taken from the same
+    /// place.** A merge has no row of its own whatever else is asked, so `merged_into IS NULL`
+    /// stands; the other half comes off [`DeletedFilter::Only`] rather than being spelled again
+    /// here, so this count and the list it counts cannot drift.
     fn count_deleted(&self) -> Result<i64, DbError> {
         Ok(self.conn.query_row(
-            "SELECT COUNT(*) FROM songs WHERE deleted_at IS NOT NULL AND merged_into IS NULL",
+            &format!(
+                "SELECT COUNT(*) FROM songs WHERE merged_into IS NULL AND {}",
+                DeletedFilter::Only.clause("")
+            ),
             [],
             |row| row.get(0),
         )?)
