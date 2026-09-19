@@ -831,6 +831,11 @@ request answers at once and the panel's poll reports the end; joining stays with
 folder had been read when it had not. So a
 canceled run commits and returns, and the page says *stopped*, noting that re-running resumes free.
 
+**Stop reaches the tail as well.** `conclude` checks the flag before grouping duplicates, before
+indexing folders and before measuring, and hands it to `rebuild_folders_unless`. A stop there sets
+`canceled` and `tail_skipped`. `last_scan` is already stamped, so the panel says the folder is scanned
+and that the Folders page rebuilds the tree.
+
 **Incremental by default.** A path whose size and mtime match its row is skipped before it is opened.
 `--force` re-analyzes everything, which is what to do after the analysis heuristics change and never
 otherwise. Files gone from disk are forgotten **except** where a package still names the song: that one
@@ -870,7 +875,8 @@ corpus that had something to write:
 
 So for the best part of half an hour at the end of such a scan, a write waits out `WRITE_WAIT` and is
 answered `DbError::Busy`. Reads are unaffected throughout. Breaking those two passes up, or deferring
-them, is not attempted here and is what it would take to close that window. The folder tree is paid
+them, is not attempted here and is what it would take to close that window. Stop ends the folder pass
+between rows and skips `ANALYZE`, but it releases the connection only by ending the pass. The folder tree is paid
 here rather than on the Folders page so that the page opens at once after a scan; see
 [`The corpus is browsed by folder`](../decisions/curation.md#the-corpus-is-browsed-by-folder).
 
@@ -1338,13 +1344,16 @@ files one recording in several folders; `rebuild_folders` walks `files` ordered 
 tallies once per song, so the set held in memory is one song's ancestors rather than one folder's
 songs.
 
-**Derived tables must not answer for a corpus that has moved on.** A scan rebuilds the tree as its
-last pass, including a *stopped* scan: that is the one tail pass a partial read may run, because it
-describes the rows that were written rather than concluding anything about the corpus. As a backstop
-the Folders page compares a cheap marker with the one stored at the last rebuild, and rebuilds when
-they differ. **The staleness check
-has to be cheaper than the query it replaces**: `COUNT(*) FROM files` reads every row and would add a
-tenth of a second to every visit. `MAX(rowid)` is an index seek to the end.
+**Derived tables must not answer for a corpus that has moved on.** A scan that finishes rebuilds the
+tree as its last pass, and a stopped scan does not. The Folders page compares a cheap marker with the
+one stored at the last rebuild, and rebuilds when they differ. **The staleness check has to be
+cheaper than the query it replaces.** `COUNT(*) FROM files` reads every row and would add a tenth of
+a second to every visit. `MAX(rowid)` is an index seek to the end.
+
+**A folder pass can be abandoned, and then writes nothing.** `rebuild_folders_unless` checks its stop
+closure every 4,096 rows and returns `None` before its transaction. The query reads in
+`files_song_path` order, so no sort runs before the first row. A check between rows therefore reaches
+the whole pass.
 
 **`songs.file_count` is a denormalized column maintained by three triggers on `files`** — insert,
 delete, and `UPDATE OF song_id`. Triggers rather than the scan, because the scan is not the only writer
