@@ -182,7 +182,10 @@ pub fn match_query(probes: &[Vec<String>], held_by: &HashMap<String, u64>) -> Op
         // Integer arithmetic, so the stretches cover the song exactly and none is ever empty.
         let start = nth * probes.len() / wanted;
         let end = (nth + 1) * probes.len() / wanted;
-        let Some(phrase) = probes[start..end].iter().min_by_key(|phrase| rarest(phrase)) else {
+        let Some(phrase) = probes[start..end]
+            .iter()
+            .min_by_key(|phrase| rarest(phrase))
+        else {
             continue;
         };
         // Folding leaves letters, digits and spaces, so no `"` can be in a word; this is what keeps

@@ -401,6 +401,14 @@ similar-type-a-name = Digite um título ou um artista e as músicas com nome par
 similar-not-found = Nenhuma música tem nome parecido.
 similar-likeness-title = o quanto os dois nomes se parecem
 similar-searched-from-title = a música de onde esta busca partiu
+
+## Músicas que cantam as mesmas palavras ------------------------------------------------
+
+words-heading = Músicas que cantam as mesmas palavras
+words-how-it-matches = Créditos, endereços e rótulos de seção ficam de fora, e maiúsculas, acentos e pontuação são ignorados. Um arquivo sem uma estrofe, ou com um verso ouvido de outro jeito, ainda é encontrado. Uma regravação com letra refeita e um pot-pourri não são.
+words-too-few = Esta música tem palavras cantadas de menos para encontrar outra por elas.
+words-not-found = Nenhuma outra música canta estas palavras.
+words-likeness-title = o quanto das duas letras é palavra por palavra igual
 column-likeness = Semelhança
 column-language-title = A língua em que é cantada, como código ISO 639-1
 column-suitability-title = Adequação automática, de 0 a 10
@@ -462,6 +470,7 @@ row-score-title = a sua nota
 row-edit-title = editar o título e o artista aqui
 row-youtube-title = procurar no YouTube
 row-similar-title = procurar músicas com nome parecido
+row-words-title = procurar músicas que cantam as mesmas palavras
 row-which-favorite = em qual lista?
 row-working-lists = listas de trabalho
 row-no-favorites = Nenhuma ainda — dê um nome e ela é criada e preenchida de uma vez.
@@ -817,6 +826,7 @@ song-no-title-title = o arquivo não traz título - mostrando o nome dele
 song-test-play = Ouvir
 song-open-in-os = Abrir no sistema
 song-similar = Nomes parecidos
+song-words = Mesmas palavras
 song-download = Baixar
 song-youtube = YouTube
 song-favorites-title = as listas em que esta música está

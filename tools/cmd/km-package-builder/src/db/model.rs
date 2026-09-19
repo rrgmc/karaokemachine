@@ -244,6 +244,19 @@ impl SongDetail {
         )
     }
 
+    /// Where the ≋ button goes: songs that sing what this one sings, or empty when it has no words.
+    ///
+    /// The line count and not the words themselves: a page carries them only for a MIDI song, and a
+    /// song with a lyric line is a song with something in the `lyrics` column, which is what decides
+    /// the same thing on a browse row.
+    pub fn words_url(&self) -> String {
+        if self.midi.as_ref().is_some_and(|midi| midi.line_count > 0) {
+            crate::model::words_url(&self.id)
+        } else {
+            String::new()
+        }
+    }
+
     /// Whether the language being shown was worked out rather than chosen.
     ///
     /// What lets the song page mark a detected value as *detected*: after this change most rows have

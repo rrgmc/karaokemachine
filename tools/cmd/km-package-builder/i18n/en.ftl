@@ -424,6 +424,14 @@ similar-type-a-name = Type a title or an artist and the songs with a similar nam
 similar-not-found = No song has a similar name.
 similar-likeness-title = how alike the two names are
 similar-searched-from-title = the song this search started from
+
+## Songs that sing the same words ------------------------------------------------------
+
+words-heading = Songs that sing the same words
+words-how-it-matches = Credits, addresses and section labels are left out, and capitals, accents and punctuation are ignored. A file missing a verse, or one line heard differently, still matches. A cover with reworked words and a medley do not.
+words-too-few = This song has too few sung words to find another by.
+words-not-found = No other song sings these words.
+words-likeness-title = how much of the two lyrics is word for word the same
 column-likeness = Likeness
 column-language-title = What language it is sung in, as an ISO 639-1 code
 column-suitability-title = Automatic suitability, 0-10
@@ -483,6 +491,7 @@ row-score-title = your own rating
 row-edit-title = edit the title and artist here
 row-youtube-title = search YouTube
 row-similar-title = find songs with a similar name
+row-words-title = find songs that sing the same words
 row-which-favorite = in which favorite?
 row-working-lists = working lists
 row-no-favorites = None yet — name one and it is made and filled in one go.
@@ -834,6 +843,7 @@ song-no-title-title = no title in the file - showing its name
 song-test-play = Test-play
 song-open-in-os = Open in OS
 song-similar = Similar names
+song-words = Same words
 song-download = Download
 song-youtube = YouTube
 song-favorites-title = the favorites this song is in
