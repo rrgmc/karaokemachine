@@ -3154,3 +3154,23 @@ reading, because an estimate from less misleads.
 and draws none of a finished run's conclusions. The press answers at once, and the panel says
 *stopping* until the run has written its last batch, because a request that waited would hold the
 page for as long as that takes.
+
+## How many files a scan reads at once
+
+**One for each processor, and `--jobs` or `KM_SCAN_JOBS` says otherwise.** The number reaches the
+Scan page's buttons as much as `--scan` and `--reanalyze`, holds for the run, and is saved nowhere.
+
+A scan reads files that many at a time and writes what they hold through a single writer. Where the
+corpus is on an SSD the reading is nearly free and one reader per processor is right. Where it is on
+one spinning disk the readers and the writer share a disk arm, and the writer is the stage that sets
+the rate, so readers past a point buy nothing and cost the writer its seeks. Which of the two a
+folder is on cannot be detected, and the person who owns the folder knows.
+
+**Settable rather than decided for them**, because the answer is a property of their disk rather than
+of this program. What it is on a given one is read off
+`db::measure::how_many_readers_a_disk_wants`, which runs one arm per count over files no other arm
+read.
+
+**A value naming no number leaves the processor count standing rather than ending the run.** It is
+read on the way into a scan somebody has just asked for, and taking that scan away from them to
+report a stale variable in a shortcut costs more than starting it.

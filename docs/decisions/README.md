@@ -212,6 +212,7 @@ it are the same entry. How the thing is built is [`ARCHITECTURE.md`](../ARCHITEC
 - [A folder opening at startup does not also offer the folder picker](curation.md#a-folder-opening-at-startup-does-not-also-offer-the-folder-picker)
 - [A song's corrections are three states, and leaving the page alone is the third](curation.md#a-songs-corrections-are-three-states-and-leaving-the-page-alone-is-the-third)
 - [A scan shows its steps, what is left, and can be stopped from the page](curation.md#a-scan-shows-its-steps-what-is-left-and-can-be-stopped-from-the-page)
+- [How many files a scan reads at once](curation.md#how-many-files-a-scan-reads-at-once)
 
 ## [The remotes](remotes.md)
 

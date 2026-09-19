@@ -15,7 +15,7 @@ use std::ops::ControlFlow;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::{Arc, Mutex, mpsc};
+use std::sync::{Arc, Mutex, OnceLock, mpsc};
 use std::time::{Duration, Instant};
 
 use km_kmpkg::content_hash;
@@ -487,7 +487,7 @@ pub struct ScanOptions {
     /// [`Self::force`] rides with it, because re-reading files whose size and time have not moved
     /// is the whole of what a scoped run is for.
     pub only: Option<HashSet<String>>,
-    /// Worker threads.
+    /// How many files are read at once.
     pub jobs: usize,
 }
 
@@ -496,11 +496,61 @@ impl Default for ScanOptions {
         Self {
             force: false,
             only: None,
-            jobs: std::thread::available_parallelism()
-                .map(|n| n.get())
-                .unwrap_or(4),
+            jobs: jobs(),
         }
     }
+}
+
+/// Says how many files a scan reads at once, where no flag does.
+///
+/// **A variable as well as a flag, because the Scan page's button has no command line in reach.** A
+/// run started from the page builds its own [`ScanOptions::default`], so a number settable only on
+/// `Cli` would steer `--scan` and `--reanalyze` and leave the page on whatever the machine has.
+pub const JOBS_ENV_VAR: &str = "KM_SCAN_JOBS";
+
+/// What `--jobs` asked for, for the length of the process.
+static JOBS: OnceLock<usize> = OnceLock::new();
+
+/// Fixes how many files every scan in this process reads at once.
+///
+/// Called at startup, before anything can scan. A later call is ignored, so a run already planned
+/// cannot have the number moved under it.
+pub fn use_jobs(jobs: usize) {
+    let _ = JOBS.set(jobs.max(1));
+}
+
+/// How many files to read at once: what was asked for, else one per processor.
+///
+/// **One per processor is right for a corpus on an SSD and is the open question on a platter**, where
+/// the readers and the writer share one arm and the writer is the stage that sets the rate. So the
+/// number is settable without a rebuild, which is what makes two settings comparable. A value that
+/// does not parse, or is zero, falls through to the processor count rather than ending the run: this
+/// is read on the way into a scan somebody has just asked for.
+///
+/// See `How many files a scan reads at once` in `docs/decisions/curation.md`.
+fn jobs() -> usize {
+    resolve_jobs(
+        JOBS.get().copied(),
+        std::env::var(JOBS_ENV_VAR).ok().as_deref(),
+    )
+}
+
+/// The order the two answers are taken in, and what stands in for neither.
+///
+/// **Apart from [`jobs`] so that it can be tested**, which reading a process-wide variable cannot be:
+/// tests run beside each other in one process and none of them owns the environment.
+fn resolve_jobs(asked: Option<usize>, named: Option<&str>) -> usize {
+    if let Some(asked) = asked {
+        return asked.max(1);
+    }
+    named
+        .and_then(|value| value.trim().parse::<usize>().ok())
+        .filter(|jobs| *jobs > 0)
+        .unwrap_or_else(|| {
+            std::thread::available_parallelism()
+                .map(|n| n.get())
+                .unwrap_or(4)
+        })
 }
 
 impl ScanOptions {
@@ -1464,6 +1514,48 @@ mod tests {
     use super::*;
 
     use crate::testing::Scratch;
+
+    /// What was asked for wins, and what the machine has is what is left.
+    #[test]
+    fn a_flag_outranks_the_variable_and_both_outrank_the_processor_count() {
+        let processors = std::thread::available_parallelism()
+            .map(|n| n.get())
+            .unwrap_or(4);
+
+        assert_eq!(resolve_jobs(Some(4), Some("16")), 4);
+        assert_eq!(resolve_jobs(None, Some("16")), 16);
+        assert_eq!(resolve_jobs(None, None), processors);
+    }
+
+    /// **A number nobody can act on falls through rather than ending the run.** This is read on the
+    /// way into a scan somebody has just asked for, and refusing to start one over a stale variable
+    /// in a shortcut would cost them the scan to say so.
+    #[test]
+    fn a_reader_count_that_says_nothing_leaves_the_processor_count_standing() {
+        let processors = std::thread::available_parallelism()
+            .map(|n| n.get())
+            .unwrap_or(4);
+
+        for said in ["", "   ", "lots", "-1", "4.5", "0"] {
+            assert_eq!(
+                resolve_jobs(None, Some(said)),
+                processors,
+                "{said:?} says no number of readers"
+            );
+        }
+        assert_eq!(
+            resolve_jobs(None, Some(" 8 ")),
+            8,
+            "spaces around it are not"
+        );
+    }
+
+    /// One reader is a scan; none is a run that never ends. `run_inner` clamps as well, and this is
+    /// the half that keeps a zero from ever reaching it.
+    #[test]
+    fn asking_for_no_readers_still_gets_one() {
+        assert_eq!(resolve_jobs(Some(0), None), 1);
+    }
 
     #[test]
     fn a_relative_path_uses_forward_slashes() {

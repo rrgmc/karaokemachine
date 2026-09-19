@@ -937,6 +937,15 @@ corpus, a batch commits about once a minute while every reader thread sits in a 
 fraction of one core between commits, and the readers' own speed shows only in the moment a commit
 frees the channel, when they empty it at streaming speed and block again.
 
+**What that leaves open is whether the readers make the writer slower**, which is a different
+question from whether they are the limiter. The corpus and its `.kmbuild` sit on one platter, so each
+time a commit frees the channel the readers issue scattered reads against the arm the writer is
+descending scattered database pages with. The count is therefore settable, through `--jobs` and
+`KM_SCAN_JOBS`, and `db::measure::how_many_readers_a_disk_wants` reads the answer off a disk: one arm
+per count, each over files no other arm read, which is what lets the arms follow one another with no
+page cache emptied between them. The decision is
+[`How many files a scan reads at once`](../decisions/curation.md#how-many-files-a-scan-reads-at-once).
+
 **A process at a fraction of one core is what waiting looks like as much as what seeking looks like**,
 so a rate alone says nothing about which stage is the slow one. Reading one folder end to end runs at
 243 files a second, and extrapolating from that under-calls a scattered read by an order of magnitude;
