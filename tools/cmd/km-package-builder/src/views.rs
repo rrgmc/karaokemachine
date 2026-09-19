@@ -6765,6 +6765,13 @@ mod tests {
             "a run that is over has nothing to stop: {over}"
         );
         assert!(!over.contains("succeeded"), "{over}");
+
+        // A stop after the reading keeps the scan, so the panel must not say it was left partial.
+        progress.canceled = true;
+        progress.tail_skipped = true;
+        let tail = draw(progress.clone(), false);
+        assert!(tail.contains("every file was read and saved"), "{tail}");
+        assert!(!tail.contains("only partly scanned"), "{tail}");
     }
 
     /// Only a run that reached its end is drawn as done: a stopped or failed one ended too.

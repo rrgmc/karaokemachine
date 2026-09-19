@@ -36,7 +36,10 @@
   {% match progress.error %}
   {% when Some with (error) %}<div class="message error">{{ error }}</div>
   {% when None %}{% endmatch %}
-  {% if progress.canceled %}
+  {# A stop after the reading skipped only the closing passes: the folder counts as scanned. #}
+  {% if progress.tail_skipped %}
+  <div class="message">{{ "scan-stopped-in-tail"|t }}</div>
+  {% else if progress.canceled %}
   <div class="message">{{ "scan-stopped-early"|t }}</div>
   {% endif %}
   {# **Every step of the run, listed before it runs**, so what is still to come is on the page as well

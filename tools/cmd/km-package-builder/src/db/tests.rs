@@ -6850,7 +6850,11 @@ fn a_stopped_folder_rebuild_writes_nothing_and_leaves_the_index_stale() {
     );
     assert!(!db.folder_index_is_current().expect("marker"));
 
-    assert_eq!(db.rebuild_folders().expect("rebuild"), 3, "root, mpb/ and rock/");
+    assert_eq!(
+        db.rebuild_folders().expect("rebuild"),
+        3,
+        "root, mpb/ and rock/"
+    );
     assert!(db.folder_index_is_current().expect("marker"));
 }
 

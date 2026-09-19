@@ -743,7 +743,7 @@ impl Db {
             // Checked on the first row too, so a pass asked to stop before it began reads one row.
             let mut counted = 0u32;
             while let Some(row) = rows.next()? {
-                if counted % CHECK_EVERY == 0 && stop() {
+                if counted.is_multiple_of(CHECK_EVERY) && stop() {
                     return Ok(None);
                 }
                 counted = counted.wrapping_add(1);
