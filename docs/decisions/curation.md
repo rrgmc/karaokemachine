@@ -35,22 +35,28 @@ list reached through the words, which on a corpus of untitled files is the only 
 about themselves; Favorites is where a decision about a song is put; Packages is what the decisions
 are for. Find it, read it, file it, build it.
 
-Duplicates comes next, being a pass over the corpus rather than a place work is done: a duplicate is
-settled once. Scan and Settings are last, being the two that change how the tool behaves rather than
-what the corpus holds.
+Folders and Duplicates come next, each being a pass over the corpus rather than a place work is done:
+a folder is walked to see what arrived, and a duplicate is settled once. Scan and Settings are last,
+being the two that change how the tool behaves rather than what the corpus holds.
 
 **How often a page is opened is deliberately not the order.** Scan is wanted for every new folder and
 still sits at the end, because an order tracking how often a page was reached for would move as a
 corpus matured, and a strip whose items change places has to be read rather than aimed at.
 
-## The corpus is not browsed by folder
+## The corpus is browsed by folder
 
-**The tool has no folder page, no folder filter and no link from a copy to the songs beside it.**
-Curating is done by title, artist, language, tag and favorite, and a folder answers none of the
-questions those do. A folder view costs a whole pass over every file at the end of each scan that
-writes something, measured at thirteen minutes over a whole corpus, spent holding the writing
-connection so that a star clicked meanwhile is refused. A copy's path is still shown on the song page
-and in a title's hover, because which file a song came from is a fact about the song.
+**The Folders page lists the corpus as its folders, each with how many distinct songs sit in it and
+beneath it.** A folder links to the songs list narrowed by `?folder=`, and a song page links each copy
+to the songs beside it. A corpus arrives sorted into folders by whoever collected it, so a folder is
+how somebody sees what a new batch of files brought, which no title, artist or tag filter says.
+
+**A scan that writes something rebuilds the tree before it finishes.** The rebuild is a whole pass
+over every file, measured at thirteen minutes over a whole corpus, spent holding the writing
+connection so that a star clicked meanwhile is refused. That is paid at the end of a scan, which is
+already a long wait nobody sits through, so that the page opens at once afterwards. A stopped scan
+rebuilds it too, since the tree describes the rows that were written rather than concluding anything
+about the corpus. The page rebuilds the tree itself only when it finds it out of date and no scan is
+running; while a scan runs it shows the last tree built.
 
 ## Curation database
 
@@ -81,7 +87,10 @@ which is worse than answering late.
 
 **The status bar and a folder count are readings taken while the corpus is being read**, and may lag
 a batch. They say how much of a corpus there is, not what is on the page, so a number a moment old is
-the right trade against a whole-corpus count on every page of the tool.
+the right trade against a whole-corpus count on every page of the tool. A folder tree is not rebuilt
+at all while a scan is running: the marker it is checked against moves on every batch, so every visit
+would pay for a pass over every file to produce counts the next batch makes stale, and the scan
+rebuilds it when it finishes.
 
 **A curation action taken while a corpus is being read goes through, because the scan gives way to
 it.** Nothing may write inside a batch, so a star clicked during the reading waits for the end of one
@@ -90,9 +99,10 @@ database to itself for the whole run and every write would be refused. The cost 
 which is the right side for it to fall on: a person is waiting on the star and nobody is waiting on
 the batch.
 
-**The exception is the end of a scan that changed something, and it is not a short one.** Measuring
-the corpus for the query planner is one statement, so it cannot give way part-way through, and on a
-whole corpus it runs for about eleven minutes. A write arriving then is refused rather than delayed. Reads are
+**The exception is the end of a scan that changed something, and it is not a short one.** Rebuilding
+the folder tree is one pass over every file and measuring the corpus for the query planner is one
+statement, so neither can give way part-way through, and on a whole corpus the two together run for
+the best part of half an hour. A write arriving then is refused rather than delayed. Reads are
 unaffected, and the page a person is looking at goes on working.
 
 **A write that still cannot have the database says so rather than waiting.** The refusal travels as
@@ -537,8 +547,8 @@ together where somebody can look at it.
 A title that *was* detected can still say less than the name somebody typed on disk, and that name is
 otherwise only reachable by hovering each row one at a time.
 
-It shows the **base name with its extension** (`Corcovado - Tom Jobim.kar`), not the path: a column of
-paths would be unreadable at this width. Where a song
+It shows the **base name with its extension** (`Corcovado - Tom Jobim.kar`), not the path: the folder
+is the Folders page's question, and a column of paths would be unreadable at this width. Where a song
 has several byte-identical copies it names **the same one the hover names** — the prettiest, by
 `nicest_path` — so the two cannot disagree about which file is being talked about. It is **suppressed
 for songs whose title already is that name**: repeating the whole title to add an extension is not
@@ -2090,7 +2100,7 @@ swaps back in, and by the lyric-search hits — and the fragment routes never se
 (The same fact makes the file-name switch a class on `#rows` rather than a field on a row; see
 [`What a browse list shows without being asked`](#what-a-browse-list-shows-without-being-asked).) So
 a row cannot know what else is narrowing the list. It is also what every other filter link in this
-tool already does — the Favorites page and a package's *not packaged* link — and the
+tool already does — the Folders page, the Favorites page, a package's *not packaged* link — and the
 chips strip is what says what happened either way, which is the whole reason
 [`Acting on a whole filter`](#acting-on-a-whole-filter) insists every filter has a chip.
 
@@ -2923,8 +2933,8 @@ over a whole corpus is hours, and most of that is one step; the rest are single 
 inside them to count. A name for the running step alone says neither what is left nor whether a
 step that has shown the same sentence for five minutes is still working.
 
-**A step that runs only when a row changed says so while it waits.** Grouping duplicates and
-measuring for the query planner run only when the run wrote or removed a row, which
+**A step that runs only when a row changed says so while it waits.** Grouping duplicates, indexing
+folders and measuring for the query planner run only when the run wrote or removed a row, which
 nobody knows until the reading is over. Listing them as certain promises work an unchanged rescan
 never does; leaving them off hides the longest tail a forced pass has.
 

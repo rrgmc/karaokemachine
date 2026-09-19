@@ -695,10 +695,10 @@ mod tests {
 
         assert_eq!(
             showing_or(
-                Some(format!("{base}songs?artist=Queen&sort=suitability")),
+                Some(format!("{base}songs?folder=brasil%2F&sort=suitability")),
                 base
             ),
-            "http://127.0.0.1:8178/songs?artist=Queen&sort=suitability"
+            "http://127.0.0.1:8178/songs?folder=brasil%2F&sort=suitability"
         );
 
         // No window, or a platform that would not say.

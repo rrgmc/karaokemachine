@@ -80,6 +80,11 @@ pub use self::cluster::ClusterCounts;
 pub use self::filter::*;
 pub use self::model::*;
 
+// `prefix_range` is the one thing in `sql` a caller outside `db` has: `handlers.rs` needs it to ask
+// for a folder's children. The rest is not exported, because a fragment builder loose in the program
+// is how a second spelling of "the title to show" gets written.
+pub use self::sql::prefix_range;
+
 // These two are private and stay private: nothing outside `db` may run a migration, ask what version
 // a database is, or assemble a `WHERE` clause. The globs are how the `impl Db` blocks reach them.
 use self::migrate::*;

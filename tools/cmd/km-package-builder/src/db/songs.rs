@@ -427,6 +427,176 @@ impl Db {
         Ok((file_id, contained(&self.root, &relative)?))
     }
 
+    /// The folders directly inside `prefix`, each with how many songs live anywhere beneath it.
+    ///
+    /// `prefix` is `""` for the root and otherwise ends in `/`. One level at a time, because the real
+    /// corpus is folders inside folders thousands deep and a flat list of every distinct directory is
+    /// tens of thousands of rows nobody can read.
+    ///
+    /// Files sitting directly in `prefix` rather than in a subfolder come back as the node with an
+    /// empty name, first; the page shows that as *files here*.
+    ///
+    /// The count is distinct *songs*, not files: a folder holding six copies of one song has one song
+    /// in it, and a curator picking which folder to work through is asking how much is *there*, not
+    /// how much is duplicated.
+    ///
+    /// Read from the `folders` table: two index seeks rather than a `substr`/`instr` group-by over
+    /// every row in `files`, which at the root of a large corpus takes seconds. The caller rebuilds
+    /// the table first when [`Db::folder_index_is_current`] says it has fallen behind `files`, so it
+    /// cannot silently answer for a corpus that has moved on.
+    pub fn folders(&self, prefix: &str) -> Result<Vec<FolderNode>, DbError> {
+        let mut out = Vec::new();
+        // The bucket first, so a folder's own files are read before its subfolders — the order a
+        // sorted group-by would give, because the empty segment sorts before every name.
+        let direct: Option<i64> = self
+            .conn
+            .query_row(
+                "SELECT direct FROM folders WHERE path = ?1",
+                [prefix],
+                |row| row.get(0),
+            )
+            .optional()?;
+        if let Some(direct) = direct
+            && direct > 0
+        {
+            out.push(FolderNode {
+                name: String::new(),
+                path: prefix.to_owned(),
+                song_count: direct as u32,
+            });
+        }
+
+        let mut statement = self
+            .conn
+            .prepare("SELECT name, path, beneath FROM folders WHERE parent = ?1 ORDER BY name")?;
+        let rows = statement.query_map([prefix], |row| {
+            Ok(FolderNode {
+                name: row.get(0)?,
+                path: row.get(1)?,
+                song_count: row.get::<_, i64>(2)? as u32,
+            })
+        })?;
+        for row in rows {
+            out.push(row?);
+        }
+        Ok(out)
+    }
+
+    /// Whether the folder tree still describes the files it was built from.
+    ///
+    /// The marker is the last scan's timestamp together with the highest `files.rowid`. Neither alone
+    /// is enough: a scan can rename or forget files without the top rowid moving, and a scan writes
+    /// rows in batches, so a rowid that has moved means files arrived since the last rebuild — while
+    /// the timestamp is still the old one.
+    ///
+    /// `MAX(rowid)` and not `COUNT(*)`: the count reads every row, which on a large corpus is
+    /// a tenth of a second *added to every visit* — the check would have cost more than the query it
+    /// exists to avoid. This is an index seek to the end.
+    ///
+    /// **Asked by the caller rather than acted on here, because rebuilding is a write.** A page is
+    /// drawn through a connection that cannot write, and the rebuild is a whole pass over `files` —
+    /// so whoever draws the page decides whether this is a good moment for one. It is never a good
+    /// moment during a scan: a scan moves the marker on every batch, which would make every visit
+    /// to the page pay for a pass while the writer is already using the disk, and the scan's own
+    /// tail rebuilds the tree when it finishes.
+    pub fn folder_index_is_current(&self) -> Result<bool, DbError> {
+        let current = self.folder_index_marker()?;
+        Ok(self.setting("folders_index")?.as_deref() == Some(current.as_str()))
+    }
+
+    fn folder_index_marker(&self) -> Result<String, DbError> {
+        let top: i64 =
+            self.conn
+                .query_row("SELECT COALESCE(MAX(rowid), 0) FROM files", [], |row| {
+                    row.get(0)
+                })?;
+        let scanned = self.setting("last_scan")?.unwrap_or_default();
+        Ok(format!("{scanned}:{top}"))
+    }
+
+    /// Recomputes the whole folder tree from `files`, and reports how many folders it holds.
+    ///
+    /// One pass, ordered by song, because the counts are of distinct *songs*: a song contributes one
+    /// to every folder above any of its copies, however many copies there are and however they are
+    /// spread. Grouping the rows by song is what lets that be a small set per song instead of a set
+    /// per folder held for the whole pass — the latter is a million song ids in memory on a real
+    /// corpus.
+    ///
+    /// Called at the end of a scan, and by the Folders page when the index has fallen behind.
+    pub fn rebuild_folders(&self) -> Result<u32, DbError> {
+        use std::collections::{HashMap, HashSet};
+
+        let mut direct: HashMap<String, u32> = HashMap::new();
+        let mut beneath: HashMap<String, u32> = HashMap::new();
+        {
+            let mut statement = self.conn.prepare(
+                "SELECT song_id, path FROM files
+                 WHERE song_id IS NOT NULL ORDER BY song_id",
+            )?;
+            let mut rows = statement.query([])?;
+
+            let mut song: Option<String> = None;
+            let mut here: HashSet<String> = HashSet::new();
+            let mut above: HashSet<String> = HashSet::new();
+
+            // Counted when the song changes rather than per row, so six copies of one song in one
+            // folder are one song in it.
+            let tally = |here: &mut HashSet<String>,
+                         above: &mut HashSet<String>,
+                         direct: &mut HashMap<String, u32>,
+                         beneath: &mut HashMap<String, u32>| {
+                for folder in here.drain() {
+                    *direct.entry(folder).or_default() += 1;
+                }
+                for folder in above.drain() {
+                    *beneath.entry(folder).or_default() += 1;
+                }
+            };
+
+            while let Some(row) = rows.next()? {
+                let id: String = row.get(0)?;
+                let path: String = row.get(1)?;
+                if song.as_deref() != Some(id.as_str()) {
+                    tally(&mut here, &mut above, &mut direct, &mut beneath);
+                    song = Some(id);
+                }
+                let folder = parent_folder(&path);
+                here.insert(folder.to_owned());
+                for ancestor in ancestors(folder) {
+                    above.insert(ancestor);
+                }
+            }
+            tally(&mut here, &mut above, &mut direct, &mut beneath);
+        }
+
+        // Every folder that holds files directly is also a folder something is beneath, so `beneath`
+        // is the complete set of rows — including the root, which every path contributes.
+        let transaction = self.conn.unchecked_transaction()?;
+        transaction.execute("DELETE FROM folders", [])?;
+        {
+            let mut insert = transaction.prepare(
+                "INSERT INTO folders(path, parent, name, direct, beneath)
+                 VALUES (?1, ?2, ?3, ?4, ?5)",
+            )?;
+            for (path, under) in &beneath {
+                insert.execute(params![
+                    path,
+                    parent_of(path),
+                    folder_name(path),
+                    direct.get(path).copied().unwrap_or(0),
+                    *under,
+                ])?;
+            }
+        }
+        transaction.commit()?;
+
+        let marker = self.folder_index_marker()?;
+        self.set_setting("folders_index", &marker)?;
+        let total = beneath.len() as u32;
+        tracing::info!(folders = total, "rebuilt the folder index");
+        Ok(total)
+    }
+
     // -- editing ----------------------------------------------------------------------------
 
     /// Applies a person's corrections. `None` in a field means "leave alone"; `Some(None)` clears it.
@@ -792,7 +962,8 @@ impl Db {
     /// This is the tool's first bulk action, and it exists because of a measurement. On the local
     /// corpus 92% of songs have no language at all — most files declare none and are
     /// written in an encoding that implies none — so classifying them one page at a time is not a
-    /// thing anybody would finish.
+    /// thing anybody would finish. The corpus is already sorted into `Brasil/`, `Ingles/` and
+    /// `japanese/`, so with the folder filter this is one click per folder.
     pub fn set_language_for(
         &self,
         filter: &Filter,

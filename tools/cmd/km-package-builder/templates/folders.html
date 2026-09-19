@@ -1,0 +1,59 @@
+{% extends "layout.html" %}
+{% block title %}{{ "nav-folders"|t }} &middot; {{ crate::APP_NAME }}{% endblock %}
+{% block content %}
+
+<h2>
+  <a href="/folders">{{ "folders-all"|t }}</a>
+  {%- for crumb in crumbs %} / <a href="/folders?path={{ crumb.1 }}">{{ crumb.0 }}</a>{% endfor %}
+</h2>
+
+{% if folders.is_empty() %}
+{# Two keys around the link, because the page it points at is named by the nav's own word. #}
+<p class="dim">
+  {{ "folders-none-lead"|t }} <a href="/scan">{{ "folders-none-link"|t }}</a> {{ "folders-none-tail"|t }}
+</p>
+{% else %}
+<div class="panel">
+<div class="scroll">
+<table>
+  <thead>
+    <tr>
+      <th>{{ "folders-folder"|t }}</th>
+      <th class="num" title="{{ "folders-songs-title"|t }}">{{ "favorites-songs"|t }}</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    {% if !path.is_empty() %}
+    <tr>
+      <td colspan="3"><a href="/folders?path={{ parent }}">&larr; {{ "folders-up"|t }}</a></td>
+    </tr>
+    {% endif %}
+    {% for folder in folders %}
+    <tr>
+      <td>
+        {% if folder.is_files_here() %}
+        <span class="dim">{{ "folders-files-here"|t }}</span>
+        {% else %}
+        <a href="/folders?path={{ folder.path }}">{{ folder.name }}</a>
+        {% endif %}
+      </td>
+      <td class="num">{{ folder.song_count }}</td>
+      <td>
+        <span class="row">
+          {% if !folder.is_files_here() %}
+          <a href="/folders?path={{ folder.path }}"><button type="button">{{ "folders-browse"|t }}</button></a>
+          {% endif %}
+          <a href="/songs?folder={% if folder.is_files_here() %}{{ path }}{% else %}{{ folder.path }}{% endif %}"><button
+             type="button">{{ "folders-only-this"|t }}</button></a>
+        </span>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+</div>
+{% endif %}
+
+{% endblock %}

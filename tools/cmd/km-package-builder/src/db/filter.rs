@@ -767,6 +767,8 @@ pub struct Filter {
     ///
     /// Matched on the folded key rather than on the artist itself — see [`Self::to_sql`].
     pub artist: Option<String>,
+    /// Only songs with a file under this folder, given as a path prefix ending in `/`.
+    pub folder: Option<String>,
     /// Whether a song has to be in a favorite, in none, or either.
     pub favorited: FavoritedFilter,
     /// Only songs in this favorite.
@@ -814,6 +816,7 @@ impl Default for Filter {
             user_score: ScoreFilter::Any,
             initial: Initial::Any,
             artist: None,
+            folder: None,
             favorited: FavoritedFilter::Any,
             favorite: None,
             melody: None,
@@ -901,6 +904,17 @@ impl Filter {
         clauses.extend(self.suitability.clause("s.suitability"));
         clauses.extend(self.user_score.clause("s.user_score"));
         clauses.extend(self.initial.clause(&title_initial("s.")));
+        if let Some(folder) = &self.folder {
+            let (low, high) = prefix_range(folder);
+            clauses.push(format!(
+                "EXISTS (SELECT 1 FROM files f WHERE f.song_id = s.id
+                         AND f.path >= ?{} AND f.path < ?{})",
+                values.len() + 1,
+                values.len() + 2
+            ));
+            values.push(Binding::Text(low));
+            values.push(Binding::Text(high));
+        }
         if let Some(clause) = self.favorited.clause() {
             clauses.push(clause.to_owned());
         }

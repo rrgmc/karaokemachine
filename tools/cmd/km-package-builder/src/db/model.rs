@@ -1,8 +1,8 @@
 //! The shapes a query hands back, and the one it takes bindings in.
 //!
 //! Rows and reports rather than behaviour: `SongDetail`, `MidiDetail`, `SongFile`, `Counts`,
-//! `RestoreOutcome`, `LyricSearch`, plus `Binding`, which is how a value reaches SQLite when the
-//! statement is built at run time.
+//! `FolderNode`, `RestoreOutcome`, `LyricSearch`, plus `Binding`, which is how a value reaches
+//! SQLite when the statement is built at run time.
 //!
 //! Split out of `db.rs` because they change for a different reason than the queries do — a column
 //! added to the browse table changes a struct here and a `SELECT` there, and the two were sharing an
@@ -60,6 +60,24 @@ pub struct FailureTally {
     pub count: u32,
     /// One of them, so the reason has something concrete beside it.
     pub example: String,
+}
+
+/// One folder under the corpus root, as the Folders page shows it.
+#[derive(Debug, Clone)]
+pub struct FolderNode {
+    /// The folder's own name, empty for the "files here" bucket.
+    pub name: String,
+    /// Path from the root, ending in `/`. This is what the browse filter takes.
+    pub path: String,
+    /// Distinct songs anywhere beneath it.
+    pub song_count: u32,
+}
+
+impl FolderNode {
+    /// Whether this is the bucket for files sitting directly in the folder being listed.
+    pub fn is_files_here(&self) -> bool {
+        self.name.is_empty()
+    }
 }
 
 /// The MIDI half of a song's page.
@@ -300,6 +318,25 @@ pub struct SongFile {
     pub path: String,
     /// Size in bytes.
     pub size: u64,
+}
+
+impl SongFile {
+    /// The folder this copy sits in, ending in `/`. Empty for a file at the root.
+    pub fn folder(&self) -> &str {
+        parent_folder(&self.path)
+    }
+
+    /// The song list filtered to this copy's folder, subfolders included.
+    ///
+    /// The same link the Folders page's *only this folder* button follows, so the two agree about
+    /// what "this folder" means. Empty for a file at the root, where the filter would be no filter
+    /// at all and the link would quietly mean *every song*; the template shows no link then.
+    pub fn folder_url(&self) -> String {
+        match self.folder() {
+            "" => String::new(),
+            folder => format!("/songs?folder={}", crate::form::encode(folder)),
+        }
+    }
 }
 
 /// A correction to apply. `None` leaves a field alone; `Some(None)` clears it.

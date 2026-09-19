@@ -11,6 +11,13 @@ Entries are written for somebody who has the machine. Why any of it is the way i
 
 ## [Unreleased]
 
+### Added
+
+- **The package builder has a Folders page.** It lists the corpus by folder, with how many distinct
+  songs are in each one and beneath it. Each folder opens the songs list narrowed to that folder,
+  and a song page links each copy to the songs beside it. A scan that finds changes builds the
+  folder list as its last step, which adds several minutes to it on a large corpus.
+
 ## [1.18.0] - 2026-09-18
 
 ### Added

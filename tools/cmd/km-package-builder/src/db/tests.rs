@@ -2630,12 +2630,12 @@ fn filtering_by_language_narrows_and_both_sentinels_work() {
 #[test]
 fn the_bulk_set_writes_exactly_the_rows_the_same_filter_lists() {
     let mut db = Db::open_in_memory(Path::new("/corpus")).expect("open");
-    by_jobim(&mut db, "a", "Corcovado");
-    by_jobim(&mut db, "b", "Wave");
+    add(&mut db, "a", Some("Corcovado"), "brasil/a.kar");
+    add(&mut db, "b", Some("Wave"), "brasil/b.kar");
     add(&mut db, "c", Some("Hey Jude"), "ingles/c.kar");
 
     let brasil = Filter {
-        artist: Some("Jobim".to_owned()),
+        folder: Some("brasil/".to_owned()),
         ..Filter::default()
     };
     assert_eq!(db.count_matching(&brasil).expect("count"), 2);
@@ -2674,13 +2674,13 @@ fn the_bulk_set_writes_exactly_the_rows_the_same_filter_lists() {
 #[test]
 fn the_matching_ids_are_every_match_in_the_order_the_list_shows_them() {
     let mut db = Db::open_in_memory(Path::new("/corpus")).expect("open");
-    by_jobim(&mut db, "c", "Corcovado");
-    by_jobim(&mut db, "a", "Amanhã");
-    by_jobim(&mut db, "w", "Wave");
+    add(&mut db, "c", Some("Corcovado"), "brasil/c.kar");
+    add(&mut db, "a", Some("Amanhã"), "brasil/a.kar");
+    add(&mut db, "w", Some("Wave"), "brasil/w.kar");
     add(&mut db, "h", Some("Hey Jude"), "ingles/h.kar");
 
     let brasil = Filter {
-        artist: Some("Jobim".to_owned()),
+        folder: Some("brasil/".to_owned()),
         // A page of one, which this must ignore -- it answers *everything matching*.
         limit: 1,
         ..Filter::default()
@@ -2688,7 +2688,7 @@ fn the_matching_ids_are_every_match_in_the_order_the_list_shows_them() {
     assert_eq!(
         db.matching_ids(&brasil, None).expect("ids"),
         vec!["a", "c", "w"],
-        "three songs, by title, with the one by somebody else left out"
+        "three songs, by title, with the one outside the folder left out"
     );
 
     // And the sort is the list's own, so a different sort gives a different numbering.
@@ -3510,13 +3510,13 @@ fn a_batch_of_songs_is_filed_into_a_favorite_at_once() {
 #[test]
 fn a_filter_files_its_whole_match_into_a_favorite_and_takes_it_back() {
     let mut db = Db::open_in_memory(Path::new("/corpus")).expect("open");
-    by_jobim(&mut db, "a", "Corcovado");
-    by_jobim(&mut db, "b", "Desafinado");
+    add(&mut db, "a", Some("Corcovado"), "brasil/a.kar");
+    add(&mut db, "b", Some("Desafinado"), "brasil/b.kar");
     add(&mut db, "c", Some("Yesterday"), "ingles/c.kar");
     let bossa = db.create_favorite("Bossa").expect("favorite");
 
     let brasil = Filter {
-        artist: Some("Jobim".to_owned()),
+        folder: Some("brasil/".to_owned()),
         ..Default::default()
     };
     assert_eq!(db.set_favorites_for(&brasil, bossa, true).expect("file"), 2);
@@ -4430,13 +4430,6 @@ pub(crate) fn add(db: &mut Db, id: &str, title: Option<&str>, path: &str) {
 pub(crate) fn add_with_artist(db: &mut Db, id: &str, title: &str, artist: &str, path: &str) {
     add_built(db, id, Some(title), path, |song| {
         song.det_artist = Some(artist.to_owned());
-    });
-}
-
-/// [`add`], with the song credited to Jobim, for the tests that act on a filter's whole match.
-fn by_jobim(db: &mut Db, id: &str, title: &str) {
-    add_built(db, id, Some(title), &format!("brasil/{id}.kar"), |song| {
-        song.det_artist = Some("Jobim".to_owned());
     });
 }
 
@@ -5643,6 +5636,78 @@ fn an_initial_round_trips_through_the_query_string() {
     );
 }
 
+#[test]
+fn a_folder_filter_matches_by_path_prefix_and_not_by_wildcard() {
+    let mut db = db();
+    add(&mut db, "a", Some("A"), "rock/a.kar");
+    add(&mut db, "b", Some("B"), "rock/deep/b.kar");
+    add(&mut db, "c", Some("C"), "rockabilly/c.kar");
+    // A folder named with a LIKE wildcard in it. `100% Hits` is not an unusual name.
+    add(&mut db, "d", Some("D"), "100% Hits/d.kar");
+    add(&mut db, "e", Some("E"), "100X Hits/e.kar");
+
+    let under = |folder: &str| {
+        db.songs(&Filter {
+            folder: Some(folder.to_owned()),
+            sort: Sort::Title,
+            ..Filter::default()
+        })
+        .expect("browse")
+    };
+
+    // Subfolders included, and `rockabilly` is a different folder rather than a longer match.
+    assert_eq!(ids(&under("rock/")), ["a", "b"]);
+    assert_eq!(ids(&under("rockabilly/")), ["c"]);
+    assert_eq!(
+        ids(&under("100% Hits/")),
+        ["d"],
+        "% is a character, not a wildcard"
+    );
+}
+
+/// Lists a folder the way the page does: rebuild where the index has fallen behind, then read it.
+///
+/// [`Db::folders`] reads the index and does not refresh it, because a rebuild writes and a page is
+/// drawn through a connection that cannot — so deciding whether this is a moment for one belongs to
+/// the caller. See [`Db::folder_index_is_current`].
+fn listing(db: &Db, prefix: &str) -> Vec<FolderNode> {
+    if !db.folder_index_is_current().expect("marker") {
+        db.rebuild_folders().expect("rebuild");
+    }
+    db.folders(prefix).expect("folders")
+}
+
+#[test]
+fn the_folder_listing_shows_one_level_at_a_time() {
+    let mut db = db();
+    add(&mut db, "a", Some("A"), "rock/a.kar");
+    add(&mut db, "b", Some("B"), "rock/deep/b.kar");
+    add(&mut db, "c", Some("C"), "rock/deep/deeper/c.kar");
+    add(&mut db, "d", Some("D"), "mpb/d.kar");
+
+    let top = listing(&db, "");
+    assert_eq!(
+        top.iter()
+            .map(|node| (node.name.as_str(), node.song_count))
+            .collect::<Vec<_>>(),
+        vec![("mpb", 1), ("rock", 3)],
+        "the count is everything beneath a folder, not just what sits in it"
+    );
+    assert_eq!(top[1].path, "rock/");
+
+    let rock = listing(&db, "rock/");
+    assert_eq!(
+        rock.iter()
+            .map(|node| (node.name.as_str(), node.song_count))
+            .collect::<Vec<_>>(),
+        // The empty name is the bucket for `rock/a.kar`, which is in this folder rather than
+        // under one of its children.
+        vec![("", 1), ("deep", 2)]
+    );
+    assert!(rock[0].is_files_here());
+    assert_eq!(rock[1].path, "rock/deep/");
+}
+
 // -- forgetting what is gone ---------------------------------------------------------------
 
 /// The fast path, and the one nearly every scan takes.
@@ -5761,6 +5826,161 @@ fn a_song_orphaned_before_this_scan_is_swept_up_too() {
 
     assert_eq!(db.forget_orphaned_songs().expect("sweep"), 1);
     assert_eq!(db.counts().expect("counts").songs, 0);
+}
+
+#[test]
+fn a_song_with_copies_in_two_subfolders_counts_once_in_their_parent() {
+    let mut db = db();
+    // The same recording, filed twice — the shape a scavenged corpus is full of.
+    add(&mut db, "a", Some("A"), "rock/one/a.kar");
+    db.execute_for_test(
+        "INSERT INTO files(path, size, mtime, content_hash, song_id, scan_status, scanned_at)
+         VALUES ('rock/two/a.kar', 1234, 0, 'a', 'a', 'ok', '2026-08-24T00:00:00Z')",
+    )
+    .expect("second copy");
+    add(&mut db, "b", Some("B"), "rock/two/b.kar");
+
+    let top = listing(&db, "");
+    assert_eq!(
+        top.iter()
+            .map(|node| (node.name.as_str(), node.song_count))
+            .collect::<Vec<_>>(),
+        vec![("rock", 2)],
+        "two songs under rock/, not three files and not one per copy"
+    );
+    let rock = listing(&db, "rock/");
+    assert_eq!(
+        rock.iter()
+            .map(|node| (node.name.as_str(), node.song_count))
+            .collect::<Vec<_>>(),
+        vec![("one", 1), ("two", 2)]
+    );
+}
+
+#[test]
+fn a_file_at_the_root_shows_as_files_here_at_the_top_level() {
+    let mut db = db();
+    add(&mut db, "a", Some("A"), "loose.kar");
+    add(&mut db, "b", Some("B"), "rock/b.kar");
+
+    let top = listing(&db, "");
+    assert!(top[0].is_files_here(), "the bucket comes first: {top:?}");
+    assert_eq!(top[0].song_count, 1);
+    assert_eq!(top[0].path, "", "and filters to the root");
+    assert_eq!(top[1].name, "rock");
+}
+
+/// The index says when it has fallen behind the corpus, and a rebuild is what catches it up.
+///
+/// **The saying and the catching up are two calls, and that is the point of the test.** A rebuild is
+/// a whole pass over `files` and it writes, so a page — drawn through a connection that cannot
+/// write, while a scan may be moving the marker on every batch — has to be able to ask the question
+/// without paying for the answer.
+#[test]
+fn the_folder_index_says_when_the_corpus_has_moved_on() {
+    let mut db = db();
+    add(&mut db, "a", Some("A"), "rock/a.kar");
+    assert_eq!(listing(&db, "").len(), 1);
+    assert!(
+        db.folder_index_is_current().expect("marker"),
+        "nothing has moved since the rebuild"
+    );
+
+    // A later scan writes more rows. The index has to say so, or the page would go on answering for
+    // a corpus that no longer exists with nothing to notice it.
+    add(&mut db, "b", Some("B"), "mpb/b.kar");
+    assert!(
+        !db.folder_index_is_current().expect("marker"),
+        "rows arrived, so the index is behind"
+    );
+    assert_eq!(
+        db.folders("").expect("folders").len(),
+        1,
+        "and reading it alone does not catch it up"
+    );
+
+    let top = listing(&db, "");
+    assert_eq!(
+        top.iter()
+            .map(|node| node.name.as_str())
+            .collect::<Vec<_>>(),
+        vec!["mpb", "rock"]
+    );
+}
+
+#[test]
+fn an_unchanged_corpus_is_read_from_the_index_rather_than_recomputed() {
+    let mut db = db();
+    add(&mut db, "a", Some("A"), "rock/a.kar");
+    listing(&db, "");
+
+    // Reaching past the API to prove the fast path is taken: with `files` unchanged, a listing
+    // must not recompute, so a row removed from the index stays removed. This asserts a *stale*
+    // answer on purpose — it is the only way to show the group-by is not being run again, which
+    // is the entire point of the table.
+    db.execute_for_test("DELETE FROM folders WHERE path = 'rock/'")
+        .expect("delete");
+    assert!(
+        db.folders("").expect("folders").is_empty(),
+        "the listing came from the table, not from files"
+    );
+
+    // And an explicit rebuild puts it back.
+    assert_eq!(db.rebuild_folders().expect("rebuild"), 2, "root and rock/");
+    assert_eq!(db.folders("").expect("folders").len(), 1);
+}
+
+#[test]
+fn folder_paths_split_into_parents_and_names() {
+    assert_eq!(parent_folder("rock/deep/a.kar"), "rock/deep/");
+    assert_eq!(parent_folder("a.kar"), "", "a file at the root");
+    assert_eq!(
+        ancestors("rock/deep/"),
+        vec!["".to_owned(), "rock/".to_owned(), "rock/deep/".to_owned()]
+    );
+    assert_eq!(ancestors(""), vec![String::new()], "the root is its own");
+    assert_eq!(parent_of("rock/deep/").as_deref(), Some("rock/"));
+    assert_eq!(parent_of("rock/").as_deref(), Some(""));
+    assert_eq!(parent_of(""), None, "the root has no parent");
+    assert_eq!(folder_name("rock/deep/"), "deep");
+    assert_eq!(folder_name("rock/"), "rock");
+    assert_eq!(folder_name(""), "");
+}
+
+/// The link beside a copy on the song page is the Folders page's *only this folder* link.
+///
+/// A file at the root has no link at all: `folder=` is not a filter, so a link built from it
+/// would say "this folder" and show the whole corpus.
+#[test]
+fn a_copy_links_to_the_song_list_for_its_own_folder() {
+    let file = |path: &str| SongFile {
+        path: path.to_owned(),
+        size: 1,
+    };
+    assert_eq!(file("rock/deep/a.kar").folder(), "rock/deep/");
+    assert_eq!(
+        file("rock/deep/a.kar").folder_url(),
+        "/songs?folder=rock%2Fdeep%2F"
+    );
+    // A corpus made of other people's folders has spaces and ampersands in them.
+    assert_eq!(
+        file("Rock & Roll/a.kar").folder_url(),
+        "/songs?folder=Rock+%26+Roll%2F"
+    );
+    assert_eq!(file("a.kar").folder(), "");
+    assert_eq!(file("a.kar").folder_url(), "", "no link at the root");
+}
+
+#[test]
+fn a_prefix_range_covers_exactly_what_is_under_it() {
+    let (low, high) = prefix_range("rock/");
+    assert_eq!(low, "rock/");
+    assert!("rock/a.kar" >= low.as_str() && "rock/a.kar" < high.as_str());
+    assert!("rock/z/z.kar" < high.as_str());
+    assert!("rockabilly/a.kar" >= high.as_str());
+    // An empty prefix must not exclude anything.
+    let (low, high) = prefix_range("");
+    assert!("anything" >= low.as_str() && "anything" < high.as_str());
 }
 
 /// The slow part of an open says so to whoever asked, not only to a console.
@@ -6315,16 +6535,16 @@ fn a_fresh_database_has_no_saved_filters() {
 fn a_saved_filter_comes_back_under_its_name() {
     let db = db();
     db.save_filter(
-        "Jobim, unclassified",
-        "language=unset&artist=Jobim",
+        "Portuguese, unclassified",
+        "language=unset&folder=Brasil/",
         "2026-09-11T10:00:00Z",
     )
     .expect("save");
 
     let saved = db.saved_filters().expect("read");
     assert_eq!(saved.len(), 1);
-    assert_eq!(saved[0].name, "Jobim, unclassified");
-    assert_eq!(saved[0].query, "language=unset&artist=Jobim");
+    assert_eq!(saved[0].name, "Portuguese, unclassified");
+    assert_eq!(saved[0].query, "language=unset&folder=Brasil/");
 }
 
 /// The whole-corpus case, which has to survive as itself rather than as *nothing was saved*.

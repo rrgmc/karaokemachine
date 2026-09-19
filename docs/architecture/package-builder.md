@@ -30,7 +30,8 @@ Two tables carry the model:
   choice gives both halves of the brief: the same file always yields the same id, and identical
   copies land on one row with no grouping pass to get wrong. `files` carries the one-to-many.
 
-Then `favorites`/`song_favorites` (named lists and what is in them), `packages` and `package_volumes` (what a curator names, and each `.kmpkg` it is
+Then `favorites`/`song_favorites` (named lists and what is in them), `folders` (the materialised
+folder tree), `packages` and `package_volumes` (what a curator names, and each `.kmpkg` it is
 written as), `package_songs` (recording *which file* each entry came from), `saved_filters` (a name and the query
 string it stands for), `settings`, and two FTS5 tables.
 
@@ -161,8 +162,8 @@ guard, and `close_folder` clears it on the way out — where `crate::finish` and
 `LoopDestroyed` both arrive. Coming back to a morning's work is what a *saved* filter is for.
 
 **What the remembered filter is worth depends on one route reading it, and `GET /songs` is that
-route.** Every render of the songs page writes down the filter that arrived, which is how the Favorites
-page hands it one the bar never set — so a render arriving with an empty query string
+route.** Every render of the songs page writes down the filter that arrived, which is how the Folders
+and Favorites pages hand it one the bar never set — so a render arriving with an empty query string
 is a render that spends what was remembered, and the nav's seven bare hrefs are where that happens.
 The handler therefore takes `RawQuery` beside its `Query<FilterQuery>` and answers
 `None` with a redirect to the remembered filter, leaving `Some("")` — the *clear all* link — to
@@ -669,30 +670,28 @@ longer than a batch. **What waits on that connection is every write and no read*
 through a connection that can only read, so the tail is felt by a star somebody clicks rather than by
 the pages. See [`Two connections, and which one a page is drawn through`](#two-connections-and-which-one-a-page-is-drawn-through).
 
-**One of those passes cannot be taken in bites, and that is what a write pays for.** `ANALYZE` is one
-statement, so it cannot release the connection part-way and `stand_off` reaches only the gap before
-it. Measured at the end of a scan over a whole corpus that had something to write:
+**Two of those passes cannot be taken in bites, and that is what a write pays for.** A folder tree is
+one pass over every file and `ANALYZE` is one statement, so neither can release the connection
+part-way and `stand_off` reaches only the gap between them. Measured at the end of a scan over a whole
+corpus that had something to write:
 
 | phase | measured |
 |---|---|
 | looking for files | 3.0 s |
 | reading and analyzing | 145 m 41 s |
 | forgetting files that are gone | 252 ms |
+| indexing folders | 12 m 59 s |
 | measuring the corpus for the query planner | 11 m 17 s |
 
-So for about eleven minutes at the end of such a scan, a write waits out `WRITE_WAIT` and is answered
-`DbError::Busy`. Reads are unaffected throughout. Breaking that pass up, or deferring it, is not
-attempted here and is what it would take to close that window.
-
-**The corpus is not browsed by folder, which keeps the tail to that one pass.** A folder tree costs a
-whole pass over `files` at the end of every scan that writes, measured at 12 m 59 s beside the figures
-above; see
-[`The corpus is not browsed by folder`](../decisions/curation.md#the-corpus-is-not-browsed-by-folder).
-An existing `.kmbuild` loses its `folders` table on open, in a guarded step that leaves the schema
-version alone.
+So for the best part of half an hour at the end of such a scan, a write waits out `WRITE_WAIT` and is
+answered `DbError::Busy`. Reads are unaffected throughout. Breaking those two passes up, or deferring
+them, is not attempted here and is what it would take to close that window. The folder tree is paid
+here rather than on the Folders page so that the page opens at once after a scan; see
+[`The corpus is browsed by folder`](../decisions/curation.md#the-corpus-is-browsed-by-folder).
 
 **The whole tail is gated on a row having changed**, and nothing above that gate could reach a
-different answer without one: `ANALYZE` would measure a corpus whose shape had not moved. `last_scan` stays unconditional — it records that the
+different answer without one: the folder tree would be rebuilt from unchanged paths and `ANALYZE`
+would measure a corpus whose shape had not moved. `last_scan` stays unconditional — it records that the
 folder was *read*, which is true of a scan with nothing to do.
 
 **`forget_missing` is handed what is gone, not what is present.** Handing it every path on disk means
@@ -717,7 +716,7 @@ the table.
 **The lock is held in bites.** Deletes re-take it per chunk, the way the writer already does per
 batch, so the tool is never unanswerable for the length of a whole-corpus delete.
 
-**Every phase is timed**, and the Scan page says so. Three of the six are whole-corpus passes and the
+**Every phase is timed**, and the Scan page says so. Four of the seven are whole-corpus passes and the
 only thing ever reported about any of them was its name, so "which phase" — the first question of every
 complaint that the scan is slow — had no answer short of attaching a profiler to somebody's corpus.
 
@@ -730,6 +729,7 @@ altered on disk:
 | reading and analyzing | | 1 m 01 s, every file skipped |
 | forgetting files that are gone | minutes | **202 ms** |
 | looking for near-duplicates | whole `songs` table | **not run** — a forced scan's phase, and a button |
+| indexing folders | whole `files` table | **not run** |
 | measuring the corpus | full `ANALYZE` | **not run** |
 | **the whole scan** | | **80 s** |
 
@@ -1077,6 +1077,21 @@ them is free. A bare `PRAGMA optimize` has the same flaw. So the bound goes, and
 knowingly: warm, a full `ANALYZE` is about a second, and cold at the end of a corpus scan it is
 minutes — see [`The tail, and what a hold of the writer costs`](#the-tail-and-what-a-hold-of-the-writer-costs).
 
+**The folder tree is a table.** Computing it on each visit would be a `substr`/`instr` group-by over
+`files`, whose grouping key is an expression, so no index could help and the root would read every
+row. `beneath` cannot be a sum of children, because the count is of distinct *songs* and a corpus
+files one recording in several folders; `rebuild_folders` walks `files` ordered by `song_id` and
+tallies once per song, so the set held in memory is one song's ancestors rather than one folder's
+songs.
+
+**Derived tables must not answer for a corpus that has moved on.** A scan rebuilds the tree as its
+last pass, including a *stopped* scan: that is the one tail pass a partial read may run, because it
+describes the rows that were written rather than concluding anything about the corpus. As a backstop
+the Folders page compares a cheap marker with the one stored at the last rebuild, and rebuilds when
+they differ. **The staleness check
+has to be cheaper than the query it replaces**: `COUNT(*) FROM files` reads every row and would add a
+tenth of a second to every visit. `MAX(rowid)` is an index seek to the end.
+
 **`songs.file_count` is a denormalized column maintained by three triggers on `files`** — insert,
 delete, and `UPDATE OF song_id`. Triggers rather than the scan, because the scan is not the only writer
 of `files`: a merge, a delete and a re-point all move rows. It is `NOT NULL DEFAULT 0`, which it has to
@@ -1165,7 +1180,10 @@ cannot reset the log past a reader.
 **Which door a handler takes is decided by what its closure does, not by the method it answers.** Only
 seven methods take `&mut self`, so the signature catches the obvious half and the open flag catches
 the rest — SQLite refuses a write on the reading connection outright, which is what
-`a_reading_connection_refuses_a_write` pins.
+`a_reading_connection_refuses_a_write` pins. The Folders page is the one hybrid: reading the tree is a
+read, refreshing it is a whole pass over `files` that writes, and a scan moves the marker it is
+checked against on every batch. So the page refreshes the tree through the writing connection when
+the marker is stale, and not while a scan is running, which the scan's own tail covers.
 
 **A write gets in between batches, because the scan stands aside for it.** Releasing the connection
 is not enough: `std::sync::Mutex` makes no fairness promise, so the writer unlocking and immediately

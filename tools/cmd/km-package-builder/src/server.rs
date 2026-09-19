@@ -1622,6 +1622,7 @@ pub fn router(state: State) -> Router {
         .route("/lyrics/hits", get(handlers::lyric_hits))
         .route("/similar", get(handlers::similar))
         .route("/similar/hits", get(handlers::similar_hits))
+        .route("/folders", get(handlers::folders))
         .route("/songs/{id}/release", post(handlers::release))
         .route("/duplicates", get(handlers::duplicates))
         .route("/duplicates/suggest", post(handlers::suggest_duplicates))
@@ -2013,6 +2014,25 @@ mod tests {
             db.add_tag_of(&brasil, &bossa).expect("tag them");
         }
         (corpus, state)
+    }
+
+    /// A scan leaves the folder tree current, and the Folders page lists what it scanned.
+    ///
+    /// The scan builds the tree in its own tail so that the page never has to pay for a whole pass
+    /// over `files` while somebody waits for it.
+    #[tokio::test]
+    async fn the_folders_page_lists_the_tree_a_scan_built() {
+        let (_corpus, state) = two_folders("folders-page");
+        let current = state
+            .reading(|db| db.folder_index_is_current())
+            .await
+            .expect("marker");
+        assert!(current, "the scan left the folder tree behind");
+
+        let (status, html) = get(&state, "/folders").await;
+        assert_eq!(status, axum::http::StatusCode::OK);
+        assert!(html.contains(r#"href="/folders?path=brasil/""#), "{html}");
+        assert!(html.contains(r#"href="/songs?folder=ingles/""#), "{html}");
     }
 
     /// The body the filter bar actually submits, with the tags set to what is asked for.

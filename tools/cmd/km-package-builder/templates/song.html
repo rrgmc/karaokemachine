@@ -254,6 +254,10 @@
       {% for file in song.files %}
       <li>
         {{ file.path }} <span class="dim">({{ file.size }} {{ "song-bytes"|t }})</span>
+        {%- if !file.folder_url().is_empty() %}
+        <a class="sans" href="{{ file.folder_url() }}"
+           title="{{ "song-folder-title"|t }}">{{ "song-songs-in-folder"|t }}</a>
+        {%- endif %}
       </li>
       {% endfor %}
     </ul>

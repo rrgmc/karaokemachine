@@ -39,6 +39,7 @@
        title="{{ "nav-lyrics-title"|t }}">{{ "nav-lyrics"|t }}</a>
     <a href="/favorites" class="{% if chrome.tab == "favorites" %}on{% endif %}">{{ "nav-favorites"|t }}</a>
     <a href="/packages" class="{% if chrome.tab == "packages" %}on{% endif %}">{{ "nav-packages"|t }}</a>
+    <a href="/folders" class="{% if chrome.tab == "folders" %}on{% endif %}">{{ "nav-folders"|t }}</a>
     {# No count beside it. A number that cannot reach zero stops being a queue of work and becomes a
        permanent fixture of the navigation, which is what a corpus of a few hundred thousand files
        makes of any duplicate count. The page reports; nothing here nags. #}
