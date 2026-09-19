@@ -281,6 +281,11 @@ impl Db {
     /// prefixes, a lyric is hundreds and is asked for as whole phrases, because a song's words ORed
     /// one at a time match most of the corpus.
     ///
+    /// **[`Self::songs_holding`] is read before the expression is built**, because which phrases to
+    /// ask for depends on how rare their words are — see [`crate::lyric_likeness::match_query`]. It
+    /// is a few hundred seeks into a term index and it decides how much of the corpus `bm25` has to
+    /// rank, so it pays for itself many times over.
+    ///
     /// **It takes an id and no text.** The subject is the song's whole lyric body, which no search box
     /// could hold, so the words come from the row rather than from the address.
     ///

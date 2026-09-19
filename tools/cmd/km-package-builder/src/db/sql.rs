@@ -313,9 +313,10 @@ pub(super) fn browse_columns() -> String {
          -- Whether the song has words, so a row can decide whether to offer the search for the
          -- songs that sing them. Appended, for the reason above.
          --
-         -- A test of the column and not of its length: an instrumental is NULL and the empty string
-         -- is never stored, which is the same rule `lyrics_fts`'s own trigger reads.
-         (s.lyrics IS NOT NULL) AS has_words",
+         -- Word for word the predicate `lyrics_fts_insert` indexes by, so a row that offers the
+         -- search is a row that can be a candidate. The empty string is never stored, which makes
+         -- the second test redundant today and keeps the two from parting if that ever changes.
+         (s.lyrics IS NOT NULL AND s.lyrics <> '') AS has_words",
         eff_title("s."),
         eff_artist("s."),
         title_is_filename("s."),
