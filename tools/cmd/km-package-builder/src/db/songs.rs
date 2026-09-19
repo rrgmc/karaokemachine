@@ -700,22 +700,26 @@ impl Db {
     /// per folder held for the whole pass — the latter is a million song ids in memory on a real
     /// corpus.
     ///
-    /// Called at the end of a scan, and by the Folders page when the index has fallen behind.
+    /// Called by the Folders page when the index has fallen behind.
     pub fn rebuild_folders(&self) -> Result<u32, DbError> {
+        Ok(self.rebuild_folders_unless(|| false)?.unwrap_or(0))
+    }
+
+    /// [`Db::rebuild_folders`], abandoned as soon as `stop` answers true.
+    ///
+    /// **An abandoned pass writes nothing.** The old tree and its marker stay as they were, so the
+    /// marker no longer matches `last_scan` and the Folders page rebuilds the tree on its next visit.
+    /// The pass reads rows in `files_song_path` order, so no sort runs before the first row and a
+    /// check between rows reaches the whole pass. The end of a scan calls this, because the pass is
+    /// minutes over a whole corpus and Stop has to end it.
+    pub fn rebuild_folders_unless(&self, stop: impl Fn() -> bool) -> Result<Option<u32>, DbError> {
         use std::collections::{HashMap, HashSet};
+        const CHECK_EVERY: u32 = 4096;
 
         let mut direct: HashMap<String, u32> = HashMap::new();
         let mut beneath: HashMap<String, u32> = HashMap::new();
         {
-            // Joined to `songs` for `browsable`, which is what the folder's own list is drawn
-            // through. A count off `files` alone says a folder holds songs that clicking it does
-            // not show, and a folder emptied by deleting still says it holds them.
-            let browsable = browsable("s.");
-            let mut statement = self.conn.prepare(&format!(
-                "SELECT f.song_id, f.path FROM files f
-                 JOIN songs s ON s.id = f.song_id
-                 WHERE f.song_id IS NOT NULL AND {browsable} ORDER BY f.song_id",
-            ))?;
+            let mut statement = self.conn.prepare(&folder_pass_sql())?;
             let mut rows = statement.query([])?;
 
             let mut song: Option<String> = None;
@@ -736,7 +740,13 @@ impl Db {
                 }
             };
 
+            // Checked on the first row too, so a pass asked to stop before it began reads one row.
+            let mut counted = 0u32;
             while let Some(row) = rows.next()? {
+                if counted.is_multiple_of(CHECK_EVERY) && stop() {
+                    return Ok(None);
+                }
+                counted = counted.wrapping_add(1);
                 let id: String = row.get(0)?;
                 let path: String = row.get(1)?;
                 if song.as_deref() != Some(id.as_str()) {
@@ -777,7 +787,7 @@ impl Db {
         self.set_setting("folders_index", &marker)?;
         let total = beneath.len() as u32;
         tracing::info!(folders = total, "rebuilt the folder index");
-        Ok(total)
+        Ok(Some(total))
     }
 
     // -- editing ----------------------------------------------------------------------------
@@ -1671,4 +1681,18 @@ impl Db {
         }
         Ok(())
     }
+}
+
+/// The rows the folder tree is counted from, in song order.
+///
+/// Joined to `songs` for `browsable`, which is what the folder's own list is drawn through. A count
+/// off `files` alone says a folder holds songs that clicking it does not show, and a folder emptied
+/// by deleting still says it holds them.
+pub(super) fn folder_pass_sql() -> String {
+    let browsable = browsable("s.");
+    format!(
+        "SELECT f.song_id, f.path FROM files f
+         JOIN songs s ON s.id = f.song_id
+         WHERE f.song_id IS NOT NULL AND {browsable} ORDER BY f.song_id",
+    )
 }

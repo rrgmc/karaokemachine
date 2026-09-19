@@ -295,6 +295,7 @@ scan-stale-analysis = { $count ->
   }
 scan-browse-what-was-found = Browse what was found
 scan-stopped-early = Stopped before finishing. Everything read so far was saved, but the folder was only partly scanned and is not marked as scanned. Run the scan again to continue: unchanged files are skipped, so it resumes where it stopped.
+scan-stopped-in-tail = Stopped after every file was read and saved, so the folder is marked as scanned. The folder list is rebuilt the next time the Folders page opens, which can take some minutes on a large folder.
 
 scan-tally = { $done } of { $total } read · { $percent }% in the database ({ $written } written this run) · { $parsed } analyzed · { $skipped } unchanged
 scan-failed = { $count ->

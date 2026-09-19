@@ -270,6 +270,7 @@ scan-stale-analysis = { $count ->
   }
 scan-browse-what-was-found = Ver o que foi encontrado
 scan-stopped-early = Parou antes de terminar. Tudo o que foi lido até aqui está salvo, mas a pasta foi lida só em parte e não conta como lida. Mande ler de novo para continuar: os arquivos que não mudaram são pulados, então a leitura retoma de onde parou.
+scan-stopped-in-tail = Parou depois de ler e salvar todos os arquivos, então a pasta conta como lida. A lista de pastas é refeita na próxima vez que a página Pastas abrir, o que pode levar alguns minutos numa pasta grande.
 
 scan-tally = { $done } de { $total } lidos · { $percent }% no banco de dados ({ $written } gravados nesta vez) · { $parsed } analisados · { $skipped } sem mudança
 scan-failed = { $count ->

@@ -193,6 +193,8 @@ pub struct Progress {
     pub cancel: AtomicBool,
     /// Set when the run stopped because it was asked to, rather than because it ran out of files.
     pub canceled: AtomicBool,
+    /// Set when the stop came after every file was read, so only the closing passes were skipped.
+    pub tail_skipped: AtomicBool,
     /// Set when the run has ended, however it ended.
     pub finished: AtomicBool,
     /// The failure that ended the run, if one did.
@@ -240,6 +242,7 @@ impl Progress {
             waiting: done.saturating_sub(settled),
             found: self.found.load(Ordering::Relaxed),
             canceled: self.canceled.load(Ordering::Relaxed),
+            tail_skipped: self.tail_skipped.load(Ordering::Relaxed),
             stopping: self.stopping(),
             finished: self.finished.load(Ordering::Relaxed),
             error: self.error.lock().ok().and_then(|slot| slot.clone()),
@@ -372,6 +375,8 @@ pub struct ProgressView {
     pub found: u64,
     /// Whether the run stopped because it was asked to.
     pub canceled: bool,
+    /// Whether the stop came after every file was read, so the folder counts as scanned.
+    pub tail_skipped: bool,
     /// Whether stopping has been asked for, whether or not the run has got there yet.
     pub stopping: bool,
     /// Whether the run has ended.
@@ -840,17 +845,10 @@ fn run_inner(
     // pairs from a half-filled table, and recording `last_scan` would claim the folder had been read
     // when it had not. The rows that were written stay written, and the next scan picks up the rest
     // for free.
+    //
+    // The folder tree is not rebuilt either. It is minutes over a whole corpus, which is not a stop,
+    // and the rows written have moved its marker, so the Folders page rebuilds it on the next visit.
     if progress.stopping() {
-        // The folder tree is the one tail pass a partial read *is* entitled to run: it is not a
-        // conclusion about the corpus, it is a description of the rows that were written, and rows
-        // were written. Left alone, the Folders page would rebuild it on the next visit anyway —
-        // slowly, while somebody waited.
-        progress.skip(&[phase::FORGETTING, phase::DUPLICATES, phase::MEASURING]);
-        progress.say(phase::INDEXING);
-        {
-            let db = db.lock();
-            db.rebuild_folders()?;
-        }
         progress.canceled.store(true, Ordering::Relaxed);
         return Ok(());
     }
@@ -914,6 +912,31 @@ fn run_inner(
         db.set_setting("last_scan", &timestamp())?;
     }
 
+    conclude(db, &options, progress, changed)
+}
+
+/// The whole-corpus passes that end a completed scan, each one skipped once Stop is pressed.
+///
+/// **A stop here keeps the scan.** Every file was read and `last_scan` is already stamped, so only
+/// the rebuilds go. The folder tree's marker no longer matches, so the Folders page rebuilds the tree
+/// on its next visit. Grouping duplicates waits for the next forced scan or the button on its page.
+/// The planner keeps the statistics it had, and a folder that never had any is measured when it is
+/// next opened.
+fn conclude(
+    db: &Shared,
+    options: &ScanOptions,
+    progress: &Progress,
+    changed: bool,
+) -> Result<(), DbError> {
+    let stopped = || {
+        let stopping = progress.stopping();
+        if stopping {
+            progress.canceled.store(true, Ordering::Relaxed);
+            progress.tail_skipped.store(true, Ordering::Relaxed);
+        }
+        stopping
+    };
+
     // **A full re-analysis ends by looking for near-duplicates; a changed-file scan does not.**
     // Bucketing hundreds of thousands of fingerprints is a whole-`songs` read, so what decides where
     // it belongs is who asked for one. A scan that found a file that moved did not, and the
@@ -928,6 +951,9 @@ fn run_inner(
     // **A scoped run is not one of the two things that ask**, however forced it is: it re-read a
     // corner of the corpus, and the pass reads all of it.
     if options.force && changed && options.only.is_none() {
+        if stopped() {
+            return Ok(());
+        }
         progress.say(phase::DUPLICATES);
         let prints = db.lock().fingerprints()?;
         let pairs = crate::dupes::suggest(&prints);
@@ -943,15 +969,26 @@ fn run_inner(
         // After `last_scan`, not before: the folder index stamps itself with that timestamp to know
         // whether it is still current, so rebuilding first would leave it marked stale and rebuild
         // again on the first visit to the Folders page.
+        if stopped() {
+            return Ok(());
+        }
         progress.say(phase::INDEXING);
-        {
+        let built = {
             let db = db.lock();
-            db.rebuild_folders()?;
+            db.rebuild_folders_unless(|| progress.stopping())?
+        };
+        if built.is_none() {
+            stopped();
+            return Ok(());
         }
         // Between the two whole-corpus holds that end a scan. Neither can be taken in chunks — a
         // folder tree is one pass and `ANALYZE` is one statement — so standing aside between them is
         // the only place a write arriving in the tail can be let through.
         stand_off(db);
+
+        if stopped() {
+            return Ok(());
+        }
 
         // A scan is the one thing that changes the shape of this database rather than its contents,
         // so it is the moment the planner's statistics are most out of date — and on a first scan
@@ -2333,6 +2370,37 @@ mod tests {
         // staying unset is the one that matters: it is what tells somebody the folder still needs
         // reading.
         assert_eq!(guard.setting("last_scan").expect("setting"), None);
+    }
+
+    /// A stop after the reading skips the closing passes and keeps the scan.
+    ///
+    /// The folder tree is minutes over a whole corpus, so Stop has to reach it. Every file was read
+    /// by then and `last_scan` is stamped, so the panel says the folder is scanned.
+    #[test]
+    fn a_stop_after_the_reading_skips_the_closing_passes_and_keeps_the_scan() {
+        let scratch = Scratch::new("stop-tail");
+        scratch.write("a.kar", &km_song::testing::soft_karaoke());
+        let db = Arc::new(Shared::new(
+            crate::db::Db::open_in_memory(&scratch.0).expect("open"),
+        ));
+        run(&db, ScanOptions::default(), &Arc::new(Progress::default())).expect("scan");
+
+        let progress = Progress::default();
+        progress.plan(&ScanOptions::default());
+        progress.say(phase::FORGETTING);
+        progress.ask_to_stop();
+        conclude(&db, &ScanOptions::default(), &progress, true).expect("stopping is not a failure");
+        progress.end(false);
+
+        let view = progress.snapshot();
+        assert!(view.canceled && view.tail_skipped);
+        assert_eq!(view.phase, phase::STOPPED);
+        assert!(
+            states(&view).ends_with(&[(phase::INDEXING, "skipped"), (phase::MEASURING, "skipped")]),
+            "{:?}",
+            states(&view)
+        );
+        assert!(db.lock().setting("last_scan").expect("setting").is_some());
     }
 
     /// Stopping partway keeps every row already committed, and the next run finishes the job.

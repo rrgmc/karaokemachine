@@ -53,10 +53,11 @@ how somebody sees what a new batch of files brought, which no title, artist or t
 **A scan that writes something rebuilds the tree before it finishes.** The rebuild is a whole pass
 over every file, measured at thirteen minutes over a whole corpus, spent holding the writing
 connection so that a star clicked meanwhile is refused. That is paid at the end of a scan, which is
-already a long wait nobody sits through, so that the page opens at once afterwards. A stopped scan
-rebuilds it too, since the tree describes the rows that were written rather than concluding anything
-about the corpus. The page rebuilds the tree itself only when it finds it out of date and no scan is
-running; while a scan runs it shows the last tree built.
+already a long wait nobody sits through, so that the page opens at once afterwards. **A stopped scan
+does not rebuild it**, whether the stop came during the reading or during the rebuild itself. Thirteen
+minutes after pressing Stop is not a stop. The pass is abandoned between rows and writes nothing, so
+the last tree built stays. The page rebuilds an out-of-date tree itself when no scan is running.
+While a scan runs, it shows the last tree built.
 
 ## Curation database
 
@@ -103,7 +104,8 @@ the batch.
 the folder tree is one pass over every file and measuring the corpus for the query planner is one
 statement, so neither can give way part-way through, and on a whole corpus the two together run for
 the best part of half an hour. A write arriving then is refused rather than delayed. Reads are
-unaffected, and the page a person is looking at goes on working.
+unaffected, and the page a person is looking at goes on working. Stop ends the rebuild between rows,
+and the measuring does not start after a stop.
 
 **A write that still cannot have the database says so rather than waiting.** The refusal travels as
 a code with the page writing the sentence, as
@@ -3260,6 +3262,11 @@ reading, because an estimate from less misleads.
 and draws none of a finished run's conclusions. The press answers at once, and the panel says
 *stopping* until the run has written its last batch, because a request that waited would hold the
 page for as long as that takes.
+
+**Stop reaches the steps after the reading too.** Grouping duplicates, indexing folders and measuring
+are each skipped once Stop is pressed, and indexing ends part-way through. A stop there keeps the
+scan. Every file was read and the folder is marked as scanned, so the panel does not call the scan
+partial. The folder tree is rebuilt on the next visit to the Folders page.
 
 ## How many files a scan reads at once
 
