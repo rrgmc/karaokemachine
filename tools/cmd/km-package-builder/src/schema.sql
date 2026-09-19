@@ -473,15 +473,36 @@ CREATE INDEX IF NOT EXISTS songs_unfolded ON songs(id) WHERE sort_title IS NULL;
 -- measured against. The migration drops this index by name so a database that already holds the
 -- two-column shape gets the three-column one; `IF NOT EXISTS` alone would keep the narrow one for
 -- ever.
--- **And it serves the deleted list as well, which is why there is no index beside it for that.**
--- The obvious companion is the partial `ON songs(id) WHERE deleted_at IS NOT NULL` that
--- `files_failed` and `songs_unfolded` are, and it is not here because this one already answers the
--- question as a seek: `merged_into IS NULL AND duplicate_of IS NULL AND deleted_at IS NOT NULL` is
--- equality on the first two columns and a range on the third, so the seek lands on exactly the
--- discarded rows. `the_deleted_list_is_answered_from_its_own_index` reads the plan and says so. A
--- second corpus-sized B-tree, maintained on every write, to answer a question this one answers is
--- the cost this schema prices everywhere else.
-CREATE INDEX IF NOT EXISTS songs_countable ON songs(merged_into, duplicate_of, deleted_at);
+-- **Deleting is a partial predicate here and never a third key column, and the difference is four
+-- seconds a page.** The obvious shape is `songs(merged_into, duplicate_of, deleted_at)`, and it was
+-- built and measured against a whole corpus and it is catastrophic: three equality terms in one key
+-- look like the best match available, so the planner takes this index for the *browse* query too —
+-- and this index carries no order, so every sorted page then reads `USE TEMP B-TREE FOR ORDER BY`
+-- over the whole corpus. Measured at four seconds a page against milliseconds, on every sort, with
+-- nothing anywhere saying why.
+--
+-- Partial, the terms stay two, and the count is still answered without touching a row: every browse
+-- query carries `deleted_at IS NULL`, so the query implies this predicate and the index remains
+-- covering for it. `songs_browse_*` keeps the sorts, because a two-column key that does not carry
+-- the order no longer out-bids a key that does.
+CREATE INDEX IF NOT EXISTS songs_countable
+    ON songs(merged_into, duplicate_of) WHERE deleted_at IS NULL;
+
+-- The other side of that predicate, for the one list that asks for deleted songs.
+--
+-- Partial, so it holds only the rows the question is about: on a corpus nobody has deleted from it
+-- is empty, and the page becomes reading an empty index rather than a pass over every song. The
+-- shape `files_failed` and `songs_unfolded` take, and for their reason.
+--
+-- **Keyed on `deleted_at` and not on `id`**, which is the difference between an index the planner
+-- uses and one it walks past. `IS NOT NULL` is a range over this key, so the list is a seek; keyed
+-- on `id` there is no term to seek at all, and the planner takes `songs_duplicate_of`'s equality
+-- instead -- which matches nearly every song in the corpus and then filters, reading the whole
+-- table to find the handful somebody discarded.
+--
+-- No ordering terms beyond that. A discard pile is small enough that sorting it costs nothing, and
+-- the browse orderings are nine more keys nobody is going to want over it.
+CREATE INDEX IF NOT EXISTS songs_deleted ON songs(deleted_at) WHERE deleted_at IS NOT NULL;
 
 -- The three indexes the browse page's order and its A-Z filter need are **not** here: their key is an
 -- expression, SQLite only uses an expression index when the query's expression matches it tree for

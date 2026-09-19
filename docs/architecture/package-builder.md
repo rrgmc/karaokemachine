@@ -449,14 +449,37 @@ chances for that; there is now one, and `create_browse_indexes` compares the *st
 rather than the name, so the widened predicate rebuilds itself on the next open with no migration
 step.
 
-**`songs_countable` gains the column, and answers the deleted list as well.** The entry that index
-already carries explains why two terms on two separately indexed columns defeat both; a third is the
-same failure again, so the key is `(merged_into, duplicate_of, deleted_at)`. The migration drops it
-by name, because every statement in `schema.sql` is `IF NOT EXISTS` and a database already holding
-the narrow shape would keep it for ever. **The partial index beside it was built and measured and is
-not here**: with all three terms in one key the deleted list is equality on two columns and a range
-on the third, so the planner seeks it — `the_deleted_list_is_answered_from_its_own_index` reads the
-plan and says so, and a second corpus-sized B-tree maintained on every write would buy nothing.
+**`songs_countable` takes the term as a partial predicate and never as a third key column**, and the
+difference between those two is four seconds a page. The obvious shape is
+`songs(merged_into, duplicate_of, deleted_at)`; it was built and measured against a whole corpus and
+it is catastrophic. Three equality terms in one key look like the best match available, so the
+planner takes that index for the *browse* query as well — and it carries no order, so every sorted
+page reads `USE TEMP B-TREE FOR ORDER BY` over the whole corpus. Partial, the key stays two columns,
+the count still implies the predicate and stays covering, and a two-column key that supplies no order
+no longer out-bids one that does. `songs_deleted` is the other side of the same predicate, keyed on
+`deleted_at` so that `IS NOT NULL` is a range to seek — keyed on `id` there is no term at all, and
+the planner takes `songs_duplicate_of`'s equality instead, which matches nearly every song and then
+filters.
+
+**A query that leaves a term out loses the index entirely**, which is the same trap one step along.
+`languages_present` asked only `merged_into IS NULL` against indexes now partial on two terms, so it
+stopped matching and fell back to a full scan per recursion step: five seconds, on every page render.
+It asks `browsable` for the whole predicate now, which is also the honest list — a song somebody
+threw away should put no language in the picker.
+
+**An index rebuilt under its own name invalidates the statistics that describe it, and nothing used
+to say so.** `missing_indexes` is read before `schema.sql` runs and it holds names; an index whose key
+or predicate changed keeps its name, so it is never missing and no `ANALYZE` is asked for. Its
+`sqlite_stat1` row survives describing a shape the database no longer has, and the planner prices an
+index that is gone — measured as every browse sort abandoning its index for a temp B-tree, four
+seconds a page, until an `ANALYZE` was run by hand. `create_browse_indexes` returns whether it
+rebuilt anything and the open gathers statistics when it did.
+
+**And the comparison that decides it had never matched.** SQLite stores a `CREATE INDEX` statement
+verbatim except for `IF NOT EXISTS`, which it drops; the wanted statement was built *with* that
+clause, so no stored index ever equalled its intended shape and all ten were dropped and rebuilt on
+every open — half a minute of a real corpus's open spent arriving back where it started, with the
+statistics never regathered.
 
 The scan reads the column through the join `known_files` already makes, and skips a deleted song's
 files **before** the unchanged test and regardless of `--force`. `seen` is the whole walk and is

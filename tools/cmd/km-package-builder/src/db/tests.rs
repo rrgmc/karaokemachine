@@ -2910,7 +2910,28 @@ fn the_ticked_count_is_what_the_write_will_do_rather_than_what_was_ticked() {
     );
 }
 
-/// The *only deleted* list seeks `songs_countable` rather than reading the corpus.
+/// Songs enough to reason from, with the statistics gathered.
+///
+/// **A plan read off an empty table says nothing.** SQLite has no `sqlite_stat1` to consult, guesses
+/// which term is selective, and picks an index a real corpus would never make it pick — so a planner
+/// test without this passes and fails for reasons unconnected to the code. The same setup
+/// `the_browse_order_is_an_index_seek_and_not_a_sort_of_the_corpus` makes, and its note says why at
+/// length.
+fn corpus_with_statistics() -> Db {
+    let mut db = Db::open_in_memory(Path::new("/corpus")).expect("open");
+    for number in 0..300 {
+        add(
+            &mut db,
+            &format!("song-{number:04}"),
+            Some(&format!("Song {number:04}")),
+            &format!("folder/SONG{number:04}.kar"),
+        );
+    }
+    db.refresh_statistics();
+    db
+}
+
+/// The *only deleted* list seeks its own partial index rather than reading the corpus.
 ///
 /// **A planner test rather than a behavior one**, like the browse sorts beside it: the predicate is
 /// true of nearly no row, so a page that scans to find the handful somebody discarded does not
@@ -2921,27 +2942,93 @@ fn the_ticked_count_is_what_the_write_will_do_rather_than_what_was_ticked() {
 /// corpus-sized B-tree to answer the same question would be maintained on every write for nothing.
 #[test]
 fn the_deleted_list_is_answered_from_its_own_index() {
-    let db = db();
-    let (where_clause, _values) = Filter {
+    let db = corpus_with_statistics();
+    // A handful thrown away out of three hundred, because an empty partial index has no statistics
+    // row at all and the planner walks past one it cannot price. The proportion is the point as
+    // much as the rows: a discard pile is a sliver of a corpus, which is what makes the partial
+    // index worth having.
+    db.set_deleted_of(
+        &[
+            "song-0007".to_owned(),
+            "song-0042".to_owned(),
+            "song-0100".to_owned(),
+        ],
+        true,
+    )
+    .expect("throw three away");
+    db.refresh_statistics();
+
+    let filter = Filter {
         deleted: DeletedFilter::Only,
         ..Filter::default()
-    }
-    .to_sql();
+    };
+    let (where_clause, _values) = filter.to_sql();
     let plan = db
         .plan_for_test(
-            &format!("SELECT s.id FROM songs s WHERE {where_clause}"),
+            &format!(
+                "SELECT s.id FROM songs s WHERE {where_clause} ORDER BY {} LIMIT 51",
+                filter.order_by()
+            ),
             &[],
         )
         .expect("a plan");
     assert!(
-        plan.contains("SEARCH") && plan.contains("songs_countable"),
-        "the deleted list has to seek rather than scan the corpus: {plan}"
+        plan.contains("songs_deleted"),
+        "the deleted list has to seek its own partial index rather than scan the corpus: {plan}"
     );
-    assert!(
-        plan.contains("deleted_at"),
-        "the seek has to reach the deleted rows by the key rather than filter them out of it: \
-         {plan}"
-    );
+}
+
+/// Deleting must not cost the browse list its orderings, which is the expensive way to be wrong.
+///
+/// **The `ORDER BY` is the whole test, and leaving it out is what let this through once.** Checking
+/// the `WHERE` alone says an index was chosen and nothing about which; the browse page's cost is
+/// decided by whether the chosen one also supplies the order. `songs_countable` holding `deleted_at`
+/// as a third *key* column beat `songs_browse_*` on the equality terms, carried no order, and every
+/// sorted page read `USE TEMP B-TREE FOR ORDER BY` over the whole corpus — measured at four seconds
+/// a page against milliseconds, on a real corpus, with nothing on screen saying why. The predicate
+/// lives in that index's `WHERE` for exactly this reason.
+///
+/// One assertion per sort, because an index is chosen per query and a single sort passing says
+/// nothing about the other nine.
+#[test]
+fn deleting_costs_the_browse_sorts_none_of_their_indexes() {
+    let db = corpus_with_statistics();
+    for sort in [
+        Sort::Title,
+        Sort::Artist,
+        Sort::Suitability,
+        Sort::UserScore,
+        Sort::Duration,
+        Sort::Copies,
+        Sort::Language,
+        Sort::Updated,
+        Sort::Added,
+    ] {
+        let filter = Filter {
+            sort,
+            ..Filter::default()
+        };
+        let (where_clause, _values) = filter.to_sql();
+        let plan = db
+            .plan_for_test(
+                &format!(
+                    "SELECT s.id FROM songs s WHERE {where_clause} ORDER BY {} LIMIT 51",
+                    filter.order_by()
+                ),
+                &[],
+            )
+            .expect("a plan");
+        assert!(
+            !plan.contains("TEMP B-TREE"),
+            "sorting by {} reads the corpus into a temp B-tree: {plan}",
+            sort.as_str()
+        );
+        assert!(
+            plan.contains("songs_browse_"),
+            "sorting by {} has to walk a browse index: {plan}",
+            sort.as_str()
+        );
+    }
 }
 
 /// The bulk set writes exactly the rows the same filter lists, and nothing else.
@@ -3728,6 +3815,7 @@ fn a_database_at_schema_14_steps_to_the_current_schema() {
              DROP INDEX IF EXISTS songs_browse_updated_artist;
              DROP INDEX IF EXISTS songs_browse_added_artist;
              DROP INDEX IF EXISTS songs_countable;
+             DROP INDEX IF EXISTS songs_deleted;
              ALTER TABLE packages DROP COLUMN number_one_volume;
              ALTER TABLE songs DROP COLUMN det_language_guess;
              ALTER TABLE songs DROP COLUMN det_language_guess_confidence;
@@ -5717,6 +5805,48 @@ fn an_index_this_build_no_longer_intends_is_dropped_rather_than_left_to_be_chose
             .expect("indexes")
             .iter()
             .any(|name| name == "songs_browse_stale")
+    );
+}
+
+/// Rebuilding an index says so, because the statistics describing the old one outlive it.
+///
+/// **The hole this closes is the one `missing_indexes` cannot see.** That list is read before
+/// `schema.sql` runs and it holds *names*; an index whose key or predicate changed keeps its name
+/// all the way through, so it is never reported missing and nothing asks for an `ANALYZE`. Its
+/// `sqlite_stat1` row then survives describing a shape the database no longer has, and the planner
+/// prices an index that is gone.
+///
+/// **Measured on a real corpus rather than reasoned about**: every browse sort abandoned its index
+/// and read the whole corpus into a temp B-tree, four seconds a page, and one `ANALYZE` by hand put
+/// all nine back. The plan was correct the moment the statistics were, which is why this is about
+/// the signal and not about the index.
+///
+/// The false case matters as much as the true one: an open that rebuilt nothing must not pay for a
+/// corpus-sized `ANALYZE`, which is minutes on the database this tool is for.
+#[test]
+fn a_rebuilt_index_asks_for_the_statistics_it_invalidated() {
+    let db = db();
+    assert!(
+        !db.create_browse_indexes().expect("a settled database"),
+        "an open that changed no index must not ask for an ANALYZE"
+    );
+
+    // The shape a build one predicate behind wrote: the right name, the wrong `WHERE`.
+    db.execute_for_test(
+        "DROP INDEX songs_browse_title_artist;
+         CREATE INDEX songs_browse_title_artist
+             ON songs(sort_title, sort_artist IS NULL, sort_artist, id)
+           WHERE merged_into IS NULL",
+    )
+    .expect("an index from a build that is behind");
+
+    assert!(
+        db.create_browse_indexes().expect("rebuild"),
+        "an index rebuilt under its own name has to ask for the statistics it invalidated"
+    );
+    assert!(
+        !db.create_browse_indexes().expect("settled again"),
+        "and the open after it has nothing left to gather"
     );
 }
 

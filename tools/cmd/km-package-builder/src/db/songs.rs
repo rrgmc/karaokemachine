@@ -870,17 +870,24 @@ impl Db {
     /// `create_browse_indexes` gives — SQLite matches an expression index tree for tree, so a second
     /// spelling of the expression would silently stop the index being used.
     ///
-    /// `merged_into IS NULL` because a merged song is not in the list either, and matching the
-    /// index's own partial predicate is what lets it be used at all.
+    /// **[`browsable`] whole, and asked for rather than restated, because matching the index's own
+    /// partial predicate is what lets it be used at all.** A term that index carries and this query
+    /// does not takes the index away — not with an error but with a full scan of `songs` per
+    /// recursion step, which is seconds on every page render with nothing saying why. Spelling half
+    /// the predicate here is what made that happen once.
+    ///
+    /// It is also the honest list: a merged song is not in the browse list, and neither is one
+    /// somebody threw away, so neither should put a language in the picker.
     pub fn languages_present(&self) -> Result<Vec<Language>, DbError> {
         let language = eff_language("s.");
+        let browsable = browsable("s.");
         let sql = format!(
             "WITH RECURSIVE present(tag) AS (
                  SELECT min({language}) FROM songs s
-                  WHERE s.merged_into IS NULL AND {language} IS NOT NULL
+                  WHERE {browsable} AND {language} IS NOT NULL
                  UNION ALL
                  SELECT (SELECT min({language}) FROM songs s
-                          WHERE s.merged_into IS NULL AND {language} > present.tag)
+                          WHERE {browsable} AND {language} > present.tag)
                    FROM present WHERE present.tag IS NOT NULL)
              SELECT tag FROM present WHERE tag IS NOT NULL"
         );
