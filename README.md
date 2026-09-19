@@ -5,14 +5,19 @@ color, with the M in amber">
   KaraokeMachine
 </h1>
 
-A karaoke machine that behaves like a commercial home unit: pick a song by number, it plays, the
-words highlight in time. It runs full-screen on a television, and phones on the same network act as
-remotes — search the catalog, queue a song, change the key, skip.
+A karaoke machine that behaves like a commercial home unit: pick a song by number, it plays, and the
+words highlight in time. It runs full-screen on a television, and any phone on the network is a
+remote: search the catalog, queue a song, change the key, skip.
 
-A song is a **MIDI file with embedded karaoke lyrics**, a **video file**, an **MP3+G pair** — an
-MP3 with a `.cdg` of the same stem beside it, which is what most commercial karaoke discs hold — or
-an **UltraStar song**, the `.txt` a singing game times its words in and the MP3 it names. An MP3 on
-its own is not a song: it has no words in it.
+A song is one of four things:
+
+- a **MIDI file with embedded karaoke lyrics**;
+- a **video file**;
+- an **MP3+G pair**, an MP3 with a `.cdg` of the same stem beside it, which is what most commercial
+  karaoke discs hold;
+- an **UltraStar song**: the `.txt` a singing game times its words in, and the MP3 it names.
+
+An MP3 on its own is not a song, because it has no words in it.
 
 Native on Windows, macOS and Linux, on Android, and on an iPhone and an iPad.
 
@@ -87,65 +92,67 @@ switched off.</sub></td>
 - **A 0–10 suitability rating** for every file, computed when it is packaged, with a breakdown.
 - **The melody channel, when it can be found confidently** — and an abstention with a stated reason
   when it cannot. Detected once, at packaging time.
-- **The first line or two of each song's words**, so a package carries something a person can
-  recognize a song by. It skips the studio-name banner many karaoke files open with; the rules for
-  that were set against a real corpus.
+- **The first line or two of each song's words**, so a package carries something a person recognizes
+  the song by. It skips the studio-name banner many karaoke files open with, and a real corpus set
+  the rules for that.
 
 **Playing**
 
 - Full-screen on a television, drawn by SDL3. On Linux it draws straight to DRM/KMS from a bare TTY,
   with no desktop installed.
-- **Or on a television in another room.** Started with `--stream` the machine opens no window and
-  serves what it would have shown — the words, the highlight moving through them, the wallpaper, the
-  queue and the music — at one address. **The address is the whole of it**: a smart television, a
-  phone or a computer opens `/watch/`, and anything that plays a playlist takes
-  `http://<the machine>/stream/live.m3u8` and needs no browser.
+- **Or on a television in another room.** Started with `--stream`, the machine opens no window. It
+  serves what it would have shown — the words, the wallpaper, the queue and the music — at one
+  address. **The address is the whole of it**: a smart television, a phone or a computer opens
+  `/watch/`. Any playlist player takes `http://<the machine>/stream/live.m3u8` with no browser.
   [Further down](#watching-it-in-another-room).
 - **Words highlight in time**, syllable by syllable, on the sequencer's own clock.
 - **Transpose and tempo** per song, a **guide melody** that can be muted, and per-song defaults.
 - **A lyric timing offset in milliseconds**, adjustable mid-song, because a television adds picture
-  lag and a mixer takes the sound out early. It moves the *highlight* only — never the audio, because
+  lag and a mixer takes the sound out early. It moves the *highlight* only, never the audio, because
   the microphones are in that audio.
 - **Wallpapers** cycling with a crossfade, from a folder of stills. A zip in that folder counts as a
   folder of images.
 - **A queue** with singer names, shown over whatever is playing.
 - **A demo mode**, off unless asked for: after a minute of quiet the machine starts a song of its
-  own, and another when that one ends. Queueing takes the deck off it at once — choosing a song is
-  what makes it play, and nothing has to be skipped first.
+  own, then another when that ends. Queueing takes the deck off it at once, so choosing a song is
+  what makes it play and nobody has to skip first.
 
 **Remotes**
 
 - **The machine serves a remote at its own address** — search, queue, now playing, and the controls a
   song allows. Any phone on the network, no app, and a QR code on the idle screen.
-- **A standalone offline remote** keeping its own copy of a machine's catalog, so browsing, searching
-  and favorites work with the machine switched off.
+- **A standalone offline remote**, which keeps its own copy of a machine's catalog. Browsing,
+  searching and favorites all work with the machine switched off.
 - **One admin password, which the machine gives itself and shows on screen.** A six-digit PIN at
   first start, on the idle screen beside the address. Everything that reconfigures the machine needs
-  it — what packages and pictures are installed, where a package's numbers start, the machine's name,
-  its audio output, demo mode — and everything a singer does needs nothing.
+  it: its packages and pictures, a package's first number, its name, its audio output, demo mode.
+  Everything a singer does needs nothing.
 
 **Giving the machine pictures and instruments**
 
-- **KaraokeMachine Admin** (`km-admin`) finds photographs the lyrics stay readable over — measured
-  in the exact band of the screen the words occupy — and General MIDI banks from a table of
-  sixty-three, then sends either to the machine.
-- **It also sends a file you already have**: a package, a bank, a photograph of your own. On a
-  television box there is no shell and no file manager that reaches where the machine looks, so
-  otherwise there is no way to hand it one.
+- **KaraokeMachine Admin** (`km-admin`) finds photographs the lyrics stay readable over, measured in
+  the exact band of the screen the words occupy. It also offers General MIDI banks from a table of
+  sixty-three, and it sends either to the machine.
+- **It also sends a file you already have**: a package, a bank, a photograph of your own. A
+  television box has no shell and no file manager reaching where the machine looks, so otherwise
+  there is no way to hand it one.
 - **The machine cannot download these itself.** It may have no internet connection, and it should not
-  store your accounts. Everything km-admin downloads is saved on your computer as well as sent, so a
-  machine that is switched off can be sent to later. A file you supply yourself is passed straight
-  through and is not copied.
-- **Pictures come from Openverse by default**, which needs no account and whose packs may be
-  redistributed. Pixabay and Pexels need your own API key, and their terms, which do not allow
-  redistribution, are shown next to the key field.
+  store your accounts. km-admin keeps a copy of every download on your computer, so you can send it
+  to a switched-off machine later. A file you supply yourself goes straight through, and km-admin
+  keeps no copy.
+- **Pictures come from Openverse by default**, which needs no account and whose packs may travel on.
+  Pixabay and Pexels need an API key of your own, and their terms forbid that, so the key field
+  carries those terms beside it.
 
 **Not supported, by decision**
 
-No scoring of singers. No bare audio files, and no CD+G disc images — only the file pair. No video
-wallpapers: a video song is not a video background. No pitch shifting of audio. No microphone
-processing in the app; mic audio is mixed in hardware. No Thai, Arabic or Indic words on the screen,
-and no right-to-left. Japanese and Chinese are drawn.
+- No scoring of singers.
+- No bare audio files, and no CD+G disc images — only the file pair.
+- No video wallpapers: a video song is not a video background.
+- No pitch shifting of audio.
+- No microphone processing in the app, because hardware mixes the microphones.
+- No Thai, Arabic or Indic words on the screen, and no right-to-left, though the machine draws
+  Japanese and Chinese.
 
 These are deliberate decisions rather than missing features. To propose a change, start with
 [`docs/decisions/`](docs/decisions/).
@@ -157,10 +164,10 @@ The HTTP API, discovery on the network, the file formats and the tools that make
 
 ## Installing
 
-**The downloads are on the [release page](https://github.com/rrgmc/karaokemachine/releases)**,
-one file per platform, with the carol package beside them as a separate download. The table below says
+**The downloads are on the [release page](https://github.com/rrgmc/karaokemachine/releases)**, one
+file per platform, with the carol package beside them as a separate download. The table below says
 what each carrier is. Building from source is the other way in — [`BUILDING.md`](BUILDING.md) is how,
-and it is one command per platform once prerequisites are in.
+and it is one command per platform once the prerequisites are in.
 
 | Platform | What you get |
 |---|---|
@@ -173,14 +180,13 @@ and it is one command per platform once prerequisites are in.
 | **iPhone, iPad** | An `.ipa` for the machine and one for the remote, both **unsigned**: iOS takes no signature from a stranger, so you sign it yourself with your own Apple ID. It is the machine itself — the same synthesizer, catalog, display and API — and songs arrive through the Files app. The section below is the procedure. |
 
 **Every carrier also installs a second launcher that starts the machine streaming**, for a television
-in another room rather than the one this box is plugged into. It is a way of starting the machine
-rather than a thing to download, so it is not a row in the table above —
+in another room rather than this box's own. It is a way of starting the machine rather than a thing
+to download, so the table above has no row for it.
 [Watching it in another room](#watching-it-in-another-room) is what it serves.
 
 **System-wide on macOS, per-user on Windows.** Everything the Windows installer configures beyond the
-files lives in that user's registry, while on macOS the `.kmbuild` association is declared by a bundle
-in `/Applications` and the `PATH` entry is a symlink in `/usr/local/bin` — both of which belong to the
-machine.
+files lives in that user's registry. On macOS a bundle in `/Applications` declares the `.kmbuild`
+association, and the `PATH` entry is a symlink in `/usr/local/bin`. Both belong to the machine.
 
 ### On Debian, it is also an appliance — if you ask
 
@@ -188,8 +194,8 @@ machine.
 `karaokemachine` as a command. Nothing starts automatically and nothing runs at boot.
 
 The package also includes a systemd service, **switched off by default**. Enabling it turns the
-computer into an appliance: it starts on its own when the power returns and draws straight to the
-screen from a bare virtual terminal, with no desktop installed. One command turns it on:
+computer into an appliance: it starts on its own when the power returns. It draws to the screen from
+a bare virtual terminal, with no desktop installed. One command turns it on:
 
 ```sh
 sudo systemctl enable --now karaokemachine
@@ -214,9 +220,9 @@ Two things to know first:
 can hand you.** So both `.ipa` files say `unsigned` in the name, and the last step is yours. It takes
 about five minutes and a computer, once per app.
 
-You need an Apple ID — the one you already use on the phone is fine — and one of the free signing
-tools: **[Sideloadly](https://sideloadly.io)** on macOS or Windows, or
-**[AltStore](https://altstore.io)**, which installs from the phone afterwards.
+You need an Apple ID, and the one on the phone is fine. You also need a free signing tool:
+**[Sideloadly](https://sideloadly.io)** on macOS or Windows, or **[AltStore](https://altstore.io)**,
+which installs from the phone afterwards.
 
 1. Download `karaokemachine-<version>-ios-unsigned.ipa`, or
    `km-remote-<version>-ios-unsigned.ipa` for the remote alone.
@@ -229,30 +235,30 @@ tools: **[Sideloadly](https://sideloadly.io)** on macOS or Windows, or
 
 Two limits come from the Apple ID rather than from the application:
 
-- **A free Apple ID signs for seven days.** After that the app stops opening and you repeat step 3;
-  nothing inside it is lost, because your songs, settings and catalog stay on the device. A paid
-  Apple Developer account signs for a year. AltStore renews in the background if you leave it
+- **A free Apple ID signs for seven days.** After that the app stops opening and you repeat step 3,
+  and nothing inside it goes: your songs, settings and catalog stay on the device. A paid Apple
+  Developer account signs for a year, and AltStore renews in the background if you leave it
   installed.
 - **Three applications at a time** on a free Apple ID. The machine and the remote are two of them.
 
-**The remote is the one most people want.** It is small, it has none of the two differences below,
-and it is what a guest holds while somebody else's machine plays.
+**The remote is the one most people want.** It is small, neither difference below touches it, and it
+is what a guest holds while somebody else's machine plays.
 
 ### On an iPhone or an iPad, two things are different
 
 **It does not announce itself on the network.** Apple grants the multicast entitlement only after a
 reviewed request, so the machine advertises nothing and a remote will not find it by itself. The iOS
-remote sweeps the network for machines and finds it anyway; the Android remote and a browser need the
-address, which the idle screen shows.
+remote sweeps the network and finds it anyway; the Android remote and a browser need the address,
+which the idle screen shows.
 
 **A machine nobody is singing on stops answering when it goes to the background.** iOS suspends an
-application that is not playing audio. A song that is playing keeps playing with the screen off,
-which is the case that matters in a room, and a remote loses an idle machine until you bring it back
-to the front.
+application that plays no audio. A song that is playing keeps playing with the screen off, which is
+the case that matters in a room. A remote loses an idle machine until you bring it back to the
+front.
 
 ### Removing it
 
-**Your songs, settings and catalog are left where they are**, whichever way you remove it, and the
+**Your songs, settings and catalog stay where they are**, whichever way you remove it, and the
 uninstaller names the folders on its way out.
 
 On Windows, uninstall as you would anything else. On macOS, open `/usr/local/karaokemachine` and
@@ -260,14 +266,14 @@ double-click **Uninstall KaraokeMachine**; it lists what it will remove, asks, a
 your password. From a terminal, `sudo /usr/local/karaokemachine/uninstall.sh`, with `--dry-run` for
 the list alone.
 
-The remote-only setup programs are removed the same way and separately. On Windows that is its own
-entry, **KM Remote**; on macOS, `/usr/local/km-remote` and **Uninstall KM Remote**. Where both are
-installed, whichever you remove leaves the other alone.
+The remote-only setup programs come off the same way, and separately. On Windows that is its own
+entry, **KM Remote**; on macOS, `/usr/local/km-remote` and **Uninstall KM Remote**. Where you have
+both, removing one leaves the other alone.
 
-On Debian, `sudo apt remove karaokemachine` — if the appliance service was enabled, removing the
+On Debian, `sudo apt remove karaokemachine`, and where the appliance service is enabled, removing the
 package stops and disables it first. `/var/lib/karaoke` stays even on a `purge`, because it holds the
-catalog and settings; `sudo userdel -r karaoke` removes it. With the portable `.tar.gz` there is
-nothing to uninstall — delete the folder — though if you ran its `install.sh` for a menu entry,
+catalog and settings, and `sudo userdel -r karaoke` removes it. The portable `.tar.gz` has nothing to
+uninstall: delete the folder. Where you ran its `install.sh` for a menu entry,
 `./install.sh --uninstall` takes that entry away.
 
 ---
@@ -275,109 +281,116 @@ nothing to uninstall — delete the folder — though if you ran its `install.sh
 ## Using it
 
 Start it, type a song number, and it plays. That is the whole of normal use: the screen shows the
-words and nothing else, and everything except playing a song is done from a phone.
+words and nothing else, and a phone does everything except play the song.
 
 ### The keyboard
 
-Mid-song a strip of buttons appears along the bottom whenever anything is pressed, and **each says
-which function key presses it**: `F1` pauses, `F4` skips, `F6` shows the queue, `F7` and `F8` change
-the key. The function keys work whether or not the strip is on screen, and the older letter keys still
-work — `Space`, `N`, `R`, `Q`, `M`, `,` and `.` for ten seconds either way, `+` and `-` for the key,
-`W` for the next wallpaper, `I` for the address and QR code, `F` for fullscreen. Song numbers are
-typed on the number row or the keypad; `Enter` queues, `Backspace` corrects, `Delete` clears.
+Mid-song a strip of buttons appears along the bottom whenever you press a key, and **each says which
+function key presses it**. `F1` pauses, `F4` skips, `F6` shows the queue, and `F7` and `F8` change
+the key. The function keys work whether or not the strip is on screen.
 
-**`T` keeps the window in front of everything else**, for a machine sharing a screen with a browser
-or a chat window rather than driving a television. Press it again to let the window fall back into
-the stack. The machine remembers how you left it, so a window left in front starts in front. Some
+The older letter keys still work too: `Space`, `N`, `R`, `Q` and `M`, with `,` and `.` for ten
+seconds either way. `+` and `-` change the key, `W` takes the next wallpaper, `I` shows the address
+and QR code, and `F` fills the screen. Type a song number on the number row or the keypad, where
+`Enter` queues, `Backspace` corrects and `Delete` clears.
+
+**`T` keeps the window in front of everything else.** It is for a machine sharing a screen with a
+browser or a chat window rather than driving a television. Press it again to let the window fall back
+into the stack. The machine remembers how you left it, so a window left in front starts in front. Some
 Linux desktops do not let an application place itself, and there the key does nothing.
 
-**`D` turns demo mode on and off** — the machine picking songs and playing them by itself, one after
-another, so a room can hear what the box holds without working out how to drive it. Turning it on
-starts a song straight away rather than waiting out the usual minute of quiet; if something is
-already playing or queued the mode still goes on and takes over when the queue runs out, and the
-screen says so. Turning it off leaves the song that is playing alone — `N` is what means stop. It
-lasts until the machine is closed; the `/admin/` page is where you make it permanent.
+**`D` turns demo mode on and off** — the machine picking songs and playing them by itself. A room
+hears what the box holds without working out how to drive it. Turning the mode on starts a song
+straight away, rather than waiting out the usual minute of quiet.
 
-With the mode on, **`N` on a quiet machine starts the next song rather than waiting** — the same key
-that takes a demo's turn while one is playing, doing the same thing to a silence. With the mode off
-it says `nothing is playing`, as it always does when there is nothing to skip.
+Where something is already playing or queued, the mode still goes on and takes over when the queue
+runs out, and the screen says so. Turning it off leaves the song that is playing alone, and `N` is
+what means stop. It lasts until the machine closes, and the `/admin/` page is where you make it
+permanent.
+
+With the mode on, **`N` on a quiet machine starts the next song rather than waiting**. It is the same
+key that takes a demo's turn, doing the same thing to a silence. With the mode off it says
+`nothing is playing`, as it always does with nothing to skip.
 
 **Three keys past the strip do the things that are not about the song.**
 
-**`F10` opens the packages folder** in whatever this computer uses for folders — the window that opens
-is the answer, and on a machine with nothing to open a folder in it says so. **`Ctrl+F10` reads that
-folder again**, so a package just copied in is playable without restarting.
+**`F10` opens the packages folder** in whatever this computer uses for folders. The window that opens
+is the answer, and a machine with nothing to open a folder in says so. **`Ctrl+F10` reads that folder
+again**, so a package you just copied in plays without a restart.
 
-**`F11` opens the remote** in this computer's browser — the same page a phone gets. It says so if the
+**`F11` opens the remote** in this computer's browser, the same page a phone gets. It says so if the
 remote is switched off or the web server never started. **On a Mac it is `Ctrl+F11`**, because macOS
-keeps `F11` for itself; the panel names whichever one this computer answers to.
+keeps `F11` for itself. The panel names whichever one this computer answers to.
 
 **`F12` shows how the picture is doing** — frames a second, how long each took to draw, and whether
-sound or video ran short. The same measurement `--frame-stats` writes to the log. Press again to put
-it away; it writes nothing to the log unless you asked separately. **`Ctrl+F12` stops the strip of
-buttons timing out**, which is for somebody changing how the strip looks rather than for singing;
-press it again to give the six seconds back. Neither is remembered when the machine closes.
+sound or video ran short. It is the same measurement `--frame-stats` writes to the log. Press again
+to put it away, and it writes nothing to the log unless you asked separately.
+
+**`Ctrl+F12` stops the strip of buttons timing out**, which suits somebody changing how the strip
+looks rather than singing. Press it again to give the six seconds back. The machine remembers neither
+key when it closes.
 
 **`Ctrl+Q` stops the machine.** On a computer it closes the application, the way Control-Q does
-everywhere else. On the Linux appliance — a box under a television with nothing to go back to — it
-switches the box off instead, cleanly, exactly as pressing its power button does. Plain `Q` is still
-the queue; the modifier is what keeps the two apart.
+everywhere else. On the Linux appliance it switches the box off instead, exactly as its power button
+does, because that box has nothing to go back to. Plain `Q` is still the queue, and the modifier is
+what keeps the two apart.
 
-Hints are drawn only where there is a keyboard, so a television or a phone gets the same buttons
-without them.
+The machine draws a hint only where there is a keyboard, so a television or a phone gets the same
+buttons without them.
 
 ### Getting songs in
 
 **Songs arrive in packages.** A `.kmpkg` is one file carrying its own songs, queue numbers, titles,
-artists and analysis — videos and MP3+G pairs included, so there is never anything beside it to copy.
+artists and analysis. Videos and MP3+G pairs travel inside it, so nothing ever sits beside it to
+copy.
 
 **The shortest way in is to double-click the package.** It installs and the machine says so, on its
-own screen if one is running and otherwise by starting up with the songs already in. The Windows
-installer offers to set this up and macOS arranges it when the app is installed; on Linux, and for the
+own screen where one is running, and otherwise by starting up with the songs already in. The Windows
+installer offers to set this up, and macOS arranges it as it installs the app. On Linux, and for the
 portable Windows folder, run `karaokemachine --register` once. Neither needs administrator rights.
 
 **Or drag the file onto the machine's window**, which needs no setting up. It says `installing …`
-across the top, then how many songs went in. Dropping a rebuilt package of the same name replaces the
-old one rather than piling up beside it, and anything that is not a `.kmpkg` is refused on screen.
+across the top, then how many songs went in. A rebuilt package of the same name replaces the old one
+rather than piling up beside it, and it refuses any other kind of file.
 
-Either way the file is copied into the packages folder, so it survives a restart even if you tidy the
+Either way the file lands in the packages folder, so it survives a restart even if you tidy the
 original away. Two other ways work as well: put the file in that folder yourself, which `F10` opens
 for you, or hand it to [the API](#the-http-api-and-the-network).
 
-**Taking a package out of that folder uninstalls it**, at the next start or the next `Ctrl+F10`: the
-folder is what says what is installed. Removing a package from the **Songs** page deletes its
-`.kmpkg` to match.
+**Taking a package out of that folder uninstalls it**, at the next start or the next `Ctrl+F10`. The
+folder is what says which packages are installed, and removing a package from the **Songs** page
+deletes its `.kmpkg` to match.
 
 **There is one package you can download: sixteen Christmas carols.** Silent Night, Joy to the World,
-The First Noel, Hark! The Herald Angels Sing, O Come All Ye Faithful, What Child Is This and ten more
-— every one public domain, four or five verses each, seventy-six minutes of singing in a 28 KiB
-file. It is a **separate download and is not installed with the machine**: a new install starts
-empty, because you supply your own songs.
+The First Noel, Hark! The Herald Angels Sing, O Come All Ye Faithful, What Child Is This and ten
+more. Every one is public domain, four or five verses each, seventy-six minutes of singing in a
+28 KiB file. It is a **separate download, and no install carries it**: a new install starts empty,
+because you supply your own songs.
 
-It is the only pack of its kind, because a karaoke MIDI is rarely free to distribute. It is four or
-five works at once — the tune, the arrangement, the words, any translation, and whoever entered the
-notes — and almost nothing has all of those in the public domain. Carols do. `CREDITS.md` beside the
-pack names every source.
+It is the only pack of its kind, because a karaoke MIDI is rarely free to distribute. One file is
+four or five works at once: the tune, the arrangement, the words, any translation, whoever entered
+the notes. Almost nothing has all of those in the public domain, and carols do. `CREDITS.md` beside
+the pack names every source.
 
 **A package holds at most 999 songs.** This is not a storage limit: the machine holds up to a
 thousand packages, so nearly a million songs. It is there to encourage curating a volume rather than
 packaging a whole folder at once. The corpus this was built against is a large one.
 
 It also makes the numbers work. A song's number is **`bank × 1000 + slot`**: the slot is what the
-package numbered the song, 1 to 999, and the bank is the block of a thousand it sits in. Two packages
-that both number a song 500 cannot clash — one is 3500, the other 611500.
+package numbered it, and the bank is the block of a thousand it sits in. Two packages that both
+number a song 500 cannot clash: one is 3500, the other 611500.
 
-**A package's bank comes from its id, so its numbers are the same on every machine.** Install
-the same volume here and at a friend's house, in any order — it gets the same bank both times, so a
-printed song list travels with the file. Nothing is refused for wanting a bank another package has; it
-takes the next one.
+**A package's bank comes from its id, so its numbers are the same on every machine.** Install the
+same volume here and at a friend's house, in any order, and it takes the same bank both times. A
+printed song list therefore travels with the file, and a package that asks for a bank another one
+holds takes the next one instead.
 
-**A block is yours to choose**, from 1 to 9999 — bank 0 is the machine's own and holds no package.
-Put the volume that gets sung from into a low block and its songs dial in four digits instead of six.
-The **Songs** page at `http://127.0.0.1:8177/admin/` has a box for it, which is the way that needs
-nothing typed; [the API](#the-http-api-and-the-network) is the other.
+**A block is yours to choose**, from 1 to 9999, and bank 0 is the machine's own and holds no package.
+Put the volume that gets sung from into a low block, and its songs dial in four digits instead of
+six. The **Songs** page at `http://127.0.0.1:8177/admin/` has a box for it and needs nothing typed;
+[the API](#the-http-api-and-the-network) is the other way.
 
-Every song in that package is renumbered, so **anything already printed goes stale** — and the machine
+A change renumbers every song in that package, so **anything already printed goes stale**. The machine
 refuses while a song is playing or queued, because the queue holds numbers. Do it once, when the
 package goes in.
 
@@ -385,50 +398,49 @@ package goes in.
 
 ### The remotes
 
-**The machine serves a remote at its own address.** Any phone on the same network, nothing to install:
-search the catalog, queue a song, see what is playing, and use whatever controls the current song
-allows. The idle screen shows the address and a QR code — nobody should be typing an IP address at a
-party.
+**The machine serves a remote at its own address.** Any phone on the network reaches it with nothing
+to install. Search the catalog, queue a song, see what is playing, use whatever controls the song
+allows. The idle screen shows the address and a QR code, because nobody should type an IP address at
+a party.
 
 **The offline remote is a separate program**, `km-remote`. It keeps its own copy of a machine's
 catalog, so browsing, searching and favorites work **with the machine switched off**. It finds a
 machine on the network and remembers it. It also adds favorites and an A–Z picker, which the
 machine's own remote does not have.
 
-**It has a download of its own on every platform it runs on** — an APK, an `.ipa`, and a small setup
-program for Windows and for macOS. A computer that is never going to play a song needs none of the
-rest, and the remote is the half somebody is handed for somebody else's machine.
+**It has its own download on every platform it runs on**: an APK, an `.ipa`, and a small setup
+program for Windows and macOS. A computer that will never play a song needs none of the rest, and the
+remote is what a guest holds for somebody else's machine.
 
 ### Watching it in another room
 
 **`--stream` draws the screen for an encoder instead of for a television.** The machine opens no
-window and serves what it would have shown, picture and sound together, as one continuous HLS
-stream. It is a way of running the machine rather than a build of it, so it writes nothing down: a
-machine started this way opens its television the next time. It cannot be combined with
-`--headless`, which turns the screen off rather than sending it somewhere.
+window and serves what it would have shown, picture and sound together, as one continuous HLS stream.
+It is a way of running the machine rather than a build of it, so it writes nothing down. A machine
+started this way opens its television the next time, and it refuses `--headless`, which turns the
+screen off rather than sending it somewhere.
 
-**The playlist is the interface and the page above it is a convenience.**
-`http://<the machine>/stream/live.m3u8` is what anything able to follow a URL plays — a television's
-own media pipeline, VLC, Kodi, a player on a set-top box — with no browser and no knowledge that any
-of this exists. `http://<the machine>/watch/` is the same stream on a page, for the sets where
-opening an address is what is easiest. A machine that is not streaming serves neither.
+**The playlist is the interface, and the page above it is a convenience.** Anything able to follow a
+URL plays `http://<the machine>/stream/live.m3u8`: a television's own media pipeline, VLC, Kodi, a
+set-top box. None of them needs a browser, or any knowledge that this project exists.
+`http://<the machine>/watch/` is the same stream on a page, for the sets where opening an address is
+easiest. A machine that is not streaming serves neither.
 
 **Nothing has to be typed to start it.** A Start Menu entry on Windows, the stream action on the
-Linux desktop entry's right-click menu, and `KM Stream.app` on macOS each start the
-machine streaming, beside the launcher that opens its television. They wear the machine's mark with
-a broadcast badge in the corner, so the two ways of starting it are told apart wherever they sit
-side by side.
+Linux desktop menu, and `KM Stream.app` on macOS each start the machine streaming. Each sits beside
+the launcher that opens its television, wearing the machine's mark with a broadcast badge in the
+corner. That badge is how you tell the two apart.
 
-**A streaming run puts an icon in the notification area on Windows and the menu bar on macOS**,
-because a program with no window is otherwise a program with no way to tell it is running. The icon
-names the address a phone can reach, and its *Remote*, *Watch* and *Setup* entries open the three
-pages the machine serves. It follows the address rather than fixing it at startup, so a machine
-started before its Wi-Fi came up ends up naming the right one.
+**A streaming run puts an icon in the notification area on Windows and the menu bar on macOS.** A
+program with no window has no other way to say that it is running. The icon names the address a phone
+can reach, and its *Remote*, *Watch* and *Setup* entries open the three pages the machine serves. It
+follows the address rather than fixing it at startup, so a machine started before its Wi-Fi came up
+still names the right one.
 
-**Two things it costs.** The stream runs several seconds behind. That is invisible while it is the
-only screen and the only sound in the room, and what it takes is control: pause, and the music runs
-on for the length of the buffer. And it carries the backing track and never a singer, because
-microphone audio is mixed in hardware, downstream of anything the machine can see.
+**Two things it costs.** The stream runs several seconds behind, which is invisible while it is the
+only screen and the only sound in the room. What it takes is control: pause, and the music runs on
+for the length of the buffer. It also carries the backing track and never a singer, because hardware
+mixes the microphones downstream of anything the machine can see.
 
 ### Setting it up from a browser
 
@@ -440,21 +452,21 @@ whoever is singing. Five tabs:
   in. Add or remove a package.
 * **Pictures** — how many are in the rotation, which is showing, and a way to add more. It tells you,
   before the first one, that your own pictures replace the ones that came with the machine.
-* **Sound** — the sound banks on the machine, which is playing, where the sound comes out, and a way
-  to add a `.sf2`.
+* **Sound** — the sound banks on the machine, which one is playing, where the sound comes out, and a
+  way to add a `.sf2`.
 * **Problems** — packages the machine could not load, and anything else that is wrong, each with the
   control that fixes it. The tab carries a count, so you see it from wherever you were.
 
-**You do not have to remember the address.** The remote the machine serves has the link at the foot of
-its Setup tab — so a phone that can reach the machine at all can reach this page.
+**You do not have to remember the address.** The remote the machine serves carries the link at the
+foot of its Setup tab. A phone that reaches the machine at all reaches this page.
 
-**The password is shown on the machine's screen.** The machine generates a six-digit PIN at its first
-start and displays it beside its address, so anyone in the room can read it and no one outside can.
-Change it on the *This machine* tab; until you do, every tab shows a reminder linking there. It is
-shown on screen rather than written in a file because a machine under a television has no keyboard.
+**The machine shows the password on its own screen.** It generates a six-digit PIN at first start and
+displays it beside its address. Anyone in the room can read it, and nobody outside can. Change it on
+the *This machine* tab, and until you do every tab shows a reminder linking there. The screen carries
+it rather than a file, because a machine under a television has no keyboard.
 
-That tab can also sign out every phone and browser at once, which is what to use for a lost phone,
-and turn debugging on and off.
+That tab can also sign out every phone and browser at once, which is what a lost phone calls for. It
+turns debugging on and off as well.
 
 The singer's remote offers only what a singer needs: search, queue, and the controls a song allows.
 Nothing on it can delete songs.
@@ -462,10 +474,10 @@ Nothing on it can delete songs.
 ### The song book
 
 **The song book is a printable PDF of everything installed**, for finding a song without the screen
-or a phone. Four columns — artist, number, title and the first line of the words — sorted by artist
-within a section per language, modeled on the ring-binder book a commercial machine ships with. It
-reads the catalog as it stands, so start the machine once after adding a package. `--book-name` sets
-the heading and defaults to `KaraokeMachine`.
+or a phone. Four columns — artist, number, title and first line — sorted by artist within a section
+per language, like a commercial machine's ring-binder book. It reads the
+catalog as it stands, so start the machine once after adding a package, and `--book-name` sets the
+heading, which defaults to `KaraokeMachine`.
 
 ```sh
 karaokemachine --song-book ./songbook.pdf
@@ -476,9 +488,9 @@ karaokemachine --song-book ./songbook.pdf --book-name "Sitting room"
 
 ## For a technical reader
 
-Everything below is for talking to the machine rather than singing on it: the flags, the formats a
-song file may be in, the API and what finds a machine on the network, and the tools that turn a
-folder of files into a package. Compiling it is [`BUILDING.md`](BUILDING.md)'s subject.
+Everything below is for talking to the machine rather than singing on it. It covers the flags, the
+formats a song file may be in, the API, and what finds a machine on the network. The tools that turn
+a folder of files into a package come after. Compiling it is [`BUILDING.md`](BUILDING.md)'s subject.
 
 ### The command line
 
@@ -504,40 +516,42 @@ karaokemachine --log-file                # also write this run's log to a file
 ```
 
 `--show-paths` names the packages folder, which is where songs go. `--log-file` is for when something
-went wrong: double-clicking opens no console, so there is normally nowhere for it to say what
-happened. It writes one file per run into a `logs` folder beside the catalog and keeps the ten
-newest. `--fullscreen` and `--windowed` move one run and write nothing down: a machine an installer
-put there fills the screen, one you built yourself opens in a window, and either can be asked for the
-other. `--stream` moves one run the same way and is refused alongside `--headless`:
-[Watching it in another room](#watching-it-in-another-room) is what it serves and where.
+went wrong: double-clicking opens no console, so the machine has nowhere else to say what happened.
+It writes one file per run into a `logs` folder beside the catalog, and it keeps the ten newest.
+
+`--fullscreen` and `--windowed` move one run and write nothing down. A machine an installer put there
+fills the screen, one you built yourself opens in a window, and either takes the other flag.
+`--stream` moves one run the same way and refuses `--headless` beside it;
+[Watching it in another room](#watching-it-in-another-room) says what it serves, and where.
 
 ### Song files and their formats
 
 - **MIDI and KAR**, in all three karaoke conventions that exist in the wild — Soft Karaoke
   `@`-headers, `Lyric` meta-events, and a named text track.
 - **A video song** is H.264 with AAC audio, in an MP4.
-- **An MP3+G song** is an MP3 with a `.cdg` of the same stem. The CD+G graphics are drawn here, in
-  Rust.
-- **An UltraStar song** is a `.txt` beside the MP3 it names. Its timed words are read and its
-  pitches are discarded.
-- **A song's language is an ISO 639-1 code**, so a catalog can be asked what Portuguese it has.
+- **An MP3+G song** is an MP3 with a `.cdg` of the same stem. This machine draws the CD+G graphics
+  itself, in Rust.
+- **An UltraStar song** is a `.txt` beside the MP3 it names. The machine reads its timed words and
+  discards its pitches.
+- **A song's language is an ISO 639-1 code**, so you can ask a catalog what Portuguese it holds.
 
 ### Text encodings and writing systems
 
-- **Legacy encodings are detected rather than assumed** — Shift-JIS and the Windows code pages.
-- **CJK is supported**: a Japanese or Chinese song uses a font from the system.
+- **The machine detects a legacy encoding rather than assuming one**: Shift-JIS and the Windows code
+  pages.
+- **CJK works**: a Japanese or Chinese song uses a font from the system.
 - **No shaped scripts, and no right-to-left.** Thai, Arabic and Indic need a text shaper this build
   does not include.
 
 ### The HTTP API and the network
 
-- **An HTTP API with a WebSocket event stream** covering search, queue, transport, settings, packages,
-  wallpapers, demo mode, microphones and audio output.
-- **Which routes need the machine's password is fixed**: everything that reconfigures it lives under
-  `/api/v1/admin/`, and everything a singer does is outside.
-- **Found on the network by mDNS**, plus a `/discover` endpoint.
-- **A package installs over the API without a restart** — `POST /api/v1/admin/packages` — and
-  removing one over the API deletes its `.kmpkg` to match.
+- **An HTTP API with a WebSocket event stream**, covering search, queue, transport, settings,
+  packages, wallpapers, demo mode, microphones and audio output.
+- **The URL prefix says which routes need the machine's password.** Everything that reconfigures it
+  lives under `/api/v1/admin/`, and everything a singer does sits outside.
+- **mDNS finds it on the network**, and a `/discover` endpoint answers as well.
+- **A package installs over the API without a restart**, at `POST /api/v1/admin/packages`. Removing
+  one over the API deletes its `.kmpkg` to match.
 - **The song book is a route too**: `GET /api/v1/songs/book.pdf`, which takes `?language=`,
   `?package=` and `?name=`. `km-pack book` prints one from `.kmpkg` files no machine has seen yet.
 
@@ -563,10 +577,10 @@ favorite, edit its title and artist, and look it up on YouTube">
 <br><sub><b>km-package-builder</b>, for getting a folder of files into shape before it is packaged.</sub>
 </p>
 
-- **`km-package-builder`**, a local web server over a folder of source files: browse, search *the
-  lyrics themselves*, rate, fix names, group duplicates, and select songs into packages by hand.
+- **`km-package-builder`**, a local web server over a folder of source files. Browse, search *the
+  lyrics themselves*, rate, fix names, group duplicates, pick songs into packages by hand.
 - **`km-pack`** builds and validates packages, **`km-lyrics`** dumps one file's parsed timeline, and
-  **`km-wallpaper-pack`** builds a wallpaper set filtered to what lyrics stay readable over.
+  **`km-wallpaper-pack`** builds a wallpaper set, keeping what lyrics stay readable over.
 
 Making a package from a folder is two commands:
 
@@ -623,20 +637,20 @@ Compiling, testing, packaging and releasing are in [`BUILDING.md`](BUILDING.md).
 `MIT OR Apache-2.0`, at your option — what every crate in the workspace declares. The texts are
 [`LICENSE-MIT`](LICENSE-MIT) and [`LICENSE-APACHE`](LICENSE-APACHE).
 
-Unless you say otherwise, any contribution you deliberately submit for inclusion shall be dual
-licensed as above, with no additional terms.
+Unless you say otherwise, a contribution you deliberately submit falls under the same dual license,
+with no additional terms.
 
-**Only the application is covered.** The ffmpeg libraries included in a release are LGPL and ship
-their own terms in the folder that holds them, and the bundled instrument bank has its own license.
+**Only the application is covered.** A release carries the ffmpeg libraries under the LGPL, with
+their own terms in the folder that holds them. The instrument bank has its own license.
 
 **The wallpapers are photographs, and they are CC0** — seven of them, in
-`assets/wallpapers/default-wallpapers.zip`, with `CREDITS.md` beside it naming each photographer, its
-source page and the fact that every image was cropped, resized, blurred and vignetted.
+`assets/wallpapers/default-wallpapers.zip`. `CREDITS.md` beside it names each photographer and source
+page, and says that every image was cropped, resized, blurred and vignetted.
 
 **A pack you build yourself with [`tools/cmd/assets/km-wallpaper-pack`](tools/cmd/assets/km-wallpaper-pack)
 is separate, and no release includes one.** Of its three sources, only Openverse produces a pack that
-may be redistributed; a Pixabay or Pexels pack is for the machine that built it, and the tool says so
-when it finishes. `manifest.json` records each image's license either way. See
+may travel on. A Pixabay or Pexels pack is for the machine that built it, and the tool says so when
+it finishes. `manifest.json` records each image's license either way. See
 [`Where a wallpaper pack's photographs may come
 from`](docs/decisions/repository.md#where-a-wallpaper-packs-photographs-may-come-from).
 
