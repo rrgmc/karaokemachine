@@ -1388,6 +1388,13 @@ db-error-sqlite = O banco de dados respondeu com um erro: { $why }
 db-error-not-found = Não existe { $what } aqui.
 db-error-no-folder = Nenhuma pasta está aberta.
 db-error-busy = O acervo está sendo gravado. Tente novamente em um instante.
+
+# A página em que uma navegação recusada se transforma. A frase acima é o que ela mostra; estas são
+# as palavras ao redor, e os dois controles são a saída que uma frase sozinha não tinha.
+error-page-title = Não foi possível desenhar esta página
+error-try-again = Tentar de novo
+error-back-to-songs = Ir para as músicas
+error-will-retry = Esta página pergunta de novo sozinha a cada poucos segundos.
 app-error-unreachable = A máquina de karaokê não responde em { $url } ({ $why }).
 app-error-unexpected = A máquina de karaokê respondeu { $status }: { $body }
 said-folder-not-listed = Não foi possível listar a pasta: { $why }

@@ -9,6 +9,9 @@
 <script src="/static/htmx.min.js" defer></script>
 {# `defer` on both, so this runs after htmx has defined the events it listens for. #}
 <script src="/static/ui.js" defer></script>
+{# What a page needs in the head and nothing else does. Empty for all but `error.html`, which asks
+   the browser to come back by itself once the corpus has been let go of. #}
+{% block head %}{% endblock %}
 </head>
 {# **Every sentence `ui.js` says is read off here.** A static file cannot go through the `|t` filter,
    so an English string written into that script would appear inside a Portuguese page with nothing
@@ -49,12 +52,18 @@
   </nav>
   {# Each count is a sentence rather than a number beside a word, because each is a plural over the
      number in it and Portuguese chooses its own form. Composed in `handlers::chrome`, where a test
-     can reach it. #}
+     can reach it.
+
+     **Nothing at all where the header could not read the corpus.** `Chrome::bare` builds this from
+     `Counts::default`, and four zeroes on a corpus of hundreds of thousands is a lie with nothing
+     on the page to see through it. See `Chrome::sparse`. #}
+  {% if !chrome.sparse %}
   <span class="counts">
     {{ chrome.said.songs }} &middot; {{ chrome.said.files }}
     {%- match chrome.said.failed %}{% when Some with (failed) %} &middot; <span class="bad">{{ failed }}</span>{% when None %}{% endmatch %}
     &middot; {{ chrome.said.favorites }}
   </span>
+  {% endif %}
   {# The folder was already printed here; making it a link is the whole "change folder" control.
      A tab of its own would have implied the picker is somewhere you work, and it is somewhere you
      pass through. #}
@@ -67,13 +76,19 @@
      The name where the machine has said one, the address otherwise, and the address always in the
      tooltip so a name never hides where it is. Both come out of the workspace database; nothing here
      asks the network, because this is drawn on every page and a machine that is switched off is the
-     ordinary state of affairs. #}
+     ordinary state of affairs.
+
+     **And nothing at all where the header could not read the corpus**, for the counts strip's
+     reason one field over: which machine is chosen is a read, so a sparse header does not know it,
+     and *no machine set* is a state somebody would act on. #}
+  {% if !chrome.sparse %}
   {% match chrome.machine_label() %}
   {% when Some with (label) %}
   <a class="machine-tag" href="/settings" title="{{ chrome.machine_title.as_deref().unwrap_or("") }}">{{ label }}</a>
   {% when None %}
   <a class="machine-tag none" href="/settings" title="{{ "header-machine-none-title"|t }}">{{ "header-machine-none"|t }}</a>
   {% endmatch %}
+  {% endif %}
   {# **Which build this is**, last of the facts about this run and before the buttons, which are the
      only things in the header that do something. Dim, because it is read once when a page does
      something surprising and never again. See `Every program says which build it is` in

@@ -112,6 +112,35 @@ it. **A request that never answers is not an option**: a browser allows six to o
 they are spent holding requests open, nothing else on the page loads either — which reads as the
 whole tool having died rather than as one action being late.
 
+## A refused page keeps the navigation
+
+**A refusal that replaces the whole window is drawn as a page, inside the ordinary layout.** It
+carries the header, every tab, a control that asks again, and a link to the songs. A refusal that
+arrives at a page still on the screen stays a status and a sentence. The browser puts it in the
+corner.
+
+**The two halves are one rule seen from either side: what is left to press.** A curation action
+leaves the page it was taken from intact. The sentence has somewhere to land, and the tabs are
+already there. A navigation throws that page away before the answer arrives. Answered the same way,
+the window holds one line of unstyled text, with no header and no link. This tool's own window is a
+webview with no address bar, no Back and no reload, so closing it is the only way out.
+
+**The status says what happened, whatever shape the body takes.** A corpus that refuses a read
+answers 503 for both. A 200 would tell a reload, a proxy and every later caller that the read
+succeeded.
+
+**A busy corpus asks again by itself, and nothing else does.** It is the one refusal that means *ask
+again*, so that page carries a refresh. It comes back to what was asked for once the corpus is free.
+A song that is not there would reload for ever and find the same nothing.
+
+**Where a scan is running, the page draws its progress.** Those numbers are read from memory, so they
+answer while the corpus does not. The scan is both the reason for the refusal and the thing somebody
+turned away from it wants to watch.
+
+**The header leaves out what it cannot read.** A page drawn because a read refused cannot ask for the
+corpus counts or for the chosen machine. It shows neither, rather than four zeroes and a *no machine
+set* that are not true.
+
 ## A count is answered from an index that holds what it counts
 
 **The browse page's total is served by `songs_countable`, an index on `merged_into` and

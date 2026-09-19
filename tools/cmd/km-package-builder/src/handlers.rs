@@ -1064,7 +1064,7 @@ pub async fn songs(
     }
     let rows = match rows_for(&state, &query).await {
         Ok(rows) => rows,
-        Err(error) => return failure(error, state.locale()),
+        Err(error) => return failed_page(error, &state, "songs"),
     };
     // Recorded here as well as in `song_rows`, because this is how a filter arrives that the bar
     // never set: the Folders page links `/songs?folder=…`, Favorites links `/songs?favorite=…`, and
@@ -1084,7 +1084,7 @@ pub async fn songs(
     state.remember_songs_filter(query.rebuild(rows.offset, "", Some(rows.total)));
     let chrome = match chrome(&state, "songs").await {
         Ok(chrome) => chrome,
-        Err(error) => return failure(error, state.locale()),
+        Err(error) => return failed_page(error, &state, "songs"),
     };
     let extras = state
         .reading(|db| {
@@ -1103,7 +1103,7 @@ pub async fn songs(
         .await;
     let (favorites, packages, present, corpus_tags, saved) = match extras {
         Ok(found) => found,
-        Err(error) => return failure(error, state.locale()),
+        Err(error) => return failed_page(error, &state, "songs"),
     };
     // What the corpus holds, then the suggestions it does not -- facts before advice. The two are
     // told apart in the markup so a hint is never read as a fact; see `settings::Settings`.
@@ -1307,15 +1307,15 @@ pub async fn lyric_search(
 ) -> Response {
     let chrome = match chrome(&state, "lyrics").await {
         Ok(chrome) => chrome,
-        Err(error) => return failure(error, state.locale()),
+        Err(error) => return failed_page(error, &state, "lyrics"),
     };
     let hits = match hits_for(&state, &query).await {
         Ok(hits) => hits,
-        Err(error) => return failure(error, state.locale()),
+        Err(error) => return failed_page(error, &state, "lyrics"),
     };
     let favorites = match state.reading(|db| db.favorites()).await {
         Ok(favorites) => favorites,
-        Err(error) => return failure(error, state.locale()),
+        Err(error) => return failed_page(error, &state, "lyrics"),
     };
 
     page(
@@ -1589,15 +1589,15 @@ pub async fn similar(
     let query = query.narrowed(&state);
     let chrome = match chrome(&state, "songs").await {
         Ok(chrome) => chrome,
-        Err(error) => return failure(error, state.locale()),
+        Err(error) => return failed_page(error, &state, "songs"),
     };
     let hits = match similar_for(&state, &query).await {
         Ok(hits) => hits,
-        Err(error) => return failure(error, state.locale()),
+        Err(error) => return failed_page(error, &state, "songs"),
     };
     let favorites = match state.reading(|db| db.favorites()).await {
         Ok(favorites) => favorites,
-        Err(error) => return failure(error, state.locale()),
+        Err(error) => return failed_page(error, &state, "songs"),
     };
 
     page(
@@ -1679,15 +1679,15 @@ pub async fn similar_words(
     let query = query.narrowed_for_words(&state);
     let chrome = match chrome(&state, "songs").await {
         Ok(chrome) => chrome,
-        Err(error) => return failure(error, state.locale()),
+        Err(error) => return failed_page(error, &state, "songs"),
     };
     let hits = match similar_words_for(&state, &query).await {
         Ok(hits) => hits,
-        Err(error) => return failure(error, state.locale()),
+        Err(error) => return failed_page(error, &state, "songs"),
     };
     let favorites = match state.reading(|db| db.favorites()).await {
         Ok(favorites) => favorites,
-        Err(error) => return failure(error, state.locale()),
+        Err(error) => return failed_page(error, &state, "songs"),
     };
 
     page(
@@ -2004,7 +2004,7 @@ async fn row_response(state: &State, id: &str, editing: bool) -> Response {
 pub async fn song(AxumState(state): AxumState<State>, UrlPath(id): UrlPath<String>) -> Response {
     let chrome = match chrome(&state, "songs").await {
         Ok(chrome) => chrome,
-        Err(error) => return failure(error, state.locale()),
+        Err(error) => return failed_page(error, &state, "songs"),
     };
     let lookup = id.clone();
     let loaded = state
@@ -2029,7 +2029,7 @@ pub async fn song(AxumState(state): AxumState<State>, UrlPath(id): UrlPath<Strin
     let (song, favorites, packages, volumes, present, corpus_tags, tags, versions, readable) =
         match loaded {
             Ok(loaded) => loaded,
-            Err(error) => return failure(error, state.locale()),
+            Err(error) => return failed_page(error, &state, "songs"),
         };
     let settings = state.settings();
     let known_tags = settings.offerable_tags(&corpus_tags);
@@ -4594,11 +4594,11 @@ pub async fn reveal(
 pub async fn favorites(AxumState(state): AxumState<State>) -> Response {
     let chrome = match chrome(&state, "favorites").await {
         Ok(chrome) => chrome,
-        Err(error) => return failure(error, state.locale()),
+        Err(error) => return failed_page(error, &state, "favorites"),
     };
     match favorites_table(&state, false).await {
         Ok(table) => page(&FavoritesPage { chrome, table }, state.locale()),
-        Err(error) => failure(error, state.locale()),
+        Err(error) => failed_page(error, &state, "favorites"),
     }
 }
 
@@ -4843,7 +4843,7 @@ pub async fn folders(
 ) -> Response {
     let chrome = match chrome(&state, "folders").await {
         Ok(chrome) => chrome,
-        Err(error) => return failure(error, state.locale()),
+        Err(error) => return failed_page(error, &state, "folders"),
     };
     // Always a trailing slash and never a leading one, whatever a hand-typed URL says, because that
     // is what makes the prefix a folder boundary rather than a string match.
@@ -4863,13 +4863,13 @@ pub async fn folders(
             Ok(true)
         );
     if stale && let Err(error) = state.blocking(|db| db.rebuild_folders().map(|_| ())).await {
-        return failure(error, state.locale());
+        return failed_page(error, &state, "folders");
     }
 
     let listing = path.clone();
     let folders = match state.reading(move |db| db.folders(&listing)).await {
         Ok(folders) => folders,
-        Err(error) => return failure(error, state.locale()),
+        Err(error) => return failed_page(error, &state, "folders"),
     };
 
     let mut crumbs = Vec::new();
@@ -4904,7 +4904,7 @@ pub async fn folders(
 pub async fn duplicates(AxumState(state): AxumState<State>) -> Response {
     let chrome = match chrome(&state, "duplicates").await {
         Ok(chrome) => chrome,
-        Err(error) => return failure(error, state.locale()),
+        Err(error) => return failed_page(error, &state, "duplicates"),
     };
     match state.reading(|db| db.cluster_counts()).await {
         Ok(counts) => {
@@ -4927,7 +4927,7 @@ pub async fn duplicates(AxumState(state): AxumState<State>) -> Response {
                 locale,
             )
         }
-        Err(error) => failure(error, state.locale()),
+        Err(error) => failed_page(error, &state, "duplicates"),
     }
 }
 
@@ -5064,7 +5064,7 @@ async fn said_with_packages(state: &State, ok: bool, text: String) -> Response {
 pub async fn packages(AxumState(state): AxumState<State>) -> Response {
     let chrome = match chrome(&state, "packages").await {
         Ok(chrome) => chrome,
-        Err(error) => return failure(error, state.locale()),
+        Err(error) => return failed_page(error, &state, "packages"),
     };
     match packages_table(&state, false).await {
         Ok(table) => {
@@ -5083,7 +5083,7 @@ pub async fn packages(AxumState(state): AxumState<State>) -> Response {
                 locale,
             )
         }
-        Err(error) => failure(error, state.locale()),
+        Err(error) => failed_page(error, &state, "packages"),
     }
 }
 
@@ -5404,7 +5404,7 @@ pub async fn package(
 ) -> Response {
     let chrome = match chrome(&state, "packages").await {
         Ok(chrome) => chrome,
-        Err(error) => return failure(error, state.locale()),
+        Err(error) => return failed_page(error, &state, "packages"),
     };
     let lookup = id.clone();
     let volume = volume.number();
@@ -5424,11 +5424,11 @@ pub async fn package(
         .await;
     let (package, volumes, members, present, raise_version, favorites, sources) = match loaded {
         Ok(loaded) => loaded,
-        Err(error) => return failure(error, state.locale()),
+        Err(error) => return failed_page(error, &state, "packages"),
     };
     let root = match root_of(&state) {
         Ok(root) => root,
-        Err(error) => return failure(error, state.locale()),
+        Err(error) => return failed_page(error, &state, "packages"),
     };
     // Built before the page, because the chips over the song list take this panel's own list — two
     // sights of which favorites a package reads, and one answer behind both.
@@ -7200,7 +7200,7 @@ fn progress_now(state: &State) -> crate::scan::ProgressView {
 pub async fn scan_page(AxumState(state): AxumState<State>) -> Response {
     let chrome = match chrome(&state, "scan").await {
         Ok(chrome) => chrome,
-        Err(error) => return failure(error, state.locale()),
+        Err(error) => return failed_page(error, &state, "scan"),
     };
     let loaded = state
         .reading(|db| {
@@ -7214,7 +7214,7 @@ pub async fn scan_page(AxumState(state): AxumState<State>) -> Response {
         .await;
     let (last_scan, failures, dismissed, stale) = match loaded {
         Ok(loaded) => loaded,
-        Err(error) => return failure(error, state.locale()),
+        Err(error) => return failed_page(error, &state, "scan"),
     };
     let (failures, dismissed, dismissed_count) = failure_rows(failures, dismissed, state.locale());
     // Said only when there are any: a folder whose every song this build decided has nothing to
@@ -7386,11 +7386,11 @@ pub async fn scan_progress(AxumState(state): AxumState<State>) -> Response {
 pub async fn settings(AxumState(state): AxumState<State>) -> Response {
     let chrome = match chrome(&state, "settings").await {
         Ok(chrome) => chrome,
-        Err(error) => return failure(error, state.locale()),
+        Err(error) => return failed_page(error, &state, "settings"),
     };
     let hand_set_songs = match state.reading(|db| db.hand_set_count()).await {
         Ok(count) => count,
-        Err(error) => return failure(error, state.locale()),
+        Err(error) => return failed_page(error, &state, "settings"),
     };
     // Stamped when the page is drawn rather than when the button is pressed, which is a difference
     // of seconds in an editable box whose value is what the file is called.
@@ -7399,7 +7399,7 @@ pub async fn settings(AxumState(state): AxumState<State>) -> Response {
             crate::backup::default_path(&root).display().to_string(),
             crate::backup::newest(&root).unwrap_or_default(),
         ),
-        Err(error) => return failure(error, state.locale()),
+        Err(error) => return failed_page(error, &state, "settings"),
     };
 
     let client = state.app_client().await;
@@ -8032,6 +8032,63 @@ fn failure(error: DbError, locale: km_locale::Locale) -> Response {
     // the `Display` sentence, which is English.
     tracing::debug!(%error, "a request failed");
     (status, error.say(locale)).into_response()
+}
+
+/// The same failure, drawn as a page, for a request that replaced the whole window with it.
+///
+/// **[`failure`] answers a fragment and this answers a navigation, and the difference is what is
+/// left on the screen.** An htmx request comes back to a page that is still there, so the status
+/// alone is the right answer and `static/ui.js` raises a toast over what you were reading. A
+/// navigation has already thrown that page away by the time the answer arrives. Answered with a
+/// sentence, the window holds one line of unstyled text: no stylesheet, no header, no nav, no link.
+/// In this tool's own window — a webview with no address bar, no Back and no reload — closing it was
+/// the only way out.
+///
+/// So the twelve handlers that draw a full page call this one instead, and the refusal arrives
+/// inside the ordinary layout with the nav in it. The status is the same as [`failure`] gives, and
+/// [`DbError::NoWorkspace`] is still the redirect: a folder that is not open is answered by the
+/// picker rather than by a page about it.
+///
+/// **The header is [`crate::views::Chrome::bare`], which asks the database nothing.** What sent a
+/// request here is a read that refused, and `chrome` would go back to the same connection for the
+/// counts and for the machine tag. A page that reported the failure by failing the same way would
+/// report nothing at all.
+fn failed_page(error: DbError, state: &State, tab: &'static str) -> Response {
+    if matches!(error, DbError::NoWorkspace) {
+        return failure(error, state.locale());
+    }
+    let status = match error {
+        DbError::NotFound(_) => StatusCode::NOT_FOUND,
+        DbError::Rejected(_) => StatusCode::BAD_REQUEST,
+        DbError::Busy => StatusCode::SERVICE_UNAVAILABLE,
+        _ => StatusCode::INTERNAL_SERVER_ERROR,
+    };
+    tracing::debug!(%error, "a page could not be drawn");
+
+    let locale = state.locale();
+    let chrome = crate::views::Chrome::bare(
+        tab,
+        locale,
+        state
+            .root()
+            .map(|root| root.display().to_string())
+            .unwrap_or_default(),
+        state.is_windowed(),
+        state.songs_filter(),
+    );
+    crate::views::page_with_status(
+        &crate::views::ErrorPage {
+            chrome,
+            said: error.say(locale),
+            // Only the busy corpus, which is the one refusal that means *ask again*. A song that is
+            // not there is not going to be there in fifteen seconds either.
+            retries: matches!(error, DbError::Busy),
+            running: state.scan_running(),
+            progress: progress_now(state),
+        },
+        locale,
+        status,
+    )
 }
 
 /// Reads a song's bytes off disk, by way of its best surviving file.

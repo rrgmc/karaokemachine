@@ -66,6 +66,23 @@ pub fn page<T: Template>(template: &T, locale: km_locale::Locale) -> Response {
     }
 }
 
+/// The same, under a status that is not 200.
+///
+/// **For a page that *is* the refusal**, which is `handlers::failed_page` and nothing else so far. A
+/// navigation that could not be answered is drawn as a page so there is something to press, and the
+/// status has to go on saying what happened — a 503 answered 200 would tell a proxy, a reload and
+/// any future caller that the corpus was read after all.
+pub fn page_with_status<T: Template>(
+    template: &T,
+    locale: km_locale::Locale,
+    status: StatusCode,
+) -> Response {
+    match render(template, locale) {
+        Ok(body) => (status, Html(body)).into_response(),
+        Err(error) => template_error(&error),
+    }
+}
+
 /// One template, in one language. The line the five helpers here share.
 ///
 /// **The store is a local binding and the `String` is what leaves**, which is load-bearing rather
@@ -123,6 +140,22 @@ pub struct Chrome {
     /// — drawn on every page, including the six that are not the songs page — and the song detail
     /// page's way back to the list. See [`Chrome::songs_href`] and `State::songs_filter`.
     pub songs_filter: String,
+    /// Whether this header was built without reading the corpus.
+    ///
+    /// **Set by [`Chrome::bare`], and what it hides is the two facts that come out of the
+    /// database**: the counts strip and the machine tag. The page that needs it is the one drawn
+    /// *because* a read failed, so asking again for the header would fail the same way —
+    /// `Db::counts` is the call that refused, and the machine tag is a second read behind
+    /// `State::chosen_machine`.
+    ///
+    /// **Left out rather than guessed.** `Counts::default` is four zeroes, and a header reading
+    /// *0 songs · 0 files* on a corpus of hundreds of thousands is a lie a reader has no way to
+    /// see through. *No machine set* is the same lie one field over, and that one is about the two
+    /// controls that reach outside this tool.
+    ///
+    /// Everything else the header draws is in memory — the nav, the folder, the version, and the
+    /// button at the end — so a sparse header is still the whole way back out of a failed page.
+    pub sparse: bool,
 }
 
 impl Chrome {
@@ -186,6 +219,39 @@ impl Chrome {
             windowed,
             machine,
             songs_filter,
+            sparse: false,
+        }
+    }
+
+    /// The same header, for a page drawn when the corpus could not be read.
+    ///
+    /// **It asks the database nothing**, which is the whole point of it: the caller is
+    /// `handlers::failed_page`, and what sent it there is a read that refused. `Chrome::new` would
+    /// take `Db::counts` and `State::chosen_machine`, and both go back to the connection that just
+    /// said no — so a header built the ordinary way would fail to draw the page reporting the
+    /// failure.
+    ///
+    /// What it keeps is everything held in memory: the nav, the folder, whether this is the tool's
+    /// own window, the remembered filter, and the sentences `static/ui.js` reads off `<body>`. What
+    /// it drops is named on [`Chrome::sparse`].
+    pub fn bare(
+        tab: &'static str,
+        locale: km_locale::Locale,
+        root: String,
+        windowed: bool,
+        songs_filter: String,
+    ) -> Self {
+        Self {
+            sparse: true,
+            ..Self::new(
+                tab,
+                locale,
+                root,
+                Counts::default(),
+                windowed,
+                None,
+                songs_filter,
+            )
         }
     }
 
@@ -2089,6 +2155,35 @@ pub struct ScanPage {
     /// Worded here rather than counted on the page, because the sentence is a plural that two
     /// languages disagree about the shape of, and a template has no arithmetic to choose with.
     pub stale: Option<String>,
+}
+
+/// A navigation that could not be answered, drawn as a page.
+///
+/// **The page a refusal becomes when nothing else can show it.** An htmx request carries its refusal
+/// back to a page that is still on the screen, and `static/ui.js` raises a toast over it. A
+/// navigation has no such page: the browser throws the old one away before the answer arrives, so a
+/// refusal answered as text is the whole of what is left. In this tool's own window — a webview with
+/// no address bar, no Back and no reload — that is a dead end with nothing on it to press.
+///
+/// So the refusal is drawn inside the ordinary layout, which carries the nav, and the way out is
+/// whichever tab you want. See `handlers::failed_page` for which requests get this and which keep
+/// the sentence.
+#[derive(Template)]
+#[template(path = "error.html")]
+pub struct ErrorPage {
+    /// Page chrome, built by [`Chrome::bare`] because the corpus is what refused.
+    pub chrome: Chrome,
+    /// What went wrong, as `DbError::say` worded it.
+    pub said: String,
+    /// Whether the page asks the browser to come back by itself.
+    ///
+    /// Only where the corpus was busy, which is the one refusal that means *ask again*. A song that
+    /// is not there would reload for ever and find the same nothing.
+    pub retries: bool,
+    /// Whether a scan is going on, which is what the progress panel is drawn for.
+    pub running: bool,
+    /// Where that scan has got to. Read from memory, so it answers while the corpus does not.
+    pub progress: ProgressView,
 }
 
 /// The failures panel, redrawn when a reason is removed or restored.

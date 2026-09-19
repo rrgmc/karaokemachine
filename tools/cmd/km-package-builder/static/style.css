@@ -272,7 +272,7 @@ form.filters.banded .alphabet-band {
    one and only a filled button reads as pressable. It is kept now that the ground is dark again,
    because it is the better arrangement on either: a recessed field and a raised button say which is
    which without depending on the reader knowing the palette. */
-input, select, textarea, button {
+input, select, textarea, button, a.button {
     font: inherit;
     color: var(--text);
     background: var(--bg);
@@ -280,6 +280,12 @@ input, select, textarea, button {
     border-radius: 4px;
     padding: 0.28rem 0.45rem;
 }
+/* A link drawn as a button, for a control that navigates rather than posts. The error page's two
+   ways out are both a real `href`: that page is drawn when the corpus refused a read, so a control
+   that needed htmx to answer would be a control that cannot. */
+a.button { display: inline-block; text-decoration: none; background: var(--panel-2); }
+a.button:hover { border-color: var(--accent); }
+a.button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
 input[type="checkbox"] { accent-color: var(--accent); }
 textarea { width: 100%; min-height: 4rem; }
 button { background: var(--panel-2); cursor: pointer; }
