@@ -7,10 +7,14 @@
   <p class="dim">{{ "lyrics-none-indexed-lead"|t }} <a href="/scan">{{ "nav-scan"|t }}</a> {{ "lyrics-none-indexed-tail"|t }}</p>
 {% else if !comparable %}
   <p class="dim">{{ "words-too-few"|t }}</p>
-{% else if hits.len() <= 1 %}
-  {# One row is the song the search started from, which is always there and is never a match. #}
-  <p class="dim">{{ "words-not-found"|t }}</p>
 {% else %}
+{% if hits.len() <= 1 %}
+  {# The head of the list is the song the search started from, and it is never a match. The sentence
+     goes above it rather than in place of it: the page is answering about that song, so it shows
+     which song it was asked about. #}
+  <p class="dim">{{ "words-not-found"|t }}</p>
+{% endif %}
+{% if !hits.is_empty() %}
 {# `similar` is the names page's table, and the likeness column means the same thing in both: what
    the list is ordered by, and where reading down it stops being worthwhile. #}
 <div class="scroll">
@@ -37,5 +41,6 @@
   {% endfor %}
 </table>
 </div>
+{% endif %}
 {% endif %}
 </div>

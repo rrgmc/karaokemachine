@@ -58,6 +58,7 @@ docs/decisions/streaming.md
 docs/research/README.md
 docs/research/kar-formats.md
 docs/research/linux-desktop.md
+docs/research/meta-quest.md
 docs/research/midi-loudness.md
 docs/research/sqlite-mmap.md
 docs/research/st3.md

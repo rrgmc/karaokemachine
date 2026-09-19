@@ -3452,6 +3452,33 @@ mod tests {
 
     /// A row's ≈ button opens the songs with a similar name, and that list is headed by the row's own
     /// song, marked.
+    /// A name nothing is like keeps the song searched from, under the sentence that says so.
+    ///
+    /// The ≋ page's rule over the other index: the page answers about one song, and a sentence with
+    /// no row under it leaves the reader without the song they asked about.
+    #[tokio::test]
+    async fn a_name_nothing_is_like_keeps_the_song_searched_from() {
+        let (_corpus, state) = a_corpus_of("similar-no-match", 3);
+
+        let (status, html) = get(
+            &state,
+            "/similar?title=Nothing%20Like%20It&from=song-0000&suitability=&kind=&granularity=&copies=",
+        )
+        .await;
+        assert_eq!(status, axum::http::StatusCode::OK);
+        let words = crate::words::messages(km_locale::Locale::English);
+        assert!(html.contains(&*words.msg("similar-not-found")), "{html}");
+        assert!(
+            html.contains(r#"id="row-song-0000""#),
+            "the song searched from is there: {html}"
+        );
+        assert!(html.contains("searched-from"), "{html}");
+        assert!(
+            !html.contains(r#"id="row-song-0001""#),
+            "and nothing else is: {html}"
+        );
+    }
+
     #[tokio::test]
     async fn a_row_leads_to_the_songs_with_a_similar_name() {
         let (_corpus, state) = a_corpus_of("similar-page", 3);
@@ -6052,6 +6079,29 @@ mod tests {
         let words = crate::words::messages(km_locale::Locale::English);
         assert!(html.contains(&*words.msg("words-too-few")), "{html}");
         assert!(!html.contains(&*words.msg("words-not-found")), "{html}");
+    }
+
+    /// A song nothing else sings keeps its own row, under the sentence that says so.
+    ///
+    /// **The defect this pins is a page that looks broken.** The page answers about one song, and a
+    /// sentence with no row under it leaves the reader without the song they asked about.
+    #[tokio::test]
+    async fn a_song_nothing_else_sings_keeps_its_own_row() {
+        let (_corpus, state) = a_singing_corpus("words-no-match");
+
+        let (status, html) = get(&state, "/similar-words?from=song-0002").await;
+        assert_eq!(status, axum::http::StatusCode::OK);
+        let words = crate::words::messages(km_locale::Locale::English);
+        assert!(html.contains(&*words.msg("words-not-found")), "{html}");
+        assert!(
+            html.contains(r#"id="row-song-0002""#),
+            "the song searched from is there: {html}"
+        );
+        assert!(html.contains("searched-from"), "{html}");
+        assert!(
+            !html.contains(r#"id="row-song-0000""#),
+            "and nothing else is: {html}"
+        );
     }
 
     /// Taking the artist out of the title answers with the rows, on the page it was pressed on.

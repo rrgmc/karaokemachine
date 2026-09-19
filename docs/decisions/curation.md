@@ -845,6 +845,9 @@ marked.** Every other row is read against it: which copy is longer, better, or a
 fetches it by id rather than finding it through the index. A name edited in the boxes can push it out
 of the candidates or below the threshold.
 
+**It keeps that row when no name is like it, under the sentence saying so.** The page answers about
+one song, and a sentence with nothing under it reads as a page that failed to load.
+
 **It writes nothing, and it is not the duplicate pass.** Two files with one name can be two
 recordings, so listening answers whether they are the same song. A similar name is a reason to
 listen. It is never a reason to group the files.
@@ -907,6 +910,9 @@ editable, because somebody can loosen a name by hand when it is garbled past mat
 body is not something a box can hold or anybody would edit. So the song searched from heads the list, marked, and
 every other row is read against it.
 
+**It heads the list when nothing else sings its words as well.** The page answers about one song, and
+a sentence with nothing under it reads as a page that failed to load.
+
 **It narrows by the same five controls as the similar-names page, and remembers them separately.**
 The controls mean the same things, so they are the same controls. What they open at differs.
 A similar *name* is looked for among the files somebody might play, so that page opens at 8–10.
@@ -925,6 +931,9 @@ button that can only lead to a page apologising is one on nearly every row.
 - no scan has written any words yet, and the corpus is re-read
 - this song has too few words to find another by
 - nothing else sings them
+
+The first two carry no row, because the song has nothing to be read against. The third carries the
+song searched from.
 
 **It writes nothing, and it is not the duplicate pass.** Two files singing one set of words can still
 be two recordings. The same words are a reason to listen, and never a reason to group the files.
