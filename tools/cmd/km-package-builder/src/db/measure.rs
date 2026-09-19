@@ -395,7 +395,14 @@ fn where_the_same_words_threshold_sits() {
         .collect();
 
     // True pairs: proposed by shape and name, and not already caught by the exact key.
+    //
+    // **Scoring every one of them and asking the index about a sample.** A score is two row lookups
+    // and two sets; a recall check is a whole search, and the pass proposes tens of thousands of
+    // pairs on a real corpus. So the distribution is the whole population and recall is
+    // [`RECALL_SAMPLE`] of it, which is what makes this a run somebody waits for rather than leaves
+    // overnight.
     let mut agreed: Vec<f32> = Vec::new();
+    let mut asked = 0usize;
     let mut reached = 0usize;
     for (a, b, _, reason) in &proposed {
         if reason == "same words" {
@@ -412,11 +419,23 @@ fn where_the_same_words_threshold_sits() {
         };
         agreed.push(likeness);
         // Whether the phrases would have returned the other file at all, which no threshold can fix.
-        if db
-            .similar_words(a, &Filter::default())
-            .is_ok_and(|(hits, _)| hits.iter().any(|song| &song.id == b))
-        {
-            reached += 1;
+        //
+        // **Every version, and the measurement is worthless without it.** These pairs are the ones
+        // the duplicate pass grouped, so one of each is hidden behind the other as a version — and
+        // the default filter collapses those in SQL, before a phrase is asked for anything. Asking
+        // with it on measures the filter and calls it recall.
+        if asked < RECALL_SAMPLE {
+            asked += 1;
+            let unfiltered = Filter {
+                versions: VersionsFilter::All,
+                ..Filter::default()
+            };
+            if db
+                .similar_words(a, &unfiltered)
+                .is_ok_and(|(hits, _)| hits.iter().any(|song| &song.id == b))
+            {
+                reached += 1;
+            }
         }
     }
 
@@ -430,7 +449,7 @@ fn where_the_same_words_threshold_sits() {
         .filter(|song| song.lyric_key.is_some() && !paired.contains(song.id.as_str()))
         .collect();
     let mut coincidence: Vec<f32> = Vec::new();
-    for pair in alone.chunks(2) {
+    for pair in alone.chunks(2).take(COINCIDENCE_SAMPLE) {
         let [a, b] = pair else { continue };
         if let Some(likeness) = scored(&a.id, &b.id) {
             coincidence.push(likeness);
@@ -483,10 +502,10 @@ fn where_the_same_words_threshold_sits() {
     }
     println!();
 
-    if !agreed.is_empty() {
+    if asked > 0 {
         println!(
-            "the phrases reached the other file in {:.1}% of true pairs\n",
-            100.0 * reached as f64 / agreed.len() as f64
+            "the phrases reached the other file in {:.1}% of {asked} true pairs asked\n",
+            100.0 * reached as f64 / asked as f64
         );
     }
 
@@ -530,3 +549,16 @@ fn where_the_same_words_threshold_sits() {
 /// How many searches the measurement times. Enough for a median to mean something, few enough that
 /// the run is not itself the slow part.
 const SEARCHES_TIMED: usize = 50;
+
+/// How many true pairs the index is actually asked about.
+///
+/// A recall check is a whole search where a score is two row lookups, and the pass proposes tens of
+/// thousands of pairs on a real corpus. A share read off two hundred of them is worth what a share
+/// read off all of them is, and it is the difference between a run somebody waits for and one left
+/// overnight.
+const RECALL_SAMPLE: usize = 200;
+
+/// How many pairs of unpaired songs are scored for the coincidence tail.
+///
+/// The tail is what a threshold has to clear, and it settles long before the corpus runs out.
+const COINCIDENCE_SAMPLE: usize = 20_000;

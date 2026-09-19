@@ -35,17 +35,30 @@ pub const SHINGLE: usize = 3;
 
 /// The lowest likeness a match is shown at.
 ///
-/// **The fall-off either side of this is a cliff and not a slope**, which is what makes one number
-/// serve. Two songs that are not the same song share almost nothing: a three-word run is specific
-/// enough that unrelated files sit near zero, and what little they share is the stock phrases every
-/// lyric has. So the threshold is set by what a *true* pair can lose and still be true, and set well
-/// clear of what a false one can reach.
+/// **Measured, not chosen**, by `db::measure::where_the_same_words_threshold_sits` over a real
+/// corpus. Two populations it can take from that corpus: 2,594 pairs the duplicate pass joined by a
+/// matching shape *and* a matching name whose lyric keys differ, which are one recording typed twice,
+/// against 10,934 pairs of songs it joined to nothing.
 ///
-/// What a true pair loses is verses and spelling. A file missing one verse of five shares four and
-/// holds five, which is 0.8. Missing two is 0.6. A transcription differing in a twentieth of its
-/// words breaks [`SHINGLE`] runs for each word it changes, which takes a pair that would have been
-/// 1.0 to about 0.74 — and the two losses compound, because the file with a verse gone is usually
-/// also the file somebody else typed.
+/// | pairs | 5th | 50th | 95th |
+/// |---|---|---|---|
+/// | one recording, typed twice | 0.000 | 0.788 | 0.978 |
+/// | joined to nothing | 0.000 | 0.000 | 0.008 |
+///
+/// **The gap is the whole story, and it is a cliff rather than a slope.** A coincidence's 95th
+/// percentile is 0.008 — seventy-five times below this — so where the line falls between the two
+/// populations barely moves what gets through: 0.7% of the unrelated pairs clear this and 0.9% clear
+/// 0.40. What moves is how much of a true pair is kept, which is 71.2% here and 48.6% at 0.80.
+///
+/// So it sits low in the gap rather than high in it, and the arithmetic says why a true pair needs
+/// the room. A file missing one verse of five shares four and holds five, which is 0.8; missing two
+/// is 0.6; a transcription differing in a twentieth of its words breaks [`SHINGLE`] runs for each
+/// word it changes, which takes a pair that would have been 1.0 to about 0.74. The two compound,
+/// because the file with a verse gone is usually also the file somebody else typed.
+///
+/// **What it cannot reach is not below the line, it is at zero.** A fifth of the true pairs share no
+/// run at all, which is where the two files were typed by people who broke the words differently —
+/// no threshold recovers those, and lowering this one to 0.40 buys 7.6 points of them and no more.
 ///
 /// A cover with reworked verses keeps its chorus and little else, which is well under this. A medley
 /// holding a whole short song pays for every other song in it, because the union is the whole medley.

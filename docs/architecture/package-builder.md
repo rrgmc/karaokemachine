@@ -185,6 +185,25 @@ list: the scoring wants the flat one, because one sequencer wraps its lines wher
 to hold a lyric because it reads every row of `songs`; this reads the candidates it was given and
 drops each after scoring it.
 
+Measured over a real corpus by `db::measure::where_the_same_words_threshold_sits`, mapped:
+
+| what | figure |
+|---|---|
+| one search, median | 69 ms |
+| one search, 95th | 125 ms |
+| one search, worst of 50 | 198 ms |
+| the phrases returned the other file, of 200 pairs known to be one recording | 81.5% |
+
+**Recall is the figure the design stands on, and it is not the threshold.** A pair the phrases never
+return is invisible whatever the score would have been, so it is measured separately and answered
+with more `PROBES` or a shorter `SHINGLE`. At 81.5% it sits about where the scoring ceiling is — a
+fifth of those pairs share no three-word run at all — so the phrases are not what is losing them.
+
+**Recall is measured with every version asked for, and it is wrong without that.** The pairs it reads
+as ground truth are the ones the duplicate pass grouped, so one of each is hidden behind the other;
+the default filter collapses those in SQL, before a phrase is asked for anything. Measured with the
+default, recall reads 17.5% and is reporting on the filter.
+
 The two helpers are written separately rather than one in terms of the other, and the reason is cost
 rather than clarity: `sung_words` is read once per song in a pass over the whole corpus, so it folds
 the lyric once, while `sung_runs` folds a line at a time and is read once per page.
