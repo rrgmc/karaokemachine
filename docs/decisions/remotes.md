@@ -146,8 +146,8 @@ both sides, and only the folded *initial* is the mirror's alone.
 such as transpose on a video, is drawn and grayed instead. The machine states that per song precisely
 so a client can.
 
-**This row says which two features are the offline app's.** It should not be read as saying that the
-offline app is where features land. A feature belongs to both unless one of those two reasons bites:
+**This row says which two features are the offline app's. It should not be read as saying that the
+offline app is where features land.** A feature belongs to both unless one of those two reasons bites:
 a collection somebody owns, or a column the mirror has and `library.sqlite` lacks.
 
 ## The remote's palette

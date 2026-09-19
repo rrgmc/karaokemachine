@@ -112,8 +112,8 @@ The corpus figures behind every number here are in
 
 ## Video and MP3+G play at the MIDI reference level
 
-**Each video and MP3+G song is measured when its package is built.** At playback the machine
-attenuates it to the loudness its SoundFont bank renders the MIDI corpus at. A media song carries a
+**Each video and MP3+G song is measured when its package is built. At playback the machine
+attenuates it to the loudness its SoundFont bank renders the MIDI corpus at.** A media song carries a
 measurement and only ever comes down. The entry above brings a MIDI song to that same level, either
 way, from its own events.
 
@@ -229,8 +229,8 @@ coming up, so most of that second is spent while somebody is still choosing.
 
 ## The machine sleeps when it leaves the screen
 
-**A machine that is off the screen lets the system take its audio device.** On return it has the
-device back, with the paused song still loaded at its position. The screen is the product, so a
+**A machine that is off the screen lets the system take its audio device. On return it has the
+device back, with the paused song still loaded at its position.** The screen is the product, so a
 machine nobody can see is a machine nobody is singing on. The battery is what it costs to pretend
 otherwise.
 

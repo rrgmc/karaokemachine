@@ -192,8 +192,8 @@ Windows.
 
 ## The development console has an API that needs no password
 
-**The whole API is mounted a second time at `/dev/api/v1/`.** Nothing under that prefix asks for a
-token, including the paths filed under `/admin/`. It exists only while **two** switches are on:
+**The whole API is mounted a second time at `/dev/api/v1/`. Nothing under that prefix asks for a
+token, including the paths filed under `/admin/`.** It exists only while **two** switches are on:
 `debug.enabled` and `api.serve_dev_remote`. `--dev-remote` turns on both for one run.
 
 **The reason is where the permission sits, not how the console works.**
