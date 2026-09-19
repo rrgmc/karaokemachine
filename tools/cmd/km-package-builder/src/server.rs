@@ -4444,6 +4444,41 @@ mod tests {
         );
     }
 
+    /// This folder says how much is in the discard pile, which no other page does.
+    ///
+    /// The browse list shows what has been thrown away only to somebody who asked for it, so
+    /// without this row a corpus holding discarded songs reads exactly like one holding none. Drawn
+    /// at nought as well, because a page somebody opened to read facts answers rather than nags.
+    #[tokio::test]
+    async fn the_settings_page_says_how_much_has_been_thrown_away() {
+        let (_corpus, state) = a_corpus_of("settings-discard-pile", 3);
+
+        let (status, html) = get(&state, "/settings").await;
+        assert_eq!(status, axum::http::StatusCode::OK);
+        assert!(
+            html.contains("Thrown away"),
+            "the folder panel does not name the discard pile: {html}"
+        );
+
+        state
+            .blocking(|db| {
+                db.set_deleted_of(&["song-0001".to_owned()], true)
+                    .map(|_| ())
+            })
+            .await
+            .expect("throw one away");
+
+        let (_, html) = get(&state, "/settings").await;
+        let pile = html
+            .split("Thrown away")
+            .nth(1)
+            .expect("the row is on the page");
+        assert!(
+            pile.starts_with("</dt><dd>1</dd>"),
+            "the discard pile is not counted: {pile}"
+        );
+    }
+
     /// The password box is on the page, because three refusals send people to it by name.
     ///
     /// **This is the half that was missing for as long as the sentence existed.** `app.rs`'s
@@ -6296,6 +6331,106 @@ mod tests {
         drop(guard);
         assert!(waiter.join().expect("the waiter finished"), "and gets in");
         assert!(!db.wanted(), "and stops being counted once it has");
+    }
+
+    // -- a refused navigation is a page and a refused fragment is a sentence ----------------------
+
+    /// **The reported fault, as a test.** A navigation that is refused comes back with the nav on it.
+    ///
+    /// The window this tool draws is a webview: no address bar, no Back, no reload. Answered with a
+    /// sentence, a refused navigation left it holding one line of text, and closing the window was
+    /// the only way out of it. A missing song is the cheap refusal to ask for; what is asserted is
+    /// the way out, which every refusal shares.
+    #[tokio::test]
+    async fn a_refused_navigation_comes_back_as_a_page_with_the_nav_on_it() {
+        let (_corpus, state) = a_corpus_of("refused-navigation", 1);
+
+        let (status, html) = get(&state, "/songs/no-such-song").await;
+
+        assert_eq!(status, axum::http::StatusCode::NOT_FOUND, "{html}");
+        assert!(
+            html.contains("<nav>") && html.contains("href=\"/scan\""),
+            "a refused page carries the way to every other one: {html}"
+        );
+        assert!(
+            html.contains("error-try-again") || html.contains("Try again"),
+            "and something to press: {html}"
+        );
+        assert!(
+            !html.contains("http-equiv=\"refresh\""),
+            "a song that is not there will not be there in fifteen seconds either: {html}"
+        );
+    }
+
+    /// A page asked for while the corpus is being written to says so, and offers the way out.
+    ///
+    /// **An in-memory database is the case that reaches this**, and it is not a contrivance: a
+    /// folder only gets a reading connection where its database took write-ahead logging, and
+    /// `Workspace::new` falls back to the writing one where it did not. On that fallback every page
+    /// queues behind the scan's batch, which is the state the fault was reported from.
+    ///
+    /// **The navigation and the fragment are asked at once**, which is the contrast this change is
+    /// about and costs one `READ_WAIT` rather than two: `/songs` is a page somebody went to, and
+    /// `/songs/rows` is the same refusal arriving at a page that is still on the screen.
+    ///
+    /// The holder is a thread, so no lock is held across an `await`. It sits through `READ_WAIT`,
+    /// which is what the person reporting this sat through.
+    #[tokio::test]
+    async fn a_navigation_while_the_corpus_is_written_to_offers_the_way_out() {
+        let (_corpus, state) = a_corpus_of("busy-navigation", 1);
+
+        let workspace = state.workspace().expect("a folder is open");
+        assert!(
+            Arc::ptr_eq(workspace.reader(), &workspace.db),
+            "the test needs the one-connection fallback, which is what an in-memory database takes"
+        );
+
+        let (say_held, held) = std::sync::mpsc::channel::<()>();
+        let (release, released) = std::sync::mpsc::channel::<()>();
+        let writing = Arc::clone(&workspace.db);
+        let holder = std::thread::spawn(move || {
+            let _guard = writing.lock();
+            say_held.send(()).expect("say it is held");
+            let _ = released.recv();
+        });
+        held.recv().expect("the writing connection is held");
+
+        let ((status, html), (fragment_status, fragment)) =
+            tokio::join!(get(&state, "/songs"), get(&state, "/songs/rows?"));
+
+        release.send(()).expect("let the connection go");
+        holder.join().expect("the holder finished");
+
+        assert_eq!(
+            status,
+            axum::http::StatusCode::SERVICE_UNAVAILABLE,
+            "the status goes on saying the corpus was not read: {html}"
+        );
+        assert!(
+            html.contains("<nav>") && html.contains("href=\"/scan\""),
+            "and the page carries the way back to the scan that is holding it: {html}"
+        );
+        assert!(
+            html.contains("http-equiv=\"refresh\""),
+            "a busy corpus is the one refusal that asks again by itself: {html}"
+        );
+        assert!(
+            !html.contains("class=\"counts\""),
+            "a header that could not count says nothing rather than four zeroes: {html}"
+        );
+
+        // **The half that must not change.** htmx will not swap a failed response, so the page the
+        // rows are already on stays as it is and `static/ui.js` puts the reason over it. A page sent
+        // back here would be a whole document handed to an element expecting table rows.
+        assert_eq!(
+            fragment_status,
+            axum::http::StatusCode::SERVICE_UNAVAILABLE,
+            "{fragment}"
+        );
+        assert!(
+            !fragment.contains("<nav>"),
+            "a fragment is answered with the sentence, not with a page: {fragment}"
+        );
     }
 
     /// `--machine` is what the tool talks to for the run, and the workspace keeps what it was told.

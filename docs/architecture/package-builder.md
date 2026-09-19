@@ -1454,6 +1454,14 @@ batch boundary; **through the tail's two whole-corpus passes it is the ordinary 
 neither can be released part-way. A request that never answers is what this whole arrangement exists
 to remove, and a write is not exempt from it.
 
+**What that 503 carries depends on what asked for it.** A fragment gets the worded sentence, which
+`static/ui.js` raises as a toast over the page the button was on. A navigation gets the same status
+with `templates/error.html` as the body, having no page left to toast over. The rule is
+`A refused page keeps the navigation` in `docs/decisions/curation.md`. The twelve
+handlers that draw a full page call `handlers::failed_page`; every other caller keeps
+`handlers::failure`. That page's header is `Chrome::bare`, which reads nothing: `Db::counts` and
+`State::chosen_machine` both go back to the connection that just refused.
+
 The condition that would earn a pool of readers is a page waiting on another page rather than on the
 disk. One reader serializes renders against each other, which is one person clicking; the requests a
 browser fires in parallel are the embedded assets, which touch no database.

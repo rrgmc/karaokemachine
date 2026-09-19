@@ -43,6 +43,12 @@ pub struct Counts {
     pub favorites: u32,
     /// Packages being curated.
     pub packages: u32,
+    /// Songs thrown away, which the browse list shows only when asked for them.
+    ///
+    /// **The one count here about something a page does not show by default.** The discard pile is
+    /// a whole list somebody can act on — restore from it, or leave it — and nothing else says it
+    /// has anything in it. See `DeletedFilter`, which is the control that opens it.
+    pub deleted: u32,
 }
 
 /// One reason files did not parse, counted, as the scan page lists it.

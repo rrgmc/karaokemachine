@@ -144,6 +144,12 @@
     <dt>{{ "settings-files"|t }}</dt><dd>{{ chrome.counts.files }}{% match failed_said %}{% when Some with (said) %}, {{ said }}{% when None %}{% endmatch %}</dd>
     <dt>{{ "nav-favorites"|t }}</dt><dd>{{ favorites_said }}</dd>
     <dt>{{ "nav-packages"|t }}</dt><dd>{{ chrome.counts.packages }}</dd>
+    {# **The discard pile, and this is the only place its size is written.** The browse list shows it
+       only to somebody who has already asked for it, so a corpus with a hundred songs thrown away
+       looks exactly like one with none until you go and look. The row is drawn at nought as well,
+       unlike the header's failure badge: this is a page somebody opened to read facts about the
+       folder, and a nought here is the answer rather than a nag. #}
+    <dt>{{ "settings-deleted"|t }}</dt><dd>{{ chrome.counts.deleted }}</dd>
   </dl>
 </div>
   </div>

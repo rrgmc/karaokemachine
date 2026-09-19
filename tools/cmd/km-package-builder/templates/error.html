@@ -1,0 +1,49 @@
+{% extends "layout.html" %}
+{% block title %}{{ "error-page-title"|t }} &middot; {{ crate::APP_NAME }}{% endblock %}
+
+{# **The retry is a meta refresh and not an htmx poll**, which is the one decision in this file worth
+   the sentence. htmx will not swap a failed response, so a poll of the address that refused would
+   answer 503 every time round and `static/ui.js` would raise a toast for each -- three hundred of
+   them across the tail of a corpus scan. A refresh costs one request, leaves nothing on the screen
+   when it fails, and lands on the real page the moment the corpus is free.
+
+   Only where the corpus is busy. That is the one refusal that means *ask again*; a missing song or a
+   database that answered with an error is a page that would reload for ever without changing. #}
+{% block head %}
+{% if retries %}<meta http-equiv="refresh" content="15">{% endif %}
+{% endblock %}
+
+{% block content %}
+
+<h2>{{ "error-page-title"|t }}</h2>
+
+<div class="panel">
+  {# The sentence `DbError::say` worded, which is the whole of what went wrong. #}
+  <p>{{ said }}</p>
+
+  {# **Both controls, always, and that is the point of the page.** This tool's own window is a
+     webview: no address bar, no Back, no reload. Before this page a refused navigation left it
+     holding one line of text with no way out of it but closing the window.
+
+     **The empty `href` is the address that failed**, query string and all: an empty URL resolves
+     against the document's own, which is the one thing here that knows what was asked for. The
+     server does not -- twelve handlers reach this page and each parses its query differently -- and
+     the meta refresh above re-requests the same address the same way. #}
+  <div class="row">
+    <a class="button primary" href="">{{ "error-try-again"|t }}</a>
+    <a class="button" href="{{ chrome.songs_href() }}">{{ "error-back-to-songs"|t }}</a>
+  </div>
+
+  {% if retries %}
+  <p class="dim">{{ "error-will-retry"|t }}</p>
+  {% endif %}
+</div>
+
+{# **What the scan is doing, where one is running.** It is the reason the corpus is busy, and it was
+   what the page somebody could not get back to was showing. `/scan/progress` reads no database --
+   the numbers are in memory -- so this panel answers while every other page is refused. #}
+{% if running %}
+{% include "progress.html" %}
+{% endif %}
+
+{% endblock %}

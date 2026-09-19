@@ -749,6 +749,7 @@ settings-kept-in-tail = , which you can also edit by hand.
 settings-this-folder = This folder
 settings-root = Root
 settings-files = Files
+settings-deleted = Thrown away
 settings-did-not-parse = { $count ->
     [one] { $count } of which did not parse
    *[other] { $count } of which did not parse
@@ -1372,6 +1373,13 @@ db-error-sqlite = The database answered with an error: { $why }
 db-error-not-found = There is no { $what } here.
 db-error-no-folder = No folder is open.
 db-error-busy = The corpus is being written to. Try that again in a moment.
+
+# The page a refused navigation becomes. The sentence above is what it prints; these are the words
+# around it, and the two controls are the way out that a plain sentence did not have.
+error-page-title = This page could not be drawn
+error-try-again = Try again
+error-back-to-songs = Go to the songs
+error-will-retry = This page asks again by itself every few seconds.
 app-error-unreachable = The karaoke machine is not answering at { $url } ({ $why }).
 app-error-unexpected = The karaoke machine answered { $status }: { $body }
 said-folder-not-listed = The folder could not be listed: { $why }

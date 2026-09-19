@@ -742,12 +742,12 @@ impl Db {
         (writes, data)
     }
 
-    /// The five aggregates themselves. Call [`Db::counts`] instead; this is what it fills its cache
+    /// The six aggregates themselves. Call [`Db::counts`] instead; this is what it fills its cache
     /// from.
     ///
     /// **One function per aggregate below, so that each can be timed on its own.** They are not
     /// separate for any reason the program needs — this is the only caller — but for the one thing
-    /// the program cannot otherwise offer: which of the five a page is actually waiting for. Timing
+    /// the program cannot otherwise offer: which of the six a page is actually waiting for. Timing
     /// them by copying the SQL into a measurement would produce a figure about a query nobody runs
     /// the day either spelling moved.
     fn count_everything(&self) -> Result<Counts, DbError> {
@@ -757,6 +757,7 @@ impl Db {
             failed: self.count_failed()? as u32,
             favorites: self.count_favorites()? as u32,
             packages: self.count_packages()? as u32,
+            deleted: self.count_deleted()? as u32,
         })
     }
 
@@ -830,5 +831,27 @@ impl Db {
         Ok(self
             .conn
             .query_row("SELECT COUNT(*) FROM packages", [], |row| row.get(0))?)
+    }
+
+    /// Songs in the discard pile.
+    ///
+    /// **Served by `songs_deleted`, which is partial — `WHERE deleted_at IS NOT NULL`.** It holds
+    /// only the rows this asks about, so the cost is the size of the discard pile rather than the
+    /// size of the corpus, and it is nothing at all on a corpus nobody has thrown anything away
+    /// from.
+    ///
+    /// **The two halves `Filter::to_sql` composes for *only deleted*, and taken from the same
+    /// place.** A merge has no row of its own whatever else is asked, so `merged_into IS NULL`
+    /// stands; the other half comes off [`DeletedFilter::Only`] rather than being spelled again
+    /// here, so this count and the list it counts cannot drift.
+    fn count_deleted(&self) -> Result<i64, DbError> {
+        Ok(self.conn.query_row(
+            &format!(
+                "SELECT COUNT(*) FROM songs WHERE merged_into IS NULL AND {}",
+                DeletedFilter::Only.clause("")
+            ),
+            [],
+            |row| row.get(0),
+        )?)
     }
 }
