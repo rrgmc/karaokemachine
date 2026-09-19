@@ -181,6 +181,71 @@ pub(super) fn title_initial(alias: &str) -> String {
     )
 }
 
+/// The folder a file sits in, as a path ending in `/`. The empty string for a file at the root.
+pub(super) fn parent_folder(path: &str) -> &str {
+    match path.rfind('/') {
+        Some(cut) => &path[..=cut],
+        None => "",
+    }
+}
+
+/// Every folder at or above `folder`, including the root and `folder` itself.
+///
+/// `a/b/` yields `a/b/`, `a/` and `""`. The root is always in the list, which is what gives the
+/// `folders` table its one row with `parent IS NULL`.
+pub(super) fn ancestors(folder: &str) -> Vec<String> {
+    let mut out = vec![String::new()];
+    let mut so_far = String::new();
+    for segment in folder.split('/').filter(|segment| !segment.is_empty()) {
+        so_far.push_str(segment);
+        so_far.push('/');
+        out.push(so_far.clone());
+    }
+    out
+}
+
+/// The folder containing `folder`, or `None` for the root.
+pub(super) fn parent_of(folder: &str) -> Option<String> {
+    if folder.is_empty() {
+        return None;
+    }
+    let trimmed = folder.trim_end_matches('/');
+    Some(match trimmed.rfind('/') {
+        Some(cut) => trimmed[..=cut].to_owned(),
+        None => String::new(),
+    })
+}
+
+/// A folder's last segment: `b` for `a/b/`, empty for the root.
+pub(super) fn folder_name(folder: &str) -> &str {
+    let trimmed = folder.trim_end_matches('/');
+    match trimmed.rfind('/') {
+        Some(cut) => &trimmed[cut + 1..],
+        None => trimmed,
+    }
+}
+
+/// The half-open range of paths that lie under a folder prefix.
+///
+/// A range rather than `LIKE 'prefix%'` for two reasons: `files.path` is `UNIQUE`, so SQLite has an
+/// index it can seek into with a range and cannot with a `LIKE` (whose default case-insensitivity
+/// rules it out anyway); and a real corpus has folders with `%` and `_` in their names, which `LIKE`
+/// would read as wildcards.
+///
+/// The upper bound is the prefix with its last character bumped by one, which is the next string
+/// that sorts after everything beginning with it.
+pub fn prefix_range(prefix: &str) -> (String, String) {
+    let low = prefix.to_owned();
+    let mut high = low.clone();
+    match high.pop().and_then(|last| char::from_u32(last as u32 + 1)) {
+        Some(next) => high.push(next),
+        // Only reachable for an empty prefix or one ending at the last code point; a bound past
+        // every path is then the honest answer, and the caller filters nothing.
+        None => high = format!("{low}\u{10FFFF}"),
+    }
+    (low, high)
+}
+
 /// The `SELECT` list every browse row is built from.
 ///
 /// One definition, used by the list and by the single-row re-render an inline edit answers with. Two

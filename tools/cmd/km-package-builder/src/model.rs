@@ -684,7 +684,8 @@ impl SongRow {
 
     /// Where clicking this row's artist goes, or empty when there is nothing to click.
     ///
-    /// The link is built here so the encoding happens in Rust, and an empty string is how the template is told to draw plain text
+    /// The shape [`crate::db::model::FolderNode::folder_url`] set: the link is built here so the
+    /// encoding happens in Rust, and an empty string is how the template is told to draw plain text
     /// instead — a song with no artist has no *set* of songs to lead to, and a link to
     /// `?artist=` would be a filter matching nothing.
     ///
@@ -693,9 +694,9 @@ impl SongRow {
     /// swaps back in, and by the lyric-search hits — and the fragment routes never see the browse
     /// query at all. (That is the same fact `show_filename` answers by being a class on `#rows`
     /// rather than a field on a row.) A row therefore cannot know what else is narrowing the list.
-    /// It is also what every other filter link in this tool does: the Favorites page and a package's
-    /// *not packaged* link both replace the filter rather than adding to it, and the chips strip is
-    /// what shows the result either way.
+    /// It is also what every other filter link in this tool does: the Folders page, the Favorites
+    /// page and a package's *not packaged* link all replace the filter rather than adding to it, and
+    /// the chips strip is what shows the result either way.
     pub fn artist_url(&self) -> String {
         match self.artist.as_deref().map(str::trim) {
             Some(artist) if !artist.is_empty() => format!("/songs?artist={}", encode(artist)),

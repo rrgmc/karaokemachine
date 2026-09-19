@@ -21,6 +21,7 @@
 
 nav-songs = Músicas
 nav-lyrics = Letras
+nav-folders = Pastas
 nav-favorites = Favoritas
 nav-duplicates = Repetidas
 nav-packages = Pacotes
@@ -286,6 +287,7 @@ scan-meter-reading = lendo
 scan-phase-preparing = carregando o que a última leitura encontrou
 scan-phase-looking = procurando arquivos
 scan-phase-reading = lendo e analisando
+scan-phase-indexing = indexando as pastas
 scan-phase-forgetting = esquecendo arquivos que sumiram
 scan-phase-duplicates = procurando repetições
 scan-phase-measuring = medindo o acervo para o planejador de consultas
@@ -403,6 +405,19 @@ column-likeness = Semelhança
 column-language-title = A língua em que é cantada, como código ISO 639-1
 column-suitability-title = Adequação automática, de 0 a 10
 column-score-own-title = A sua nota, de 0 a 10 ou em branco
+
+## A árvore de pastas -----------------------------------------------------------------
+
+folders-all = todas as pastas
+folders-none-lead = Nenhuma pasta para mostrar. Ou esta pasta não tem músicas legíveis, ou o acervo ainda não foi
+folders-none-link = lido
+folders-none-tail = .
+folders-folder = Pasta
+folders-songs-title = Músicas distintas em qualquer lugar abaixo dela, não arquivos
+folders-up = subir
+folders-files-here = arquivos aqui
+folders-browse = Abrir
+folders-only-this = Só esta pasta
 
 ## Uma linha da lista ---------------------------------------------------------------
 
@@ -875,6 +890,8 @@ song-files-heading = { $count ->
   }
 song-no-files = Nenhum arquivo desta música está mais dentro da pasta do acervo. Ela fica porque um pacote ainda a nomeia; leia de novo depois de restaurar a pasta, ou tire-a do pacote.
 song-bytes = bytes
+song-folder-title = todas as músicas desta pasta, subpastas incluídas
+song-songs-in-folder = músicas nesta pasta
 song-versions-heading = { $count ->
     [0] Outras versões - { $count }
     [zero] Outras versões

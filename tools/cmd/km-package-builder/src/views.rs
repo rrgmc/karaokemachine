@@ -833,6 +833,9 @@ pub struct FilterForm {
     pub user_score: String,
     /// The chosen initial letter, empty for any.
     pub initial: String,
+    /// The folder being browsed, empty for all of them. Its *clear* link is the chip
+    /// [`ActiveFilter::remove`] builds, like every other filter's.
+    pub folder: String,
     /// Whether a song has to be filed: `` · `in` · `out`.
     pub favorited: String,
     /// The chosen favorite id, as text, empty for any.
@@ -1132,6 +1135,24 @@ impl SongPage {
     }
 }
 
+/// `GET /folders`
+#[derive(Template)]
+#[template(path = "folders.html")]
+pub struct FoldersPage {
+    /// Page chrome.
+    pub chrome: Chrome,
+    /// The folder being listed, `""` for the root. Ends in `/`.
+    pub path: String,
+    /// Its immediate children.
+    pub folders: Vec<crate::db::FolderNode>,
+    /// Every step of `path`, as `(label, path)`, for the breadcrumb.
+    pub crumbs: Vec<(String, String)>,
+    /// The parent's path, `""` at the root. Empty string at the root means the "up" link is the root
+    /// link, which is where it should go.
+    pub parent: String,
+}
+
+/// One `<option>`: its value and whether it is the one currently in force.
 ///
 /// Precomputed in Rust rather than decided in the template. Askama has no closures and no `*`, so
 /// working out "is this the selected one" in the markup means contorting both sides of a comparison
@@ -3414,9 +3435,9 @@ mod tests {
 
         // `&#38;` rather than `&amp;` because that is what askama's escaper writes; asserted as it
         // is rendered rather than as it would be hand-typed.
-        let html = draw("artist=Queen&language=en");
+        let html = draw("folder=Ingles&language=en");
         assert!(
-            html.contains("href=\"/songs?artist=Queen&#38;language=en\""),
+            html.contains("href=\"/songs?folder=Ingles&#38;language=en\""),
             "{html}"
         );
 

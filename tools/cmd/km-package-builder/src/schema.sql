@@ -645,6 +645,33 @@ BEGIN
     UPDATE songs SET updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') WHERE id = new.id;
 END;
 
+-- The folder tree, derived from `files` and kept as a table because computing it costs a full scan.
+--
+-- The Folders page asks "what is directly inside this folder, and how many songs are under each?".
+-- Answered from `files` that is a `substr`/`instr` group-by over every row -- the grouping key is an
+-- expression, so no index can help, and at the root of a large corpus it is the slowest page in
+-- the tool by an order of magnitude. Here it is an index seek on `parent`.
+--
+-- Derived, never authoritative: `Db::folders` rebuilds it whenever `folders_index` below says it no
+-- longer matches `files`, so a stale tree is a slow page once rather than a wrong page forever.
+CREATE TABLE IF NOT EXISTS folders (
+    -- Path from the root ending in `/`; the empty string is the root itself.
+    path    TEXT PRIMARY KEY,
+    -- The containing folder's path. NULL for the root row, which is what makes `parent = ?` a
+    -- complete answer for every level below it.
+    parent  TEXT,
+    -- The last segment, empty for the root.
+    name    TEXT    NOT NULL,
+    -- Distinct songs whose files sit *in* this folder rather than under a subfolder. This is the
+    -- "files here" bucket the page shows.
+    direct  INTEGER NOT NULL,
+    -- Distinct songs anywhere at or below it. A song with six copies in one subtree counts once,
+    -- which is why this cannot be a sum of its children.
+    beneath INTEGER NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS folders_parent ON folders(parent);
+
 -- Favorites: a flat set of named lists.
 --
 -- This *is* favoriting -- there is no flag on `songs` beside it. A favorite is a named list a song

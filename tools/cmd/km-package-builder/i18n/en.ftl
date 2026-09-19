@@ -25,6 +25,7 @@
 
 nav-songs = Songs
 nav-lyrics = Lyrics
+nav-folders = Folders
 nav-favorites = Favorites
 nav-duplicates = Duplicates
 nav-packages = Packages
@@ -306,6 +307,7 @@ scan-meter-reading = reading
 scan-phase-preparing = loading what the last scan found
 scan-phase-looking = looking for files
 scan-phase-reading = reading and analyzing
+scan-phase-indexing = indexing folders
 scan-phase-forgetting = forgetting files that are gone
 scan-phase-duplicates = looking for near-duplicates
 scan-phase-measuring = measuring the corpus for the query planner
@@ -426,6 +428,19 @@ column-likeness = Likeness
 column-language-title = What language it is sung in, as an ISO 639-1 code
 column-suitability-title = Automatic suitability, 0-10
 column-score-own-title = Your own rating, 0-10 or unset
+
+## The folder tree -------------------------------------------------------------------
+
+folders-all = all folders
+folders-none-lead = No folders to show. Either this folder contains no readable songs, or the corpus has not been
+folders-none-link = scanned
+folders-none-tail = yet.
+folders-folder = Folder
+folders-songs-title = Distinct songs anywhere beneath it, not files
+folders-up = up
+folders-files-here = files here
+folders-browse = Browse
+folders-only-this = Only this folder
 
 ## A row in the browse list ---------------------------------------------------------
 #
@@ -889,6 +904,8 @@ song-files-heading = { $count ->
   }
 song-no-files = No file for this song is under the root any more. It is kept because a package still names it; re-scan after restoring the folder, or remove it from the package.
 song-bytes = bytes
+song-folder-title = every song under this folder, subfolders included
+song-songs-in-folder = songs in this folder
 song-versions-heading = { $count ->
     [zero] Other versions
    *[other] Other versions - { $count }

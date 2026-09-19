@@ -216,7 +216,7 @@ pub(super) fn tune(conn: &Connection) {
 
 /// The page cache the writing connection takes, in KiB.
 ///
-/// It holds the whole of `songs`'s primary-key index, and every secondary, which is
+/// It holds the whole of `songs`'s primary-key index, every secondary and the folder tree, which is
 /// what keeps a rebuild and a scan batch off the disk.
 const WRITER_CACHE_KIB: u32 = 262_144;
 

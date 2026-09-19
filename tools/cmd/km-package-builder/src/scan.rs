@@ -91,6 +91,8 @@ pub mod phase {
     pub const LOOKING: &str = "scan-phase-looking";
     /// Reading and analyzing them, which is the long one.
     pub const READING: &str = "scan-phase-reading";
+    /// Building the folder tree the Folders page reads.
+    pub const INDEXING: &str = "scan-phase-indexing";
     /// Dropping rows for files that are no longer on disk.
     pub const FORGETTING: &str = "scan-phase-forgetting";
     /// Grouping the files that look like one recording.
@@ -105,7 +107,7 @@ pub mod phase {
     /// Every phase, for the parity tests in [`crate::words`].
     #[cfg(test)]
     pub const ALL: &[&str] = &[
-        PREPARING, LOOKING, READING, FORGETTING, DUPLICATES, MEASURING, STOPPED, FINISHED,
+        PREPARING, LOOKING, READING, INDEXING, FORGETTING, DUPLICATES, MEASURING, STOPPED, FINISHED,
     ];
 }
 
@@ -182,6 +184,7 @@ fn planned_steps(options: &ScanOptions) -> Vec<Step> {
     if whole && options.force {
         steps.push(Step::waiting(phase::DUPLICATES, true));
     }
+    steps.push(Step::waiting(phase::INDEXING, true));
     steps.push(Step::waiting(phase::MEASURING, true));
     steps
 }
@@ -765,7 +768,8 @@ fn run_inner(
         }
     });
     // **A walk that was stopped found part of the folder**, so nothing may be read or concluded from
-    // its list — least of all which files are gone.
+    // its list — least of all which files are gone. Nothing was written either, so there is no
+    // folder tree to bring up to date.
     if walked.is_break() {
         progress.canceled.store(true, Ordering::Relaxed);
         return Ok(());
@@ -945,7 +949,16 @@ fn run_inner(
     // when it had not. The rows that were written stay written, and the next scan picks up the rest
     // for free.
     if progress.stopping() {
+        // The folder tree is the one tail pass a partial read *is* entitled to run: it is not a
+        // conclusion about the corpus, it is a description of the rows that were written, and rows
+        // were written. Left alone, the Folders page would rebuild it on the next visit anyway —
+        // slowly, while somebody waited.
         progress.skip(&[phase::FORGETTING, phase::DUPLICATES, phase::MEASURING]);
+        progress.say(phase::INDEXING);
+        {
+            let db = db.lock();
+            db.rebuild_folders()?;
+        }
         progress.canceled.store(true, Ordering::Relaxed);
         return Ok(());
     }
@@ -993,12 +1006,12 @@ fn run_inner(
 
     // **Nothing below this line can change a thing unless a row did**, and until now all of it ran
     // on every completed scan regardless. A re-scan of an untouched corpus read the whole `songs`
-    // table to compute suggestions identical to the stored ones and measured a corpus whose shape
-    // had not moved.
+    // table to compute suggestions identical to the stored ones, rebuilt a folder tree from
+    // unchanged paths, and measured a corpus whose shape had not moved.
     let written = progress.written.load(Ordering::Relaxed);
     let changed = written > 0 || removed > 0;
     if !changed {
-        progress.skip(&[phase::DUPLICATES, phase::MEASURING]);
+        progress.skip(&[phase::DUPLICATES, phase::INDEXING, phase::MEASURING]);
     }
 
     // Unconditional, unlike everything around it: this records that the folder was *read*, which is
@@ -1035,9 +1048,17 @@ fn run_inner(
     }
 
     if changed {
-        // Before the one whole-corpus hold that ends a scan. `ANALYZE` is one statement and cannot
-        // be taken in chunks, so standing aside ahead of it is the only place a write arriving in
-        // the tail can be let through.
+        // After `last_scan`, not before: the folder index stamps itself with that timestamp to know
+        // whether it is still current, so rebuilding first would leave it marked stale and rebuild
+        // again on the first visit to the Folders page.
+        progress.say(phase::INDEXING);
+        {
+            let db = db.lock();
+            db.rebuild_folders()?;
+        }
+        // Between the two whole-corpus holds that end a scan. Neither can be taken in chunks — a
+        // folder tree is one pass and `ANALYZE` is one statement — so standing aside between them is
+        // the only place a write arriving in the tail can be let through.
         stand_off(db);
 
         // A scan is the one thing that changes the shape of this database rather than its contents,
@@ -2168,6 +2189,7 @@ mod tests {
                 (phase::LOOKING, "done"),
                 (phase::READING, "done"),
                 (phase::FORGETTING, "done"),
+                (phase::INDEXING, "done"),
                 (phase::MEASURING, "done"),
             ]
         );
@@ -2180,7 +2202,7 @@ mod tests {
                 .all(|step| step.took.is_some()),
             "a step that ran says how long it took"
         );
-        assert_eq!(first.timings().len(), 5);
+        assert_eq!(first.timings().len(), 6);
 
         let second = Arc::new(Progress::default());
         run(&db, ScanOptions::default(), &second).expect("second scan");
@@ -2191,6 +2213,7 @@ mod tests {
                 (phase::LOOKING, "done"),
                 (phase::READING, "done"),
                 (phase::FORGETTING, "done"),
+                (phase::INDEXING, "skipped"),
                 (phase::MEASURING, "skipped"),
             ]
         );
@@ -2241,7 +2264,7 @@ mod tests {
                 .iter()
                 .filter(|step| step.if_changed)
                 .map(|step| step.key.as_str())
-                .eq([phase::MEASURING]),
+                .eq([phase::INDEXING, phase::MEASURING]),
             "{:?}",
             view.steps
         );
@@ -2307,7 +2330,7 @@ mod tests {
         view.say_counts(km_locale::Locale::English);
         assert!(view.rate_said.is_some() && view.remaining_said.is_some());
 
-        progress.say(phase::FORGETTING);
+        progress.say(phase::INDEXING);
         let view = progress.snapshot();
         assert_eq!(
             view.rate, None,

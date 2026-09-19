@@ -500,7 +500,8 @@ tr.rule-row td { border-bottom: 0; padding-top: 0.8rem; }
    content -- the same answer `width: 1%` gives -- so the table looked exactly right while the box
    the buttons live in was a tenth of its width, and nothing said otherwise except the mouse. Chrome
    hit-tests that overflow correctly; the tool's own webview does not, and a row's buttons answering
-   only along a narrow band is what put it on screen. `song_row.html` says this from the markup side.
+   only along a narrow band is what put it on screen. `song_row.html` says this from the markup side,
+   and `folders.html` had the same cell.
 
    None of this can make the *row* fit. Once Title and Artist have no slack left the table overflows
    and `.scroll` starts scrolling sideways instead -- with the buttons past the right-hand edge,

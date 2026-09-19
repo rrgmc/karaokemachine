@@ -24,10 +24,11 @@ use crate::scan::ScanOptions;
 use crate::server::{DEFAULT_APP_URL, LAST_PLAYED_SETTING, SimilarNarrowing, State};
 use crate::views::{
     ActiveFilter, Choice, Chrome, DiscoveredFragment, DiscoveredMachine, DuplicatesPage,
-    FavoritesPage, FilterForm, LyricHits, LyricSearchPage, LyricsFragment, MachineAccessFragment,
-    MessageFragment, OpenFolders, OpenListing, OpenPage, OpenProgress, PackagePage, PackagesPage,
-    PlayedFragment, ProgressFragment, RawFragment, RecentView, ScanPage, SettingsPage, SimilarHits,
-    SimilarPage, SongPage, SongRowFragment, SongRows, SongsPage, Toast, page,
+    FavoritesPage, FilterForm, FoldersPage, LyricHits, LyricSearchPage, LyricsFragment,
+    MachineAccessFragment, MessageFragment, OpenFolders, OpenListing, OpenPage, OpenProgress,
+    PackagePage, PackagesPage, PlayedFragment, ProgressFragment, RawFragment, RecentView, ScanPage,
+    SettingsPage, SimilarHits, SimilarPage, SongPage, SongRowFragment, SongRows, SongsPage, Toast,
+    page,
 };
 
 /// Encodings offered when re-decoding lyrics by hand.
@@ -378,6 +379,8 @@ pub struct FilterQuery {
     /// known key with `duplicate_field`. See [`Self::from_body`].
     #[serde(default)]
     artist: String,
+    #[serde(default)]
+    folder: String,
     /// Whether a song has to be filed: `in` · `out`, or empty for either.
     ///
     /// A string and not the presence flag `unpackaged` beside it is, because there are three
@@ -556,6 +559,12 @@ impl FilterQuery {
             // trailing space is not a different artist. The fold happens in `Filter::to_sql`, so what
             // is carried here is still what a chip has to say back to somebody.
             artist: (!self.artist.trim().is_empty()).then(|| self.artist.trim().to_owned()),
+            // A folder always ends in `/`, so `Rock` cannot also match `Rockabilly`. The Folders page
+            // sends it that way; a hand-typed URL might not.
+            folder: (!self.folder.is_empty()).then(|| match self.folder.ends_with('/') {
+                true => self.folder.clone(),
+                false => format!("{}/", self.folder),
+            }),
             favorited: FavoritedFilter::parse(&self.favorited),
             favorite: self.favorite.parse().ok(),
             melody: match self.melody.as_str() {
@@ -607,6 +616,7 @@ impl FilterQuery {
             // also folds a link written when the bar had ten digit buttons onto the one that replaced
             // them, so `initial=7` checks `0-9` instead of leaving the strip blank.
             initial: Initial::parse(&self.initial).as_str(),
+            folder: self.folder.clone(),
             // Through the enum and back, for the same reason the two filters above are — and here it
             // also folds the `1` a checkbox sent onto `in`, so such a link shows the select reading
             // *in any favorite* rather than leaving it with nothing chosen.
@@ -664,6 +674,9 @@ impl FilterQuery {
                     .msg_with("chip-by", &[("artist", self.artist.trim().into())])
                     .into_owned(),
             );
+        }
+        if !self.folder.is_empty() {
+            chip("folder", self.folder.clone());
         }
         match Initial::parse(&self.initial) {
             Initial::Any => {}
@@ -859,6 +872,7 @@ impl FilterQuery {
         // on.
         push("initial", &Initial::parse(&self.initial).as_str());
         push("artist", self.artist.trim());
+        push("folder", &self.folder);
         push("favorite", &self.favorite);
         push("melody", &self.melody);
         push("encoding_source", &self.encoding_source);
@@ -938,8 +952,8 @@ pub async fn songs(
         Err(error) => return failure(error, state.locale()),
     };
     // Recorded here as well as in `song_rows`, because this is how a filter arrives that the bar
-    // never set: Favorites links `/songs?favorite=…` and a package's page links
-    // `/songs?unpackaged=1`. Somebody who follows one of those and then goes
+    // never set: the Folders page links `/songs?folder=…`, Favorites links `/songs?favorite=…`, and
+    // a package's page links `/songs?unpackaged=1`. Somebody who follows one of those and then goes
     // to look at something else should come back to what they were sent to, not to the corpus.
     //
     // After the rows and before `chrome`: the offset written down is the one being *shown*, which a
@@ -2569,7 +2583,7 @@ pub async fn bulk_tag_cancel() -> Response {
 /// be the tool quietly changing something somebody typed — and would be the wrong answer anyway the
 /// day that favorite comes back from a backup.
 ///
-/// Every other filter in a saved query is text — an artist, a language code, a tag slug — and at
+/// Every other filter in a saved query is text — a folder, a language code, a tag slug — and at
 /// worst matches nothing while saying so in its own words.
 fn offerable(
     saved: Vec<crate::model::SavedFilter>,
@@ -3212,8 +3226,8 @@ pub async fn song_tags(
 /// `POST /songs/titles-from-filename`
 ///
 /// Puts each ticked song's own file name in its title, and empties its artist. On the ticked rows
-/// and **not** on the whole filter, unlike the language above: a language is shared by a set of songs
-/// and can honestly be set a filter at a time, whereas whether a file's name beats its declared
+/// and **not** on the whole filter, unlike the language above: a language is a property of a folder
+/// and can honestly be set a folder at a time, whereas whether a file's name beats its declared
 /// title is a judgment about that file, made by looking at it.
 ///
 /// It answers with the rows themselves rather than a message, which no other action here does. The
@@ -4269,6 +4283,83 @@ pub async fn tidy_favorite(
         Err(error) => MessageFragment::failed(error.say(state.locale())),
     }
 }
+
+// -- folders --------------------------------------------------------------------------------
+
+/// Which folder the Folders page is showing.
+#[derive(Debug, Default, serde::Deserialize)]
+pub struct FolderQuery {
+    #[serde(default)]
+    path: String,
+}
+
+/// `GET /folders`
+///
+/// A corpus assembled from other people's collections is organized by folder and by nothing else —
+/// the folder is often the only thing that says where a batch of files came from, and it is the axis
+/// this tool had no way to browse. One level at a time, because the real thing is nested many deep.
+pub async fn folders(
+    AxumState(state): AxumState<State>,
+    Query(query): Query<FolderQuery>,
+) -> Response {
+    let chrome = match chrome(&state, "folders").await {
+        Ok(chrome) => chrome,
+        Err(error) => return failure(error, state.locale()),
+    };
+    // Always a trailing slash and never a leading one, whatever a hand-typed URL says, because that
+    // is what makes the prefix a folder boundary rather than a string match.
+    let path = match query.path.trim_matches('/') {
+        "" => String::new(),
+        trimmed => format!("{trimmed}/"),
+    };
+
+    // **The tree is rebuilt here only while nothing is scanning.** It is a whole pass over `files`,
+    // and a scan moves the marker it is checked against on every batch — so asking for one during a
+    // scan would pay for a pass on every visit to this page, against the disk the scan is already
+    // reading, to produce counts the next batch makes stale again. A scan rebuilds the tree in its
+    // own tail, so waiting for that costs nothing but the wait.
+    let stale = !state.scan_running()
+        && !matches!(
+            state.reading(|db| db.folder_index_is_current()).await,
+            Ok(true)
+        );
+    if stale && let Err(error) = state.blocking(|db| db.rebuild_folders().map(|_| ())).await {
+        return failure(error, state.locale());
+    }
+
+    let listing = path.clone();
+    let folders = match state.reading(move |db| db.folders(&listing)).await {
+        Ok(folders) => folders,
+        Err(error) => return failure(error, state.locale()),
+    };
+
+    let mut crumbs = Vec::new();
+    let mut so_far = String::new();
+    for segment in path.split('/').filter(|segment| !segment.is_empty()) {
+        so_far.push_str(segment);
+        so_far.push('/');
+        crumbs.push((segment.to_owned(), so_far.clone()));
+    }
+    let parent = crumbs
+        .len()
+        .checked_sub(2)
+        .and_then(|index| crumbs.get(index))
+        .map(|(_, path)| path.clone())
+        .unwrap_or_default();
+
+    page(
+        &FoldersPage {
+            chrome,
+            path,
+            folders,
+            crumbs,
+            parent,
+        },
+        state.locale(),
+    )
+}
+
+// -- duplicates -----------------------------------------------------------------------------
 
 /// `GET /duplicates`
 pub async fn duplicates(AxumState(state): AxumState<State>) -> Response {
@@ -5390,8 +5481,8 @@ fn stem_taken(db: &crate::db::Db, stem: &str) -> Result<bool, DbError> {
 /// `POST /packages/from-filter`
 ///
 /// Makes a package out of **everything the current filter matches**, rather than out of the ticked
-/// rows. The filter is what makes it worth having: turning an artist, a tag or a language into a
-/// package would otherwise be a hundred pages of ticking.
+/// rows. The corpus is what makes it worth having: it is already sorted into folders, and turning one
+/// of them into a package was otherwise a hundred pages of ticking.
 ///
 /// The same two-step shape as [`bulk_language`], and for the same reason — the filter that decides
 /// what goes in is fourteen controls further up the page, so the count and the chips are shown next
@@ -7678,6 +7769,7 @@ mod tests {
             artist: "Tom Jobim".to_owned(),
             suitability: "8-10".to_owned(),
             initial: "C".to_owned(),
+            folder: "rock/deep/".to_owned(),
             favorited: "out".to_owned(),
             favorite: "3".to_owned(),
             language: "ja".to_owned(),
@@ -7715,6 +7807,7 @@ mod tests {
             assert!(link.contains("q=jobim"), "{link}");
             assert!(link.contains("artist=Tom+Jobim"), "{link}");
             assert!(link.contains("initial=C"), "{link}");
+            assert!(link.contains("folder=rock%2Fdeep%2F"), "{link}");
             assert!(link.contains("favorited=out"), "{link}");
             assert!(link.contains("favorite=3"), "{link}");
             assert!(link.contains("language=ja"), "{link}");
@@ -7744,7 +7837,7 @@ mod tests {
         // And as the *bar* sends it, which is not what `rebuild` writes: a form submits every
         // control it has, so the empty ones arrive as empty strings rather than being left out.
         // That shape is the regression itself, so it is the shape worth pinning.
-        let bar = "q=&artist=&suitability=&user_score=&initial=&favorite=&melody=\
+        let bar = "q=&artist=&suitability=&user_score=&initial=&folder=&favorite=&melody=\
                    &encoding_source=&granularity=&kind=&language=&copies=&added=&sort=";
         assert_eq!(
             FilterQuery::from_body(bar)
@@ -7763,14 +7856,14 @@ mod tests {
     #[test]
     fn the_ticked_rows_riding_along_do_not_stop_the_filter_being_read() {
         let body = "song_id=a&score=1&song_id=b&score=&title=x&row_artist=y&name=z\
-                    &song_id=c&suitability=8-10&tags=bossa";
+                    &song_id=c&suitability=8-10&folder=brasil%2F";
         let query = FilterQuery::from_body(body).expect("the filter survives the company it keeps");
         assert_eq!(query.suitability, "8-10");
-        assert_eq!(query.tags, "bossa");
+        assert_eq!(query.folder, "brasil/");
 
         // The other half of the same rule: a repeated key this struct *does* know is refused, which
         // is why no form beside the bar may reuse one of its names.
-        assert!(FilterQuery::from_body("tags=a&tags=b").is_err());
+        assert!(FilterQuery::from_body("folder=a&folder=b").is_err());
     }
 
     /// The row language select must not be named `language`.
@@ -7783,14 +7876,14 @@ mod tests {
     #[test]
     fn a_row_language_select_can_ride_in_the_same_body_as_the_filter_bar() {
         let body = "song_id=a&row_language=pt&song_id=b&row_language=&song_id=c&row_language=ja\
-                    &language=ja&tags=bossa";
+                    &language=ja&folder=brasil%2F";
         let query = FilterQuery::from_body(body).expect("the rows' own selects are ignored");
         assert_eq!(query.language, "ja", "the bar's own value, not a row's");
-        assert_eq!(query.tags, "bossa");
+        assert_eq!(query.folder, "brasil/");
 
         // What the name would have cost, spelled out: this is the same body with the rows spelling
         // it the wrong way, and it is a 400.
-        assert!(FilterQuery::from_body("language=pt&language=ja&tags=bossa").is_err());
+        assert!(FilterQuery::from_body("language=pt&language=ja&folder=brasil%2F").is_err());
     }
 
     /// The row's artist box must not be named `artist`, for the reason its language select must not
@@ -7804,13 +7897,13 @@ mod tests {
     #[test]
     fn a_row_artist_box_can_ride_in_the_same_body_as_the_filter_bar() {
         let body = "song_id=a&title=Wave&row_artist=Tom+Jobim\
-                    &artist=Dire+Straits&tags=bossa";
+                    &artist=Dire+Straits&folder=brasil%2F";
         let query = FilterQuery::from_body(body).expect("the row's own box is ignored");
         assert_eq!(
             query.artist, "Dire Straits",
             "the bar's own value, not the row being edited"
         );
-        assert_eq!(query.tags, "bossa");
+        assert_eq!(query.folder, "brasil/");
 
         // What the name would have cost, spelled out.
         assert!(FilterQuery::from_body("artist=Tom+Jobim&artist=Dire+Straits").is_err());
@@ -7829,7 +7922,7 @@ mod tests {
     /// controls.
     #[test]
     fn the_two_or_more_bucket_narrows_and_the_retired_checkbox_does_not() {
-        let linked = FilterQuery::from_body("copies=2%2B&tags=bossa").expect("read it");
+        let linked = FilterQuery::from_body("copies=2%2B&folder=brasil%2F").expect("read it");
         assert_eq!(
             CopiesFilter::parse(&linked.copies),
             CopiesFilter::AtLeastTwo
@@ -7839,13 +7932,13 @@ mod tests {
         // link the pager writes.
         assert!(linked.rebuild(0, "", None).contains("copies=2%2B"));
 
-        let checkbox = FilterQuery::from_body("duplicates=1&tags=bossa").expect("read it");
+        let checkbox = FilterQuery::from_body("duplicates=1&folder=brasil%2F").expect("read it");
         assert_eq!(CopiesFilter::parse(&checkbox.copies), CopiesFilter::Any);
         assert_eq!(checkbox.to_form(&[], &[]).copies, "");
         let rebuilt = checkbox.rebuild(0, "", None);
         assert!(!rebuilt.contains("duplicates"), "{rebuilt}");
         // The rest of the filter is untouched — only that one checkbox was retired.
-        assert!(rebuilt.contains("tags=bossa"), "{rebuilt}");
+        assert!(rebuilt.contains("folder=brasil"), "{rebuilt}");
 
         // The three the bar itself offers are unaffected.
         let kept = FilterQuery::from_body("copies=2-10").expect("read it");
@@ -7861,7 +7954,7 @@ mod tests {
     /// it, and the keys beside it must still arrive.
     #[test]
     fn an_old_min_score_link_is_ignored_rather_than_read() {
-        let old = FilterQuery::from_body("min_score=9&tags=bossa").expect("read it");
+        let old = FilterQuery::from_body("min_score=9&folder=brasil%2F").expect("read it");
         assert_eq!(
             old.suitability(),
             SuitabilityFilter::Any,
@@ -7871,7 +7964,7 @@ mod tests {
 
         // The filter it arrived beside is untouched, and nothing writes the old key back out.
         let rebuilt = old.rebuild(0, "", None);
-        assert!(rebuilt.contains("tags=bossa"), "{rebuilt}");
+        assert!(rebuilt.contains("folder=brasil"), "{rebuilt}");
         assert!(!rebuilt.contains("min_score"), "{rebuilt}");
 
         // A hand-made URL carrying both reads only the one the page draws.
@@ -8221,9 +8314,9 @@ mod tests {
         let mut query = query();
         query.total = Some(1000);
         assert!(
-            !query.without("language").contains("total="),
+            !query.without("folder").contains("total="),
             "{}",
-            query.without("language")
+            query.without("folder")
         );
     }
 
@@ -8243,13 +8336,13 @@ mod tests {
         assert!(links.next.contains("offset=5050"), "{}", links.next);
     }
 
-    /// Clearing the language leaves every other filter alone, and puts the reader back on page one.
+    /// Clearing the folder leaves every other filter alone, and puts the reader back on page one.
     #[test]
     fn clearing_one_filter_keeps_the_others_and_starts_again_at_the_top() {
         let mut query = query();
         query.offset = Some(300);
-        let cleared = query.without("language");
-        assert!(!cleared.contains("language="), "{cleared}");
+        let cleared = query.without("folder");
+        assert!(!cleared.contains("folder="), "{cleared}");
         assert!(!cleared.contains("offset="), "{cleared}");
         assert!(cleared.contains("q=jobim"), "{cleared}");
         assert!(cleared.contains("initial=C"), "{cleared}");
@@ -8467,6 +8560,17 @@ mod tests {
         let row = package_row(&Fields::parse("name=Rock"), "a1b2c3");
         assert_eq!(row.version, "1.0.0");
         assert!(version_refusal(&row.version, km_locale::Locale::English).is_none());
+    }
+
+    #[test]
+    fn a_folder_typed_without_its_slash_still_means_a_folder() {
+        let filter = FilterQuery {
+            folder: "rock".to_owned(),
+            ..FilterQuery::default()
+        }
+        .to_filter();
+        // Without the trailing slash, `rock` would also match `rockabilly/`.
+        assert_eq!(filter.folder.as_deref(), Some("rock/"));
     }
 
     #[test]

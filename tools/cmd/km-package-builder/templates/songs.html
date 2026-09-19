@@ -19,6 +19,10 @@
       hx-sync="#rows-slot:replace"
       onsubmit="return false">
 
+  {% if !query.folder.is_empty() %}
+  <input type="hidden" name="folder" value="{{ query.folder }}">
+  {% endif %}
+
   <div class="band find">
     <input type="search" id="q" name="q" placeholder="{{ "songs-find-placeholder"|t }}"
            title="{{ "songs-find-title"|t }}" value="{{ query.q }}" size="28">
@@ -336,8 +340,9 @@
   </nav>
 
   {# Over everything the filters above match, not over the ticked rows -- which is the point. Most of
-     a real corpus has no language (92% of songs here), so one action per filter replaces
-     hundreds of thousands of clicks.
+     a real corpus has no language (92% of songs here), and the corpus is already sorted
+     into `Brasil/`, `Ingles/` and `japanese/`, so with the folder filter this is one action per
+     folder rather than hundreds of thousands of clicks.
 
      **The filter is the bar itself, included in the body.** The query string that produced *this
      page* reads like the safe choice and is not, because the bar swaps `#rows` and never re-renders
