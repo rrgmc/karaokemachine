@@ -794,6 +794,17 @@ pub struct Filter {
     pub kind: Option<SongKind>,
     /// What the song is sung in.
     pub language: LanguageFilter,
+    /// Languages to leave out, whatever else matches.
+    ///
+    /// **A field of its own rather than a case of [`LanguageFilter`]**, which is `Copy` and whose
+    /// every method takes `self` — a variant holding a list would take that away from all four.
+    /// Keeping them apart is also what lets *not these* compose with *this one*, and what leaves
+    /// every saved filter spelling `language=<code>` reading exactly as it did.
+    ///
+    /// A song nothing has placed is not in any of these languages, so it stays: the clause has to
+    /// say so outright, since `NOT IN` over a NULL is NULL and would drop every unclassified song
+    /// the moment one language was excluded.
+    pub language_not: Vec<Language>,
     /// Only songs carrying **any** one of these tags, as slugs.
     ///
     /// OR rather than AND, matching every other surface: the vocabulary is open, so one kind of
@@ -829,6 +840,7 @@ impl Default for Filter {
             granularity: None,
             kind: None,
             language: LanguageFilter::Any,
+            language_not: Vec::new(),
             tags: Vec::new(),
             sort: Sort::default(),
             limit: 100,
@@ -963,6 +975,25 @@ impl Filter {
             values.push(Binding::Text(kind.as_str().to_owned()));
         }
         clauses.extend(self.language.clause(&eff_language("s.")));
+        if !self.language_not.is_empty() {
+            // **The `IS NULL` leg is the clause, not a nicety.** `NOT IN` over a NULL is NULL rather
+            // than true, so without it excluding one language would take every song nothing has
+            // placed with it -- which on a corpus mid-classification is most of them, disappearing
+            // for a reason the bar does not show. A song with no language is not in any language.
+            //
+            // The codes are `&'static str` from a closed table rather than text anybody typed, so
+            // they go into the fragment, as `LanguageFilter::Is` already does one line up.
+            let codes = self
+                .language_not
+                .iter()
+                .map(|language| format!("'{}'", language.code()))
+                .collect::<Vec<_>>()
+                .join(", ");
+            let language = eff_language("s.");
+            clauses.push(format!(
+                "({language} IS NULL OR {language} NOT IN ({codes}))"
+            ));
+        }
         clauses.extend(self.copies.clause("s.file_count"));
         clauses.extend(self.added.clause("s.first_seen"));
         if self.unpackaged {

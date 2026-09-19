@@ -850,6 +850,8 @@ pub struct FilterForm {
     pub kind: String,
     /// The chosen language: a code, `unset`, `set`, or empty for any.
     pub language: String,
+    /// The languages left out, as codes, sorted — what the hidden `language_not` field carries.
+    pub language_not: Vec<km_kmpkg::Language>,
     /// How many copies on disk: `1` · `2-10` · `10+`, or empty for any.
     pub copies: String,
     /// How long ago the song was added: `1d` · `7d` · `30d` · `30d+`, or empty for any.
@@ -952,6 +954,33 @@ impl FilterForm {
     /// The chosen tags, comma-joined — what the hidden `tags` field carries.
     pub fn tags_value(&self) -> String {
         self.tags.join(",")
+    }
+
+    /// The excluded languages, comma-joined — what the hidden `language_not` field carries.
+    pub fn language_not_value(&self) -> String {
+        self.language_not
+            .iter()
+            .map(|language| language.code())
+            .collect::<Vec<_>>()
+            .join(",")
+    }
+
+    /// The languages the exclusion picker offers: everything the corpus holds, minus those already
+    /// left out.
+    ///
+    /// Drawn from what is *present* rather than from the whole table, for the reason the positive
+    /// picker beside it is: a corpus holds a dozen languages and the standard has 184, and offering
+    /// to exclude one no song is in is an option that changes nothing.
+    pub fn language_not_choices(&self) -> Vec<Choice> {
+        self.present
+            .iter()
+            .filter(|language| !self.language_not.contains(language))
+            .map(|language| Choice {
+                value: language.code().to_owned(),
+                label: language.name().to_owned(),
+                selected: false,
+            })
+            .collect()
     }
 
     /// Whether a tag is offered as a hint rather than because a song here carries it.

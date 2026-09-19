@@ -3573,6 +3573,13 @@ fn a_filter_files_its_whole_match_into_a_favorite_and_takes_it_back() {
     }
 }
 
+/// A verse in a language whose alphabet places it, for the tests about reading a song's words.
+///
+/// Invented rather than taken from a song, so a fixture carries no licence with it, and long enough
+/// to be what a lyric track is rather than what a title is.
+const VIETNAMESE_VERSE: &str = "Buổi sáng đi ngang con đường vắng một lần nữa, mỗi khung cửa sổ \
+                                giữ một gương mặt không quay lại nhìn tôi";
+
 /// A song scanned with a declared language and an encoding, for the language tests.
 ///
 /// Goes through `write_scanned` like every other scan, so what is being tested is the real path
@@ -7098,4 +7105,195 @@ fn a_database_outside_wal_is_read_through_the_writing_connection() {
     let scratch = Scratch::new("wal-took");
     let on_disk = Db::create(&scratch.0).expect("create");
     assert!(on_disk.in_wal(), "a file database takes WAL");
+}
+
+/// Leaving a language out takes its songs and keeps everything else, unclassified songs included.
+///
+/// **The unclassified half is the point.** `NOT IN` over a NULL is NULL rather than true, so a
+/// clause without its own `IS NULL` leg would take every song nothing has placed along with the
+/// language asked about — which on a corpus mid-classification is most of it, gone for a reason the
+/// bar does not show.
+#[test]
+fn leaving_a_language_out_keeps_the_songs_nothing_has_placed() {
+    let mut db = Db::open_in_memory(Path::new("/corpus")).expect("open");
+    add_with_language(&mut db, "brazilian", Some("PORT"), "windows-1252");
+    add_with_language(&mut db, "japanese", Some("ENGL"), "Shift_JIS");
+    add_with_language(&mut db, "silent", None, "UTF-8");
+
+    let without = |codes: &[&str]| {
+        let rows = db
+            .songs(&Filter {
+                language_not: codes
+                    .iter()
+                    .map(|code| km_kmpkg::Language::parse(code).expect("a code"))
+                    .collect(),
+                ..Filter::default()
+            })
+            .expect("browse");
+        let mut ids: Vec<String> = rows.iter().map(|row| row.id.clone()).collect();
+        ids.sort();
+        ids
+    };
+
+    assert_eq!(
+        without(&["pt"]),
+        vec!["japanese".to_owned(), "silent".to_owned()],
+        "the song nothing has placed is not in the language being left out"
+    );
+    assert_eq!(
+        without(&["pt", "ja"]),
+        vec!["silent".to_owned()],
+        "several at once, which is what a corpus of unread folders needs"
+    );
+    assert_eq!(without(&[]).len(), 3, "nothing left out narrows nothing");
+}
+
+/// Leaving a language out reads the same three witnesses the column shows.
+#[test]
+fn leaving_a_language_out_follows_a_correction_and_a_guess() {
+    let mut db = Db::open_in_memory(Path::new("/corpus")).expect("open");
+    add_with_language(&mut db, "japanese", Some("ENGL"), "Shift_JIS");
+    add_scanned(&mut db, "guessed", |song| {
+        song.lyrics = Some(VIETNAMESE_VERSE.to_owned());
+    });
+
+    let without_japanese = |db: &Db| {
+        let rows = db
+            .songs(&Filter {
+                language_not: vec![km_kmpkg::Language::parse("ja").expect("a code")],
+                ..Filter::default()
+            })
+            .expect("browse");
+        rows.iter().map(|row| row.id.clone()).collect::<Vec<_>>()
+    };
+
+    assert!(
+        !without_japanese(&db).contains(&"japanese".to_owned()),
+        "the file's own evidence is what it is left out by"
+    );
+
+    // A guessed language is left out by the same control, having become the song's language.
+    let rows = db
+        .songs(&Filter {
+            language_not: vec![km_kmpkg::Language::parse("vi").expect("a code")],
+            ..Filter::default()
+        })
+        .expect("browse");
+    assert!(
+        !rows.iter().any(|row| row.id == "guessed"),
+        "a song placed by its words leaves the list with the language it was placed under"
+    );
+
+    // And a correction moves it, the chosen language outranking the detected one.
+    db.edit_song(
+        "japanese",
+        &SongEdit {
+            language: Some(Some("ko".to_owned())),
+            ..SongEdit::default()
+        },
+    )
+    .expect("correct it");
+    assert!(
+        without_japanese(&db).contains(&"japanese".to_owned()),
+        "what somebody typed is what the exclusion reads"
+    );
+}
+
+/// A song's own words place it, and the confidence comes back beside the code.
+#[test]
+fn a_scan_reads_the_words_of_a_song_the_file_says_nothing_about() {
+    let mut db = Db::open_in_memory(Path::new("/corpus")).expect("open");
+    add_scanned(&mut db, "vietnamese", |song| {
+        song.det_language = None;
+        song.lyrics = Some(VIETNAMESE_VERSE.to_owned());
+    });
+    add_scanned(&mut db, "wordless", |song| {
+        song.det_language = None;
+        song.lyrics = None;
+    });
+
+    let placed = db.song("vietnamese").expect("detail");
+    assert_eq!(placed.det_language_guess.as_deref(), Some("vi"));
+    assert!(
+        placed.det_language_guess_confidence.unwrap_or_default() >= km_langguess::MIN_CONFIDENCE,
+        "a stored guess is never below the gate"
+    );
+    assert!(
+        placed.language_is_guessed(),
+        "nothing else spoke for this song, so the words are what the column shows"
+    );
+
+    let unplaced = db.song("wordless").expect("detail");
+    assert_eq!(
+        unplaced.det_language_guess, None,
+        "a song with nothing to read is honestly unclassified rather than guessed at"
+    );
+}
+
+/// The stronger witnesses outrank the guess, in the order the column coalesces them.
+#[test]
+fn the_file_and_the_curator_both_outrank_what_the_words_read_as() {
+    let mut db = Db::open_in_memory(Path::new("/corpus")).expect("open");
+    // Shift-JIS bytes say Japanese; the words are Vietnamese. The encoding is the stronger witness.
+    add_scanned(&mut db, "both", |song| {
+        song.lyrics = Some(VIETNAMESE_VERSE.to_owned());
+        if let Some(midi) = song.midi.as_mut() {
+            midi.det_encoding = "Shift_JIS".to_owned();
+        }
+    });
+    let detail = db.song("both").expect("detail");
+    assert_eq!(detail.det_language_guess.as_deref(), Some("vi"));
+    assert_eq!(detail.det_language_tag.as_deref(), Some("ja"));
+    assert!(
+        !detail.language_is_guessed(),
+        "a file that spoke is what the column shows, whatever the words read as"
+    );
+    assert_eq!(
+        db.songs(&Filter {
+            language: LanguageFilter::parse("ja"),
+            ..Filter::default()
+        })
+        .expect("browse")
+        .len(),
+        1,
+        "and it is found under what the file said"
+    );
+}
+
+/// The backfill reads rows a scan wrote before the guess, and runs once.
+#[test]
+fn the_guess_backfill_fills_rows_indexed_by_an_earlier_version() {
+    let mut db = Db::open_in_memory(Path::new("/corpus")).expect("open");
+    add_scanned(&mut db, "vietnamese", |song| {
+        song.det_language = None;
+        song.lyrics = Some(VIETNAMESE_VERSE.to_owned());
+    });
+    // What a database written before the guess existed holds.
+    db.execute_for_test(
+        "UPDATE songs SET det_language_guess = NULL, det_language_guess_confidence = NULL;
+         DELETE FROM settings WHERE key = 'language_guess_revision';",
+    )
+    .expect("put it back");
+
+    db.backfill_language_guess_for_test().expect("backfill");
+    assert_eq!(
+        db.song("vietnamese")
+            .expect("detail")
+            .det_language_guess
+            .as_deref(),
+        Some("vi")
+    );
+
+    // And a second run is a no-op, the revision having been written.
+    db.execute_for_test("UPDATE songs SET det_language_guess = 'zz'")
+        .expect("scribble");
+    db.backfill_language_guess_for_test().expect("again");
+    assert_eq!(
+        db.song("vietnamese")
+            .expect("detail")
+            .det_language_guess
+            .as_deref(),
+        Some("zz"),
+        "the revision is what stops a corpus being re-read at every open"
+    );
 }

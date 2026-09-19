@@ -877,6 +877,16 @@ impl Db {
         self.backfill_language_tags()
     }
 
+    /// Runs the guess backfill as an open would, honouring the revision it has already written.
+    ///
+    /// Unlike its sibling above, the flag is **not** cleared here: what the tests about this one
+    /// ask is whether the revision stops a second run, so clearing it would answer the question
+    /// before it was put.
+    #[cfg(test)]
+    pub fn backfill_language_guess_for_test(&self) -> Result<(), DbError> {
+        self.backfill_language_guess(&|_| {})
+    }
+
     /// Re-runs the detected-name sweep, which `prepare` has already recorded as done.
     #[cfg(test)]
     pub fn clean_detected_text_for_test(&self) -> Result<(), DbError> {
