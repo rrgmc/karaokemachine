@@ -877,6 +877,11 @@ mod tests {
             duration_ms: 200_000,
             lyrics: None,
             fingerprint: String::new(),
+            suitability: crate::model::SuitabilityFacts {
+                value: 7,
+                breakdown: (3, 2, 2, 0),
+                warnings: "[]".to_owned(),
+            },
             midi: Some(crate::model::MidiFacts {
                 flavor: "soft".to_owned(),
                 granularity: "syllablelevel".to_owned(),
@@ -889,9 +894,6 @@ mod tests {
                 melody_channel: Some(3),
                 melody_confidence: Some(0.9),
                 melody_abstained: None,
-                suitability: 7,
-                breakdown: (3, 2, 2, 0),
-                warnings: "[]".to_owned(),
             }),
             video: None,
             cdg: None,

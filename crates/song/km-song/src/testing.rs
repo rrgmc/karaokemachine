@@ -917,6 +917,106 @@ pub fn harmonica_tablature() -> Vec<u8> {
     song_around(words)
 }
 
+/// A whole song, well made, and over in forty seconds.
+///
+/// Nothing here is wrong in any way the rubric asked about before the span was measured: eighty
+/// syllables, one to the beat, timed against a melody that plays under every one of them, with a
+/// full arrangement and drums behind it. It is simply too short to be worth choosing, and its
+/// coverage says so least of all — the words run the whole length of it, so the fraction reads 1.0
+/// exactly as a four-minute song's does.
+pub fn a_complete_short_song() -> Vec<u8> {
+    let mut words = TrackWriter::new();
+    words.track_name(0, b"Words");
+    // 80 syllables at one per beat is forty seconds at 120 BPM.
+    for i in 0..80u32 {
+        let text: &[u8] = match (i % 8, i % 2) {
+            (0, _) => b"/la",
+            (_, 0) => b"la",
+            _ => b"la ",
+        };
+        words.lyric(if i == 0 { 0 } else { 480 }, text);
+    }
+    short_song_around(words)
+}
+
+/// A real song whose words are a verse and a chorus, in a file with four minutes of music.
+///
+/// The shape a fraction cannot separate from the one above and a span can: forty seconds of singing
+/// in a two-minute file covers a third of it, which is thin rather than absent, so the words stop
+/// short of nothing a reader would call early. What is wrong with it is what is wrong with
+/// [`a_complete_short_song`] — there is forty seconds of it — and the file's own length says the
+/// opposite.
+pub fn a_verse_in_a_long_song() -> Vec<u8> {
+    let mut words = TrackWriter::new();
+    words.track_name(0, b"Words");
+    // The same eighty syllables, in a file that goes on for two minutes after them.
+    for i in 0..80u32 {
+        let text: &[u8] = match (i % 8, i % 2) {
+            (0, _) => b"/la",
+            (_, 0) => b"la",
+            _ => b"la ",
+        };
+        words.lyric(if i == 0 { 0 } else { 480 }, text);
+    }
+    song_around(words)
+}
+
+/// [`song_around`]'s arrangement at a third of its length, for a song that is short and complete.
+///
+/// A separate builder rather than a parameter on `song_around`, because the four fixtures that share
+/// that arrangement share it so a test comparing them compares the words alone — and a length is the
+/// one thing this fixture does not hold in common with them.
+fn short_song_around(words: TrackWriter) -> Vec<u8> {
+    let mut conductor = TrackWriter::new();
+    conductor.track_name(0, b"A Short One").tempo(0, TEMPO_120);
+
+    let mut melody = TrackWriter::new();
+    melody.track_name(0, b"Melody").program_change(0, 0, 73);
+    for i in 0..80u32 {
+        let key = 60 + u8::try_from(i % 8).unwrap_or(0);
+        melody.note(0, 0, key, 100, 480);
+    }
+
+    let mut piano = TrackWriter::new();
+    piano.track_name(0, b"Piano").program_change(0, 1, 0);
+    for _ in 0..20 {
+        piano.note_on(0, 1, 48, 70);
+        piano.note_on(0, 1, 52, 70);
+        piano.note_off(1_920, 1, 48);
+        piano.note_off(0, 1, 52);
+    }
+
+    let mut bass = TrackWriter::new();
+    bass.track_name(0, b"Bass").program_change(0, 2, 33);
+    for i in 0..40u32 {
+        let key = 36 + u8::try_from(i % 5).unwrap_or(0);
+        bass.note(0, 2, key, 90, 960);
+    }
+
+    let mut strings = TrackWriter::new();
+    strings.track_name(0, b"Strings").program_change(0, 3, 48);
+    for _ in 0..20 {
+        strings.note(0, 3, 55, 60, 1_920);
+    }
+
+    let mut drums = TrackWriter::new();
+    drums.track_name(0, b"Drums");
+    for _ in 0..40 {
+        drums.note(0, 9, 36, 100, 120);
+        drums.note(360, 9, 38, 90, 120);
+    }
+
+    smf(vec![
+        conductor.finish(),
+        words.finish(),
+        melody.finish(),
+        piano.finish(),
+        bass.finish(),
+        strings.finish(),
+        drums.finish(),
+    ])
+}
+
 /// The backing of [`high_quality_song`] wrapped around whatever lyric track is given.
 ///
 /// One arrangement shared by four fixtures, so a test comparing them is comparing *the words* and
@@ -1867,6 +1967,8 @@ pub const FIXTURES: &[Fixture] = &[
     ("chords_only.mid", chords_only),
     ("drums_and_lyrics.mid", drums_and_lyrics),
     ("high_quality_song.mid", high_quality_song),
+    ("a_complete_short_song.mid", a_complete_short_song),
+    ("a_verse_in_a_long_song.mid", a_verse_in_a_long_song),
     ("lyrics_all_at_zero.mid", lyrics_all_at_zero),
     ("credits_in_the_lyric_track.mid", credits_in_the_lyric_track),
     ("lyrics_that_stop_early.mid", lyrics_that_stop_early),

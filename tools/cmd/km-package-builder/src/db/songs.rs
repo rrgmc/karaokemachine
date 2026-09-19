@@ -450,15 +450,20 @@ impl Db {
                             melody_channel: row.get::<_, Option<i64>>(18)?.map(|v| v as u8),
                             melody_confidence: row.get(19)?,
                             melody_abstained: row.get(20)?,
-                            suitability: row.get::<_, i64>(21)? as u8,
-                            suitability_lyrics: row.get::<_, i64>(22)? as u8,
-                            suitability_sync: row.get::<_, i64>(23)? as u8,
-                            suitability_channels: row.get::<_, i64>(24)? as u8,
-                            suitability_arrangement: row.get::<_, i64>(25)? as u8,
-                            warnings: row.get(26)?,
                         })
                     })
                     .transpose()?;
+                // Read for every kind, not behind `kind.is_midi()`: the scan writes one for every
+                // kind. A row written before it did reads as zero, which the revision bump is what
+                // corrects — a scan re-reads it and writes the real number.
+                let suitability = SuitabilityDetail {
+                    suitability: row.get::<_, Option<i64>>(21)?.unwrap_or(0) as u8,
+                    suitability_lyrics: row.get::<_, Option<i64>>(22)?.unwrap_or(0) as u8,
+                    suitability_sync: row.get::<_, Option<i64>>(23)?.unwrap_or(0) as u8,
+                    suitability_channels: row.get::<_, Option<i64>>(24)?.unwrap_or(0) as u8,
+                    suitability_arrangement: row.get::<_, Option<i64>>(25)?.unwrap_or(0) as u8,
+                    warnings: row.get(26)?,
+                };
                 let video = kind
                     .is_video()
                     .then(|| {
@@ -500,6 +505,7 @@ impl Db {
                     default_transpose: row.get(8)?,
                     kind,
                     duration_ms: row.get::<_, i64>(11)? as u32,
+                    suitability,
                     midi,
                     video,
                     cdg,

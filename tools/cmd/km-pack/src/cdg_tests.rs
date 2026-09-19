@@ -97,7 +97,7 @@ fn an_mp3_plus_g_entry_scores_ten_and_carries_no_midi_facts() {
         language: None,
         tags: Vec::new(),
         file: "4.mp3".to_owned(),
-        duration_ms: 1000,
+        duration_ms: 231_967,
         loudness: None,
         content_hash: None,
     });
@@ -111,6 +111,32 @@ fn an_mp3_plus_g_entry_scores_ten_and_carries_no_midi_facts() {
     assert_eq!(entry.lyric_encoding, None);
     // CD+G carries no text at all, so nothing here can know what it is sung in.
     assert_eq!(entry.language, None);
+}
+
+/// **A commercial disc is made to be sung to, and a one-second track is not a track off one.** CD+G
+/// words are one-bit tiles with no timing to read, so the pair is answered by its own length, which
+/// is the only thing it says about how much of it there is.
+#[test]
+fn an_mp3_plus_g_pair_that_lasts_a_second_is_not_a_karaoke_disc() {
+    let entry = entry_from_cdg(CdgFields {
+        number: 4,
+        title: "T".to_owned(),
+        artist: None,
+        language: None,
+        tags: Vec::new(),
+        file: "4.mp3".to_owned(),
+        duration_ms: 1000,
+        loudness: None,
+        content_hash: None,
+    });
+    let record = entry.suitability.expect("a suitability");
+    assert_eq!(record.value, 4);
+    assert_eq!(record.breakdown.lyrics, 0);
+    assert_eq!(record.breakdown.sync, 0);
+    assert_eq!(
+        record.warnings.first().map(|w| w.code.as_str()),
+        Some(crate::warning_code(km_suitability::WarningCode::BriefSinging).as_str())
+    );
 }
 
 #[test]

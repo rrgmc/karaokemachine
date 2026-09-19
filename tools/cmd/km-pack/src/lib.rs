@@ -293,7 +293,7 @@ pub fn entry_from_video(fields: VideoFields) -> SongEntry {
         fixes: Vec::new(),
         melody: None,
         melody_abstained: None,
-        suitability: Some(km_kmpkg::SuitabilityRecord::purpose_made()),
+        suitability: Some(purpose_made_suitability(fields.duration_ms)),
         // Six now, and this is the one that is a statement rather than an absence: a video's words
         // are **pixels in somebody else's picture**, so there is no text to take two lines of. The
         // same reasoning as the `Searching a video's words` decision in docs/decisions/.
@@ -460,7 +460,7 @@ pub fn entry_from_cdg(fields: CdgFields) -> SongEntry {
         fixes: Vec::new(),
         melody: None,
         melody_abstained: None,
-        suitability: Some(km_kmpkg::SuitabilityRecord::purpose_made()),
+        suitability: Some(purpose_made_suitability(fields.duration_ms)),
         // Empty for the reason the comment above already gives about the encoding, and it is the
         // stronger version of it: CD+G words are **one-bit tiles**, so there is not a character
         // anywhere in the file to take two lines of.
@@ -1041,6 +1041,38 @@ pub fn warnings_hide_words<'a>(codes: impl IntoIterator<Item = &'a str>) -> bool
     codes
         .into_iter()
         .any(|code| hiding.iter().any(|known| known == code))
+}
+
+/// The suitability of a song that was made to be sung to: full marks, unless there is too little
+/// singing in it to be worth choosing.
+///
+/// **The one place the two are decided between**, and the reason it is here rather than beside the
+/// record it builds: `km-kmpkg` is a container format and does not link the analysis, so neither the
+/// threshold nor the name of the warning is in scope there. Both are in scope here, and every caller
+/// that writes a media song's suitability comes through this — packaging and the curation tool's
+/// scan alike, which is what makes the number a browse list shows the number a package will carry.
+///
+/// `sung_ms` is the span from the first sung syllable to the last where the file has timed words,
+/// and the file's own length where it has none. A video's words are pixels and CD+G's are one-bit
+/// tiles, so those two offer their length; an UltraStar song has a real span and is measured on it.
+#[must_use]
+pub fn purpose_made_suitability(sung_ms: u32) -> SuitabilityRecord {
+    let thresholds = km_suitability::Thresholds::default();
+    if thresholds.is_enough_singing(sung_ms) {
+        return SuitabilityRecord::purpose_made();
+    }
+    SuitabilityRecord::too_brief_to_choose(WarningRecord {
+        code: warning_code(km_suitability::WarningCode::BriefSinging),
+        message: format!(
+            "only {} of singing; there is too little of it to be worth choosing",
+            format_span(sung_ms)
+        ),
+    })
+}
+
+/// A span as minutes and seconds, for a warning somebody reads.
+fn format_span(ms: u32) -> String {
+    format!("{}:{:02}", ms / 60_000, (ms / 1_000) % 60)
 }
 
 /// One song's new values, as read from an edited CSV or a form.

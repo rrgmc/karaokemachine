@@ -66,6 +66,13 @@ pub enum WarningCode {
     ChordNamesOnly,
     /// Real lyrics, but thin — fewer words than a song usually has, or silent for most of its length.
     SparseLyrics,
+    /// Real words, well timed, and over before there is anything to sing.
+    ///
+    /// A different fault from [`Self::PartialLyrics`], which is a file whose words stop early
+    /// against the music it has. This is a file with no more music to stop against: the words cover
+    /// it and there is barely any of it. Coverage is a fraction and answers such a file perfectly,
+    /// which is why the span is measured beside it.
+    BriefSinging,
     /// A space after every syllable or after none, so nothing in the file says where a word ends.
     ///
     /// The words are there and they are timed; they simply cannot be drawn as words, because the
@@ -136,6 +143,10 @@ impl Suitability {
     /// `NegligibleLyrics` belongs here for the same reason `NoLyrics` does: a file whose lyric track
     /// holds the arranger's telephone number cannot be sung from, and the fact that the text exists
     /// makes it *harder* to spot than an instrumental, not easier.
+    ///
+    /// `BriefSinging` belongs here on the same reasoning read from the other side: such a file can
+    /// be sung from and is over before it is worth having been chosen, and it is harder to spot than
+    /// either, every measurement but the one passing.
     pub fn has_hard_defect(&self) -> bool {
         self.warnings.iter().any(|w| {
             matches!(
@@ -143,6 +154,7 @@ impl Suitability {
                 WarningCode::NoLyrics
                     | WarningCode::NegligibleLyrics
                     | WarningCode::PartialLyrics
+                    | WarningCode::BriefSinging
                     | WarningCode::ChordNamesOnly
                     | WarningCode::LyricsAllAtZero
                     | WarningCode::LyricsWithoutNotes
@@ -208,6 +220,7 @@ pub fn assess(
     // actually wrong with it, and reporting the vaguer one instead would be a loss.
     let negligible = content.is_negligible(thresholds) && !all_at_zero && !no_notes;
     let chord_chart = content.is_chord_chart(thresholds) && !all_at_zero && !no_notes;
+    let brief = content.is_too_brief(thresholds) && !all_at_zero && !no_notes;
 
     breakdown.lyrics = match granularity {
         LyricGranularity::None => {
@@ -233,6 +246,20 @@ pub fn assess(
         _ if negligible => {
             let (code, message) = content.unsingable(thresholds, duration_ms);
             warnings.push(Warning::new(code, message));
+            0
+        }
+        // After the quantity test, because a business card is brief as well as negligible and the
+        // syllable count is the fault worth naming. What is left here is a file whose words are a
+        // song and whose song is over before it is worth having chosen.
+        _ if brief => {
+            warnings.push(Warning::new(
+                WarningCode::BriefSinging,
+                format!(
+                    "only {} of singing across {}; there is too little of it to be worth choosing",
+                    format_duration(content.sung_ms),
+                    format_duration(duration_ms)
+                ),
+            ));
             0
         }
         LyricGranularity::LineLevel => {
@@ -272,8 +299,10 @@ pub fn assess(
     // Negligible lyrics score nothing here either. "Every syllable lands near a note" is not a
     // measurement when there are eleven syllables and four thousand notes to land near. A chord
     // chart scores nothing for the opposite reason: its names land on the chord changes, so they
-    // sync perfectly, and there is still nothing to sing.
-    breakdown.sync = if granularity == LyricGranularity::None || negligible || chord_chart {
+    // sync perfectly, and there is still nothing to sing. A file over in forty seconds scores
+    // nothing for a third reason: how well it was timed is a question about a song worth singing.
+    breakdown.sync = if granularity == LyricGranularity::None || negligible || chord_chart || brief
+    {
         0
     } else if all_at_zero {
         warnings.push(Warning::new(
@@ -409,14 +438,17 @@ pub fn assess(
 
 /// How much of a song is actually sung, once obvious credits are set aside.
 ///
-/// Two numbers, because they fail in different ways and a file needs to pass both. **Coverage** is
-/// the stronger: a credit block occupies a few seconds of a three-minute file, and no real song's
-/// words do. **Syllables** catches what coverage cannot — a single word at the start and another at
-/// the end spans the whole song and is still not a lyric.
+/// Three numbers, because they fail in different ways and a file needs to pass all of them.
+/// **Coverage** catches a credit block occupying a few seconds of a three-minute file, which no real
+/// song's words do. **Syllables** catches what coverage cannot — a single word at the start and
+/// another at the end spans the whole song and is still not a lyric. **The span** catches what
+/// neither can: a file whose words cover all of it and all of it is forty seconds.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct LyricContent {
     /// Syllables that are not part of a credit line.
     pub syllables: usize,
+    /// Milliseconds between the first and last counted syllable.
+    pub sung_ms: u32,
     /// Fraction of the song's length between the first and last counted syllable.
     pub coverage: f32,
     /// Lines set aside as credits rather than lyrics.
@@ -472,14 +504,18 @@ impl LyricContent {
             last = last.max(end);
         }
 
-        let coverage = match (first, duration_ms) {
-            (Some(first), duration) if duration > 0 && last > first => {
-                (last - first) as f32 / duration as f32
-            }
-            _ => 0.0,
+        let sung_ms = match first {
+            Some(first) if last > first => last - first,
+            _ => 0,
+        };
+        let coverage = if duration_ms > 0 {
+            sung_ms as f32 / duration_ms as f32
+        } else {
+            0.0
         };
         Self {
             syllables,
+            sung_ms,
             coverage: coverage.clamp(0.0, 1.0),
             credit_lines,
             judged_lines,
@@ -503,6 +539,11 @@ impl LyricContent {
     pub fn is_sparse(&self, thresholds: &Thresholds) -> bool {
         self.syllables < thresholds.sparse_lyric_syllables
             || self.coverage < thresholds.sparse_lyric_coverage
+    }
+
+    /// Whether there is too little singing here for the file to be worth choosing.
+    pub fn is_too_brief(&self, thresholds: &Thresholds) -> bool {
+        !thresholds.is_enough_singing(self.sung_ms)
     }
 
     /// Which fault this is, and how to say it.
@@ -542,6 +583,19 @@ impl LyricContent {
             ),
         )
     }
+}
+
+/// How long a song is sung for: first counted syllable to last, in milliseconds.
+///
+/// **For a caller that wants the span and not the rest of the measurement**, which is every caller
+/// outside this crate: packaging asks it of an UltraStar song, and a corpus sweep asks it of a MIDI
+/// file. A length of zero is passed in because coverage is the one thing here that needs one, and
+/// nobody asking this question is asking that one.
+///
+/// Zero where the file has no counted syllables, which is the case a caller answers with the file's
+/// own length.
+pub fn sung_span_ms(song: &Song) -> u32 {
+    LyricContent::measure(song, 0).sung_ms
 }
 
 /// Whether a lyric line is somebody's contact details rather than words to sing.
@@ -984,6 +1038,7 @@ mod tests {
         let thresholds = Thresholds::default();
         let content = LyricContent {
             syllables: 40,
+            sung_ms: 140_000,
             coverage: 0.7,
             credit_lines: 0,
             judged_lines: 0,
@@ -995,6 +1050,7 @@ mod tests {
         // A full song is neither.
         let full = LyricContent {
             syllables: 240,
+            sung_ms: 160_000,
             coverage: 0.8,
             credit_lines: 0,
             judged_lines: 0,
@@ -1075,6 +1131,7 @@ mod tests {
         let thresholds = Thresholds::default();
         let content = |chord_lines, judged_lines| LyricContent {
             syllables: 300,
+            sung_ms: 160_000,
             coverage: 0.8,
             credit_lines: 0,
             judged_lines,
@@ -1207,6 +1264,77 @@ mod tests {
         let (suitability, song) = assess_bytes(&testing::soft_karaoke());
         assert!(song.duration_ms() < 60_000);
         assert!(codes(&suitability).contains(&WarningCode::ImplausibleDuration));
+    }
+
+    /// The file the span exists to catch.
+    ///
+    /// Same words, same timing, same arrangement and the same melody as `high_quality_song`, and it
+    /// is over in forty seconds. Every measurement the rubric made before the span passes it, its
+    /// coverage most emphatically: the words run the whole length of the file.
+    #[test]
+    fn a_whole_song_that_is_over_in_forty_seconds_is_not_worth_choosing() {
+        let (good, _) = assess_bytes(&testing::high_quality_song());
+        let (short, song) = assess_bytes(&testing::a_complete_short_song());
+
+        assert_eq!(good.value, 10, "the same song at length is excellent");
+        let content = LyricContent::measure(&song, song.duration_ms());
+        assert!(
+            content.coverage > 0.95,
+            "the words cover the file: {}",
+            content.coverage
+        );
+        assert!(!content.is_negligible(&Thresholds::default()));
+        assert!(!content.is_sparse(&Thresholds::default()));
+
+        assert_eq!(short.breakdown.lyrics, 0);
+        assert_eq!(short.breakdown.sync, 0);
+        assert_eq!(
+            short.breakdown.channels, good.breakdown.channels,
+            "the arrangement is the same one, which is why the loss has to come from the words"
+        );
+        assert!(codes(&short).contains(&WarningCode::BriefSinging));
+        assert!(short.has_hard_defect());
+        assert!(
+            short.value < 5,
+            "below the floor a demo draws from: {}",
+            short.value
+        );
+    }
+
+    /// The span and the file's own length are different questions, and this file answers them
+    /// differently: two minutes long, forty seconds of it sung.
+    #[test]
+    fn a_verse_in_a_long_file_is_caught_by_the_span_and_not_by_the_length() {
+        let (suitability, song) = assess_bytes(&testing::a_verse_in_a_long_song());
+        let thresholds = Thresholds::default();
+
+        assert!(
+            thresholds.is_plausible_duration(song.duration_ms()),
+            "the file is a plausible length, so the length rule has nothing to say"
+        );
+        assert!(!codes(&suitability).contains(&WarningCode::ImplausibleDuration));
+
+        let content = LyricContent::measure(&song, song.duration_ms());
+        assert!(
+            !content.is_negligible(&thresholds),
+            "a third of the song is not a business card"
+        );
+        assert_eq!(suitability.breakdown.lyrics, 0);
+        assert_eq!(suitability.breakdown.sync, 0);
+        assert!(codes(&suitability).contains(&WarningCode::BriefSinging));
+        assert!(
+            !codes(&suitability).contains(&WarningCode::PartialLyrics),
+            "the words do not stop early; there is only ever forty seconds of them"
+        );
+    }
+
+    /// The quantity test keeps its say, because the syllable count is the fault worth naming.
+    #[test]
+    fn a_business_card_is_named_for_its_syllables_rather_than_for_its_length() {
+        let (credits, _) = assess_bytes(&testing::credits_in_the_lyric_track());
+        let codes = codes(&credits);
+        assert!(codes.contains(&WarningCode::NegligibleLyrics), "{codes:?}");
+        assert!(!codes.contains(&WarningCode::BriefSinging), "{codes:?}");
     }
 
     #[test]

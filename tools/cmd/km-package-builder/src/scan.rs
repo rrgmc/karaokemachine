@@ -933,6 +933,9 @@ fn scan_video(path: &Path, relative: String, size: u64, mtime: i64, hash: String
                 // counterpart for a video. Byte-identical copies still land on one row, because that
                 // is the content hash and not this.
                 fingerprint: String::new(),
+                // Its own length stands in for how much of it is sung: a video's words are pixels,
+                // so there is no span to read out of it.
+                suitability: crate::model::SuitabilityFacts::purpose_made(info.duration_ms),
                 midi: None,
                 video: Some(VideoFacts {
                     width: info.width,
@@ -1081,6 +1084,9 @@ fn scan_cdg(audio: &Path, relative: String, size: u64, mtime: i64) -> ScannedFil
             // Structural fingerprinting reads a MIDI file's notes; there is no counterpart. Exact
             // copies still land on one row, through the pair hash above.
             fingerprint: String::new(),
+            // The audio's length, for the same reason a video's stands in: CD+G words are one-bit
+            // tiles with no timing to read. Never `graphics_ms`, which starts at a title card.
+            suitability: crate::model::SuitabilityFacts::purpose_made(info.audio.duration_ms),
             midi: None,
             video: None,
             ultrastar: None,
@@ -1181,6 +1187,13 @@ fn scan_ultrastar(text: &Path, relative: String, size: u64, mtime: i64) -> Scann
             duration_ms: info.duration_ms,
             lyrics: (!plain.trim().is_empty()).then_some(plain),
             fingerprint: String::new(),
+            // The one media kind whose span is read rather than stood in for: a person timed these
+            // words to this recording, so the file says how much of it is sung.
+            suitability: crate::model::SuitabilityFacts::purpose_made(
+                km_suitability::sung_span_ms(&km_song::ultrastar::song_from_timeline(
+                    song.timeline.clone(),
+                )),
+            ),
             midi: None,
             video: None,
             cdg: None,
@@ -1323,6 +1336,16 @@ fn describe(id: String, relative: &str, song: &Song, analysis: &Analysis) -> Sca
             message: warning.message.clone(),
         })
         .collect();
+    let suitability = crate::model::SuitabilityFacts {
+        value: analysis.suitability.value,
+        breakdown: (
+            analysis.suitability.breakdown.lyrics,
+            analysis.suitability.breakdown.sync,
+            analysis.suitability.breakdown.channels,
+            analysis.suitability.breakdown.arrangement,
+        ),
+        warnings: serde_json::to_string(&warnings).unwrap_or_else(|_| "[]".to_owned()),
+    };
 
     ScannedSong {
         id,
@@ -1341,6 +1364,7 @@ fn describe(id: String, relative: &str, song: &Song, analysis: &Analysis) -> Sca
             (!text.trim().is_empty()).then_some(text)
         },
         fingerprint: fingerprint(song),
+        suitability,
         midi: Some(MidiFacts {
             flavor: format!("{:?}", song.flavor).to_lowercase(),
             granularity: format!("{:?}", song.lyrics.granularity()).to_lowercase(),
@@ -1353,14 +1377,6 @@ fn describe(id: String, relative: &str, song: &Song, analysis: &Analysis) -> Sca
             melody_channel: analysis.melody_channel(),
             melody_confidence: analysis.melody.channel().map(|melody| melody.confidence),
             melody_abstained: km_pack::melody_abstained(analysis),
-            suitability: analysis.suitability.value,
-            breakdown: (
-                analysis.suitability.breakdown.lyrics,
-                analysis.suitability.breakdown.sync,
-                analysis.suitability.breakdown.channels,
-                analysis.suitability.breakdown.arrangement,
-            ),
-            warnings: serde_json::to_string(&warnings).unwrap_or_else(|_| "[]".to_owned()),
         }),
         video: None,
         cdg: None,
@@ -2379,13 +2395,14 @@ mod tests {
         );
     }
 
-    /// A revision reads again only the songs it can change.
+    /// A row climbs through every revision that cannot reach it and stops at the first that can.
     ///
-    /// A row climbs through every revision that cannot reach it and stops at the first that can:
-    /// revision 2 reaches a song with syllables, revision 3 one with 8 lyric lines, and neither
-    /// reaches a row with no counts at all, as a video has.
+    /// Revision 2 reaches a song with syllables and revision 3 one with 8 lyric lines, so a row
+    /// short of both climbs past them. **Where it stops is the newest revision that reaches it**, and
+    /// the newest of all reaches every song — so the climb is what this asserts rather than a scan
+    /// avoided, and the count of songs still stale afterwards is all of them.
     #[test]
-    fn a_song_out_of_a_revisions_reach_is_not_read_again() {
+    fn a_song_climbs_to_the_first_revision_that_can_change_it() {
         let scratch = Scratch::new("revision-reach");
         scratch.write("a.kar", &km_song::testing::soft_karaoke());
         scratch.write("b.mid", &km_song::testing::lyric_events());
@@ -2402,7 +2419,7 @@ mod tests {
             for (path, revision, line_count, syllable_count) in [
                 // Short, from the build before the chord-chart revision: promoted.
                 ("a.kar", "2", "3", "30"),
-                // No counts, from the first build: climbs both revisions.
+                // No counts, from the first build: climbs every revision with a bound on one.
                 ("b.mid", "1", "NULL", "NULL"),
                 // Long enough to be a chord chart: stays.
                 ("c.kar", "2", "20", "200"),
@@ -2423,21 +2440,36 @@ mod tests {
             guard
                 .promote_unreached_revisions()
                 .expect("and again, changing nothing");
+
+            // Where each row stopped, which is the first revision that could change it.
+            let revision = |path: &str| {
+                guard
+                    .count_for_test(&format!(
+                        "SELECT analysis_revision FROM songs
+                          WHERE id = (SELECT song_id FROM files WHERE path = '{path}')"
+                    ))
+                    .expect("read the revision")
+            };
+            assert_eq!(revision("a.kar"), 5, "short of every count, so it climbed");
+            assert_eq!(
+                revision("b.mid"),
+                5,
+                "no counts at all, so every bound clears it"
+            );
+            assert_eq!(revision("c.kar"), 2, "long enough for the chord-chart rule");
+            assert_eq!(revision("d.kar"), 1, "the melody revision reaches it");
+
             assert_eq!(
                 guard.stale_analysis_count().expect("count"),
-                2,
-                "only the songs a revision can reach are still stale"
+                4,
+                "the newest revision reaches every song, so every one is still stale"
             );
         }
 
         let progress = Arc::new(Progress::default());
         run(&db, ScanOptions::default(), &progress).expect("second scan");
-        assert_eq!(
-            progress.snapshot().parsed,
-            2,
-            "the songs a revision can reach"
-        );
-        assert_eq!(progress.snapshot().skipped, 2);
+        assert_eq!(progress.snapshot().parsed, 4, "every song");
+        assert_eq!(progress.snapshot().skipped, 0);
         assert_eq!(db.lock().stale_analysis_count().expect("count"), 0);
     }
 

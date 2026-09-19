@@ -1097,13 +1097,7 @@ mod tests {
 
         // Not a hard-coded number: what the package claims has to agree with what the scan recorded
         // for the same bytes, whatever the scoring rules happen to say this month.
-        let detected = db
-            .lock()
-            .song(&id)
-            .expect("song")
-            .midi
-            .expect("a MIDI song was scanned")
-            .suitability;
+        let detected = db.lock().song(&id).expect("song").suitability.suitability;
 
         let package = km_kmpkg::Package::open(&out).expect("open the package");
         let entry = &package.manifest().songs[0];

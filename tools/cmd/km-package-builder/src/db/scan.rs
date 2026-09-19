@@ -166,9 +166,11 @@ impl Db {
             for file in batch {
                 if let Some(song) = &file.song {
                     // A video fills none of the MIDI columns and a MIDI file fills none of the video
-                    // ones, so each block contributes NULLs when it is absent. That is what makes a
-                    // video's suitability *absent* in the database rather than a zero, which is the
-                    // decision this whole shape exists to honor.
+                    // ones, so each block contributes NULLs when it is absent. **The suitability is
+                    // outside that shape and is bound unconditionally**, because every kind of song
+                    // has one: a browse list, the band filter and the sort all read that column, and
+                    // a number invented on the way out would agree with the page and not with the
+                    // `WHERE` clause beside it.
                     let midi = song.midi.as_ref();
                     let video = song.video.as_ref();
                     let cdg = song.cdg.as_ref();
@@ -204,14 +206,15 @@ impl Db {
                         ":melody_channel": midi.and_then(|m| m.melody_channel).map(i64::from),
                         ":melody_confidence": midi.and_then(|m| m.melody_confidence),
                         ":melody_abstained": midi.and_then(|m| m.melody_abstained.clone()),
-                        ":suitability": midi.map(|m| m.suitability),
-                        ":suitability_lyrics": midi.map(|m| m.breakdown.0),
-                        ":suitability_sync": midi.map(|m| m.breakdown.1),
-                        ":suitability_channels": midi.map(|m| m.breakdown.2),
-                        ":suitability_arrangement": midi.map(|m| m.breakdown.3),
-                        // Never NULL: the column is NOT NULL with a `[]` default, and a video
-                        // legitimately has no warnings rather than unknown ones.
-                        ":warnings": midi.map_or_else(|| "[]".to_owned(), |m| m.warnings.clone()),
+                        ":suitability": song.suitability.value,
+                        ":suitability_lyrics": song.suitability.breakdown.0,
+                        ":suitability_sync": song.suitability.breakdown.1,
+                        ":suitability_channels": song.suitability.breakdown.2,
+                        ":suitability_arrangement": song.suitability.breakdown.3,
+                        // Never NULL: the column is NOT NULL with a `[]` default, and a song with
+                        // nothing wrong with it legitimately has no warnings rather than unknown
+                        // ones.
+                        ":warnings": song.suitability.warnings,
                         // **The one value here that does not come from the file.** It says which
                         // build decided the rest, so it is the same for every row in a run and is
                         // bound from the constant rather than carried on `ScannedSong` — which is
@@ -410,19 +413,23 @@ impl Db {
     pub fn promote_unreached_revisions(&self) -> Result<(), DbError> {
         for revision in km_suitability::REVISIONS {
             // The column is spliced in from a closed match, never from input, so the text is fixed.
-            let (column, least) = match revision.reach {
+            let bound = match revision.reach {
                 km_suitability::Reach::Everything => continue,
-                km_suitability::Reach::LyricLinesAtLeast(least) => ("line_count", least),
-                km_suitability::Reach::SyllablesAtLeast(least) => ("syllable_count", least),
+                // Every song is re-read, and the file below it that holds no song is not.
+                km_suitability::Reach::EverySong => None,
+                km_suitability::Reach::LyricLinesAtLeast(least) => Some(("line_count", least)),
+                km_suitability::Reach::SyllablesAtLeast(least) => Some(("syllable_count", least)),
             };
-            self.conn.execute(
-                &format!(
-                    "UPDATE songs SET analysis_revision = ?1
-                      WHERE analysis_revision = ?2
-                        AND ({column} IS NULL OR {column} < ?3)"
-                ),
-                rusqlite::params![revision.number, revision.number - 1, least],
-            )?;
+            if let Some((column, least)) = bound {
+                self.conn.execute(
+                    &format!(
+                        "UPDATE songs SET analysis_revision = ?1
+                          WHERE analysis_revision = ?2
+                            AND ({column} IS NULL OR {column} < ?3)"
+                    ),
+                    rusqlite::params![revision.number, revision.number - 1, least],
+                )?;
+            }
             // A file with no song has no count to reach, which is the NULL count above: a revision
             // with a limited reach cannot turn a failure into a song, or it would reach everything.
             self.conn.execute(

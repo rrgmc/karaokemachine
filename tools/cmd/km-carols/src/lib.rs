@@ -202,12 +202,30 @@ struct Checked {
 /// line, and `sync` must be 3, meaning those timings land on the notes. Melody and arrangement are
 /// worth points and are not worth failing a build over — a carol with no drum channel is a carol,
 /// and one whose setting is too chordal for a melody channel to be found is still singable.
+///
+/// **How long it is sung for is checked ahead of both**, because a carol too short to be worth
+/// choosing scores zero on the pair and neither message would say why.
 fn check(bytes: &[u8], carol: &selection::Carol) -> Result<Checked> {
     let song = Song::parse(bytes, &ParseOptions::default())
         .with_context(|| format!("\"{}\" did not parse as a karaoke file", carol.title))?;
     let analysis = Analysis::of(&song);
     let breakdown = analysis.suitability.breakdown;
 
+    // Before the two below, because a carol sung for under three quarters of a minute scores zero on
+    // both of them and neither message names the cause: a one-verse conversion is timed per syllable
+    // and lands on every note, and is simply over. Verse expansion is what answers it.
+    let sung_ms = km_suitability::sung_span_ms(&song);
+    let least = km_suitability::Thresholds::default().min_sung_ms;
+    if sung_ms < least {
+        bail!(
+            "\"{}\" is sung for {}.{:01}s, under the {}s a song needs to be worth choosing: it \
+             wants more verses",
+            carol.title,
+            sung_ms / 1_000,
+            (sung_ms % 1_000) / 100,
+            least / 1_000,
+        );
+    }
     if breakdown.lyrics < 3 {
         bail!(
             "\"{}\" scored {}/3 on lyrics: they are not timed per syllable, or there are too few",
