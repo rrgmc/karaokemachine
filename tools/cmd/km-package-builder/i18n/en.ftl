@@ -196,6 +196,7 @@ install-build-first = Build it first.
 install-sends = Sends the built package to the karaoke app.
 renumber-button = Re-flow every number from { $start }
 renumber-note = Keeps the current order. Any number you set by hand is overwritten.
+package-advanced = Advanced
 
 ## Finding a machine on the network ---------------------------------------------
 #

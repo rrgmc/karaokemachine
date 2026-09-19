@@ -191,6 +191,7 @@ install-build-first = Monte o pacote primeiro.
 install-sends = Envia o pacote montado para a máquina de karaokê.
 renumber-button = Renumerar tudo a partir de { $start }
 renumber-note = Mantém a ordem atual. Qualquer número que você tenha posto à mão é substituído.
+package-advanced = Avançado
 
 ## Procurar uma máquina na rede -------------------------------------------------
 

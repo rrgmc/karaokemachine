@@ -1031,6 +1031,15 @@ ul.found li { display: flex; align-items: baseline; gap: .5rem; padding: .25rem 
 #machine-access details.retype > summary::marker { content: ""; }
 #machine-access details.retype[open] > summary { margin-bottom: 0.5rem; }
 
+/* A control that is seldom wanted and costly to press by mistake, behind a summary under what it
+   acts on. It takes the look of the password box's summary, which is one more thing you may press. */
+details.advanced { margin-top: 1rem; }
+details.advanced > summary {
+    cursor: pointer;
+    color: var(--accent);
+    width: fit-content;
+}
+
 #settings-tab-machine:checked ~ .tabstrip label[for="settings-tab-machine"],
 #settings-tab-backup:checked ~ .tabstrip label[for="settings-tab-backup"],
 #settings-tab-locale:checked ~ .tabstrip label[for="settings-tab-locale"],

@@ -1364,13 +1364,17 @@ renamed. The box is off by default, because most packages never grow a second vo
 name and nothing else, so the page still draws no volume strip until there are two.
 
 **The Songs tab picks a volume above its song list, and the Build tab picks its own.** On Songs a row
-of tab-like links sits directly over the songs, and the first number, Re-flow and the songs follow it;
+of tab-like links sits directly over the songs, and the first number and the songs follow it;
 the link is in the address, so a reload keeps it. The Build tab has a volume picker of its own,
 because which file is built is a choice made where it is built, and the version, the file names and
 the install button follow that picker. **Picking a volume on Songs keeps the page where it was**: the
 link swaps the volume's part of the page in place, so somebody halfway down a long list does not land
 back at the top. The links are drawn as filled tabs, because a second row of underlined words under
 the page's own tabs is read as more of the same and missed.
+
+**Re-flow is under the song list, behind a closed Advanced summary.** One press renumbers a whole
+volume and asks nothing, and a curator seldom wants it. Beside the first number, under the tabs, it
+sits where a press meant for something else lands. It still acts on the volume picked above it.
 
 **Build every volume writes each volume that holds a song under its default name**, into the one
 folder, with the Build form's two tick boxes applying to every file. Default names, because there is
