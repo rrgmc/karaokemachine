@@ -8987,6 +8987,76 @@ mod tests {
         assert!(!FilterQuery::default().only_view().contains("filename"));
     }
 
+    /// The warnings box is the file-name box's twin: not a filter, and it survives both.
+    #[test]
+    fn the_warnings_box_is_not_a_filter_and_survives_paging_and_clearing() {
+        let on = FilterQuery {
+            warnings: Some("1".to_owned()),
+            q: "jobim".to_owned(),
+            ..FilterQuery::default()
+        };
+        assert!(on.warnings());
+        assert!(on.to_form(&[], &[]).warnings);
+        // It narrows nothing, so the filter it produces is the one an untouched bar produces.
+        assert_eq!(on.to_filter().deleted, DeletedFilter::Live);
+
+        let next = on.with_offset(100, 4200);
+        assert!(next.contains("warnings=1"), "{next}");
+        let cleared = on.only_view();
+        assert!(cleared.contains("warnings=1"), "{cleared}");
+        assert!(!cleared.contains("q="), "{cleared}");
+
+        let off = FilterQuery::default().with_offset(100, 4200);
+        assert!(!off.contains("warnings"), "{off}");
+        assert!(!FilterQuery::default().only_view().contains("warnings"));
+    }
+
+    /// *Only deleted* is a filter, so it travels, it draws a chip, and *clear all* takes it off.
+    ///
+    /// **The last assertion is the one worth having.** The two view boxes beside it survive a clear
+    /// because they narrow nothing; this one narrows to a list holding none of the corpus, and
+    /// somebody who has just pressed *clear all* must not be handed the discard pile.
+    #[test]
+    fn only_deleted_is_a_filter_rather_than_a_view() {
+        let on = FilterQuery {
+            deleted: "only".to_owned(),
+            ..FilterQuery::default()
+        };
+        assert_eq!(on.to_filter().deleted, DeletedFilter::Only);
+        assert!(on.with_offset(100, 4200).contains("deleted=only"));
+        assert!(
+            !on.only_view().contains("deleted"),
+            "clear all means the corpus"
+        );
+
+        // Normalized through the enum, so a hand-typed value shows the box as the bar can draw it
+        // rather than leaving a filter nothing on the page admits to.
+        let nonsense = FilterQuery {
+            deleted: "sometimes".to_owned(),
+            ..FilterQuery::default()
+        };
+        assert_eq!(nonsense.to_filter().deleted, DeletedFilter::Live);
+        assert!(!nonsense.with_offset(0, 10).contains("deleted"));
+    }
+
+    /// The Delete tab's field cannot collide with the bar's box of nearly the same name.
+    ///
+    /// Both ride in one body — `hx-include="#filters, #rows"` — and a repeated key is a 400 from
+    /// `serde_urlencoded` that takes the button out of service with nothing said anywhere. The two
+    /// words also mean opposite things: the bar's names which list is on screen, the tab's names
+    /// what to do to it.
+    #[test]
+    fn the_delete_action_can_ride_in_the_same_body_as_the_bar() {
+        let body = "deleted=only&delete_action=undelete&scope=matching&q=jobim";
+        let query = FilterQuery::from_body(body).expect("the bar reads its own fields");
+        assert_eq!(query.to_filter().deleted, DeletedFilter::Only);
+        assert_eq!(query.q, "jobim");
+
+        let fields = Fields::parse(body);
+        assert_eq!(fields.one("delete_action"), Some("undelete"));
+        assert_eq!(fields.one("scope"), Some("matching"));
+    }
+
     /// A package's name becomes something that can be a file on three platforms.
     ///
     /// The empty answer is the case worth pinning: it is not a panic and not a silent `.kmpkg` with

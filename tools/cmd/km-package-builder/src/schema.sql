@@ -473,15 +473,15 @@ CREATE INDEX IF NOT EXISTS songs_unfolded ON songs(id) WHERE sort_title IS NULL;
 -- measured against. The migration drops this index by name so a database that already holds the
 -- two-column shape gets the three-column one; `IF NOT EXISTS` alone would keep the narrow one for
 -- ever.
+-- **And it serves the deleted list as well, which is why there is no index beside it for that.**
+-- The obvious companion is the partial `ON songs(id) WHERE deleted_at IS NOT NULL` that
+-- `files_failed` and `songs_unfolded` are, and it is not here because this one already answers the
+-- question as a seek: `merged_into IS NULL AND duplicate_of IS NULL AND deleted_at IS NOT NULL` is
+-- equality on the first two columns and a range on the third, so the seek lands on exactly the
+-- discarded rows. `the_deleted_list_is_answered_from_its_own_index` reads the plan and says so. A
+-- second corpus-sized B-tree, maintained on every write, to answer a question this one answers is
+-- the cost this schema prices everywhere else.
 CREATE INDEX IF NOT EXISTS songs_countable ON songs(merged_into, duplicate_of, deleted_at);
-
--- The one list that asks for deleted songs, and nothing else reads this column as a search term.
---
--- Partial, so it holds only the rows the question is about: on a corpus nobody has deleted from it
--- is empty, and the page becomes reading an empty index rather than a pass over every song. The
--- shape `files_failed` and `songs_unfolded` take, and for their reason. Covering on `id`, which is
--- what the browse query seeks by.
-CREATE INDEX IF NOT EXISTS songs_deleted ON songs(id) WHERE deleted_at IS NOT NULL;
 
 -- The three indexes the browse page's order and its A-Z filter need are **not** here: their key is an
 -- expression, SQLite only uses an expression index when the query's expression matches it tree for

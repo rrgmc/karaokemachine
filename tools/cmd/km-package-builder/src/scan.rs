@@ -2313,6 +2313,75 @@ mod tests {
         assert_eq!(forced.snapshot().skipped, 0);
     }
 
+    /// A song thrown away is not read again, `--force` does not reach it, and its file stays.
+    ///
+    /// **`--force` is the assertion that matters.** Every other skip here is an optimisation — the
+    /// file would be read to arrive at the row already stored — and a forced run exists to overrule
+    /// them when a heuristic moves. A discarded song is not waiting on a better answer, so it is the
+    /// one skip a forced run keeps.
+    ///
+    /// **The second is that the row survives.** *Which files are gone* is `known - seen`, and a
+    /// skipped file is still seen — so `forget_missing` passes it by and bringing the song back
+    /// needs no rescan to find the file again.
+    #[test]
+    fn a_song_thrown_away_is_not_read_again_even_when_the_scan_is_forced() {
+        let scratch = Scratch::new("deleted-skip");
+        scratch.write("a.kar", &km_song::testing::soft_karaoke());
+        scratch.write("b.mid", &km_song::testing::lyric_events());
+
+        let db = Arc::new(Shared::new(
+            crate::db::Db::open_in_memory(&scratch.0).expect("open"),
+        ));
+        let first = Arc::new(Progress::default());
+        run(&db, ScanOptions::default(), &first).expect("first scan");
+        assert_eq!(first.snapshot().parsed, 2);
+
+        let thrown = {
+            let guard = db.lock();
+            let id = guard
+                .songs(&crate::db::Filter::default())
+                .expect("browse")
+                .first()
+                .expect("a song")
+                .id
+                .clone();
+            guard
+                .set_deleted_of(std::slice::from_ref(&id), true)
+                .expect("throw");
+            id
+        };
+
+        let forced = Arc::new(Progress::default());
+        run(
+            &db,
+            ScanOptions {
+                force: true,
+                ..ScanOptions::default()
+            },
+            &forced,
+        )
+        .expect("forced scan");
+        let view = forced.snapshot();
+        assert_eq!(view.parsed, 1, "only the song nobody threw away is read");
+        assert_eq!(view.skipped, 1);
+
+        let guard = db.lock();
+        assert_eq!(
+            guard.known_files().expect("known").len(),
+            2,
+            "a skipped file is still seen, so nothing forgets its row"
+        );
+        // And it comes back whole, from the row the scan left alone.
+        guard.set_deleted_of(&[thrown], false).expect("back");
+        assert_eq!(
+            guard
+                .songs(&crate::db::Filter::default())
+                .expect("browse")
+                .len(),
+            2
+        );
+    }
+
     /// A run scoped to one file re-reads that file and concludes nothing about the rest.
     ///
     /// **The assertion that matters is the second one.** *Which files are gone* is `known - seen`,

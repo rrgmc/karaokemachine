@@ -2782,6 +2782,168 @@ fn filtering_by_language_narrows_and_both_sentinels_work() {
     assert!(matching(LanguageFilter::parse("ja")).is_empty());
 }
 
+/// A song thrown away leaves every list but the one that asks for it, and comes back whole.
+///
+/// **The count is asserted beside the rows**, because the two are answered by different SQL over
+/// the same `Filter::to_sql` — a page that hides a song while the label goes on counting it is the
+/// failure a term added to one and not the other produces.
+#[test]
+fn a_song_thrown_away_is_in_no_list_but_the_one_that_asks_for_it() {
+    let mut db = Db::open_in_memory(Path::new("/corpus")).expect("open");
+    add(&mut db, "keep", Some("Corcovado"), "folder/keep.kar");
+    add(&mut db, "toss", Some("Chega de Saudade"), "folder/toss.kar");
+
+    let listed = |deleted: DeletedFilter| {
+        let filter = Filter {
+            deleted,
+            ..Filter::default()
+        };
+        let mut ids: Vec<String> = db
+            .songs(&filter)
+            .expect("browse")
+            .iter()
+            .map(|row| row.id.clone())
+            .collect();
+        ids.sort();
+        (ids, db.count_matching(&filter).expect("count"))
+    };
+
+    assert_eq!(
+        db.set_deleted_of(&["toss".to_owned()], true)
+            .expect("throw"),
+        1
+    );
+
+    let (live, live_count) = listed(DeletedFilter::Live);
+    assert_eq!(live, vec!["keep".to_owned()]);
+    assert_eq!(
+        live_count, 1,
+        "the label has to agree with the rows under it"
+    );
+
+    let (gone, gone_count) = listed(DeletedFilter::Only);
+    assert_eq!(gone, vec!["toss".to_owned()]);
+    assert_eq!(gone_count, 1);
+
+    // Every other surface asks the same question through the same clause, so a search that found
+    // it before must not find it now.
+    assert!(
+        db.songs(&Filter {
+            query: Some("Saudade".to_owned()),
+            ..Filter::default()
+        })
+        .expect("search")
+        .is_empty(),
+        "a search is a narrowing of the browse list and inherits the term"
+    );
+
+    // And back. The row was never removed, so nothing has to be scanned to return it.
+    assert_eq!(
+        db.set_deleted_of(&["toss".to_owned()], false)
+            .expect("back"),
+        1
+    );
+    assert_eq!(listed(DeletedFilter::Live).0.len(), 2);
+    assert!(listed(DeletedFilter::Only).0.is_empty());
+}
+
+/// Deleting over a filter writes the rows that filter lists, and counts a package before it does.
+#[test]
+fn deleting_a_whole_filter_takes_what_it_lists_and_counts_what_a_package_holds() {
+    let mut db = Db::open_in_memory(Path::new("/corpus")).expect("open");
+    add(&mut db, "one", Some("Corcovado"), "brasil/one.kar");
+    add(&mut db, "two", Some("Insensatez"), "brasil/two.kar");
+    add(&mut db, "far", Some("Yesterday"), "ingles/far.kar");
+
+    db.create_package(
+        &PackageRow::new("1f4a9c8e2b7d0356", "Brasil"),
+        "2026-09-18T00:00:00Z",
+    )
+    .expect("a package");
+    db.add_to_package(
+        "1f4a9c8e2b7d0356",
+        &["one".to_owned()],
+        "2026-09-18T00:00:00Z",
+    )
+    .expect("file one of them");
+
+    let brasil = Filter {
+        folder: Some("brasil/".to_owned()),
+        ..Filter::default()
+    };
+    assert_eq!(db.count_matching(&brasil).expect("count"), 2);
+    assert_eq!(
+        db.packaged_count_matching(&brasil).expect("packaged"),
+        1,
+        "the confirmation names this number before the write"
+    );
+
+    assert_eq!(db.set_deleted_for(&brasil, true).expect("throw"), 2);
+    // A packaged song goes with the rest: the count is said, not enforced.
+    assert_eq!(db.count_matching(&brasil).expect("count"), 0);
+    assert_eq!(
+        db.count_matching(&Filter::default()).expect("count"),
+        1,
+        "the folder that was not named keeps its song"
+    );
+}
+
+/// A ticked row already in the state being asked for is not a row the write touches.
+#[test]
+fn the_ticked_count_is_what_the_write_will_do_rather_than_what_was_ticked() {
+    let mut db = Db::open_in_memory(Path::new("/corpus")).expect("open");
+    add(&mut db, "gone", Some("Corcovado"), "folder/gone.kar");
+    add(&mut db, "here", Some("Insensatez"), "folder/here.kar");
+    db.set_deleted_of(&["gone".to_owned()], true)
+        .expect("throw");
+
+    let both = ["gone".to_owned(), "here".to_owned()];
+    assert_eq!(
+        db.deletable_count_of(&both, true).expect("count"),
+        1,
+        "one of the two is already thrown away"
+    );
+    assert_eq!(
+        db.deletable_count_of(&both, false).expect("count"),
+        1,
+        "and the other way round"
+    );
+}
+
+/// The *only deleted* list seeks `songs_countable` rather than reading the corpus.
+///
+/// **A planner test rather than a behavior one**, like the browse sorts beside it: the predicate is
+/// true of nearly no row, so a page that scans to find the handful somebody discarded does not
+/// fail — it is merely slow for ever.
+///
+/// **It is also what says a partial index beside `songs_countable` would be waste.** All three
+/// terms are in that key, so this is equality on two columns and a range on the third; a second
+/// corpus-sized B-tree to answer the same question would be maintained on every write for nothing.
+#[test]
+fn the_deleted_list_is_answered_from_its_own_index() {
+    let db = db();
+    let (where_clause, _values) = Filter {
+        deleted: DeletedFilter::Only,
+        ..Filter::default()
+    }
+    .to_sql();
+    let plan = db
+        .plan_for_test(
+            &format!("SELECT s.id FROM songs s WHERE {where_clause}"),
+            &[],
+        )
+        .expect("a plan");
+    assert!(
+        plan.contains("SEARCH") && plan.contains("songs_countable"),
+        "the deleted list has to seek rather than scan the corpus: {plan}"
+    );
+    assert!(
+        plan.contains("deleted_at"),
+        "the seek has to reach the deleted rows by the key rather than filter them out of it: \
+         {plan}"
+    );
+}
+
 /// The bulk set writes exactly the rows the same filter lists, and nothing else.
 ///
 /// The property worth pinning is not that it works but that it agrees: it and the browse list
@@ -3565,7 +3727,6 @@ fn a_database_at_schema_14_steps_to_the_current_schema() {
              DROP INDEX IF EXISTS songs_browse_copies;
              DROP INDEX IF EXISTS songs_browse_updated_artist;
              DROP INDEX IF EXISTS songs_browse_added_artist;
-             DROP INDEX IF EXISTS songs_deleted;
              DROP INDEX IF EXISTS songs_countable;
              ALTER TABLE packages DROP COLUMN number_one_volume;
              ALTER TABLE songs DROP COLUMN det_language_guess;

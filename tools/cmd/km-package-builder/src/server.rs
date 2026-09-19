@@ -1668,7 +1668,10 @@ pub fn router(state: State) -> Router {
         .route("/songs/tag-bulk", post(handlers::bulk_tag))
         .route("/songs/tag-bulk/cancel", get(handlers::bulk_tag_cancel))
         .route("/songs/delete-bulk", post(handlers::bulk_delete))
-        .route("/songs/delete-bulk/cancel", get(handlers::bulk_delete_cancel))
+        .route(
+            "/songs/delete-bulk/cancel",
+            get(handlers::bulk_delete_cancel),
+        )
         .route("/songs/favorite-bulk", post(handlers::bulk_favorite))
         .route(
             "/songs/favorite-bulk/cancel",
@@ -2737,6 +2740,69 @@ mod tests {
             })
             .expect("count"),
             2
+        );
+    }
+
+    /// Deleting counts and asks first, then writes and comes back on the page it was pressed on.
+    ///
+    /// **Three things the other bulk actions have no equivalent of.** The first pass writes nothing
+    /// and names how many of the set a package holds. The confirmed pass answers with `#rows`
+    /// rather than a toast alone, because this one takes songs *out* of the list they were ticked
+    /// in. And the page it was pressed on rides in the frozen query string, so the confirm button
+    /// carries it without `ui.js` reading anything.
+    #[tokio::test]
+    async fn deleting_asks_first_and_comes_back_on_the_page_it_was_pressed_on() {
+        let (_corpus, state) = two_folders("bulk-delete");
+
+        let (status, offered) = post(
+            &state,
+            "/songs/delete-bulk?offset=0",
+            &format!("delete_action=delete&scope=matching&{}", bar("bossa")),
+        )
+        .await;
+        assert_eq!(status, axum::http::StatusCode::OK);
+        assert!(offered.contains("<strong>2 songs</strong>"), "{offered}");
+        assert!(!offered.contains("the whole corpus"), "{offered}");
+        // The button that goes ahead redraws the list, which no other confirmation here does.
+        assert!(offered.contains("hx-target=\"#rows\""), "{offered}");
+
+        // Nothing was written by the asking.
+        {
+            let db = state.workspace().expect("open");
+            let db = db.db.lock();
+            assert_eq!(
+                db.count_matching(&crate::db::Filter::default())
+                    .expect("count"),
+                3
+            );
+        }
+
+        let (_, done) = post(
+            &state,
+            &confirm_url(&offered),
+            "delete_action=delete&scope=matching",
+        )
+        .await;
+        // The table, not a sentence on its own — and the songs that went are not in it.
+        assert!(done.contains("id=\"rows\""), "{done}");
+        assert!(done.contains("2 songs"), "{done}");
+
+        let db = state.workspace().expect("open");
+        let db = db.db.lock();
+        assert_eq!(
+            db.count_matching(&crate::db::Filter::default())
+                .expect("count"),
+            1,
+            "the folder that was not named keeps its song"
+        );
+        assert_eq!(
+            db.count_matching(&crate::db::Filter {
+                deleted: crate::db::DeletedFilter::Only,
+                ..crate::db::Filter::default()
+            })
+            .expect("count"),
+            2,
+            "and the two that went are reachable through the box that asks for them"
         );
     }
 

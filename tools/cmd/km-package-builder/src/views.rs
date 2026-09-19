@@ -4733,6 +4733,62 @@ mod tests {
         assert!(alone.contains(">CORCOVAD.kar<"), "{alone}");
     }
 
+    /// The warnings are the same switch, and the two boxes compose into one class attribute.
+    ///
+    /// **The both-on case is what this exists for.** Each box drawn by its own conditional in the
+    /// markup would have the second one needing to know whether the first had opened the attribute
+    /// and owed a space — so the names are joined in Rust and the markup asks once.
+    #[test]
+    fn warnings_are_shown_by_a_class_on_the_block_and_compose_with_file_names() {
+        let mut song = row("Corcovado", Some("Tom Jobim"), "Brasil/CORCOVAD.kar");
+        song.warnings =
+            "[{\"code\":\"no_lyrics\",\"message\":\"nothing to sing from\"}]".to_owned();
+
+        let off = rows(vec![song.clone()]).in_english().expect("render");
+        assert!(!off.contains("class=\"warnings\""), "{off}");
+
+        let mut asked = rows(vec![song.clone()]);
+        asked.show_warnings = true;
+        let on = asked.in_english().expect("render");
+        assert!(on.contains("id=\"rows\" class=\"warnings\""), "{on}");
+
+        let mut both = rows(vec![song.clone()]);
+        both.show_filename = true;
+        both.show_warnings = true;
+        let html = both.in_english().expect("render");
+        assert!(
+            html.contains("id=\"rows\" class=\"filenames warnings\""),
+            "{html}"
+        );
+
+        // The chips are in the markup whichever way the box is set, which is what lets a row
+        // redrawn on its own inherit the answer. The code is the chip and the message its tooltip.
+        for html in [&off, &on] {
+            assert!(html.contains(">no_lyrics<"), "{html}");
+            assert!(html.contains("nothing to sing from"), "{html}");
+        }
+        let alone = SongRowFragment::new(song, false, Choice::languages_in(&[], None))
+            .in_english()
+            .expect("render");
+        assert!(alone.contains(">no_lyrics<"), "{alone}");
+    }
+
+    /// A column that is not a warning list draws no chips rather than failing the page.
+    ///
+    /// Fifty rows are rendered at a time, so a row whose column cannot be read has to cost its own
+    /// chips and nothing else — the rule the song's own page follows over the same text.
+    #[test]
+    fn a_warnings_column_that_cannot_be_read_draws_nothing() {
+        let mut song = row("Corcovado", Some("Tom Jobim"), "Brasil/CORCOVAD.kar");
+        song.warnings = "not json at all".to_owned();
+        assert!(song.parsed_warnings().is_empty());
+
+        let mut asked = rows(vec![song]);
+        asked.show_warnings = true;
+        let html = asked.in_english().expect("render");
+        assert!(html.contains("Corcovado"), "{html}");
+    }
+
     /// A song whose title already *is* its file name does not say so twice.
     #[test]
     fn a_song_named_after_its_file_gets_no_file_name_chip() {

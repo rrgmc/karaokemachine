@@ -962,7 +962,10 @@ impl Filter {
         // of its own whatever else is asked, where *only deleted* is a list somebody asked for.
         // `browsable` composes the same two for the indexes, taking `DeletedFilter::Live`'s half
         // from the line below — so the ordinary query and the partial indexes cannot drift.
-        let mut clauses = vec!["s.merged_into IS NULL".to_owned(), self.deleted.clause("s.")];
+        let mut clauses = vec![
+            "s.merged_into IS NULL".to_owned(),
+            self.deleted.clause("s."),
+        ];
         // **A list shows every song filed in it, versions included.** Collapsing decides which rows of
         // the corpus are offered for filing; inside one favorite it would hide exactly what was filed,
         // and a list of nothing but second versions reads as empty beside a count saying ten. Two
