@@ -70,6 +70,20 @@ Rust twin.
 
 `det_language_tag` is a second *detected* column holding the ISO 639-1 code that `det_language` and
 `det_encoding` imply, while `det_language` goes on holding the file's literal `ENGL`.
+`det_language_guess` is a third, holding what `km_langguess` made of the song's own words, with
+`det_language_guess_confidence` beside it; `eff_language()` coalesces the three in order of what
+stands behind each, and the guess is written only above `km_langguess::MIN_CONFIDENCE`.
+
+`Db::backfill_language_guess` fills that column on rows a scan wrote earlier, reading only text the
+database already holds. It is chunked by the primary key where `backfill_language_tags` reads one
+`Vec`, because a chunk here holds lyric tracks rather than two folded names, and it stores a cursor
+in `language_guess_cursor` so an interrupted open resumes — at corpus size the detector alone is
+around 36 seconds, measured at 60µs against a lyric track of a kilobyte.
+
+**Adding a leg to `eff_language()` changes an index key**, since `songs_browse_language_artist` is an
+expression index over it. `create_browse_indexes` therefore compares the stored `CREATE` statement
+rather than the name: an index whose body moved keeps its name, so `CREATE INDEX IF NOT EXISTS`
+leaves the old key in place and the browse page silently matches no index at all.
 
 ### The backup is that split, read out to a file
 

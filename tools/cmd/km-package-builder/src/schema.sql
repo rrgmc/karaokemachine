@@ -117,6 +117,22 @@ CREATE TABLE IF NOT EXISTS songs (
     -- effective language have to be expressible in SQL.
     det_language_tag    TEXT,
 
+    -- The ISO 639-1 code the song's own words read as, or NULL where nothing could place them
+    -- confidently. See `km_langguess::guess`: the lyrics are read first and the title is the
+    -- fallback, and an answer below `km_langguess::MIN_CONFIDENCE` is not written at all.
+    --
+    -- A third detected column rather than a rewrite of either above it, for the reason
+    -- `det_language_tag` gives about `det_language`: each has to stay answerable to what produced
+    -- it, because the edit form shows all three and a curator correcting one is choosing between
+    -- witnesses. It is the weakest of them and `eff_language` reads it last.
+    det_language_guess  TEXT,
+
+    -- How sure the reading above was, between zero and one, and NULL exactly when it is. Stored to
+    -- be shown rather than to be filtered on: a curator scanning a page of guessed languages wants
+    -- to know which were close calls, and the gate that decided whether to store one at all lives in
+    -- Rust where the detector is.
+    det_language_guess_confidence REAL,
+
     -- The file's own name with its extension removed. Most of a real corpus carries no title meta
     -- event at all, and a row with nothing in it is unreadable and unclickable, so this is the
     -- last-resort title -- the same fallback `km-pack` has always applied when building a package.

@@ -91,6 +91,8 @@ crates/
     km-fixes/              # per-song corrections for a file's own MIDI defects: detected at
                            # packaging time, resolved to a channel table at playback
     km-kmpkg/              # .kmpkg container read/write
+    km-langguess/          # what language a song's own words are in, where the file says nothing.
+                           # Only the packaging tools name it, so only they carry the detector.
     km-catalog/          # SQLite/FTS5 index over installed packages; search + number lookup
     km-songbook/           # the printed song book: a tiny PDF writer + the layout of a song list.
                            # `km-songcode` and NOTHING else -- no PDF crate, no font crate, no

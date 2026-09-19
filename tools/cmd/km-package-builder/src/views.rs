@@ -850,6 +850,8 @@ pub struct FilterForm {
     pub kind: String,
     /// The chosen language: a code, `unset`, `set`, or empty for any.
     pub language: String,
+    /// The languages left out, as codes, sorted — what the hidden `language_not` field carries.
+    pub language_not: Vec<km_kmpkg::Language>,
     /// How many copies on disk: `1` · `2-10` · `10+`, or empty for any.
     pub copies: String,
     /// How long ago the song was added: `1d` · `7d` · `30d` · `30d+`, or empty for any.
@@ -954,6 +956,33 @@ impl FilterForm {
         self.tags.join(",")
     }
 
+    /// The excluded languages, comma-joined — what the hidden `language_not` field carries.
+    pub fn language_not_value(&self) -> String {
+        self.language_not
+            .iter()
+            .map(|language| language.code())
+            .collect::<Vec<_>>()
+            .join(",")
+    }
+
+    /// The languages the exclusion picker offers: everything the corpus holds, minus those already
+    /// left out.
+    ///
+    /// Drawn from what is *present* rather than from the whole table, for the reason the positive
+    /// picker beside it is: a corpus holds a dozen languages and the standard has 184, and offering
+    /// to exclude one no song is in is an option that changes nothing.
+    pub fn language_not_choices(&self) -> Vec<Choice> {
+        self.present
+            .iter()
+            .filter(|language| !self.language_not.contains(language))
+            .map(|language| Choice {
+                value: language.code().to_owned(),
+                label: language.name().to_owned(),
+                selected: false,
+            })
+            .collect()
+    }
+
     /// Whether a tag is offered as a hint rather than because a song here carries it.
     pub fn is_suggestion(&self, tag: &str) -> bool {
         self.suggested_tags.iter().any(|held| held == tag)
@@ -1046,8 +1075,14 @@ impl FilterForm {
 /// rule `km_locale::filters` states for anything markup would otherwise assemble.
 #[derive(Debug, Clone, Default)]
 pub struct SongSaid {
-    /// Why this song counts as a language nobody chose, or empty where somebody did.
-    pub language_guess: String,
+    /// Which witness the file gave for a language nobody chose, or empty where somebody did.
+    ///
+    /// **`detected`, not `guess`.** The file made a statement and this reads it; a guess is what
+    /// the sentence below carries, and one word for the two would make the page unable to say which
+    /// of them put a language in the box.
+    pub language_detected: String,
+    /// What the song's own words read as, where nothing stronger spoke.
+    pub language_guessed: String,
     /// What the file's own header declared, where it is not a code this build knows.
     pub language_unknown_code: String,
     /// The four numbers behind the suitability.

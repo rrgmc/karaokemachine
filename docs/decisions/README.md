@@ -185,6 +185,7 @@ it are the same entry. How the thing is built is [`ARCHITECTURE.md`](../ARCHITEC
 - [The songs page is come back to, not started again](curation.md#the-songs-page-is-come-back-to-not-started-again)
 - [A filter can be given a name, and then it is not the cursor](curation.md#a-filter-can-be-given-a-name-and-then-it-is-not-the-cursor)
 - [What the browse bar's numeric filters offer](curation.md#what-the-browse-bars-numeric-filters-offer)
+- [Languages can be left out, several at once](curation.md#languages-can-be-left-out-several-at-once)
 - [A favorite does not nest](curation.md#a-favorite-does-not-nest)
 - [A favorite can be a working list](curation.md#a-favorite-can-be-a-working-list)
 - [A favorite's page shows every song filed in it](curation.md#a-favorites-page-shows-every-song-filed-in-it)

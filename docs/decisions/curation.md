@@ -1941,6 +1941,31 @@ control offering `<5` is a name that lies. An unknown key is ignored and reads a
 retired key is ever written back out, so a link normalizes on its first page turn: one filter, one
 spelling. See `No compatibility aliases` in [`songs.md`](songs.md).
 
+## Languages can be left out, several at once
+
+**The bar narrows *to* one language and *away from* any number of them, and they are two controls
+because they are two questions.** A corpus holds folders in languages the person curating it does not
+read, and those folders are in the way of every browse list, every count and every filter-wide
+action. *Portuguese* and *not Vietnamese, not Thai* compose — one select cannot hold both — and a
+single exclusion is the wrong size for the problem, because a corpus that has one such folder has
+several.
+
+**A language nobody has placed is not in any language, so it stays.** `NOT IN` over an empty column
+answers neither true nor false, which would take every unclassified song off the page along with the
+language actually asked about — most of a corpus mid-classification, gone with nothing on screen
+saying why. The clause says so outright.
+
+**The exclusion writes nothing.** It narrows what is being looked at and is gone when it is dropped,
+which is what makes it the cheap thing to reach for; a judgment meant to outlive the session is a tag
+or a favorite, and those already travel into a package.
+
+**One chip per language, not one chip for the set.** A chip over a set can only offer *drop all of
+them*, and taking one language back is the ordinary act — the same reasoning, and the same
+`<key>:<value>` spelling, that `Assigning tags in bulk` settles one control over.
+
+**The picker offers the languages the corpus holds**, not the 184 the standard has: offering to leave
+out a language no song here is in is an option that changes nothing.
+
 ## A favorite does not nest
 
 **A favorite is one named list, and a collection divides by naming more of them.** `Brasil Axé`,

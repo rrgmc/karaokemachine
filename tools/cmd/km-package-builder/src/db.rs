@@ -529,6 +529,13 @@ pub enum OpeningPhase {
     },
     /// Working out what language each song is in.
     WorkingOutLanguage,
+    /// Reading the words of each song to see what language they are in.
+    ReadingWords {
+        /// How many are done.
+        done: usize,
+        /// Out of how many.
+        total: usize,
+    },
     /// Tidying the text read out of the files.
     TidyingText,
     /// Folding the browse sort keys, which is the other long one.
@@ -563,6 +570,12 @@ impl OpeningPhase {
             Self::Folding { done, total } => words
                 .msg_with(
                     "opening-folding",
+                    &[("done", n(done).into()), ("total", n(total).into())],
+                )
+                .into_owned(),
+            Self::ReadingWords { done, total } => words
+                .msg_with(
+                    "opening-reading-words",
                     &[("done", n(done).into()), ("total", n(total).into())],
                 )
                 .into_owned(),

@@ -3215,7 +3215,7 @@ fn scanned(
 /// Every column `write_scanned` writes comes back holding what was put in it.
 ///
 /// **The guard for the one statement in this crate that could be wrong without failing.** The
-/// upsert names forty-one columns; it used to bind them by ordinal, and because `first_seen`
+/// upsert names forty-four columns; it used to bind them by ordinal, and because `first_seen`
 /// and `last_scanned` share one value the run read `?22, ?23, ?23, ?24` — so every ordinal
 /// after that sat one place to the left of its column. Adding a column meant renumbering the
 /// run, the column list, the `DO UPDATE SET` and the `params!` array together, and getting it
@@ -3339,10 +3339,14 @@ fn a_database_this_build_made_carries_its_schema_version() {
     );
 }
 
-/// A database at schema 14 opens, gains the box that numbers a package's only volume, and keeps its
-/// packages under their bare names.
+/// A database at schema 14 climbs every step to the current schema and keeps what it held.
+///
+/// **One test over the whole ladder rather than one per rung**, because what it guards is that a
+/// database in the field opens at all: a step that adds a column the schema already creates fails
+/// with `duplicate column name` and takes the whole open with it, and only a database that
+/// genuinely predates the step can catch that.
 #[test]
-fn a_database_at_schema_14_steps_to_15() {
+fn a_database_at_schema_14_steps_to_the_current_schema() {
     let scratch = Scratch::new("schema-14");
     {
         let db = Db::create(&scratch.0).expect("create");
@@ -3351,8 +3355,20 @@ fn a_database_at_schema_14_steps_to_15() {
             "2026-09-18T00:00:00Z",
         )
         .expect("a package");
+        // Everything every step above 14 adds, taken back off in one go — and the browse index
+        // whose key names one of those columns put back the way a schema-14 build wrote it, since
+        // an expression index cannot outlive a column it reads.
         db.execute_for_test(
-            "ALTER TABLE packages DROP COLUMN number_one_volume; PRAGMA user_version = 14;",
+            "DROP INDEX IF EXISTS songs_browse_language_artist;
+             ALTER TABLE packages DROP COLUMN number_one_volume;
+             ALTER TABLE songs DROP COLUMN det_language_guess;
+             ALTER TABLE songs DROP COLUMN det_language_guess_confidence;
+             CREATE INDEX songs_browse_language_artist ON songs(
+                 coalesce(nullif(language, ''), det_language_tag) IS NULL,
+                 coalesce(nullif(language, ''), det_language_tag),
+                 sort_artist IS NULL, sort_artist, sort_title, id)
+               WHERE merged_into IS NULL;
+             PRAGMA user_version = 14;",
         )
         .expect("put it back at schema 14");
     }
@@ -3367,6 +3383,21 @@ fn a_database_at_schema_14_steps_to_15() {
         .expect("the package survives the step");
     assert!(!volume.number_one_volume);
     assert_eq!(volume.volume_name(), "Brasil");
+    // The guessed-language columns are back, and empty, which is what a row nothing has read says.
+    db.execute_for_test(
+        "SELECT det_language_guess, det_language_guess_confidence FROM songs LIMIT 1",
+    )
+    .expect("the step added both columns");
+    // And the browse index built on the old two-leg key was rebuilt on the current one. Left alone
+    // it would keep its name and its old key, so the browse page would match no index and sort the
+    // whole corpus with nothing saying so.
+    let key = db
+        .index_sql_for_test("songs_browse_language_artist")
+        .expect("the index is there");
+    assert!(
+        key.contains("det_language_guess"),
+        "the language index still holds a key that predates the guess: {key}"
+    );
 }
 
 /// A database written by a newer build is refused rather than opened.
@@ -3541,6 +3572,13 @@ fn a_filter_files_its_whole_match_into_a_favorite_and_takes_it_back() {
         );
     }
 }
+
+/// A verse in a language whose alphabet places it, for the tests about reading a song's words.
+///
+/// Invented rather than taken from a song, so a fixture carries no licence with it, and long enough
+/// to be what a lyric track is rather than what a title is.
+const VIETNAMESE_VERSE: &str = "Buổi sáng đi ngang con đường vắng một lần nữa, mỗi khung cửa sổ \
+                                giữ một gương mặt không quay lại nhìn tôi";
 
 /// A song scanned with a declared language and an encoding, for the language tests.
 ///
@@ -7067,4 +7105,195 @@ fn a_database_outside_wal_is_read_through_the_writing_connection() {
     let scratch = Scratch::new("wal-took");
     let on_disk = Db::create(&scratch.0).expect("create");
     assert!(on_disk.in_wal(), "a file database takes WAL");
+}
+
+/// Leaving a language out takes its songs and keeps everything else, unclassified songs included.
+///
+/// **The unclassified half is the point.** `NOT IN` over a NULL is NULL rather than true, so a
+/// clause without its own `IS NULL` leg would take every song nothing has placed along with the
+/// language asked about — which on a corpus mid-classification is most of it, gone for a reason the
+/// bar does not show.
+#[test]
+fn leaving_a_language_out_keeps_the_songs_nothing_has_placed() {
+    let mut db = Db::open_in_memory(Path::new("/corpus")).expect("open");
+    add_with_language(&mut db, "brazilian", Some("PORT"), "windows-1252");
+    add_with_language(&mut db, "japanese", Some("ENGL"), "Shift_JIS");
+    add_with_language(&mut db, "silent", None, "UTF-8");
+
+    let without = |codes: &[&str]| {
+        let rows = db
+            .songs(&Filter {
+                language_not: codes
+                    .iter()
+                    .map(|code| km_kmpkg::Language::parse(code).expect("a code"))
+                    .collect(),
+                ..Filter::default()
+            })
+            .expect("browse");
+        let mut ids: Vec<String> = rows.iter().map(|row| row.id.clone()).collect();
+        ids.sort();
+        ids
+    };
+
+    assert_eq!(
+        without(&["pt"]),
+        vec!["japanese".to_owned(), "silent".to_owned()],
+        "the song nothing has placed is not in the language being left out"
+    );
+    assert_eq!(
+        without(&["pt", "ja"]),
+        vec!["silent".to_owned()],
+        "several at once, which is what a corpus of unread folders needs"
+    );
+    assert_eq!(without(&[]).len(), 3, "nothing left out narrows nothing");
+}
+
+/// Leaving a language out reads the same three witnesses the column shows.
+#[test]
+fn leaving_a_language_out_follows_a_correction_and_a_guess() {
+    let mut db = Db::open_in_memory(Path::new("/corpus")).expect("open");
+    add_with_language(&mut db, "japanese", Some("ENGL"), "Shift_JIS");
+    add_scanned(&mut db, "guessed", |song| {
+        song.lyrics = Some(VIETNAMESE_VERSE.to_owned());
+    });
+
+    let without_japanese = |db: &Db| {
+        let rows = db
+            .songs(&Filter {
+                language_not: vec![km_kmpkg::Language::parse("ja").expect("a code")],
+                ..Filter::default()
+            })
+            .expect("browse");
+        rows.iter().map(|row| row.id.clone()).collect::<Vec<_>>()
+    };
+
+    assert!(
+        !without_japanese(&db).contains(&"japanese".to_owned()),
+        "the file's own evidence is what it is left out by"
+    );
+
+    // A guessed language is left out by the same control, having become the song's language.
+    let rows = db
+        .songs(&Filter {
+            language_not: vec![km_kmpkg::Language::parse("vi").expect("a code")],
+            ..Filter::default()
+        })
+        .expect("browse");
+    assert!(
+        !rows.iter().any(|row| row.id == "guessed"),
+        "a song placed by its words leaves the list with the language it was placed under"
+    );
+
+    // And a correction moves it, the chosen language outranking the detected one.
+    db.edit_song(
+        "japanese",
+        &SongEdit {
+            language: Some(Some("ko".to_owned())),
+            ..SongEdit::default()
+        },
+    )
+    .expect("correct it");
+    assert!(
+        without_japanese(&db).contains(&"japanese".to_owned()),
+        "what somebody typed is what the exclusion reads"
+    );
+}
+
+/// A song's own words place it, and the confidence comes back beside the code.
+#[test]
+fn a_scan_reads_the_words_of_a_song_the_file_says_nothing_about() {
+    let mut db = Db::open_in_memory(Path::new("/corpus")).expect("open");
+    add_scanned(&mut db, "vietnamese", |song| {
+        song.det_language = None;
+        song.lyrics = Some(VIETNAMESE_VERSE.to_owned());
+    });
+    add_scanned(&mut db, "wordless", |song| {
+        song.det_language = None;
+        song.lyrics = None;
+    });
+
+    let placed = db.song("vietnamese").expect("detail");
+    assert_eq!(placed.det_language_guess.as_deref(), Some("vi"));
+    assert!(
+        placed.det_language_guess_confidence.unwrap_or_default() >= km_langguess::MIN_CONFIDENCE,
+        "a stored guess is never below the gate"
+    );
+    assert!(
+        placed.language_is_guessed(),
+        "nothing else spoke for this song, so the words are what the column shows"
+    );
+
+    let unplaced = db.song("wordless").expect("detail");
+    assert_eq!(
+        unplaced.det_language_guess, None,
+        "a song with nothing to read is honestly unclassified rather than guessed at"
+    );
+}
+
+/// The stronger witnesses outrank the guess, in the order the column coalesces them.
+#[test]
+fn the_file_and_the_curator_both_outrank_what_the_words_read_as() {
+    let mut db = Db::open_in_memory(Path::new("/corpus")).expect("open");
+    // Shift-JIS bytes say Japanese; the words are Vietnamese. The encoding is the stronger witness.
+    add_scanned(&mut db, "both", |song| {
+        song.lyrics = Some(VIETNAMESE_VERSE.to_owned());
+        if let Some(midi) = song.midi.as_mut() {
+            midi.det_encoding = "Shift_JIS".to_owned();
+        }
+    });
+    let detail = db.song("both").expect("detail");
+    assert_eq!(detail.det_language_guess.as_deref(), Some("vi"));
+    assert_eq!(detail.det_language_tag.as_deref(), Some("ja"));
+    assert!(
+        !detail.language_is_guessed(),
+        "a file that spoke is what the column shows, whatever the words read as"
+    );
+    assert_eq!(
+        db.songs(&Filter {
+            language: LanguageFilter::parse("ja"),
+            ..Filter::default()
+        })
+        .expect("browse")
+        .len(),
+        1,
+        "and it is found under what the file said"
+    );
+}
+
+/// The backfill reads rows a scan wrote before the guess, and runs once.
+#[test]
+fn the_guess_backfill_fills_rows_indexed_by_an_earlier_version() {
+    let mut db = Db::open_in_memory(Path::new("/corpus")).expect("open");
+    add_scanned(&mut db, "vietnamese", |song| {
+        song.det_language = None;
+        song.lyrics = Some(VIETNAMESE_VERSE.to_owned());
+    });
+    // What a database written before the guess existed holds.
+    db.execute_for_test(
+        "UPDATE songs SET det_language_guess = NULL, det_language_guess_confidence = NULL;
+         DELETE FROM settings WHERE key = 'language_guess_revision';",
+    )
+    .expect("put it back");
+
+    db.backfill_language_guess_for_test().expect("backfill");
+    assert_eq!(
+        db.song("vietnamese")
+            .expect("detail")
+            .det_language_guess
+            .as_deref(),
+        Some("vi")
+    );
+
+    // And a second run is a no-op, the revision having been written.
+    db.execute_for_test("UPDATE songs SET det_language_guess = 'zz'")
+        .expect("scribble");
+    db.backfill_language_guess_for_test().expect("again");
+    assert_eq!(
+        db.song("vietnamese")
+            .expect("detail")
+            .det_language_guess
+            .as_deref(),
+        Some("zz"),
+        "the revision is what stops a corpus being re-read at every open"
+    );
 }

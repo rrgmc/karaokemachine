@@ -127,6 +127,22 @@
       </select>
     </label>
 
+    {# Its own control rather than more options on the select above, because the two compose and a
+       single select cannot hold both: *Portuguese* and *not Vietnamese, not Thai* are one question
+       each, and a corpus is narrowed by both at once. Drawn only when the corpus holds a second
+       language, since leaving out the only one there is would empty the page. #}
+    <input type="hidden" name="language_not" value="{{ query.language_not_value() }}">
+    {% if !query.language_not_choices().is_empty() %}
+    <label>{{ "songs-language-not"|t }}
+      <select name="add_language_not" title="{{ "songs-language-not-title"|t }}">
+        <option value="">&mdash; {{ "songs-add-one"|t }}</option>
+        {% for choice in query.language_not_choices() %}
+        <option value="{{ choice.value }}">{{ choice.label }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    {% endif %}
+
     <input type="hidden" name="tags" value="{{ query.tags_value() }}">
     {% if !query.tag_choices().is_empty() %}
     <label>{{ "songs-tags"|t }}

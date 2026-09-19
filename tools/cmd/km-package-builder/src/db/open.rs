@@ -195,6 +195,10 @@ impl Db {
         db.create_browse_indexes()?;
         phase(OpeningPhase::WorkingOutLanguage);
         db.backfill_language_tags()?;
+        // After the tags and not before: that one is a table lookup over the rows a file spoke for,
+        // and this reads every song's words. Both write a column `eff_language` coalesces, so the
+        // order between them changes nothing except which finishes first.
+        db.backfill_language_guess(phase)?;
         phase(OpeningPhase::TidyingText);
         db.clean_detected_text()?;
         // Before anything counts stale songs, so the Scan page's number is the rows a scan will
@@ -444,9 +448,21 @@ impl Db {
         // browse indexes at once — on a large corpus that is hundreds of megabytes of peak disk. The
         // cost is that an open interrupted between the drop and the build leaves no browse indexes at
         // all, which the banner already covers: reopening carries on.
-        for name in own_indexes(&self.conn, "songs")? {
-            if name.starts_with("songs_browse_") && !indexes.iter().any(|(known, _)| *known == name)
-            {
+        // **A changed key is caught by comparing the statement, not the name.** An index this build
+        // still wants under a name it still uses, built on an expression that has since gained a
+        // term, is the case a name comparison walks straight past — `eff_language` grew a third leg
+        // and `songs_browse_language_artist` is spelled the same either way.
+        for (name, sql) in own_indexes_with_sql(&self.conn, "songs")? {
+            if !name.starts_with("songs_browse_") {
+                continue;
+            }
+            let wanted = indexes
+                .iter()
+                .find(|(known, _)| *known == name)
+                .map(|(known, body)| {
+                    index_shape(&format!("CREATE INDEX IF NOT EXISTS {known} {body}"))
+                });
+            if wanted.as_deref() != Some(index_shape(&sql).as_str()) {
                 self.conn
                     .execute_batch(&format!("DROP INDEX IF EXISTS {name}"))?;
             }
@@ -611,6 +627,118 @@ impl Db {
         Ok(())
     }
 
+    /// Reads what every song's own words are in, for rows a scan wrote before the guess existed.
+    ///
+    /// Reads only `lyrics`, `title`, `det_title` and `stem`, all of which the database already
+    /// holds, so **no file is opened** — the same bargain [`Db::backfill_language_tags`] makes one
+    /// column over, and the reason the guess is a column at all.
+    ///
+    /// **Chunked by the primary key rather than read into one `Vec`**, which is the difference from
+    /// that sibling: it resolves a four-letter header through a lookup table and this reads a lyric
+    /// track, so a whole-corpus `Vec` would hold every word of every song in memory at once. The
+    /// cursor is a plain `id > ?` over the primary key, so each chunk finds the next rows with no
+    /// `OFFSET` walking what came before.
+    ///
+    /// **The cursor is stored, so an interrupted open resumes rather than starting again.** At
+    /// corpus size the detector alone is around 36 seconds — measured at 60µs against a lyric track
+    /// of a kilobyte — and re-reading a corpus because somebody closed the window is the cost that
+    /// buys.
+    ///
+    /// Every song is read, including one that already has a language somebody typed. The column
+    /// says what the *words* are, which is a fact about the song rather than about what is known
+    /// about it, and [`super::sql::eff_language`] reads it last in any case — so a row whose typed
+    /// language is later cleared still has the reading behind it.
+    pub(super) fn backfill_language_guess(&self, phase: Phase<'_>) -> Result<(), DbError> {
+        let want = km_langguess::GUESS_REVISION.to_string();
+        if self.setting(LANGUAGE_GUESS)?.as_deref() == Some(want.as_str()) {
+            return Ok(());
+        }
+        let total: i64 = self
+            .conn
+            .query_row("SELECT COUNT(*) FROM songs", [], |row| row.get(0))?;
+        let total = usize::try_from(total).unwrap_or(0);
+        if total == 0 {
+            self.set_setting(LANGUAGE_GUESS, &want)?;
+            return Ok(());
+        }
+
+        // Resumed from where the last open stopped. An empty string sorts below every id, so a run
+        // that has never started and one that stopped at the first row take the same path.
+        let mut cursor = self.setting(LANGUAGE_GUESS_CURSOR)?.unwrap_or_default();
+        let started = Instant::now();
+        km_console::say(format!(
+            "  reading     the words of {total} songs to see what language they are in — once,\n\
+             \x20             and again only if the detector changes. Interrupting is safe."
+        ));
+        let mut done = 0;
+        loop {
+            phase(OpeningPhase::ReadingWords { done, total });
+            let pending: Vec<(String, Option<String>, Option<String>)> = {
+                let mut statement = self.conn.prepare(
+                    "SELECT id,
+                            lyrics,
+                            coalesce(nullif(title, ''), nullif(det_title, ''), stem)
+                       FROM songs
+                      WHERE id > ?1
+                      ORDER BY id
+                      LIMIT ?2",
+                )?;
+                let rows = statement.query_map(
+                    params![cursor, i64::try_from(GUESS_CHUNK).unwrap_or(i64::MAX)],
+                    |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+                )?;
+                rows.collect::<Result<Vec<_>, _>>()?
+            };
+            let Some(last) = pending.last().map(|(id, _, _)| id.clone()) else {
+                break;
+            };
+            let read: Vec<(String, Option<&'static str>, Option<f64>)> = pending
+                .iter()
+                .map(|(id, lyrics, title)| {
+                    let guessed = km_langguess::guess(lyrics.as_deref(), title.as_deref());
+                    (
+                        id.clone(),
+                        guessed.map(|g| g.language().code()),
+                        guessed.map(km_langguess::Guess::confidence),
+                    )
+                })
+                .collect();
+
+            let transaction = self.conn.unchecked_transaction()?;
+            {
+                let mut update = transaction.prepare(
+                    "UPDATE songs
+                        SET det_language_guess = ?2, det_language_guess_confidence = ?3
+                      WHERE id = ?1",
+                )?;
+                for (id, code, confidence) in &read {
+                    update.execute(params![id, code, confidence])?;
+                }
+            }
+            // The cursor commits with the rows it covers, so a crash between the two cannot leave it
+            // claiming work that was rolled back.
+            transaction.execute(
+                "INSERT INTO settings(key, value) VALUES (?1, ?2)
+                 ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+                params![LANGUAGE_GUESS_CURSOR, last],
+            )?;
+            transaction.commit()?;
+            done += read.len();
+            cursor = last;
+        }
+        tracing::info!(
+            songs = done,
+            seconds = started.elapsed().as_secs(),
+            "read what language each song's words are in"
+        );
+        self.set_setting(LANGUAGE_GUESS, &want)?;
+        self.conn.execute(
+            "DELETE FROM settings WHERE key = ?1",
+            [LANGUAGE_GUESS_CURSOR],
+        )?;
+        Ok(())
+    }
+
     /// Takes the names nobody can read out of `det_title` and `det_artist` on rows already indexed.
     ///
     /// **Two defects of one shape, and a re-scan reaches neither**, because it revisits only files
@@ -720,6 +848,18 @@ impl Db {
         Ok(())
     }
 
+    /// The `CREATE` statement behind one index, so a test can read the key it actually holds.
+    #[cfg(test)]
+    pub fn index_sql_for_test(&self, name: &str) -> Option<String> {
+        self.conn
+            .query_row(
+                "SELECT sql FROM sqlite_master WHERE type = 'index' AND name = ?1",
+                [name],
+                |row| row.get::<_, String>(0),
+            )
+            .ok()
+    }
+
     /// Stamps a database as written by a build that does not exist yet.
     ///
     /// **It cannot be fabricated by editing tables**: what makes a database too new is the number
@@ -738,6 +878,16 @@ impl Db {
         self.conn
             .execute("DELETE FROM settings WHERE key = ?1", [LANGUAGE_TAGS])?;
         self.backfill_language_tags()
+    }
+
+    /// Runs the guess backfill as an open would, honouring the revision it has already written.
+    ///
+    /// Unlike its sibling above, the flag is **not** cleared here: what the tests about this one
+    /// ask is whether the revision stops a second run, so clearing it would answer the question
+    /// before it was put.
+    #[cfg(test)]
+    pub fn backfill_language_guess_for_test(&self) -> Result<(), DbError> {
+        self.backfill_language_guess(&|_| {})
     }
 
     /// Re-runs the detected-name sweep, which `prepare` has already recorded as done.

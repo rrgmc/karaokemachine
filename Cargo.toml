@@ -7,6 +7,7 @@ members = [
     "crates/song/km-suitability",
     "crates/song/km-fixes",
     "crates/song/km-kmpkg",
+    "crates/song/km-langguess",
     "crates/song/km-catalog",
     "crates/song/km-songbook",
     # Turning one into sound and picture.
@@ -110,6 +111,12 @@ km-suitability = { path = "crates/song/km-suitability" }
 # putting it in `km-kmpkg` would make the sequencer's own filter live in the container format.
 km-fixes = { path = "crates/song/km-fixes" }
 km-kmpkg = { path = "crates/song/km-kmpkg" }
+# What language a song's words are in, where the file itself says nothing. A crate rather than a
+# module of `km-kmpkg`, which holds the language table it answers in: the detector compiles a trigram
+# model of every language it knows into the binary, and `km-kmpkg` is linked by the machine, both
+# remotes and every application shell. Only the two packaging tools ever ask the question, and a
+# crate nothing else names is a crate nothing else carries.
+km-langguess = { path = "crates/song/km-langguess" }
 km-catalog = { path = "crates/song/km-catalog" }
 # What the machine is *doing* -- the queue, the mic registry, the transport state and the two
 # playback limits -- as opposed to what makes it happen. A second leaf, taking `km-songcode` and
@@ -535,6 +542,11 @@ sha1 = "0.11.0"
 # Text handling
 encoding_rs = "0.8.35"
 chardetng = "1.0.0"
+# Which language a piece of text is in, where `chardetng` above answers only which character set it
+# is written in. Default features only: `serde`, `enum-map` and `arbitrary` are all optional and none
+# of the three is wanted. Pinned rather than ranged because the model it compiles in decides what the
+# guess says, and `km_langguess::GUESS_REVISION` is what re-runs a corpus when that changes.
+whatlang = "=0.18.0"
 
 # Plumbing
 serde = { version = "1.0.229", features = ["derive"] }

@@ -402,6 +402,20 @@ pub struct FilterQuery {
     /// An ISO 639-1 code, or `unset` / `set`, or empty for any.
     #[serde(default)]
     language: String,
+    /// The languages being left out, comma-joined — `vi,th`.
+    ///
+    /// One scalar and never a repeated key, for the reason [`FilterQuery::tags`] carries below: a
+    /// repeated known key is a 400 and htmx swaps nothing, so a control sending two would stop
+    /// working with nothing said anywhere. A comma cannot occur inside a two-letter code.
+    #[serde(default)]
+    language_not: String,
+    /// A language being *added* to that set, from the bar's picker.
+    ///
+    /// `add_language_not` rather than `language_not` because the current set rides the same form as
+    /// a hidden field, and two of one name in one request is the 400 above. Cleared on every render,
+    /// the set having already absorbed it.
+    #[serde(default)]
+    add_language_not: String,
     /// The tags being narrowed by, comma-joined — `rock,brasil`.
     ///
     /// One scalar and never a repeated key, for the reason the doc comment on
@@ -550,6 +564,30 @@ impl FilterQuery {
         chosen.into_iter().map(km_kmpkg::Tag::into_string).collect()
     }
 
+    /// The languages being left out, with `add_language_not` merged in — sorted, de-duplicated.
+    ///
+    /// The twin of [`Self::chosen_tags`], merging in the same place and for the same reason: the
+    /// rows, the chips and `rebuild` all ask this and all have to get one answer.
+    ///
+    /// A code the table does not have is dropped rather than matched, which is
+    /// [`LanguageFilter::parse`]'s rule one control over — a hand-edited query string must not be
+    /// able to empty the page with nothing saying why.
+    fn excluded_languages(&self) -> Vec<km_kmpkg::Language> {
+        let mut chosen: Vec<km_kmpkg::Language> = self
+            .language_not
+            .split(',')
+            .filter_map(|code| km_kmpkg::Language::parse(code.trim()))
+            .collect();
+        if let Some(added) = km_kmpkg::Language::parse(self.add_language_not.trim())
+            && !chosen.contains(&added)
+        {
+            chosen.push(added);
+        }
+        chosen.sort_by_key(|language| language.code());
+        chosen.dedup_by_key(|language| language.code());
+        chosen
+    }
+
     fn to_filter(&self) -> Filter {
         Filter {
             query: (!self.q.trim().is_empty()).then(|| self.q.clone()),
@@ -583,6 +621,7 @@ impl FilterQuery {
             granularity: (!self.granularity.is_empty()).then(|| self.granularity.clone()),
             kind: SongKind::filter(&self.kind),
             language: LanguageFilter::parse(&self.language),
+            language_not: self.excluded_languages(),
             tags: self.chosen_tags(),
             sort: Sort::parse(&self.sort),
             limit: PAGE_SIZE,
@@ -629,6 +668,9 @@ impl FilterQuery {
             kind: self.kind.clone(),
             // Through the enum and back, for the same reason the two filters above are.
             language: LanguageFilter::parse(&self.language).as_str(),
+            // The merged set, so a language just picked is excluded from the rows and shown on the
+            // bar in the same render.
+            language_not: self.excluded_languages(),
             // Through the enum and back too, which is what makes a retired `?copies=2%2B` link show
             // the select reading *any* rather than leaving it with nothing selected.
             copies: CopiesFilter::parse(&self.copies).as_str().to_owned(),
@@ -729,6 +771,16 @@ impl FilterQuery {
         match LanguageFilter::parse(&self.language) {
             LanguageFilter::Any => {}
             other => chip("language", other.describe(locale)),
+        }
+        // One chip per language left out, for the reason the tags below carry: a chip over a set
+        // can only offer *drop all of them*, and taking one language back is the ordinary act.
+        for language in self.excluded_languages() {
+            chip(
+                &format!("language_not:{}", language.code()),
+                words
+                    .msg_with("chip-language-not", &[("language", language.name().into())])
+                    .into_owned(),
+            );
         }
         // **One chip per tag, not one for all of them**, which is the only filter on this bar that
         // works that way — and it has to, because the tag filter is the only one that holds a set.
@@ -880,6 +932,19 @@ impl FilterQuery {
         push("granularity", &self.granularity);
         push("kind", &self.kind);
         push("language", &self.language);
+        // The merged set, and one chip takes off one language, both for the reasons the tags below
+        // carry at length. `add_language_not` never propagates: it is absorbed by the time this
+        // runs, and a link still holding it would re-exclude the language on every press.
+        let one_language = dropped.strip_prefix("language_not:");
+        let kept_languages: Vec<&str> = self
+            .excluded_languages()
+            .into_iter()
+            .map(km_kmpkg::Language::code)
+            .filter(|code| one_language != Some(code))
+            .collect();
+        if dropped != "language_not" {
+            push("language_not", &kept_languages.join(","));
+        }
         // The *merged* set, so a tag just added from the picker survives the next page turn — and
         // so `add_tag` itself never propagates: it has done its work by the time this runs, and a
         // link still carrying it would re-add the tag on every press.
@@ -1895,7 +1960,7 @@ fn song_said(
 
     if song.language_is_detected() {
         let name = song.detected_language_name().to_owned();
-        said.language_guess = match song.det_language.as_deref() {
+        said.language_detected = match song.det_language.as_deref() {
             Some(declared) if song.declaration_is_default() => words
                 .msg_with(
                     "song-language-declared-default",
@@ -1915,6 +1980,19 @@ fn song_said(
                 )
                 .into_owned(),
         };
+    } else if song.language_is_guessed() {
+        // The confidence is in the sentence because this is the one witness that can be wrong about
+        // a song it read correctly, and a curator scanning a folder for what to correct wants the
+        // close calls to look different from the certainties.
+        said.language_guessed = words
+            .msg_with(
+                "song-language-guessed",
+                &[
+                    ("name", song.guessed_language_name().into()),
+                    ("percent", i64::from(song.guessed_language_percent()).into()),
+                ],
+            )
+            .into_owned();
     } else if let Some(declared) = song.det_language.as_deref() {
         said.language_unknown_code = words
             .msg_with("song-language-unknown-code", &[("code", declared.into())])

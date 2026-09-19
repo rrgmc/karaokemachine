@@ -70,6 +70,7 @@ km-fixes = { workspace = true }
 km-cdg = { workspace = true }
 km-songcode = { workspace = true }
 km-kmpkg = { workspace = true }
+km-langguess = { workspace = true }
 km-pack = { workspace = true }
 # For `discover::browse` and nothing else: the Discover button on the Settings page lists the
 # machines advertising themselves. Taken as a dependency rather than reaching for `mdns-sd` directly
