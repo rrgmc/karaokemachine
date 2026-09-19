@@ -2820,6 +2820,51 @@ mod tests {
         );
     }
 
+    /// A discarded song says so on its row, and a live one carries no such chip.
+    ///
+    /// **The row is the only thing that can say it.** Browsing hides these, so a row reached
+    /// through *only deleted* is otherwise identical to a live one — same star, same *add to a
+    /// package*, same play button — while every list, search and build leaves the song out.
+    #[tokio::test]
+    async fn a_discarded_song_says_so_on_its_row() {
+        let (_corpus, state) = two_folders("deleted-chip");
+
+        let (status, live) = get(&state, "/songs").await;
+        assert_eq!(status, axum::http::StatusCode::OK);
+        assert!(
+            !live.contains(r#"class="tag deleted""#),
+            "nothing on the browse list is discarded: {live}"
+        );
+
+        let ticked = {
+            let db = state.workspace().expect("open");
+            let db = db.db.lock();
+            db.songs(&crate::db::Filter::default()).expect("browse")[0]
+                .id
+                .clone()
+        };
+        let (_, _) = post(
+            &state,
+            "/songs/delete-bulk?offset=0&confirm=1",
+            &format!("delete_action=delete&scope=ticked&song_id={ticked}"),
+        )
+        .await;
+
+        // The list it is reachable through, and the chip that tells it from the rows beside it.
+        let (status, only) = get(&state, "/songs?deleted=only").await;
+        assert_eq!(status, axum::http::StatusCode::OK);
+        assert!(only.contains(r#"class="tag deleted""#), "{only}");
+        assert_eq!(
+            only.matches(r#"class="tag deleted""#).count(),
+            1,
+            "one chip, on the one song that was thrown away"
+        );
+
+        // And browsing still says nothing, because browsing has nothing to say it about.
+        let (_, live) = get(&state, "/songs?deleted=").await;
+        assert!(!live.contains(r#"class="tag deleted""#), "{live}");
+    }
+
     /// The default is the ticked rows, and *only songs with no language yet* narrows the write.
     ///
     /// **Both halves matter.** A control that can only write filter-wide makes setting three songs

@@ -392,6 +392,10 @@ td.tick { white-space: nowrap; }
 /* A video song. Filled rather than outlined like the others: this one says what the row *is*, not
    something about its metadata, so it should read at a glance down a column of MIDI. */
 .tag.video { color: var(--accent-ink); background: var(--accent); border-color: var(--accent); }
+/* A song somebody threw away. Filled for `.tag.video`'s reason — it says what the row *is* — and
+   `--bad` rather than `--warn`, which every other outlined chip on the row already spends on
+   something the analysis found. A discarded song is not a file with a fault in it. */
+.tag.deleted { color: var(--accent-ink); background: var(--bad); border-color: var(--bad); }
 
 /* A song tag, in the browse list and on the song page.
  *

@@ -2321,6 +2321,15 @@ the one place the builder parts company with the scanner's own rule, which keeps
 disk where a package still names the song: that is a drive that went away, and this is somebody
 saying so on purpose.
 
+**A discarded song says so on its row, and it is the first chip there.** Browsing hides these. A row
+carrying the chip was reached through *only deleted*, a saved filter naming it, or a tab left open
+across a delete. The row is otherwise identical to a live one, and every action beside it is live.
+The star files a song no package will take, and the play button opens a file no list offers.
+
+The chip is filled rather than outlined, which this tool spends on a mark saying what a row *is*. An
+outlined one says what the analysis found. Every browse row selects `deleted_at`, for the reason the
+warnings are selected: a row redrawn on its own never sees the query that found it.
+
 **The star stays on and every read leaves it out.** A delete writes one column and clears no filing,
 because a filing is what a restore has to give back. A package therefore reads its members and its
 sourcing lists through the discard. A sync counts a thrown-away song out rather than keeping it, and

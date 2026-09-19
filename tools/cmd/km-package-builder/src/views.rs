@@ -3368,6 +3368,7 @@ mod tests {
     fn row(title: &str, artist: Option<&str>, path: &str) -> SongRow {
         let mut row = SongRow {
             id: "abc123".to_owned(),
+            deleted: false,
             title: title.to_owned(),
             artist: artist.map(ToOwned::to_owned),
             language: Some("pt".to_owned()),

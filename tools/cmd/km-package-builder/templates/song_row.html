@@ -76,6 +76,13 @@
     {# The title asks for a window of its own, like ≈ below and for the same reason. #}
     <td>
       <a href="/songs/{{ song.id }}" target="_blank" title="{{ song.path_tooltip() }}">{{ song.title }}</a>
+      {# First of the chips, because it is the only one that changes what every other thing on the
+         row means. Browsing hides a discarded song, so a row carrying this was reached through
+         *only deleted*, a saved filter naming it, or a tab left open across a delete — and without
+         the chip it is indistinguishable from a live row, with a star and an *add to a package*
+         beside it that a build will not honour. #}
+      {% if song.deleted %}<span class="tag deleted"
+         title="{{ "row-deleted-title"|t }}">{{ "row-deleted"|t }}</span>{% endif %}
       {% if !song.kind.is_midi() %}<span class="tag video"
          title="{{ song.kind.key()|t }}">{{ song.kind.key()|t }}</span>{% endif %}
       {% if song.from_filename %}<span class="tag"
