@@ -6829,6 +6829,46 @@ fn an_unchanged_corpus_is_read_from_the_index_rather_than_recomputed() {
     assert_eq!(db.folders("").expect("folders").len(), 1);
 }
 
+/// A rebuild asked to stop keeps the last tree and leaves it marked stale for the page to rebuild.
+#[test]
+fn a_stopped_folder_rebuild_writes_nothing_and_leaves_the_index_stale() {
+    let mut db = db();
+    add(&mut db, "a", Some("A"), "rock/a.kar");
+    listing(&db, "");
+    add(&mut db, "b", Some("B"), "mpb/b.kar");
+    assert!(!db.folder_index_is_current().expect("marker"));
+
+    assert_eq!(db.rebuild_folders_unless(|| true).expect("rebuild"), None);
+    assert_eq!(
+        db.folders("")
+            .expect("folders")
+            .iter()
+            .map(|node| node.name.as_str())
+            .collect::<Vec<_>>(),
+        vec!["rock"],
+        "the tree built before the stop is the one still there"
+    );
+    assert!(!db.folder_index_is_current().expect("marker"));
+
+    assert_eq!(db.rebuild_folders().expect("rebuild"), 3, "root, mpb/ and rock/");
+    assert!(db.folder_index_is_current().expect("marker"));
+}
+
+/// The folder pass streams in song order, so a stop checked between rows reaches all of it.
+///
+/// A sort would run in full before the first row arrived, and on a whole corpus that sort is where a
+/// stop would go unheard.
+#[test]
+fn the_folder_pass_reads_in_index_order_without_a_sort() {
+    let mut db = db();
+    add(&mut db, "a", Some("A"), "rock/a.kar");
+    db.refresh_statistics();
+    let plan = db
+        .plan_for_test(&songs::folder_pass_sql(), &[])
+        .expect("plan");
+    assert!(!plan.contains("TEMP B-TREE"), "{plan}");
+}
+
 /// A folder's count says how many songs clicking it shows, so a deleted song is in neither.
 ///
 /// **The marker is the half that fails silently.** A delete leaves `files` alone and moves neither
