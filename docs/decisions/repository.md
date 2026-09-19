@@ -899,9 +899,10 @@ with the root recorded locally, which keeps the reproducibility and drops the ma
 
 **Five things are deliberately excluded.**
 
-*Published identity* stays: the license copyright, the `.deb` `maintainer` field, the installer's
-`AppPublisher`, the repository URL, the bundle id `com.rrgmc.karaokemachine`, the **Apple team
-identifier** in `ports/remote/ios/project.yml`, and the two **Developer ID certificate common names** in
+*Published identity* stays: the license copyright, the **author line** in `README.md` and in the two
+site footers, the `.deb` `maintainer` field, the installer's `AppPublisher`, the repository URL,
+the bundle id `com.rrgmc.karaokemachine`, the **Apple team identifier** in
+`ports/remote/ios/project.yml`, and the two **Developer ID certificate common names** in
 `tools/platform/macos/installer.sh` — these are how the product is signed and addressed, not
 where it was built. The team identifier is the one that has to be argued rather than assumed, because it
 is ten characters that look like a secret and are not: it is public in every signed build Apple
@@ -1068,6 +1069,11 @@ by reading it.
 **The links out stay English.** The repository, `BUILDING.md`, the architecture notes, the decisions
 and the release page are English wherever the reader came from, and the Download button goes on
 naming the repository the page deploys from.
+
+**The footer names the author, and the address is text rather than a link.** `README.md` carries the
+same name and the same address, so a reader meets one form in both places. A `mailto:` would ask the
+visitor's mail client to open, which the page asks of nothing else. Each page translates the label
+alone, and carries the name and the address verbatim.
 
 **Not a generated documentation site**: the documents are some twelve thousand lines of markdown that
 GitHub already renders with anchors, a file tree and search, and a generator would buy a second
