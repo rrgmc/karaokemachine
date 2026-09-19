@@ -480,6 +480,7 @@ opening-indexing = { $missing ->
 opening-working-out-language = descobrindo a língua de cada música
 opening-tidying-text = arrumando o texto lido dos arquivos
 opening-folding = preparando { $done } de { $total } títulos para a ordem da lista
+opening-reading-words = lendo a letra de { $done } de { $total } músicas
 opening-gathering-statistics = reunindo estatísticas do acervo inteiro
 opening-folding-journal = juntando o diário de volta ao banco de dados
 opening-finishing = terminando

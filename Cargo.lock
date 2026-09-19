@@ -2573,6 +2573,7 @@ dependencies = [
  "km-ecapplog",
  "km-fixes",
  "km-kmpkg",
+ "km-langguess",
  "km-locale",
  "km-logfile",
  "km-logsettings",

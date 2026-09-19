@@ -47,6 +47,13 @@ pub(super) fn eff_artist(alias: &str) -> String {
 /// small enough that each one's write-ahead log drains instead of accumulating.
 pub(super) const FOLD_CHUNK: usize = 10_000;
 
+/// How many songs one pass of [`Db::backfill_language_guess`] reads.
+///
+/// A tenth of [`FOLD_CHUNK`], because a chunk of that one holds two folded names per row where a
+/// chunk of this holds a whole lyric track — ten thousand of those is a corpus's worth of words in
+/// memory at once, which is the thing that backfill is chunked to avoid.
+pub(super) const GUESS_CHUNK: usize = 1_000;
+
 /// Folds up to `limit` of the rows whose sort keys are missing, and says how many it did.
 ///
 /// **The fold is `km_song::text::fold` and cannot be anything else.** It is the alphabet the A-Z
@@ -89,17 +96,22 @@ pub(super) fn refold_chunk(conn: &Connection, limit: usize) -> Result<usize, DbE
     Ok(rows.len())
 }
 
-/// The SQL for the language to act on: what a person chose, else what the file's evidence implied.
+/// The SQL for the language to act on: what a person chose, else what the file said, else what its
+/// words read as.
 ///
 /// One function rather than the expression at each call site, for the same reason [`eff_title`] is
 /// one: the browse column, the language filter and the language sort all read it, and a song listed
 /// under one language that opened under another would be exactly the confusion this tool removes.
 ///
-/// There is no third leg here, where `eff_title` falls back to the file name. A file name is a name;
-/// nothing about it says a language, and a song nobody has classified is honestly unclassified —
-/// which is what the browse list's `unset` filter is for.
+/// **The three legs are in order of what stands behind them.** A person looked at the song; a file
+/// made a statement about itself; a detector read the words and was sure enough to say so. Each is
+/// worth less than the one before, and the last is written only above
+/// [`km_langguess::MIN_CONFIDENCE`] — so a song still reaching the end of the coalesce with nothing
+/// is one no witness could place, which is what the browse list's `unset` filter is for.
 pub(super) fn eff_language(alias: &str) -> String {
-    format!("coalesce(nullif({alias}language, ''), {alias}det_language_tag)")
+    format!(
+        "coalesce(nullif({alias}language, ''), {alias}det_language_tag, {alias}det_language_guess)"
+    )
 }
 
 /// How many ids go into one `IN (…)`.

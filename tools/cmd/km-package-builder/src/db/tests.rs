@@ -3215,7 +3215,7 @@ fn scanned(
 /// Every column `write_scanned` writes comes back holding what was put in it.
 ///
 /// **The guard for the one statement in this crate that could be wrong without failing.** The
-/// upsert names forty-one columns; it used to bind them by ordinal, and because `first_seen`
+/// upsert names forty-four columns; it used to bind them by ordinal, and because `first_seen`
 /// and `last_scanned` share one value the run read `?22, ?23, ?23, ?24` — so every ordinal
 /// after that sat one place to the left of its column. Adding a column meant renumbering the
 /// run, the column list, the `DO UPDATE SET` and the `params!` array together, and getting it
@@ -3339,10 +3339,14 @@ fn a_database_this_build_made_carries_its_schema_version() {
     );
 }
 
-/// A database at schema 14 opens, gains the box that numbers a package's only volume, and keeps its
-/// packages under their bare names.
+/// A database at schema 14 climbs every step to the current schema and keeps what it held.
+///
+/// **One test over the whole ladder rather than one per rung**, because what it guards is that a
+/// database in the field opens at all: a step that adds a column the schema already creates fails
+/// with `duplicate column name` and takes the whole open with it, and only a database that
+/// genuinely predates the step can catch that.
 #[test]
-fn a_database_at_schema_14_steps_to_15() {
+fn a_database_at_schema_14_steps_to_the_current_schema() {
     let scratch = Scratch::new("schema-14");
     {
         let db = Db::create(&scratch.0).expect("create");
@@ -3351,8 +3355,20 @@ fn a_database_at_schema_14_steps_to_15() {
             "2026-09-18T00:00:00Z",
         )
         .expect("a package");
+        // Everything every step above 14 adds, taken back off in one go — and the browse index
+        // whose key names one of those columns put back the way a schema-14 build wrote it, since
+        // an expression index cannot outlive a column it reads.
         db.execute_for_test(
-            "ALTER TABLE packages DROP COLUMN number_one_volume; PRAGMA user_version = 14;",
+            "DROP INDEX IF EXISTS songs_browse_language_artist;
+             ALTER TABLE packages DROP COLUMN number_one_volume;
+             ALTER TABLE songs DROP COLUMN det_language_guess;
+             ALTER TABLE songs DROP COLUMN det_language_guess_confidence;
+             CREATE INDEX songs_browse_language_artist ON songs(
+                 coalesce(nullif(language, ''), det_language_tag) IS NULL,
+                 coalesce(nullif(language, ''), det_language_tag),
+                 sort_artist IS NULL, sort_artist, sort_title, id)
+               WHERE merged_into IS NULL;
+             PRAGMA user_version = 14;",
         )
         .expect("put it back at schema 14");
     }
@@ -3367,6 +3383,21 @@ fn a_database_at_schema_14_steps_to_15() {
         .expect("the package survives the step");
     assert!(!volume.number_one_volume);
     assert_eq!(volume.volume_name(), "Brasil");
+    // The guessed-language columns are back, and empty, which is what a row nothing has read says.
+    db.execute_for_test(
+        "SELECT det_language_guess, det_language_guess_confidence FROM songs LIMIT 1",
+    )
+    .expect("the step added both columns");
+    // And the browse index built on the old two-leg key was rebuilt on the current one. Left alone
+    // it would keep its name and its old key, so the browse page would match no index and sort the
+    // whole corpus with nothing saying so.
+    let key = db
+        .index_sql_for_test("songs_browse_language_artist")
+        .expect("the index is there");
+    assert!(
+        key.contains("det_language_guess"),
+        "the language index still holds a key that predates the guess: {key}"
+    );
 }
 
 /// A database written by a newer build is refused rather than opened.

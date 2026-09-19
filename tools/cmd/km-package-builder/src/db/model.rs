@@ -146,6 +146,10 @@ pub struct SongDetail {
     pub det_language: Option<String>,
     /// The code that and the lyric encoding between them imply, if either implied anything.
     pub det_language_tag: Option<String>,
+    /// The code the song's own words read as, where they read confidently as anything.
+    pub det_language_guess: Option<String>,
+    /// How sure that reading was, between zero and one, and `None` exactly when there is none.
+    pub det_language_guess_confidence: Option<f64>,
     /// Title a person typed.
     pub title: Option<String>,
     /// Performer a person typed.
@@ -254,6 +258,41 @@ impl SongDetail {
             .as_deref()
             .and_then(Language::parse)
             .map_or("", Language::name)
+    }
+
+    /// Whether the language being shown was read out of the song's words.
+    ///
+    /// Distinct from [`Self::language_is_detected`] because the two are different claims: a file
+    /// said `ENGL`, or a detector read the words and was sure. Only the last leg of the coalesce
+    /// counts here, so a song whose file spoke is *detected* however its words read.
+    pub fn language_is_guessed(&self) -> bool {
+        self.language.as_deref().unwrap_or_default().is_empty()
+            && self.det_language_tag.is_none()
+            && self.det_language_guess.is_some()
+    }
+
+    /// The English name of the language the words read as, for the hint under the picker.
+    pub fn guessed_language_name(&self) -> &'static str {
+        self.det_language_guess
+            .as_deref()
+            .and_then(Language::parse)
+            .map_or("", Language::name)
+    }
+
+    /// How sure the reading was, as whole percent, for the hint beside the name.
+    ///
+    /// Rounded for reading rather than for arithmetic: the number is there to tell a close call
+    /// from a certainty, and two decimal places of a detector's confidence say no more than one.
+    pub fn guessed_language_percent(&self) -> u8 {
+        let confidence = self.det_language_guess_confidence.unwrap_or_default();
+        let percent = (confidence * 100.0).round();
+        if percent <= 0.0 {
+            0
+        } else if percent >= 100.0 {
+            100
+        } else {
+            percent as u8
+        }
     }
 
     /// Whether the file's own header is the Soft Karaoke default rather than a statement.

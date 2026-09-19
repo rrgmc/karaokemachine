@@ -12,7 +12,7 @@ use super::*;
 /// The schema this build writes and understands, stamped into `PRAGMA user_version`.
 ///
 /// Bump this and add an arm to [`step_to`] in the same change. The number keeps counting.
-pub(super) const SCHEMA_VERSION: u32 = 15;
+pub(super) const SCHEMA_VERSION: u32 = 16;
 
 /// The oldest schema this build opens. Everything from here to [`SCHEMA_VERSION`] is an arm of
 /// [`step_to`].
@@ -90,6 +90,16 @@ fn step_to(conn: &Connection, version: u32) -> Result<(), DbError> {
             )?;
             Ok(())
         }
+        // What the song's own words read as, and how sure the reading was. Both start NULL on every
+        // row: `Db::backfill_language_guess` fills them from text the database already holds, so
+        // nothing here has to open a file.
+        16 => {
+            conn.execute_batch(
+                "ALTER TABLE songs ADD COLUMN det_language_guess TEXT;
+                 ALTER TABLE songs ADD COLUMN det_language_guess_confidence REAL",
+            )?;
+            Ok(())
+        }
         _ => Err(DbError::Rejected(format!(
             "no migration leads to schema {version}; this build writes {SCHEMA_VERSION}"
         ))),
@@ -153,6 +163,22 @@ pub(super) const CLEANED_META_REVISION: u32 = 2;
 /// all, where `stem` uses a partial index.
 pub(super) const LANGUAGE_TAGS: &str = "language_tags_revision";
 
+/// The settings key holding the guess revision the read-from-the-words codes were computed from.
+///
+/// [`LANGUAGE_TAGS`]'s twin one column over, and a revision for the same reason: the detector's
+/// model, the code table and the confidence gate all decide what a guess says, and
+/// `km_langguess::GUESS_REVISION` moves whenever one of them does, which re-runs
+/// [`Db::backfill_language_guess`] over every song exactly once.
+pub(super) const LANGUAGE_GUESS: &str = "language_guess_revision";
+
+/// The settings key holding how far [`Db::backfill_language_guess`] has read.
+///
+/// **A cursor rather than a pending set**, because NULL is one of the answers: a song whose words
+/// nothing could place stores no code, so "the rows with no guess" would name the refused ones for
+/// ever and re-read them at every open. The id last written says the same thing in one row, and it
+/// is deleted when [`LANGUAGE_GUESS`] is written.
+pub(super) const LANGUAGE_GUESS_CURSOR: &str = "language_guess_cursor";
+
 /// The settings key holding the fold revision the browse keys were computed from.
 ///
 /// The twin of [`LANGUAGE_TAGS`], one column over: `km_song::text::FOLD_REVISION` says which
@@ -173,14 +199,41 @@ pub(super) const FOLD_REVISION: &str = "fold_revision";
 /// `sql IS NOT NULL` is what excludes `sqlite_autoindex_songs_1`, the index behind `id TEXT PRIMARY
 /// KEY`: it cannot be dropped and asking to is an error rather than a no-op.
 pub(super) fn own_indexes(conn: &Connection, table: &str) -> Result<Vec<String>, DbError> {
+    Ok(own_indexes_with_sql(conn, table)?
+        .into_iter()
+        .map(|(name, _)| name)
+        .collect())
+}
+
+/// The same indexes, each with the `CREATE` statement that made it.
+///
+/// **What a name alone cannot answer is whether the key is still the one this build wants.** An
+/// index whose *body* changed keeps its name, so `CREATE INDEX IF NOT EXISTS` is a no-op and the old
+/// key survives — the browse page then matches no index and sorts a whole corpus, with nothing
+/// anywhere saying so. Comparing the stored statement is what catches that.
+pub(super) fn own_indexes_with_sql(
+    conn: &Connection,
+    table: &str,
+) -> Result<Vec<(String, String)>, DbError> {
     let mut statement = conn.prepare(
-        "SELECT name FROM sqlite_master
+        "SELECT name, sql FROM sqlite_master
          WHERE type = 'index' AND tbl_name = ?1 AND sql IS NOT NULL",
     )?;
-    let names = statement
-        .query_map([table], |row| row.get::<_, String>(0))?
+    let rows = statement
+        .query_map([table], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+        })?
         .collect::<Result<Vec<_>, _>>()?;
-    Ok(names)
+    Ok(rows)
+}
+
+/// An index statement with the spacing taken out, so two spellings of one key compare equal.
+///
+/// SQLite stores the `CREATE` verbatim, newlines and runs of spaces included, and this build writes
+/// its bodies through `format!` across several lines. Comparing the text as stored would call every
+/// index stale on every open and rebuild eight corpus-sized B-trees each time.
+pub(super) fn index_shape(sql: &str) -> String {
+    sql.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
 /// Settings that only start to matter at corpus scale.

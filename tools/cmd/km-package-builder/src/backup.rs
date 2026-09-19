@@ -95,6 +95,8 @@ const DERIVED_COLUMNS: &[&str] = &[
     "det_artist",
     "det_language",
     "det_language_tag",
+    "det_language_guess",
+    "det_language_guess_confidence",
     "stem",
     "flavor",
     "granularity",

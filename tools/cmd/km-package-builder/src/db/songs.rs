@@ -291,7 +291,8 @@ impl Db {
                     det_language_tag,
                     cdg_graphics_path, cdg_sample_rate, cdg_channels, cdg_packets,
                     cdg_graphics_ms, cdg_short_by_ms, cdg_tiles, cdg_unknown,
-                    duplicate_of, fixes, melody_chosen, first_seen
+                    duplicate_of, fixes, melody_chosen, first_seen,
+                    det_language_guess, det_language_guess_confidence
              FROM songs WHERE id = ?1",
         )?;
         let detail = statement
@@ -383,6 +384,9 @@ impl Db {
                     // Appended for the same positional reason, one past `fixes` at 47.
                     melody_chosen: row.get(48)?,
                     first_seen: row.get(49)?,
+                    // Appended for the same positional reason, one and two past `first_seen` at 49.
+                    det_language_guess: row.get(50)?,
+                    det_language_guess_confidence: row.get(51)?,
                     files: Vec::new(),
                     favorites: Vec::new(),
                     packages: Vec::new(),

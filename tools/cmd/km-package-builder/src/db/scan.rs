@@ -4,7 +4,7 @@
 //! reason [`Known`] exists is so a re-scan touches only what changed — the size and time of every
 //! path, and the revision of the analysis that decided its song, read once at the start.
 //!
-//! **[`Db::write_scanned`] binds by name, not by ordinal.** Its upsert is 42 columns, and when they
+//! **[`Db::write_scanned`] binds by name, not by ordinal.** Its upsert is 44 columns, and when they
 //! were numbered `?1`..`?40` two of them shared a value, so every ordinal after it was offset by one
 //! from its column position. An off-by-one there wrote a detected encoding into a melody confidence —
 //! both nullable, no error — across a whole corpus. `tests.rs` holds the mapping as a test as well.
@@ -77,7 +77,7 @@ impl Db {
                      suitability_arrangement, warnings, analysis_revision,
                      fingerprint, first_seen, last_scanned, stem, lyrics,
                      kind, width, height, frame_rate_milli, video_codec, audio_codec,
-                     det_language_tag,
+                     det_language_tag, det_language_guess, det_language_guess_confidence,
                      cdg_graphics_path, cdg_sample_rate, cdg_channels, cdg_packets,
                      cdg_graphics_ms, cdg_short_by_ms, cdg_tiles, cdg_unknown)
                  -- **Named, and that is not a style choice.** Forty-one columns were bound by
@@ -97,7 +97,7 @@ impl Db {
                          :suitability_channels, :suitability_arrangement, :warnings, :analysis_revision,
                          :fingerprint, :now, :now, :stem, :lyrics,
                          :kind, :width, :height, :frame_rate_milli, :video_codec, :audio_codec,
-                         :det_language_tag,
+                         :det_language_tag, :det_language_guess, :det_language_guess_confidence,
                          :cdg_graphics_path, :cdg_sample_rate, :cdg_channels, :cdg_packets,
                          :cdg_graphics_ms, :cdg_short_by_ms, :cdg_tiles, :cdg_unknown)
                  ON CONFLICT(id) DO UPDATE SET
@@ -105,6 +105,8 @@ impl Db {
                      det_artist = excluded.det_artist,
                      det_language = excluded.det_language,
                      det_language_tag = excluded.det_language_tag,
+                     det_language_guess = excluded.det_language_guess,
+                     det_language_guess_confidence = excluded.det_language_guess_confidence,
                      flavor = excluded.flavor,
                      granularity = excluded.granularity,
                      duration_ms = excluded.duration_ms,
@@ -171,6 +173,12 @@ impl Db {
                     let video = song.video.as_ref();
                     let cdg = song.cdg.as_ref();
                     let ultrastar = song.ultrastar.as_ref();
+                    // Read once and bound twice, so the code and the confidence beside it cannot
+                    // come from two different readings of the same song.
+                    let guessed = km_langguess::guess(
+                        song.lyrics.as_deref(),
+                        song.det_title.as_deref().or(Some(song.stem.as_str())),
+                    );
                     upsert_song.execute(named_params! {
                         ":id": song.id,
                         ":det_title": song.det_title,
@@ -232,6 +240,12 @@ impl Db {
                             midi.map(|m| m.det_encoding.as_str()),
                         )
                         .map(Language::code),
+                        // The weakest witness, and the only one that reads the song rather than
+                        // what the song says about itself. A video and an MP3+G reach this with no
+                        // lyrics and only a file name to go on, which is usually too little to
+                        // place and is then left NULL.
+                        ":det_language_guess": guessed.map(|g| g.language().code()),
+                        ":det_language_guess_confidence": guessed.map(km_langguess::Guess::confidence),
                         ":cdg_graphics_path": cdg.map(|c| c.graphics_path.clone()),
                         ":cdg_sample_rate": cdg.map(|c| c.sample_rate),
                         ":cdg_channels": cdg.map(|c| c.channels),

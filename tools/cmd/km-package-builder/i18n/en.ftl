@@ -503,6 +503,7 @@ opening-indexing = { $missing ->
 opening-working-out-language = working out what language each song is in
 opening-tidying-text = tidying the text read out of the files
 opening-folding = folding { $done } of { $total } titles for the browse order
+opening-reading-words = reading the words of { $done } of { $total } songs
 opening-gathering-statistics = gathering statistics over the whole corpus
 opening-folding-journal = folding the journal back into the database
 opening-finishing = finishing
