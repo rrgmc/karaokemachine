@@ -2039,11 +2039,30 @@ wants answered on a fresh corpus, *what is broken here?*, is the one shape the c
 nowhere. **Copies** is `1`, `2-10` and `more than 10`, which partition the column; `2 or more` is not
 a fourth bucket but the union of the two after it.
 
-What that costs is precision — there is no way to ask for exactly `≥ 9`, or for *two or more* in one
-click — and in both cases the capability is relocated rather than lost: **sorting by suitability
-answers the threshold question better than a threshold does**, because it shows where the cliff
-actually falls instead of making somebody guess a number, and the *Duplicates* page is where "more
-than one copy" was always the real question, and links to exactly that.
+What that costs the dropdown is precision. No option says exactly `≥ 9`, and none says *two or more*
+in one click. In both cases the capability sits somewhere else. **Sorting by suitability answers a
+threshold better than a threshold does**, because it shows where the cliff falls instead of asking
+somebody to guess. The *Duplicates* page is where "more than one copy" is the real question, and it
+links to exactly that.
+
+**The `suitability` parameter takes any range, and the dropdown still offers the bands.**
+`suitability=2-5`, `suitability=9`, `suitability=7-` and `suitability=-4` are the four spellings, and
+each narrows to what it says. A range is a question somebody asks a few times in a corpus, and never
+from a control. A fifth standing option would overlap the three bands, and would take from all of
+them the shape a reader can hold. An address is where a question that precise belongs.
+
+**A range in force is the last option in the select, and it is there only while it holds.** The four
+standing options are the same four whatever the address says. What a range owes the page is a control
+that agrees with the rows. A select reading *any* over a narrowed list is the fault the chip strip
+prevents one element up the bar. Picking a band submits the bar, and the extra option goes with it.
+
+**Both ends lie in 0–10, the low end is no higher than the high one, and anything else reads as
+*any*.** An open end takes the end of the column, so `7-` is 7 to 10. A range whose ends are a band's
+ends is that band. So `-4` and `0-4` ask one question, draw one chip, and are written back one way.
+
+**`0-10` is not *any*.** A song with no stored suitability falls outside it, because `NULL` answers no
+comparison, and that is the rule every band already follows. *Any* adds no clause and holds the whole
+corpus. `set` and `unset` on the personal score are what ask about a number that is missing.
 
 **`CopiesFilter::AtLeastTwo` is the one bucket the bar cannot show, and it is still spelled.** The
 dropdown does not offer it, being the union of the two below it rather than a fourth of them; the

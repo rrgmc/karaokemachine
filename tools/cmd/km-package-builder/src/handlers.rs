@@ -361,11 +361,13 @@ fn browser_target(asked: Option<&str>, base: &str) -> String {
 pub struct FilterQuery {
     #[serde(default)]
     q: String,
-    /// Which band of the automatic suitability: `8-10` · `5-7` · `0-4`, or empty for any.
+    /// Which suitabilities the automatic score may hold: `8-10` · `5-7` · `0-4`, a range such as
+    /// `2-5`, or empty for any.
     ///
-    /// **One spelling, and it is a band.** No `min_score` field sits here folding a `≥ N` ladder onto
-    /// the band holding N: nothing has shipped that could hold such a bookmark. `duplicates` below
-    /// keeps a wider shape for its own reason, which is a control the *Duplicates* page reaches.
+    /// **One spelling, and it is what [`SuitabilityFilter::parse`] reads.** No `min_score` field sits
+    /// here folding a `≥ N` ladder onto the band holding N: nothing has shipped that could hold such
+    /// a bookmark, and a range asks that question outright. `duplicates` below keeps a wider shape
+    /// for its own reason, which is a control the *Duplicates* page reaches.
     #[serde(default)]
     suitability: String,
     #[serde(default)]
@@ -537,9 +539,9 @@ impl FilterQuery {
             .map_err(|error| format!("could not read the filter from the form: {error}"))
     }
 
-    /// Which band of the automatic suitability a song has to be in.
+    /// Which suitabilities a song's automatic score may hold: a band, or a range the address names.
     ///
-    /// **A band, and nothing folding onto it.** A `min_score` fold would exist to keep a bookmark
+    /// **One field, and nothing folding onto it.** A `min_score` fold would exist to keep a bookmark
     /// written against a `≥ N` ladder narrowing the list; nothing has shipped, so there is no such
     /// bookmark, and the field would keep a second spelling of one filter alive for nobody. See `No compatibility aliases` in docs/decisions/songs.md.
     fn suitability(&self) -> SuitabilityFilter {
@@ -673,9 +675,10 @@ impl FilterQuery {
             suggested_tags: Vec::new(),
             q: self.q.clone(),
             artist: self.artist.clone(),
-            // Through the enum and back, so a nonsense band in a hand-typed URL shows as *any*
-            // rather than leaving a select with no option selected.
-            suitability: self.suitability().as_str().to_owned(),
+            // Through the enum and back, so a nonsense value in a hand-typed URL shows as *any*
+            // rather than leaving a select with no option selected, and an open range such as `7-`
+            // comes back as the two ends it means.
+            suitability: self.suitability().as_str(),
             // Through the enum and back, so a nonsense value in a hand-typed URL shows as *any*
             // rather than leaving a select with no option selected.
             user_score: ScoreFilter::parse(&self.user_score).as_str(),
@@ -958,7 +961,7 @@ impl FilterQuery {
         // The *normalized* band, not the raw field, so a nonsense value does not survive a page
         // turn. It is also what makes `without("suitability")` a complete removal — there is no
         // second key left holding the same filter. The same rule `copies` follows below.
-        push("suitability", self.suitability().as_str());
+        push("suitability", &self.suitability().as_str());
         push("user_score", &self.user_score);
         // Normalized, like `copies` below: a link written when the bar had ten digit buttons says
         // `initial=7`, and every link written from here on says `initial=0-9`. One filter, one
@@ -1427,7 +1430,7 @@ pub struct SimilarQuery {
     artist: String,
     #[serde(default)]
     from: String,
-    /// Which band of the automatic suitability: `8-10` · `5-7` · `0-4`.
+    /// Which suitabilities the automatic score may hold: `8-10` · `5-7` · `0-4`, or a range.
     suitability: Option<String>,
     /// `midi`, `video` or `cdg`.
     kind: Option<String>,
@@ -8544,6 +8547,53 @@ mod tests {
                 .active(&[], km_locale::Locale::English)
                 .is_empty()
         );
+    }
+
+    /// A range the address names narrows the list, says so, and survives a page turn.
+    ///
+    /// The dropdown does not offer one, which is exactly why it is pinned here: a filter reachable
+    /// only by typing is the one that can go on narrowing the list with the strip above it silent,
+    /// and an open end that fell back to *any* between two pages would widen the list under
+    /// somebody's hands.
+    #[test]
+    fn a_range_the_address_names_narrows_the_list_and_says_so() {
+        let query = FilterQuery {
+            suitability: "2-5".to_owned(),
+            ..FilterQuery::default()
+        };
+        assert_eq!(
+            query.suitability(),
+            SuitabilityFilter::Range { low: 2, high: 5 }
+        );
+        let chips = query.active(&[], km_locale::Locale::English);
+        assert_eq!(chips.len(), 1, "{chips:?}");
+        assert_eq!(chips[0].label, "suitability 2-5");
+        assert!(!chips[0].remove.contains("suitability"), "{:?}", chips[0]);
+        assert!(query.rebuild(0, "", None).contains("suitability=2-5"));
+        assert_eq!(query.to_form(&[], &[]).suitability, "2-5");
+
+        // An open end normalizes on its first page turn: one filter, one spelling.
+        let open = FilterQuery {
+            suitability: "7-".to_owned(),
+            ..FilterQuery::default()
+        };
+        assert!(open.rebuild(0, "", None).contains("suitability=7-10"));
+        assert_eq!(open.to_form(&[], &[]).suitability, "7-10");
+
+        // And a range nothing can mean leaves no key behind, so the next page is the whole corpus
+        // rather than the same empty one.
+        let refused = FilterQuery {
+            suitability: "7-3".to_owned(),
+            ..FilterQuery::default()
+        };
+        assert_eq!(refused.suitability(), SuitabilityFilter::Any);
+        assert!(
+            refused
+                .active(&[], km_locale::Locale::English)
+                .iter()
+                .all(|chip| !chip.label.contains("suitability"))
+        );
+        assert!(!refused.rebuild(0, "", None).contains("suitability"));
     }
 
     /// Every filter has to show as a chip, or it narrows the list with nothing admitting it.

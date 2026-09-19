@@ -1182,6 +1182,7 @@ initial-symbol = símbolo
 chip-suitability-high = adequação 8–10
 chip-suitability-middle = adequação 5–7
 chip-suitability-low = adequação abaixo de 5
+chip-suitability-range = adequação { $range }
 chip-score-set = { $name } preenchida
 chip-score-unset = { $name } em branco
 chip-score-at-least = { $name } ≥ { $score }

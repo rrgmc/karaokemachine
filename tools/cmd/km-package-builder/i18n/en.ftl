@@ -1187,6 +1187,7 @@ initial-symbol = symbol
 chip-suitability-high = suitability 8–10
 chip-suitability-middle = suitability 5–7
 chip-suitability-low = suitability under 5
+chip-suitability-range = suitability { $range }
 chip-score-set = { $name } set
 chip-score-unset = { $name } unset
 chip-score-at-least = { $name } ≥ { $score }

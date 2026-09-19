@@ -43,6 +43,11 @@ Entries are written for somebody who has the machine. Why any of it is the way i
   and every row carries its warnings as chips beside its title. A file with no lyrics, with words
   timed a line at a time, or with words that stop halfway is then visible down a page. The song page
   is not the only place to find it.
+- **The suitability filter takes any range you type into the address.** `suitability=2-5` narrows to
+  the files scoring 2 to 5, `suitability=9` to the 9s alone, and `suitability=7-` to 7 and up. The
+  dropdown still offers *any*, `8-10`, `5-7` and `<5`, which are the three questions worth a control.
+  A range you have asked for appears beside them, selected, for as long as it holds. A range nothing
+  can mean, such as `7-3`, shows the whole corpus rather than an empty page.
 
 ### Changed
 
