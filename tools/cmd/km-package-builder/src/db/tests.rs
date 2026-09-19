@@ -108,6 +108,63 @@ fn quoted_text_asks_for_the_words_in_that_order() {
     assert_eq!(fts_match_query(r#""""#), "\"\"");
 }
 
+/// A discarded song is in no list a curator can act from, words search included.
+///
+/// **The Lyrics page is the one that mattered.** A hit carries the browse row's own buttons — the
+/// star and *add to a package* among them — so a deleted song reaching this list is a deleted song
+/// one press away from a build. The count above the list asks the same predicate, or the number
+/// and the rows disagree.
+///
+/// The ticked writers are here for the same reason at one remove: the ids come off a page, and a
+/// page can hold a discarded song through *only deleted*, a saved filter or a tab left open.
+#[test]
+fn a_song_thrown_away_is_in_no_list_and_takes_no_bulk_write() {
+    let mut db = db();
+    for id in ["kept", "gone"] {
+        add_scanned(&mut db, id, |song| {
+            song.lyrics = Some("quiet nights of quiet stars".to_owned());
+        });
+    }
+    let search = LyricSearch {
+        query: "quiet".to_owned(),
+        limit: 50,
+        offset: 0,
+    };
+    assert_eq!(db.lyric_search(&search).expect("search").len(), 2);
+    assert_eq!(db.lyric_search_count(&search).expect("count"), 2);
+
+    db.set_deleted_of(&["gone".to_owned()], true)
+        .expect("delete");
+
+    let hits = db.lyric_search(&search).expect("search");
+    assert_eq!(
+        ids(&hits.iter().map(|hit| hit.song.clone()).collect::<Vec<_>>()),
+        vec!["kept"]
+    );
+    assert_eq!(
+        db.lyric_search_count(&search).expect("count"),
+        1,
+        "the number over the list is the list's own predicate"
+    );
+
+    // Every ticked write counts what it changed, so a row nobody can see would be a number saying
+    // work was done where none was.
+    let both = ["kept".to_owned(), "gone".to_owned()];
+    assert_eq!(
+        db.set_language_of(&both, Some(Language::parse("en").expect("code")), false)
+            .expect("language"),
+        1
+    );
+    assert_eq!(
+        db.add_tag_of(&both, &Tag::parse("bossa").expect("tag"))
+            .expect("tag"),
+        1
+    );
+    assert_eq!(db.set_names_from_stem(&both).expect("titles"), 1);
+    assert_eq!(db.fix_name_case(&both).expect("capitals"), 1);
+    assert_eq!(db.paths_of(&both).expect("paths").len(), 1);
+}
+
 /// And FTS5 reads what that function writes the way it is meant.
 ///
 /// The assertions above are about a string, and a string that looks like a phrase query is not a
@@ -1153,6 +1210,58 @@ fn a_sourced_package_holds_the_union_of_its_lists() {
     assert_eq!(held, ["aaa", "bbb", "ccc"], "each song once, by title");
 }
 
+/// A song somebody threw away does not reach a machine, by either route into a package.
+///
+/// **The two routes are the hand-added member and the starred source, and they fail apart.** A
+/// member sits in `package_songs` and is read by `package_members`, which is what `build::spec_for`
+/// writes the `.kmpkg` from. A star sits in `song_favorites`, which nothing clears on a delete, so
+/// `WANTED_SQL` would count a discarded song as kept and a sync would put it back after somebody
+/// took it out by hand. `Throwing a song away` in `docs/decisions/curation.md` promises neither
+/// happens.
+#[test]
+fn a_song_thrown_away_leaves_the_package_it_was_in() {
+    let mut db = db();
+    let list = db.create_favorite("Bossa nova").expect("a list");
+    for id in ["aaa", "bbb"] {
+        filed(&mut db, id, list);
+    }
+    sourced_package(&mut db, "vol1", 1);
+    source_from(&db, "vol1", &[list]).expect("source it");
+    db.sync_package("vol1", "2026-09-15T00:00:00Z")
+        .expect("sync");
+    assert_eq!(numbering(&db, "vol1").len(), 2);
+
+    assert_eq!(
+        db.set_deleted_of(&["aaa".to_owned()], true)
+            .expect("delete"),
+        1
+    );
+
+    // The build reads this, so a member still listed here is a member that ships.
+    let held: Vec<String> = numbering(&db, "vol1")
+        .into_iter()
+        .map(|(_, id)| id)
+        .collect();
+    assert_eq!(held, ["bbb"], "the discarded song is not in the volume");
+
+    // And the star it kept does not count as a song the package still wants.
+    let plan = db.package_sync_plan("vol1").expect("plan");
+    assert_eq!(
+        (plan.kept, plan.would_add, plan.would_remove),
+        (1, 0, 1),
+        "the row it left behind is counted out rather than kept"
+    );
+
+    // Bringing it back puts it in both again, which is what makes a delete undoable.
+    assert_eq!(
+        db.set_deleted_of(&["aaa".to_owned()], false)
+            .expect("undelete"),
+        1
+    );
+    let plan = db.package_sync_plan("vol1").expect("plan");
+    assert_eq!((plan.kept, plan.would_add, plan.would_remove), (2, 0, 0));
+}
+
 /// A song no source names any more leaves, and the songs that stay keep their numbers.
 ///
 /// **The load-bearing one.** Keeping a number across a sync is the promise the whole arrangement
@@ -1604,6 +1713,12 @@ fn a_replacement_is_refused_by_reason() {
         ReplaceRefusal::AlreadyIn("vol1".to_owned(), 2)
     );
     assert_eq!(refused(&mut db, 1, "ddd"), ReplaceRefusal::Merged);
+    // Beside the merge, and for a harder reason: a merged song has a survivor standing in its
+    // place, where a discarded one has nobody. `replace_in_package` stars the substitute into the
+    // sourcing favorites, so this is the route by which a thrown-away song would reach a build.
+    db.set_deleted_of(&["ccc".to_owned()], true)
+        .expect("delete");
+    assert_eq!(refused(&mut db, 1, "ccc"), ReplaceRefusal::Deleted);
     assert_eq!(
         numbering(&db, "vol1"),
         [(1, "aaa".to_owned()), (2, "bbb".to_owned())]
@@ -4709,6 +4824,63 @@ fn a_dismissal_takes_only_the_pair_it_names() {
     assert_eq!(together, 1, "only the named pair is separated");
 }
 
+/// A song somebody threw away is in no cluster, as head or as member.
+///
+/// **Both halves matter, because they fail at different moments.** A deleted song the pass can
+/// still see wins the head on suitability and hides every live copy behind a row no list draws. A
+/// song deleted *after* the pass leaves a cluster whose head has gone, which takes the rest of the
+/// cluster off the page with it.
+#[test]
+fn a_deleted_song_neither_heads_a_cluster_nor_hides_one() {
+    let mut db = db();
+    // The best file of the three, so it wins the head wherever it is still in the running.
+    for (id, suitability) in [("aaa", 9u8), ("bbb", 4), ("ccc", 4)] {
+        add_built(
+            &mut db,
+            id,
+            Some("One Song"),
+            &format!("f/{id}.kar"),
+            |song| {
+                song.suitability.value = suitability;
+            },
+        );
+    }
+    suggest_pair(&mut db, "aaa", "bbb");
+    suggest_pair(&mut db, "bbb", "ccc");
+
+    // Deleted before the pass: it is not in the fingerprints and not in the pairs, so the head is
+    // the best of what is left.
+    assert_eq!(
+        db.set_deleted_of(&["aaa".to_owned()], true)
+            .expect("delete"),
+        1
+    );
+    assert!(
+        db.fingerprints()
+            .expect("fingerprints")
+            .iter()
+            .all(|print| print.id != "aaa"),
+        "a song thrown away is not offered to the duplicate pass"
+    );
+    db.cluster().expect("cluster");
+    let rows = db.songs(&Filter::default()).expect("songs");
+    assert_eq!(ids(&rows), vec!["bbb"], "the best of the two that are left");
+
+    // Deleted after the pass: the head goes, and the song it was hiding comes back rather than
+    // going with it.
+    assert_eq!(
+        db.set_deleted_of(&["bbb".to_owned()], true)
+            .expect("delete"),
+        1
+    );
+    let rows = db.songs(&Filter::default()).expect("songs");
+    assert_eq!(
+        ids(&rows),
+        vec!["ccc"],
+        "the last live copy is on the page rather than behind a head that has gone"
+    );
+}
+
 #[test]
 fn songs_with_the_same_words_group_although_no_name_matches() {
     let mut db = db();
@@ -4792,6 +4964,57 @@ fn tidying_a_favorite_keeps_the_best_copy_that_list_actually_holds() {
     let kept = db.favorites_for("ccc").expect("for ccc");
     assert_eq!(kept.len(), 1, "the 6 stayed and the 3 went");
     assert!(db.favorites_for("aaa").expect("for aaa").is_empty());
+}
+
+/// Tidying keeps a copy the list can show, never the discarded one.
+///
+/// A star stays on a song somebody throws away. Without the term the discarded file can win on
+/// suitability and take every live copy of that recording out of the list, which leaves the
+/// recording represented by an entry no page draws.
+///
+/// **The state is set by hand because the writers already keep it from arising.** A clustering pass
+/// never gives the head to a deleted song, and `release_behind_hidden` dissolves a group whose head
+/// is deleted afterwards. What is left is a member whose suitability was raised after the pass that
+/// grouped it, so this asserts the term rather than a route to it.
+#[test]
+fn tidying_a_favorite_never_keeps_the_copy_that_was_thrown_away() {
+    let mut db = db();
+    for (id, suitability) in [("head", 6u8), ("raised", 9), ("poor", 3)] {
+        add_built(
+            &mut db,
+            id,
+            Some("One Song"),
+            &format!("f/{id}.kar"),
+            |song| {
+                song.suitability.value = suitability;
+            },
+        );
+    }
+    // One group of three headed by the live `head`, with the best file set aside under it.
+    db.execute_for_test("UPDATE songs SET duplicate_of = 'head' WHERE id IN ('raised', 'poor')")
+        .expect("group them");
+    db.execute_for_test("UPDATE songs SET deleted_at = '2026-09-19T00:00:00Z' WHERE id = 'raised'")
+        .expect("throw the best one away");
+
+    let list = db.create_favorite("Party").expect("create");
+    for id in ["head", "raised", "poor"] {
+        db.set_favorite(id, list, true).expect("star");
+    }
+
+    assert_eq!(db.tidy_favorite(list).expect("tidy"), 2);
+    assert_eq!(
+        db.favorites_for("head").expect("for head").len(),
+        1,
+        "the survivor is the best copy the list can show"
+    );
+    assert!(
+        db.favorites_for("raised").expect("for raised").is_empty(),
+        "the discarded copy is a second copy like any other and goes with them"
+    );
+    assert!(
+        db.favorites_for("poor").expect("for poor").is_empty(),
+        "and so does the poorer live one"
+    );
 }
 
 #[test]
@@ -6604,6 +6827,54 @@ fn an_unchanged_corpus_is_read_from_the_index_rather_than_recomputed() {
     // And an explicit rebuild puts it back.
     assert_eq!(db.rebuild_folders().expect("rebuild"), 2, "root and rock/");
     assert_eq!(db.folders("").expect("folders").len(), 1);
+}
+
+/// A folder's count says how many songs clicking it shows, so a deleted song is in neither.
+///
+/// **The marker is the half that fails silently.** A delete leaves `files` alone and moves neither
+/// the top rowid nor the last scan, so the index would go on answering the number it had — with the
+/// folder's own list already one song shorter.
+#[test]
+fn a_deleted_song_leaves_the_folder_counts_as_well_as_the_list() {
+    let mut db = db();
+    add(&mut db, "a", Some("A"), "rock/a.kar");
+    add(&mut db, "b", Some("B"), "rock/b.kar");
+
+    let counts = |db: &Db| {
+        listing(db, "")
+            .iter()
+            .map(|node| (node.name.clone(), node.song_count))
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(counts(&db), vec![("rock".to_owned(), 2)]);
+
+    assert_eq!(
+        db.set_deleted_of(&["a".to_owned()], true).expect("delete"),
+        1
+    );
+    assert!(
+        !db.folder_index_is_current().expect("marker"),
+        "a delete changes what the pass would count, so the index has to be rebuilt"
+    );
+    assert_eq!(counts(&db), vec![("rock".to_owned(), 1)]);
+    assert_eq!(
+        db.songs(&Filter {
+            folder: Some("rock/".to_owned()),
+            ..Filter::default()
+        })
+        .expect("browse")
+        .len(),
+        1,
+        "the count and the list it promises are one number"
+    );
+
+    // And bringing it back puts the song into both again.
+    assert_eq!(
+        db.set_deleted_of(&["a".to_owned()], false)
+            .expect("undelete"),
+        1
+    );
+    assert_eq!(counts(&db), vec![("rock".to_owned(), 2)]);
 }
 
 #[test]

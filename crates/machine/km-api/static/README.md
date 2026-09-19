@@ -1,9 +1,9 @@
 # `km-api/static`
 
-What the watch page is made of. Served from `/watch` and `/watch/`, compiled in with `include_str!`
-and `include_bytes!` rather than read from disk, for the reason the development console's built-in
-copy gives: a machine under a television has whatever its executable carries and no folder anybody
-can put a file in.
+What the watch page is made of. It is served from `/watch` and `/watch/`, and compiled in with
+`include_str!` and `include_bytes!` rather than read from disk. The development console's built-in
+copy gives the reason. A machine under a television has whatever its executable carries, and no
+folder anybody can put a file in.
 
 | File | What it is | License |
 |---|---|---|
@@ -14,22 +14,22 @@ can put a file in.
 ## Why a library is here at all
 
 **Most of the clients need none of it.** A smart television's browser, Safari, iOS and Android all
-play an HLS playlist from a plain `<video src>` through the platform's own media pipeline, and those
-are the machines this stream exists for.
+play an HLS playlist from a plain `<video src>`, through the platform's own media pipeline. Those are
+the machines this stream exists for.
 
-**Desktop Chrome and Firefox are the exception and play no HLS at all**, which makes them the one
-place the stream cannot be watched without help — and they are where somebody developing this, or
+**Desktop Chrome and Firefox are the exception, and play no HLS at all.** They are therefore the one
+place nobody can watch the stream without help. They are also where somebody developing this, or
 checking from the computer they are already sitting at, will try first.
 
-So the page asks the browser and takes the cheaper road when it can: `canPlayType` for the HLS media
+So the page asks the browser and takes the cheaper road when it can. `canPlayType` for the HLS media
 type, native where it is there, and the library only where it is not.
 
-**The `light` build, because none of what the full one adds is used here.** It leaves out alternate
-audio tracks, subtitles and encrypted media; this stream is one video track and one audio track,
-unencrypted, and any words on screen are drawn into the picture before it is encoded.
+**The `light` build, because this page uses none of what the full one adds.** It leaves out alternate
+audio tracks, subtitles and encrypted media. This stream is one video track and one audio track,
+unencrypted, and the encoder draws any words on screen into the picture first.
 
 ## The one modification
 
-The `//# sourceMappingURL=` comment on the last line is removed, and nothing else is touched. The map
-it names is not vendored, so a browser with its developer tools open would ask this machine for a
-file that was never here and report a 404 against a page that is working perfectly.
+The `//# sourceMappingURL=` comment on the last line goes, and nothing else is touched. The map it
+names is not vendored here. A browser with its developer tools open would ask this machine for a file
+that was never here. It would then report a 404 against a page that is working perfectly.

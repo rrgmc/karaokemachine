@@ -361,7 +361,18 @@ pub(super) fn browse_columns() -> String {
          -- redrawn on its own by the single-row route never sees the browse query, and a row that
          -- fetched its warnings only when asked would lose them the first time somebody rated it.
          -- The column is a short JSON array and empty on most of a corpus.
-         s.warnings",
+         s.warnings,
+         -- Whether somebody threw this song away, so the row can say so. Appended, for the reason
+         -- above.
+         --
+         -- **Selected always, like the two above and for the same reason.** Browsing hides a
+         -- discarded song, so this is 0 on nearly every row it is read on — but a row reached
+         -- through *only deleted* is drawn by this same query, and a row redrawn on its own after an
+         -- edit never sees a filter at all.
+         --
+         -- A boolean and not `deleted_at`: the row says *thrown away* and the date belongs to the
+         -- song's own page.
+         (s.deleted_at IS NOT NULL) AS deleted",
         eff_title("s."),
         eff_artist("s."),
         title_is_filename("s."),
@@ -410,6 +421,7 @@ pub(super) fn song_row(row: &Row<'_>) -> rusqlite::Result<SongRow> {
         duplicate_of: row.get(17)?,
         has_words: row.get::<_, i64>(18)? != 0,
         warnings: row.get(19)?,
+        deleted: row.get::<_, i64>(20)? != 0,
     })
 }
 

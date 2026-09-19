@@ -587,6 +587,16 @@ pub struct SongRow {
     /// and an UltraStar song hold `[]`: nothing analyzes them, so there is nothing to have gone
     /// wrong.
     pub warnings: String,
+    /// Whether somebody threw this song away.
+    ///
+    /// **A row that says so is what makes the deleted list readable.** Browsing hides these, so a
+    /// row carrying this is one reached through *only deleted*, a saved filter naming it, or a tab
+    /// left open across a delete — and in every one of those the row is otherwise identical to a
+    /// live one, with every action beside it live too.
+    ///
+    /// A flag and not the timestamp: the column answers *is this discarded?*, and the date it
+    /// happened on belongs to the song's own page.
+    pub deleted: bool,
     /// The first file's path, for the "open" and "play" actions.
     pub path: String,
     /// Every copy's path, newline-separated, straight from the query.
@@ -1415,6 +1425,7 @@ mod tests {
     fn row_with_paths(path: &str, paths: &str) -> SongRow {
         SongRow {
             id: "abc123".to_owned(),
+            deleted: false,
             title: "Corcovado".to_owned(),
             artist: None,
             language: Some("pt".to_owned()),

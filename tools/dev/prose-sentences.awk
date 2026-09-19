@@ -69,7 +69,13 @@ END { flush() }
 # abbreviation are masked because a full stop inside one does not end a sentence.
 function normalize(s) {
   gsub(/^[ \t]*([-*+]|[0-9]+\.)[ \t]+/, "", s)
+  # **A code span wraps over a line like any other run of words**, and the half on the second line is
+  # not prose. Without this the two halves join and the sentence around them is counted wrong.
+  if (span) {
+    if (match(s, /`/)) { s = substr(s, RSTART + 1); span = 0 } else return ""
+  }
   gsub(/`[^`]*`/, "CODE", s)
+  if (match(s, /`/)) { s = substr(s, 1, RSTART - 1) " CODE"; span = 1 }
   gsub(/https?:\/\/[^ \t)]*/, "URL", s)
   gsub(/!\[[^]]*\]\([^)]*\)/, "", s)
   gsub(/\]\([^)]*\)/, "]", s)

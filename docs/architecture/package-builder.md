@@ -467,6 +467,36 @@ stopped matching and fell back to a full scan per recursion step: five seconds, 
 It asks `browsable` for the whole predicate now, which is also the honest list — a song somebody
 threw away should put no language in the picker.
 
+**A table that caches an answer needs the term twice: the pass that fills it, and the delete that
+makes it stale.** Two of them hold answers about browsable songs. `rebuild_folders` fills
+`folders.song_count`, and it joins `songs` so a count promises what clicking the folder shows. Its
+freshness marker reads `files` and the last scan. A delete moves neither, so `set_deleted_for` and
+`set_deleted_of` mark the index stale themselves.
+
+`Db::cluster` fills `songs.duplicate_of`, and it takes its pairs and its fingerprints through
+`browsable`. A song thrown away therefore heads no group. A song deleted *after* a pass leaves a
+group whose head no list draws, which hides every live copy behind it. The same two writers call
+`release_behind_hidden`, so those copies go back on the page. The next pass collects them behind a
+live head.
+
+**A write that takes a list of ids owes the term what a filter-wide one inherits.** `Filter::to_sql`
+emits the predicate always, so every *every matching song* action carries it. The ticked half of
+each pair builds `id IN (…)` instead. Its ids come off a page, and a page can hold a discarded song
+through *only deleted*, a saved filter or a tab left open. Each of these reports how many rows it
+changed, so a row no page draws is a number claiming work nobody asked for. `set_language_of`,
+`add_tag_of`, `set_names_from_stem`, `fix_name_case`, `split_artist_from_title`, `quality_hint` and
+`paths_of` each ask `browsable` for themselves.
+
+**`package_songs` and `song_favorites` are the two tables a delete does not touch, so the reads
+carry the term.** `package_members` is what `build::spec_for` writes a `.kmpkg` from and what the
+package page draws, and `WANTED_SQL` is the union a sourced package follows. Without the term a
+discarded song ships in the next build. A sync counts its surviving star as a song the package still
+wants, and puts it back after somebody removed it by hand. `WANTED_SQL` spells the clause out
+because it is a `const`.
+
+Neither asks `merged_into`. A merge has a survivor to stand in the song's place, and `WANTED_SQL`
+resolves to it. Dropping the entry is the one thing a merge must not do.
+
 **An index rebuilt under its own name invalidates the statistics that describe it, and nothing used
 to say so.** `missing_indexes` is read before `schema.sql` runs and it holds names; an index whose key
 or predicate changed keeps its name, so it is never missing and no `ANALYZE` is asked for. Its
@@ -566,13 +596,15 @@ writes the canonical query string into `State::songs_filter` before it answers �
 already holds the exact string the address bar shows, `offset` clamped and all. That makes *the count
 reads the bar* vacuous here and the `duplicate_field` hazard unreachable. What it costs is a
 dependency: a route that re-renders `#rows` without writing the filter down leaves this saving a page
-nobody is on. Four routes redraw the rows — `GET /songs`, `GET /songs/rows`,
-`POST /songs/titles-from-filename` and `POST /songs/fix-name-case` — and a test holds each of them to
-writing down the offset it drew, which is the clamped one and not the one asked for. The last two
-share `redraw_over_the_write`, so the rule has one home rather than two copies. The similar-names page
-posts the same two routes with `?as=hits` and the search bar ahead of the ticks; `Redraw` reads that
-bar with `SimilarQuery::from_fields` before the write, and the answer is `#hits` drawn by
-`similar_for`, with no filter written down.
+nobody is on. Six routes redraw the rows: `GET /songs`, `GET /songs/rows`,
+`POST /songs/titles-from-filename`, `POST /songs/fix-name-case`,
+`POST /songs/split-artist-from-title` and `POST /songs/delete-bulk`. A test holds each of them to
+writing down the offset it drew, which is the clamped one and not the one asked for. The last four
+share `redraw_over_the_write_clearing`, so the rule has one home rather than four copies.
+
+The similar-names page posts the same two routes with `?as=hits` and the search bar ahead of the
+ticks. `Redraw` reads that bar with `SimilarQuery::from_fields` before the write, and the answer is
+`#hits` drawn by `similar_for`, with no filter written down.
 
 A chip is `saved_filter_chip.html`, included by the strip and rendered on its own by
 `GET /songs/saved-filters/{id}/chip` — `song_rows.html` and `song_row_fragment.html` over the same
@@ -636,6 +668,16 @@ fragment and a slot to come back to — but `/songs/rows` has neither, and swapp
 `#rows` costs the rows you were reading. So the status stays honest and `static/ui.js` — the tool's only
 JavaScript — listens for htmx's error events and puts a line in a toast tray. Its doc comment says what
 it may not become: no client-side model, no templating in the browser, no state the server does not hold.
+
+**A body that is only out of band tells htmx to leave the target alone.** `views::toast_only` empties
+whatever the caller aimed at, which clears a stale message and is what a slot wants. A caller aimed at
+`#rows` with `outerHTML` wants the opposite: htmx lifts the toast out, and the empty remainder left
+behind takes the table away. `views::toast_only_leaving_the_target` sends `HX-Reswap: none` for those,
+and the header rides on the response because one route answers both kinds of caller. htmx runs
+out-of-band swaps before it reads the swap style, so the sentence still reaches the tray.
+
+`views::with_toast_clearing` is the mirror of it. An answer aimed at the list can empty a slot
+outside it. That is how the bulk-delete confirmation goes away once somebody has acted on it.
 
 **The two selection gestures are in that file for the same reason**: the box in the table head and the
 shift-click that ticks the run between two boxes are things htmx has no opinion about rather than gaps

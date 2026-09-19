@@ -761,13 +761,15 @@ impl Db {
         })
     }
 
-    /// Songs a curator has not merged away.
+    /// Songs a curator has not merged or thrown away.
+    ///
+    /// [`browsable`], so the number in the header counts the songs the browse list would show.
     ///
     /// Proportional to the corpus and not helped by an index: `songs_merged` exists, but a corpus
     /// has `merged_into` NULL on essentially every row, so seeking it returns the whole table.
     fn count_songs(&self) -> Result<i64, DbError> {
         Ok(self.conn.query_row(
-            "SELECT COUNT(*) FROM songs WHERE merged_into IS NULL",
+            &format!("SELECT COUNT(*) FROM songs WHERE {}", browsable("")),
             [],
             |row| row.get(0),
         )?)
@@ -813,9 +815,12 @@ impl Db {
     /// primary-key lookup per favorited song.
     fn count_favorites(&self) -> Result<i64, DbError> {
         Ok(self.conn.query_row(
-            "SELECT COUNT(DISTINCT sf.song_id) FROM song_favorites sf
-             WHERE EXISTS (SELECT 1 FROM songs s
-                           WHERE s.id = sf.song_id AND s.merged_into IS NULL)",
+            &format!(
+                "SELECT COUNT(DISTINCT sf.song_id) FROM song_favorites sf
+                 WHERE EXISTS (SELECT 1 FROM songs s
+                               WHERE s.id = sf.song_id AND {})",
+                browsable("s.")
+            ),
             [],
             |row| row.get(0),
         )?)
