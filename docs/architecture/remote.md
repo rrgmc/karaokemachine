@@ -5,68 +5,71 @@
 
 ## The dev remote
 
-`tools/dev/remote/` is one dependency-free page touching every route in the API surface, including
-the ones a product surface would hide: the debugging switch, `debug/play-file`, install and
-uninstall, and a raw WebSocket log. **Its purpose is not to be a
-good remote; it is to prove the surface is complete** before a real client exists. The melody toggle
-is *disabled and explained* when detection abstained rather than hidden, because that is the behavior
-a real remote has to get right.
+`tools/dev/remote/` is one dependency-free page touching every route in the API surface. That
+includes the ones a product surface would hide: the debugging switch, `debug/play-file`, install and
+uninstall, and a raw WebSocket log. **Its purpose is not to be a good remote; it is to prove the
+surface is complete** before a real client exists. When detection abstained, the melody toggle is
+*disabled and explained* rather than hidden. That is the behavior a real remote has to get right.
 
 **It is also the caller `GET /audio/soundfonts?all=true` exists for.** That parameter widens `offers`
-from the nine banks the machine offers to the whole sixty-odd-row survey, each row marked `offered`
-or not; the page opens on the shortlist and passes it only when asked. (It was written to be the
-line between `/dev/` and the singer's Setup tab; that tab has gone, so both sides of it are now the
-one page.) It is a width and not a
-permission — `audio.read` at either, and `POST /audio/soundfont/fetch` was never gated by rank — so
-what the shortlist governs is what somebody is *shown without asking*. The page asks. A download
-reports through the same list rather than through an event, so the page polls it every two seconds
-while one is running and not otherwise: a byte count moving four times a second is the last thing
+from the nine banks the machine offers to the whole sixty-odd-row survey. It marks each row `offered`
+or not. The page opens on the shortlist and passes the parameter only when asked. (The parameter
+marked the line between `/dev/` and the singer's Setup tab. That tab has gone, so both sides of it
+are now the one page.)
+
+It is a width and not a permission. Either width needs `audio.read`, and rank never gated
+`POST /audio/soundfont/fetch`. So what the shortlist governs is what somebody is *shown without
+asking*. The page asks.
+
+A download reports through the same list rather than through an event. So the page polls it every two
+seconds while one is running, and not otherwise. A byte count moving four times a second is the last thing
 that belongs on a stream every phone in the room is reading.
 
-**One of its controls is for a route it does not assume the machine has.** `DELETE
-/audio/soundfonts/{id}` is drawn on every installed row but the bundled one, and a machine without
-that route answers `unknown_endpoint` — which lands in the transcript and the panel's note like any
-other refusal. That is the right failure for a test harness: the page's job is to say what the
-surface is, and a control that reports a missing route is doing that job rather than failing at it.
+**One of its controls is for a route it does not assume the machine has.** The page draws `DELETE
+/audio/soundfonts/{id}` on every installed row but the bundled one. A machine without that route
+answers `unknown_endpoint`, which lands in the transcript and the panel's note like any other
+refusal. That is the right failure for a test harness. The page's job is to say what the surface is.
+A control that reports a missing route is doing that job rather than failing at it.
 
-**The plural in that path is load-bearing.** `/audio/soundfont` is the singleton — `GET` reports the
-bank in force and `PUT` changes it — while `/audio/soundfonts` is the collection, so a member delete
-belongs on the second, the way `DELETE /packages/{id}` sits under `/packages`. The practical half is
-sharper than the aesthetic one: on the singular, `{id}` would sit beside the static
-`/audio/soundfont/fetch`, and a static segment wins the match — so a bank whose filename slugged to
-`fetch` could never be deleted, and would answer 405 from the wrong route while doing it.
+**The plural in that path is load-bearing.** `/audio/soundfont` is the singleton: `GET` reports the
+bank in force and `PUT` changes it. `/audio/soundfonts` is the collection, so a member delete belongs
+on the second, the way `DELETE /packages/{id}` sits under `/packages`. The practical half is sharper
+than the aesthetic one. On the singular, `{id}` would sit beside the static `/audio/soundfont/fetch`,
+and a static segment wins the match. So a bank whose filename slugged to `fetch` could never be
+deleted, and would answer 405 from the wrong route while doing it.
 
 **Seek is absolute in the API and relative in the page.** `POST /transport/seek` takes a position and
-nothing else, which is the right shape: a machine that accepted "forward 30 seconds" would have to
+nothing else, which is the right shape. A machine that accepted "forward 30 seconds" would have to
 agree with the caller about where *now* is, and across a network they cannot. So the buttons read the
-state first, add the delta and post the result — one loopback round trip, and the difference between
-landing where somebody meant and landing wherever the last event said.
+state first, add the delta and post the result. That costs one loopback round trip. It is the
+difference between landing where somebody meant and landing wherever the last event said.
 
 **It is desktop-only, and that is a decision rather than a gap.** A phone reaches it and drives the
 machine, and the layout is cramped there. Making the page *fit* a phone would not make it *right* for
-one, because what it puts on screen is not what a singer wants in their hand.
+one. What it puts on screen is not what a singer wants in their hand.
 
 **The layout is one CSS grid and a widget is a `<section>` in it**, with `section.wide` spanning the
-row for the four that carry tables. The five groups are the same trick read the other way: a
+row for the four that carry tables. The five groups are the same trick read the other way. A
 full-row `h2.group` cannot share a row, so a heading both names the widgets under it and forces the
-break above them. **There is no wrapper element, and that is the point** — a `<div>` per group would
-have to re-create the grid inside itself, and each group would then size its columns against its own
-width, so a two-widget group would draw wider cards than a three-widget one. It also means the
-grouping costs the JavaScript nothing: every widget is still reached by `getElementById`, so moving
-one between groups is a move of markup and no more.
+break above them. **There is no wrapper element, and that is the point.** A `<div>` per group would
+have to re-create the grid inside itself. Each group would then size its columns against its own
+width, so a two-widget group would draw wider cards than a three-widget one.
 
-Compiled into the binary in **every** build, so no build can ship without it, and served only when
-somebody asks — `--dev-remote` for a run, `api.serve_dev_remote: true` for good. It reaches no route
-the API does not already expose to the same caller, so this withholds a page rather than a permission;
-what it is for is not publishing a developer's console on the LAN by default now that `/` and
-`/admin/` answer what an owner needs. See `Dev remote in release builds` in
+It also means the grouping costs the JavaScript nothing. Every widget is still reached by
+`getElementById`, so moving one between groups is a move of markup and no more.
+
+It is compiled into the binary in **every** build, so no build can ship without it. The machine serves
+it only when somebody asks: `--dev-remote` for a run, `api.serve_dev_remote: true` for good. It
+reaches no route the API does not already expose to the same caller. So this withholds a page rather
+than a permission. Its purpose is not to publish a developer's console on the LAN by default, now that
+`/` and `/admin/` answer what an owner needs. See `Dev remote in release builds` in
 [`../decisions/remotes.md`](../decisions/remotes.md).
 
 ## One crate, two modes
 
-`km-remote-pages` is server-rendered askama templates with htmx, one SSE stream per browser, compiled
-into whichever binary links it. **The difference between the modes is a `Capabilities` struct rather
-than a mode enum**, so a feature moves between them by editing one line in Rust rather than the
+`km-remote-pages` is server-rendered askama templates with htmx, with one SSE stream per browser. It
+compiles into whichever binary links it. **The difference between the modes is a `Capabilities`
+struct rather than a mode enum.** So a feature moves between them by editing one line in Rust, not the
 markup.
 
 | | Online — served by the machine at `/` | Offline — `km-remote` |
@@ -78,37 +81,42 @@ markup.
 | Song book, owner's page | linked — the machine serves both | absent: neither is this process's to serve |
 
 **Every page is in both modes, including Setup.** `Capabilities` gates what is *on* a page and never
-whether the page exists, which is why the online Setup tab is two preference rows rather than a
-404 — the name and the language are about whoever is holding the phone, and neither mode is a mode
-where that is not a question.
+whether the page exists. That is why the online Setup tab is two preference rows rather than a 404.
+The name and the language are about whoever is holding the phone, and in neither mode is that not a
+question.
 
-**Two capabilities are on in the online mode and off in the other**, which is the direction that
-reads backwards until you see why: `song_book` and `owner_page` are both links to something *the
-machine* serves and this crate does not, so they are same-origin where these pages run inside it and
-point at nothing where they do not. The owner's-page link is also the only thing in this product that
-points at `/admin/` at all — see
+**Two capabilities are on in the online mode and off in the other.** That direction reads backwards
+until you see why. `song_book` and `owner_page` are both links to something *the machine* serves and
+this crate does not. So they are same-origin where these pages run inside it, and point at nothing
+where they do not. The owner's-page link is also the only thing in this product that points at
+`/admin/` at all. See
 [`The singer's remote links to it`](../decisions/api-and-network.md#the-singers-remote-links-to-it-at-the-foot-of-the-setup-tab).
 
-Four traits are the seam: `Songs` (the catalog, which answers with the machine powered down),
-`Machine` (playback, which can be *absent*), `Favorites` (with no online implementation at all) and
-`Connect` (which machine this device talks to). They are `async` and used as `dyn`, which is the whole
-reason `async-trait` is a dependency: the mode is a compile-time fact per binary, but making forty
-handlers generic over it would buy nothing.
+Four traits are the seam:
+
+- `Songs`: the catalog, which answers with the machine powered down.
+- `Machine`: playback, which can be *absent*.
+- `Favorites`: with no online implementation at all.
+- `Connect`: which machine this device talks to.
+
+They are `async` and used as `dyn`, which is the whole reason `async-trait` is a dependency. The mode
+is a compile-time fact per binary, but making forty handlers generic over it would buy nothing.
 
 **A hidden package reaches every catalog query as a list of ids.** `BrowseQuery::hidden_packages`
 and the `hidden` argument of `Songs::artists`, `languages` and `tags` come from the `km_hidden`
 cookie through `Prefs::read`, and never from a link. Both catalogs turn the list into
-`AND package_id NOT IN (…)`: `km_catalog::SearchQuery::exclude_packages` and the `Library` pickers
-online, `Mirror::conditions` and the mirror's pickers offline. `tags` joins `song_tags` to `songs`
-only when the list is not empty. `Songs::song` and `Songs::resolve` take no list, which is what keeps
-a typed number and a favorites folder reaching a hidden song. `Songs::packages` names the packages for
-`/setup/packages`. See
+`AND package_id NOT IN (…)`. Online, `km_catalog::SearchQuery::exclude_packages` and the `Library`
+pickers do it; offline, `Mirror::conditions` and the mirror's pickers do. `tags` joins `song_tags` to
+`songs` only when the list is not empty.
+
+`Songs::song` and `Songs::resolve` take no list, which keeps a typed number and a favorites folder
+reaching a hidden song. `Songs::packages` names the packages for `/setup/packages`. See
 [`A person hides a package from their own song list`](../decisions/remotes.md#a-person-hides-a-package-from-their-own-song-list).
 
-`Connect` is the one whose implementation could not possibly live in this crate — a locator, a mirror
-and a data directory are all the core's, and the online mode has none of them to lend. What it cost
-the pages crate is a struct, a trait and a builder step; what it bought is that the Android and iOS
-shells got the card with no edit at all, **which is the second-caller proof the seam existed for.**
+`Connect` is the one whose implementation could not possibly live in this crate. A locator, a mirror
+and a data directory are all the core's, and the online mode has none of them to lend. It cost the
+pages crate a struct, a trait and a builder step. In return the Android and iOS shells got the card
+with no edit at all, **which is the second-caller proof the seam existed for.**
 
 ## The connection budget
 
@@ -117,196 +125,206 @@ press.** The symptom was requests hanging for about thirty seconds, which reads 
 from every angle. It is not: neither handler touches the catalog or does any I/O. **The server never
 saw the request for those thirty seconds.**
 
-Three things spent the budget, none wrong on its own: the tabs are ordinary links, so every press
-replaces the document; every document opened an `EventSource` and **never closed it**, so a page in
-the back/forward cache went on holding a connection; and the static files carried a content type and
-nothing else — no `Cache-Control`, no `ETag` — so all four were re-fetched on every navigation.
+Three things spent the budget, and none was wrong on its own:
 
-So a navigation wanted six connections of its own against a budget already short by however many
+- The tabs are ordinary links, so every press replaces the document.
+- Every document opened an `EventSource` and **never closed it**. So a page in the back/forward cache
+  went on holding a connection.
+- The static files carried a content type and nothing else: no `Cache-Control`, no `ETag`. So the
+  browser re-fetched all four on every navigation.
+
+So a navigation wanted six connections of its own, against a budget already short by however many
 abandoned streams were open. **And `hx-sync="body:queue last"` then turned one queued request into a
-dead page**, because that attribute allows the document one in-flight request at a time — so the first
-thing to queue stopped every later tap. That attribute is right and stays; what it did here is what a
+dead page.** That attribute allows the document one in-flight request at a time, so the first thing to
+queue stopped every later tap. That attribute is right and stays. What it did here is what a
 serializing queue does when the thing at the head cannot finish.
 
-**A page nobody pressed for is queued like any other.** `Load more` fires itself when it is scrolled
-to, so this queue has a producer that is a flick rather than a tap. A fetch arriving behind something
-already in flight is queued, `last` discards it as soon as anything else queues, and htmx has stamped
-that button as revealed by then, so it will not fire a second time. The list goes quiet until somebody
-presses the button, which is what the button is drawn for. A scroll costs one connection at a time and
-cannot outrun the budget on its own; what it can do is lose its turn silently.
+**A page nobody pressed for is queued like any other.** `Load more` fires itself when a scroll reaches
+it, so this queue has a producer that is a flick rather than a tap. htmx queues a fetch arriving
+behind something already in flight, and `last` discards it as soon as anything else queues. By then
+htmx has stamped that button as revealed, so it will not fire a second time. The list goes quiet until
+somebody presses the button, which is what the button is drawn for.
 
-The fix is the first two, not the third: the script closes its source on `pagehide` and reopens on
-`pageshow`, and the static routes answer `immutable` with a `?v=` stamp computed from an FNV-1a of the
-embedded bytes in a `const fn`, so it changes when and only when a file does.
+A scroll costs one connection at a time and cannot outrun the budget on its own. What it can do is
+lose its turn silently.
+
+The fix is the first two, not the third. The script closes its source on `pagehide` and reopens on
+`pageshow`. The static routes answer `immutable` with a `?v=` stamp. A `const fn` computes the stamp
+from an FNV-1a of the embedded bytes, so it changes when and only when a file does.
 
 - **`visibilitychange` is the wrong event to close on, and the right one to wake on.** Closing there
   would close on a window merely losing focus, and a queue left up on a second screen is a real use.
-  But it is the *only* event a WebView gives on the way back — an Activity stopping is not a
-  navigation, so `pagehide` and `pageshow` never fire — so `live.js` takes a fresh stream when the
-  page becomes visible and still closes on nothing but a navigation. See `A page that comes back
-  asks again` below.
+  But it is the *only* event a WebView gives on the way back. An Activity stopping is not a
+  navigation, so `pagehide` and `pageshow` never fire. So `live.js` takes a fresh stream when the page
+  becomes visible, and still closes on nothing but a navigation. See `A page that comes back asks
+  again` below.
 - **`unload` is the wrong spelling.** Registering for it disqualifies the page from the back/forward
-  cache in every current browser — it would free the connection by deleting the feature the connection
+  cache in every current browser. It would free the connection by deleting the feature the connection
   is competing with.
-- **Closing is only safe because the hub replays** — and reopening is what *makes* it replay, which
-  is the half that matters more. The stream sends the latest of every state event as it opens, so a
-  page coming back out of the cache is brought up to date by the mechanism that already fills one on
-  its first load. Nothing is added for the reopen.
+- **Closing is only safe because the hub replays**, and reopening is what *makes* it replay. That is
+  the half that matters more. The stream sends the latest of every state event as it opens. So the
+  mechanism that fills a page on its first load also brings a page coming back out of the cache up to
+  date. Nothing is added for the reopen.
 
 **A leaked stream is invisible unless something counts them.** The handler logs the listener count as
-each one opens, so a number that climbs while somebody presses tabs is a line in a log rather than an
-inference — and it needs no browser devtools to see:
+each one opens. So a number that climbs while somebody presses tabs is a line in a log, not an
+inference. It needs no browser devtools to see:
 
 | | streams open after each navigation |
 |---|---|
 | before | 1, 1, 2, 3, 4, 5 — one left behind by every press |
 | after | 1, 1, 1, 1, 1, 1 |
 
-**The structural answer is still open**: boosting the tab bar so a press swaps `<main>` rather than
-replacing the document would leave exactly one stream per session.
+**The structural answer is still open.** Boosting the tab bar, so a press swaps `<main>` rather than
+replacing the document, would leave exactly one stream per session.
 
 ## A page that comes back asks again
 
-Reported from a phone: switching away from the Android remote and back **always** showed the red
-strip, recovery took about ten seconds, and pressing a tab noticed it at once. Three separate things
+A phone reported this. Switching away from the Android remote and back **always** showed the red
+strip, and recovery took about ten seconds. Pressing a tab noticed it at once. Three separate things
 had to be true for that, and only the third is about the banner.
 
-**Nothing fired.** The Android shell's `onStop` calls `web.onPause()` and `web.pauseTimers()` and its
-`onStart` the mirror image, with no reload and no JS evaluated. An Activity stopping is not a
-navigation, so `pagehide` and `pageshow` never fire — the stream is neither closed nor reopened, and
-because the reopen is what triggers the replay, **the page is never brought up to date at all.** It
-keeps whatever fragment it was last pushed, and the pump will not correct it: `publish_connection` is
+**Nothing fired.** The Android shell's `onStop` calls `web.onPause()` and `web.pauseTimers()`, and
+its `onStart` does the mirror image, with no reload and no JS evaluated. An Activity stopping is not a
+navigation, so `pagehide` and `pageshow` never fire, and the stream is neither closed nor reopened.
+The reopen is what triggers the replay, so **the page is never brought up to date at all.** It keeps
+whatever fragment it was last pushed. The pump will not correct it, because `publish_connection` is
 gated on the connection having *changed* since the previous tick.
 
-**Pressing a tab is what made this look like something else.** A tab is an ordinary link, so a press
-replaces the document and `chrome()` renders the banner from `machine.connection()` as it is now. The
-display was stale, not the connection — which is why "it notices immediately if I switch tabs" is a
-clue about the page and reads like a clue about the network.
+**Pressing a tab is what made this look like something else.** A tab is an ordinary link. So a press
+replaces the document, and `chrome()` renders the banner from `machine.connection()` as it is now. The
+display was stale, not the connection. So "it notices immediately if I switch tabs" is a clue about
+the page, though it reads like a clue about the network.
 
-**And the JS timers resume where they stopped.** `pauseTimers` is process-wide, so the eight-second
-banner clock freezes on the way out and resumes with its full remaining time on the way back: a strip
+**And the JS timers resume where they stopped.** `pauseTimers` is process-wide. So the eight-second
+banner clock freezes on the way out, and resumes with its full remaining time on the way back. A strip
 armed just before a background is *guaranteed* to be on screen afterwards. Nothing about the machine
 needs to be wrong for that.
 
 The fix is one mechanism doing both halves. `live.js` takes a fresh stream when the page becomes
-visible, which makes the hub replay every fragment; and `GET /events` treats a stream opening against
-an absent machine as a request to try it now, which cuts short a backoff measured before the process
-was frozen. It also disposes of the frozen-timer problem without a wall clock anywhere: the replay
-delivers a *new* banner element, so the timers still pending fire on a detached node — the behavior
-`animationend` on a removed badge already relies on.
+visible, which makes the hub replay every fragment. `GET /events` treats a stream opening against an
+absent machine as a request to try it now. That cuts short a backoff measured before the process was
+frozen.
+
+It also disposes of the frozen-timer problem without a wall clock anywhere. The replay delivers a
+*new* banner element, so the timers still pending fire on a detached node. `animationend` on a removed
+badge already relies on that behavior.
 
 **A floor of one reopen a second** (`REOPEN_MIN_GAP_MS`) is not tidiness. A restore from the
-back/forward cache fires `pageshow` and `visibilitychange` in the same tick, and a notification shade
-can flap visibility twice in a moment; without it each one aborts a request that had just gone out
+back/forward cache fires `pageshow` and `visibilitychange` in the same tick. A notification shade can
+flap visibility twice in a moment. Without the floor, each one aborts a request that had just gone out
 and pokes the machine again.
 
-**What cannot be tested from here**, and it is worth knowing before the next change: there is no
-browser in `tests/pages.rs` and no Android build in CI, so the guard is an assertion on the served
-text of `live.js` and the assumption that a Chromium WebView drives `document.visibilityState` from
-window visibility. If a device ever shows it does not, `MainActivity.onStart` already documents itself
-as "take the multicast lock, **and wake the page**" and already calls `evaluateJavascript` twice, so
-the fallback is one line in a method whose comment claims to do this.
+**What cannot be tested from here** is worth knowing before the next change. There is no browser in
+`tests/pages.rs` and no Android build in CI. So the guard is an assertion on the served text of
+`live.js`. It also assumes that a Chromium WebView drives `document.visibilityState` from window
+visibility.
+
+A device may show it does not. `MainActivity.onStart` already documents itself as "take
+the multicast lock, **and wake the page**", and already calls `evaluateJavascript` twice. So the
+fallback is one line in a method whose comment claims to do this.
 
 ## Catching up sent one fragment of the several it owed
 
-`Hub`'s broadcast channel holds 64 frames, and a subscriber that overruns it is not resent the frames
-it missed — it is resent the current state, which is both cheaper and more nearly what it wanted.
-**That branch handed over the first frame of the snapshot and dropped the rest.** `snapshot()` returns
-the latest of each of the eight replayed events in `REPLAYED` order, `PLAYER` first, so a page that
-fell behind was resynchronized with a player card and left holding a stale banner, a stale dot and a
-stale queue.
+`Hub`'s broadcast channel holds 64 frames. A subscriber that overruns it does not get the frames it
+missed again. It gets the current state instead, which is both cheaper and more nearly what it
+wanted. **That branch handed over the first frame of the snapshot and dropped the rest.** `snapshot()`
+returns the latest of each of the eight replayed events in `REPLAYED` order, `PLAYER` first. So a page
+that fell behind got a fresh player card, and kept a stale banner, a stale dot and a stale queue.
 
 Three things make that kind of fault survive:
 
-- **`stream::unfold` yields one item per poll**, so returning several frames from one branch is not
-  something the shape allows — and `.next()` on the iterator is what the code reaches for. The fix is
-  a `VecDeque` in the unfold's state, drained a frame per poll before the receiver is read again.
+- **`stream::unfold` yields one item per poll**, so the shape does not allow returning several frames
+  from one branch. And `.next()` on the iterator is what the code reaches for. The fix is a `VecDeque`
+  in the unfold's state, drained a frame per poll before the receiver is read again.
 - **Nothing corrects it afterwards.** The pump republishes the connection only when it *changes*
-  (`CONNECTION_INTERVAL`, and a comparison against the previous tick), so a page that missed the
+  (`CONNECTION_INTERVAL`, and a comparison against the previous tick). So a page that missed the
   transition never hears about it again. Only a navigation, which re-renders `chrome()` from
   `machine.connection()`, or a fresh stream, which replays, puts it right.
 - **The one branch with a paragraph explaining why it mattered.** `CHANNEL_CAPACITY`'s doc names the
-  case exactly — "a phone that locks its screen mid-song stops reading" — which is the phone this was
-  reported from, and the comment was right about everything except what the code below it did.
+  case exactly: "a phone that locks its screen mid-song stops reading". That is the phone that
+  reported this. The comment was right about everything except what the code below it did.
 
-**And an `Sse` is a response, not a stream**, so there was nowhere to assert any of this: the hub's
-tests could reach `snapshot()` and the raw channel and not the thing built out of them. `stream()` is
-now two functions, a private `frames()` returning the replay chained to the live feed and a wrapper
-that maps it into `SseEvent`, which is the whole reason the resynchronization has tests at all.
+**And an `Sse` is a response, not a stream**, so there was nowhere to assert any of this. The hub's
+tests could reach `snapshot()` and the raw channel, and not the thing built out of them. `stream()` is
+two functions. A private `frames()` returns the replay chained to the live feed, and a wrapper maps it
+into `SseEvent`. That split is the whole reason the resynchronization has tests at all.
 
 ## A stream nobody can leave
 
-The remote holds one WebSocket to the machine, and the connection state every page draws from is a
-by-product of it: `follow` sets `online` when the socket opens and the loop around it writes down the
+The remote holds one WebSocket to the machine. The connection state every page draws from is a
+by-product of it. `follow` sets `online` when the socket opens, and the loop around it writes down the
 reason when the socket ends. **Both halves assumed a socket that ends.**
 
-Reported from a real house, and it needs no unreachable machine to reproduce. A remote following a
-machine at one address was pointed at a second machine through the machine card. Everything worked
-— browsing, queueing, the catalog refresh — because `point_at` swaps the `Api` every HTTP call
-uses. The banner read `Connecting…` for the rest of the evening, and the Now tab went on showing the
-**first** machine's playback, because the follower was still attached to the first socket and had no
-way to be told. `Connecting…` is only ever replaced by the outcome of an attempt, and no attempt was
-running.
+A real house reported it, and it needs no unreachable machine to reproduce. Somebody pointed a remote
+that followed a machine at one address at a second machine, through the machine card. Browsing,
+queueing and the catalog refresh all worked, because `point_at` swaps the `Api` every HTTP call uses.
+The banner read `Connecting…` for the rest of the evening, and the Now tab went on showing the
+**first** machine's playback. The follower was still attached to the first socket and had no way to be
+told.
+`Connecting…` is only ever replaced by the outcome of an attempt, and no attempt was running.
 
 Two mechanisms, and neither is a special case of the other:
 
 - **The address is a `watch`, not a lock.** Re-reading it once per iteration means reading it *after*
-  the current stream ends — and a stream to a machine that is still running never does. Every wait
+  the current stream ends, and a stream to a machine that is still running never does. So every wait
   loses a `select!` to a redirect instead: the follow, the backoff sleep, and the wait for a first
-  address. So *Use this* takes effect at once instead of after up to the thirty-second backoff, and
-  the socket to the machine being left is dropped with the future rather than followed on in the
-  background. `borrow_and_update` rather than a separate read, so the redirect that started an
-  iteration does not immediately end it.
+  address. *Use this* takes effect at once instead of after up to the thirty-second backoff. The
+  socket to the machine being left drops with the future rather than being followed on in the
+  background. It uses `borrow_and_update` rather than a separate read, so the redirect that started
+  an iteration does not immediately end it.
 - **The read has a deadline, and the machine's own heartbeat is what makes that unambiguous.**
-  `km_api::events::run_state_ticker` publishes a `state` event every `STATE_INTERVAL` (250 ms)
-  whether or not anything is playing — its doc insists on the "whether", because an idle machine's
+  `km_api::events::run_state_ticker` publishes a `state` event every `STATE_INTERVAL` (250 ms),
+  whether or not anything is playing. Its doc insists on the "whether", because an idle machine's
   remote still has to learn that the queue emptied. So twenty missed heartbeats is a machine that is
-  gone, not one with nothing to say, and `STREAM_IDLE_TIMEOUT` is written as that multiplication so
-  that a machine which ever stops ticking breaks the build here rather than leaving remotes flapping.
-  Without it a box switched off at the wall — no FIN, no RST — leaves the read pending until the
-  process exits, and the whole loop behind it.
+  gone, not one with nothing to say. `STREAM_IDLE_TIMEOUT` is written as that multiplication, so a
+  machine that ever stops ticking breaks the build here rather than leaving remotes flapping. Without
+  it, a box switched off at the wall (no FIN, no RST) leaves the read and its loop pending until exit.
 
-Two smaller faults fell out of the same reading. `connect_async` had no timeout where every HTTP call
-has had one since the first of them, which on a host that refuses by saying nothing is the other way
-to sit in a single attempt indefinitely. And a polite close has to publish `offline` itself: left to
+Two smaller faults fell out of the same reading. `connect_async` had no timeout, where every HTTP call
+has had one since the first of them. On a host that refuses by saying nothing, that is the other way
+to sit in a single attempt indefinitely. And a polite close has to publish `offline` itself. Left to
 the next attempt failing, `online` stays true for a backoff's worth of seconds after the television
-is switched off, with the dot green throughout.
+goes off. The dot stays green throughout.
 
 `follow` takes its idle deadline as an argument rather than reading the constant. That is the one
-thing here a test has to be able to shorten, and a paused clock cannot do it: `tokio` advances a
-paused clock whenever the runtime is idle, which during a socket handshake it is — so the test would
-race its own connection.
+thing here a test has to be able to shorten, and a paused clock cannot do it. `tokio` advances a
+paused clock whenever the runtime is idle, and it is idle during a socket handshake. So the test
+would race its own connection.
 
 **And a third fault sat in the same twelve lines, found from a real evening rather than by reading.**
-`backoff` outlives an iteration, and only the *polite close* arm reset it — so the doubling applied to
-every other kind of drop, which is all of the ordinary ones: the idle deadline says "The karaoke
+`backoff` outlives an iteration, and only the *polite close* arm reset it. So the doubling applied to
+every other kind of drop, which is all of the ordinary ones.
+
+The idle deadline says "The karaoke
 machine stopped answering." and a socket error says "The connection dropped (…)", and both are `Err`.
 A machine that blinked repeatedly through an evening therefore walked the wait out to the
-thirty-second cap **while every attempt was succeeding**, and each later blink cost up to half a
-minute of "not reachable" for a box that was answering again within one.
+thirty-second cap **while every attempt was succeeding**. Each later blink cost up to half a minute of
+"not reachable" for a box that was answering again within one.
 
-What makes it hard to report is the shape rather than the size: the remote gets worse the longer it
-is left running, and restarting it fixes it. And the intent was already written down — `The dev remote
-comes back on its own` says "coming back to an address that is coming back is cheap and worth trying
-often" — so this is the code disagreeing with its own decision rather than a policy anybody chose.
+What makes it hard to report is the shape rather than the size. The remote gets worse the longer it
+runs, and restarting it fixes it. And the intent was already written down. `The dev remote comes back
+on its own` says "coming back to an address that is coming back is cheap and worth trying often". So
+this is the code disagreeing with its own decision, rather than a policy anybody chose.
+
 `next_backoff(current, had_connected)` is the whole of it, a pure function with three tests and no
-socket, and `had_connected` has to be read **before** `set_reachability` overwrites it, because
-`follow` setting reachability on the handshake is the only record that the attempt worked. Doubling is
-for a machine that is *not there* — it is what stops a remote hammering an address nothing is
-listening at — and it has no business measuring a connection that came up.
+socket. The code has to read `had_connected` **before** `set_reachability` overwrites it. `follow`
+setting reachability on the handshake is the only record that the attempt worked. Doubling is for a
+machine that is *not there*: it stops a remote hammering an address nothing is listening at. It has no
+business measuring a connection that came up.
 
 ## A disclosure that survives a swap but not a navigation
 
-The now bar's transport is hidden until the ▾ beside the title is pressed, and the whole of the
+The now bar's transport stays hidden until somebody presses the ▾ beside the title. The whole of the
 mechanism is one CSS rule and a checkbox:
 
 ```css
 #nowbar-controls:not(:checked) ~ #nowbar .transport { display: none; }
 ```
 
-The mark flips to ▴ when it is open, off the same checkbox, which is why it is two spans in the
-label rather than a `::before` whose `content` swaps — a glyph in `content` is in neither the
-accessibility tree nor a selection:
+The mark flips to ▴ when it is open, off the same checkbox. So it is two spans in the label rather
+than a `::before` whose `content` swaps. A glyph in `content` is in neither the accessibility tree
+nor a selection:
 
 ```css
 #nowbar-controls:not(:checked) ~ #nowbar .controls-toggle .when-open,
@@ -314,19 +332,20 @@ accessibility tree nor a selection:
 ```
 
 The checkbox is in `queue.html`; the toggle is a `<label for>` inside `#nowbar`, class
-`.controls-toggle`. That split is what gives the two lifetimes the behavior needs, and neither is
-achievable by the obvious alternatives:
+`.controls-toggle`. That split gives the two lifetimes the behavior needs, and the obvious
+alternatives cannot give either:
 
-- **It must survive a republish.** `#nowbar` is swapped by the pump whenever the song or the settings
-  change, so state held inside it folds the strip away mid-song. Outside, nothing in the fragment has
-  to remember anything and there is nothing to re-sync after a swap — which a JavaScript toggle would
-  have to do, since the element carrying `aria-expanded` is the one being replaced.
+- **It must survive a republish.** The pump swaps `#nowbar` whenever the song or the settings change,
+  so state held inside it folds the strip away mid-song. Outside, nothing in the fragment has to
+  remember anything, and there is nothing to re-sync after a swap. A JavaScript toggle would have to
+  re-sync, since the element carrying `aria-expanded` is the one being replaced.
 - **It must not survive a navigation.** Every tab is an ordinary link, so arriving at `/queue`
-  renders the checkbox afresh and unchecked. A `prefs::` cookie — the mechanism the browse bar's ⋯
-  toggle uses — would remember it for ever, which is the opposite of what a mis-tap guard wants.
+  renders the checkbox afresh and unchecked. A `prefs::` cookie would remember it for ever; that is
+  the mechanism the browse bar's ⋯ toggle uses. For ever is the opposite of what a mis-tap guard
+  wants.
 
-`visually-hidden` rather than `display: none` on the checkbox, because it is a real control a
-keyboard has to reach; the focus ring is drawn on the label through `#nowbar-controls:focus-visible ~
+The checkbox is `visually-hidden` rather than `display: none`, because it is a real control a
+keyboard has to reach. The focus ring is drawn on the label through `#nowbar-controls:focus-visible ~
 #nowbar .controls-toggle`.
 
 `TransportBlock` lost its `target` and `query` fields with this. They existed because the Now tab's
