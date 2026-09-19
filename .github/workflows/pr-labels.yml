@@ -1,0 +1,48 @@
+name: Pull request labels
+
+# **A pull request carries the programs and platforms its changed paths touch.** The type label is
+# chosen when the pull request is opened, and this adds the rest. `tools/dev/labels.sh paths` holds
+# the folder-to-label table and `task lint:labels` asserts that every row still names a label and a
+# folder.
+#
+# **`pull_request_target`, so a pull request from a fork gets a token that can label it.** That
+# trigger runs with write access, which is safe only because nothing from the pull request runs.
+# The checkout below takes no `ref`, so it is the base branch, and the script is master's. The pull
+# request reaches the script only as a list of paths on standard input, which it compares as strings.
+#
+# **This is not a required check**, and it carries no path filter. `CI ok` in `ci.yml` stays the one
+# check `master` requires.
+#
+# **It only adds.** A label put on by hand stays, and a push that stops touching a folder does not
+# take its label away.
+
+on:
+  pull_request_target:
+    types: [opened, reopened, synchronize]
+
+# The pull request's labels are all this touches.
+permissions:
+  contents: read
+  pull-requests: write
+
+# Two pushes in a moment are worth labelling once, and a cancelled run is the older push.
+concurrency:
+  group: pr-labels-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  label:
+    runs-on: ubuntu-latest
+    steps:
+      # No `ref`: the base branch. Checking out the pull request's head here would run its code with a
+      # write token.
+      - uses: actions/checkout@v7
+
+      # Through `bash`, as the other guards are: a script's executable bit does not survive a commit
+      # made on Windows.
+      - name: Apply the program and platform labels
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          KM_PR: ${{ github.event.pull_request.number }}
+        run: gh pr diff "$KM_PR" --name-only | bash tools/dev/pr-labels.sh --apply "$KM_PR"

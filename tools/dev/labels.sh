@@ -4,6 +4,7 @@
 #
 #   tools/dev/labels.sh list                        # the table, for a person
 #   tools/dev/labels.sh table                       # the same rows, for a script
+#   tools/dev/labels.sh paths                       # the folder each pull request label comes from
 #   tools/dev/labels.sh check                       # or: task lint:labels
 #   tools/dev/labels.sh sync [--prune] [--dry-run]  # declare them on GitHub
 #
@@ -26,7 +27,12 @@
 # **`dependencies` is in the table although nothing here applies it.** Dependabot applies it and
 # creates it again when it is gone, so a table without it is one `--prune` fights every week.
 #
-# The standing decision is `An issue carries the platform and the program it is about` in
+# **A pull request takes the same labels from the paths it changes.** `paths` below maps a folder to
+# a label, `tools/dev/pr-labels.sh` reads it, and `.github/workflows/pr-labels.yml` applies the result.
+# `check` asserts that each of those labels is declared and each folder still holds a tracked file.
+#
+# The standing decisions are `An issue carries the platform and the program it is about` and
+# `A pull request carries its type, and the programs and platforms it touches`, both in
 # docs/decisions/repository.md.
 
 set -euo pipefail
@@ -62,6 +68,44 @@ package-builder|d4c5f9|program|km-package-builder|The curation tool
 admin|d4c5f9|program|km-admin|The picture and bank tool
 tools|d4c5f9|program|km-pack or another command-line tool|km-pack and the other command-line tools
 api|d4c5f9|program|The HTTP API|The HTTP API
+ROWS
+}
+
+# label|path prefix
+#
+# The folder a pull request label comes from. A path matches a row when it starts with the prefix,
+# and a path no row matches gives no label. `crates/platform/`, `docs/`, `site/`, `icon/`,
+# `.github/` and the rest of `tools/` serve every program, so a label from them would sort nothing.
+paths() {
+  cat <<'ROWS'
+machine|crates/machine/karaokemachine/
+machine|crates/machine/km-queue/
+machine|crates/machine/km-banks/
+machine|crates/machine/km-admin-pages/
+machine|crates/machine/km-machine-ios/
+machine|crates/playback/
+machine|crates/song/
+machine|ports/machine/
+api|crates/machine/km-api/
+remote|crates/remote/
+remote|ports/remote/
+package-builder|tools/cmd/km-package-builder/
+admin|tools/cmd/assets/km-admin/
+tools|tools/cmd/km-pack/
+tools|tools/cmd/km-lyrics/
+tools|tools/cmd/km-carols/
+tools|tools/cmd/assets/km-wallpaper-pack/
+windows|tools/platform/windows/
+linux|tools/platform/linux/
+macos|tools/platform/macos/
+android|ports/machine/android/
+android|ports/remote/android/
+android|crates/remote/km-remote-android/
+android|crates/platform/km-androidlog/
+ios|ports/machine/ios/
+ios|ports/remote/ios/
+ios|crates/machine/km-machine-ios/
+ios|crates/remote/km-remote-ios/
 ROWS
 }
 
@@ -146,14 +190,24 @@ cmd_check() {
     done < <(form_labels "$form")
   done
 
+  # A folder renamed without its row gives every later pull request there no label, and nothing else
+  # would say so.
+  local prefix
+  while IFS='|' read -r label prefix; do
+    [ -n "$(row_for "$label")" ] ||
+      fail "the path table maps $prefix to the label $label and the table does not name it"
+    [ -n "$(git ls-files -- "$prefix" | head -n 1)" ] ||
+      fail "the path table maps $prefix to $label and no tracked file is under it"
+  done < <(paths)
+
   if [ "$found" -ne 0 ]; then
-    printf '\n%s\n' "A label is declared in tools/dev/labels.sh and applied from the bug form's answer by
-.github/workflows/issue-labels.yml. See 'An issue carries the platform and the program it is about'
-in docs/decisions/repository.md." >&2
+    printf '\n%s\n' "A label is declared in tools/dev/labels.sh. The bug form's answer applies it to an issue
+through .github/workflows/issue-labels.yml, and the changed paths apply it to a pull request through
+.github/workflows/pr-labels.yml. See docs/decisions/repository.md." >&2
     exit 1
   fi
 
-  echo "$self: clean, every platform and program the bug form offers has a label"
+  echo "$self: clean, every platform and program the bug form offers has a label, and every path row names a label and a tracked folder"
 }
 
 cmd_list() {
@@ -204,11 +258,12 @@ cmd_sync() {
 
 case "${1-}" in
   table) table ;;
+  paths) paths ;;
   list) cmd_list ;;
   check) cmd_check ;;
   sync) shift; cmd_sync "$@" ;;
   *)
-    echo "usage: $self {table|list|check|sync [--prune] [--dry-run]}" >&2
+    echo "usage: $self {table|paths|list|check|sync [--prune] [--dry-run]}" >&2
     exit 1
     ;;
 esac

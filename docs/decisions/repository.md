@@ -1275,6 +1275,40 @@ rather than against it, and it carries no path filter for the same reason that w
 **The issue body reaches the script through the environment**, never through a command line: a body
 is written by anybody, and interpolating one into a shell line is that person choosing what runs.
 
+## A pull request carries its type, and the programs and platforms it touches
+
+**A pull request carries the same labels an issue does.** The pull request list then answers "what
+changed in the remote" or "what touched Android" without opening each one.
+
+**The type label is chosen when the pull request is opened**: `bug`, `enhancement` or
+`documentation`, passed to `gh pr create --label`. Whether a change fixes a fault or adds something
+is a judgement, and no path answers it.
+
+**The changed paths are the source of the program and platform labels.** A pull request has no form
+to answer, and the folders it changes already name what it touches. The folder-to-label table is
+`paths` in [`tools/dev/labels.sh`](../../tools/dev/labels.sh), beside the label table, so a label is
+still written down in one file. [`tools/dev/pr-labels.sh`](../../tools/dev/pr-labels.sh) reads it,
+and [`.github/workflows/pr-labels.yml`](../../.github/workflows/pr-labels.yml) applies the result
+when a pull request opens and on every push to it.
+
+**A folder that serves every program gives no label.** `crates/platform/`, `docs/`, `site/`,
+`icon/`, `.github/` and the rest of `tools/` are in that group. A label that every pull request
+carried would sort nothing.
+
+**The labeller only adds.** A label put on by hand stays, and so does the type label. A push that
+stops touching a folder leaves its label in place, because a pull request did touch it once.
+
+**`task lint:labels` checks the path table too.** Each row names a declared label, and each folder
+still holds a tracked file. A folder renamed without its row is the fault this catches. Without it,
+every later pull request there quietly arrives with no label.
+
+**The workflow runs on `pull_request_target`, and it runs nothing from the pull request.** That
+trigger gives a pull request from a fork a token that can label it. The checkout takes the base
+branch, so the script that runs is `master`'s. The pull request reaches it only as a list of paths.
+It is not a required check and carries no path filter, so
+[`master` takes pull requests, and CI is one required check](#master-takes-pull-requests-and-ci-is-one-required-check)
+stands unchanged.
+
 ## One version number for the whole repository
 
 **Every program here carries the machine's version, including the two in the excluded workspace.** A
