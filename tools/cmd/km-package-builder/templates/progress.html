@@ -43,7 +43,7 @@
      as what is over. The mark is drawn by the class, so the list carries no characters of its own.
      A step that waits on `if_changed` may yet be skipped, and says so. #}
   {% if !progress.steps.is_empty() %}
-  <ol class="scan-steps" aria-label="{{ "scan-steps"|t }}">
+  <ol class="steps" aria-label="{{ "steps"|t }}">
     {%- for step in progress.steps %}
     <li class="step {{ step.state }}">
       <span class="step-name">{{ step.key|t }}</span>
@@ -57,8 +57,8 @@
       {%- endif %}
       {%- if step.state == "waiting" && step.if_changed %} <span class="dim">{{ "scan-step-if-changed"|t }}</span>{% endif %}
       {%- if step.state == "skipped" %}
-        {%- if progress.canceled || progress.error.is_some() %} <span class="dim">{{ "scan-step-not-reached"|t }}</span>
-        {%- else %} <span class="dim">{{ "scan-step-not-needed"|t }}</span>{% endif %}
+        {%- if progress.canceled || progress.error.is_some() %} <span class="dim">{{ "step-not-reached"|t }}</span>
+        {%- else %} <span class="dim">{{ "step-not-needed"|t }}</span>{% endif %}
       {%- endif %}
     </li>
     {%- endfor %}

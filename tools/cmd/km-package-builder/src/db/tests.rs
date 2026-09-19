@@ -155,6 +155,165 @@ fn a_phrase_reaches_sqlite_as_a_phrase() {
     assert_eq!(found(r#""quiet nig"#), ["adjacent"]);
 }
 
+// -- finding a song by the words it sings ------------------------------------------------------
+
+/// Verses of a song, one line each, well clear of the floor a lyric has to reach.
+///
+/// Every line distinct, so a test can take one away and say which one.
+pub(crate) fn verses(from: usize, to: usize) -> String {
+    (from..to)
+        .map(|nth| {
+            format!(
+                "she walked in from the rain of number {nth}\n\
+                 and nobody ever knew her name at all {nth}\n\
+                 while the band played on until the morning {nth}"
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+/// Whether `lyrics_vocab` answers, which is the guard against a SQLite built without `fts5vocab`.
+///
+/// A missing virtual table fails at `Db::open`, so this would never be the only thing to break —
+/// but the count it returns is what the phrase choosing leans on, and a table that existed and
+/// answered nothing would leave that silently taking the first phrase of every stretch.
+#[test]
+fn the_lyric_vocabulary_counts_the_songs_holding_a_word() {
+    let mut db = db();
+    add_scanned(&mut db, "one", |song| {
+        song.lyrics = Some(verses(0, 3));
+    });
+    add_scanned(&mut db, "two", |song| {
+        song.lyrics = Some(verses(0, 3));
+    });
+    add_scanned(&mut db, "alone", |song| {
+        song.lyrics = Some(format!("{}\nzarzuela", verses(9, 12)));
+    });
+
+    let held_by = |word: &str| -> i64 {
+        db.conn
+            .query_row(
+                "SELECT doc FROM lyrics_vocab WHERE term = ?1",
+                [word],
+                |row| row.get::<_, i64>(0),
+            )
+            .unwrap_or(0)
+    };
+    assert_eq!(held_by("rain"), 3, "every song sings it");
+    assert_eq!(held_by("zarzuela"), 1, "one song sings it");
+    assert_eq!(
+        held_by("nothinghere"),
+        0,
+        "and a word nothing sings is absent"
+    );
+}
+
+/// Two files of one song under names that share nothing are found by their words.
+#[test]
+fn a_song_filed_twice_under_two_names_is_found_by_its_words() {
+    let mut db = db();
+    add_scanned(&mut db, "known", |song| {
+        song.det_title = Some("Dancing In The Dark".to_owned());
+        song.lyrics = Some(verses(0, 5));
+    });
+    add_scanned(&mut db, "earthw2", |song| {
+        song.det_title = Some("EARTHW~2".to_owned());
+        song.lyrics = Some(verses(0, 5));
+    });
+    add_scanned(&mut db, "other", |song| {
+        song.det_title = Some("Something Else".to_owned());
+        song.lyrics = Some(verses(20, 25));
+    });
+
+    let (hits, comparable) = db
+        .similar_words("known", &Filter::default())
+        .expect("same words");
+    assert!(comparable);
+    let ids: Vec<&str> = hits.iter().map(|song| song.id.as_str()).collect();
+    assert_eq!(
+        ids,
+        ["known", "earthw2"],
+        "the song searched from heads the list, and no name was needed to reach the other"
+    );
+    assert!(hits[0].searched_from);
+    assert_eq!(hits[1].likeness, Some(1.0));
+}
+
+/// A file with a verse missing is what the exact key cannot reach, and the whole point.
+#[test]
+fn a_file_missing_a_verse_is_still_the_same_song() {
+    let mut db = db();
+    add_scanned(&mut db, "whole", |song| {
+        song.lyrics = Some(verses(0, 5));
+    });
+    add_scanned(&mut db, "short", |song| {
+        song.lyrics = Some(verses(0, 4));
+    });
+    // What the duplicate pass sees, which is the reason this page exists.
+    assert_ne!(
+        crate::dupes::lyric_key(&verses(0, 5)),
+        crate::dupes::lyric_key(&verses(0, 4)),
+        "the exact key parts them"
+    );
+
+    let (hits, _) = db
+        .similar_words("whole", &Filter::default())
+        .expect("same words");
+    let ids: Vec<&str> = hits.iter().map(|song| song.id.as_str()).collect();
+    assert_eq!(ids, ["whole", "short"], "and this does not");
+}
+
+/// A song with nothing to compare says so, which is not the same as nothing matching.
+#[test]
+fn a_song_with_too_few_words_is_not_compared_at_all() {
+    let mut db = db();
+    add_scanned(&mut db, "instrumental", |song| {
+        song.lyrics = None;
+    });
+    add_scanned(&mut db, "carded", |song| {
+        // A lyric track holding nothing but the sequencer's card, which a great many real files are.
+        song.lyrics = Some("Sequenced by Somebody, 123 Any Street, Anytown".to_owned());
+    });
+
+    for id in ["instrumental", "carded"] {
+        let (hits, comparable) = db
+            .similar_words(id, &Filter::default())
+            .expect("same words");
+        assert!(!comparable, "{id} has no words to compare");
+        assert!(hits.is_empty(), "{id}");
+    }
+}
+
+/// The narrowing runs in SQL, so a match a filter drops is dropped before anything is scored.
+#[test]
+fn the_filter_narrows_the_same_words_candidates() {
+    let mut db = db();
+    add_scanned(&mut db, "origin", |song| {
+        song.lyrics = Some(verses(0, 5));
+    });
+    add_scanned(&mut db, "twin", |song| {
+        song.lyrics = Some(verses(0, 5));
+    });
+
+    let (hits, _) = db
+        .similar_words(
+            "origin",
+            &Filter {
+                suitability: SuitabilityFilter::High,
+                ..Filter::default()
+            },
+        )
+        .expect("same words");
+    let ids: Vec<&str> = hits.iter().map(|song| song.id.as_str()).collect();
+    assert_eq!(
+        ids,
+        ["origin"],
+        "the fixtures score 7, so the high band keeps neither -- and the song searched from is \
+         listed anyway, because every other row is read against it"
+    );
+}
+
 #[test]
 fn a_filter_binds_its_values_rather_than_interpolating_them() {
     let filter = Filter {
@@ -4481,7 +4640,11 @@ pub(crate) fn add_with_artist(db: &mut Db, id: &str, title: &str, artist: &str, 
 }
 
 /// [`add`], with a chance to adjust the scanned song before it is written.
-fn add_scanned(db: &mut Db, id: &str, adjust: impl FnOnce(&mut crate::model::ScannedSong)) {
+pub(crate) fn add_scanned(
+    db: &mut Db,
+    id: &str,
+    adjust: impl FnOnce(&mut crate::model::ScannedSong),
+) {
     add_built(db, id, Some(id), &format!("folder/{id}.kar"), adjust);
 }
 

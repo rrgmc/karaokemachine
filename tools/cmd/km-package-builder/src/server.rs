@@ -148,8 +148,11 @@ pub const DEFAULT_APP_URL: &str = "http://127.0.0.1:0";
 /// question asked at the start of one as often as in the middle.
 pub const LAST_PLAYED_SETTING: &str = "last_played";
 
-/// The similar-names page's five narrowing controls, in its query string's spellings. Empty is *any*,
-/// and for `versions` it is one row per recording.
+/// A matching page's five narrowing controls, in its query string's spellings. Empty is *any*, and
+/// for `versions` it is one row per recording.
+///
+/// One type for both matching pages, because the controls and their spellings are the same decision.
+/// Each page keeps its own, because what they open at is not — see [`Self::for_words`].
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SimilarNarrowing {
     pub suitability: String,
@@ -165,6 +168,26 @@ impl Default for SimilarNarrowing {
     fn default() -> Self {
         Self {
             suitability: crate::db::SuitabilityFilter::High.as_str().to_owned(),
+            kind: String::new(),
+            granularity: String::new(),
+            copies: String::new(),
+            versions: String::new(),
+        }
+    }
+}
+
+impl SimilarNarrowing {
+    /// What the same-words page opens at: every control at *any*.
+    ///
+    /// **Suitability included, which is where the two pages part.** A similar *name* is looked for
+    /// among files somebody might play, so it opens at the band worth playing. The same *words*
+    /// under a different name is most often a file nothing else could reach — `EARTHW~2`, a rough
+    /// transcription, a copy somebody saved badly — and those are the files that score under 8. A
+    /// page that opened at 8–10 would hide the matches it exists to find, and say *no other song
+    /// sings these words* while one sat behind the band.
+    pub fn for_words() -> Self {
+        Self {
+            suitability: String::new(),
             kind: String::new(),
             granularity: String::new(),
             copies: String::new(),
@@ -298,6 +321,13 @@ pub struct State {
     /// unlike [`Self::songs_filter`]: a band of suitability or a media type names nothing out of a
     /// corpus, so it means the same in the next one.
     similar_narrowing: Arc<RwLock<SimilarNarrowing>>,
+    /// The same five, as the same-words page was last set to.
+    ///
+    /// **A second cell and not the one above.** The two bars draw the same controls and mean the
+    /// same things by them, but they open differently — see [`SimilarNarrowing::for_words`] — and one
+    /// record would make the first page opened decide what the other page opens at. Kept for the run
+    /// and across a change of folder, for [`Self::similar_narrowing`]'s reason.
+    words_narrowing: Arc<RwLock<SimilarNarrowing>>,
     /// The machines advertising themselves, kept current in the background.
     ///
     /// **`None` until [`crate::start`] opens it**, and that is the guard rather than a `cfg(test)`: this
@@ -340,6 +370,7 @@ impl State {
             songs_filter: Arc::new(RwLock::new(String::new())),
             quality_hint: Arc::new(RwLock::new(Vec::new())),
             similar_narrowing: Arc::new(RwLock::new(SimilarNarrowing::default())),
+            words_narrowing: Arc::new(RwLock::new(SimilarNarrowing::for_words())),
             watcher: Arc::new(RwLock::new(None)),
             negotiated: Arc::new(RwLock::new(km_locale::Locale::default())),
         }
@@ -577,6 +608,23 @@ impl State {
 
     /// Writes down what the similar-names page is narrowed by, empty fields included, so a control
     /// set back to *any* stays that way.
+    /// What the same-words page was last narrowed by.
+    pub fn words_narrowing(&self) -> SimilarNarrowing {
+        self.words_narrowing
+            .read()
+            .map(|narrowing| narrowing.clone())
+            .unwrap_or_else(|_| SimilarNarrowing::for_words())
+    }
+
+    /// Writes down what the same-words page is narrowed by, empty fields included.
+    pub fn remember_words_narrowing(&self, narrowing: SimilarNarrowing) {
+        let mut guard = self
+            .words_narrowing
+            .write()
+            .unwrap_or_else(|error| error.into_inner());
+        *guard = narrowing;
+    }
+
     pub fn remember_similar_narrowing(&self, narrowing: SimilarNarrowing) {
         let mut guard = self
             .similar_narrowing
@@ -1152,6 +1200,11 @@ impl State {
                 phase(crate::db::OpeningPhase::ClosingPrevious);
             }
             state.close_folder();
+            // **Said here, by the caller, rather than by `Db::prepare`.** Closing the folder that
+            // was open is the rung below this one and happens on this thread, so a job that starts
+            // already on `Database` would have to climb backwards to report it. `Db::prepare` opens
+            // a connection it was handed and has nothing to say about this.
+            phase(crate::db::OpeningPhase::Database);
             let opened = if create {
                 Db::create_saying(&root, &phase)
             } else {
@@ -1257,6 +1310,12 @@ pub struct Opening {
     /// seconds` gives, and it survives an animation a browser has throttled, disabled or never
     /// painted.
     started: Instant,
+    /// Every rung of the open, in order, with where each stands and how long each took.
+    ///
+    /// **The half the sentence and the seconds cannot cover.** A name for the running step says
+    /// neither what is still to come nor whether a step showing the same words for five minutes is
+    /// working, and an open's longest rung is exactly that shape. See [`crate::db::OPENING_LADDER`].
+    steps: crate::step::Ladder,
     /// Whether it has ended.
     finished: AtomicBool,
     /// What went wrong, if anything.
@@ -1265,12 +1324,17 @@ pub struct Opening {
 
 impl Opening {
     /// Starts one.
-    fn new(root: &Path) -> Self {
+    ///
+    /// **No rung is open yet.** The first one is named by the worker, so that a job which closes a
+    /// folder before opening one has its rungs in the order they happen. The phase behind the
+    /// sentence starts at `Database` because that is what an open with nothing to close does first.
+    pub(crate) fn new(root: &Path) -> Self {
         Self {
             path: root.to_path_buf(),
             root: root.display().to_string(),
             phase: Mutex::new(crate::db::OpeningPhase::Database),
             started: Instant::now(),
+            steps: crate::step::Ladder::of(crate::db::OPENING_LADDER),
             finished: AtomicBool::new(false),
             error: Mutex::new(None),
         }
@@ -1287,9 +1351,12 @@ impl Opening {
     /// of this type's life nothing wrote it at all: the page polled a sentence fixed at construction
     /// and so reported "opening the database" for however many minutes an open ran. `Db::prepare`
     /// knew better the whole time and was telling the console. See `db::OpeningPhase`.
-    fn set_phase(&self, phase: crate::db::OpeningPhase) {
+    pub(crate) fn set_phase(&self, phase: crate::db::OpeningPhase) {
         let mut slot = self.phase.lock().unwrap_or_else(|error| error.into_inner());
         *slot = phase;
+        // `advance_to` and not `say`, because an open names only the rungs it takes: the ones it
+        // had nothing to do are marked by being climbed past. See `crate::step::Ladder`.
+        self.steps.advance_to(phase.step());
     }
 
     /// Records the outcome, and only the first one.
@@ -1301,21 +1368,31 @@ impl Opening {
     /// The error is written *before* `finished` is published, so a page that sees a finished job
     /// sees its reason with it. The lock is what serializes the two callers, which is why no second
     /// atomic is needed to claim the right to record.
-    fn finish(&self, error: Option<String>) {
+    pub(crate) fn finish(&self, error: Option<String>) {
         let mut slot = self.error.lock().unwrap_or_else(|error| error.into_inner());
         if self.finished.load(Ordering::Acquire) {
             return;
         }
+        // The checklist is closed inside the lock that already decides which caller wins, so the
+        // rung a failed open stopped at cannot be overwritten by the guard behind it.
+        self.steps.end(error.is_some());
         *slot = error;
         self.finished.store(true, Ordering::Release);
     }
 
     /// A snapshot for the page.
-    fn snapshot(&self) -> OpeningView {
+    pub(crate) fn snapshot(&self) -> OpeningView {
+        let phase = *self.phase.lock().unwrap_or_else(|error| error.into_inner());
         OpeningView {
             root: self.root.clone(),
-            phase: *self.phase.lock().unwrap_or_else(|error| error.into_inner()),
+            phase,
             elapsed_secs: self.started.elapsed().as_secs(),
+            steps: self.steps.views(Instant::now()),
+            // Rounded down, so a bar reaches full width only when the step it draws is over rather
+            // than when it is near enough.
+            percent: phase.counted().and_then(|(done, total)| {
+                (total > 0).then(|| (done.min(total) * 100 / total) as u32)
+            }),
             finished: self.finished(),
             error: self
                 .error
@@ -1346,7 +1423,7 @@ impl Drop for EndsTheJob {
 }
 
 /// A snapshot of a folder being opened.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct OpeningView {
     /// The folder.
     pub root: String,
@@ -1354,6 +1431,10 @@ pub struct OpeningView {
     pub phase: crate::db::OpeningPhase,
     /// How long it has been going, in seconds.
     pub elapsed_secs: u64,
+    /// Every rung, in order, with where each stands.
+    pub steps: Vec<crate::step::StepView>,
+    /// How far through the running rung, where that rung counts what it does.
+    pub percent: Option<u32>,
     /// Whether it has ended.
     pub finished: bool,
     /// What went wrong, if anything.
@@ -1626,6 +1707,8 @@ pub fn router(state: State) -> Router {
         .route("/lyrics/hits", get(handlers::lyric_hits))
         .route("/similar", get(handlers::similar))
         .route("/similar/hits", get(handlers::similar_hits))
+        .route("/similar-words", get(handlers::similar_words))
+        .route("/similar-words/hits", get(handlers::similar_words_hits))
         .route("/folders", get(handlers::folders))
         .route("/songs/{id}/release", post(handlers::release))
         .route("/duplicates", get(handlers::duplicates))
@@ -3976,6 +4059,28 @@ mod tests {
         // Replaced rather than appended to — the field is what it is doing *now*.
         job.set_phase(crate::db::OpeningPhase::Finishing);
         assert_eq!(job.snapshot().phase, crate::db::OpeningPhase::Finishing);
+
+        // And the checklist beside it moved with every one of those, which is the half a field
+        // holding only the current step cannot answer: what is over, and what there was nothing to
+        // do. Nothing reported the six rungs between indexing and finishing, so they were passed.
+        let states = |view: &OpeningView| {
+            view.steps
+                .iter()
+                .map(|step| step.state)
+                .collect::<Vec<_>>()
+                .join(" ")
+        };
+        assert_eq!(
+            states(&job.snapshot()),
+            "skipped skipped skipped done skipped skipped skipped skipped skipped skipped running",
+            "the rungs do not follow what the job was told"
+        );
+
+        job.finish(None);
+        assert!(
+            !states(&job.snapshot()).contains("running"),
+            "a job that has ended leaves a rung claiming to be going on"
+        );
     }
 
     /// The clock reaches the page too, and it runs from the job rather than from the poll.
@@ -4130,6 +4235,9 @@ mod tests {
                 "/similar",
                 "/similar?title=Song&from=song-0000",
                 "/similar/hits?title=Song",
+                "/similar-words",
+                "/similar-words?from=song-0000",
+                "/similar-words/hits?from=song-0000",
                 "/favorites",
                 "/duplicates",
                 "/packages",
@@ -5655,6 +5763,131 @@ mod tests {
         }
         crate::db::tests::add(&mut db, "decided", Some("Tom Jobim"), "folder/tj.kar");
         (corpus, State::new(db))
+    }
+
+    /// A corpus where two files sing one song under names that share nothing, and one sings another.
+    ///
+    /// [`a_corpus_of`] gives every song a lyric of its own, which is what the Lyrics page wants and
+    /// the opposite of what this one does.
+    fn a_singing_corpus(name: &str) -> (Scratch, State) {
+        let corpus = Scratch::new(name);
+        let mut db = Db::open_in_memory(&corpus.0).expect("open");
+        for (id, title, lyrics) in [
+            (
+                "song-0000",
+                "Dancing In The Dark",
+                crate::db::tests::verses(0, 5),
+            ),
+            ("song-0001", "EARTHW~2", crate::db::tests::verses(0, 5)),
+            (
+                "song-0002",
+                "Something Else",
+                crate::db::tests::verses(20, 25),
+            ),
+        ] {
+            crate::db::tests::add_scanned(&mut db, id, |song| {
+                song.det_title = Some(title.to_owned());
+                song.lyrics = Some(lyrics);
+            });
+        }
+        crate::db::tests::add_scanned(&mut db, "instrumental", |song| {
+            song.det_title = Some("No Words At All".to_owned());
+            song.lyrics = None;
+        });
+        (corpus, State::new(db))
+    }
+
+    /// A row leads to the songs that sing what it sings, and a file no name could reach is there.
+    #[tokio::test]
+    async fn a_row_leads_to_the_songs_that_sing_the_same_words() {
+        let (_corpus, state) = a_singing_corpus("words-from-a-row");
+
+        let (status, rows) = get(&state, "/songs").await;
+        assert_eq!(status, axum::http::StatusCode::OK);
+        assert!(
+            rows.contains("/similar-words?from=song-0000"),
+            "a song with words carries the button: {rows}"
+        );
+
+        let (status, html) = get(&state, "/similar-words?from=song-0000").await;
+        assert_eq!(status, axum::http::StatusCode::OK);
+        assert!(
+            html.contains(r#"id="row-song-0001""#),
+            "the file under an unrelated name is a match: {html}"
+        );
+        assert!(
+            !html.contains(r#"id="row-song-0002""#),
+            "and the song that sings something else is not: {html}"
+        );
+        assert!(html.contains("searched-from"), "{html}");
+    }
+
+    /// The fragment route answers with the matches alone, as the bar asks for them.
+    #[tokio::test]
+    async fn the_same_words_hits_are_a_fragment() {
+        let (_corpus, state) = a_singing_corpus("words-fragment");
+
+        let (status, hits) = get(&state, "/similar-words/hits?from=song-0000&suitability=").await;
+        assert_eq!(status, axum::http::StatusCode::OK);
+        assert!(hits.contains(r#"<div id="hits">"#), "{hits}");
+        assert!(!hits.contains("<html"), "a fragment and not a page: {hits}");
+    }
+
+    /// The two matching bars are remembered apart, and the same-words one opens at every band.
+    ///
+    /// **The defect this pins is that the page would find nothing.** The files it exists to reach are
+    /// the ones no name could — a rough transcription under a name like `EARTHW~2` — and those score
+    /// under 8. One shared record, opening where the names page opens, would have hidden them behind
+    /// the band and said no other song sings these words.
+    #[tokio::test]
+    async fn the_two_matching_bars_are_remembered_apart() {
+        let (_corpus, state) = a_singing_corpus("words-own-bar");
+
+        // A bare link to either page, which carries no narrowing and takes what each remembers.
+        let (status, _) = get(&state, "/similar-words?from=song-0000").await;
+        assert_eq!(status, axum::http::StatusCode::OK);
+        assert_eq!(state.words_narrowing(), SimilarNarrowing::for_words());
+        assert_eq!(
+            state.similar_narrowing(),
+            SimilarNarrowing::default(),
+            "and the names page's own record is untouched"
+        );
+
+        // The same-words bar speaking narrows only itself.
+        let (status, _) = get(
+            &state,
+            "/similar-words/hits?from=song-0000&suitability=0-4&kind=&granularity=&copies=",
+        )
+        .await;
+        assert_eq!(status, axum::http::StatusCode::OK);
+        assert_eq!(state.words_narrowing().suitability, "0-4");
+        assert_eq!(
+            state.similar_narrowing(),
+            SimilarNarrowing::default(),
+            "the bar next door did not move"
+        );
+    }
+
+    /// A song with no words draws no button, and its page says so rather than reporting no match.
+    ///
+    /// Two different things to be told, because they have two different answers: one is *this file
+    /// has nothing to compare*, the other is *your corpus holds nothing like it*.
+    #[tokio::test]
+    async fn a_song_with_no_words_says_so_rather_than_finding_nothing() {
+        let (_corpus, state) = a_singing_corpus("words-instrumental");
+
+        let (status, rows) = get(&state, "/songs").await;
+        assert_eq!(status, axum::http::StatusCode::OK);
+        assert!(
+            !rows.contains("/similar-words?from=instrumental"),
+            "an instrumental carries no button: {rows}"
+        );
+
+        let (status, html) = get(&state, "/similar-words?from=instrumental").await;
+        assert_eq!(status, axum::http::StatusCode::OK);
+        let words = crate::words::messages(km_locale::Locale::English);
+        assert!(html.contains(&*words.msg("words-too-few")), "{html}");
+        assert!(!html.contains(&*words.msg("words-not-found")), "{html}");
     }
 
     /// Taking the artist out of the title answers with the rows, on the page it was pressed on.

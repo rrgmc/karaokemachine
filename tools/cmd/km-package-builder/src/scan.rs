@@ -27,6 +27,7 @@ use crate::dupes::fingerprint;
 #[cfg(feature = "video")]
 use crate::model::VideoFacts;
 use crate::model::{CdgFacts, MidiFacts, ScanStatus, ScannedFile, ScannedSong, UltraStarFacts};
+use crate::step::{Ladder, Step, StepState, StepView, rough_duration};
 
 thread_local! {
     /// Whether a panic on this thread right now is one the scan is deliberately swallowing.
@@ -111,60 +112,6 @@ pub mod phase {
     ];
 }
 
-/// Where one step of a run stands.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum StepState {
-    /// Not reached yet.
-    Waiting,
-    /// Going on now.
-    Running,
-    /// Over, and it went through.
-    Done,
-    /// Not run: this run did not need it, or ended before reaching it.
-    Skipped,
-    /// The step the run failed in.
-    Failed,
-}
-
-impl StepState {
-    /// The class the page draws the step's mark with.
-    pub fn class(self) -> &'static str {
-        match self {
-            Self::Waiting => "waiting",
-            Self::Running => "running",
-            Self::Done => "done",
-            Self::Skipped => "skipped",
-            Self::Failed => "failed",
-        }
-    }
-}
-
-/// One step of a run, as the checklist on the Scan page draws it.
-#[derive(Debug, Clone)]
-struct Step {
-    /// The phase key, which is also the step's name on the page.
-    key: &'static str,
-    state: StepState,
-    /// When it started running.
-    started: Option<Instant>,
-    /// How long it ran, once it is over.
-    took: Option<Duration>,
-    /// Whether it runs only when the run wrote or removed a row.
-    if_changed: bool,
-}
-
-impl Step {
-    fn waiting(key: &'static str, if_changed: bool) -> Self {
-        Self {
-            key,
-            state: StepState::Waiting,
-            started: None,
-            took: None,
-            if_changed,
-        }
-    }
-}
-
 /// The steps a run with these options can take, in the order it takes them.
 ///
 /// **Known before the run starts**, which is what lets the page say what is still to come. Three of
@@ -187,19 +134,6 @@ fn planned_steps(options: &ScanOptions) -> Vec<Step> {
     steps.push(Step::waiting(phase::INDEXING, true));
     steps.push(Step::waiting(phase::MEASURING, true));
     steps
-}
-
-/// A step as the page draws it.
-#[derive(Debug, Clone)]
-pub struct StepView {
-    /// The phase key, which the page words.
-    pub key: String,
-    /// The class for its mark: `waiting`, `running`, `done`, `skipped` or `failed`.
-    pub state: &'static str,
-    /// How long it took, once it is over; how long it has been running, while it runs.
-    pub took: Option<String>,
-    /// Whether it runs only when the run wrote or removed a row.
-    pub if_changed: bool,
 }
 
 /// How far back the rate is measured.
@@ -268,12 +202,7 @@ pub struct Progress {
     /// Files found so far by the walk, which is minutes on a large corpus and has no `total` yet.
     pub found: AtomicU64,
     /// Every step of the run, in order, with where each stands and how long each took.
-    ///
-    /// **Timed because the first question about a slow scan is *which step*.** A scan is up to seven
-    /// steps, four of them whole-corpus passes over a database of most of a gigabyte, and a name alone
-    /// does not say which of them the time went into. **Listed before they run**, so the page can say
-    /// what is still to come as well as what is over.
-    steps: Mutex<Vec<Step>>,
+    steps: Ladder,
     /// Settled counts taken over the last [`RATE_WINDOW`], for the rate and the time left.
     samples: Mutex<VecDeque<(Instant, u64)>>,
 }
@@ -289,30 +218,12 @@ impl Progress {
         let settled = skipped.saturating_add(written).min(done);
         let now = Instant::now();
 
-        let (steps, reading) = self
-            .steps
-            .lock()
-            .map(|steps| {
-                let reading = steps
-                    .iter()
-                    .any(|step| step.key == phase::READING && step.state == StepState::Running);
-                let views = steps
-                    .iter()
-                    .map(|step| StepView {
-                        key: step.key.to_owned(),
-                        state: step.state.class(),
-                        took: match step.state {
-                            StepState::Running => step.started.map(|started| {
-                                human_duration(now.saturating_duration_since(started))
-                            }),
-                            _ => step.took.map(human_duration),
-                        },
-                        if_changed: step.if_changed,
-                    })
-                    .collect();
-                (views, reading)
-            })
-            .unwrap_or_default();
+        let steps = self.steps.views(now);
+        let reading = self.steps.with(|steps| {
+            steps
+                .iter()
+                .any(|step| step.key == phase::READING && step.state == StepState::Running)
+        });
 
         // Sampled only while the files are being read, which is the one step a rate describes.
         let estimate = reading
@@ -379,32 +290,15 @@ impl Progress {
 
     /// Lists the steps a run with these options will take, all of them waiting.
     fn plan(&self, options: &ScanOptions) {
-        if let Ok(mut steps) = self.steps.lock() {
-            *steps = planned_steps(options);
-        }
+        self.steps.plan(planned_steps(options));
     }
 
     /// Names the phase now running, and closes the step before it.
     ///
-    /// The two are one operation on purpose: a phase boundary is the only moment both are known,
-    /// and a `say` that forgot to stop the clock would leave a timing that silently belonged to two
-    /// steps at once. A phase the plan did not list is added at the end, so it is still shown.
+    /// The status line and the checklist are set together because a phase boundary is the only
+    /// moment both are known.
     fn say(&self, phase: &'static str) {
-        let now = Instant::now();
-        if let Ok(mut steps) = self.steps.lock() {
-            close_running(&mut steps, now, StepState::Done);
-            match steps.iter_mut().find(|step| step.key == phase) {
-                Some(step) => {
-                    step.state = StepState::Running;
-                    step.started = Some(now);
-                }
-                None => steps.push(Step {
-                    state: StepState::Running,
-                    started: Some(now),
-                    ..Step::waiting(phase, false)
-                }),
-            }
-        }
+        self.steps.say(phase);
         if let Ok(mut slot) = self.phase.lock() {
             *slot = phase.to_owned();
         }
@@ -412,13 +306,7 @@ impl Progress {
 
     /// Marks steps this run will not take, where they have not been reached.
     fn skip(&self, keys: &[&str]) {
-        if let Ok(mut steps) = self.steps.lock() {
-            for step in steps.iter_mut() {
-                if step.state == StepState::Waiting && keys.contains(&step.key) {
-                    step.state = StepState::Skipped;
-                }
-            }
-        }
+        self.steps.skip(keys);
     }
 
     /// Closes the run: the step still running is over, and a step never reached is skipped.
@@ -427,23 +315,7 @@ impl Progress {
     /// is separate from [`Progress::say`], which would time how long it took to notice the run was
     /// over.
     fn end(&self, failed: bool) {
-        let now = Instant::now();
-        if let Ok(mut steps) = self.steps.lock() {
-            close_running(
-                &mut steps,
-                now,
-                if failed {
-                    StepState::Failed
-                } else {
-                    StepState::Done
-                },
-            );
-            for step in steps.iter_mut() {
-                if step.state == StepState::Waiting {
-                    step.state = StepState::Skipped;
-                }
-            }
-        }
+        self.steps.end(failed);
         if let Ok(mut slot) = self.phase.lock() {
             *slot = if self.canceled.load(Ordering::Relaxed) {
                 phase::STOPPED
@@ -459,16 +331,13 @@ impl Progress {
     /// For the corpus measurements, which print them; the page reads the steps themselves.
     #[cfg(test)]
     pub fn timings(&self) -> Vec<(String, Duration)> {
-        self.steps
-            .lock()
-            .map(|steps| {
-                steps
-                    .iter()
-                    .filter(|step| step.state == StepState::Done)
-                    .filter_map(|step| step.took.map(|took| (step.key.to_owned(), took)))
-                    .collect()
-            })
-            .unwrap_or_default()
+        self.steps.with(|steps| {
+            steps
+                .iter()
+                .filter(|step| step.state == StepState::Done)
+                .filter_map(|step| step.took.map(|took| (step.key.to_owned(), took)))
+                .collect()
+        })
     }
 
     /// Asks the run to stop after the files already read have been written.
@@ -479,57 +348,6 @@ impl Progress {
     /// Whether stopping has been asked for.
     pub fn stopping(&self) -> bool {
         self.cancel.load(Ordering::Relaxed)
-    }
-}
-
-/// Ends the running step, if there is one, in `state`, and logs how long it took.
-fn close_running(steps: &mut [Step], now: Instant, state: StepState) {
-    for step in steps
-        .iter_mut()
-        .filter(|step| step.state == StepState::Running)
-    {
-        let took = step
-            .started
-            .map(|started| now.saturating_duration_since(started))
-            .unwrap_or_default();
-        tracing::info!(phase = step.key, seconds = took.as_secs_f32(), "scan phase");
-        step.state = state;
-        step.took = Some(took);
-    }
-}
-
-/// A phase duration, at the precision somebody reading it can act on.
-///
-/// Four bands rather than one format, because the numbers this reports genuinely span them: a
-/// gated phase is microseconds, `ANALYZE` is about a second, and a forced pass over a real corpus is
-/// hours. Milliseconds on the last of those would be noise, and `0 s` on the first would hide the
-/// very thing the timings are there to show.
-fn human_duration(elapsed: Duration) -> String {
-    let seconds = elapsed.as_secs_f64();
-    let whole = elapsed.as_secs();
-    if seconds < 1.0 {
-        format!("{} ms", elapsed.as_millis())
-    } else if seconds < 60.0 {
-        format!("{seconds:.1} s")
-    } else if whole < 3600 {
-        format!("{} m {:02} s", whole / 60, whole % 60)
-    } else {
-        format!("{} h {:02} m", whole / 3600, (whole % 3600) / 60)
-    }
-}
-
-/// A time still to come, at the precision an estimate has.
-///
-/// Coarser than [`human_duration`] on purpose: an estimate moves with every poll, and a seconds
-/// figure that changes every second on a two-hour estimate claims a precision it does not have.
-fn rough_duration(left: Duration) -> String {
-    let whole = left.as_secs();
-    if whole < 60 {
-        format!("{whole} s")
-    } else if whole < 3600 {
-        format!("{} m", whole.div_ceil(60))
-    } else {
-        format!("{} h {:02} m", whole / 3600, (whole % 3600) / 60)
     }
 }
 
@@ -2336,17 +2154,6 @@ mod tests {
             view.rate, None,
             "a rate describes reading and nothing after it"
         );
-    }
-
-    #[test]
-    fn a_duration_is_shown_at_the_precision_it_has() {
-        assert_eq!(human_duration(Duration::from_millis(250)), "250 ms");
-        assert_eq!(human_duration(Duration::from_millis(1_500)), "1.5 s");
-        assert_eq!(human_duration(Duration::from_secs(125)), "2 m 05 s");
-        assert_eq!(human_duration(Duration::from_secs(7_500)), "2 h 05 m");
-        assert_eq!(rough_duration(Duration::from_secs(42)), "42 s");
-        assert_eq!(rough_duration(Duration::from_secs(61)), "2 m");
-        assert_eq!(rough_duration(Duration::from_secs(7_500)), "2 h 05 m");
     }
 
     /// A scan asked to stop writes what it read and abandons the rest, rather than being killed.

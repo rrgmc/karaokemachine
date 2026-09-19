@@ -259,6 +259,15 @@ failure-bad-ultrastar = an UltraStar file this machine does not play
 failure-ultrastar-audio = an UltraStar file whose MP3 is not beside it
 failure-panicked = the parser panicked
 
+## The checklist a long job draws ---------------------------------------------------
+#
+# Both the Scan page and the Open page list their steps, so these three belong to neither. The names
+# of the steps themselves are `scan-phase-` and `opening-step-`, one set per job.
+
+steps = Steps
+step-not-needed = not needed this time
+step-not-reached = not reached
+
 ## Reading the corpus -------------------------------------------------------------
 #
 # The phases are keys because a phase is named on the worker thread, where no language is in reach.
@@ -295,10 +304,7 @@ scan-found = { $count ->
   }
 scan-rate = { $rate } files a second
 scan-remaining = about { $time } left
-scan-steps = Steps
 scan-step-if-changed = only if something changed
-scan-step-not-needed = not needed this time
-scan-step-not-reached = not reached
 scan-stop = Stop
 scan-stop-title = Stops after writing the files already read. Everything read so far is kept, and the next scan carries on from there.
 scan-stopping = Stopping: writing the files already read.
@@ -424,6 +430,14 @@ similar-type-a-name = Type a title or an artist and the songs with a similar nam
 similar-not-found = No song has a similar name.
 similar-likeness-title = how alike the two names are
 similar-searched-from-title = the song this search started from
+
+## Songs that sing the same words ------------------------------------------------------
+
+words-heading = Songs that sing the same words
+words-how-it-matches = Credits, addresses and section labels are left out, and capitals, accents and punctuation are ignored. A file missing a verse, or one line heard differently, still matches. A cover with reworked words and a medley do not.
+words-too-few = This song has too few sung words to find another by.
+words-not-found = No other song sings these words.
+words-likeness-title = how much of the two lyrics is word for word the same
 column-likeness = Likeness
 column-language-title = What language it is sung in, as an ISO 639-1 code
 column-suitability-title = Automatic suitability, 0-10
@@ -483,6 +497,7 @@ row-score-title = your own rating
 row-edit-title = edit the title and artist here
 row-youtube-title = search YouTube
 row-similar-title = find songs with a similar name
+row-words-title = find songs that sing the same words
 row-which-favorite = in which favorite?
 row-working-lists = working lists
 row-no-favorites = None yet — name one and it is made and filled in one go.
@@ -507,6 +522,22 @@ opening-reading-words = reading the words of { $done } of { $total } songs
 opening-gathering-statistics = gathering statistics over the whole corpus
 opening-folding-journal = folding the journal back into the database
 opening-finishing = finishing
+
+# The same eleven again, as the names on the checklist beside the sentence above. Bare of the counts,
+# which arrive next to the running rung as `opening-step-count`, and in the present tense of a list
+# rather than of a thing happening now.
+opening-step-closing-previous = closing the folder that was open
+opening-step-database = opening the database
+opening-step-up-to-date = bringing the database up to date
+opening-step-indexing = building the indexes
+opening-step-folding = folding titles for the browse order
+opening-step-working-out-language = working out what language each song is in
+opening-step-reading-words = reading the words of each song
+opening-step-tidying-text = tidying the text read out of the files
+opening-step-gathering-statistics = gathering statistics over the whole corpus
+opening-step-folding-journal = folding the journal back into the database
+opening-step-finishing = finishing
+opening-step-count = { $done } of { $total } · { $percent }%
 
 ## The folder picker ----------------------------------------------------------------
 
@@ -834,6 +865,7 @@ song-no-title-title = no title in the file - showing its name
 song-test-play = Test-play
 song-open-in-os = Open in OS
 song-similar = Similar names
+song-words = Same words
 song-download = Download
 song-youtube = YouTube
 song-favorites-title = the favorites this song is in

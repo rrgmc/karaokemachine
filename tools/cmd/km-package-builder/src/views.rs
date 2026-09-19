@@ -653,6 +653,56 @@ pub struct SimilarHits {
     pub last_played: Option<String>,
 }
 
+/// `GET /similar-words`
+#[derive(Template)]
+#[template(path = "similar_words.html")]
+pub struct SimilarWordsPage {
+    /// Page chrome.
+    pub chrome: Chrome,
+    /// The matches.
+    pub hits: SimilarWordsHits,
+    /// Every favorite, for the "put the ticked songs in" form.
+    pub favorites: Vec<FavoriteNode>,
+    /// The song the search started from, which heads the list. The only thing the address carries,
+    /// because the subject is that song's whole lyric body and no box could hold it.
+    pub from: String,
+    /// The narrowing controls, echoed back so they keep their state.
+    pub query: FilterForm,
+}
+
+/// `GET /similar-words/hits` — the matches alone.
+///
+/// Carries the whole cast `song_row.html` asks for, for [`LyricHits`]'s reason.
+#[derive(Template)]
+#[template(path = "similar_words_hits.html")]
+pub struct SimilarWordsHits {
+    /// The matches, likeliest first, headed by the song searched from.
+    pub hits: Vec<SongRow>,
+    /// Whether any song's words have been indexed at all. False sends somebody to the scan page
+    /// rather than leaving them to conclude their corpus holds nothing like this song.
+    pub indexed: bool,
+    /// Whether the song searched from has enough words to find another by. False is an instrumental,
+    /// or a file whose lyric track carries nothing but the sequencer's card — a different thing to
+    /// say from *nothing matched*, and with a different answer.
+    pub comparable: bool,
+    /// The rating options every row's select is built from, made once for the page.
+    pub ratings: Vec<Choice>,
+    /// The languages this corpus holds, for every row's language select.
+    pub languages: Vec<Choice>,
+    /// Always empty: the list never draws a row in its language-choosing state.
+    pub all_languages: Vec<Choice>,
+    /// Always false, for the same reason.
+    pub choosing_language: bool,
+    /// Always false: the list never draws a row in its editing state.
+    pub editing: bool,
+    /// Always false, for the same reason.
+    pub picking: bool,
+    /// The favorites a picking row would offer. Always empty here.
+    pub favorites: Vec<PickerFavorite>,
+    /// The song most recently sent to the karaoke machine.
+    pub last_played: Option<String>,
+}
+
 /// Which page `offset` is on and how many pages `total` rows make, both counting from one.
 ///
 /// **The page count is at least the page being shown**, for the reason `handlers::page_links` clamps
@@ -2332,6 +2382,18 @@ pub struct OpenProgress {
     ///
     /// Three values in one sentence, so it is composed in Rust. Empty when there is no job.
     pub said: String,
+    /// How far through the running rung, beside its name on the checklist.
+    ///
+    /// `None` for a rung with nothing inside it to count, which is nine of the eleven. Worded here
+    /// rather than in the template for the reason `said` is: three numbers in one line, and the
+    /// snapshot it comes from was taken on a thread with no language in reach.
+    pub count_said: Option<String>,
+    /// Where the rung an open failed in sits, or `usize::MAX` where none did.
+    ///
+    /// **What tells the two meanings of a dash apart.** A rung before the failure is one the open
+    /// climbed past because there was nothing to do; a rung after it is one the open never reached.
+    /// A number rather than an `Option` because the template compares it and has no `unwrap`.
+    pub failed_at: usize,
 }
 
 impl OpenProgress {
@@ -2341,8 +2403,9 @@ impl OpenProgress {
         open: bool,
         locale: km_locale::Locale,
     ) -> Self {
+        let words = crate::words::messages(locale);
         let said = opening.as_ref().map_or_else(String::new, |job| {
-            crate::words::messages(locale)
+            words
                 .msg_with(
                     "open-progress",
                     &[
@@ -2356,10 +2419,32 @@ impl OpenProgress {
                 )
                 .into_owned()
         });
+        let count_said = opening.as_ref().and_then(|job| {
+            let (done, total) = job.phase.counted()?;
+            let n = |value: usize| i64::try_from(value).unwrap_or(i64::MAX);
+            Some(
+                words
+                    .msg_with(
+                        "opening-step-count",
+                        &[
+                            ("done", n(done).into()),
+                            ("total", n(total).into()),
+                            ("percent", i64::from(job.percent.unwrap_or_default()).into()),
+                        ],
+                    )
+                    .into_owned(),
+            )
+        });
+        let failed_at = opening
+            .as_ref()
+            .and_then(|job| job.steps.iter().position(|step| step.state == "failed"))
+            .unwrap_or(usize::MAX);
         Self {
             opening,
             open,
             said,
+            count_said,
+            failed_at,
         }
     }
 }
@@ -3195,6 +3280,7 @@ mod tests {
             path: path.to_owned(),
             paths: path.to_owned(),
             from_filename: title.is_empty(),
+            has_words: false,
         };
         // Worded as a page would, so a test asserting on a tooltip sees the sentence and not a gap.
         row.say(km_locale::Locale::English, false);
@@ -5501,6 +5587,7 @@ mod tests {
             phase: crate::db::OpeningPhase::UpToDate,
             finished: false,
             error: None,
+            ..Default::default()
         }));
         assert!(
             opening.contains(r#"<div class="chooser" hidden>"#),
@@ -5525,6 +5612,7 @@ mod tests {
             phase: crate::db::OpeningPhase::Database,
             finished: true,
             error: Some("no database there".to_owned()),
+            ..Default::default()
         }));
         assert!(failed.contains(r#"<div class="chooser">"#), "{failed}");
         // **And the reason is on the page, not only in the poll that would have carried it.** A job
@@ -5658,6 +5746,7 @@ mod tests {
                 phase: crate::db::OpeningPhase::Database,
                 finished: true,
                 error: Some("no database there".to_owned()),
+                ..Default::default()
             }),
             false,
         );
@@ -5672,6 +5761,7 @@ mod tests {
                 phase: crate::db::OpeningPhase::Database,
                 finished: true,
                 error: None,
+                ..Default::default()
             }),
             false,
         );
@@ -5686,6 +5776,7 @@ mod tests {
                 phase: crate::db::OpeningPhase::UpToDate,
                 finished: false,
                 error: None,
+                ..Default::default()
             }),
             false,
         );
@@ -6094,6 +6185,7 @@ mod tests {
                 phase: crate::db::OpeningPhase::Database,
                 finished,
                 error: None,
+                ..Default::default()
             })
         };
 
@@ -6150,6 +6242,7 @@ mod tests {
                 phase: crate::db::OpeningPhase::Database,
                 finished,
                 error: None,
+                ..Default::default()
             })
         };
 
@@ -6204,6 +6297,7 @@ mod tests {
             phase: crate::db::OpeningPhase::Database,
             finished: false,
             error: None,
+            ..Default::default()
         });
         let fragment = OpenProgress::new(job, false, km_locale::Locale::English)
             .in_english()
@@ -6273,7 +6367,7 @@ mod tests {
                 (crate::scan::phase::MEASURING, "waiting", true),
             ]
             .into_iter()
-            .map(|(key, state, if_changed)| crate::scan::StepView {
+            .map(|(key, state, if_changed)| crate::step::StepView {
                 key: key.to_owned(),
                 state,
                 took: (state != "waiting").then(|| "2.0 s".to_owned()),
@@ -6352,6 +6446,7 @@ mod tests {
                     phase: crate::db::OpeningPhase::UpToDate,
                     finished,
                     error,
+                    ..Default::default()
                 }),
                 false,
                 km_locale::Locale::English,
@@ -6410,5 +6505,152 @@ mod tests {
             css.contains("white-space: normal;"),
             "the panel keeps `.message`'s newlines, so the template's own indentation is drawn"
         );
+    }
+
+    /// The Open panel lists every rung, and a rung it climbed past is one it did not need.
+    ///
+    /// **This is what the sentence and the seconds cannot say.** They name the step in hand, and a
+    /// corpus that spends four minutes building indexes says nothing at all about the rungs still to
+    /// come — while a rung the open had nothing to do on would sit waiting for the length of the
+    /// job.
+    #[test]
+    fn the_open_panel_lists_its_rungs_and_marks_the_ones_it_climbed_past() {
+        let job = crate::server::Opening::new(std::path::Path::new(r"D:\tunes\karaoke"));
+        job.set_phase(crate::db::OpeningPhase::Folding { done: 3, total: 4 });
+
+        let panel = OpenProgress::new(Some(job.snapshot()), false, km_locale::Locale::English)
+            .in_english()
+            .expect("render");
+
+        let rung = |name: &str| rung_state(&panel, name);
+        assert_eq!(
+            rung("folding titles for the browse order"),
+            "running",
+            "the rung in hand is not the one marked: {panel}"
+        );
+        assert_eq!(
+            rung("building the indexes"),
+            "skipped",
+            "a rung the open climbed past is left waiting for ever: {panel}"
+        );
+        assert_eq!(
+            rung("gathering statistics over the whole corpus"),
+            "waiting",
+            "a rung still to come is not offered as still to come: {panel}"
+        );
+        assert!(
+            panel.contains("not needed this time"),
+            "a skipped rung does not say why it carries a dash: {panel}"
+        );
+    }
+
+    /// The bar draws a proportion where the rung counts, and says only *working* where it does not.
+    ///
+    /// **A partial bar beside a rung with nothing inside it to count would be a proportion nobody
+    /// stated.** Nine of the eleven are one statement each; the two that go in chunks are the two
+    /// that take the minutes, and those are exactly the ones worth a real figure.
+    #[test]
+    fn the_bar_is_a_proportion_only_where_the_rung_counts_what_it_does() {
+        let panel = |phase| {
+            let job = crate::server::Opening::new(std::path::Path::new(r"D:\tunes\karaoke"));
+            job.set_phase(phase);
+            OpenProgress::new(Some(job.snapshot()), false, km_locale::Locale::English)
+                .in_english()
+                .expect("render")
+        };
+
+        let counted = panel(crate::db::OpeningPhase::ReadingWords { done: 3, total: 4 });
+        assert!(
+            counted.contains(r#"style="width: 75%""#) && !counted.contains("bar working"),
+            "a rung that knows how far through it is draws no proportion: {counted}"
+        );
+        assert!(
+            counted.contains("3 of 4 · 75%"),
+            "the counts are nowhere beside the rung they belong to: {counted}"
+        );
+
+        let uncounted = panel(crate::db::OpeningPhase::GatheringStatistics);
+        assert!(
+            uncounted.contains("bar working") && !uncounted.contains("style=\"width"),
+            "a single `ANALYZE` is drawn as a proportion of something: {uncounted}"
+        );
+    }
+
+    /// An open that failed keeps its list, and the list is what says which rung broke.
+    ///
+    /// A reason alone names the fault. Which rung it happened in is the difference between a
+    /// database that would not open and one whose index was rewritten halfway.
+    ///
+    /// **And a dash means two things here**, which is why both are asserted: above the failure it is
+    /// a rung the open climbed past and did not need, below it a rung it was never going to reach.
+    #[test]
+    fn a_failed_open_says_which_rung_it_failed_in() {
+        let job = crate::server::Opening::new(std::path::Path::new(r"D:\tunes\karaoke"));
+        job.set_phase(crate::db::OpeningPhase::Indexing { missing: 6 });
+        job.finish(Some("the disk went away".to_owned()));
+
+        let panel = OpenProgress::new(Some(job.snapshot()), false, km_locale::Locale::English)
+            .in_english()
+            .expect("render");
+
+        assert!(panel.contains("the disk went away"), "{panel}");
+        assert!(
+            panel.contains(r#"class="step failed""#)
+                && rung_state(&panel, "building the indexes") == "failed",
+            "the rung it failed in is not marked: {panel}"
+        );
+        let said = |name: &str| {
+            let at = panel.find(name).expect(name);
+            let end = panel[at..].find("</li>").expect("its row's end");
+            panel[at..at + end].to_owned()
+        };
+        assert!(
+            said("bringing the database up to date").contains("not needed this time"),
+            "a rung the open climbed past before the failure reads as one it never reached: {panel}"
+        );
+        assert!(
+            said("gathering statistics over the whole corpus").contains("not reached"),
+            "a rung after the failure reads as one there was nothing to do: {panel}"
+        );
+        assert!(
+            panel.contains(r#"removeAttribute("hidden")"#),
+            "the list came at the cost of the chooser coming back: {panel}"
+        );
+    }
+
+    /// A refusal made before any rung was climbed draws no checklist.
+    ///
+    /// **Eleven rungs reading *not needed this time* would say the open considered each one and
+    /// declined it.** `report_failed_open` leaves a folder that is not there, holds no database or
+    /// holds two as a job that finished without starting, and the honest page for that is the
+    /// reason by itself.
+    #[test]
+    fn a_refusal_that_never_started_shows_no_rungs() {
+        let job = crate::server::Opening::new(std::path::Path::new(r"D:\tunes\karaoke"));
+        job.finish(Some("it holds two databases".to_owned()));
+
+        let panel = OpenProgress::new(Some(job.snapshot()), false, km_locale::Locale::English)
+            .in_english()
+            .expect("render");
+
+        assert!(panel.contains("it holds two databases"), "{panel}");
+        assert!(
+            !panel.contains("<ol class=\"steps\""),
+            "a job that climbed nothing lists rungs it never considered: {panel}"
+        );
+    }
+
+    /// The class on the row a step's name sits in.
+    #[cfg(test)]
+    fn rung_state(panel: &str, name: &str) -> String {
+        let at = panel
+            .find(name)
+            .unwrap_or_else(|| panic!("{name} is not on the panel: {panel}"));
+        let opened = panel[..at].rfind(r#"<li class="step "#).expect("its row");
+        panel[opened + r#"<li class="step "#.len()..]
+            .split('"')
+            .next()
+            .expect("its state")
+            .to_owned()
     }
 }

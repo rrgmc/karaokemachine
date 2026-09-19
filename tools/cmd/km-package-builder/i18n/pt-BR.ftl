@@ -238,6 +238,12 @@ failure-bad-ultrastar = é um arquivo UltraStar que esta máquina não toca
 failure-ultrastar-audio = é um arquivo UltraStar cujo MP3 não está ao lado
 failure-panicked = o leitor quebrou
 
+## A lista de etapas de um trabalho demorado ----------------------------------------
+
+steps = Etapas
+step-not-needed = não foi preciso desta vez
+step-not-reached = não chegou aqui
+
 ## Ler o acervo --------------------------------------------------------------------
 
 scan-reads-lead = Lê e interpreta todo arquivo compatível dentro de
@@ -275,10 +281,7 @@ scan-found = { $count ->
   }
 scan-rate = { $rate } arquivos por segundo
 scan-remaining = faltam uns { $time }
-scan-steps = Etapas
 scan-step-if-changed = só se algo mudou
-scan-step-not-needed = não foi preciso desta vez
-scan-step-not-reached = não chegou aqui
 scan-stop = Parar
 scan-stop-title = Para depois de gravar os arquivos já lidos. Tudo o que foi lido fica salvo, e a próxima leitura continua de onde parou.
 scan-stopping = Parando: gravando os arquivos já lidos.
@@ -401,6 +404,14 @@ similar-type-a-name = Digite um título ou um artista e as músicas com nome par
 similar-not-found = Nenhuma música tem nome parecido.
 similar-likeness-title = o quanto os dois nomes se parecem
 similar-searched-from-title = a música de onde esta busca partiu
+
+## Músicas que cantam as mesmas palavras ------------------------------------------------
+
+words-heading = Músicas que cantam as mesmas palavras
+words-how-it-matches = Créditos, endereços e rótulos de seção ficam de fora, e maiúsculas, acentos e pontuação são ignorados. Um arquivo sem uma estrofe, ou com um verso ouvido de outro jeito, ainda é encontrado. Uma regravação com letra refeita e um pot-pourri não são.
+words-too-few = Esta música tem palavras cantadas de menos para encontrar outra por elas.
+words-not-found = Nenhuma outra música canta estas palavras.
+words-likeness-title = o quanto das duas letras é palavra por palavra igual
 column-likeness = Semelhança
 column-language-title = A língua em que é cantada, como código ISO 639-1
 column-suitability-title = Adequação automática, de 0 a 10
@@ -462,6 +473,7 @@ row-score-title = a sua nota
 row-edit-title = editar o título e o artista aqui
 row-youtube-title = procurar no YouTube
 row-similar-title = procurar músicas com nome parecido
+row-words-title = procurar músicas que cantam as mesmas palavras
 row-which-favorite = em qual lista?
 row-working-lists = listas de trabalho
 row-no-favorites = Nenhuma ainda — dê um nome e ela é criada e preenchida de uma vez.
@@ -484,6 +496,21 @@ opening-reading-words = lendo a letra de { $done } de { $total } músicas
 opening-gathering-statistics = reunindo estatísticas do acervo inteiro
 opening-folding-journal = juntando o diário de volta ao banco de dados
 opening-finishing = terminando
+
+# Os mesmos onze, como os nomes na lista de etapas ao lado da frase acima. Sem as contagens, que
+# aparecem junto da etapa em andamento como `opening-step-count`.
+opening-step-closing-previous = fechando a pasta que estava aberta
+opening-step-database = abrindo o banco de dados
+opening-step-up-to-date = atualizando o banco de dados
+opening-step-indexing = criando os índices
+opening-step-folding = preparando os títulos para a ordem da lista
+opening-step-working-out-language = descobrindo a língua de cada música
+opening-step-reading-words = lendo a letra de cada música
+opening-step-tidying-text = arrumando o texto lido dos arquivos
+opening-step-gathering-statistics = reunindo estatísticas do acervo inteiro
+opening-step-folding-journal = juntando o diário de volta ao banco de dados
+opening-step-finishing = terminando
+opening-step-count = { $done } de { $total } · { $percent }%
 
 ## O seletor de pastas --------------------------------------------------------------
 
@@ -817,6 +844,7 @@ song-no-title-title = o arquivo não traz título - mostrando o nome dele
 song-test-play = Ouvir
 song-open-in-os = Abrir no sistema
 song-similar = Nomes parecidos
+song-words = Mesmas palavras
 song-download = Baixar
 song-youtube = YouTube
 song-favorites-title = as listas em que esta música está

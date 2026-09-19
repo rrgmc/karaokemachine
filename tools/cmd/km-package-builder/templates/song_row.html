@@ -185,6 +185,14 @@
         <a href="{{ similar }}" target="_blank"><button type="button"
            title="{{ "row-similar-title"|t }}">&#8776;</button></a>
         {% endif %}
+        {# ≋, *all equal to*: other files that sing what this one sings, whatever they are called.
+           One tilde more than the ≈ beside it, because it is the same question asked of more of the
+           song. Drawn only where the song has words, and most of a real corpus is instrumental. #}
+        {% let words = song.words_url() %}
+        {% if !words.is_empty() %}
+        <a href="{{ words }}" target="_blank"><button type="button"
+           title="{{ "row-words-title"|t }}">&#8779;</button></a>
+        {% endif %}
         {% if song.searchable() %}
         <a href="{{ song.youtube_url() }}" target="_blank" rel="noopener"><button type="button"
            title="{{ "row-youtube-title"|t }}">&#9834;</button></a>

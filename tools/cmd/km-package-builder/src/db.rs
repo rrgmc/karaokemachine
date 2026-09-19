@@ -514,9 +514,10 @@ pub type Phase<'a> = &'a dyn Fn(OpeningPhase);
 /// these carry a count. The fact travels and whoever shows it writes the words: the Open page in the
 /// language it is being drawn in, the console banner in English, which is what a log is written in.
 /// `scan::phase` and `build::Phase` are the same arrangement one layer up.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum OpeningPhase {
-    /// Opening the file itself.
+    /// Opening the file itself, which is where an open with nothing to close begins.
+    #[default]
     Database,
     /// Closing whatever folder was open before this one.
     ClosingPrevious,
@@ -553,7 +554,64 @@ pub enum OpeningPhase {
     Finishing,
 }
 
+/// Every rung of an open, in the order one climbs them.
+///
+/// **Listed whole, and a rung is skipped by being passed.** Which of them an open actually runs is
+/// decided by `if`s inside [`Db::prepare`] — indexes this build wants and the file has not got, a
+/// fold revision that moved, a guess revision that moved, a database with no statistics — and none
+/// of those has a page in reach to tell. So the page lists all eleven and marks each one it is told
+/// about, which is what lets it say *not needed this time* rather than leaving a rung waiting for
+/// ever.
+///
+/// **Bare of the counts [`OpeningPhase::say`] folds into its sentence.** The headline says how many
+/// titles of how many have been folded; the rung beside it is the name of the step, and the counts
+/// arrive next to it as the running step's own detail.
+pub const OPENING_LADDER: &[&str] = &[
+    "opening-step-closing-previous",
+    "opening-step-database",
+    "opening-step-up-to-date",
+    "opening-step-indexing",
+    "opening-step-folding",
+    "opening-step-working-out-language",
+    "opening-step-reading-words",
+    "opening-step-tidying-text",
+    "opening-step-gathering-statistics",
+    "opening-step-folding-journal",
+    "opening-step-finishing",
+];
+
 impl OpeningPhase {
+    /// The rung of [`OPENING_LADDER`] this stands on.
+    pub fn step(self) -> &'static str {
+        match self {
+            Self::Database => "opening-step-database",
+            Self::ClosingPrevious => "opening-step-closing-previous",
+            Self::UpToDate => "opening-step-up-to-date",
+            Self::Indexing { .. } => "opening-step-indexing",
+            Self::WorkingOutLanguage => "opening-step-working-out-language",
+            Self::ReadingWords { .. } => "opening-step-reading-words",
+            Self::TidyingText => "opening-step-tidying-text",
+            Self::Folding { .. } => "opening-step-folding",
+            Self::GatheringStatistics => "opening-step-gathering-statistics",
+            Self::FoldingJournal => "opening-step-folding-journal",
+            Self::Finishing => "opening-step-finishing",
+        }
+    }
+
+    /// How far through, where the step has a denominator to be through.
+    ///
+    /// **Two of eleven, and they are the two that take the minutes.** The rest are one statement
+    /// each — an `ALTER TABLE`, a `CREATE INDEX`, an `ANALYZE` — with nothing inside them to count,
+    /// which is why the bar beside them says only *working*.
+    pub fn counted(self) -> Option<(usize, usize)> {
+        match self {
+            Self::Folding { done, total } | Self::ReadingWords { done, total } => {
+                Some((done, total))
+            }
+            _ => None,
+        }
+    }
+
     /// What this says, in one language.
     pub fn say(self, locale: km_locale::Locale) -> String {
         let words = crate::words::messages(locale);

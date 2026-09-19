@@ -1896,6 +1896,10 @@ KM_CORPUS=<a folder holding one .kmbuild> KM_MMAP=on cargo km-test --release -- 
     --ignored --exact db::measure::a_cold_page_load_over_a_real_corpus --nocapture
 KM_CORPUS=<...> KM_MMAP=off KM_SAMPLE=4000 cargo km-test --release -- \
     --ignored --exact db::measure::a_bounded_forced_pass_over_a_real_corpus --nocapture
+# Where the same-words threshold sits: what two files of one recording score against what a
+# coincidence scores, how often the phrases reach the other file, and what one search costs.
+KM_CORPUS=<...> KM_MMAP=on cargo km-test --release -- \
+    --ignored --exact db::measure::where_the_same_words_threshold_sits --nocapture
 cargo run -p km-songbook --example sample                          # a synthetic book, to judge by eye
 cargo km-preview                          # every screen to target/preview
 cargo km-wallpapers                       # the gradients (NOT the default set)

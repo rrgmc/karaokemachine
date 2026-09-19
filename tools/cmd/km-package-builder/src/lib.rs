@@ -54,6 +54,7 @@ mod fixes;
 mod form;
 mod handlers;
 mod hint;
+mod lyric_likeness;
 mod model;
 mod names;
 /// The machine passwords this computer was told to remember. See the module note for why they are
@@ -65,6 +66,8 @@ mod scan;
 mod server;
 mod settings;
 mod similar;
+/// The checklist of steps the Scan page and the Open page both draw. See the module note.
+mod step;
 /// What the tests need and the tool does not — the scratch directory, in one copy.
 #[cfg(test)]
 mod testing;

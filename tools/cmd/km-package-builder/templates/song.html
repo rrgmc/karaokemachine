@@ -18,6 +18,9 @@
        names every button in it. #}
     {% let similar = song.similar_url() %}
     {% if !similar.is_empty() %}<a href="{{ similar }}" target="_blank"><button type="button" title="{{ "row-similar-title"|t }}">&#8776; {{ "song-similar"|t }}</button></a>{% endif %}
+    {# The browse row's ≋ button, drawn only where this song has words to compare. #}
+    {% let words = song.words_url() %}
+    {% if !words.is_empty() %}<a href="{{ words }}" target="_blank"><button type="button" title="{{ "row-words-title"|t }}">&#8779; {{ "song-words"|t }}</button></a>{% endif %}
     <a href="/songs/{{ song.id }}/download"><button type="button">&#8681; {{ "song-download"|t }}</button></a>
     {% if !youtube.is_empty() %}<a href="{{ youtube }}" target="_blank" rel="noopener"><button type="button">&#9834; {{ "song-youtube"|t }}</button></a>{% endif %}
     {% if !song.favorites.is_empty() %}

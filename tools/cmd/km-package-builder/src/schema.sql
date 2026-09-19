@@ -535,6 +535,20 @@ CREATE VIRTUAL TABLE IF NOT EXISTS lyrics_fts USING fts5(
     tokenize='unicode61 remove_diacritics 2'
 );
 
+-- How many songs sing a given word, read straight off `lyrics_fts`'s own term list.
+--
+-- No storage and no trigger: `fts5vocab` is a view over the index that is already there, and asking
+-- it about one term is a seek into a b-tree the index maintains anyway.
+--
+-- It has one caller, the same-words page, which chooses the phrases it asks the index for by how
+-- rare their rarest word is. `ORDER BY bm25` ranks every row a query matches before any `LIMIT` can
+-- cut one, so a page that asked for a dozen phrases of whatever words a song happened to open with
+-- would have SQLite score a large part of the corpus to return a hundred rows.
+--
+-- `IF NOT EXISTS` like the two tables above and unlike the triggers below: a view over an index is
+-- not code that can go stale, so a database made by an earlier version keeps a correct one.
+CREATE VIRTUAL TABLE IF NOT EXISTS lyrics_vocab USING fts5vocab(lyrics_fts, 'row');
+
 -- Like `songs_fts`, a plain index kept in step by triggers rather than an external-content one, so a
 -- row is removed with an ordinary `DELETE`. Dropped and recreated on every open for the same reason:
 -- a trigger is code, and a database created by an earlier version must not keep an older one.

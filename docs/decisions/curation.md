@@ -185,14 +185,36 @@ is identical each time, and the window it has to fill is minutes: to somebody wa
 sentence and a hang are the same picture. So every stretch of an open says which one it is — the
 version ladder and each repair after it, not only the two that were easy to count — and beside the
 sentence runs a count of seconds, which goes on moving through the one step that cannot say anything
-more specific than its own name. **The bar that moves is the third of the three and the weakest**: it
-is what says *working* to somebody who has not read the other two, and it is the one a browser may
-throttle, disable or never paint, so it is drawn full and resting rather than animated from nothing.
+more specific than its own name.
 
-**What it may not do is name work it is not doing.** A folder that opens in a moment passes through
-the same steps too quickly to read, and that is fine; promising it several minutes of index building
-is not. The console keeps a size threshold the page does not, because a block of three lines about
-spinning disks is noise in a terminal and the page has no quieter thing to show instead.
+**An open lists all eleven of its rungs, and a rung it did not need is one it climbed past.** The
+reason is the one
+[`A scan shows its steps`](#a-scan-shows-its-steps-what-is-left-and-can-be-stopped-from-the-page)
+gives: a name for the running step says neither what is still to come nor whether a step showing the
+same words for five minutes is working. Where the two jobs differ is how a step that does not run is
+marked. A scan knows its skips at the gate that decides them; an open's gates are conditions inside
+the open itself, with no page in reach, so reaching a later rung is the only thing that says an
+earlier one did not run. **That makes the dash mean two things, told apart by where it sits** — above
+the rung a failure stopped at, a rung the open passed and did not need; below it, a rung it was never
+going to reach.
+
+**An open that fails keeps its list, because a reason alone does not say which rung broke.** That is
+the difference between a database that would not open and one whose index has been rewritten halfway,
+and the second is the state the folder is left in. **A refusal made before any rung was climbed shows
+no list at all** — the folder is not there, it holds no database, it holds two — because eleven rungs
+marked *not needed* would say the open had considered each one and declined it.
+
+**The bar is a proportion where the rung counts what it does, and says only *working* where it does
+not.** Nine rungs are one statement each — an `ALTER TABLE`, a `CREATE INDEX`, an `ANALYZE` — with
+nothing inside them to count, and a partial bar beside one of those is a proportion nobody stated; it
+is drawn full and resting rather than animated from nothing, since a browser may throttle, disable or
+never paint it. The two that fold titles and read words go in chunks and know how far through they
+are, and those are the two that take the minutes.
+
+**What none of it may do is name work it is not doing.** A folder that opens in a moment passes
+through the same rungs too quickly to read, and that is fine; promising it several minutes of index
+building is not. The console keeps a size threshold the page does not, because a block of three lines
+about spinning disks is noise in a terminal and the page has no quieter thing to show instead.
 
 **The folder being left is closed before the next one is opened, and one process opens a file once.**
 The connections an open folder holds are the two
@@ -741,6 +763,75 @@ listen. It is never a reason to group the files.
 
 **A file whose only name is a short DOS name, such as `DANCIN~1`, is out of reach**, as it is for the
 duplicate pass. No spelling of a title can be recognised in it.
+
+## Finding a song by the words it sings
+
+**Every browse row and every song's own page with words carries a ≋ button that lists the songs
+singing the same ones, likeliest first.** It is the question the ≈ button asks, put to the whole
+lyric instead of the name, and it reaches the file that neither of the other two can: `DANCIN~1` has
+no spelling to recognise, and a copy with a verse missing keys differently from the duplicate pass's
+exact lyric key. Between a name that says nothing and words that must match exactly sits a great many
+of the corpus.
+
+**Tight where the names page is loose, and that is the whole difference between them.** A similar
+name is a reason to look at a file. The same words are close to a statement that two files are one
+recording, so the list is a short one of near-certainties rather than a long ranked one. A false
+match here would be read as fact.
+
+**What counts as the same words:**
+
+- The words are the sung ones: credits, addresses, the legal boilerplate and section labels are left
+  out by `km_song::looks_like_a_banner`, which is the rule the duplicate pass already uses. A song
+  with fewer than 25 words left says nothing and is not compared.
+- Case, accents and punctuation are folded, as `km_song::text::fold` folds them everywhere.
+- Two songs are compared by their runs of three words. One word is a bag that every song in the
+  language fills, and a longer run is broken by a single stray syllable.
+- The score is the share of all the runs either song has that both of them have. A verse missing
+  from one file therefore costs roughly what that verse is worth.
+- **Not the share of the shorter song.** That reading makes a medley hold every song in it at 100%,
+  and a file carrying one verse the whole of the song. Both answer *is this the same recording* with
+  *yes* where the honest answer is *part of it is*.
+- Where a file wraps its lines is not compared, because one sequencer wraps where the next does not.
+
+**What it misses, on purpose**: a cover with reworked verses, which keeps its chorus and little else;
+a medley; and a file whose lyric track holds nothing but the sequencer's business card.
+
+**Candidates come from the lyric index, and the score is worked out outside SQLite.** A dozen
+three-word phrases, spread across the song so a file missing its opening still matches the rest, are
+asked of `lyrics_fts` and the best 400 by `bm25` are scored in Rust. Asking for the words one at a
+time instead would match most of the corpus, because most of it sings *love*.
+
+**A phrase is chosen for how rare its rarest word is.** A phrase is only as selective as that word,
+and `ORDER BY bm25` ranks every row a query matches before any limit cuts one — so a page asking for
+whatever words a song happened to open with would have SQLite score a large part of the corpus to
+return a hundred rows. `lyrics_vocab` is what answers how rare a word is, and costs no storage.
+
+**A phrase never crosses a line the banner rule dropped.** The index holds the whole lyric, credits
+included, so the word before a dropped line and the word after it are not next to each other there. A
+phrase built across that seam asks for something no file holds and quietly matches nothing.
+
+**The address names the song and carries no text.** The similar-names page keeps its two boxes
+editable because a name garbled past matching is loosened by hand; a whole lyric body is not
+something a box can hold or anybody would edit. So the song searched from heads the list, marked, and
+every other row is read against it.
+
+**It narrows by the same five controls as the similar-names page, and remembers them separately.**
+The controls mean the same things, so they are the same controls. What they open at differs: a
+similar *name* is looked for among the files somebody might play, so that page opens at 8–10, while
+a file singing the same words under another name is most often the one nothing else could reach and
+is rough enough to score under 8. One record would let whichever page was opened first decide what
+the other opened at, and this one would say *no other song sings these words* with a match sitting
+behind the band.
+
+**The button is not drawn on a song with no words.** Most of a real corpus is instrumental, and a
+button that can only lead to a page apologising is one on nearly every row.
+
+**Three empty pages, because there are three different problems with three different fixes**: no scan
+has written any words yet, and the corpus is re-read; this song has too few words to find another by;
+and nothing else sings them.
+
+**It writes nothing, and it is not the duplicate pass.** Two files singing one set of words can still
+be two recordings. The same words are a reason to listen, and never a reason to group the files.
 
 ## Acting on a whole filter
 
