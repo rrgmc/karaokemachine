@@ -332,8 +332,9 @@ impl Db {
     /// anything — because it has to fold accents and a fold has no SQL spelling. Losing the
     /// fragility with it is a second benefit rather than the reason.
     ///
-    /// All of them are partial on `merged_into IS NULL`, which [`Filter::to_sql`] emits first and
-    /// always, so every browse query implies the predicate and can use them.
+    /// All of them are partial on [`browsable`], which [`Filter::to_sql`] emits first and always,
+    /// so every browse query implies the predicate and can use them. Both sides ask that one
+    /// function, because a term on one side and not the other costs the indexes silently.
     ///
     /// **There is one index per arm of [`Filter::order_by`], and the key mirrors that arm term for
     /// term** — including the leading `x IS NULL` the five "unrated last" sorts open with, and
@@ -355,55 +356,58 @@ impl Db {
     pub(super) fn create_browse_indexes(&self) -> Result<(), DbError> {
         let letter = title_initial("");
         let language = eff_language("");
+        // The predicate every browse query implies, with no alias because an index can carry none.
+        // `Filter::to_sql` asks the same function for the aliased spelling.
+        let browsable = browsable("");
         let indexes = [
             (
                 "songs_browse_title_artist",
-                format!("ON songs({WITHIN_TITLE_KEY}) WHERE merged_into IS NULL"),
+                format!("ON songs({WITHIN_TITLE_KEY}) WHERE {browsable}"),
             ),
             (
                 "songs_browse_letter_artist",
-                format!("ON songs({letter}, {WITHIN_TITLE_KEY}) WHERE merged_into IS NULL"),
+                format!("ON songs({letter}, {WITHIN_TITLE_KEY}) WHERE {browsable}"),
             ),
             (
                 "songs_browse_suitability_artist",
-                format!("ON songs(suitability DESC, {WITHIN_TITLE_KEY}) WHERE merged_into IS NULL"),
+                format!("ON songs(suitability DESC, {WITHIN_TITLE_KEY}) WHERE {browsable}"),
             ),
             (
                 "songs_browse_sort_artist",
-                "ON songs(sort_artist IS NULL, sort_artist, sort_title, id) \
-                 WHERE merged_into IS NULL"
-                    .to_owned(),
+                format!(
+                    "ON songs(sort_artist IS NULL, sort_artist, sort_title, id) \
+                     WHERE {browsable}"
+                ),
             ),
             (
                 "songs_browse_language_artist",
                 format!(
                     "ON songs({language} IS NULL, {language}, {WITHIN_TITLE_KEY}) \
-                     WHERE merged_into IS NULL"
+                     WHERE {browsable}"
                 ),
             ),
             (
                 "songs_browse_user_score_artist",
                 format!(
                     "ON songs(user_score IS NULL, user_score DESC, {WITHIN_TITLE_KEY}) \
-                     WHERE merged_into IS NULL"
+                     WHERE {browsable}"
                 ),
             ),
             // `schema.sql` already has a `songs(duration_ms)`, and it is not partial, so it cannot
-            // combine with the `merged_into IS NULL` every browse query carries. This one can, and
-            // it carries `id` so the tiebreak needs no sort either.
+            // combine with the terms every browse query carries. This one can, and it carries `id`
+            // so the tiebreak needs no sort either.
             (
                 "songs_browse_duration",
-                "ON songs(duration_ms DESC, id) WHERE merged_into IS NULL".to_owned(),
+                format!("ON songs(duration_ms DESC, id) WHERE {browsable}"),
             ),
             // The eighth, and the one that could not exist until `file_count` was a column. The
             // same relationship to `schema.sql`'s `songs_file_count` that the entry above has to
             // `songs(duration_ms)`: that one is not partial and serves the filter under any sort,
-            // this one carries the `merged_into IS NULL` every browse query implies, plus the
-            // tiebreak terms, so the sort needs no pass of its own.
+            // this one carries the terms every browse query implies, plus the tiebreak terms, so
+            // the sort needs no pass of its own.
             (
                 "songs_browse_copies",
-                "ON songs(file_count DESC, suitability DESC, id) WHERE merged_into IS NULL"
-                    .to_owned(),
+                format!("ON songs(file_count DESC, suitability DESC, id) WHERE {browsable}"),
             ),
             // The one whose key is nearly all sentinel, and it is worth pricing. On a corpus
             // somebody has just opened every entry reads `(1, NULL, <the title terms>)` -- a copy of
@@ -415,13 +419,13 @@ impl Db {
                 "songs_browse_updated_artist",
                 format!(
                     "ON songs(updated_at IS NULL, updated_at DESC, {WITHIN_TITLE_KEY}) \
-                     WHERE merged_into IS NULL"
+                     WHERE {browsable}"
                 ),
             ),
             // Leading on `first_seen` also serves the added-date filter's range under this sort.
             (
                 "songs_browse_added_artist",
-                format!("ON songs(first_seen DESC, {WITHIN_TITLE_KEY}) WHERE merged_into IS NULL"),
+                format!("ON songs(first_seen DESC, {WITHIN_TITLE_KEY}) WHERE {browsable}"),
             ),
         ];
 

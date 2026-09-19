@@ -564,6 +564,69 @@ impl VersionsFilter {
     }
 }
 
+/// Whether a browse query is about the corpus or about what has been thrown away.
+///
+/// **Two arms and no *both*, which is what separates this from every other control on the bar.**
+/// The rest narrow a list of songs somebody is curating; this one chooses which of two lists is
+/// being looked at. A deleted song carries no rating, no filing and no package that means anything
+/// any more, so mixing the two would put rows into every count and every page that none of the
+/// other controls can say anything useful about.
+///
+/// The default is the corpus, and it is the empty string, so a browse URL says nothing at all until
+/// somebody asks for the unusual thing — the rule the rest of the bar follows.
+///
+/// Its clause is the one place [`Filter::to_sql`] does not take [`browsable`] whole: *only deleted*
+/// has to invert the half of that predicate this type owns while keeping the other half, since a
+/// song both merged and deleted is still a merge and has no row of its own.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum DeletedFilter {
+    /// The corpus: everything nobody has thrown away.
+    #[default]
+    Live,
+    /// Only what has been thrown away.
+    Only,
+}
+
+impl DeletedFilter {
+    /// Reads the query parameter: `""` is the corpus, `only` is what was thrown away.
+    ///
+    /// Anything else reads as the corpus, by the rule every `parse` here follows: a hand-edited
+    /// query string must not be able to produce a page nothing explains.
+    pub fn parse(value: &str) -> Self {
+        match value {
+            "only" => Self::Only,
+            _ => Self::Live,
+        }
+    }
+
+    /// The spelling used in URLs, so a round trip keeps the control set.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Live => "",
+            Self::Only => "only",
+        }
+    }
+
+    /// How the chip in the filter bar reads.
+    pub fn describe(self, locale: km_locale::Locale) -> String {
+        match self {
+            Self::Live => String::new(),
+            Self::Only => crate::words::messages(locale)
+                .msg("songs-only-deleted")
+                .into_owned(),
+        }
+    }
+
+    /// The `WHERE` fragment. `alias` is what the caller prefixes its columns with, and an index can
+    /// have none — [`browsable`] asks [`Self::Live`] for its half through this.
+    pub(super) fn clause(self, alias: &str) -> String {
+        match self {
+            Self::Live => format!("{alias}deleted_at IS NULL"),
+            Self::Only => format!("{alias}deleted_at IS NOT NULL"),
+        }
+    }
+}
+
 /// What a browse query asks about a song's filing.
 ///
 /// **Five arms rather than a checkbox, and the negative ones are what earn the control.**
@@ -783,6 +846,8 @@ pub struct Filter {
     pub added: AddedFilter,
     /// Whether the list collapses a cluster of near-identical files to one row.
     pub versions: VersionsFilter,
+    /// Whether this is the corpus or what has been thrown away.
+    pub deleted: DeletedFilter,
     /// Only songs not yet in any package.
     pub unpackaged: bool,
     /// Only songs in this package.
@@ -835,6 +900,7 @@ impl Default for Filter {
             copies: CopiesFilter::Any,
             added: AddedFilter::Any,
             versions: VersionsFilter::default(),
+            deleted: DeletedFilter::default(),
             unpackaged: false,
             in_package: None,
             granularity: None,
@@ -892,7 +958,11 @@ impl Filter {
     /// with the page it counts. A count taken through a different `WHERE` than the rows is a pager
     /// that offers a page which comes back empty.
     pub fn to_sql(&self) -> (String, Vec<Binding>) {
-        let mut clauses = vec!["s.merged_into IS NULL".to_owned()];
+        // The two halves of `browsable`, and only one of them is constant here: a merge has no row
+        // of its own whatever else is asked, where *only deleted* is a list somebody asked for.
+        // `browsable` composes the same two for the indexes, taking `DeletedFilter::Live`'s half
+        // from the line below — so the ordinary query and the partial indexes cannot drift.
+        let mut clauses = vec!["s.merged_into IS NULL".to_owned(), self.deleted.clause("s.")];
         // **A list shows every song filed in it, versions included.** Collapsing decides which rows of
         // the corpus are offered for filing; inside one favorite it would hide exactly what was filed,
         // and a list of nothing but second versions reads as empty beside a count saying ten. Two

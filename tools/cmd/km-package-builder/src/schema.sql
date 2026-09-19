@@ -344,10 +344,34 @@ CREATE TABLE IF NOT EXISTS songs (
     -- The `YYYY-MM-DDTHH:MM:SSZ` shape `first_seen`, `last_scanned`, `packages.created_at` and
     -- `files.scanned_at` all carry: fixed width to the second, so lexicographic order is
     -- chronological order and one plain index serves the sort.
+    updated_at          TEXT,
+
+    -- When somebody threw this song away, and NULL when nobody has. A deleted song is in no list
+    -- but the one that asks for deleted songs, and the scan does not read its files again.
+    --
+    -- **A third way of hiding a song, and it must not be confused with the two above it.**
+    -- `merged_into` is somebody saying two files are one recording and `duplicate_of` is the
+    -- machine's guess at the same thing; both are statements about which *copy* to show. This one
+    -- says the song is not worth keeping, which is a judgment about the song rather than about the
+    -- group it is in, so a deleted song stays deleted through a clustering pass that rewrites every
+    -- group from nothing.
+    --
+    -- **The file rows stay.** The scan skips a deleted song's files rather than forgetting them, so
+    -- undeleting needs no rescan to find the file again; `known_files` reads this column through
+    -- the join it already makes.
+    --
+    -- **Hand curation, so `HAND_SET_COLUMNS` carries it and a backup restores it**, and
+    -- `songs_stamp_update` watches it for the same reason it watches `merged_into`: both are a
+    -- person deciding a song does not belong in a list, and a scan can work out neither. A whole
+    -- corpus of judgment about what to keep is the thing a backup exists to hold.
+    --
+    -- The *recently edited* order does not fill with discarded songs, because the browse list
+    -- excludes them outright -- so the stamp costs nothing on screen and is what puts a song back
+    -- near the top of that order when somebody brings it back.
     --
     -- Last in the table because `ALTER TABLE ... ADD COLUMN` appends, and a database altered into
     -- this shape should hold its columns in the order a freshly created one does.
-    updated_at          TEXT
+    deleted_at          TEXT
 );
 
 CREATE INDEX IF NOT EXISTS songs_kind       ON songs(kind);
@@ -443,7 +467,21 @@ CREATE INDEX IF NOT EXISTS songs_unfolded ON songs(id) WHERE sort_title IS NULL;
 --
 -- Named in `HEAVY_INDEXES`, because an index with no `sqlite_stat1` row is one the planner will not
 -- choose, and the figures above are what it is for.
-CREATE INDEX IF NOT EXISTS songs_countable ON songs(merged_into, duplicate_of);
+-- **`deleted_at` is the third column for the reason the two above it are here at all.** Every
+-- filter carries all three terms, a separate index can serve only one of them, and SQLite uses one
+-- index per scan -- so leaving this one out returns the count to the table scan the other two were
+-- measured against. The migration drops this index by name so a database that already holds the
+-- two-column shape gets the three-column one; `IF NOT EXISTS` alone would keep the narrow one for
+-- ever.
+CREATE INDEX IF NOT EXISTS songs_countable ON songs(merged_into, duplicate_of, deleted_at);
+
+-- The one list that asks for deleted songs, and nothing else reads this column as a search term.
+--
+-- Partial, so it holds only the rows the question is about: on a corpus nobody has deleted from it
+-- is empty, and the page becomes reading an empty index rather than a pass over every song. The
+-- shape `files_failed` and `songs_unfolded` take, and for their reason. Covering on `id`, which is
+-- what the browse query seeks by.
+CREATE INDEX IF NOT EXISTS songs_deleted ON songs(id) WHERE deleted_at IS NOT NULL;
 
 -- The three indexes the browse page's order and its A-Z filter need are **not** here: their key is an
 -- expression, SQLite only uses an expression index when the query's expression matches it tree for
@@ -669,7 +707,7 @@ DROP TRIGGER IF EXISTS songs_stamp_update;
 
 CREATE TRIGGER songs_stamp_update
 AFTER UPDATE OF title, artist, language, lyric_encoding, default_transpose, lyrics_hidden, fixes,
-                melody_chosen, user_score, notes, merged_into ON songs
+                melody_chosen, user_score, notes, merged_into, deleted_at ON songs
 WHEN old.title             IS NOT new.title
   OR old.artist            IS NOT new.artist
   OR old.language          IS NOT new.language
@@ -681,6 +719,7 @@ WHEN old.title             IS NOT new.title
   OR old.user_score        IS NOT new.user_score
   OR old.notes             IS NOT new.notes
   OR old.merged_into       IS NOT new.merged_into
+  OR old.deleted_at        IS NOT new.deleted_at
 BEGIN
     UPDATE songs SET updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') WHERE id = new.id;
 END;

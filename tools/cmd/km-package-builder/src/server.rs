@@ -1667,6 +1667,8 @@ pub fn router(state: State) -> Router {
         .route("/songs/language-bulk", post(handlers::bulk_language))
         .route("/songs/tag-bulk", post(handlers::bulk_tag))
         .route("/songs/tag-bulk/cancel", get(handlers::bulk_tag_cancel))
+        .route("/songs/delete-bulk", post(handlers::bulk_delete))
+        .route("/songs/delete-bulk/cancel", get(handlers::bulk_delete_cancel))
         .route("/songs/favorite-bulk", post(handlers::bulk_favorite))
         .route(
             "/songs/favorite-bulk/cancel",

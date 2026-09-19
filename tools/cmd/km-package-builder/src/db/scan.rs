@@ -29,6 +29,11 @@ pub struct Known {
     /// Which revision of the analysis decided this file's song, or read the file where it has no
     /// song; `None` where nothing recorded it.
     pub analysis_revision: Option<u32>,
+    /// Whether the song this file belongs to has been thrown away.
+    ///
+    /// False for a file with no song: a failure has nothing anybody could have deleted, and the
+    /// Failures page is where those are answered.
+    pub deleted: bool,
 }
 
 impl Db {
@@ -48,7 +53,8 @@ impl Db {
         let mut statement = self.conn.prepare(
             "SELECT f.path, f.size, f.mtime,
                     CASE WHEN f.song_id IS NULL THEN f.analysis_revision
-                         ELSE s.analysis_revision END
+                         ELSE s.analysis_revision END,
+                    s.deleted_at IS NOT NULL
                FROM files f LEFT JOIN songs s ON s.id = f.song_id",
         )?;
         let rows = statement.query_map([], |row| {
@@ -58,6 +64,9 @@ impl Db {
                     size: row.get::<_, i64>(1)? as u64,
                     mtime: row.get::<_, i64>(2)?,
                     analysis_revision: row.get::<_, Option<u32>>(3)?,
+                    // `IS NOT NULL` of the missing side of a LEFT JOIN is 0 rather than NULL, so a
+                    // file with no song reads false here without a `coalesce`.
+                    deleted: row.get::<_, i64>(4)? != 0,
                 },
             ))
         })?;

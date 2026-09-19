@@ -377,7 +377,7 @@
   // takes a button out of service with nothing said anywhere.
 
   // The controls whose change leaves the page number meaning what it meant.
-  const KEEPS_THE_PAGE = ["sort", "filename"];
+  const KEEPS_THE_PAGE = ["sort", "filename", "warnings"];
 
   // A form that writes rather than filters keeps its page however it was pressed, and says so in its
   // own markup with `data-keeps-the-page`. An attribute rather than a list of ids here: a third such

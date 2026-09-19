@@ -12,7 +12,7 @@ use super::*;
 /// The schema this build writes and understands, stamped into `PRAGMA user_version`.
 ///
 /// Bump this and add an arm to [`step_to`] in the same change. The number keeps counting.
-pub(super) const SCHEMA_VERSION: u32 = 17;
+pub(super) const SCHEMA_VERSION: u32 = 18;
 
 /// The oldest schema this build opens. Everything from here to [`SCHEMA_VERSION`] is an arm of
 /// [`step_to`].
@@ -105,6 +105,21 @@ fn step_to(conn: &Connection, version: u32) -> Result<(), DbError> {
         // answer it has and gains the new one where nobody has spoken.
         17 => {
             conn.execute_batch("ALTER TABLE songs ADD COLUMN lyrics_hidden INTEGER")?;
+            Ok(())
+        }
+        // When somebody threw a song away. Every row starts NULL, which is what a corpus nobody has
+        // deleted from holds anyway, so there is nothing to backfill.
+        //
+        // **The `DROP INDEX` is the half that is easy to miss.** `songs_countable` gains a third
+        // column in `schema.sql`, and every statement in that file is `IF NOT EXISTS` -- so a
+        // database already holding the two-column index would keep it, and the count that index
+        // exists to answer would go back to reading every row. Dropping it here is what makes the
+        // next `execute_batch` of `schema.sql` build the wider one.
+        18 => {
+            conn.execute_batch(
+                "ALTER TABLE songs ADD COLUMN deleted_at TEXT;
+                 DROP INDEX IF EXISTS songs_countable",
+            )?;
             Ok(())
         }
         _ => Err(DbError::Rejected(format!(

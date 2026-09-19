@@ -1171,6 +1171,115 @@ impl Db {
         Ok(changed)
     }
 
+    /// Throws away, or brings back, every song a filter matches. Returns how many changed.
+    ///
+    /// **The `WHERE` is [`Filter::to_sql`] verbatim**, the discipline [`Self::set_language_for`]
+    /// rests on: what the list shows and what this writes are one clause. That is what makes
+    /// undeleting expressible at all — the filter carrying [`DeletedFilter::Only`] is the deleted
+    /// list, and this writes over exactly the rows it was drawing.
+    ///
+    /// **The timestamp is the statement's, taken once.** `strftime('%Y-%m-%dT%H:%M:%SZ', 'now')` is
+    /// fixed for one step of a statement, so a filter of hundreds of thousands lands one value on
+    /// every row rather than smearing them across the seconds the write took — the argument
+    /// `songs_stamp_update` makes in `schema.sql`, and the shape every other timestamp here has.
+    ///
+    /// **`songs_stamp_update` moves `updated_at` with it**, as it does for `merged_into`: this is a
+    /// person's decision about a song and the backup carries it as one. A filter-wide write
+    /// therefore moves that many entries of `songs_browse_updated_artist`, which is a real cost and
+    /// the right one — those songs did change.
+    pub fn set_deleted_for(&self, filter: &Filter, deleted: bool) -> Result<u32, DbError> {
+        let (where_clause, values) = filter.to_sql();
+        let sql = format!(
+            "UPDATE songs AS s SET deleted_at = {} WHERE {where_clause}",
+            deleted_value(deleted)
+        );
+        let changed = self.conn.execute(&sql, params_from_iter(values.iter()))?;
+        Ok(changed as u32)
+    }
+
+    /// Throws away, or brings back, the songs named. Returns how many changed.
+    ///
+    /// The ticked half, beside [`Self::set_deleted_for`]'s filter-wide one, and chunked at
+    /// [`ID_CHUNK`] for [`Self::set_language_of`]'s reason: SQLite binds at most 999 parameters and
+    /// the header tick-box ticks a whole page.
+    ///
+    /// **`merged_into IS NULL` is stated here where the filter-wide half inherits it.** A merged
+    /// song has no row in any list, so nothing can tick it; saying so anyway keeps the two halves
+    /// writing the same set, and a song id reaching this from anywhere else cannot delete a row
+    /// browsing would never have offered.
+    pub fn set_deleted_of(&self, ids: &[String], deleted: bool) -> Result<u32, DbError> {
+        let mut changed = 0u32;
+        for batch in ids.chunks(ID_CHUNK) {
+            let (holes, values) = id_holes(batch, 1);
+            let sql = format!(
+                "UPDATE songs SET deleted_at = {} WHERE id IN ({holes}) AND merged_into IS NULL",
+                deleted_value(deleted)
+            );
+            changed += self.conn.execute(&sql, params_from_iter(values.iter()))? as u32;
+        }
+        Ok(changed)
+    }
+
+    /// How many of the songs a filter matches are in a package.
+    ///
+    /// **Counted so the confirmation can say it before the write, not to stop the write.** A song
+    /// in a package is a selection somebody built, and deleting it takes it out of the list that
+    /// package is rebuilt from. The confirmation names the number and the write goes through: the
+    /// judgment belongs to whoever curated the package. See `Throwing a song away` in
+    /// `docs/decisions/curation.md`.
+    pub fn packaged_count_matching(&self, filter: &Filter) -> Result<u32, DbError> {
+        let (where_clause, values) = filter.to_sql();
+        let sql = format!(
+            "SELECT COUNT(*) FROM songs s
+              WHERE {where_clause}
+                AND s.id IN (SELECT song_id FROM package_songs)"
+        );
+        let count: i64 = self
+            .conn
+            .query_row(&sql, params_from_iter(values.iter()), |row| row.get(0))?;
+        Ok(count as u32)
+    }
+
+    /// How many of the songs named are in a package. The ticked half of the count above.
+    pub fn packaged_count_of(&self, ids: &[String]) -> Result<u32, DbError> {
+        let mut count = 0u32;
+        for batch in ids.chunks(ID_CHUNK) {
+            let (holes, values) = id_holes(batch, 1);
+            let sql = format!(
+                "SELECT COUNT(*) FROM songs
+                  WHERE id IN ({holes}) AND merged_into IS NULL
+                    AND id IN (SELECT song_id FROM package_songs)"
+            );
+            let found: i64 = self
+                .conn
+                .query_row(&sql, params_from_iter(values.iter()), |row| row.get(0))?;
+            count += found as u32;
+        }
+        Ok(count)
+    }
+
+    /// How many of the songs named would be written by a delete or an undelete.
+    ///
+    /// Its own query rather than `ids.len()`, for [`Self::count_of`]'s reason one method down: a
+    /// ticked row already in the state being asked for is not a row this writes, and the
+    /// confirmation's number has to be what the write will do.
+    pub fn deletable_count_of(&self, ids: &[String], deleted: bool) -> Result<u32, DbError> {
+        let mut count = 0u32;
+        for batch in ids.chunks(ID_CHUNK) {
+            let (holes, values) = id_holes(batch, 1);
+            let sql = format!(
+                "SELECT COUNT(*) FROM songs
+                  WHERE id IN ({holes}) AND merged_into IS NULL AND deleted_at IS {} NULL",
+                if deleted { "" } else { "NOT" }
+            );
+            let found: i64 = self
+                .conn
+                .query_row(&sql, params_from_iter(values.iter()), |row| row.get(0))?;
+            count += found as u32;
+        }
+        Ok(count)
+    }
+
     /// How many of the songs named would be written, given the same narrowing.
     ///
     /// Its own query rather than `ids.len()`, so the confirmation's number is what the write will do

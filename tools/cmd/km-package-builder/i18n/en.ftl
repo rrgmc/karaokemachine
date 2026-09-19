@@ -92,6 +92,12 @@ confirm-without = without
 confirm-into = into
 confirm-out-of = out of
 confirm-read-again = read again
+confirm-deleting = thrown away
+confirm-undeleting = brought back
+confirm-delete-packaged = { $count ->
+    [one] { $count } of them is in a package
+   *[other] { $count } of them are in a package
+  }
 
 confirm-set = Yes, set { $count }
 confirm-tag = Yes, tag { $count }
@@ -99,6 +105,8 @@ confirm-untag = Yes, remove from { $count }
 confirm-file = Yes, file { $count }
 confirm-unfile = Yes, take out { $count }
 confirm-reread = Yes, re-read { $count }
+confirm-delete = Yes, throw away { $count }
+confirm-undelete = Yes, bring back { $count }
 package-add-room-left = which has room for { $room }, so the first { $room } in this order go in
 
 ## Filters somebody named -------------------------------------------------------
@@ -769,6 +777,8 @@ songs-language-not = leave out
 songs-language-not-title = hide every song in this language, on top of any already left out
 songs-show-filenames = show file names
 songs-show-filenames-title = show each song's file name beside its title
+songs-show-warnings = show file warnings
+songs-show-warnings-title = show what the analysis found wrong with each song
 songs-band-quality = Quality
 songs-suitability-title = the quality of the source file
 songs-any = any
@@ -812,6 +822,8 @@ songs-added-over-month = more than 30 days ago
 songs-every-version = every version
 songs-every-version-title = show every file of a recording, not just the best copy of each
 songs-not-packaged = not packaged
+songs-only-deleted = only deleted
+songs-only-deleted-title = show what has been thrown away instead of the corpus
 
 kind-midi = MIDI
 kind-video = video
@@ -824,6 +836,7 @@ songs-tab-language = Language
 songs-tab-tags = Tags
 songs-tab-titles = Titles
 songs-tab-analysis = Analysis
+songs-tab-delete = Delete
 songs-scope-ticked = the ticked songs
 songs-scope-matching = every matching song
 songs-to = to
@@ -831,6 +844,9 @@ songs-set-language-of = set the language of
 songs-only-if-not-set = only if not set
 songs-tag-add = add
 songs-tag-remove = remove
+songs-delete = throw away
+songs-undelete = bring back
+songs-delete-note = a song thrown away is in no list but "only deleted", and its files are not read again
 songs-the-tag = the tag
 songs-tag-title = ASCII letters, digits and - only; accents fold away, so "Forro" with an accent folds to "forro"
 songs-apply = Apply
@@ -1085,6 +1101,14 @@ said-tag-set = { $count ->
 said-tag-removed = { $count ->
     [one] Removed the tag on { $count } song.
    *[other] Removed the tag on { $count } songs.
+  }
+said-deleted = { $count ->
+    [one] Threw away { $count } song.
+   *[other] Threw away { $count } songs.
+  }
+said-undeleted = { $count ->
+    [one] Brought back { $count } song.
+   *[other] Brought back { $count } songs.
   }
 said-filed = { $count ->
     [one] Filed { $count } song.

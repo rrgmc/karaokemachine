@@ -3549,12 +3549,32 @@ fn a_database_at_schema_14_steps_to_the_current_schema() {
             // The stamp trigger names the hand-set columns, so a column it watches cannot be
             // dropped underneath it. Every trigger is dropped and recreated on open, so taking it
             // off here costs nothing and is what a schema-14 database would have had anyway.
+            //
+            // Every browse index is partial on `deleted_at` as well, and SQLite refuses to drop a
+            // column any index names — so all ten go, and the one this test is about is put back in
+            // the shape a schema-14 build wrote it in. `create_browse_indexes` rebuilds the rest on
+            // the open below, which is exactly what a database in the field gets.
             "DROP TRIGGER IF EXISTS songs_stamp_update;
+             DROP INDEX IF EXISTS songs_browse_title_artist;
+             DROP INDEX IF EXISTS songs_browse_letter_artist;
+             DROP INDEX IF EXISTS songs_browse_suitability_artist;
+             DROP INDEX IF EXISTS songs_browse_sort_artist;
              DROP INDEX IF EXISTS songs_browse_language_artist;
+             DROP INDEX IF EXISTS songs_browse_user_score_artist;
+             DROP INDEX IF EXISTS songs_browse_duration;
+             DROP INDEX IF EXISTS songs_browse_copies;
+             DROP INDEX IF EXISTS songs_browse_updated_artist;
+             DROP INDEX IF EXISTS songs_browse_added_artist;
+             DROP INDEX IF EXISTS songs_deleted;
+             DROP INDEX IF EXISTS songs_countable;
              ALTER TABLE packages DROP COLUMN number_one_volume;
              ALTER TABLE songs DROP COLUMN det_language_guess;
              ALTER TABLE songs DROP COLUMN det_language_guess_confidence;
              ALTER TABLE songs DROP COLUMN lyrics_hidden;
+             ALTER TABLE songs DROP COLUMN deleted_at;
+             -- The narrow shape a schema-14 build wrote, so the step's `DROP INDEX` has the index
+             -- it exists to replace rather than a wider one already in place.
+             CREATE INDEX songs_countable ON songs(merged_into, duplicate_of);
              CREATE INDEX songs_browse_language_artist ON songs(
                  coalesce(nullif(language, ''), det_language_tag) IS NULL,
                  coalesce(nullif(language, ''), det_language_tag),
@@ -3593,6 +3613,23 @@ fn a_database_at_schema_14_steps_to_the_current_schema() {
     assert!(
         key.contains("det_language_guess"),
         "the language index still holds a key that predates the guess: {key}"
+    );
+    // And its partial predicate was widened with it. A browse index still partial on `merged_into`
+    // alone cannot serve a query that also asks `deleted_at IS NULL`, so the planner would walk
+    // away from it and sort the corpus instead — silently, which is what this whole rebuild guards.
+    assert!(
+        key.contains("deleted_at"),
+        "the language index is partial on a predicate that predates deleting: {key}"
+    );
+    // The count's index too, which is dropped by the step rather than by the index rebuild: it
+    // lives in `schema.sql` under `IF NOT EXISTS`, so without the drop a database in the field
+    // would keep the two-column shape for ever and the count would read every row.
+    let countable = db
+        .index_sql_for_test("songs_countable")
+        .expect("the index is there");
+    assert!(
+        countable.contains("deleted_at"),
+        "the count's index kept the shape that predates deleting: {countable}"
     );
 }
 

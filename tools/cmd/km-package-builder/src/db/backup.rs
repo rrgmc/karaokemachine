@@ -48,7 +48,7 @@ impl Db {
     pub fn hand_set_songs(&self) -> Result<Vec<HandSetSong>, DbError> {
         let mut statement = self.conn.prepare(&format!(
             "SELECT id, title, artist, language, lyric_encoding, default_transpose, fixes,
-                    user_score, notes, merged_into, melody_chosen, {}, lyrics_hidden
+                    user_score, notes, merged_into, melody_chosen, {}, lyrics_hidden, deleted_at
              FROM songs WHERE {} ORDER BY id",
             eff_title(""),
             Self::hand_set_predicate()
@@ -72,6 +72,7 @@ impl Db {
                 // Appended past `seen_as` for the reason above, even though that one is a computed
                 // expression rather than a column: what the rule protects is the numbering.
                 lyrics_hidden: row.get(12)?,
+                deleted_at: row.get(13)?,
             })
         })?;
         Ok(rows.collect::<Result<Vec<_>, _>>()?)
@@ -249,7 +250,9 @@ impl Db {
                          melody_chosen = CASE WHEN ?10 THEN coalesce(?11, melody_chosen)
                                               ELSE coalesce(melody_chosen, ?11) END,
                          lyrics_hidden = CASE WHEN ?10 THEN coalesce(?12, lyrics_hidden)
-                                              ELSE coalesce(lyrics_hidden, ?12) END
+                                              ELSE coalesce(lyrics_hidden, ?12) END,
+                         deleted_at = CASE WHEN ?10 THEN coalesce(?13, deleted_at)
+                                           ELSE coalesce(deleted_at, ?13) END
                      WHERE id = ?1",
                 )?;
                 for song in &plan.songs {
@@ -268,6 +271,12 @@ impl Db {
                         // numbering of the nine above is untouched.
                         song.melody_chosen,
                         song.lyrics_hidden,
+                        // Appended for the same reason. **A restore never un-deletes**, in either
+                        // direction: `coalesce` with the column cannot write NULL, so a file
+                        // saying nothing about a song leaves a deletion made here in place, and a
+                        // file naming one puts it back. Bringing a song back is a decision
+                        // somebody makes on the page.
+                        song.deleted_at,
                     ])?;
                 }
             }

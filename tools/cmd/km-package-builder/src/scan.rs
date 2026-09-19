@@ -717,6 +717,24 @@ fn run_inner(
                         mtime = mtime.max(text_mtime);
                     }
 
+                    // **A song somebody threw away is not read again, and `--force` does not
+                    // reach it.** Every other skip here is an optimisation — the file would be
+                    // read to arrive at the row already stored — and a forced run exists to
+                    // overrule them when a heuristic moves. This one is not: a deleted song is not
+                    // waiting on a better answer, and the corpus this tool is pointed at is large
+                    // enough that reading the discarded part of it again is the cost the deletion
+                    // was for.
+                    //
+                    // **Skipped rather than forgotten.** `seen` is the whole walk and was built
+                    // before this loop, so the row stays and `forget_missing` passes it by — which
+                    // is what lets undeleting put the song back with no rescan to find the file
+                    // again.
+                    if known.get(&relative).is_some_and(|known| known.deleted) {
+                        progress.skipped.fetch_add(1, Ordering::Relaxed);
+                        progress.done.fetch_add(1, Ordering::Relaxed);
+                        continue;
+                    }
+
                     // **Unchanged means both the bytes and the answer.** The size and the time say
                     // the file is the one that was read; the revision says this build would write
                     // the same row about it. A heuristic that moved leaves every row stale while

@@ -59,6 +59,14 @@
 
     <label class="view"><input type="checkbox" name="filename" value="1" {% if query.filename %}checked{% endif %}
            title="{{ "songs-show-filenames-title"|t }}"> {{ "songs-show-filenames"|t }}</label>
+
+    {# The second view box, beside the first because the two are the same kind of thing: neither
+       narrows the list, both cost the title column width, and both are turned on for a pass rather
+       than left on. What it shows is what the analysis had to say against each song -- the chips a
+       song's own page lists under `Warnings`, on the row, so a folder full of files timed a line at
+       a time is one glance rather than fifty. #}
+    <label class="view"><input type="checkbox" name="warnings" value="1" {% if query.warnings %}checked{% endif %}
+           title="{{ "songs-show-warnings-title"|t }}"> {{ "songs-show-warnings"|t }}</label>
   </div>
 
   <div class="band alphabet-band">
@@ -258,6 +266,18 @@
            title="{{ "songs-every-version-title"|t }}"> {{ "songs-every-version"|t }}</label>
 
     <label><input type="checkbox" name="unpackaged" value="1" {% if query.unpackaged %}checked{% endif %}> {{ "songs-not-packaged"|t }}</label>
+
+    {# **The one control here that chooses a list rather than narrowing one**, and it is last in the
+       band for that reason: everything to its left describes songs in the corpus, and ticking this
+       one puts a different set of songs on the page for the rest of the bar to describe.
+
+       A checkbox and not a third option on a select, because there is no *both*: a deleted song
+       carries a rating, a filing and a package that nobody means any more, so mixing the two lists
+       would put rows into every count that none of the other controls can say anything useful
+       about. The value is a word rather than `1` because `DeletedFilter` owns the vocabulary and
+       has room for an arm the box cannot reach. #}
+    <label><input type="checkbox" name="deleted" value="only" {% if query.deleted %}checked{% endif %}
+           title="{{ "songs-only-deleted-title"|t }}"> {{ "songs-only-deleted"|t }}</label>
   </div>
 
 </form>
@@ -340,6 +360,7 @@
   <input type="radio" name="curate" id="curate-titles">
   <input type="radio" name="curate" id="curate-analysis">
   <input type="radio" name="curate" id="curate-quality">
+  <input type="radio" name="curate" id="curate-delete">
 
   {# Labels rather than buttons, so a click is the radio's own and needs nothing bound to it. The
      order is the order the work happens in on a corpus nobody has curated: classify, file, package.
@@ -353,6 +374,7 @@
     <label for="curate-titles">{{ "songs-tab-titles"|t }}</label>
     <label for="curate-analysis">{{ "songs-tab-analysis"|t }}</label>
     <label for="curate-quality">{{ "songs-band-quality"|t }}</label>
+    <label for="curate-delete">{{ "songs-tab-delete"|t }}</label>
   </nav>
 
   {# Over everything the filters above match, not over the ticked rows -- which is the point. Most of
@@ -694,6 +716,45 @@
               hx-target="#quality-hint-result" hx-swap="innerHTML">{{ "songs-hint-clear"|t }}</button>
       <span class="dim">{{ "songs-hint-note"|t }}</span>
       <span id="quality-hint-result"></span>
+    </form>
+  </div>
+
+  {# **Last in the strip, because it is the one action that takes songs out of the corpus.** The
+     tabs before it are the work of a curation pass -- classify, file, package, name, analyse -- and
+     this is what is done to what that pass rejected, so it is reached after the others rather than
+     among them.
+
+     Shaped like the tag tab: same scope select with the same ticked default, same two steps, same
+     `#filters, #rows` inclusion for the same reasons. Delete and Undelete are one control with a
+     direction for `Assigning tags in bulk`'s reason -- a single button that deleted or restored
+     depending on what a row already was would be one tick meaning two opposite things.
+
+     The field is `delete_action` and never `deleted`, for `set_tag`'s reason one tab over: the bar
+     rides in the same body and has a `deleted` box of its own, and here the two words mean
+     opposite things -- the bar's names which list is being looked at, this one names what to do to
+     it.
+
+     **Undelete is reached through the bar's *only deleted* box**, which is what puts deleted songs
+     on the page to be ticked in the first place. #}
+  <div class="panel delete">
+    <form class="filters" id="bulk-delete"
+          hx-post="/songs/delete-bulk" hx-include="#filters, #rows"
+          hx-target="#bulk-delete-result" hx-swap="innerHTML">
+      <label>
+        <select name="delete_action">
+          <option value="delete">{{ "songs-delete"|t }}</option>
+          <option value="undelete">{{ "songs-undelete"|t }}</option>
+        </select>
+      </label>
+      <label>{{ "songs-to"|t }}
+        <select name="scope">
+          <option value="ticked">{{ "songs-scope-ticked"|t }}</option>
+          <option value="matching">{{ "songs-scope-matching"|t }}</option>
+        </select>
+      </label>
+      <button>{{ "songs-apply"|t }}&hellip;</button>
+      <span class="dim">{{ "songs-delete-note"|t }}</span>
+      <span id="bulk-delete-result"></span>
     </form>
   </div>
 </div>

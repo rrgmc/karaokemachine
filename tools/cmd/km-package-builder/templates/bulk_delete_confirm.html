@@ -1,0 +1,30 @@
+{# `bulk_tag_confirm.html` with the tag swapped for a sentence about packages, and with one
+   difference that is the whole of what makes deleting different from the other bulk actions: the
+   confirm button targets `#rows` rather than the slot this fragment is sitting in.
+
+   Every other confirmed write answers with a toast and leaves the table alone, because a language,
+   a tag and a favorite are written onto songs that go on matching the filter that found them. This
+   one takes them out of it, so a table left as it was would offer rows that are no longer there.
+   `hx-sync` for the reason the Titles forms carry one: this writes `#rows`, and so do the paging
+   buttons inside it.
+
+   The page it was pressed on is already in `query`, which the handler froze along with the filter,
+   so nothing here has to carry an offset and `data-keeps-the-page` has nothing to do. #}
+<span class="row">
+  <strong>{{ subject }}</strong>
+  {% if whole_corpus %}
+  <span class="warn">&mdash; {{ "confirm-whole-corpus"|t }}</span>
+  {% else %}
+  {{ "confirm-matching"|t }} {% for f in filters %}<span class="tag good">{{ f }}</span>{% endfor %}
+  {% endif %}
+  &rarr; {% if restoring %}{{ "confirm-undeleting"|t }}{% else %}{{ "confirm-deleting"|t }}{% endif %}
+  {# Said only when a package names some of them, and only when something is being thrown away.
+     Amber rather than plain, because it is the one thing here somebody might not have meant. #}
+  {% if !packaged.is_empty() %}<span class="warn">&mdash; {{ packaged }}</span>{% endif %}
+  {% for song in songs %}<input type="hidden" name="song_id" value="{{ song }}">{% endfor %}
+  <button class="primary" hx-post="/songs/delete-bulk?{{ query }}&amp;confirm=1"
+          hx-target="#rows" hx-swap="outerHTML" hx-sync="#rows-slot:replace"
+          hx-include="#bulk-delete">{{ confirm }}</button>
+  <button type="button" hx-get="/songs/delete-bulk/cancel"
+          hx-target="#bulk-delete-result" hx-swap="innerHTML">{{ "action-cancel"|t }}</button>
+</span>
