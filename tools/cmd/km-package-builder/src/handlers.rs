@@ -3021,7 +3021,11 @@ pub async fn bulk_delete(AxumState(state): AxumState<State>, action: BulkAction)
         .await;
     let count = match written {
         Ok(count) => count,
-        Err(error) => return crate::views::toast_only(&Toast::bad(error.say(state.locale()))),
+        Err(error) => {
+            return crate::views::toast_only_leaving_the_target(&Toast::bad(
+                error.say(state.locale()),
+            ));
+        }
     };
     let said = crate::words::messages(state.locale())
         .msg_with(
@@ -3034,9 +3038,16 @@ pub async fn bulk_delete(AxumState(state): AxumState<State>, action: BulkAction)
         )
         .into_owned();
     // The write has happened, so a redraw that fails is reported as itself with the sentence the
-    // write earned still in it — `redraw_over_the_write`'s own rule, and the reason this goes
-    // through it rather than rendering rows here.
-    redraw_over_the_write(&state, Redraw::Rows(Box::new(query)), said).await
+    // write earned still in it — `redraw_over_the_write_clearing`'s own rule, and the reason this
+    // goes through it rather than rendering rows here. The slot is named because the confirmation
+    // is the one thing on this page the `#rows` swap cannot reach.
+    redraw_over_the_write_clearing(
+        &state,
+        Redraw::Rows(Box::new(query)),
+        said,
+        Some("bulk-delete-result"),
+    )
+    .await
 }
 
 /// `GET /songs/delete-bulk/cancel` — clears the confirmation without doing anything.
@@ -3718,7 +3729,7 @@ pub async fn titles_from_filename(
     // the page loaded. See `FilterQuery::from_body`.
     let redraw = match Redraw::from_body(&reply, &body) {
         Ok(redraw) => redraw,
-        Err(error) => return crate::views::toast_only(&Toast::bad(error)),
+        Err(error) => return crate::views::toast_only_leaving_the_target(&Toast::bad(error)),
     };
     let songs: Vec<String> = Fields::parse(&body)
         .all("song_id")
@@ -3726,7 +3737,7 @@ pub async fn titles_from_filename(
         .map(ToOwned::to_owned)
         .collect();
     if songs.is_empty() {
-        return crate::views::toast_only(&Toast::bad(
+        return crate::views::toast_only_leaving_the_target(&Toast::bad(
             crate::words::messages(state.locale()).msg("said-nothing-was-ticked"),
         ));
     }
@@ -3737,7 +3748,11 @@ pub async fn titles_from_filename(
         .await
     {
         Ok(changed) => changed,
-        Err(error) => return crate::views::toast_only(&Toast::bad(error.say(state.locale()))),
+        Err(error) => {
+            return crate::views::toast_only_leaving_the_target(&Toast::bad(
+                error.say(state.locale()),
+            ));
+        }
     };
 
     let words = crate::words::messages(state.locale());
@@ -3783,7 +3798,7 @@ pub async fn fix_name_case(
 ) -> Response {
     let redraw = match Redraw::from_body(&reply, &body) {
         Ok(redraw) => redraw,
-        Err(error) => return crate::views::toast_only(&Toast::bad(error)),
+        Err(error) => return crate::views::toast_only_leaving_the_target(&Toast::bad(error)),
     };
     let songs: Vec<String> = Fields::parse(&body)
         .all("song_id")
@@ -3791,7 +3806,7 @@ pub async fn fix_name_case(
         .map(ToOwned::to_owned)
         .collect();
     if songs.is_empty() {
-        return crate::views::toast_only(&Toast::bad(
+        return crate::views::toast_only_leaving_the_target(&Toast::bad(
             crate::words::messages(state.locale()).msg("said-nothing-was-ticked"),
         ));
     }
@@ -3799,7 +3814,11 @@ pub async fn fix_name_case(
     let count = songs.len();
     let changed = match state.blocking(move |db| db.fix_name_case(&songs)).await {
         Ok(changed) => changed,
-        Err(error) => return crate::views::toast_only(&Toast::bad(error.say(state.locale()))),
+        Err(error) => {
+            return crate::views::toast_only_leaving_the_target(&Toast::bad(
+                error.say(state.locale()),
+            ));
+        }
     };
 
     let words = crate::words::messages(state.locale());
@@ -3842,7 +3861,7 @@ pub async fn split_artist_from_title(
 ) -> Response {
     let redraw = match Redraw::from_body(&reply, &body) {
         Ok(redraw) => redraw,
-        Err(error) => return crate::views::toast_only(&Toast::bad(error)),
+        Err(error) => return crate::views::toast_only_leaving_the_target(&Toast::bad(error)),
     };
     let songs: Vec<String> = Fields::parse(&body)
         .all("song_id")
@@ -3850,7 +3869,7 @@ pub async fn split_artist_from_title(
         .map(ToOwned::to_owned)
         .collect();
     if songs.is_empty() {
-        return crate::views::toast_only(&Toast::bad(
+        return crate::views::toast_only_leaving_the_target(&Toast::bad(
             crate::words::messages(state.locale()).msg("said-nothing-was-ticked"),
         ));
     }
@@ -3861,7 +3880,11 @@ pub async fn split_artist_from_title(
         .await
     {
         Ok(changed) => changed,
-        Err(error) => return crate::views::toast_only(&Toast::bad(error.say(state.locale()))),
+        Err(error) => {
+            return crate::views::toast_only_leaving_the_target(&Toast::bad(
+                error.say(state.locale()),
+            ));
+        }
     };
 
     let words = crate::words::messages(state.locale());
@@ -3886,8 +3909,7 @@ pub async fn split_artist_from_title(
     redraw_over_the_write(&state, redraw, said).await
 }
 
-/// Which list the three Titles actions draw again: the Songs page's rows, or the similar-names
-/// matches.
+/// Which list a write draws again: the Songs page's rows, or the similar-names matches.
 ///
 /// Read before the write, so a filter that cannot be read stops the action rather than leaving names
 /// changed and nothing redrawn.
@@ -3910,7 +3932,15 @@ impl Redraw {
     }
 }
 
-/// The answer all three Titles actions give: the list drawn again where it was, with a toast over it.
+/// The answer the three Titles actions give: the list drawn again where it was, with a toast over it.
+///
+/// [`redraw_over_the_write_clearing`] with no slot to empty, which is what an action whose
+/// confirmation lives in the list itself needs.
+async fn redraw_over_the_write(state: &State, redraw: Redraw, said: String) -> Response {
+    redraw_over_the_write_clearing(state, redraw, said, None).await
+}
+
+/// The list drawn again where it was, a toast over it, and any slot the caller names emptied.
 ///
 /// **These are the routes that re-render `#rows` outside the browse pair, and therefore the ones
 /// that owe the filter a write-down** — which is what keeps the nav's Songs link and a filter saved
@@ -3920,18 +3950,33 @@ impl Redraw {
 ///
 /// The write has already happened when this is reached, so a redraw that fails is reported as itself
 /// and with the sentence the write earned still in it. Dropping that sentence would send somebody
-/// looking for names that did change.
+/// looking for names that did change. A failure leaves the list alone rather than emptying it, for
+/// [`crate::views::toast_only_leaving_the_target`]'s reason.
+///
+/// **`clearing` is the slot the answer passes on its way to the list.** A caller whose confirmation
+/// sits outside what it redraws names it, and htmx empties it out of band. A row left there would
+/// offer a button over songs that have gone.
 ///
 /// **The similar-names matches owe the filter nothing**: they are not `#rows`, and the search they
 /// were drawn for is posted again as it stands in the bar.
-async fn redraw_over_the_write(state: &State, redraw: Redraw, said: String) -> Response {
+async fn redraw_over_the_write_clearing(
+    state: &State,
+    redraw: Redraw,
+    said: String,
+    clearing: Option<&str>,
+) -> Response {
     let query = match redraw {
         Redraw::Rows(query) => query,
         Redraw::Hits(query) => {
             let query = query.narrowed(state);
             return match similar_for(state, &query).await {
-                Ok(hits) => crate::views::with_toast(&hits, &Toast::good(said), state.locale()),
-                Err(error) => crate::views::toast_only(&Toast::bad(format!(
+                Ok(hits) => crate::views::with_toast_clearing(
+                    &hits,
+                    clearing,
+                    &Toast::good(said),
+                    state.locale(),
+                ),
+                Err(error) => crate::views::toast_only_leaving_the_target(&Toast::bad(format!(
                     "{said} The list could not be drawn again: {error}"
                 ))),
             };
@@ -3939,8 +3984,13 @@ async fn redraw_over_the_write(state: &State, redraw: Redraw, said: String) -> R
         Redraw::Words(query) => {
             let query = query.narrowed_for_words(state);
             return match similar_words_for(state, &query).await {
-                Ok(hits) => crate::views::with_toast(&hits, &Toast::good(said), state.locale()),
-                Err(error) => crate::views::toast_only(&Toast::bad(format!(
+                Ok(hits) => crate::views::with_toast_clearing(
+                    &hits,
+                    clearing,
+                    &Toast::good(said),
+                    state.locale(),
+                ),
+                Err(error) => crate::views::toast_only_leaving_the_target(&Toast::bad(format!(
                     "{said} The list could not be drawn again: {error}"
                 ))),
             };
@@ -3950,13 +4000,13 @@ async fn redraw_over_the_write(state: &State, redraw: Redraw, said: String) -> R
     let rows = match rows_for(state, query).await {
         Ok(rows) => rows,
         Err(error) => {
-            return crate::views::toast_only(&Toast::bad(format!(
+            return crate::views::toast_only_leaving_the_target(&Toast::bad(format!(
                 "{said} The list could not be drawn again: {error}"
             )));
         }
     };
     state.remember_songs_filter(query.rebuild(rows.offset, "", None));
-    crate::views::with_toast(&rows, &Toast::good(said), state.locale())
+    crate::views::with_toast_clearing(&rows, clearing, &Toast::good(said), state.locale())
 }
 
 /// `POST /songs/quality-hint`
