@@ -125,6 +125,20 @@ case "$EVENT" in
     BASE="$(basename "$WT_PATH")"
     WHERE="$(bash "$WORKTREE_SH" --where "$BASE" 2>/dev/null || true)"
 
+    # **A worktree whose directory is already gone is the outcome asked for, and saying so is not
+    # optional.** Claude Code keeps a worktree registered when removal reports failure and tries
+    # again at the end of the next session, so a hook that treats "not there" as an error reports the
+    # same failure every session from then on, with nothing left for any of them to remove. Both
+    # branches below fail that way: the first needs the directory to exist before it will recognize
+    # the worktree as ours, and the second hands `git worktree remove` a path that is not a working
+    # tree. The prune is what finishes the job when the working files went without git being told,
+    # and it is a no-op when they did not.
+    if [ ! -d "$WT_PATH" ]; then
+      git -C "$REPO_ROOT" worktree prune >&2
+      say "$WT_PATH is already gone; any branch it held is still there"
+      exit 0
+    fi
+
     if [ -n "$WHERE" ] && [ -d "$WHERE" ] && [ "$(native_path "$WHERE" 2>/dev/null)" = "$(native_path "$WT_PATH" 2>/dev/null)" ]; then
       bash "$WORKTREE_SH" --remove "$BASE" >&2 || die "tools/dev/worktree.sh --remove failed for $WT_PATH"
     else
