@@ -1960,7 +1960,7 @@ fn song_said(
 
     if song.language_is_detected() {
         let name = song.detected_language_name().to_owned();
-        said.language_guess = match song.det_language.as_deref() {
+        said.language_detected = match song.det_language.as_deref() {
             Some(declared) if song.declaration_is_default() => words
                 .msg_with(
                     "song-language-declared-default",
@@ -1980,6 +1980,19 @@ fn song_said(
                 )
                 .into_owned(),
         };
+    } else if song.language_is_guessed() {
+        // The confidence is in the sentence because this is the one witness that can be wrong about
+        // a song it read correctly, and a curator scanning a folder for what to correct wants the
+        // close calls to look different from the certainties.
+        said.language_guessed = words
+            .msg_with(
+                "song-language-guessed",
+                &[
+                    ("name", song.guessed_language_name().into()),
+                    ("percent", i64::from(song.guessed_language_percent()).into()),
+                ],
+            )
+            .into_owned();
     } else if let Some(declared) = song.det_language.as_deref() {
         said.language_unknown_code = words
             .msg_with("song-language-unknown-code", &[("code", declared.into())])

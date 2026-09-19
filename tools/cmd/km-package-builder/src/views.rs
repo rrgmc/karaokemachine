@@ -1075,8 +1075,14 @@ impl FilterForm {
 /// rule `km_locale::filters` states for anything markup would otherwise assemble.
 #[derive(Debug, Clone, Default)]
 pub struct SongSaid {
-    /// Why this song counts as a language nobody chose, or empty where somebody did.
-    pub language_guess: String,
+    /// Which witness the file gave for a language nobody chose, or empty where somebody did.
+    ///
+    /// **`detected`, not `guess`.** The file made a statement and this reads it; a guess is what
+    /// the sentence below carries, and one word for the two would make the page unable to say which
+    /// of them put a language in the box.
+    pub language_detected: String,
+    /// What the song's own words read as, where nothing stronger spoke.
+    pub language_guessed: String,
     /// What the file's own header declared, where it is not a code this build knows.
     pub language_unknown_code: String,
     /// The four numbers behind the suitability.

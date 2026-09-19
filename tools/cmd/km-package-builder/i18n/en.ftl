@@ -862,6 +862,7 @@ song-file-says-nothing = (the file says nothing)
 song-language-declared = Unknown, so this song counts as { $name } - the file's own header says { $code }.
 song-language-declared-default = Unknown, so this song counts as { $name } - the file's own header says { $code }, which is what most karaoke files say whatever language they are in.
 song-language-from-encoding = Unknown, so this song counts as { $name } - worked out from the encoding its lyrics are written in.
+song-language-guessed = Unknown, so this song counts as { $name } - read from its own words, { $percent }% sure.
 song-language-unknown-code = The file's header says { $code }, which is not a language code this build knows.
 
 song-transpose = Transpose

@@ -732,8 +732,10 @@ impl Db {
             "read what language each song's words are in"
         );
         self.set_setting(LANGUAGE_GUESS, &want)?;
-        self.conn
-            .execute("DELETE FROM settings WHERE key = ?1", [LANGUAGE_GUESS_CURSOR])?;
+        self.conn.execute(
+            "DELETE FROM settings WHERE key = ?1",
+            [LANGUAGE_GUESS_CURSOR],
+        )?;
         Ok(())
     }
 
@@ -847,6 +849,7 @@ impl Db {
     }
 
     /// The `CREATE` statement behind one index, so a test can read the key it actually holds.
+    #[cfg(test)]
     pub fn index_sql_for_test(&self, name: &str) -> Option<String> {
         self.conn
             .query_row(

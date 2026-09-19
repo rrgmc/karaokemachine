@@ -122,7 +122,12 @@
           </select>
           {% if song.language_is_detected() %}
           {# A code the file declared sits inside the sentence, so both are composed in Rust. #}
-          <div class="dim">{{ said.language_guess }}</div>
+          <div class="dim">{{ said.language_detected }}</div>
+          {% else if song.language_is_guessed() %}
+          {# Said apart from the line above rather than worded to cover both: a file that declared a
+             language and a detector that read the words are different claims, and which one put a
+             code in the box is what decides whether a curator checks it. #}
+          <div class="dim">{{ said.language_guessed }}</div>
           {% else if !said.language_unknown_code.is_empty() %}
           <div class="dim">{{ said.language_unknown_code }}</div>
           {% endif %}

@@ -845,6 +845,7 @@ song-file-says-nothing = (o arquivo não diz)
 song-language-declared = Em branco, então esta música conta como { $name } - o cabeçalho do arquivo diz { $code }.
 song-language-declared-default = Em branco, então esta música conta como { $name } - o cabeçalho do arquivo diz { $code }, que é o que a maioria dos arquivos de karaokê diz, seja qual for a língua.
 song-language-from-encoding = Em branco, então esta música conta como { $name } - deduzido da codificação em que a letra está escrita.
+song-language-guessed = Em branco, então esta música conta como { $name } - lido da própria letra, { $percent }% de certeza.
 song-language-unknown-code = O cabeçalho do arquivo diz { $code }, que não é um código de língua que esta versão conheça.
 
 song-transpose = Transpor

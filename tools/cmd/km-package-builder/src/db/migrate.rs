@@ -198,6 +198,11 @@ pub(super) const FOLD_REVISION: &str = "fold_revision";
 ///
 /// `sql IS NOT NULL` is what excludes `sqlite_autoindex_songs_1`, the index behind `id TEXT PRIMARY
 /// KEY`: it cannot be dropped and asking to is an error rather than a no-op.
+///
+/// Names alone, which is what a test asking whether an index is there wants. The open path compares
+/// the statement as well, through [`own_indexes_with_sql`], because an index can be wrong without
+/// being absent.
+#[cfg(test)]
 pub(super) fn own_indexes(conn: &Connection, table: &str) -> Result<Vec<String>, DbError> {
     Ok(own_indexes_with_sql(conn, table)?
         .into_iter()
