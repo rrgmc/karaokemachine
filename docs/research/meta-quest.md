@@ -101,7 +101,13 @@ to `/api/v1/transport/play` resumes the song where it stopped.
 
 **[inferred]** This is the machine's own on-screen rule rather than a Quest defect, and the rule
 serves a phone well. A phone in a pocket should not keep playing. A headset set down for a moment is
-a different situation, and nothing tells the two apart today.
+a different situation, and nothing tells the two apart.
+
+**[repo]** Resuming by itself is settled rather than open.
+[`Leaving the screen stops the music`](../decisions/interface.md#leaving-the-screen-stops-the-music)
+rejects auto-resume. A song that restarts on return surprises a room the way one that never stopped
+does. A headset would need that decision changed, and one Android build serves phones, televisions
+and headsets alike.
 
 ## 4. An immersive build is out of reach today
 
