@@ -368,7 +368,7 @@ pub struct MidiFacts {
 /// **Outside [`MidiFacts`] because every kind of song has one.** A MIDI file's is measured; a video,
 /// an MP3+G pair and an UltraStar song are answered by what they are and by how much of them is
 /// sung. Keeping the number here and filling it at scan time is what lets the browse list, the
-/// suitability filter and the sort read one column and agree — a number invented on the way out
+/// suitability filter and the sort read one column and agree: a number invented on the way out
 /// agrees with the page and not with the `WHERE` clause beside it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SuitabilityFacts {
@@ -538,15 +538,15 @@ pub struct SongRow {
     pub kind: SongKind,
     /// Automatic suitability, 0 to 10.
     ///
-    /// Measured for a MIDI file. **A flat 10 for a video or MP3+G song**, which is not a measurement
+    /// Measured for a MIDI file. **Full marks for a video or MP3+G song**, which is not a measurement
     /// but a fact about what the file is: a purpose-made karaoke file is the best possible answer to
-    /// "how good is this as a karaoke source". `None` only for a row scanned before it
-    /// existed. See the `Suitability, for a song that was made to be sung to` decision in
-    /// `docs/decisions/songs.md`.
+    /// "how good is this as a karaoke source", and less where there is too little of it sung to be
+    /// worth choosing. `None` only for a row scanned before the column was filled for its kind. See the
+    /// `Suitability, for a song that was made to be sung to` decision in `docs/decisions/songs.md`.
     ///
-    /// Only two fields on this row are MIDI-only — this and `melody_channel`, which was already
-    /// optional — so they stay flat here rather than being grouped the way [`MidiFacts`] groups the
-    /// song page's dozen.
+    /// Read from the column rather than worked out here, because the band filter and the suitability
+    /// sort read that same column: a number invented on the way out would show on the page and mean
+    /// nothing in the `WHERE` clause beside it.
     pub suitability: Option<u8>,
     /// The person's own rating, when they have given one.
     pub user_score: Option<u8>,

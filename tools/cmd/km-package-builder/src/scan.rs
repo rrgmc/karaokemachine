@@ -2395,11 +2395,59 @@ mod tests {
         );
     }
 
+    /// A scan stores the suitability, and a song too short to be worth choosing lands under the
+    /// default band.
+    ///
+    /// **The browse list, the band filter and the sort all read the stored column**, so what a scan
+    /// writes is what a curator sees and what the `WHERE` clause means. The two files here have the
+    /// same words, the same timing and the same arrangement, and differ only in how long they run.
+    #[test]
+    fn a_scan_stores_what_a_song_is_worth_and_a_short_one_falls_below_the_band() {
+        let scratch = Scratch::new("stored-suitability");
+        scratch.write("long.kar", &km_song::testing::high_quality_song());
+        scratch.write("short.kar", &km_song::testing::a_complete_short_song());
+
+        let db = Arc::new(Shared::new(
+            crate::db::Db::open_in_memory(&scratch.0).expect("open"),
+        ));
+        run(&db, ScanOptions::default(), &Arc::new(Progress::default())).expect("scan");
+
+        let guard = db.lock();
+        let stored = |path: &str| {
+            guard
+                .count_for_test(&format!(
+                    "SELECT suitability FROM songs
+                      WHERE id = (SELECT song_id FROM files WHERE path = '{path}')"
+                ))
+                .expect("read the suitability")
+        };
+        assert_eq!(stored("long.kar"), 10);
+        // Three rather than four: forty seconds is under the length a song is plausibly played for
+        // as well, so the arrangement loses its second point to a separate rule about the backing.
+        assert_eq!(stored("short.kar"), 3);
+
+        let band = |filter: crate::db::SuitabilityFilter| {
+            guard
+                .songs(&crate::db::Filter {
+                    suitability: filter,
+                    ..crate::db::Filter::default()
+                })
+                .expect("browse")
+                .len()
+        };
+        assert_eq!(band(crate::db::SuitabilityFilter::High), 1);
+        assert_eq!(
+            band(crate::db::SuitabilityFilter::Low),
+            1,
+            "the short one is where somebody looking for what is wrong would find it"
+        );
+    }
+
     /// A row climbs through every revision that cannot reach it and stops at the first that can.
     ///
     /// Revision 2 reaches a song with syllables and revision 3 one with 8 lyric lines, so a row
     /// short of both climbs past them. **Where it stops is the newest revision that reaches it**, and
-    /// the newest of all reaches every song — so the climb is what this asserts rather than a scan
+    /// the newest of all reaches every song, so the climb is what this asserts rather than a scan
     /// avoided, and the count of songs still stale afterwards is all of them.
     #[test]
     fn a_song_climbs_to_the_first_revision_that_can_change_it() {

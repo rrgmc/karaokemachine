@@ -242,6 +242,30 @@ with its own warning, `chord_names_only`, and scores zero for lyrics and sync.
 discounted. A file is a chord chart when at least 8 of its lines, and at least 80% of them, are made
 of chord names and nothing else.
 
+## How long a song is sung for
+
+**A file sung for less than three quarters of a minute loses the words and their timing**, scores zero
+for both, and is marked defective with its own warning, `brief_singing`. A file that would have
+scored 10 scores 4. Hardly any song shorter than that is worth the slot in a queue it takes, whatever
+else it does well, and every other measurement passes such a file.
+
+**What is measured is the span from the first counted syllable to the last**, in seconds, and not the
+file's own length. The two come apart in both directions and the span is right both times: a
+four-minute file holding one verse is forty seconds of singing, and a forty-second file sung the
+whole way through is the same forty seconds. Coverage is the same two numbers divided by the length,
+so it reads 1.0 for the second of those exactly as it reads 1.0 for a four-minute song. A fraction
+cannot say how much there is, which is the whole reason the span is kept beside it.
+
+**Named apart from the other two ways of failing**, on the rule the section above sets: a business
+card in the lyric track is `negligible_lyrics`, a song timed for its first verse alone is
+`partial_lyrics`, and a song there is simply not enough of is this. The quantity test keeps
+precedence where a file is both, because the syllable count is the fault worth telling somebody
+about.
+
+**It reaches a video, an MP3+G pair and an UltraStar song too**, under the section below. Those three
+are answered by their own length, except an UltraStar song, which carries timed words and so is
+measured the way a MIDI file is.
+
 ## The sync component asks about the melody, not about the arrangement
 
 **Whether the words were timed to this music is a question about the line being sung.** Asked of the
@@ -310,7 +334,8 @@ improve — 78% to 100%, 82% to 100%, 95% to 100% — eighteen are unchanged, an
 
 ## Suitability, for a song that was made to be sung to
 
-**A flat 10, for a video song, an MP3+G song and an UltraStar song alike — by what the file is, not by measurement.**
+**A flat 10, for a video song, an MP3+G song and an UltraStar song alike — by what the file is, not by
+measurement, once there is enough of it sung.**
 
 The suitability exists to answer "how good is this file as a karaoke source", and a commercial
 karaoke disc or a purpose-made karaoke video is the best possible answer: the words are there, they
@@ -318,6 +343,18 @@ were timed by whoever authored them, and the backing is a real studio arrangemen
 in doubt for a number to resolve, and leaving it absent sorts professionally produced karaoke
 *below* a mediocre MIDI file — the opposite of the truth, and exactly what the suitability exists to
 prevent.
+
+**One thing about such a file is in doubt, and it is how much of it is sung.** A thirty-second video
+is a clip, a trailer or a fragment of a rip rather than a karaoke track, so it is evidence against
+the very premise the 10 rests on. Such a file scores 4, by
+[`How long a song is sung for`](#how-long-a-song-is-sung-for) and on the same terms a MIDI file of
+the same length gets: nothing for the words or their timing, and the channels and arrangement it
+still plainly has.
+
+**What stands in for the span differs by kind, and only because the words do.** A video's words are
+pixels in somebody else's picture and CD+G's are one-bit tiles, so neither has a span to read and
+both are answered by their own length. An UltraStar song was timed by a person against this
+recording, so it is measured on the words like any file that has them.
 
 The stored breakdown is filled to match rather than left at zero, so it cannot contradict the
 suitability it explains: it is a derivation that does not apply here, not a measurement that came

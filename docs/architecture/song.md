@@ -263,11 +263,12 @@ found, nine channels, three minutes long. **The rubric simply never asked *how m
 sing**, so eleven syllables of business card scored exactly as well as four hundred syllables of song
 — and on a corpus of hundreds of thousands of files, that sorts the useless ones to the top.
 
-Two measures, and a file has to pass both: **syllables**, with obvious credit lines discounted first
-and deliberately narrowly (a *name* is not discounted, because a name can be a lyric and quantity
-settles those files anyway); and **coverage**, the span from first counted syllable to last over the
-song's length, which is by far the stronger signal and the one that cannot be faked by a wordy credit
-block.
+Three measures, and a file has to pass all of them: **syllables**, with obvious credit lines
+discounted first and deliberately narrowly (a *name* is not discounted, because a name can be a lyric
+and quantity settles those files anyway); **coverage**, the span from first counted syllable to last
+over the song's length, which is by far the stronger signal against a wordy credit block; and **the
+span itself**, in seconds, which is the numerator coverage divides away and is the only one of the
+three that can see a forty-second file sung the whole way through. Its own section is below.
 
 Below either threshold both the lyrics and sync components go to **0**. Sync goes to zero because
 "every syllable lands near a note" is not a measurement when there are eleven syllables and 4,489

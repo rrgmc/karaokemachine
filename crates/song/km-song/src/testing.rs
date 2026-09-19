@@ -922,7 +922,7 @@ pub fn harmonica_tablature() -> Vec<u8> {
 /// Nothing here is wrong in any way the rubric asked about before the span was measured: eighty
 /// syllables, one to the beat, timed against a melody that plays under every one of them, with a
 /// full arrangement and drums behind it. It is simply too short to be worth choosing, and its
-/// coverage says so least of all — the words run the whole length of it, so the fraction reads 1.0
+/// coverage says so least of all: the words run the whole length of it, so the fraction reads 1.0
 /// exactly as a four-minute song's does.
 pub fn a_complete_short_song() -> Vec<u8> {
     let mut words = TrackWriter::new();
@@ -944,7 +944,7 @@ pub fn a_complete_short_song() -> Vec<u8> {
 /// The shape a fraction cannot separate from the one above and a span can: forty seconds of singing
 /// in a two-minute file covers a third of it, which is thin rather than absent, so the words stop
 /// short of nothing a reader would call early. What is wrong with it is what is wrong with
-/// [`a_complete_short_song`] — there is forty seconds of it — and the file's own length says the
+/// [`a_complete_short_song`], there being forty seconds of it, and the file's own length says the
 /// opposite.
 pub fn a_verse_in_a_long_song() -> Vec<u8> {
     let mut words = TrackWriter::new();
@@ -964,7 +964,7 @@ pub fn a_verse_in_a_long_song() -> Vec<u8> {
 /// [`song_around`]'s arrangement at a third of its length, for a song that is short and complete.
 ///
 /// A separate builder rather than a parameter on `song_around`, because the four fixtures that share
-/// that arrangement share it so a test comparing them compares the words alone — and a length is the
+/// that arrangement share it so a test comparing them compares the words alone, and a length is the
 /// one thing this fixture does not hold in common with them.
 fn short_song_around(words: TrackWriter) -> Vec<u8> {
     let mut conductor = TrackWriter::new();

@@ -34,6 +34,17 @@ Entries are written for somebody who has the machine. Why any of it is the way i
   judgement to make, and the choice survives every rebuild. Video and MP3+G songs carry their words
   in their own picture and are not offered the choice.
 
+### Changed
+
+- **A song with barely any singing in it stops sorting above the real ones.** A file sung for less
+  than three quarters of a minute rates 4 out of 10 or lower and is marked defective, so the package
+  builder's default 8–10 band leaves it out and the under-5 band is where to find it. What counts is how long
+  the words run rather than how long the file is, so a four-minute file holding one verse is caught
+  by the same rule. Karaoke videos, MP3+G pairs and UltraStar songs are judged on it too: a
+  thirty-second video is a clip rather than a karaoke track, whoever made it. The first scan after
+  upgrading reads the whole corpus again to work the new number out, and `Recalculate suitability`
+  does the same for a package.
+
 ## [1.18.0] - 2026-09-18
 
 ### Added

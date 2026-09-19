@@ -447,10 +447,15 @@ it was a hundred copies of itself.
 
 ## Rebuilding the songs table
 
-Thirteen columns were `NOT NULL` while every song was a MIDI file. A video has none of them, and its
-suitability is **absent, not zero** — a video scored 0 sorts below a genuinely broken MIDI file.
+Thirteen columns were `NOT NULL` while every song was a MIDI file, and a video has none of them.
 SQLite cannot relax `NOT NULL` with `ALTER TABLE`, so the table is rewritten once: **the only
 migration in the tool that is not an `ADD COLUMN`.**
+
+**The suitability columns are not among the thirteen.** A scan fills them for every kind, because a
+song made to be sung to is answered by what it is and by how long it is sung for. Storing rather than
+inventing is what keeps the browse list, the band filter and the suitability sort reading one number:
+the latter two read the column, so a number worked out on the way out shows on the page and means
+nothing in the `WHERE` clause beside it.
 
 The rewrite is split around `schema.sql` — rename before, copy after — so the new table comes from the
 **one** definition rather than a second copy of thirty columns free to drift. Four details, each of
@@ -493,9 +498,10 @@ A distinct "not a video" scan status joins "not MIDI" because the two are reache
 and **read differently to a person**: telling somebody their `.mp4` is "not a readable MIDI file"
 sends them looking for a problem that is not there.
 
-In the browse list a video's suitability column shows a dash in the dim gray of every other "nobody
-said" mark on the page — **never a verdict color**: a low color would read as measured and found
-wanting, about a thing never measured.
+In the browse list a video's suitability column shows its stored number in the verdict color every
+other song gets, because it is the same number answering the same question. The song page prints the
+four components beside it under a line saying the file is native karaoke, which is what tells a
+reader they are a derivation rather than a reading.
 
 **Auditioning needed the debug play route to stop parsing MIDI unconditionally.** Judging a video
 otherwise meant packaging it first, which is the wrong way round for a tool whose whole purpose is

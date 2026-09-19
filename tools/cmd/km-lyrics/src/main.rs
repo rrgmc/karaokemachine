@@ -577,7 +577,21 @@ impl Stats {
 
         // Asked only of a file whose lyrics score, so the histogram describes songs rather than the
         // business cards and chord charts the quantity test has already settled.
-        if analysis.suitability.breakdown.lyrics > 0 {
+        // **Worked out here rather than read off `breakdown.lyrics`, and that is the whole point.**
+        // The rule this sets scores a file it condemns at zero for its lyrics, so an instrument
+        // reading that column would report the threshold back to itself and show nothing below it.
+        // What is wanted is the population the rule judges, which is every file the quantity tests
+        // pass: enough syllables covering enough of the song, words rather than chord names, and a
+        // span there is something to measure.
+        let content = km_suitability::suitability::LyricContent::measure(&song, song.duration_ms());
+        let thresholds = km_suitability::Thresholds::default();
+        let ticks = song.lyrics.syllable_ticks();
+        let judged = song.lyrics.granularity() != LyricGranularity::None
+            && !content.is_negligible(&thresholds)
+            && !content.is_chord_chart(&thresholds)
+            && !(!ticks.is_empty() && ticks.iter().all(|&t| t == 0))
+            && song.note_count() > 0;
+        if judged {
             let seconds = (km_suitability::sung_span_ms(&song) / 1_000) as usize;
             *self.sung_seconds.entry(bucket(seconds, 5)).or_default() += 1;
             for least in CANDIDATE_SUNG_SECONDS {

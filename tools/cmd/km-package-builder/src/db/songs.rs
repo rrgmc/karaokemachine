@@ -455,7 +455,7 @@ impl Db {
                     .transpose()?;
                 // Read for every kind, not behind `kind.is_midi()`: the scan writes one for every
                 // kind. A row written before it did reads as zero, which the revision bump is what
-                // corrects — a scan re-reads it and writes the real number.
+                // corrects: a scan re-reads it and writes the real number.
                 let suitability = SuitabilityDetail {
                     suitability: row.get::<_, Option<i64>>(21)?.unwrap_or(0) as u8,
                     suitability_lyrics: row.get::<_, Option<i64>>(22)?.unwrap_or(0) as u8,
@@ -952,10 +952,10 @@ impl Db {
     /// The songs named, best first, for the quality hint the Songs page draws on ticked rows.
     ///
     /// **MIDI files only, and the rest are dropped rather than ordered badly.** A video song and an
-    /// MP3+G song are a flat 10 by what they are rather than by measurement — see
+    /// MP3+G song are rated by what they are rather than by measurement — see
     /// `Suitability, for a song that was made to be sung to` in `docs/decisions/songs.md` — and
-    /// every component behind that 10 is a fill rather than a reading, so an order over them would
-    /// be the id tie-break wearing a number. The handler says how many it left out.
+    /// every component behind that number is a fill rather than a reading, so an order over them
+    /// would be the id tie-break wearing a number. The handler says how many it left out.
     ///
     /// **The order is decided in Rust, by [`crate::hint::order`], and not by an `ORDER BY`.** No
     /// index covers seven keys over an arbitrary list of ids, the list is at most a page of ticks,

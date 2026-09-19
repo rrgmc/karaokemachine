@@ -398,8 +398,8 @@ pub fn add_ultrastar_song(
         file: file.clone(),
         duration_ms: info.duration_ms,
         // Measured off the timeline rather than taken from `words_end` above, which asks a different
-        // question — whether this MP3 is the recording these words were timed to — and answers it
-        // with an end rather than a span.
+        // question, whether this MP3 is the recording these words were timed to, and answers it with
+        // an end rather than a span.
         sung_ms: km_suitability::sung_span_ms(&km_song::ultrastar::song_from_timeline(
             source.song.timeline.clone(),
         )),
@@ -532,8 +532,8 @@ mod tests {
     }
 
     /// **Timed by a person and still not worth choosing.** The span is what this kind is measured on,
-    /// so an UltraStar file holding one line is answered by the words rather than by the recording —
-    /// a twenty-minute MP3 with `Hello` timed over its first second is not a karaoke song.
+    /// so an UltraStar file holding one line is answered by the words rather than by the recording: a
+    /// twenty-minute MP3 with `Hello` timed over its first second is not a karaoke song.
     #[test]
     fn an_ultrastar_song_sung_for_a_moment_loses_the_words_and_their_timing() {
         let song = ultrastar::parse(SONG).expect("parses");

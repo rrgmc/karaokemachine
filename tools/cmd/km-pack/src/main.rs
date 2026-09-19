@@ -1639,7 +1639,7 @@ fn measure_packaged_video(
 /// How long a media song in a package is sung for.
 ///
 /// An UltraStar song carries its timeline, so the span is read from it. A video's words are pixels
-/// and an MP3+G pair's are one-bit tiles, so those two are answered by their own length — and so is
+/// and an MP3+G pair's are one-bit tiles, so those two are answered by their own length, and so is
 /// an UltraStar song whose timeline will not open, which is the honest fallback rather than a
 /// refusal: a package that opens far enough to be re-analyzed should be re-analyzed.
 fn media_sung_ms(package: &Package, song: &km_kmpkg::SongEntry) -> u32 {
@@ -1662,7 +1662,7 @@ fn reanalyze(args: &ReanalyzeArgs) -> Result<()> {
     for song in &manifest.songs {
         // Three of the four components cannot be re-analyzed for a media song: separate channels,
         // lyrics and how well they sync are MIDI facts, and a video or an MP3+G pair has none of
-        // them. **How much of it is sung can be, and so can how loud it is** — both from what is
+        // them. **How much of it is sung can be, and so can how loud it is**, both from what is
         // already in the package, so this is the one path that corrects either without a rebuild.
         //
         // Carried across with `add_media_copied` either way, so `reanalyze` still writes a complete

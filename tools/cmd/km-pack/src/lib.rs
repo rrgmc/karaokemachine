@@ -1049,8 +1049,8 @@ pub fn warnings_hide_words<'a>(codes: impl IntoIterator<Item = &'a str>) -> bool
 /// **The one place the two are decided between**, and the reason it is here rather than beside the
 /// record it builds: `km-kmpkg` is a container format and does not link the analysis, so neither the
 /// threshold nor the name of the warning is in scope there. Both are in scope here, and every caller
-/// that writes a media song's suitability comes through this — packaging and the curation tool's
-/// scan alike, which is what makes the number a browse list shows the number a package will carry.
+/// that writes a media song's suitability comes through this, packaging and the curation tool's scan
+/// alike, which is what makes the number a browse list shows the number a package will carry.
 ///
 /// `sung_ms` is the span from the first sung syllable to the last where the file has timed words,
 /// and the file's own length where it has none. A video's words are pixels and CD+G's are one-bit

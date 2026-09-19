@@ -884,11 +884,11 @@ impl SuitabilityRecord {
 
     /// What a file made to be sung to scores when there is too little of it to sing.
     ///
-    /// The same four points a MIDI file of the same length keeps — the backing is spread across
-    /// channels and it is a real arrangement, neither of which a short file stops being — and
-    /// nothing for the words or their timing, which is what a file over in forty seconds has to
-    /// offer. The caller supplies the warning, because the name of it belongs to the analysis rather
-    /// than to the container.
+    /// The same four points a MIDI file of the same length keeps, the backing being spread across
+    /// channels and a real arrangement, neither of which a short file stops being. Nothing for the
+    /// words or their timing, which is what a file over in forty seconds has to offer. The caller
+    /// supplies the warning, because the name of it belongs to the analysis rather than to the
+    /// container.
     #[must_use]
     pub fn too_brief_to_choose(warning: WarningRecord) -> Self {
         Self {

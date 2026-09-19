@@ -86,7 +86,7 @@ pub struct Thresholds {
     /// Measured first counted syllable to last, so a long file carrying one verse and a short file
     /// sung the whole way through are asked the same question. [`Self::min_lyric_coverage`] asks
     /// what share of the music has words over it, which a short file answers perfectly by being
-    /// short — a fraction cannot tell forty seconds sung throughout from four minutes.
+    /// short: a fraction cannot tell forty seconds sung throughout from four minutes.
     pub min_sung_ms: u32,
     /// Fewest lines of chord names a file needs before its lyric track is read as a chord chart.
     ///

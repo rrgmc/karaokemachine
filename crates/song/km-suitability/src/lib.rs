@@ -68,7 +68,7 @@ pub enum Reach {
     /// Every song may change, and nothing that is not one.
     ///
     /// Wider than any count below and narrower than [`Self::Everything`], and the difference is the
-    /// row a scan holds for a file it found no song in — a readme, an orphan `.cdg`, a MIDI file
+    /// row a scan holds for a file it found no song in: a readme, an orphan `.cdg`, a MIDI file
     /// that does not parse. A revision that decides something new about *songs* decides nothing
     /// about those, so re-reading them buys nothing; a revision that could turn a failure into a
     /// song reaches everything and is the variant above.

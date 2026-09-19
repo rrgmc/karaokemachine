@@ -2052,11 +2052,13 @@ unattended machine playing its roughest file is a poor advert, and suitability i
 wanted here — it is what the packager measured about the *file*. The floor falls back to the whole
 catalog when nothing clears it, because a silent machine is a worse answer than a mediocre song.
 
-Two consequences fall out of it. A video or MP3+G song carries a flat 10 by what it is rather than
+Two consequences fall out of it. A video or MP3+G song carries full marks by what it is rather than
 by measurement, so **the floor prefers them** — right for showing the machine off, and worth a
-thought on a box that will then decode 1080p for as long as nobody comes home. And the floor drops a
-song with *no* rating rather than treating it as average, so a package built by something other than
-`km-pack` is simply never demoed.
+thought on a box that will then decode 1080p for as long as nobody comes home. A clip too short to
+be worth choosing is the one such song the floor drops, because
+[`How long a song is sung for`](songs.md#how-long-a-song-is-sung-for) puts it at 4. And the floor
+drops a song with *no* rating rather than treating it as average, so a package built by something
+other than `km-pack` is simply never demoed.
 
 The last twenty picks are remembered so consecutive songs differ. It is not a guarantee: a catalog
 smaller than that plays something recent rather than refusing to play.
