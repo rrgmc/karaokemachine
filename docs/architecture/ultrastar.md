@@ -31,8 +31,8 @@ start of the audio: `ms = GAP + beat × 60000 / (BPM × 4)`.
 the local collection:
 
 - **Every header value is sampled for detection, not only the words.** A file with ASCII words can
-  name its audio `DIE ÄRZTE - ….mp3`, and a decoder chosen from the words alone reads that name as
-  UTF-8 and finds no file.
+  name its audio `DIE ÄRZTE - ….mp3`. A decoder chosen from the words alone reads that name as UTF-8
+  and finds no file.
 - **A versioned file is not declared UTF-8.** Editors write `#VERSION:1.1` on CP1252 files. Valid
   UTF-8 is still read as UTF-8, because `TextDecoder::resolve` checks validity before detecting.
 - **`#LANGUAGE` is the domain hint `chardetng` takes**, through
@@ -40,8 +40,8 @@ the local collection:
   windows-1250 as in windows-1252, and without the hint `ê` becomes `ę`.
 
 **A syllable keeps its note's length.** `RawSyllable::end_tick` is `Some` for an UltraStar note and
-`None` for a MIDI lyric, and `build_timeline` ends a syllable at the earlier of it and the next timing
-point. A MIDI file's timeline is unchanged by it, so no stored row moves and `ANALYSIS_REVISION`
+`None` for a MIDI lyric. `build_timeline` ends a syllable at the earlier of it and the next timing
+point. It leaves a MIDI file's timeline unchanged, so no stored row moves and `ANALYSIS_REVISION`
 stays where it was.
 
 `tests/ultrastar_corpus.rs` sweeps a real folder, ignored by default:
@@ -57,7 +57,7 @@ KM_ULTRASTAR_CORPUS=<your UltraStar folder> cargo test -p km-song --test ultrast
 | `media/<n>.mp3` | the audio, byte for byte | uncompressed, so it is seeked into |
 | `media/<n>.json` | the serialized `LyricTimeline` | deflated, read whole |
 
-**The second entry is named by rule**, as a CD+G file is. `km_kmpkg::companion_entry_for` is the one
+**A rule names the second entry**, as it names a CD+G file's. `km_kmpkg::companion_entry_for` is the one
 place it is named, so `missing_entries`, `media_entries` and `add_media_copied` cannot disagree about
 which songs have one. A manifest holding an UltraStar song is format 5; a package without one keeps
 the version its content gave it.
@@ -78,9 +78,9 @@ and two walks use it:
 - The curation scan gives each one a file row with no song and no failure, through
   `km_pack::ultrastar_naming`.
 
-**The skip test folds the naming `.txt` into an unpaired MP3's size and mtime**, and into a video's,
-as it folds a `.cdg` into its MP3's. A row written before the `.txt` counted then differs, and the
-file is read again once. A `.txt` is compared on its own size and mtime: reading every text file in a
+**The skip test folds the naming `.txt` into an unpaired MP3's size and mtime.** It does the same for
+a video, as it folds a `.cdg` into its MP3's. A row written before the `.txt` counted then differs, and the
+file is read again once. A `.txt` is compared on its own size and mtime. Reading every text file in a
 corpus to find its audio would cost a disk seek per file on every scan.
 
 ## Playing it
@@ -89,8 +89,8 @@ corpus to find its audio would cost a disk seek per file on every scan.
 same decoder thread and feed, and the song reaches the engine as `Load::Track`.
 
 **The words are a `km_song::Song` with nothing to play.** `ultrastar::song_from_timeline` builds one
-with no events and a timecode tempo map at 1,000 ticks a second, because the lyric view, the
-`lyric_line` events and `LyricsDto::from_song` all read a `Song`. The machine holds it in
+with no events and a timecode tempo map at 1,000 ticks a second. It does so because the lyric view,
+the `lyric_line` events and `LyricsDto::from_song` all read a `Song`. The machine holds it in
 `UltraStarSong`.
 
 Four things differ from a MIDI song, and each is a trap:
