@@ -12,6 +12,7 @@ use axum::http::{HeaderMap, StatusCode, header};
 use axum::response::{IntoResponse, Redirect, Response};
 
 use km_song::{ParseOptions, Song};
+use km_suitability::Abstention;
 
 use crate::app::Client;
 use crate::db::{
@@ -1939,10 +1940,8 @@ fn song_said(
                     )
                     .into_owned(),
             },
-            None => match midi.melody_abstained.as_deref() {
-                Some(why) => words
-                    .msg_with("song-melody-not-found-why", &[("why", why.into())])
-                    .into_owned(),
+            None => match midi.melody_abstained.as_deref().and_then(abstention_key) {
+                Some(key) => words.msg(key).into_owned(),
                 None => words.msg("song-melody-not-found").into_owned(),
             },
         };
@@ -2008,6 +2007,47 @@ fn song_said(
         .into_owned();
     said
 }
+
+/// Every reason melody detection can give for claiming no channel.
+const ABSTENTIONS: [Abstention; 6] = [
+    Abstention::NoCandidates,
+    Abstention::NothingMonophonic,
+    Abstention::OutsideVocalRange,
+    Abstention::SilentUnderTheWords,
+    Abstention::NoSupportingEvidence,
+    Abstention::Ambiguous,
+];
+
+/// The sentence for why no melody channel was claimed, from the code the scan stored.
+///
+/// The code is `km_pack::melody_abstained`'s, the variant's name in lowercase, and it is not a word
+/// a person reads. The match is exhaustive, so a new reason does not compile until it has a
+/// sentence; it also goes into [`ABSTENTIONS`]. A code this does not know draws the plain
+/// "not found".
+fn abstention_key(code: &str) -> Option<&'static str> {
+    let reason = ABSTENTIONS
+        .into_iter()
+        .find(|reason| format!("{reason:?}").to_lowercase() == code)?;
+    Some(match reason {
+        Abstention::NoCandidates => "song-melody-no-candidates",
+        Abstention::NothingMonophonic => "song-melody-nothing-monophonic",
+        Abstention::OutsideVocalRange => "song-melody-outside-vocal-range",
+        Abstention::SilentUnderTheWords => "song-melody-silent-under-the-words",
+        Abstention::NoSupportingEvidence => "song-melody-no-supporting-evidence",
+        Abstention::Ambiguous => "song-melody-ambiguous",
+    })
+}
+
+/// Every key [`abstention_key`] can return, for the parity tests in [`crate::words`].
+#[cfg(test)]
+pub const ABSTENTION_KEYS: &[&str] = &[
+    "song-melody-no-candidates",
+    "song-melody-nothing-monophonic",
+    "song-melody-outside-vocal-range",
+    "song-melody-silent-under-the-words",
+    "song-melody-no-supporting-evidence",
+    "song-melody-ambiguous",
+];
 
 /// What encoding to decode lyrics with, when the person picks one.
 #[derive(Debug, Default, serde::Deserialize)]
@@ -7449,6 +7489,21 @@ async fn load_song(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The song page words every reason melody detection gives, from the code the scan stored.
+    #[test]
+    fn every_melody_abstention_has_a_sentence() {
+        assert_eq!(
+            abstention_key("nosupportingevidence"),
+            Some("song-melody-no-supporting-evidence")
+        );
+        let keys: Vec<_> = ABSTENTIONS
+            .iter()
+            .map(|reason| abstention_key(&format!("{reason:?}").to_lowercase()))
+            .collect();
+        assert!(keys.iter().all(Option::is_some), "{keys:?}");
+        assert_eq!(abstention_key("a-code-from-elsewhere"), None);
+    }
 
     /// An add names the reason a song did not go in, because the reasons have different remedies.
     ///
