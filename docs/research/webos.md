@@ -9,15 +9,18 @@ Investigated 2026-09-13. **No claim here was verified on a television**, and the
 how far it can be trusted.
 
 **Summary.** The whole machine runs on an LG television as a native armv7 Linux program installed by
-sideload, and it is a homebrew carrier rather than a shippable one. The engine is ready: it already
-plays all three song kinds on a 32-bit Cortex-A55 television box at 59.5 fps, and webOS is glibc
-Linux, so the machine is an ordinary executable there and needs none of the shell code both mobile
-ports carry. Two questions decide the answer and neither has been asked of hardware: **there is no
-SDL3 for webOS**, and cpal reaches ALSA where a television's sound is owned by PulseAudio. Two
-further findings shape the product rather than block it: an installed application is removed when
-the Developer Mode session runs out, and a television has about a third of the memory the Android
-measurements were taken with. **Nothing is being built from this**, and if it is ever taken up, one
-afternoon with a television answers five questions that can each end it.
+sideload. It is a homebrew carrier rather than a shippable one. The engine is ready: it already plays
+all three song kinds on a 32-bit Cortex-A55 television box at 59.5 fps. And webOS is glibc Linux, so
+the machine is an ordinary executable there and needs none of the shell code both mobile ports carry.
+
+Two questions decide the answer, and nobody has asked either of hardware. **There is no SDL3 for
+webOS**, and cpal reaches ALSA where PulseAudio owns a television's sound. Two further findings shape
+the product rather than block it. An installed application is removed when the Developer Mode session
+runs out. And a television has about a third of the memory the Android measurements had.
+
+**Nothing is
+being built from this.** If it is ever taken up, one afternoon with a television answers five
+questions that can each end it.
 
 | Marker | Meaning |
 |---|---|
@@ -29,8 +32,8 @@ afternoon with a television answers five questions that can each end it.
 ## 1. What a webOS television permits
 
 **[web]** Native applications are not officially supported on a retail television, and they install
-and run on a stock, unrooted one through Developer Mode. Kodi ships that way for webOS 5 and later,
-which is a larger native program than this one and settles whether the path works at all.
+and run on a stock, unrooted one through Developer Mode. Kodi ships that way for webOS 5 and later.
+It is a larger native program than this one, so it settles whether the path works at all.
 
 **[web]** The toolchain is `webosbrew/meta-lg-webos-ndk`, a Yocto SDK producing **armv7a glibc**
 binaries. The kernel is arm64 and the userland is not, so the Rust target is
@@ -38,15 +41,16 @@ binaries. The kernel is arm64 and the userland is not, so the Rust target is
 launcher starts the program as an ordinary ELF executable with a JSON string in `argv[1]`.
 
 **[repo]** That last point removes the layer both mobile carriers need. iOS has
-`crates/machine/km-machine-ios` because the application binary is Swift and Rust has to be a
-`staticlib` underneath it; Android has `MainActivity` because SDL's Java calls into the library. A
-webOS program starts the way the Debian package starts, so `src/main.rs` and `km_app::run` are the
-entry point, no shim crate exists, and `run_on_phone`, `ioscfg` and the `cdylib` crate type are all
+`crates/machine/km-machine-ios` because the application binary is Swift. Rust has to be a
+`staticlib` underneath it. Android has `MainActivity` because SDL's Java calls into the library.
+
+A webOS program starts the way the Debian package starts, so `src/main.rs` and `km_app::run` are the
+entry point. No shim crate exists, and `run_on_phone`, `ioscfg` and the `cdylib` crate type all stay
 untouched. **This is the largest single saving the platform offers.**
 
 **[web]** Applications draw through LSM, the webOS Wayland compositor, using `wl_webos_shell` rather
 than `xdg_wm_base`. Audio is ALSA with PulseAudio above it. Hardware video decode is reachable only
-through the television's media pipeline, `com.webos.media` and NDL DirectMedia, which is handed a
+through the television's media pipeline, `com.webos.media` and NDL DirectMedia. That pipeline takes a
 file or a URL and draws on a plane behind the GL surface.
 
 ## 2. What one afternoon answers
@@ -69,15 +73,15 @@ sysroot, that writes a file and exits:
 - Whether it can bind a TCP listener and be reached from another machine on the network.
 
 **A sixty-line `wl_registry` dump**, printing every Wayland global with its interface **and its
-version**. This is the question the whole port turns on, and asking it directly separates four
-failure modes that "try SDL3 and see" would collapse into one. The versions matter as much as the
-names: the SDL2 fork carries an ABI fix because the television ships an older libwayland, and a
-version mismatch fails inside libwayland rather than anywhere readable.
+version**. This is the question the whole port turns on. Asking it directly separates four failure
+modes that "try SDL3 and see" would collapse into one. The versions matter as much as the names. The
+SDL2 fork carries an ABI fix because the television ships an older libwayland. A version mismatch
+fails inside libwayland rather than anywhere readable.
 
 **[inferred]** Add `ls -l /dev/dri` to the same run. If a DRM card is visible and openable from the
-jail, that is the best outcome available: SDL3's `kmsdrm` backend is what the Debian appliance
-already ships, documented in [`appliance.md`](../architecture/appliance.md), and the graphics problem
-below disappears entirely. LSM almost certainly holds DRM master, which is the appliance's own
+jail, that is the best outcome available. SDL3's `kmsdrm` backend is what the Debian appliance
+already ships, documented in [`appliance.md`](../architecture/appliance.md). The graphics problem
+below then disappears entirely. LSM almost certainly holds DRM master, which is the appliance's own
 documented failure against a display manager, and the question costs ten seconds.
 
 ## 3. The blocker: there is no SDL3 for webOS
@@ -90,17 +94,17 @@ calls into `sdl3::sys`. SDL is vendored and built from source for every target t
 `build-from-source-static`.
 
 **[source]** The only webOS SDL is `webosbrew/SDL-webOS`, a fork of SDL2 2.30. It carries no separate
-video driver; it patches the Wayland one with six files: `SDL_waylandwebos.c`,
+video driver. It patches the Wayland one with six files: `SDL_waylandwebos.c`,
 `SDL_waylandwebos_abifix.c` (the older libwayland ABI), `SDL_waylandwebos_cursor.c`,
 `SDL_waylandwebos_foreign.c` (video-plane punch-through) and `SDL_waylandwebos_osk.c` (the on-screen
 keyboard). Surface setup binds `wl_webos_shell_surface`, `wl_webos_foreign`,
-`wl_webos_input_manager`, `wl_starfish_pointer` and `text_model_factory`, takes the application id
-from the `APPID` environment variable, and treats `WL_WEBOS_SHELL_SURFACE_STATE_FULLSCREEN` as a
+`wl_webos_input_manager`, `wl_starfish_pointer` and `text_model_factory`. It takes the application
+id from the `APPID` environment variable. It treats `WL_WEBOS_SHELL_SURFACE_STATE_FULLSCREEN` as a
 state to react to rather than a mode to request.
 
-**[web]** SDL3 rebuilt Wayland shell handling around xdg-shell and libdecor and dropped `wl_shell`,
-so the patch does not transplant line for line: a third shell path has to be added to surface
-creation and configure handling.
+**[web]** SDL3 rebuilt Wayland shell handling around xdg-shell and libdecor, and dropped `wl_shell`.
+So the patch does not transplant line for line: surface creation and configure handling need a third
+shell path.
 
 **[inferred]** LSM probably advertises no `wl_shell` substitute SDL3 accepts. Kodi has its own
 Wayland windowing backend requiring xdg-shell, and its webOS port uses SDL2 instead. The registry
@@ -116,19 +120,21 @@ dump in §2 settles it.
 3. **A new SDL3 `webos` video driver** over EGL and the webOS shell. Weeks, and an SDL video driver
    maintained here for as long as the port lives.
 
-**SDL2 is not a fourth rung.** `km-display` takes `sdl3-ttf-sys` directly, every one of its source
-files draws through SDL3 types, and the workspace depends on the `unsafe_textures` feature, whose
-dropping of the `Texture` lifetime is load-bearing for the text cache. SDL2 means a second
+**SDL2 is not a fourth rung.** `km-display` takes `sdl3-ttf-sys` directly, and every one of its
+source files draws through SDL3 types. The workspace depends on the `unsafe_textures` feature. That
+feature drops the `Texture` lifetime, which is load-bearing for the text cache. SDL2 means a second
 `km-display` and a permanent divergence in the file that decides what the machine looks like. **If
 the ladder runs out at rung 3 the answer is "not on this hardware".**
 
 **[repo]** A patched SDL has nowhere to go in the build as it stands. `sdl3-sys` with
-`build-from-source-static` fetches and builds SDL itself and offers no patch hook, so rungs 2 and 3
+`build-from-source-static` fetches and builds SDL itself and offers no patch hook. So rungs 2 and 3
 also mean building SDL out of band and switching that target to a prebuilt SDL. That is a **third**
-`sdl3` dependency block, and both `crates/playback/km-display/Cargo.toml` and
-`crates/machine/karaokemachine/Cargo.toml` warn that cargo features are additive and the split has to
-be declared in both: getting it wrong in one silently undid the other on Android, and the library
-came out with no `libSDL3.so` dependency at all.
+`sdl3` dependency block.
+
+Both `crates/playback/km-display/Cargo.toml` and
+`crates/machine/karaokemachine/Cargo.toml` warn that cargo features are additive. The split has to be
+declared in both. Getting it wrong in one silently undid the other on Android, and the library came
+out with no `libSDL3.so` dependency at all.
 
 ## 4. Audio, which is as likely to end the port as graphics
 
@@ -146,49 +152,49 @@ devices.
 - Only PulseAudio works. `km-audio` needs a second output path, and the cheapest is SDL3's own
   audio: it is linked already and has a PulseAudio backend. That is a new output in the one crate
   that has exactly one, and a decision of its own.
-- The PCM is owned by the platform pipeline and an ordinary application cannot open it. The media
+- The platform pipeline owns the PCM, and an ordinary application cannot open it. The media
   pipeline is not a sink a synthesizer can push samples into, so that is the end of the port.
 
-**A separate question with no answer here:** microphone audio is mixed in hardware, so the
-television's own output has to reach the amplifier over ARC or optical for the machine to be usable
-in a room.
+**A separate question with no answer here:** microphone audio is mixed in hardware. So the
+machine is usable in a room only if the television's own output reaches the amplifier over ARC or
+optical.
 
 ## 5. Video
 
 **[repo]** `crates/playback/km-video` is one file with no `cfg` and no platform assumption in it, over
-ffmpeg 7.1.5 pinned in `tools/setup/ffmpeg-pin.sh`. A webOS build is a fifth caller of that pin, and
+ffmpeg 7.1.5 pinned in `tools/setup/ffmpeg-pin.sh`. A webOS build is a fifth caller of that pin. It
 follows `tools/port/machine/android/ffmpeg.sh` in building **shared** LGPL libraries rather than
 static ones, for the licence reason that script gives at length.
 
 **[repo]** Software decode is the only option and it may be enough. `docs/architecture/android.md`
-measured a 1920x1080 H.264 song at 926 kbps on four Cortex-A55s: single-threaded it starved on three
-runs of three, and with `threads=5 kind=Frame` it played all 273 seconds and reported nothing at all,
-at 59.5 fps.
+measured a 1920x1080 H.264 song at 926 kbps on four Cortex-A55s. Single-threaded, it starved on three
+runs of three. With `threads=5 kind=Frame` it played all 273 seconds at 59.5 fps and reported nothing
+at all.
 
 **[repo]** One trap transfers with the build rather than with the platform. Android narrows its
-decoder set because libavcodec's link line overruns Windows' 32,767-character command line, and this
+decoder set because libavcodec's link line overruns Windows' 32,767-character command line. This
 repository is developed on Windows, so a webOS ffmpeg cross-compiled here meets the same wall.
 
 **[inferred]** A television's SoC is in that class and is already running the television, so
 headroom is the question rather than raw speed. If it fails, video songs are declined and the
-`.ipk` is built without them: the machine still catalogs, searches and queues them and says at
-startup that it cannot play them, which is a supported shape of every carrier today.
+`.ipk` is built without them. The machine still catalogs, searches and queues them, and says at
+startup that it cannot play them. That is a supported shape of every carrier today.
 
 ## 6. Memory is the second constraint
 
 **[repo]** `docs/architecture/audio.md` measured the bank picker on a television box with 3.87 GB of
-RAM: resident memory is the bank's file size plus about 125 MB, so the bundled GeneralUser GS costs
-158.7 MB and the largest bank the machine offers costs 427.9 MB. A swap between the two largest peaks
+RAM. Resident memory is the bank's file size plus about 125 MB. So the bundled GeneralUser GS costs
+158.7 MB, and the largest bank the machine offers costs 427.9 MB. A swap between the two largest peaks
 at **674.2 MB**, because `Bank::load` runs while the old bank is still live in the audio callback.
 The same session measured 552 MB total RSS while playing 1080p with a 274 MB override bank.
 
-**[web]** A television has between 1.1 GB and 1.3 GB of RAM for webOS 5 and 6, shared with the
-operating system and every background service, and webOS restarts an application when memory runs
+**[web]** A television has between 1.1 GB and 1.3 GB of RAM for webOS 5 and 6. It shares that with
+the operating system and every background service. And webOS restarts an application when memory runs
 short.
 
 **[inferred]** The bundled bank fits and a large one does not. On this carrier the offered bank list
-is a constraint rather than a preference, and the two-banks-at-once transient during a swap is the
-number that decides which entries can be offered at all. It is measurable the day a television runs
+is a constraint rather than a preference. The two-banks-at-once transient during a swap is the number
+that decides which entries can be offered at all. It is measurable the day a television runs
 the machine, and it decides a product question rather than a build one.
 
 ## 7. Where the songs live
@@ -201,46 +207,47 @@ has been reported to need a television restart before it appears inside one.
 
 **[repo]** The machine's own data has an existing home for this. `Paths::data_rooted_at` roots config
 and data at one directory while leaving assets to ordinary discovery, which is what `--data-dir`
-uses. Assets need nothing at all: `asset_dirs_from` already takes the directory beside the executable
-when it holds an `assets` folder, which is the Debian layout and is also the `.ipk` layout.
+uses. Assets need nothing at all. `asset_dirs_from` already takes the directory beside the executable
+when it holds an `assets` folder. That is the Debian layout, and it is also the `.ipk` layout.
 
-**[inferred]** Songs on a stick are the one genuinely new product mechanism, and the shape that keeps
+**[inferred]** Songs on a stick are the one genuinely new product mechanism. The shape that keeps
 [the removable-media non-goal](../decisions/foundations.md) intact is a walk rather than a mount
 watcher:
 
-- `settings.package_dirs` cannot serve here on its own, because the mount path is not stable across
-  sticks or reboots and there is nowhere for an owner to type it.
-- A walk of `/tmp/usb/*/*` contributes each partition's `packages` folder, appended **last** inside
-  `Paths::packages_dirs`, after the machine's own folder and the owner's configured ones, so nothing
-  on a stick displaces what the machine already installed.
-- Evaluating it inside `packages_dirs` rather than freezing it at startup means a stick that arrives
-  later is picked up by the next look, and every look is something somebody asked for: the rescan
-  action, the admin endpoint, or a restart. No timer and no watcher, so nothing reasons about
+- `settings.package_dirs` cannot serve here on its own. The mount path is not stable across sticks or
+  reboots, and there is nowhere for an owner to type it.
+- A walk of `/tmp/usb/*/*` contributes each partition's `packages` folder. It is appended **last**
+  inside `Paths::packages_dirs`, after the machine's own folder and the owner's configured ones. So
+  nothing on a stick displaces what the machine already installed.
+- The walk runs inside `packages_dirs` rather than being frozen at startup. So the next look picks up
+  a stick that arrives later. Every look is something somebody asked for: the rescan action, the
+  admin endpoint, or a restart. No timer and no watcher, so nothing reasons about
   volumes.
 - A stick that is pulled is a folder that is not there, which the reconcile already handles.
 
 ## 8. The carrier uninstalls itself
 
-**[web]** Developer Mode sessions run 1000 hours and are extended by pressing EXTEND while the
-television is online. When a session expires **the applications installed under it are removed and
+**[web]** Developer Mode sessions run 1000 hours. Pressing EXTEND while the television is online
+extends a session. When a session expires **the applications installed under it are removed and
 Developer Mode is disabled**, and ten reboots with no network disable it too.
 
-**[web]** Rooting lifts this, and the RootMyTV exploit chain has been patched on firmware released
-since the middle of 2022, so a television bought today is not rootable by it.
+**[web]** Rooting lifts this. But firmware released since the middle of 2022 patches the RootMyTV
+exploit chain, so it cannot root a television bought today.
 
 **[inferred]** This is the finding that most affects whether the port is worth having. A karaoke
-machine is an appliance somebody switches on in a room, and this one asks its owner to keep a
-developer session alive or lose it. The machine's data therefore belongs where an uninstall does not
-reach, so that pushing the `.ipk` again restores a working machine rather than an empty one.
+machine is an appliance somebody switches on in a room. This one asks its owner to keep a developer
+session alive or lose it. The machine's data therefore belongs where an uninstall does not reach. Then
+pushing the `.ipk` again restores a working machine rather than an empty one.
 
 ## 9. How it would fit
 
-**[repo]** The Android port is the measure: "Six of the seven needed **no changes at all**, which is
-the pure-Rust bet paying off exactly as planned." The same holds here, and the television work is
-already done. `km_display::input::action_for` maps the arrows to focus movement, the digit rows to
-number entry, `Return` to submit, and both `Escape` and `AcBack` to back, all of it written for a
-television remote. The 5% overscan inset is settled by
-[`Nothing is drawn where a television will not show it`](../decisions/interface.md#nothing-is-drawn-where-a-television-will-not-show-it).
+**[repo]** The Android port is the measure. Its note says: "Six of the seven needed **no changes at
+all**, which is the pure-Rust bet paying off exactly as planned." The same holds here, and the
+television work is already done. `km_display::input::action_for` maps the arrows to focus movement,
+the digit rows to number entry, and `Return` to submit. It maps both `Escape` and `AcBack` to back,
+all of it written for a television remote.
+[`Nothing is drawn where a television will not show it`](../decisions/interface.md#nothing-is-drawn-where-a-television-will-not-show-it)
+settles the 5% overscan inset.
 `km-api`'s held listener and its relisten already answer an application that is sent away and comes
 back, which is what pressing HOME does.
 
@@ -258,8 +265,8 @@ What a port adds:
 
 **[inferred]** The feature flag is what a `cfg` cannot do here. webOS **is** `target_os = "linux"`,
 and so is the Debian appliance, which wants different answers about paths, fullscreen and those six
-constants. `video` is the precedent for a feature naming a build rather than a target, and a bare
-`--cfg` through `RUSTFLAGS` is undeclared where clippy runs with `-D warnings`.
+constants. `video` is the precedent for a feature naming a build rather than a target. A bare `--cfg`
+through `RUSTFLAGS` is undeclared where clippy runs with `-D warnings`.
 
 **[repo]** SDL links static here, as everywhere except Android, because no Java side calls into it.
 Assets are ordinary files, so iOS's treatment applies and nothing like `androidassets.rs` is needed.
@@ -304,15 +311,15 @@ until the registry dump exists.
 
 ## 12. Recommendation
 
-**Not now.** A television is already served by the Android port on a Google TV device, and this
-carrier asks its owner to keep a developer session alive or lose the machine, on a platform where
-the display may turn out not to work at all.
+**Not now.** The Android port on a Google TV device already serves a television. This carrier asks
+its owner to keep a developer session alive or lose the machine. And on this platform the display may
+turn out not to work at all.
 
 If it is ever taken up, the first act is the afternoon in §2 and nothing else. The bare binary, the
-registry dump and the sine tone of §4 belong in one deploy: between them they answer five questions
-that can each end the port, cost a day, and turn every estimate here from a guess into a number.
-Memory is the second measurement, because it decides which SoundFont banks this carrier can offer,
-and that is a product question rather than a build one.
+registry dump and the sine tone of §4 belong in one deploy. Between them they answer five questions
+that can each end the port, and they cost a day. They turn every estimate here from a guess into a
+number. Memory is the second measurement, because it decides which SoundFont banks this carrier can
+offer. That is a product question rather than a build one.
 
 The sibling note is [`tizen.md`](tizen.md), which asks the same question of a Samsung television and
 gets a harder answer.

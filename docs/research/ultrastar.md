@@ -9,8 +9,8 @@ either of those disagree, they hold.
 carries a pitch and a type that the games score against. Scoring singers is a non-goal, so this note
 reads a file for its syllables and their times and discards the rest.
 
-**Summary.** A plain-text file of syllables timed in beats, beside an audio file that it names. A
-file gives syllable-level highlighting as good as a well-made `.kar`. The format has a published
+**Summary.** A plain-text file of syllables timed in beats, beside an audio file that it names,
+gives syllable-level highlighting as good as a well-made `.kar`. The format has a published
 specification, and turning it into this project's lyric timeline is a small parser. The playback
 side reuses the MP3+G audio path and the MIDI lyric renderer, and needs the renderer to follow the
 audio clock. A local collection of these songs, each with its MP3 beside it, was measured for the
@@ -86,14 +86,14 @@ syllable starts at `start` and ends at `start + length`.
 **Words.** The note text is one syllable. A space at the start or end of the text marks a word
 boundary, and `Hello` + ` World` is the same as `Hello ` + `World`. Syllables with no space between
 them form one word. A syllable written as `~` is a community convention for a sustained vowel across
-several notes; it has no text of its own and extends the syllable before it.
+several notes. It has no text of its own and extends the syllable before it.
 
 **Pitch** is in semitones from C4 and may be negative. It is discarded.
 
 **Relative mode.** In an unversioned file with `#RELATIVE:yes`, beats restart at each phrase, and a
 `-` line carries a second number that offsets the following beats. v1 removed it and UltraStar
 Deluxe refuses it in a versioned file. The community database converts such files to absolute
-beats, and so can a parser: a `-` line's second number is added to every beat that follows it,
+beats, and so can a parser. It adds a `-` line's second number to every beat that follows it,
 cumulatively, until the next `-` line adds its own.
 
 **Tempo changes.** Unversioned files can carry `B` lines. UltraStar Deluxe logs and ignores them, and
@@ -138,9 +138,9 @@ which interleaves two phrasings. **Open.**
 | `#VIDEO` beside `#MP3` | 5% | Mostly MPEG. The audio file is still the song. |
 
 Note types are almost all `:`, with a few `*` golden and `F` freestyle notes, and no `R` or `G`. The
-`~` sustained syllable appears in 8% of files. The collection folders also hold
-`.sco` high-score files written by the game, and `ReadMe!.txt` files with no `#TITLE`, so a `.txt`
-without a `#TITLE` header is not a song. About half of the files repeat a song from another folder
+`~` sustained syllable appears in 8% of files. The collection folders also hold `.sco` high-score
+files that the game writes. They hold `ReadMe!.txt` files with no `#TITLE` too, so a `.txt` without
+a `#TITLE` header is not a song. About half of the files repeat a song from another folder
 of the same collection.
 
 ## 3. Where content comes from
@@ -161,8 +161,8 @@ of the same collection.
   converting to ASS subtitles, and My Little Karaoke reads it. No karaoke hardware was found that
   accepts it.
 
-**[bytes]** The local collection is songs as a player's game folder keeps them: one folder per song
-holding the `.txt`, its MP3, a cover image, sometimes a video, and the game's score files. The files
+**[bytes]** The local collection holds songs as a player's game folder keeps them. Each song has one
+folder, holding the `.txt`, its MP3, a cover image, sometimes a video, and the game's score files. The files
 are not redistributable either, so fixtures stay synthetic and reproduce the shapes in section 2.
 
 ## 4. How it would fit
@@ -177,7 +177,7 @@ cleanly. Three other places match on the kind:
 
 - the package builder's own `SongKind` in `tools/cmd/km-package-builder/src/model.rs:21`;
 - the machine's `Media` enum in `crates/machine/karaokemachine/src/machine.rs:68`;
-- the catalog's row reader in `crates/song/km-catalog/src/lib.rs:1209`, which reads an unrecognised
+- the catalog's row reader in `crates/song/km-catalog/src/lib.rs:1209`. It reads an unrecognised
   kind as MIDI by design, so the new kind must be named there or its songs fail to load.
 
 ### Audio
@@ -215,22 +215,22 @@ not the audio.
 ### What the song does not have
 
 Transpose, tempo and the guide melody answer a 409 with code `unavailable`, as they do for MP3+G.
-Transposing an audio file is a standing non-goal, and the pitch data in the file does not change
-that: it is a sung melody, not a backing track.
+Transposing an audio file is a standing non-goal. The pitch data in the file does not change that,
+because it is a sung melody, not a backing track.
 
 ### Suitability
 
 A flat 10, as `Suitability, for a song that was made to be sung to` in `docs/decisions/songs.md`
-gives video and MP3+G. The words were timed by a person for this recording. Whether that holds for
+gives video and MP3+G. A person timed the words for this recording. Whether that holds for
 community files of uneven quality is part of the decision **[inferred]**.
 
 ### Pairing and packaging
 
-An MP3+G pair is found by stem: `pair_for` in `crates/song/km-kmpkg/src/lib.rs:778` looks for the
-`.cdg` beside an MP3. An UltraStar file names its audio in `#AUDIO` or `#MP3`, so the `.txt` is the
-file the scanner starts from, and the audio is found by the header rather than by the stem. In the
-local collection the header is always `#MP3`, and in 16% of files the audio's stem differs from the
-`.txt` stem, so matching by stem would miss those songs **[bytes]**. The
+The scanner finds an MP3+G pair by stem: `pair_for` in `crates/song/km-kmpkg/src/lib.rs:778` looks
+for the `.cdg` beside an MP3. An UltraStar file names its audio in `#AUDIO` or `#MP3`. The `.txt` is
+therefore the file the scanner starts from, and the header rather than the stem leads to the audio.
+In the local collection the header is always `#MP3`. In 16% of files the audio's stem differs from
+the `.txt` stem, so matching by stem would miss those songs **[bytes]**. The
 scanner's dispatch in `tools/cmd/km-package-builder/src/scan.rs`, `missing_entries` (`lib.rs:358`) and
 `pair_content_hash` (`lib.rs:824`) each need the second rule.
 
@@ -289,11 +289,11 @@ music, and an UltraStar song's music is a recording.
 
 ## 7. Recommendation
 
-If it is taken up: **accept v1 and unversioned files, converting relative mode to absolute beats;
-one voice; MP3 audio, with OGG as a later addition**. Read a decimal comma in any number, and detect
-the encoding when no `#ENCODING` is present. Refuse duets and video-only songs. Find the audio by the
-header, never by the stem. Build the timeline at packaging time. Record the decision
-in `docs/decisions/song-sources.md` beside `MP3+G as a song source` before writing code.
+If somebody takes it up: **accept v1 and unversioned files, convert relative mode to absolute beats,
+and read one voice and MP3 audio**. OGG is a later addition. Read a decimal comma in any number,
+and detect the encoding when no `#ENCODING` is present. Refuse duets and video-only songs, and find
+the audio by the header, never by the stem. Build the timeline at packaging time. Record the
+decision in `docs/decisions/song-sources.md` beside `MP3+G as a song source` before writing code.
 
 ## 8. Found in passing
 

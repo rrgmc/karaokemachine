@@ -20,8 +20,17 @@ assets/wallpapers/CREDITS.md
 crates/CLAUDE.md
 crates/machine/km-api/static/README.md
 crates/remote/km-remote-pages/static/README.md
+docs/ARCHITECTURE.md
 docs/decisions/README.md
 docs/research/README.md
+docs/research/kar-formats.md
+docs/research/linux-desktop.md
+docs/research/midi-loudness.md
+docs/research/sqlite-mmap.md
+docs/research/st3.md
+docs/research/tizen.md
+docs/research/ultrastar.md
+docs/research/webos.md
 fixtures/CLAUDE.md
 fixtures/README.md
 icon/CLAUDE.md

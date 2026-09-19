@@ -40,26 +40,26 @@ Two neighbors worth knowing before you start:
 
 ## Context
 
-The brief: a native cross-platform
-app (Windows/macOS/Linux first, Android second), synced word highlighting, a control API for
-search/queue/transport/tone, song packages with hardcoded queue numbers, and packaging tools.
-Explicitly **no scoring of singers**.
+The brief is a native cross-platform app: Windows/macOS/Linux first, Android second. It has synced
+word highlighting and a control API for search/queue/transport/tone. It has song packages with
+hardcoded queue numbers, and packaging tools. Explicitly **no scoring of singers**.
 
 ## Why Rust
 
 - `midly` parses SMF with complete meta-event coverage, including `MetaMessage::Lyric` and
-  `MetaMessage::Text` — both are needed, since Soft Karaoke `.kar` files put lyrics in *Text* events
-  while standard MIDI karaoke uses *Lyric* events.
+  `MetaMessage::Text`. Both are needed: Soft Karaoke `.kar` files put lyrics in *Text* events, while
+  standard MIDI karaoke uses *Lyric* events.
 - `rustysynth` is a pure-Rust SoundFont synthesizer (a port of MeltySynth) with no dependencies
   beyond std. `Synthesizer` is `Send + Sync` and exposes `note_on`/`note_off`/
   `process_midi_message`/`render(&mut [f32], &mut [f32])`, so it can be driven directly from an audio
   callback by our own sequencer. Reverb and chorus are built in. **It is taken from a git branch
-  rather than from crates.io** — the only dependency here that is, for SF2 modulators and lenient
-  bank loading; see [`The synthesizer is a fork`](decisions/audio.md#the-synthesizer-is-a-fork).
+  rather than from crates.io**, for SF2 modulators and lenient bank loading. It is the only
+  dependency here taken that way; see
+  [`The synthesizer is a fork`](decisions/audio.md#the-synthesizer-is-a-fork).
 - Both are pure Rust, so the whole audio path is one `cargo build --target ...` per platform with no
-  C toolchain, and Android becomes `cargo-ndk` rather than a per-platform CMake problem.
-- Go was rejected: `go-meltysynth` and `gomidi` exist and are pure Go, but a GC'd runtime inside a
-  real-time render callback is a genuine dropout risk, and every GUI option needs cgo, which forfeits
+  C toolchain. Android becomes `cargo-ndk` rather than a per-platform CMake problem.
+- Go was rejected. `go-meltysynth` and `gomidi` exist and are pure Go. But a GC'd runtime inside a
+  real-time render callback is a genuine dropout risk. Every GUI option also needs cgo, which forfeits
   Go's cross-compilation advantage.
 - C++ has the widest library selection (FluidSynth, JUCE, SDL3 natively) but the worst
   dependency-management story and manual memory management on the audio thread.
@@ -67,9 +67,9 @@ Explicitly **no scoring of singers**.
 ## Why SDL3
 
 SDL3 is the right tool for a full-screen, game-loop, GPU-accelerated karaoke display, and it has the
-best first-class Android support of the candidates. `sdl3-rs` (0.18.x) is actively maintained
-and exposes `ttf`, `image` and `build-from-source-static` features, so SDL3 itself can be vendored
-and statically linked — no system SDL install on any platform.
+best first-class Android support of the candidates. `sdl3-rs` (0.18.x) is actively maintained.
+It exposes `ttf`, `image` and `build-from-source-static` features, so SDL3 itself can be vendored
+and statically linked, with no system SDL install on any platform.
 
 
 ## The workspace
@@ -275,30 +275,31 @@ docs/
 
 ## How things here are named
 
-**A crate is named for what it holds, not for the category it belongs to** — and, where a category
-has several members, for **which** of them it is. `km-suitability` rather than `km-analyze`, which is
-a verb with no object; `km-catalog` rather than `km-library`, because "library" is every crate here;
-`km-audio` rather than `km-engine`, an engine of what.
+**A crate is named for what it holds, not for the category it belongs to.** Where a category has
+several members, the name says **which** of them it is. `km-suitability` rather than `km-analyze`,
+which is a verb with no object. `km-catalog` rather than `km-library`, because "library" is every
+crate here. `km-audio` rather than `km-engine`, an engine of what.
 
-**The `km-` prefix stays on all of them.** Cargo's package namespace is flat; `use km_song::` is
-what separates a workspace crate from a third-party one at a glance in every file; and the bare
+**The `km-` prefix stays on all of them.** Cargo's package namespace is flat. In every file,
+`use km_song::` separates a workspace crate from a third-party one at a glance. The bare
 alternatives — `song`, `api`, `audio` — are names other people's crates already have.
 
 **`crates/`' five folders are the dependency layering, written down.** The graph is six clean layers,
-and a flat listing of twenty-two peers says none of that; worse, six of those names begin
+and a flat listing of twenty-two peers says none of that. Worse, six of those names begin
 `km-remote-`, so an alphabetical listing reads as a third remote by volume. The folders are
 organizational and enforce nothing — `remote/km-remote-pages` depending on `machine/km-api` is
 correct.
 
-**`tools/`' six folders are the stages of the work**, because a scripts directory has no dependency
-graph to sort by and does have a sequence: get a machine ready (`setup/`), build a shell (`port/`),
-satisfy a platform (`platform/`), hand something over (`dist/`), work on it (`dev/`), plus the things
-that are not scripts at all (`cmd/`). Two of the six are named to be recognized rather than read:
-`port/` mirrors `ports/` **exactly**, and `platform/` is the same word `crates/platform/` uses for the
-same reason. **Nothing is loose at the top level** — a script with no folder is a script nobody can
-place.
+**`tools/`' six folders are the stages of the work.** A scripts directory has no dependency graph to
+sort by, but it does have a sequence. Get a machine ready (`setup/`), build a shell (`port/`),
+satisfy a platform (`platform/`), hand something over (`dist/`) and work on it (`dev/`). The things
+that are not scripts at all go in `cmd/`.
 
-**A path under `cmd/` is never typed**: a package is selected by name (`-p km-pack`). The one
+Two of the six are named to be recognized rather than read. `port/` mirrors `ports/` **exactly**.
+`platform/` is the same word `crates/platform/` uses, for the same reason. **Nothing is loose at the top level** — a script with no folder is a script nobody
+can place.
+
+**A path under `cmd/` is never typed**: a command selects a package by name (`-p km-pack`). The one
 exception is `--manifest-path tools/cmd/assets/km-wallpaper-pack/Cargo.toml`, because that crate is
 excluded from the workspace and therefore has to be addressed by path.
 
@@ -314,12 +315,11 @@ They look identical in a grep, and only one of them is free to move.
   on-`PATH` command.** Renaming it would orphan every installed unit on upgrade.
 - **The remote's data directory is `km-remote`** — `ProjectDirs`, `%APPDATA%\km-remote`,
   `~/Library/Application Support/km-remote` — and moving it would orphan a `favorites.sqlite`
-  somebody built up over a year. A *file* inside that directory can be renamed by the code that
-  opens it, because that code knows both names; a moved *directory* is one nothing is left looking
-  in.
+  somebody built up over a year. The code that opens a *file* inside that directory can rename it,
+  because that code knows both names. A moved *directory* is one nothing is left looking in.
 - **`tools/dev/remote/` is staged as `remote-dev/`**, beside a staged executable and inside the
-  APK's assets, because that is a directory the machine *looks for* at run time and
-  `api.dev_remote_dir` defaults to. Renaming the deployed name would make every installed machine
+  APK's assets. The machine *looks for* that directory at run time, and `api.dev_remote_dir`
+  defaults to it. Renaming the deployed name would make every installed machine
   look for a folder that is not there.
 - **`include/km_remote.h`** belongs to `km-remote-ios` and is a C header other people compile
   against.
@@ -329,13 +329,15 @@ They look identical in a grep, and only one of them is free to move.
 **A filter naming a target that does not exist is an error nowhere.** It parses, it does not warn,
 and a test asserting the string still passes; `-v` simply stops printing.
 
-So those names are derived rather than typed — `env!("CARGO_CRATE_NAME")` for a crate's own target,
-and an exported `LOG_TARGET` from `km-remote-pages`, `km-remote-core` and `km-api` for the ones named
-from elsewhere (`CARGO_CRATE_NAME` answers only for whoever is compiling, and an example is its own
-crate). `km-remote-core` re-exports the pages' as `PAGES_LOG_TARGET`, because none of the three
-mobile and desktop shells depends on that crate directly and a dependency edge is too much to add for
-a string. **The tests keep their literals on purpose**: derived in the code and spelled in the test,
-a rename fails loudly in one place rather than silently in none.
+So those names are derived rather than typed. A crate's own target is `env!("CARGO_CRATE_NAME")`.
+The ones named from elsewhere use an exported `LOG_TARGET` from `km-remote-pages`, `km-remote-core`
+and `km-api`. `CARGO_CRATE_NAME` answers only for whoever is compiling, and an example is its own
+crate.
+
+`km-remote-core` re-exports the pages' as `PAGES_LOG_TARGET`. None of the three mobile and desktop
+shells depends on that crate directly, and a dependency edge is too much to add for a string.
+**The tests keep their literals on purpose.** With the name derived in the code and spelled in the
+test, a rename fails loudly in one place rather than silently in none.
 
 ### What a rename or a move has to touch
 
@@ -357,10 +359,10 @@ The compiler covers every `use` statement, and it covers nothing below.
 `cargo km-build` is the proof.
 
 **Every script's `cd` to the repository root is a hard-coded count of `..`**, two, three or four
-depending on the folder, across twenty-nine scripts. A wrong count lands somewhere plausible and the
-failure surfaces later wearing the face of whatever ran next — so `dist_assert_root` is asserted at
-the top of `dist/common.sh`, which is the first thing fourteen callers reach after their `cd`, and
-the six that deliberately do not source it carry the same two lines inline. **A new script under
+depending on the folder, across twenty-nine scripts. A wrong count lands somewhere plausible, and
+the failure appears later in whatever ran next. So the top of `dist/common.sh` asserts
+`dist_assert_root`, and fourteen callers reach that first after their `cd`. The six that
+deliberately do not source it carry the same two lines inline. **A new script under
 `tools/` must do one or the other.**
 
 **Three more with no compiler and no test behind them:**
@@ -368,27 +370,30 @@ the six that deliberately do not source it carry the same two lines inline. **A 
 - `.cargo/config.toml`'s `--version-script=tools/port/libc_n.map`, reached only by the armv7 Android
   link, so only an Android build says whether it is right.
 - `linux/image-tag.sh` hashes the `Dockerfile` and `apt-deps.sh` **by literal path** to name the
-  build image, so the tag changes and the first `check.sh` or `deb.sh` afterwards rebuilds it once.
+  build image. After a move the tag changes, and the first `check.sh` or `deb.sh` rebuilds it once.
 - `port/machine/android/ffmpeg.sh` brands a block in `$CARGO_HOME/config.toml` with **its own path**.
-  Stripping it by exact match orphans the last block and inserts a second `[env]` key beside it — a
-  config cargo refuses to read at all, so not an Android build broken but every build on that
-  machine. It matches the marker's stable *prefix* instead.
+  Stripping it by exact match orphans the last block and inserts a second `[env]` key beside it.
+  Cargo refuses to read that config at all, so every build on that machine breaks, not only an
+  Android build. It matches the marker's stable *prefix* instead.
 
-**And the file lists that name a product by hand:** `icon/`'s files and the `include_bytes!` sites
-that name them — one per program, plus the machine's badged mark in `src/tray.rs` and
-`src/register.rs`, `tools/platform/macos/Info.*.plist` (`CFBundleExecutable` and
-`CFBundleIconFile` are strings Xcode never sees), the `ALL_APPS` and `ALL_TOOLS` arrays and per-tool
-`case` arms in `tools/dist/bin.sh` and `tools/dist/cmd.sh` plus the README prose `cmd.sh` generates,
-`installer.iss`'s `Source:` and `Name:` lines, and the literal tool lists in the macOS installer and
-uninstaller.
+**And the file lists that name a product by hand:**
+
+- `icon/`'s files and the `include_bytes!` sites that name them: one per program, plus the machine's
+  badged mark in `src/tray.rs` and `src/register.rs`.
+- `tools/platform/macos/Info.*.plist`. `CFBundleExecutable` and `CFBundleIconFile` are strings Xcode
+  never sees.
+- The `ALL_APPS` and `ALL_TOOLS` arrays and per-tool `case` arms in `tools/dist/bin.sh` and
+  `tools/dist/cmd.sh`, plus the README prose `cmd.sh` generates.
+- `installer.iss`'s `Source:` and `Name:` lines, and the literal tool lists in the macOS installer
+  and uninstaller.
 
 ### Do not sweep the documentation
 
 **A rename's own `sed` must not touch the text that documents the rename.** Three `tools/` strings in
-this repository are deliberately not the current path and each would otherwise become a lie: the
-Android SDK's own `[sdk]/tools/proguard`, the `.pkg` payload path in `macos/installer.sh`, and
-`tools/km-package-builder/src/console.rs` in `km-console` — that sentence says where the module
-*began*, and no file ever existed at the current path.
+this repository are deliberately not the current path, and a sweep would make each one a lie. They
+are the Android SDK's own `[sdk]/tools/proguard`, the `.pkg` payload path in `macos/installer.sh`,
+and `tools/km-package-builder/src/console.rs` in `km-console`. That last sentence says where the
+module *began*, and no file ever existed at the current path.
 
 
 ## Threading and data flow
@@ -418,48 +423,55 @@ per-frame position the display needs) and a channel (for discrete events the API
 decoding never happens on the render thread.
 
 **Demo mode adds no actor.** It is a deadline on the control thread's own state and three pure
-functions over it, read by the same 20 Hz watchdog that already advances the queue — so "start a
+functions over it. The same 20 Hz watchdog that already advances the queue reads them. So "start a
 random song after a minute of silence" is a comparison in `Machine::poll` rather than a timer
-thread. That matters for more than tidiness: a separate thread would have to take the state lock to
-decide whether a song is playing, and would then be racing the very transition it was waiting for.
-The only new work off that path is one `ORDER BY RANDOM()` per demo song, which is a full table scan
-and runs on the poll thread, not the callback. `PUT /api/v1/demo` is synchronous for the same
-reason — it moves the deadline and returns, and the song starts on the next poll. **Reclaiming a
-staged audition is the same convention's second user**: the sweep runs where the song is displaced,
-and a folder that would not delete leaves a deadline behind for the same watchdog to pick up, so
-nothing waits on a thread of its own for a file handle to be released.
+thread. A separate thread would have to take the state lock to decide whether a song is playing.
+It would then race the very transition it was waiting for.
+
+The only new work off that path is one `ORDER BY RANDOM()` per demo song. It is a full table scan,
+and it runs on the poll thread, not the callback. `PUT /api/v1/demo` is synchronous for the same
+reason: it moves the deadline and returns, and the song starts on the next poll.
+
+**Reclaiming a
+staged audition is the same convention's second user.** The sweep runs where the song is displaced.
+A folder that would not delete leaves a deadline behind for the same watchdog to pick up. Nothing
+waits on a thread of its own for the release of a file handle.
 
 **Advancing the queue is one transaction, and it needs a lock of its own.** The paragraph above
-names the hazard — deciding whether a song is playing and then racing the transition you were waiting
-for — and `Machine::advance` is where it lands. Three threads reach it: the 20 Hz watchdog when a
-song ends, and any number of API threads through `queue_add` and `transport`. Reading
-`loaded.is_none()`, dropping the guard and *then* popping lets the answer change between the two:
-both pop, both parse, and the second `start` overwrites the first — one song playing, one gone,
+names the hazard, deciding whether a song is playing and then racing that transition, and
+`Machine::advance` is where it lands. Three threads reach it: the 20 Hz watchdog when a song
+ends, and any number of API threads through `queue_add` and `transport`. Reading
+`loaded.is_none()`, dropping the guard and *then* popping lets the answer change between the two.
+Both pop, both parse, and the second `start` overwrites the first: one song playing, one gone,
 nothing logged. Eight singers queueing at once leaves **one** of eight songs.
 
-The state lock cannot fix it, and deliberately so: advancing releases it across the slow middle
-(archive read, MIDI parse) precisely so a load does not stall the display or a search. So there is
-a fourth mutex, `Machine::advancing`, guarding the *operation* rather than any data, held for the
-whole of pop-parse-start and always taken before the other three. Callers who are replacing what is
-on the deck — a song ending, and Skip — wait their turn; callers who are merely *choosing* a song
-use `advance_if_idle`, or `advance_if_idle_or_over_a_demo` from `queue_add`, both of which give up
-if the turn is busy, because a busy turn already means somebody else is starting the next song.
+The state lock cannot fix it, and deliberately so. Advancing releases it across the slow middle
+(archive read, MIDI parse), so that a load does not stall the display or a search. So there is a
+fourth mutex, `Machine::advancing`, which guards the *operation* rather than any data. It is held
+for the whole of pop-parse-start and always taken before the other three.
+
+Callers who replace what
+is on the deck, a song ending and Skip, wait their turn. Callers who merely *choose* a song use
+`advance_if_idle`, or `advance_if_idle_or_over_a_demo` from `queue_add`. Both give up if the turn
+is busy, because a busy turn already means somebody else is starting the next song.
 
 **The demo test in that second one is inside the turn lock for the same reason the idle test is.**
-"Is the deck free?" has two answers that mean yes — nothing loaded, or a demo song loaded, which is
-the machine filling a silence rather than anybody's turn — and both stop being true the moment the
-lock is released, because the watchdog advances on its own whenever a song ends. Whether it took the
-deck *from a demo* is returned rather than published inside, so `queue_add` is the one place that
-decides a `SongEnded { yielded }` is owed.
+"Is the deck free?" has two answers that mean yes. Either nothing is loaded, or a demo song is
+loaded, which is the machine filling a silence rather than anybody's turn. Both stop being true the
+moment the lock is released, because the watchdog advances on its own whenever a song ends.
 
-**The stream comes and goes; the state object does not.** `SharedState` is created once by the audio
-thread and handed *into* each `OutputStream::open`, because the machine holds that `Arc` for its
-whole life — a reopen that made a fresh one would zero `songs_ended`, which the 20 Hz watchdog
-compares against a count of its own, so it would read as a song having just finished and skip the
-next one. The stream is closed only at `Transport::Idle`: `Stopped` and `Paused` mean a song is
-loaded *inside the player the callback owns*, so closing would drop it while the screen went on
-showing its title, and the next `Play` would reach an empty player and silently do nothing. Closing
-joins cpal's worker thread, which is why it happens on the control thread and never anywhere near
-the callback.
+The function returns whether it took the deck *from a demo* rather than publishing that inside. So
+`queue_add` is the one place that decides a `SongEnded { yielded }` is owed.
+
+**The stream comes and goes; the state object does not.** The audio thread creates `SharedState`
+once and hands it *into* each `OutputStream::open`, because the machine holds that `Arc` for its
+whole life. A reopen that made a fresh one would zero `songs_ended`. The 20 Hz watchdog compares
+that against a count of its own. It would read the reset as a song having just finished, and skip
+the next one.
+
+The stream closes only at `Transport::Idle`. `Stopped` and `Paused` mean a song is loaded
+*inside the player the callback owns*. Closing would drop it while the screen went on showing its
+title, and the next `Play` would reach an empty player and silently do nothing. Closing joins cpal's
+worker thread, so it happens on the control thread and never anywhere near the callback.
 
 

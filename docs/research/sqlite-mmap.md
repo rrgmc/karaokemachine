@@ -12,16 +12,16 @@ connection is for, `temp_store = MEMORY` and `busy_timeout`. Each is best-effort
 in-memory database and one on a network share are both real.
 
 Under the mapping, SQLite reads a page by touching mapped memory rather than by asking for it. Two
-consequences follow, and neither is visible from inside the program: a page that is not resident
-arrives as a fault, one at a time, with no queue and no readahead the program can ask for; and the
-page cache set beside it is bypassed for those reads, so the two settings are not additive the way
-they read.
+consequences follow, and neither is visible from inside the program. A page that is not resident
+arrives as a fault, one at a time. There is no queue, and no readahead the program can ask for. And
+those reads bypass the page cache set beside the mapping, so the two settings are not additive the
+way they read.
 
 **That reasoning predicted the mapping would be a liability on a mechanical disk.** It is not.
 
 ## How these were measured
 
-`db::measure`, which is two `#[ignore]`d tests over a real corpus — the module's own header says why
+`db::measure`, which is two `#[ignore]`d tests over a real corpus. The module's own header says why
 it is a child of `db` rather than one of the census examples, and `BUILDING.md` has the commands.
 
 The regime is the one that matters and the one that is hard to get: **the standby list emptied before
@@ -38,9 +38,9 @@ that is the standby figure read back after the purge, and the cold-to-warm ratio
 ## A cold figure has to be checked against the drive
 
 **The first set of "cold" runs here were warm, and the tell was arithmetic.** They reported the five
-aggregates at 37.8 ms with the standby list emptied and the purge verified — but this drive was
-separately measured serving **about twenty reads a second, forty-eight milliseconds apiece**, at queue
-depth one. Thirty-eight milliseconds is less than one of those. No sequence of real disk reads fits in
+aggregates at 37.8 ms with the standby list emptied and the purge verified. But a separate
+measurement had this drive serving **about twenty reads a second, forty-eight milliseconds apiece**,
+at queue depth one. Thirty-eight milliseconds is less than one of those. No sequence of real disk reads fits in
 it, so the data was resident however emptied the standby list looked.
 
 So a purge that reports success is necessary and not sufficient. **The second check is whether the
@@ -63,16 +63,16 @@ readahead it gives up.
 Cold splits in two, and which half a figure lands in depends on how many rows it touches.
 
 **The aggregates are unresolved cold.** `favorites` moved by three orders of magnitude between rounds
-of the same setting — twenty seconds, then thirteen, then twelve milliseconds — because its rows are a
-small set that stays cached once read, and only a few hundred megabytes come back into the cache
-between purges. A cold run's cost is however many of its lookups are still resident, so three rounds
+of the same setting: twenty seconds, then thirteen, then twelve milliseconds. Its rows are a small
+set that stays cached once read, and only a few hundred megabytes come back into the cache between
+purges. A cold run's cost is however many of its lookups are still resident, so three rounds
 measure this drive's mood rather than the mapping.
 
-**A page of rows is the figure that repeats**, and it is the one worth quoting: 30.26 s, 36.26 s and
-36.04 s mapped, against 51.98 s, 51.41 s and 36.67 s unmapped. It touches a hundred rows and their
-subqueries, far more than stays cached, so it lands in the same place every time. It favours the
-mapping by about 1.4×, with one of the six rounds a tie — enough to say the mapping does not hurt
-cold, and not enough to put a ratio in a decision.
+**A page of rows is the figure that repeats**, and it is the one worth quoting. It took 30.26 s,
+36.26 s and 36.04 s mapped, against 51.98 s, 51.41 s and 36.67 s unmapped. It touches a hundred rows
+and their subqueries, far more than stays cached, so it lands in the same place every time. It
+favours the mapping by about 1.4×, with one of the six rounds a tie. That is enough to say the
+mapping does not hurt cold, and not enough to put a ratio in a decision.
 
 **What cold does say, unambiguously, is which shape of query is expensive:**
 
@@ -87,14 +87,16 @@ cold, and not enough to put a ratio in a decision.
 | the count that labels it | 6.8 ms | 8.6 ms |
 
 **Everything a covering index answers is milliseconds even cold. Everything that visits rows at
-random is seconds.** `count_favorites` is one primary-key lookup per favorited song — which its own
-note argues for, and which is right warm and pathological here: a few hundred lookups at this drive's
-seek time is the twenty seconds measured. A page of rows is the same shape a hundred times over, each
-row carrying subqueries for its copies and its nicest path, and it is the slowest thing on the page by
-a wide margin in every round.
+random is seconds.** `count_favorites` is one primary-key lookup per favorited song. Its own note
+argues for that shape, which is right warm and pathological here. A few hundred lookups at this
+drive's seek time is the twenty seconds measured.
 
-That is the finding to carry forward, and it is not about the mapping at all. **A cold browse of this
-corpus is bounded by seeks against rows, and no pragma changes that.** Every index added here — the
+A page of rows is the same shape a hundred times
+over, with each row carrying subqueries for its copies and its nicest path. It is the slowest thing on
+the page by a wide margin in every round.
+
+That is the finding to carry forward, and it is not about the mapping at all. **Seeks against rows bound a
+cold browse of this corpus, and no pragma changes that.** Every index added here — the
 browse indexes, `files_failed`, `songs_countable` — has moved a count or a sort. The rows themselves
 have never been the thing measured, and on this evidence they are now the whole of the wait.
 
@@ -111,7 +113,7 @@ SCAN files USING COVERING INDEX files_status
 A *covering* index answers both without touching a row, which is why a count of every file in a
 corpus costs single-digit milliseconds. **Serving those two a known number of seconds old would buy
 nothing**, and the idea is dropped for them. `favorites` is the one in that bar worth attention, and
-for the opposite reason: it is cheap warm and seconds cold, so what it wants is a shape that does not
+for the opposite reason: it is cheap warm and seconds cold. What it wants is a shape that does not
 seek per row, not a staleness allowance.
 
 **The count that labels a page had no index at all**, and was the worst thing on the page:
@@ -121,15 +123,15 @@ SELECT COUNT(*) FROM songs s WHERE s.merged_into IS NULL AND s.duplicate_of IS N
 SCAN s
 ```
 
-Two terms on two separately indexed columns defeat both single-column indexes, so the planner scanned
-the table — every row of the widest one there is. Thirteen seconds cold, forty milliseconds warm,
+Two terms on two separately indexed columns defeat both single-column indexes. So the planner scanned
+the table, every row of the widest one there is. Thirteen seconds cold, forty milliseconds warm,
 against one millisecond for the rows beside it, which have a `LIMIT` and a browse index.
 
 **`songs_countable` fixes it, and the shape that works is not the obvious one.** The first attempt was
 the partial-index shape `songs_unfolded` takes — `ON songs(id) WHERE <the two
-terms>` — and the planner refused it. Forced with `INDEXED BY` it reported `SCAN s USING INDEX`,
-without `COVERING`: the predicate guarantees the terms but the generated code still reads them off the
-row, so it was an index scan plus a lookup per row, honestly worse than the table scan. Holding the
+terms>` — and the planner refused it. Forced with `INDEXED BY`, it reported `SCAN s USING INDEX`
+without `COVERING`. The predicate guarantees the terms, but the generated code still reads them off
+the row. So it was an index scan plus a lookup per row, honestly worse than the table scan. Holding the
 two columns themselves is what makes the count answerable without a row:
 
 ```
@@ -142,8 +144,9 @@ is irrelevant and would condemn the index anywhere else — both columns are NUL
 so the seek returns nearly everything. What makes it cheap is being two narrow columns instead of the
 widest table in the schema.
 
-Building it costs one pass and a fresh `ANALYZE` on the first open, because an index with no
-`sqlite_stat1` row is one the planner will not choose: 2.47 s on a warm corpus-sized database.
+Building it costs one pass and a fresh `ANALYZE` on the first open, 2.47 s on a warm corpus-sized
+database. The `ANALYZE` is needed because the planner will not choose an index with no `sqlite_stat1`
+row.
 
 ## The cache on the status bar
 
@@ -154,15 +157,15 @@ Building it costs one pass and a fresh `ANALYZE` on the first open, because an i
 | again, with the cache cleared | 23.9 ms |
 
 Four thousand times apart, so the cache works and a miss costs what the five aggregates cost. During
-a scan every page load is a miss, because the writer's commits move `data_version` — which is tens
-of milliseconds per page and not the problem it was taken for.
+a scan every page load is a miss, because the writer's commits move `data_version`. That costs tens
+of milliseconds per page, and it is not the problem it was taken for.
 
 ## What this argues for, and has not been done
 
-**The two remaining seek-per-row shapes**, which are now the whole of what a cold page waits on:
-`count_favorites`, one primary-key lookup per favorited song, and a page's rows, each carrying
-subqueries for its copies and its nicest path. Both are optimal warm and both are bounded by seeks
-cold. Nothing here changes either — a query rewrite wants its own measurement, and the figures above
+**The two remaining seek-per-row shapes** are now the whole of what a cold page waits on. One is
+`count_favorites`, one primary-key lookup per favorited song. The other is a page's rows, each
+carrying subqueries for its copies and its nicest path. Both are optimal warm, and seeks bound both
+cold. Nothing here changes either: a query rewrite wants its own measurement, and the figures above
 are the argument for taking one.
 
 Nothing here argues for touching `mmap_size`. Warm it helps, cold is unresolved, and no proposal
@@ -170,28 +173,29 @@ depends on the answer.
 
 ## What is still open
 
-**The write half.** Whether the mapping pays for the way a scan *writes* — hundreds of rows per
-batch, scattered by construction because a song's id is the hash of its bytes — is not answered here.
-`db::measure`'s second test measures a bounded forced pass, and the honest difficulty is named
-rather than buried: a sample small enough to run in minutes never evicts the database on a machine
-with this much memory, so it would compare two settings with the file resident either way and find
-nothing, for a reason that has nothing to do with the question. Sizing the sample past the cache
-means reading tens of gigabytes of song bytes per run.
+**The write half.** A scan *writes* hundreds of rows per batch, scattered by construction because a
+song's id is the hash of its bytes. Whether the mapping pays for that is not answered here.
+
+`db::measure`'s second test measures a bounded forced pass, and it has an honest difficulty. A sample
+small enough to run in minutes never evicts the database on a machine with this much memory. So it
+would compare two settings with the file resident either way, and find nothing for a reason unrelated
+to the question. Sizing the sample past the cache means reading tens of gigabytes of song bytes per
+run.
 
 The read answer does not carry over. Writes descend the same B-trees to modify them, under a
-transaction, with the page cache doing work the mapping bypasses — and the architecture note already
+transaction, with the page cache doing work the mapping bypasses. And the architecture note already
 records a ratio pointing the other way for a deep reader queue with the mapping on.
 
-**Verified here:** every figure in the tables; every query plan quoted, read back from the database
-rather than reasoned about; that `songs_countable` is chosen unforced and is covering; that the
-partial-index shape was built and refused; that the mapping in force was read back from the
-connection; and that the standby list was emptied before each cold round.
+**Verified here:** every figure in the tables, and every query plan quoted, read back from the
+database rather than reasoned about. That `songs_countable` is chosen unforced and is covering, and
+that the planner refused the partial-index shape once built. That the mapping in force was read back
+from the connection, and that the standby list was emptied before each cold round.
 
 **Inferred:** that `count_favorites` and a page's rows are slow cold *because* of their per-row
 lookups. The shape of each query says so and the magnitudes fit this drive's seek time, but neither
 has been rewritten and measured against itself.
 
 **Withdrawn:** the first cold comparison of the mapping. Its figures were warm, for the reason the
-second section gives, and the ratio taken from them said the opposite of what the real cold rounds
-say. A cold reading on this disk carries a factor of five between rounds, so what the mapping does
-cold is not settled by three of them.
+second section gives. The ratio taken from them said the opposite of what the real cold rounds say. A
+cold reading on this disk carries a factor of five between rounds, so three rounds do not settle what
+the mapping does cold.

@@ -1,7 +1,7 @@
 # Research: what a `.kar` file puts in its lyric stream
 
-**Research only. Nothing here is a commitment.** The parser handles what it needs to; this note
-exists so the next surprise is looked up rather than hit, and so a rule added to it can be weighed
+**Research only. Nothing here is a commitment.** The parser handles what it needs to. This note
+lets somebody look up the next surprise rather than hit it. It also lets a new rule be weighed
 against what the corpus actually holds.
 
 Surveyed 2026-09-10 against 4,000 `.kar` files sampled from the local corpus,
@@ -14,10 +14,10 @@ Surveyed 2026-09-10 against 4,000 `.kar` files sampled from the local corpus,
 | **[inferred]** | Reasoning. A hypothesis to test. |
 
 **Summary.** Five formats share the extension. Only Soft Karaoke matters here by volume, and its
-documented markers are `@` tags plus `/` and `\`. What the documentation does not say is that the
-lyric stream is also where sequencers put their business cards, publishers put their legal notices
-and arrangers put their section labels — carried three different ways, only one of which announces
-itself. `km_song::looks_like_a_banner` is the rule that knows them.
+documented markers are `@` tags plus `/` and `\`. The documentation does not say that the lyric
+stream also holds business cards, legal notices and section labels. Sequencers, publishers and
+arrangers put them there in three different ways, and only one of the three announces itself.
+`km_song::looks_like_a_banner` is the rule that knows them.
 
 ## 1. The five formats, and their markers
 
@@ -54,14 +54,14 @@ out; see `A lyric field's terminator no longer reaches a font` in the decisions.
 
 ## 3. Most "undocumented tags" are not tags
 
-**[bytes]** Beyond the five documented tags, the sample holds `@W` 573 times, `@E` 272, `@M` 196,
-`@U` 85, and a dozen others once or twice each. Reading their payloads settles what they are:
+**[bytes]** The sample holds more than the five documented tags. It holds `@W` 573 times, `@E` 272,
+`@M` 196, `@U` 85, and a dozen others once or twice each. Their payloads settle what they are:
 
 - `@E` is `@E-mail:`, `@U` is `@Universal Lyrics Editor`, `@M` is `@Midi Songs Karaoke System`,
   `@Y` is `@You Like Me Too Much` and `@F` is `@Filhos da madrugada`. **The `@` is the first
   character of a sentence, not a tag.** Two of those are the song's title, lost because nothing reads
   a tag it does not know.
-- `@W` is the exception and behaves like a real tag: 523 of its 573 events carry one publisher's
+- `@W` is the exception and behaves like a real tag. 523 of its 573 events carry one publisher's
   legal notice, split across two or three events.
 
 **[inferred]** A writer emitting `@Y` for a title is likelier to be a person typing into an editor
@@ -85,9 +85,9 @@ their entire lyric text.
 contact details does not see it. `km_song::looks_like_a_banner` does, and carries the continuation
 `transmission of any kind` for the case where the sentence wraps onto a second event.
 
-**[bytes]** Other non-lyric shapes in the same sample: 1,537 sequencer credits, 1,328 email
-addresses, 570 copyright lines, 446 lines of legal boilerplate, 304 telephone numbers, 209 web
-addresses. 365 events are longer than 60 characters, which is a whole line written as one event
+**[bytes]** The same sample holds other non-lyric shapes. There are 1,537 sequencer credits and
+1,328 email addresses. There are 570 copyright lines, 446 lines of legal boilerplate, 304 telephone
+numbers and 209 web addresses. 365 events are longer than 60 characters, which is a whole line written as one event
 rather than as syllables.
 
 ## 5. What follows from it
@@ -97,10 +97,10 @@ rather than as syllables.
 - **The rule to reuse is `looks_like_a_banner`**, not a narrower contact-detail test. It already
   holds the legal phrases in two languages, the credits, the addresses and the section labels, and
   it is public. `lyric_key` in `km-package-builder` uses it for exactly this reason.
-- **A line that is only the notice is dropped from the timeline**, by a third rule narrower than
-  either of the other two — see `A line that is only a legal notice is not sung` in the decisions.
-  A notice that names a publisher is not dropped: it keeps a name, so it is a banner rather than
-  only a notice, and the preview skip is what handles it.
+- **The timeline drops a line that is only the notice.** A third rule does it, narrower than either
+  of the other two. See `A line that is only a legal notice is not sung` in the decisions. The
+  timeline keeps a notice that names a publisher. That notice keeps a name, so it is a banner rather
+  than only a notice, and the preview skip handles it.
 
 ## Sources
 
