@@ -161,6 +161,8 @@ Each of these has cost real time. The reasoning is in `BUILDING.md`; these are t
 - **`master` takes pull requests only, and requires one check, `CI ok`.** A new CI job goes into
   `ci.yml` and under `ci-ok`'s `needs`. A workflow of its own with path filters would never report on
   the pull requests it skips, and those could never merge.
+- **`gh pr create` takes a type label**: `--label bug`, `enhancement` or `documentation`. A workflow
+  adds the program and platform labels from the changed paths, and cannot judge the type.
 - **`gh pr merge` takes no `--delete-branch` here.** The repository deletes a head branch on merge
   itself, so the flag reaches only the *local* branch. Deleting that means `gh` checks out `master`,
   which the main checkout already holds. From a worktree, where the work is, that is
