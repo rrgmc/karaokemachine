@@ -10,16 +10,20 @@ how far it can be trusted. The sibling note is [`webos.md`](webos.md), which ask
 of an LG television and gets a different answer.
 
 **Summary.** A Samsung port in the shape the four existing ports have is not available. Tizen
-television applications are web applications; native C and C++ was reachable only through NaCl,
-which Samsung supports through 2021 products and replaced with WebAssembly from 2020 products. SDL3,
-cpal and ffmpeg therefore have nowhere to run, and the display, the audio path and the video path
-would each need a browser backend rather than a port. Two further findings settle what is left: **an
-application on a Samsung television cannot listen on a TCP port**, so the machine could not serve its
-API to a phone, which removes the product's whole control surface; and a sideloaded application
-expires every seven days. The engine's pure-Rust core would compile to WebAssembly and the file
-access is better than an LG television's, so the obstacles are the display, the API and the carrier
-rather than the songs. **A Google TV device on HDMI already puts this machine on a Samsung
-television, and the Android port already builds for it.**
+television applications are web applications, and native C and C++ was reachable only through NaCl.
+Samsung supports NaCl through 2021 products and replaced it with WebAssembly from 2020 products.
+SDL3, cpal and ffmpeg therefore have nowhere to run. The display, the audio path and the video path
+would each need a browser backend rather than a port.
+
+Two further findings settle what is left. **An application on a Samsung television cannot listen on
+a TCP port**, so the machine could not serve its API to a phone. It would lose its whole control
+surface.
+And a sideloaded application expires every seven days. The engine's pure-Rust core would compile to
+WebAssembly, and the file access is better than an LG television's. So the obstacles are the display,
+the API and the carrier rather than the songs.
+
+**A Google TV device on HDMI already puts this machine on a Samsung television, and the Android port
+already builds for it.**
 
 | Marker | Meaning |
 |---|---|
@@ -30,11 +34,14 @@ television, and the Android port already builds for it.**
 
 ## 1. What a Tizen television permits
 
-**[source]** Samsung's own NaCl documentation states the timeline: "Due to NaCl deprecation by the
-Chromium project, Tizen TV will continue its support for NaCl only until 2021-year products, while
-Tizen TV will start focusing on high-performance, cross-browser WebAssembly from 2020-year
-products." So the one route that ever ran an ARM binary from a third party is closed on every
-television sold since, and WebAssembly inside a web application is the replacement.
+**[source]** Samsung's own NaCl documentation states the timeline:
+
+> "Due to NaCl deprecation by the Chromium project, Tizen TV will continue its support for NaCl only
+> until 2021-year products, while Tizen TV will start focusing on high-performance, cross-browser
+> WebAssembly from 2020-year products."
+
+So the one route that ever ran an ARM binary from a third party is closed on every television sold
+since. WebAssembly inside a web application is the replacement.
 
 **[web]** Tizen .NET for televisions exists and reaches Tizen 4.0 products, so it covers neither
 current hardware nor most of the installed base. Tizen 8.0 is what current televisions run, and
@@ -52,8 +59,8 @@ native applications are documented as unusable as servers. A web application has
 `XMLHttpRequest`, both of which connect outward.
 
 **[repo]** That is fatal to the product rather than inconvenient. The machine's control surface **is**
-an HTTP API: `km_api::routes::SURFACE` holds 57 routes, the singer's remote is served at `/` to any
-browser on the network, and every search, queue and setting happens through it.
+an HTTP API, and `km_api::routes::SURFACE` holds 57 routes. The machine serves the singer's remote at
+`/` to any browser on the network, and every search, queue and setting happens through it.
 `docs/decisions/foundations.md` puts the rule plainly, that the display shows the singer screen and
 song-number entry only. A karaoke machine nobody can queue a song on from a phone is a different
 product.
@@ -75,19 +82,18 @@ a machine running somewhere else, which is what §6 is about.
 | `km-display` | SDL3 throughout, and `docs/architecture/display.md` states there is no renderer seam. A canvas or WebGL renderer is a rewrite of the largest thing in the project |
 | `km-api` | cannot exist, per §2 |
 
-**[repo]** Three files inside `km-display` are already pure logic with no SDL in them: which lyric
-lines are visible and how far the wipe has crossed, the number formatting, and the keypad's geometry.
-Those would travel. The 4,810-line drawing file would not.
+**[repo]** Three files inside `km-display` are already pure logic with no SDL in them. They hold
+which lyric lines are visible and how far the wipe has crossed, the number formatting, and the
+keypad's geometry. Those would travel. The 4,810-line drawing file would not.
 
 **[inferred]** The honest description is a second implementation of the machine sharing a song
-parser, not a port. The Android port needed changes in five files; this needs new backends for the
+parser, not a port. The Android port needed changes in five files. This needs new backends for the
 display, the audio and the video, and a replacement for the API.
 
 ## 4. Songs and files, which are the easy part
 
 **[source]** Samsung's file handling documentation says an application reads external USB storage
-through the FileSystem API, and that writing needs the `filesystem.write` privilege declared in
-`config.xml`.
+through the FileSystem API. Writing needs the `filesystem.write` privilege declared in `config.xml`.
 
 **[inferred]** This is better than an LG television gives a web application, where files can be read
 only from inside the application package. On the evidence, a Tizen application could find a karaoke
@@ -108,20 +114,20 @@ the technical obstacles above.
 
 **[repo]** A different product is available and the API already has most of it. A client fetches
 `GET /api/v1/songs/{number}/lyrics`, which returns lines carrying `start_ms`, `end_ms` **and their
-syllables**, and follows `GET /api/v1/events` over a WebSocket for `state` at 4 Hz, `song_started`,
+syllables**. It follows `GET /api/v1/events` over a WebSocket for `state` at 4 Hz, `song_started`,
 `song_ended` and `lyric_line`. Per-syllable position is deliberately never streamed: a client
 interpolates locally against its own clock, and `km-api`'s events module exists to enforce that. A
 television application can hold that WebSocket open, which §2 permits.
 
 **[repo]** What stops it is that **nothing serves media bytes**. `SURFACE` has no audio or video
 stream route; the `/audio/*` routes manage devices and SoundFont banks. `km-video` decodes to YUV
-planes handed straight to a texture in-process and `km-cdg` renders its tile plane the same way, so
-a video song and an MP3+G song have no representation a remote screen could draw. Two of the three
-song kinds would be blank.
+planes and hands them straight to a texture in-process. `km-cdg` renders its tile plane the same
+way. So a video song and an MP3+G song have no representation a remote screen could draw. Two of the
+three song kinds would be blank.
 
-**[inferred]** Sound is the second problem. Microphone audio is mixed in hardware into the amplifier
-the machine plays into, so a television drawing words while the audio comes out of a different box
-has to stay in time with it across the network, and a karaoke screen is unforgiving about that.
+**[inferred]** Sound is the second problem. The hardware mixes microphone audio into the amplifier
+the machine plays into. A television that draws words while the audio comes out of a different box
+has to stay in time with it across the network. A karaoke screen is unforgiving about that.
 
 ## 7. Against the LG answer
 
@@ -148,16 +154,17 @@ Build nothing, and keep the finding so the question does not come back. The thre
 independent, and two of them are decisions Samsung has already taken: no native code, and no
 listening socket. Neither is waiting on effort here.
 
-If a Samsung television is ever wanted as a **screen** rather than as the machine, the work is in
-this repository rather than on the television: the API would have to serve what a remote screen
-needs for a video song and an MP3+G song, and the clock across two boxes would have to be good
-enough to keep words on the beat. That is a product decision about what the API is for, and it
+Somebody may want a Samsung television as a **screen** rather than as the machine. Then the work is
+in this repository rather than on the television. The API would have to serve what a remote screen
+needs for a video song and an MP3+G song. The clock across two boxes would have to be good enough to
+keep words on the beat. That is a product decision about what the API is for, and it
 belongs in `docs/decisions/` before any of it is built.
 
 ## Sources
 
-- Samsung's smart television developer documentation: the NaCl overview and its deprecation notice,
-  the Tizen .NET TV framework, the Tizen Sockets Extension, and the data and file handling questions.
+- Samsung's smart television developer documentation. That covers the NaCl overview and its
+  deprecation notice and the Tizen .NET TV framework. It also covers the Tizen Sockets Extension and
+  the data and file handling questions.
 - Tizen's own web application documentation, for what a web application's networking can do.
 - Community reports on developer-mode sideloading and how long a grant lasts.
 - `docs/architecture/android.md`, `docs/architecture/display.md`, `docs/decisions/foundations.md`

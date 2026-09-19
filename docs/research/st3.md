@@ -1,8 +1,8 @@
 # Research: Star 3 (`.st3`) karaoke format
 
-**Research only. Nothing implemented, nothing decided.** Supporting `.st3` is a requirements change —
-`Song sources` in `docs/decisions/song-sources.md` names the song sources a package may hold — so it
-needs a decision recorded there first.
+**Research only. Nothing implemented, nothing decided.** Supporting `.st3` is a requirements change.
+`Song sources` in `docs/decisions/song-sources.md` names the song sources a package may hold, so
+support needs a decision recorded there first.
 
 Investigated 2026-08-23 against the local corpus.
 
@@ -38,10 +38,11 @@ duplicates a clean file; everything else is intact.
 
 ## 2. The content is MIDI
 
-**[bytes]** Byte-exact evidence: Soft Karaoke strings (`@KMIDI KARAOKE FILE`, `@L`/`@T` tags);
-`FF 21 01 00` (SMF MIDI Port); `F0 41 10 42 12 40 00 7F 00 41 F7` (Roland GS Reset); canonical setup
-runs (`B0 5B 00`, `C0 21`, `B0 07 64`, `B0 0A 40`); note runs across `0x90`-`0x9D` with channel 9 the
-most frequent status byte. **No `MThd` or `MTrk`** — re-encoded, not wrapped. Median 34 KB, max
+**[bytes]** The byte-exact evidence: the files hold Soft Karaoke strings
+(`@KMIDI KARAOKE FILE`, `@L`/`@T` tags), `FF 21 01 00` (SMF MIDI Port) and
+`F0 41 10 42 12 40 00 7F 00 41 F7` (Roland GS Reset). They hold canonical setup runs (`B0 5B 00`,
+`C0 21`, `B0 07 64`, `B0 0A 40`), and note runs across `0x90`-`0x9D` with channel 9 the most frequent
+status byte. **No `MThd` or `MTrk`** — re-encoded, not wrapped. Median 34 KB, max
 199 KB.
 
 Header text names the source file converted from, e.g. `Kar\Brasil\Emilio_Santiago-Saigon.kar`. 212
@@ -101,24 +102,26 @@ files, so the boundary is a property of the format.
 
 ## 5. What exists publicly
 
-**[web]** MultimediaWiki (origin only, no byte detail); **GNMIDI**, live commercial shareware that
-imports `.st3` to MIDI, closed source, no spec; Brazilian players RealOrche and Microke, sites dead.
+**[web]** MultimediaWiki gives the origin only, with no byte detail. **GNMIDI** is live commercial
+shareware that imports `.st3` to MIDI; it is closed source, with no spec. The Brazilian players
+RealOrche and Microke exist, but their sites are dead.
 
 **Not found:** no byte-level specification anywhere, no entry on Wikipedia, Just Solve, TrID or
 Kessler, and **no open-source parser or converter in any language**. Section 3 is our own analysis.
 
 ## 6. How it would fit
 
-**Not a new `KaraokeFlavor` branch.** `Song::parse` opens with `Smf::parse(bytes)`, hard-wired to SMF,
-so ST3 needs a separate decoder producing the same `Song` — a `km-song-st3` crate or `Song::from_st3`,
-plus a `KaraokeFlavor::Star3` variant.
+**Not a new `KaraokeFlavor` branch.** `Song::parse` opens with `Smf::parse(bytes)`, hard-wired to SMF.
+ST3 therefore needs a separate decoder producing the same `Song`: a `km-song-st3` crate or
+`Song::from_st3`, plus a `KaraokeFlavor::Star3` variant.
 
 **No new audio path.** The output is MIDI channel events, so `km-audio`, `rustysynth`, the sequencer
 and `km-suitability` need zero changes.
 
-Three adaptations: emit `NoteOn` plus `NoteOff` at `tick + duration` and sort by tick; where only the
-trailing `LYRICS` block exists it is untimed line text, which `LyricGranularity` and `LineInference`
-already handle; encoding is Latin-1/CP1252, which `TextDecoder` already covers.
+Three adaptations are needed. The decoder emits `NoteOn` plus `NoteOff` at `tick + duration` and
+sorts by tick. Where only the trailing `LYRICS` block exists, it is untimed line text, which
+`LyricGranularity` and `LineInference` already handle. The encoding is Latin-1/CP1252, which
+`TextDecoder` already covers.
 
 ## 7. Effort and risks
 
@@ -166,5 +169,6 @@ with no new code.
 
 ## 10. Recommendation
 
-Try the cheap paths first. If a decoder is built anyway: **scope it to V3.50**, solve tempo first,
-treat V3.00 as out of scope, and validate against all 12,489 files rather than the 2,142 sample.
+Try the cheap paths first. If somebody builds a decoder anyway, **scope it to V3.50** and solve
+tempo first. Treat V3.00 as out of scope. Validate against all 12,489 files rather than the 2,142
+sample.
