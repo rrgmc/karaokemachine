@@ -3,6 +3,12 @@
 # It reads one markdown file, or a commit message on standard input. It prints one hit per line as
 # `<line>|<rule>|<text>`. The caller decides which hits to report, and it owns the scope filter.
 #
+# **`-v page=1` reads a page of HTML instead**, and the caller passes it only for a file
+# `prose-converted.txt` names. The other tracked pages are Fluent templates, where a line is markup
+# and a sentence counter would report the markup. A tag becomes a space, a closing `</p>`, `</li>` or
+# heading closes a paragraph, and a `<script>`, a `<style>`, a comment and a heading's own words are
+# never read.
+#
 # **It is one process per file, where a phrase shape is one `grep` per shape per file.** The
 # whole-tree form already spends two thirds of its time creating processes. A second scanner may add
 # one process to a file, and it may not add fourteen.
@@ -23,7 +29,11 @@ BEGIN {
   # because `is read by` is the shape this repository reaches for most.
   IRREGULAR = "read|built|made|held|kept|sent|left|put|set|told|found|lost|meant|run|brought|dealt|felt|split|cut|hit|shut|let|sung|drawn|grown"
   PASSIVE = "(^| )(is|are|was|were|been|being) +([a-z]+(ed|en)|" IRREGULAR ") +by( |$)"
+  # The mark a block's end leaves behind, once the tags are gone. No page holds this byte.
+  SEP = "\001"
 }
+
+page { readpage($0); next }
 
 /^[ \t]*(```|~~~)/ { flush(); fence = !fence; next }
 fence            { next }
@@ -38,6 +48,11 @@ html       { next }
 # An `alt` in Markdown wraps over as many lines as it needs, and it closes at the URL's bracket.
 /^[ \t]*!\[/ { flush(); image = 1 }
 image        { if (index($0, ")")) image = 0; next }
+
+# **A line of nothing but links is navigation, and an index is made of them.** The link text there is
+# a heading somewhere else, and a heading keeps the voice it has, so counting its words would ask an
+# index to reword the entries it points at.
+navigation($0) { flush(); next }
 
 /^[ \t]*(#|\||>)/                        { flush(); next }
 /^[ \t]*(-{3,}|={3,}|\*{3,})[ \t]*$/     { flush(); next }
@@ -63,6 +78,12 @@ function normalize(s) {
   gsub(/[0-9]+(\.[0-9]+)+/, "NUM", s)
   gsub(/([eE]\.g|[iI]\.e|etc|vs)\./, "ABBR", s)
   return s
+}
+
+function navigation(s) {
+  gsub(/!?\[[^]]*\]\([^)]*\)/, "", s)
+  gsub(/[ \t·,;|*_—-]/, "", s)
+  return s == ""
 }
 
 function words(s,   parts, i, n, c) {
@@ -126,4 +147,91 @@ function reset() {
   paragraph = ""
   starts = 0
   seen = 0
+}
+
+# **A page is read in one pass per line, and the state it carries is what a tag can span.** A
+# comment, a `<script>`, a `<style>` and a heading each run over as many lines as they like, and so
+# does a single tag with its attributes.
+function readpage(line,   n, parts, i) {
+  if (comment) {
+    if (match(line, /-->/)) { line = substr(line, RSTART + 3); comment = 0 } else return
+  }
+  line = uncomment(line)
+  if (skipping) {
+    if (match(line, /<\/[ \t]*(script|style)[ \t]*>/)) {
+      line = substr(line, RSTART + RLENGTH)
+      skipping = 0
+    } else return
+  }
+  line = drop(line, "<[ \t]*(script|style)[^>]*>", "</[ \t]*(script|style)[ \t]*>", SEP)
+  if (dangling) skipping = 1
+  if (tag) {
+    if (match(line, />/)) { line = substr(line, RSTART + 1); tag = 0 } else return
+  }
+  # A heading instructs, so its words stay outside the shape, exactly as a Markdown heading does. It
+  # holds tags of its own here -- the page's own `<h1>` carries an `<img>` and a `<span>` -- so the
+  # pair is found by searching past the opening rather than by matching the whole element at once.
+  if (heading) {
+    if (match(line, /<\/[ \t]*h[1-6][ \t]*>/)) {
+      line = SEP substr(line, RSTART + RLENGTH)
+      heading = 0
+    } else return
+  }
+  line = drop(line, "<[ \t]*h[1-6][^>]*>", "</[ \t]*h[1-6][ \t]*>", SEP)
+  if (dangling) heading = 1
+  # A `<code>` span is one word, as a Markdown code span is. A path or a flag is an exact item, and
+  # counting its parts would ask a page to spell one shorter.
+  if (code) {
+    if (match(line, /<\/[ \t]*code[ \t]*>/)) { line = substr(line, RSTART + RLENGTH); code = 0 } else return
+  }
+  line = drop(line, "<[ \t]*code[^>]*>", "</[ \t]*code[ \t]*>", " CODE ")
+  if (dangling) code = 1
+  gsub(/<[ \t]*br[^>]*>/, SEP, line)
+  gsub(/<\/[ \t]*(p|li|td|th|div|blockquote|figcaption|section|main|header|footer|dd|dt)[ \t]*>/, SEP, line)
+  gsub(/<[^>]*>/, " ", line)
+  if (match(line, /<[^>]*$/)) {
+    line = substr(line, 1, RSTART - 1)
+    tag = 1
+  }
+  gsub(/&[a-zA-Z]+;/, " ", line)
+  gsub(/&#[0-9]+;/, " ", line)
+  n = split(line, parts, SEP)
+  for (i = 1; i <= n; i++) {
+    add(FNR, parts[i])
+    if (i < n) flush()
+  }
+}
+
+# **Every element of one kind goes, and `dangling` says whether one is left open.** An element whose
+# pair sits on one line takes its words with it; one that opens and does not close hands the caller a
+# state to carry into the next line.
+function drop(line, opener, closer, mark,   head, rest) {
+  dangling = 0
+  while (match(line, opener)) {
+    head = substr(line, 1, RSTART - 1)
+    rest = substr(line, RSTART + RLENGTH)
+    if (match(rest, closer)) {
+      line = head mark substr(rest, RSTART + RLENGTH)
+    } else {
+      dangling = 1
+      return head mark
+    }
+  }
+  return line
+}
+
+# A comment closed on the line it opens on, as many times as it appears; one left open sets the
+# state the next line reads.
+function uncomment(line,   head, rest) {
+  while (match(line, /<!--/)) {
+    head = substr(line, 1, RSTART - 1)
+    rest = substr(line, RSTART)
+    if (match(rest, /-->/)) {
+      line = head " " substr(rest, RSTART + 3)
+    } else {
+      comment = 1
+      return head
+    }
+  }
+  return line
 }
