@@ -689,9 +689,9 @@ against `origin/master` exactly as the task does. A push to `master` has no bran
 `master` takes pull requests only.
 
 **`--changed` in the gate and the whole tree by hand, and the reason is a cost.** Fourteen shapes
-over 700 files is ~10,000 `grep` spawns -- 2m27s on this repository's Windows box, of which two
+over 700 files is ~10,000 `grep` spawns -- 2m56s on this repository's Windows box, of which two
 thirds is process creation, against 3.3 s for a branch's own lines. The sentence shapes are one
-`awk` per converted document, which is six of those seconds. Reading everything before every push
+`awk` per converted document, which is about a second of that. Reading everything before every push
 would put the slowest guard in the repository in front of a 13-second one. That is the opposite of
 the order `task check` is arranged in. The whole-tree form is what to run after a large rewrite, and
 what a runner should be given. It needs no history and no remote ref, where `--changed` resolves a

@@ -4,7 +4,7 @@
 [`BUILDING.md`](BUILDING.md) is what produced the artifact — this is what puts it on the phone, the
 television or the box under it.
 
-Six targets, and they are not equally finished. One has a script that does the whole job, three stop
+Six targets, and they are not equally finished. One has a script that does the whole job. Three stop
 at a file you install by hand, and two are a project you open and press Run in.
 
 | Target | Build | Onto the device |
@@ -34,9 +34,9 @@ adb pair 192.168.1.x:37xxx        # the PAIRING port, and the code from the dial
 adb connect 192.168.1.x:42xxx     # the port on the Wireless debugging screen itself
 ```
 
-**The two ports are different**, and using the pairing port for `connect` is the usual first mistake:
-the dialog shows one, the screen behind it shows the other. Pairing is once per machine; `connect` is
-once per boot.
+**The two ports are different**, and using the pairing port for `connect` is the usual first mistake.
+The dialog shows one, and the screen behind it shows the other. Pairing is once per machine, and
+`connect` is once per boot.
 
 **A television** — Google TV and Android TV have no pairing dialog. Enable Developer options by
 opening Settings and tapping **Android TV OS build** seven times, turn on **USB debugging**, then:
@@ -51,7 +51,7 @@ The television shows an *Allow USB debugging?* prompt the first time; tick *Alwa
 
 ### Finding the port without walking over to the device
 
-**A phone's `connect` port changes at every boot**, so the number written down last time is wrong and
+**A phone's `connect` port changes at every boot.** The number written down last time is wrong, and
 the screen holding the new one is across the room. `adb` browses for devices over mDNS and will tell
 you instead:
 
@@ -74,10 +74,10 @@ port of the two the section above warns about. A service name works wherever an 
 adb connect adb-SERIAL1-AB2CDE._adb-tls-connect._tcp
 ```
 
-**A listed service is not a reachable device.** The record outlives the phone that published it, so
-one that has since slept, left the Wi-Fi or had its Wireless debugging screen closed is still listed
-at a port nothing is answering on — and `adb connect` then fails with a refused connection or a
-timeout, neither of which mentions mDNS or says the device is simply away. `ping` the address to
+**A listed service is not a reachable device.** The record outlives the phone that published it. A
+phone that has since slept, left the Wi-Fi or closed its Wireless debugging screen is still listed,
+at a port nothing answers on. `adb connect` then fails with a refused connection or a timeout,
+neither of which mentions mDNS or says the device is simply away. `ping` the address to
 tell a stale record from a live one before reading anything more into the failure.
 
 Then, whichever route:
@@ -106,9 +106,9 @@ Also needed, and each fails in a way that does not name itself:
 - **`ANDROID_HOME`** pointing at the SDK, or `sdk.dir` in `ports/machine/android/local.properties`
   (not committed, being machine-specific).
 - **`JAVA_HOME` naming a JDK 17 or 21.** Gradle 8.12 rejects JDK 25 with `Unsupported class file
-  major version 69` — and 25 is exactly what Android Studio bundles, so *the JDK already on the
-  machine is the wrong one*. A Gradle toolchain does not help: what fails is the JVM compiling the
-  build script, not the one compiling the app.
+  major version 69`, and 25 is exactly what Android Studio bundles. *The JDK already on the machine
+  is the wrong one.* A Gradle toolchain does not help: what fails is the JVM compiling the build
+  script, not the one compiling the app.
 - **`ninja` on `PATH`**, for SDL.
 
 ### Build and install
@@ -136,19 +136,19 @@ enforcement closed `/Android/data/` to third-party file managers and hides it ov
 will not do it. The app's *private* directory is scanned first and is reachable only through
 `run-as`; `karaokemachine --show-paths` names both.
 
-**Without a cable, open the package instead.** A `.kmpkg` anywhere the device can see it — Downloads,
-the Files app, a browser's download notification — offers KaraokeMachine in *Open with*, and the
+**Without a cable, open the package instead.** A `.kmpkg` anywhere the device can see it offers
+KaraokeMachine in *Open with*: Downloads, the Files app, a browser's download notification. The
 machine copies it into the packages folder and installs it. That works with the machine running and
 with it closed, and is what a device that never meets a computer uses.
 
 ### Three things that bite
 
 - **`RELEASE=1` assembles a release APK**, at
-  `ports/machine/android/app/build/outputs/apk/release/app-release.apk`, signed with the key
-  `KM_ANDROID_KEYSTORE` names and with the debug key where it names none — the build prints which.
-  It is the one to hand somebody: a debug APK is debuggable, and anything holding ADB access can
-  attach to a debuggable application and run code as it. Without `RELEASE=1` the debug APK is what
-  comes out, at the `debug/app-debug.apk` path above.
+  `ports/machine/android/app/build/outputs/apk/release/app-release.apk`. It takes the key
+  `KM_ANDROID_KEYSTORE` names, and the debug key where it names none; the build prints which. It is
+  the one to hand somebody. A debug APK is debuggable, and anything holding ADB access can attach to
+  a debuggable application and run code as it. Without `RELEASE=1` the debug APK is what comes out,
+  at the `debug/app-debug.apk` path above.
 - **Never ship `ARM64=1`.** Every Google TV device runs a 32-bit OS and loads `armeabi-v7a` alone, so
   an ARM64-only APK installs on a phone and fails on a television. It is a quick-iteration flag.
 - **`NO_VIDEO=1` drops the ffmpeg prerequisite** and produces a machine that cannot play video songs.
@@ -182,8 +182,8 @@ adb logcat -s km-remote
 
 ### Installing over a debug-signed build: save a backup first
 
-Android refuses to install an APK signed with a different key over an existing one, so a device
-holding a build from before the release key uninstalls to take one — and an uninstall deletes
+Android refuses to install an APK signed with a different key over an existing one. A device holding
+a build from before the release key therefore uninstalls to take one. An uninstall deletes
 `favorites.sqlite`, the one file in this product that nothing can rebuild. `adb install -r` reports
 this as `INSTALL_FAILED_UPDATE_INCOMPATIBLE`.
 
@@ -197,25 +197,24 @@ adb uninstall com.rrgmc.karaokemachine.remote
 adb install ports/remote/android/app/build/outputs/apk/release/app-release.apk
 ```
 
-The machine's is the same sequence against `com.rrgmc.karaokemachine`, and it costs a copy back
-and a rescan rather than a loss: its uninstall takes the private packages folder and `library.sqlite`,
-and a package is a file somebody still has.
+The machine's is the same sequence against `com.rrgmc.karaokemachine`, and it costs a copy back and a
+rescan rather than a loss. Its uninstall takes the private packages folder and `library.sqlite`, and
+a package is a file somebody still has.
 
 **A signed APK carries a v3 signature, so this is paid once.** Android 9 and above accept a later key
-that presents a signing lineage, which is what keeps a future rotation from asking for the uninstall
+that presents a signing lineage. That is what keeps a future rotation from asking for the uninstall
 again.
 
 ### The camera, the first time
 
-The share page's scanner asks twice on the first run: Android's own `CAMERA` prompt, and then the
-page's request, which the shell grants once the first is answered. Both happen without anything to
-do but tap *Allow*.
+The share page's scanner asks twice on the first run. Android's own `CAMERA` prompt comes first, and
+then the page's request, which the shell grants once somebody answers the first. Both happen with
+nothing to do but tap *Allow*.
 
-**Denied twice, Android stops asking**, and there is then no way back from inside the app — the
-toast names the way, which is Settings → Apps → KaraokeMachine Remote → Permissions → Camera (the
-launcher's icon says `KM Remote`; Settings reads the application label, which is the whole name). The
-page's *Can't scan it?* box takes a pasted code and needs no camera at all, so nothing is unreachable
-either way.
+**Denied twice, Android stops asking**, and there is then no way back from inside the app. The toast
+names the way: Settings → Apps → KaraokeMachine Remote → Permissions → Camera. The launcher's icon
+says `KM Remote`, while Settings reads the application label, which is the whole name. The page's
+*Can't scan it?* box takes a pasted code and needs no camera, so nothing is unreachable either way.
 
 ---
 
@@ -239,8 +238,8 @@ tools/setup/fetch-assets.sh             # the SoundFont
 own process rather than asking for a machine-wide `sudo`. Set `XCODE=` if Xcode is somewhere other
 than `/Applications/Xcode.app`. All of these are checked before anything is built.
 
-The lyric font and ffmpeg are fetched by the build itself, into the shared asset cache. The first
-run therefore costs an ffmpeg cross-compile of a few minutes, once.
+The build fetches the lyric font and ffmpeg itself, into the shared asset cache. The first run
+therefore costs an ffmpeg cross-compile of a few minutes, once.
 
 ### Build and run
 
@@ -262,13 +261,13 @@ Apple ID. It needs `RELEASE=1` and it keeps the video decoder.
 - **Never edit the project in Xcode.** It is generated from `ports/machine/ios/project.yml` by every
   build, and the next one discards the change. Edit `project.yml`.
 - **Signing is Automatic**, from the development team named in `project.yml`. That is an Apple
-  Development certificate for putting a build on your own devices — a different thing from the
+  Development certificate for putting a build on your own devices. It is a different thing from the
   Developer ID used for macOS releases.
-- **A freshly installed development build needs the network once**, to verify its certificate and
-  let the profile be trusted on the device, exactly as the remote's does.
+- **A freshly installed development build needs the network once.** It verifies its certificate and
+  lets the profile be trusted on the device, exactly as the remote's does.
 - **A package arrives through Files**, not `adb push`. Copy a `.kmpkg` into the app's `Documents`
-  folder over USB or from the Files app, and it is catalogued at the next start; *Open in* reaches
-  the machine too. `km-package-builder`'s *Send* posts to the running machine over the network and
+  folder over USB or from the Files app, and the machine catalogues it at the next start. *Open in*
+  reaches the machine too. `km-package-builder`'s *Send* posts to the running machine over the network and
   needs none of that.
 - **The machine does not announce itself over mDNS here.** Multicast needs an entitlement Apple
   grants only after a manual review, and without it the packets are dropped in silence. An iPhone
@@ -315,7 +314,7 @@ It needs `RELEASE=1`. [`README.md`](README.md#installing) has the procedure they
 - **Never edit the project in Xcode.** It is generated from `ports/remote/ios/project.yml` by every
   build, and the next one discards the change. Edit `project.yml`.
 - **Signing is Automatic**, from the development team named in `project.yml`. That is an Apple
-  Development certificate for putting a build on your own devices — a different thing from the
+  Development certificate for putting a build on your own devices. It is a different thing from the
   Developer ID used for macOS releases.
 - **A freshly installed development build needs the network once**, to verify its certificate and let
   the profile be trusted on the device. Without it the app fails to launch with
@@ -324,24 +323,25 @@ It needs `RELEASE=1`. [`README.md`](README.md#installing) has the procedure they
 - **Installing is not launching.** `xcrun devicectl device install app` succeeds even in the state
   above, so a successful install says nothing about whether the app starts.
 - **The camera prompt is iOS's, and it is asked once.** The app's `WKUIDelegate` answers WebKit's own
-  prompt — which a web view never remembers, so it would otherwise be raised on every scan — leaving
-  the system prompt as the only one anybody sees, remembered and revocable in Settings → KaraokeMachine Remote.
+  prompt, which a web view never remembers and would otherwise raise on every scan. The system prompt
+  is then the only one anybody sees, remembered and revocable in Settings → KaraokeMachine Remote.
+
   **If the app vanishes the instant the receive page opens rather than prompting**, the built bundle
-  has no `NSCameraUsageDescription`: iOS kills an app that asks for the camera without one, and that
+  has no `NSCameraUsageDescription`. iOS kills an app that asks for the camera without one, and that
   is the whole of the symptom.
 - **A saved backup goes through the share sheet**, into Files, Dropbox, Drive or whatever else is
-  installed — it is not written into the app's own Documents, which would put a copy of the
-  collection into iCloud. Restoring reads a file back through the same picker.
+  installed. Nothing writes it into the app's own Documents, which would put a copy of the collection
+  into iCloud. Restoring reads a file back through the same picker.
 
 ---
 
 ## The machine → a Linux box over SSH
 
 The one target with a real deployment script. It builds the package, copies it, installs it, enables
-the service and restarts it — turning an ordinary Debian box into an appliance that comes back by
+the service and restarts it. That turns an ordinary Debian box into an appliance which comes back by
 itself after a power cut.
 
-**`HOST` is the box and has no default**, here or in the Taskfile: the value is an address of
+**`HOST` is the box and has no default**, here or in the Taskfile. The value is an address in
 somebody's own house, and no tracked file may carry one. `task dist:deb` builds the package without
 sending it.
 
@@ -353,8 +353,8 @@ task deploy:linux HOST=user@box SONGS=./packages        # also send .kmpkg files
 task deploy:linux HOST=user@box PORT=2222 IDENTITY=~/.ssh/karaoke
 ```
 
-The script underneath takes the host as its first argument and each variable as the flag it is named
-after, so every line above is also a line you can type with `task` absent:
+The script underneath takes the host as its first argument, and each variable as the flag it is named
+after. Every line above is therefore a line you can type with `task` absent:
 
 ```sh
 tools/platform/linux/deploy.sh user@box --no-build --songs ./packages
@@ -377,19 +377,19 @@ else. The script notices and prints this line itself.
 for `--songs` when present, and falls back to `scp`.
 
 **There:** Debian 13 or newer, systemd, a graphics device with a kernel mode-setting driver, and
-network access to the Debian archive — the package is installed with `apt-get`, so its dependencies
-are resolved on the box.
+network access to the Debian archive. `apt-get` installs the package, so it resolves the dependencies
+on the box.
 
 **amd64 only.** The package is `karaokemachine_<version>-1_amd64.deb`; a Raspberry Pi or other arm64
 box is not a target this tooling reaches.
 
 ### What it reports, and the four things that bite
 
-The script prints the installed binary's checksum, the version, whether the service is active and
-enabled, where its files are, and the last 30 journal lines. Then:
+The script prints the installed binary's checksum and the version. It also prints whether the service
+is active and enabled, where its files are, and the last 30 journal lines. Then:
 
-- **`user@box` is the *sudo* account, never `karaoke`.** The service account is created by the
-  package, has no password, and nothing ever logs in as it.
+- **`user@box` is the *sudo* account, never `karaoke`.** The package creates the service account. It
+  has no password, and nothing ever logs in as it.
 - **An enabled display manager is the usual cause of a black screen.** gdm, lightdm and sddm hold DRM
   master for themselves, and the machine cannot then take the screen. The script warns when it finds
   one; `sudo systemctl disable --now <dm>` is the cure.
@@ -399,13 +399,15 @@ enabled, where its files are, and the last 30 journal lines. Then:
 - **The last test is the television.** Nothing the script prints substitutes for looking at it: the
   service reports `active (running)` whether or not a picture ever appeared.
 
-**Turning it off.** The deploy installs a logind drop-in, so **a single press of the box's power
-button shuts the machine down cleanly** — settings saved, audio device released — and pressing it
+**Turning it off.** The deploy installs a logind drop-in. **A single press of the box's power button
+then shuts the machine down cleanly**, with settings saved and the audio device released. Pressing it
 again brings the box back. It takes effect at the next boot, and the script prints what logind
-believes in the meantime. The same two acts are on `/admin/`'s *This machine* tab behind the admin
-password: **Shut down**, and **Restart**, which ends the application and lets systemd start it again
-— the thing to reach for after changing a setting that is only read when the machine starts.
-`Ctrl+Q` on a keyboard plugged into the box does what the power button does.
+believes in the meantime.
+
+`/admin/`'s *This machine* tab carries the same two acts behind the admin password. **Shut down**,
+and **Restart**, which ends the application and lets systemd start it again. Restart is the thing to
+reach for after changing a setting the machine reads only at startup. `Ctrl+Q` on a keyboard plugged
+into the box does what the power button does.
 
 ```sh
 ssh user@box 'sudo journalctl -t karaokemachine -f'
@@ -418,32 +420,32 @@ The phones in the room want `http://<box>:8177/`.
 
 ### A box with no television on it
 
-**A streaming run needs no screen, no display server, no X and no Wayland**, so a box that has none
-of them still has a machine: `--stream` draws the screen for an encoder instead and serves it, and
-the television is whatever plays `http://<box>:8177/stream/live.m3u8` in the room the singing
-happens in. The deploy above is unchanged — the same package, the same command, the same box.
+**A streaming run needs no screen, no display server, no X and no Wayland**, so a box with none of
+them still has a machine. `--stream` draws the screen for an encoder and serves it. The television is
+whatever plays `http://<box>:8177/stream/live.m3u8` in the room the singing happens in. The deploy
+above is unchanged: the same package, the same command, the same box.
 
 **Start it as the account the package made**, or what comes up is a second machine rather than the
-same one. The songs, the settings and the catalog live under the `karaoke` account's home, `user@box`
-is the sudo account, and a run started from your own login resolves its own empty folder and then
-finds port 8177 held by the service:
+same one. The songs, the settings and the catalog live under the `karaoke` account's home, and
+`user@box` is the sudo account. A run started from your own login resolves its own empty folder, and
+then finds port 8177 held by the service:
 
 ```sh
 ssh user@box 'sudo systemctl stop karaokemachine'
 ssh user@box 'sudo -u karaoke -H karaokemachine --stream'
 ```
 
-**`-H` is load-bearing**, and its absence is the failure that looks like success: sudo leaves `HOME`
+**`-H` is load-bearing**, and its absence is the failure that looks like success. Sudo leaves `HOME`
 pointing at the calling account, so the machine answers a different question and comes up with
 nothing in it. `sudo -u karaoke -H karaokemachine --show-paths` says which folders a run will use
-before one is started. On a box whose sudoers lists the specific commands a deploy runs, `sudo -u
-karaoke` is not among them — `deploy.sh` asks `getent` for the home instead, for that reason.
+before one starts. On a box whose sudoers lists the specific commands a deploy runs, `sudo -u
+karaoke` is not among them. `deploy.sh` asks `getent` for the home instead, for that reason.
 
 **The service the package ships is the television one**, and it stays that. Its `TTYPath=/dev/tty1`,
 its `Conflicts=getty@tty1.service`, its `SDL_VIDEODRIVER=kmsdrm` and the `ExecStartPre` that waits
 for DRM are all there to take a screen this run does not want. Enabling it on a box with no screen
 gets a service that waits for a television to appear. A machine that comes back by itself after a
-power cut *and* streams is a unit of its own, and the decision that has to come first is whether an
+power cut *and* streams is a unit of its own. The decision that has to come first is whether an
 appliance can be a streaming appliance.
 
 **A `NO_VIDEO=1` deploy cannot stream.** That build links no encoder, so the machine stops at startup
@@ -466,16 +468,16 @@ task deploy:linux:boot HOST=user@box SLIM=1      # and make the boot faster
 tools/platform/linux/appliance-boot.sh user@box [--revert] [--force] [--slim-initramfs]
 ```
 
-**What it assumes about the box.** Debian, and little else. It probes for the bootloader, the thing
-that regenerates its config, the Plymouth theme tool and the initramfs lister rather than assuming
-what they are called, and it skips the bootloader half cleanly on a box that does not boot through
-GRUB. The one distribution-specific step is installing Plymouth, which is `apt-get`; anywhere else
-it says so and stops rather than half-configuring somebody's boot.
+**What it assumes about the box.** Debian, and little else. It probes for the bootloader, whatever
+regenerates its config, the Plymouth theme tool and the initramfs lister, rather than assuming their
+names. It skips the bootloader half cleanly on a box that does not boot through GRUB.
+The one distribution-specific step is installing Plymouth, which is `apt-get`. Anywhere else it says
+so and stops, rather than half-configuring somebody's boot.
 
-**Run it after the first deploy, and then not again.** The Plymouth theme ships inside the
-package, so the package has to be installed before there is a theme to select; the script refuses
-rather than half-configuring a box. Nothing about it belongs on the every-commit path — it rewrites
-`/etc/default/grub` and rebuilds the initramfs.
+**Run it after the first deploy, and then not again.** The Plymouth theme ships inside the package,
+so the package has to arrive before there is a theme to select, and the script refuses otherwise.
+Nothing about it belongs on the every-commit path: it rewrites `/etc/default/grub` and rebuilds the
+initramfs.
 
 Four things worth knowing before running it:
 
@@ -483,20 +485,20 @@ Four things worth knowing before running it:
   `plymouth-set-default-theme` are not on the NOPASSWD list of a properly locked-down box, and they
   should not be. There is an operator in front of this one.
 - **Nothing is drawn for the first second, on purpose, and a key held down as the box starts brings
-  the menu up.** On a UEFI box that window is the *only* way into the menu — GRUB's held-SHIFT test
-  is a BIOS facility and does not exist there. Try it once, before you need it. It is one second
-  rather than three because the panel already spends about two seconds re-syncing HDMI when i915
-  takes the connector over, and the window stacks on top of that.
-- **It refuses on a dual-boot box** unless given `FORCE=1`, because hiding the menu takes the other
-  operating system away from anybody who does not know about the window.
+  the menu up.** On a UEFI box that window is the *only* way into the menu. GRUB's held-SHIFT test is
+  a BIOS facility and does not exist there. Try it once, before you need it. It is one second rather
+  than three. The panel already spends about two seconds re-syncing HDMI when i915 takes the
+  connector over, and the window stacks on top of that.
+- **It refuses on a dual-boot box** unless given `FORCE=1`. Hiding the menu takes the other operating
+  system away from anybody who does not know about the window.
 - **`REVERT=1` restores what was there**, from copies taken exactly once, so a second run cannot
   overwrite the record of how the box started out.
-- **`SLIM=1` is the one thing here you cannot undo over ssh.** It builds the initramfs for
-  the hardware present rather than for all of it, which is the largest saving available on a boot
-  dominated by the bootloader reading a large one — the appliance's was 72 MB, read at about
-  12 MB/s. The cost is that such an initramfs will not boot hardware that changes: swap a storage
-  controller, or move the disk to another machine, and you need a rescue USB. `REVERT=1` puts
-  `MODULES` back and rebuilds, but only from a box that still boots.
+- **`SLIM=1` is the one thing here you cannot undo over ssh.** It builds the initramfs for the
+  hardware present rather than for all of it. The bootloader reading a large one dominates the boot,
+  so this is the largest saving available — the appliance's was 72 MB, at 12 MB/s. The cost is
+  that such an initramfs will not boot hardware that changes. Swap a storage controller or move the
+  disk, and you need a rescue USB. `REVERT=1` puts `MODULES` back and rebuilds, from a box that still
+  boots.
 
 ```sh
 ssh user@box 'plymouth-set-default-theme'                          # karaokemachine
@@ -504,7 +506,7 @@ ssh user@box 'cat /proc/cmdline'                                   # says splash
 ssh user@box 'systemd-analyze critical-chain karaokemachine.service'
 ```
 
-That last one is the check worth making if the television stays black afterwards: Plymouth holds DRM
+That last one is the check worth making if the television stays black afterwards. Plymouth holds DRM
 master while the splash is up, so `plymouth-quit-wait.service` has to come before the machine.
 
 ---
@@ -512,9 +514,9 @@ master while the splash is up, so `plymouth-quit-wait.service` has to come befor
 ## The remote → a Linux box over SSH
 
 **There is no script for this, and usually there is no need for one.** The machine already serves the
-remote page at `http://<box>:8177/`, so a phone on the LAN needs nothing installed. Deploy `km-remote`
-as its own daemon only when a box should hold its own copy of the catalog and go on working while
-the machine is switched off.
+remote page at `http://<box>:8177/`, so a phone on the LAN needs nothing installed. `km-remote` is
+its own daemon only where a box should hold its own copy of the catalog, and work while the machine
+is switched off.
 
 ### Building a Linux binary
 
@@ -533,9 +535,9 @@ cp /build/target/release/km-remote /src/dist/
 exit
 ```
 
-**No `--features`, deliberately.** The `desktop` feature links `wry`, which loads libwebkit2gtk, and
-such a build would not *start* on a headless box — the failure is in the dynamic loader, before
-`main`, and `--browser` cannot rescue it. A Linux `km-remote` serves its page and never opens a
+**No `--features`, deliberately.** The `desktop` feature links `wry`, which loads libwebkit2gtk. Such
+a build would not *start* on a headless box: the failure is in the dynamic loader, before `main`, and
+`--browser` cannot rescue it. A Linux `km-remote` serves its page and never opens a
 window.
 
 **The copy into `/src` is what gets the binary out.** `/build` is a named Docker volume and is
@@ -580,8 +582,8 @@ WantedBy=multi-user.target
 ```
 
 Add `--machine` if discovery does not find the machine on its own. Then the ordinary
-`sudo systemctl enable --now km-remote` — and `journalctl -u km-remote` works normally here, because
-this unit has no login session and so none of the machine's `-t` caveat applies.
+`sudo systemctl enable --now km-remote`. `journalctl -u km-remote` works normally here: this unit has
+no login session, so none of the machine's `-t` caveat applies.
 
 ---
 
