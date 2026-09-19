@@ -75,6 +75,7 @@ pub(crate) const HAND_SET_COLUMNS: &[&str] = &[
     "language",
     "lyric_encoding",
     "default_transpose",
+    "lyrics_hidden",
     "fixes",
     "melody_chosen",
     "user_score",
@@ -282,6 +283,14 @@ pub struct SongBackup {
     /// The transposition to apply by default. Narrowed to `i8` on the way in.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub default_transpose: Option<i64>,
+    /// Whether somebody said to play the song and draw none of its words.
+    ///
+    /// **`Some(false)` is an answer and not an absence**, which is why the field is skipped only
+    /// when it is `None`: somebody saying the words *are* to be drawn is overruling the analysis
+    /// just as much as somebody silencing them, and a backup that dropped it would restore a corpus
+    /// with that decision missing.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub lyrics_hidden: Option<bool>,
     /// The corrections somebody decided on, as stored JSON. Checked on the way in rather than
     /// parsed into types: a list this build cannot read belongs to a newer one and is carried.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -488,6 +497,7 @@ pub fn backup_of(db: &Db) -> Result<Backup, DbError> {
                 language: song.language,
                 lyric_encoding: song.lyric_encoding,
                 default_transpose: song.default_transpose,
+                lyrics_hidden: song.lyrics_hidden,
                 fixes: song.fixes,
                 melody_chosen: song.melody_chosen,
                 user_score: song.user_score,
@@ -546,6 +556,8 @@ pub struct PlannedSong {
     pub lyric_encoding: Option<String>,
     /// Narrowed to what the column takes.
     pub default_transpose: Option<i64>,
+    /// Somebody's answer about whether the words are drawn, where they gave one.
+    pub lyrics_hidden: Option<bool>,
     /// See [`Self::title`].
     pub fixes: Option<String>,
     /// `none` or a channel, checked on the way in. See [`Self::title`].
@@ -568,6 +580,7 @@ impl PlannedSong {
             || self.language.is_some()
             || self.lyric_encoding.is_some()
             || self.default_transpose.is_some()
+            || self.lyrics_hidden.is_some()
             || self.fixes.is_some()
             || self.melody_chosen.is_some()
             || self.user_score.is_some()
@@ -784,6 +797,9 @@ fn plan(
             language,
             lyric_encoding: song.lyric_encoding.clone(),
             default_transpose,
+            // Nothing to check: a JSON boolean is already the whole of the column's range, so
+            // there is no shape a hand-edited file could put here that the column cannot hold.
+            lyrics_hidden: song.lyrics_hidden,
             fixes,
             melody_chosen,
             user_score,
@@ -908,6 +924,7 @@ mod tests {
                 language: Some("pt".to_owned()),
                 lyric_encoding: Some("cp1252".to_owned()),
                 default_transpose: Some(-2),
+                lyrics_hidden: Some(true),
                 fixes: Some("[{\"fix\":\"mute_channel\",\"channel\":2}]".to_owned()),
                 melody_chosen: Some("3".to_owned()),
                 user_score: Some(9),
@@ -1079,6 +1096,7 @@ mod tests {
                     language: Some(Some("pt".to_owned())),
                     lyric_encoding: Some(Some("cp1252".to_owned())),
                     default_transpose: Some(Some(-2)),
+                    lyrics_hidden: Some(Some(true)),
                     notes: Some(Some("the good one".to_owned())),
                     fixes: None,
                     melody_chosen: None,
@@ -1522,6 +1540,7 @@ mod tests {
                 language: None,
                 lyric_encoding: None,
                 default_transpose: None,
+                lyrics_hidden: None,
                 fixes: None,
                 melody_chosen: None,
                 user_score: None,

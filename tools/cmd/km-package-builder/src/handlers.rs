@@ -2050,6 +2050,20 @@ fn song_said(
             .into_owned();
     }
 
+    // Outside the MIDI block, because an UltraStar song is offered this control too and has no
+    // analysis to read: for that kind the answer is always to draw the words, which is what
+    // `words_cannot_be_followed` returns with no warnings to look at.
+    if song.kind.draws_words() {
+        // Two literal calls rather than one over a chosen key. `words.rs` finds what the Rust asks
+        // for by scanning the source for a lookup with a quoted key right after it, so a key
+        // reached through a variable is a key nothing asks for as far as the catalog tests can see.
+        said.lyrics_automatic = if song.words_cannot_be_followed() {
+            words.msg("song-lyrics-automatic-hidden").into_owned()
+        } else {
+            words.msg("song-lyrics-automatic-shown").into_owned()
+        };
+    }
+
     if let Some(cdg) = song.cdg.as_ref() {
         said.cdg_length = words
             .msg_with(
@@ -2257,6 +2271,10 @@ pub async fn edit_song(
         lyric_encoding: None,
         default_transpose: Some(form.parsed::<i8>("transpose").map(|v| v.clamp(-12, 12))),
         notes: Some(form.one("notes").map(ToOwned::to_owned)),
+        // Written by `set_lyrics_hidden` and by nothing else, on the corrections' terms below: this
+        // form has no control for it, and claiming otherwise would clear it whenever somebody
+        // saved a title.
+        lyrics_hidden: None,
         // Written by `save_corrections` and by nothing else. `SongEdit` leaves a `None` field alone,
         // so the two forms on this page cannot write over each other.
         fixes: None,
@@ -3778,6 +3796,52 @@ pub async fn user_score(
     }
 }
 
+/// `POST /songs/{id}/lyrics-hidden`
+///
+/// **Its own route rather than a control on either form the song page already has.** The Details
+/// form treats every box on it as authoritative, so a field absent from that form would be cleared
+/// by saving a title; the Advanced form posts the whole channel table, which an UltraStar song
+/// does not have and which this control is offered beside.
+///
+/// Three answers, spelled as the select spells them: `auto` hands the song back to the analysis,
+/// and `hide` and `show` are somebody overruling it in one direction or the other. Anything else
+/// is read as `auto`, which is the answer that stores no opinion.
+pub async fn set_lyrics_hidden(
+    AxumState(state): AxumState<State>,
+    UrlPath(id): UrlPath<String>,
+    Query(reply): Query<ReplyQuery>,
+    body: String,
+) -> Response {
+    let chosen = match Fields::parse(&body).one("lyrics_hidden") {
+        Some("hide") => Some(true),
+        Some("show") => Some(false),
+        _ => None,
+    };
+    let lookup = id.clone();
+    match state
+        .blocking(move |db| {
+            db.edit_song(
+                &lookup,
+                &SongEdit {
+                    lyrics_hidden: Some(chosen),
+                    ..SongEdit::default()
+                },
+            )
+        })
+        .await
+    {
+        Ok(()) => said(&reply, true, {
+            let words = crate::words::messages(state.locale());
+            match chosen {
+                Some(true) => words.msg("said-lyrics-hidden").into_owned(),
+                Some(false) => words.msg("said-lyrics-shown").into_owned(),
+                None => words.msg("said-lyrics-automatic").into_owned(),
+            }
+        }),
+        Err(error) => said(&reply, false, error.say(state.locale())),
+    }
+}
+
 /// `POST /songs/{id}/rename`
 ///
 /// Title and artist only, from the row's inline editor. Its own route rather than a smaller form
@@ -4038,6 +4102,10 @@ pub async fn play(
         melody: crate::fixes::MelodyChoice::parse(detail.melody_chosen.as_deref())
             .map(crate::fixes::MelodyChoice::channel),
         lyrics: ultrastar.as_ref().map(|source| &source.song.timeline),
+        // Silent where nobody has said, so the machine measures the file exactly as a build would.
+        // Where somebody has, this is what the preview exists to show them: a curator who has just
+        // turned the words off is looking at the television to see the screen they chose.
+        lyrics_hidden: detail.lyrics_hidden,
     };
     // The file the machine plays: an UltraStar song's MP3, and every other song's own file.
     let played = ultrastar

@@ -116,6 +116,11 @@ pub struct CatalogSong {
     pub lyric_encoding: Option<String>,
     /// Transposition to apply by default.
     pub default_transpose: i8,
+    /// Whether the machine plays this song and draws none of its words.
+    ///
+    /// Read at song start, which is why it is here rather than reachable only through the package —
+    /// the same reason [`Self::fixes`] is.
+    pub lyrics_hidden: bool,
     /// The corrections in force on the song's own MIDI events.
     ///
     /// Read at song start, which is why it is here rather than reachable only through the package —
@@ -566,9 +571,10 @@ impl Library {
                 "INSERT INTO songs (
                     number, package_id, title, artist, language, kind, file, duration_ms,
                     lyric_encoding, default_transpose, melody_channel, suitability, content_hash,
-                    lyric_preview, sort_key, sort_artist, tags, loudness_lufs, fixes
+                    lyric_preview, sort_key, sort_artist, tags, loudness_lufs, fixes,
+                    lyrics_hidden
                  ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16,
-                           ?17, ?18, ?19)",
+                           ?17, ?18, ?19, ?20)",
             )?;
             // The join table `song_tags` is filled here rather than by a trigger, unlike
             // `songs_fts`: a trigger would have to split `songs.tags` on a comma, which SQL cannot
@@ -632,6 +638,7 @@ impl Library {
                     // never reads one, since levelling only attenuates and no attenuation clips.
                     song.loudness.as_ref().map(|l| l.lufs),
                     store_fixes(&song.fixes),
+                    song.lyrics_hidden,
                 ])?;
                 if !tags.is_empty() {
                     let song_id = transaction.last_insert_rowid();
@@ -978,6 +985,7 @@ fn prepare_existing(conn: &Connection) -> Result<(), LibraryError> {
         "fixes",
         "sort_key",
         "sort_artist",
+        "lyrics_hidden",
     ] {
         current = current && has_column(conn, "songs", column)?;
     }
@@ -1136,9 +1144,14 @@ pub(crate) fn escape_like(value: &str) -> String {
 /// phones re-download. That is the honest answer rather than a price to dodge: the package really
 /// did change, and a second list to keep it out of the digest would be a second thing to keep in
 /// step in order to tell a mirror less than the truth.
+///
+/// `lyrics_hidden` is here on `loudness_lufs`' terms and takes the same consequence: the machine
+/// reads it at song start, so it has to be in the list this reads through, and a package rebuilt
+/// for nothing but that flag moves `catalog_version` and the phones re-download. What a song puts
+/// on a television is as much a part of it as how loud it is.
 const SONG_COLUMNS: &str = "number, package_id, title, artist, language, kind, file, duration_ms, \
      lyric_encoding, default_transpose, melody_channel, suitability, content_hash, lyric_preview, \
-     tags, loudness_lufs, fixes";
+     tags, loudness_lufs, fixes, lyrics_hidden";
 
 /// Reads a song's code from the column that holds it.
 ///
@@ -1192,6 +1205,7 @@ fn read_song(row: &rusqlite::Row<'_>) -> rusqlite::Result<CatalogSong> {
             .collect(),
         loudness_lufs: row.get(15)?,
         fixes: read_fixes(&row.get::<_, String>(16)?),
+        lyrics_hidden: row.get(17)?,
     })
 }
 

@@ -608,6 +608,7 @@ fn add_midi(
         tags: Some(song.tags.clone()),
         encoding: song.encoding.clone().map(Some),
         transpose: song.transpose,
+        lyrics_hidden: song.lyrics_hidden,
         fixes: song.fixes.clone(),
         melody: song.melody,
     };
@@ -789,6 +790,7 @@ fn add_ultrastar(
         artist: song.artist.clone(),
         language: song.language.clone(),
         tags: song.tags.clone(),
+        lyrics_hidden: song.lyrics_hidden,
         measure_loudness,
         dry_run,
     };

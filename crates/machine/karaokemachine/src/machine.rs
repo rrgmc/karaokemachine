@@ -112,6 +112,13 @@ struct Loaded {
     kind: SongKind,
     duration_ms: u32,
     melody_channel: Option<u8>,
+    /// Whether this song plays with none of its words drawn.
+    ///
+    /// Carried here for the reason [`Self::kind`] is: everything that reads it is on a path that
+    /// must not touch the catalog. A song played from a package takes what the package says; a
+    /// file played through the debug endpoints takes what the curator sending it said, and
+    /// measures the file where they said nothing.
+    lyrics_hidden: bool,
     /// Corrections for defects in this song's own events, resolved from the list it was stored with.
     ///
     /// Carried here for the reason [`Self::melody_channel`] is, and for one more: switching the bank
@@ -165,6 +172,7 @@ impl Loaded {
             has_lyrics: self
                 .lyric_song()
                 .is_some_and(|song| !song.lyrics.is_empty()),
+            lyrics_hidden: self.lyrics_hidden,
         }
     }
 
@@ -180,7 +188,15 @@ impl Loaded {
     }
 
     /// The song whose lyric timeline the machine draws: a MIDI song, or an UltraStar song's words.
+    ///
+    /// **`None` for a song whose words are turned off, and this is the only place that says so.**
+    /// The television's rows, the streamed screen's rows, `announce_lyric_line` and
+    /// [`NowPlaying::has_lyrics`] all read through here, so one answer serves four surfaces and
+    /// none of them can drift from the others.
     fn lyric_song(&self) -> Option<&Arc<Song>> {
+        if self.lyrics_hidden {
+            return None;
+        }
         match &self.media {
             Media::Midi(song) => Some(song),
             Media::UltraStar(song) => Some(song.song()),
@@ -1303,6 +1319,11 @@ impl Machine {
             singer: None,
             duration_ms: song.tempo_map.tick_to_ms(song.duration_ticks),
             melody_channel,
+            // What the curator said, else what this file measures — the same chain a package's
+            // build follows, so a preview shows the screen the packaged song would draw.
+            lyrics_hidden: decided
+                .lyrics_hidden
+                .unwrap_or_else(|| analysis.suitability.words_cannot_be_followed()),
             fixes,
             // A loose file has no package, so nothing measured it. See `Loaded::loudness_lufs`.
             loudness_lufs: None,
@@ -1361,6 +1382,9 @@ impl Machine {
             // A video has no channels, so there is no melody channel to claim — the same absence the
             // API reports as `unavailable` rather than hiding.
             melody_channel: None,
+            // Its words are pixels in its own picture: there is no timeline to withhold, and
+            // withholding the picture would be withholding the song.
+            lyrics_hidden: false,
             // Nothing here has MIDI events, so there is nothing a fix could correct.
             fixes: km_fixes::ChannelFixes::default(),
             // A loose file has no package, so nothing measured it. See `Loaded::loudness_lufs`.
@@ -1409,6 +1433,9 @@ impl Machine {
             singer: None,
             duration_ms,
             melody_channel: None,
+            // The same as a video's: this application draws the words, but from one-bit tiles
+            // rather than from a timeline, so there is no text to withhold.
+            lyrics_hidden: false,
             // Nothing here has MIDI events, so there is nothing a fix could correct.
             fixes: km_fixes::ChannelFixes::default(),
             // A loose file has no package, so nothing measured it. See `Loaded::loudness_lufs`.
@@ -1472,6 +1499,10 @@ impl Machine {
             singer: None,
             duration_ms,
             melody_channel: None,
+            // Nothing measures this for an UltraStar song — the three faults that answer it are
+            // read from MIDI events — so the curator's word is the only one, and their silence
+            // draws the words.
+            lyrics_hidden: decided.lyrics_hidden.unwrap_or(false),
             // Nothing here has MIDI events, so there is nothing a fix could correct.
             fixes: km_fixes::ChannelFixes::default(),
             // A loose file has no package, so nothing measured it. See `Loaded::loudness_lufs`.
@@ -1799,6 +1830,7 @@ impl Machine {
                     singer: None,
                     duration_ms: row.duration_ms,
                     melody_channel: row.melody_channel,
+                    lyrics_hidden: row.lyrics_hidden,
                     fixes,
                     loudness_lufs: row.loudness_lufs,
                     gain: Loaded::UNLEVELLED,
@@ -1884,7 +1916,9 @@ impl Machine {
         let Some(loaded) = state.loaded.as_ref() else {
             return;
         };
-        // A video or MP3+G song has no lyric timeline to announce lines from. Nothing to say.
+        // A video or MP3+G song has no lyric timeline to announce lines from, and a song whose
+        // words are turned off has one nobody is to be shown. Nothing to say either way — see
+        // `Loaded::lyric_song`, which is where the two become one answer.
         let Some(song) = loaded.lyric_song().map(Arc::clone) else {
             return;
         };
@@ -2030,6 +2064,7 @@ impl Machine {
                         singer: entry.singer,
                         duration_ms: row.duration_ms,
                         melody_channel: row.melody_channel,
+                        lyrics_hidden: row.lyrics_hidden,
                         fixes,
                         loudness_lufs: row.loudness_lufs,
                         gain: Loaded::UNLEVELLED,
@@ -3319,6 +3354,13 @@ impl Catalog for Machine {
         let Some(row) = self.lock_library().song(number).map_err(library_failed)? else {
             return Ok(None);
         };
+        // A song whose words are turned off reports none, before anything is opened. The endpoint
+        // answers a video the same way and for the same reason: what it is asked is whether there
+        // are words to read, and a client that fetched the timeline would draw what the television
+        // is refusing to.
+        if row.lyrics_hidden {
+            return Ok(None);
+        }
         // An UltraStar song's timeline is read out of its package without its audio: loading the
         // song whole would start a decoder thread to answer a question about its words.
         if row.kind.is_ultrastar() {
@@ -4999,6 +5041,57 @@ mod tests {
         banks.iter().copied().collect()
     }
 
+    /// A MIDI song loaded from nothing but bytes, for the two questions the words flag answers.
+    fn loaded_midi(lyrics_hidden: bool) -> Loaded {
+        let song = Arc::new(
+            km_song::Song::parse(
+                &km_song::testing::soft_karaoke(),
+                &km_song::ParseOptions::default(),
+            )
+            .expect("fixture parses"),
+        );
+        Loaded {
+            origin: Origin::File {
+                path: "a.kar".to_owned(),
+            },
+            title: "T".to_owned(),
+            artist: None,
+            language: None,
+            singer: None,
+            kind: SongKind::Midi,
+            duration_ms: 1_000,
+            melody_channel: None,
+            lyrics_hidden,
+            fixes: km_fixes::ChannelFixes::default(),
+            loudness_lufs: None,
+            gain: Loaded::UNLEVELLED,
+            media: Media::Midi(song),
+        }
+    }
+
+    /// Turning a song's words off is one answer that four surfaces read.
+    ///
+    /// `lyric_song` is the funnel — the television's rows, the streamed screen's rows, the
+    /// `lyric_line` events and `has_lyrics` all go through it — so a song with words in it reports
+    /// exactly what a song with none does, and nothing downstream has to know why.
+    #[test]
+    fn a_song_whose_words_are_turned_off_offers_no_timeline_and_reports_no_lyrics() {
+        let drawn = loaded_midi(false);
+        assert!(drawn.lyric_song().is_some());
+        assert!(
+            drawn.describe().has_lyrics,
+            "the fixture has words, or the other half of this test says nothing"
+        );
+
+        let silenced = loaded_midi(true);
+        assert!(silenced.lyric_song().is_none());
+        assert!(!silenced.describe().has_lyrics);
+        assert!(
+            silenced.describe().lyrics_hidden,
+            "and the television needs to know it is a decision rather than an empty file"
+        );
+    }
+
     /// One listed output, with only the two fields the level lookup reads.
     fn listed(id: &str, system_default: bool) -> km_audio::device::OutputDevice {
         km_audio::device::OutputDevice {
@@ -6137,6 +6230,7 @@ mod tests {
             duration_ms: 200_000,
             lyric_encoding: None,
             default_transpose: 0,
+            lyrics_hidden: false,
             fixes: Vec::new(),
             melody: None,
             melody_abstained: None,

@@ -1089,6 +1089,11 @@ pub struct SongSaid {
     pub suitability_parts: String,
     /// Which channel the melody is on, and how sure the detector was.
     pub melody: String,
+    /// What the analysis concludes about drawing the words, named in the *Automatic* option.
+    ///
+    /// Said whether or not the automatic answer is the one in force, because the option has to read
+    /// as a choice somebody can make rather than as a report of what is happening.
+    pub lyrics_automatic: String,
     /// How many notes, over how many channels, and how much text.
     pub content: String,
     /// How long the words run, for an MP3+G pair.
@@ -1162,6 +1167,31 @@ impl SongPage {
     /// Whether a tag in the box is offered as a hint rather than because a song here carries it.
     pub fn is_suggestion(&self, tag: &str) -> bool {
         self.suggested_tags.iter().any(|held| held == tag)
+    }
+
+    /// Whether the Advanced tab is offered at all.
+    ///
+    /// **Here rather than twice in the template**, which is what the label and the pane each need:
+    /// a tab whose label is drawn and whose pane is not opens onto nothing, and two copies of a
+    /// condition are two chances to change only one.
+    ///
+    /// Channels *or* words, because the tab holds two unrelated things now. A MIDI song has a
+    /// channel table; an UltraStar song has none and still has words somebody may want turned off.
+    /// A video or an MP3+G song has neither, so it is offered no tab, which is what it was.
+    pub fn shows_advanced(&self) -> bool {
+        !self.channels.is_empty() || self.song.kind.draws_words()
+    }
+
+    /// Which of the three answers the words control stands on.
+    ///
+    /// The template compares a string rather than a nested `Option`, which Askama has no graceful
+    /// spelling for. `auto` is nobody having said.
+    pub fn lyrics_hidden_choice(&self) -> &'static str {
+        match self.song.lyrics_hidden {
+            Some(true) => "hide",
+            Some(false) => "show",
+            None => "auto",
+        }
     }
 
     /// The replace control's value for one volume.

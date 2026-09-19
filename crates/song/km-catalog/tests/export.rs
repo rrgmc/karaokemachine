@@ -45,6 +45,7 @@ fn song(number: u32, title: &str, artist: Option<&str>, language: Option<&str>) 
         duration_ms: 200_000,
         lyric_encoding: None,
         default_transpose: 0,
+        lyrics_hidden: false,
         fixes: Vec::new(),
         melody: None,
         melody_abstained: None,

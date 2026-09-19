@@ -244,6 +244,10 @@ pub(crate) fn run(
                 .now_playing
                 .as_ref()
                 .and_then(|now| now.melody_channel.map(|_| snapshot.settings.melody_enabled)),
+            lyrics_hidden: snapshot
+                .now_playing
+                .as_ref()
+                .is_some_and(|now| now.lyrics_hidden),
             connect: Some(&connect),
             catalog,
             number_entry: &entry,

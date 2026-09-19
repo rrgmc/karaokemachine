@@ -1122,3 +1122,46 @@ blank unclickable row [`A song with no title`](curation.md#a-song-with-no-title)
 
 **Nothing a person typed is touched**, and no artist is invented. A refused name leaves the song
 exactly where a song whose file said nothing already stands.
+
+## A song's words can be turned off, and three faults turn them off without being asked
+
+**A per-song instruction that plays the song and draws none of its words.** A file can be a good
+arrangement and a bad karaoke song: its lyric track is mistimed, or carries the arranger's name and
+telephone number, or is a chord chart, or holds the words of another song. An empty screen is better
+than text nobody can follow, and a singer given the backing and no words is better served than one
+reading somebody else's advertisement.
+
+**Two halves, because two different things know the answer.** Three of the faults already measured
+leave nothing on screen to follow: every lyric timing point at tick zero, a lyric track of credits,
+and a chord chart. Those apply themselves, on the rule
+[a song's own defects](audio.md#a-songs-own-defects-are-corrected-at-playback-and-only-from-what-the-file-says)
+sets out — a correction that makes every reader agree needs nobody's permission, and in all three
+cases there is no timing to follow, so withholding the words takes nothing away. Everything else is
+a judgement only somebody listening can make, and they make it in the builder.
+
+**A real verse that stops early is not one of them.** Those are the song's own words, timed for as
+long as they last, and half a verse somebody can sing is worth more than a blank screen. Nor is a
+file with no words at all, which draws none already and would otherwise report a decision nobody
+took.
+
+**Three states, and the third is why the marker is necessary.** Nobody has said, so the measurement
+stands; somebody said to withhold them; somebody said to draw them on a file the measurement
+silences. The last stores the value a song nobody has touched already carries, so what tells a
+rebuild to keep it is the `edited` marker beside it — the same shape
+[the melody channel](#a-channel-named-for-the-melody-must-play-while-the-words-are-sung) has.
+
+**It travels in the package, where the [user score](#user-score) stops at curation.** A rating is one
+person's taste about a file; this is what a machine has to do to play the song the way whoever
+packaged it meant it to be played, and the machine is the only place it takes effect. A curator's
+answer therefore reaches everybody the package reaches, which is the bargain the corrections and the
+melody channel already make.
+
+**Only a song whose words the machine draws can carry it** — a MIDI song and an UltraStar song. A
+video or an MP3+G song's words are pixels in a picture, so there is nothing to withhold and
+withholding the picture would be withholding the song. An UltraStar song carries no MIDI events, so
+nothing measures it and its half is hand-set alone.
+
+**The words go from every surface but the curation tool**: the television and the streamed screen,
+the lines sent to a phone, the timeline the API serves, and the first lines a package carries for the
+song book and the remote. The curation tool still shows them, because reading what the file says is
+how somebody judged it.

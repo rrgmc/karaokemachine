@@ -135,6 +135,10 @@ pub fn spec_for(db: &Db, package_id: &str, volume: u32) -> Result<Curated, DbErr
             transpose: detail
                 .default_transpose
                 .map(|value| value.clamp(-12, 12) as i8),
+            // The same silence as the corrections below: absent where nobody has said, so the
+            // build measures the file for itself. A value is somebody overruling that measurement,
+            // and `Some(false)` overrules it as much as `Some(true)` does.
+            lyrics_hidden: detail.lyrics_hidden,
             // Silent where nobody has decided, so the build detects them and a song goes on
             // benefiting from a detector that has learned something since it was scanned.
             fixes: crate::fixes::stored(detail.fixes.as_deref()),
@@ -864,6 +868,12 @@ pub fn import(db: &mut Db, path: &Path) -> Result<ImportReport, DbError> {
             default_transpose: entry
                 .is_edited(km_kmpkg::EditedField::DefaultTranspose)
                 .then_some(Some(entry.default_transpose)),
+            // The marker and not the field, for the reason the corrections below give: the flag a
+            // package carries is usually its build's own measurement speaking through a file, and
+            // importing that would turn a measurement into a decision nobody made.
+            lyrics_hidden: entry
+                .is_edited(km_kmpkg::EditedField::LyricsHidden)
+                .then_some(Some(entry.lyrics_hidden)),
             notes: None,
             // Only a hand-edited list comes back. A package's detected corrections are this build's
             // own detector speaking through a file, and importing them would turn a proposal into a

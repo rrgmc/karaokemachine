@@ -319,6 +319,34 @@ The one cost is that a source file changed after its description was written com
 fresh and marks a correction nobody made — **which errs towards keeping what a person reviewed**, the
 right direction for it to err.
 
+### A marker over a value a fresh parse would produce anyway
+
+`lyrics_hidden` is the one field where the comparison above is not enough on its own, and it is worth
+knowing why before adding another like it. The field is a boolean with a measured half: a fresh parse
+sets it from the three faults `Suitability::words_cannot_be_followed` names. So *hide these words* on
+a file the measurement was content with marks itself, as a corrected title does — but *draw these
+words* on a file the measurement silences writes `false`, which is what an untouched song already
+carries, and a comparison sees no disagreement at the next rebuild.
+
+What closes it is that the builder holds three states where the manifest holds two. Its column is
+nullable: null is nobody has said, and a stored `false` is somebody's answer. `spec_for` carries that
+`Option<bool>` into the description, `apply_edits` compares it against the measurement rather than
+against nothing, and the marker lands because the two genuinely disagree. **A build from a
+description with the key absent is what re-derives the measurement**, which is why the key is written
+only where somebody spoke.
+
+The field does not move `FORMAT_VERSION`, on `tags`' and `loudness`' terms: `skip_serializing_if`
+leaves the key out of a package whose songs all draw their words, so such a package is byte-identical
+to what a build predating the field wrote. It *is* in `km-catalog`'s `SONG_COLUMNS`, because the
+machine reads it at song start — and that puts it in `package_digest`, so a package rebuilt for
+nothing but this moves `catalog_version` and every mirror re-reads once. That is the honest price:
+what a song puts on a television is as much part of the package as how loud it is.
+
+**The preview travels with the words.** `lyric_preview` is the words on every surface the television
+is not — the song book, the remote, the export — so the build writes none for a song whose words are
+withheld, in `preview_for` and in `inherit_edits_from`. One rule at the point the flag is settled is
+what keeps every reader downstream from needing a rule of its own.
+
 **Progress is an event handed to a callback rather than a shared struct**, because the three consumers
 want different things and a progress struct would make the command line poll its own atomics in order
 to print. The callback returns a control flow checked *between songs*, which is what lets a web UI

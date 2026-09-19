@@ -307,8 +307,17 @@ pub struct NowPlaying {
     /// `None` is why the melody toggle is *hidden* rather than disabled: claiming a melody channel
     /// that was never confidently detected and muting the wrong instrument ruins the song.
     pub melody_channel: Option<u8>,
-    /// Whether the file has lyrics at all.
+    /// Whether there are words on the screen to follow.
+    ///
+    /// False for a file with no lyrics in it, for a video and an MP3+G song whose words are pixels,
+    /// and for a song whose words are turned off — the three are one answer here because the
+    /// question a client asks is whether to offer anything that reads them.
     pub has_lyrics: bool,
+    /// Whether the words are turned off on a song that has some.
+    ///
+    /// Separate from [`Self::has_lyrics`] because the television says so out loud, and a machine
+    /// that only knew the words were absent could not tell a file with none from a decision.
+    pub lyrics_hidden: bool,
 }
 
 /// Playback settings a remote may change.
@@ -1212,6 +1221,13 @@ pub struct Audition<'a> {
     /// Present only with the song's MP3, which is then played as an UltraStar song. The machine never
     /// reads an UltraStar file, so the words arrive as the timeline a package stores.
     pub lyrics: Option<&'a km_song::LyricTimeline>,
+    /// Play the song and draw none of its words, in place of whatever this machine would measure.
+    ///
+    /// Three states in two, as the corrections are: `None` measures the file, `Some(true)` silences
+    /// the words, and `Some(false)` draws them on a song measurement would have silenced. The last
+    /// is the one a preview exists for — somebody who has just overruled detection is looking at
+    /// the television to see whether they were right.
+    pub lyrics_hidden: Option<bool>,
 }
 
 impl Audition<'_> {
@@ -1223,6 +1239,7 @@ impl Audition<'_> {
             && self.fixes.is_none()
             && self.melody.is_none()
             && self.lyrics.is_none()
+            && self.lyrics_hidden.is_none()
     }
 }
 

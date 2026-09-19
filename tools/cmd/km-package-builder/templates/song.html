@@ -57,8 +57,10 @@
    what its channels do. The boxes fall into those groups, and side by side down a page they read as
    a sequence when what they are is things somebody comes here for one at a time.
 
-   Advanced is drawn only for a file with channels to show, which is to say a MIDI song whose bytes
-   are still there. A tab that opens onto nothing is worse than a tab that is not offered.
+   Advanced is drawn for a file with channels to show, and for any song whose words this machine
+   draws — so a MIDI song whose bytes are gone still offers the words control, and a video or MP3+G
+   song is offered no tab at all. A tab that opens onto nothing is worse than a tab that is not
+   offered, which is why `shows_advanced()` answers for the label and the pane together.
 
    **The `.curate` pattern, with a prefix of its own.** Hidden radios, flat siblings, `:checked ~`,
    no `:has()` and no script -- the whole argument is in `style.css`, in the block above the one
@@ -79,7 +81,7 @@
     <label for="song-tab-files">{{ "song-tab-files"|t }}</label>
     <label for="song-tab-filing">{{ "song-tab-filing"|t }}</label>
     <label for="song-tab-lyrics">{{ "song-tab-lyrics"|t }}</label>
-    {% if !channels.is_empty() %}<label for="song-tab-advanced">{{ "song-tab-advanced"|t }}</label>{% endif %}
+    {% if shows_advanced() %}<label for="song-tab-advanced">{{ "song-tab-advanced"|t }}</label>{% endif %}
   </div>
 
   <div class="pane details">
@@ -432,8 +434,38 @@
   </div>
   </div>
 
-  {% if !channels.is_empty() %}
+  {% if shows_advanced() %}
   <div class="pane advanced">
+
+  {# The words, before the channels: this is a decision about the song rather than about a part of
+     it, and it is the only thing on this tab an UltraStar song has.
+
+     Its own form and its own route, because the two other forms on this page each own every box
+     they carry — Details clears what it does not send, and the corrections form posts the whole
+     channel table, which this song may not have. #}
+  {% if song.kind.draws_words() %}
+  <div class="panel">
+    <h3 style="margin-top:0">{{ "song-lyrics-heading"|t }}</h3>
+    <form class="row" hx-post="/songs/{{ song.id }}/lyrics-hidden?as=toast"
+          hx-target="#action-result" hx-swap="innerHTML">
+      <select name="lyrics_hidden">
+        {# The automatic option names what the analysis concluded, the way the encoding box names a
+           guess: an option reading only "Automatic" would make somebody open the Lyrics tab to find
+           out what they were agreeing to. #}
+        <option value="auto" {% if lyrics_hidden_choice() == "auto" %}selected{% endif %}>
+          {{ "song-lyrics-automatic"|t }} — {{ said.lyrics_automatic }}</option>
+        <option value="show" {% if lyrics_hidden_choice() == "show" %}selected{% endif %}>
+          {{ "song-lyrics-show"|t }}</option>
+        <option value="hide" {% if lyrics_hidden_choice() == "hide" %}selected{% endif %}>
+          {{ "song-lyrics-hide"|t }}</option>
+      </select>
+      <button>{{ "row-set"|t }}</button>
+    </form>
+    <div class="dim">{{ "song-lyrics-note"|t }}</div>
+  </div>
+  {% endif %}
+
+  {% if !channels.is_empty() %}
   <div class="panel">
     <h3 style="margin-top:0">{{ "song-channels"|t }}</h3>
     {# The whole file, one row per channel: what it plays, how much of it there is, what the melody
@@ -540,6 +572,8 @@
       <div class="dim">{{ "song-correction-note"|t }}</div>
     </form>
   </div>
+  {% endif %}
+
   </div>
   {% endif %}
 

@@ -107,6 +107,9 @@ no-lyrics = (no lyrics in this file)
 badge-key = key { $semitones }
 badge-tempo = tempo { $ratio }x
 badge-melody = melody
+# Said about a song whose words somebody turned off, where `no-lyrics` above is said about a file
+# that has none. Two messages because a language may not phrase the two the same way.
+badge-lyrics-hidden = no lyrics
 
 ## The frame meter
 #

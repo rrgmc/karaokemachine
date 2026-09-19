@@ -3359,10 +3359,15 @@ fn a_database_at_schema_14_steps_to_the_current_schema() {
         // whose key names one of those columns put back the way a schema-14 build wrote it, since
         // an expression index cannot outlive a column it reads.
         db.execute_for_test(
-            "DROP INDEX IF EXISTS songs_browse_language_artist;
+            // The stamp trigger names the hand-set columns, so a column it watches cannot be
+            // dropped underneath it. Every trigger is dropped and recreated on open, so taking it
+            // off here costs nothing and is what a schema-14 database would have had anyway.
+            "DROP TRIGGER IF EXISTS songs_stamp_update;
+             DROP INDEX IF EXISTS songs_browse_language_artist;
              ALTER TABLE packages DROP COLUMN number_one_volume;
              ALTER TABLE songs DROP COLUMN det_language_guess;
              ALTER TABLE songs DROP COLUMN det_language_guess_confidence;
+             ALTER TABLE songs DROP COLUMN lyrics_hidden;
              CREATE INDEX songs_browse_language_artist ON songs(
                  coalesce(nullif(language, ''), det_language_tag) IS NULL,
                  coalesce(nullif(language, ''), det_language_tag),
@@ -3388,6 +3393,10 @@ fn a_database_at_schema_14_steps_to_the_current_schema() {
         "SELECT det_language_guess, det_language_guess_confidence FROM songs LIMIT 1",
     )
     .expect("the step added both columns");
+    // And the words column, which starts NULL on every row — nobody has said, so a corpus already
+    // curated gains the question without gaining an answer to it.
+    db.execute_for_test("SELECT lyrics_hidden FROM songs LIMIT 1")
+        .expect("the step added the words column");
     // And the browse index built on the old two-leg key was rebuilt on the current one. Left alone
     // it would keep its name and its old key, so the browse page would match no index and sort the
     // whole corpus with nothing saying so.
@@ -6422,9 +6431,19 @@ fn the_stamp_trigger_watches_every_hand_set_column() {
         .split_once("UPDATE OF")
         .expect("an UPDATE OF list")
         .1;
+    // Split into names rather than searched as text. `lyrics_hidden` contains `lyrics`, so a
+    // substring test reads the watched list as naming a column written by every scan and fails a
+    // trigger that is correct.
+    let watched_names: Vec<&str> = watched
+        .trim()
+        .trim_end_matches("ON songs")
+        .split(',')
+        .map(str::trim)
+        .collect();
+
     for column in crate::backup::HAND_SET_COLUMNS {
         assert!(
-            watched.contains(column),
+            watched_names.contains(column),
             "{column} is hand-set, so writing it is an edit: name it in UPDATE OF"
         );
         assert!(
@@ -6449,7 +6468,7 @@ fn the_stamp_trigger_watches_every_hand_set_column() {
         "last_scanned",
     ] {
         assert!(
-            !sql.contains(written_by_a_machine),
+            !watched_names.contains(&written_by_a_machine),
             "{written_by_a_machine} is written by a scan or a repair, so watching it stamps a \
              whole corpus as edited the first time it is rescanned"
         );

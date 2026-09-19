@@ -1934,6 +1934,32 @@ step and the line stays a lyric.
 **When even the narrowest will not fit, it is used and SDL clips it.** There is no legible rendering of
 a 1,667-character line, and every alternative is only a different way of being unreadable.
 
+## A song whose words are turned off draws none, and says so in the corner
+
+**The lyric band is empty, the way it is for a video song**, and the badge run at the top right
+carries `no lyrics` while the song plays. The decision itself is
+[`A song's words can be turned off`](songs.md#a-songs-words-can-be-turned-off-and-three-faults-turn-them-off-without-being-asked);
+what is here is what a room sees.
+
+**`(no lyrics in this file)` is suppressed with the rows rather than reused.** That sentence is a
+true and useful thing to say about a file with no words in it, and a false thing to say about a file
+that has some and was told not to show them. It keeps its own meaning, and the badge carries this
+one, so the screen never claims a file is empty because somebody made a choice about it.
+
+**Nothing is drawn in the band's place.** A second sentence explaining the feature would be the
+machine talking about itself to a room that wants to sing, and the badge has already said the only
+word there is to say.
+
+**The badge stands whatever the guide melody is doing**, and it stands first in the run. One is
+about sound and the other is about the screen, so a song can legitimately have a guide tune and no
+words, and suppressing the melody badge would hide a control that still works. First because the run
+is cut to fit against the queue pill: the badge that explains why the middle of the screen is empty
+must not be the one the cut takes, where a key or a tempo reports a setting the singer chose and can
+hear.
+
+**Key and tempo still appear.** Turning the words off changes nothing about the music, and a MIDI
+song with its words withheld transposes and changes tempo exactly as it did.
+
 ## What the machine does when nobody is singing
 
 **Demo mode: after a minute of silence the machine starts a random song, and when that song ends it

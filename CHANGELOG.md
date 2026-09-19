@@ -26,6 +26,13 @@ Entries are written for somebody who has the machine. Why any of it is the way i
 - **The browse bar can leave languages out**, any number of them at once, which is the short way to
   put a folder in a language you do not read out of every list at once. Songs nothing has classified
   stay, and the filter writes nothing to the corpus.
+- **A song can be played without its words.** Some files are well made and their lyric track is
+  mistimed, is the arranger's own name and telephone number, or belongs to another song. The
+  Advanced tab of a song's page now says whether the machine draws its words, and the television
+  says *no lyrics* in the corner while such a song plays. A file whose words are all timed to the
+  first instant, or are credits, or are a chord chart, turns them off by itself; any other file is a
+  judgement to make, and the choice survives every rebuild. Video and MP3+G songs carry their words
+  in their own picture and are not offered the choice.
 
 ## [1.18.0] - 2026-09-18
 

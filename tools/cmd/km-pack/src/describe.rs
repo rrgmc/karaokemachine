@@ -201,6 +201,9 @@ pub fn describe(
             tags: over.tags,
             encoding,
             transpose: None,
+            // Silent for the reason `fixes` below is: a build works this one out from the file, and
+            // writing the answer down would turn a proposal into a decision nobody made.
+            lyrics_hidden: None,
             // Silent rather than empty, so a build detects them. Writing a list here would freeze
             // whatever this walk found into a description that then stops learning.
             fixes: None,

@@ -980,6 +980,7 @@ fn playing<'a>(
         transpose: 0,
         tempo_ratio: 1.0,
         melody: None,
+        lyrics_hidden: false,
         connect: None,
         catalog: None,
         number_entry: entry,

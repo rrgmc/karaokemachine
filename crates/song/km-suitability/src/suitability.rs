@@ -149,6 +149,31 @@ impl Suitability {
             )
         })
     }
+
+    /// Whether there is nothing on the screen for a singer to follow.
+    ///
+    /// A narrower question than [`Self::has_hard_defect`], and about the *display* rather than about
+    /// the file: it decides whether the machine draws the words at all. Three codes answer yes.
+    /// [`WarningCode::LyricsAllAtZero`] leaves the text standing unchanged from the first bar to the
+    /// last, so there is no highlight to follow and never was.
+    /// [`WarningCode::NegligibleLyrics`] is the arranger's name, an email and a web address where
+    /// the words should be. [`WarningCode::ChordNamesOnly`] is a player's chart, timed across the
+    /// whole song and perfectly synced, with not one word in it.
+    ///
+    /// [`WarningCode::PartialLyrics`] is deliberately not among them although it is a hard defect:
+    /// those are the song's own words, timed for a verse and then stopped, and half a verse somebody
+    /// can sing is worth more than an empty screen. [`WarningCode::NoLyrics`] is not among them
+    /// either, because a file with no words draws none already.
+    pub fn words_cannot_be_followed(&self) -> bool {
+        self.warnings.iter().any(|w| {
+            matches!(
+                w.code,
+                WarningCode::NegligibleLyrics
+                    | WarningCode::ChordNamesOnly
+                    | WarningCode::LyricsAllAtZero
+            )
+        })
+    }
 }
 
 /// Rates one file.
@@ -1078,6 +1103,41 @@ mod tests {
             "no lyrics should score near the bottom, got {}",
             suitability.value
         );
+    }
+
+    /// The three faults that leave nothing on screen to follow, and the two hard defects that do
+    /// not. A song whose words are real is never silenced by measurement, however badly the file
+    /// treats them.
+    #[test]
+    fn three_faults_mean_there_is_nothing_on_screen_to_follow() {
+        for (name, bytes) in [
+            ("credits", testing::credits_in_the_lyric_track()),
+            ("chord chart", testing::chord_names_as_lyrics()),
+            ("all at zero", testing::lyrics_all_at_zero()),
+        ] {
+            let (suitability, _) = assess_bytes(&bytes);
+            assert!(
+                suitability.words_cannot_be_followed(),
+                "{name} leaves nothing to follow: {:?}",
+                codes(&suitability)
+            );
+        }
+
+        // A verse timed and then abandoned is a hard defect and is still words somebody can sing
+        // for as long as they last, so measurement does not take them away.
+        let (early, _) = assess_bytes(&testing::lyrics_that_stop_early());
+        assert!(early.has_hard_defect());
+        assert!(!early.words_cannot_be_followed());
+
+        // And a file with no words draws none already; silencing it would say a decision had been
+        // taken over a file nobody had to decide anything about.
+        let (none, _) = assess_bytes(&testing::instrumental());
+        assert!(none.has_hard_defect());
+        assert!(!none.words_cannot_be_followed());
+
+        // The same arrangement as the credits fixture, differing only in carrying real words.
+        let (good, _) = assess_bytes(&testing::high_quality_song());
+        assert!(!good.words_cannot_be_followed());
     }
 
     #[test]

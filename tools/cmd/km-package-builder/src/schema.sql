@@ -147,6 +147,15 @@ CREATE TABLE IF NOT EXISTS songs (
     language            TEXT,
     lyric_encoding      TEXT,
     default_transpose   INTEGER,
+    -- Whether to play the song and draw none of its words, for a file whose lyric track is
+    -- mistimed, is the arranger's business card, or is a chord chart.
+    --
+    -- Three states, the shape `fixes` and `melody_chosen` carry: NULL is nobody has said and a
+    -- build takes whatever the analysis concludes, 1 is somebody saying to silence the words, and
+    -- **0 is somebody saying to draw them** on a file the analysis would have silenced. The last is
+    -- why this is not a `NOT NULL DEFAULT 0` boolean: `Db::hand_set_predicate` reads *set at all*
+    -- as `IS NOT NULL`, so a stored 0 has to mean an answer rather than a column nobody touched.
+    lyrics_hidden       INTEGER,
     -- The corrections a person decided on, as km-fixes' JSON array. NULL means nobody has said, and
     -- a build then takes whatever detection proposes -- the same three states `default_transpose`
     -- above has. An empty array is a decision rather than an absence: it is how a detected fix that
@@ -645,13 +654,14 @@ END;
 DROP TRIGGER IF EXISTS songs_stamp_update;
 
 CREATE TRIGGER songs_stamp_update
-AFTER UPDATE OF title, artist, language, lyric_encoding, default_transpose, fixes,
+AFTER UPDATE OF title, artist, language, lyric_encoding, default_transpose, lyrics_hidden, fixes,
                 melody_chosen, user_score, notes, merged_into ON songs
 WHEN old.title             IS NOT new.title
   OR old.artist            IS NOT new.artist
   OR old.language          IS NOT new.language
   OR old.lyric_encoding    IS NOT new.lyric_encoding
   OR old.default_transpose IS NOT new.default_transpose
+  OR old.lyrics_hidden     IS NOT new.lyrics_hidden
   OR old.fixes             IS NOT new.fixes
   OR old.melody_chosen     IS NOT new.melody_chosen
   OR old.user_score        IS NOT new.user_score

@@ -86,6 +86,15 @@ impl SongKind {
         matches!(self, Self::Midi)
     }
 
+    /// Whether the machine draws this song's words, rather than the song bringing its own picture.
+    ///
+    /// The same question `km_kmpkg::SongKind::draws_words` answers, asked of this tool's own copy of
+    /// the enum — which exists because the curation tool compiles without the `video` feature. A
+    /// control about the words is offered exactly where this is true.
+    pub fn draws_words(self) -> bool {
+        matches!(self, Self::Midi | Self::UltraStar)
+    }
+
     /// Which sentence a page writes for this.
     ///
     /// **A key, because one of the three is an ordinary word.** `MIDI` and `MP3+G` are format names
@@ -1116,6 +1125,8 @@ pub struct HandSetSong {
     pub lyric_encoding: Option<String>,
     /// The transposition to apply by default.
     pub default_transpose: Option<i64>,
+    /// Whether to draw the song's words. `None` is *nobody has said*, and the analysis stands.
+    pub lyrics_hidden: Option<bool>,
     /// The corrections somebody decided on, as stored JSON. `None` is *nobody has said*.
     pub fixes: Option<String>,
     /// The melody channel somebody named. `None` is *nobody has said*, and detection stands.

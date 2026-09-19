@@ -148,6 +148,7 @@ pub struct ChosenFields {
 /// `content_hash` is deliberately left `None`: [`PackageBuilder::add`] computes and sets it from the
 /// bytes it is given, which is the only version that cannot disagree with the file.
 pub fn entry_from_analysis(song: &Song, analysis: &Analysis, chosen: ChosenFields) -> SongEntry {
+    let lyrics_hidden = analysis.suitability.words_cannot_be_followed();
     SongEntry {
         number: chosen.number,
         title: chosen.title,
@@ -172,6 +173,10 @@ pub fn entry_from_analysis(song: &Song, analysis: &Analysis, chosen: ChosenField
             .lyric_encoding
             .or_else(|| Some(song.decoder.name().to_owned())),
         default_transpose: 0,
+        // Detected here for the reason the fixes below are, and answered by the three faults
+        // `words_cannot_be_followed` names. A person who disagrees corrects it through
+        // `apply_edits`, in either direction.
+        lyrics_hidden,
         // Detected here rather than at playback, on the same terms as the melody channel beside it:
         // the machine reads what a package recorded instead of deriving it again per play. A person
         // who disagrees corrects it through `apply_edits`, and their list wins.
@@ -184,7 +189,10 @@ pub fn entry_from_analysis(song: &Song, analysis: &Analysis, chosen: ChosenField
         // what counts as a line worth showing — see `LyricTimeline::preview` and
         // `km_song::looks_like_a_banner`, which exist because a great many files open with the
         // sequencer's advertisement rather than with the song.
-        lyric_preview: song.lyrics.preview(LYRIC_PREVIEW_LINES),
+        //
+        // Empty where the words are not drawn, so the song book and the remote say nothing a
+        // singer would not be shown. `preview_for` is where that holds for every kind at once.
+        lyric_preview: preview_for(lyrics_hidden, || song.lyrics.preview(LYRIC_PREVIEW_LINES)),
         // Hand curation only: nothing about a file says it is rock. `km-pack` fills these from
         // the spec, in `apply_spec`, and detection has no opinion to overwrite them with.
         tags: Vec::new(),
@@ -202,6 +210,16 @@ pub fn entry_from_analysis(song: &Song, analysis: &Analysis, chosen: ChosenField
 /// Two: enough to recognize a song by, and short enough that a four-thousand-song manifest does not
 /// turn into a lyric database. `km-lyrics preview` measures against this same number.
 pub const LYRIC_PREVIEW_LINES: usize = 2;
+
+/// The lines a package carries for a song, or none where its words are not drawn.
+///
+/// **One function rather than a condition at each call site.** The preview is the words on every
+/// surface that is not the television — the song book, the remote, the export — so a song the
+/// machine draws no words for must carry none, and a kind that grew its own preview line without
+/// this would put them back. The closure is what keeps the work undone in the case that discards it.
+pub(crate) fn preview_for(lyrics_hidden: bool, lines: impl FnOnce() -> Vec<String>) -> Vec<String> {
+    if lyrics_hidden { Vec::new() } else { lines() }
+}
 
 /// What packaging knows about a video song.
 ///
@@ -268,6 +286,9 @@ pub fn entry_from_video(fields: VideoFields) -> SongEntry {
         // and no channel to mute.
         lyric_encoding: None,
         default_transpose: 0,
+        // Its words are pixels in its own picture. There is no timeline to suppress, and hiding
+        // the picture would be hiding the song.
+        lyrics_hidden: false,
         // Nothing here has MIDI events, so there is nothing a fix could correct.
         fixes: Vec::new(),
         melody: None,
@@ -432,6 +453,9 @@ pub fn entry_from_cdg(fields: CdgFields) -> SongEntry {
         duration_ms: fields.duration_ms,
         lyric_encoding: None,
         default_transpose: 0,
+        // The same as a video's: this application draws the words, but it draws them from one-bit
+        // tiles rather than from a timeline, so there is no text to withhold.
+        lyrics_hidden: false,
         // Nothing here has MIDI events, so there is nothing a fix could correct.
         fixes: Vec::new(),
         melody: None,
@@ -994,6 +1018,31 @@ pub fn warning_code(code: km_suitability::WarningCode) -> String {
     format!("{code:?}").to_lowercase()
 }
 
+/// The faults, as a stored warning spells them, that mean there is nothing on screen to follow.
+///
+/// **Derived through [`warning_code`] rather than written out**, so the spelling a manifest holds
+/// and the spelling something matches against are made by one function and cannot drift. The
+/// judgement itself is `km_suitability::Suitability::words_cannot_be_followed`, which is where the
+/// reasoning for each of the three lives; this is the same list read back out of a database by
+/// anything holding warnings as text rather than as types.
+#[must_use]
+pub fn word_hiding_warning_codes() -> [String; 3] {
+    [
+        warning_code(km_suitability::WarningCode::NegligibleLyrics),
+        warning_code(km_suitability::WarningCode::ChordNamesOnly),
+        warning_code(km_suitability::WarningCode::LyricsAllAtZero),
+    ]
+}
+
+/// Whether a stored warning list says the song's words cannot be followed.
+#[must_use]
+pub fn warnings_hide_words<'a>(codes: impl IntoIterator<Item = &'a str>) -> bool {
+    let hiding = word_hiding_warning_codes();
+    codes
+        .into_iter()
+        .any(|code| hiding.iter().any(|known| known == code))
+}
+
 /// One song's new values, as read from an edited CSV or a form.
 ///
 /// The nested `Option` is not an accident. The outer one is "was this field mentioned at all"; the
@@ -1018,6 +1067,14 @@ pub struct Edits {
     pub encoding: Option<Option<String>>,
     /// A new default transposition.
     pub transpose: Option<i8>,
+    /// Whether the song's words are drawn, replacing whatever detection concluded.
+    ///
+    /// A bare `Option` where its neighbours nest two, and for [`Self::tags`]'s reason turned around:
+    /// the value has no third state to express, because a boolean's two are the whole of it. What
+    /// the outer one says is the same as everywhere else here — `None` leaves detection's answer
+    /// alone. `Some(false)` is therefore a decision rather than an absence: it is somebody saying
+    /// the words *are* to be drawn on a song detection would have silenced.
+    pub lyrics_hidden: Option<bool>,
     /// The corrections in force, replacing whatever detection proposed.
     ///
     /// `Some(vec![])` is a decision and not an absence: it says the detector's proposal is unwanted,
@@ -1109,6 +1166,19 @@ pub fn apply_edits(entry: &mut SongEntry, edit: &Edits, original: &SongEntry) ->
     {
         entry.default_transpose = transpose;
         entry.mark_edited(EditedField::DefaultTranspose);
+        changed += 1;
+    }
+    // The preview goes with it, because it is the words on every surface the television is not. It
+    // is detected, so a rebuild fills it again from the file and this empties it again; nothing
+    // puts it back when somebody says to draw the words, because the rebuild already did.
+    if let Some(lyrics_hidden) = edit.lyrics_hidden
+        && lyrics_hidden != original.lyrics_hidden
+    {
+        entry.lyrics_hidden = lyrics_hidden;
+        if lyrics_hidden {
+            entry.lyric_preview.clear();
+        }
+        entry.mark_edited(EditedField::LyricsHidden);
         changed += 1;
     }
     if let Some(fixes) = &edit.fixes
@@ -1239,6 +1309,7 @@ pub fn read_edits(path: &Path) -> Result<EditsFile> {
     let tags_column = column("tags");
     let encoding_column = column("encoding");
     let transpose_column = column("transpose");
+    let lyrics_hidden_column = column("lyrics_hidden");
 
     let mut edits = BTreeMap::new();
     let mut bad_language = Vec::new();
@@ -1295,6 +1366,13 @@ pub fn read_edits(path: &Path) -> Result<EditsFile> {
                 transpose: transpose_column
                     .and_then(|i| record.get(i))
                     .and_then(|value| value.trim().parse().ok()),
+                // **Read back, unlike the two below**, because a boolean is the whole of its own
+                // value rather than a summary of one. A cell nobody touched is empty and leaves
+                // detection alone; `false` in a cell is a person saying draw the words anyway,
+                // which is the state the field cannot express on its own.
+                lyrics_hidden: lyrics_hidden_column
+                    .and_then(|i| record.get(i))
+                    .and_then(|value| parse_flag(value.trim())),
                 // Never read back. The export writes a fix list as names and channels, which is a
                 // summary rather than a value — see `describe_fixes`. Always absent here means an
                 // export edited in a spreadsheet leaves the corrections exactly as they were.
@@ -1309,6 +1387,20 @@ pub fn read_edits(path: &Path) -> Result<EditsFile> {
         edits,
         bad_language,
     })
+}
+
+/// Reads a spreadsheet's idea of a boolean, or nothing where the cell says nothing.
+///
+/// A person editing an export types what their spreadsheet gave them, which is `TRUE` in one and
+/// `1` in another and `yes` where somebody typed it themselves. A cell holding none of those is left
+/// alone rather than read as false: emptying a cell means *leave this song as it is*, and a word
+/// this cannot read is more likely a typo than a decision.
+fn parse_flag(value: &str) -> Option<bool> {
+    match value.to_ascii_lowercase().as_str() {
+        "1" | "true" | "yes" | "y" => Some(true),
+        "0" | "false" | "no" | "n" => Some(false),
+        _ => None,
+    }
 }
 
 /// Reads the CSV index into overrides keyed by the path relative to the scanned folder.
@@ -1807,6 +1899,17 @@ mod tests {
         );
     }
 
+    /// A stored warning list is matched against the same spelling that wrote it.
+    #[test]
+    fn the_word_hiding_codes_are_read_back_as_they_were_written() {
+        assert!(warnings_hide_words(["lyricsallatzero"]));
+        assert!(warnings_hide_words(["fewchannels", "negligiblelyrics"]));
+        assert!(warnings_hide_words(["chordnamesonly"]));
+        // A real verse that stops early is not one of them, nor is a file with no words at all.
+        assert!(!warnings_hide_words(["partiallyrics", "nolyrics"]));
+        assert!(!warnings_hide_words(std::iter::empty()));
+    }
+
     #[test]
     fn a_caller_that_knows_the_language_beats_what_the_file_says() {
         // `km-pack build --index` naming a language in its CSV. The file still says `@LENGL`; the
@@ -1970,6 +2073,59 @@ mod tests {
                 .map(|record| record.signals.as_slice()),
             Some([MELODY_CHOSEN_SIGNAL.to_owned()].as_slice())
         );
+    }
+
+    /// Silencing a song's words is an edit, and so is drawing them on one measurement silenced.
+    ///
+    /// The second direction is the one that needs saying: the value it writes is the value a song
+    /// nobody has touched already carries, so only the marker distinguishes them.
+    #[test]
+    fn an_answer_about_the_words_is_recorded_in_both_directions() {
+        // The measured answer is set explicitly rather than taken from the fixture, whose synthetic
+        // lyric track is short enough to measure as unfollowable in its own right.
+        let mut entry = entry_with_a_detected_fix();
+        entry.lyrics_hidden = false;
+        entry.lyric_preview = vec!["first line".to_owned()];
+        let detected = entry.clone();
+
+        let edits = Edits {
+            lyrics_hidden: Some(true),
+            ..Edits::default()
+        };
+        assert_eq!(apply_edits(&mut entry, &edits, &detected), 1);
+        assert!(entry.lyrics_hidden);
+        assert!(entry.is_edited(EditedField::LyricsHidden));
+        assert!(
+            entry.lyric_preview.is_empty(),
+            "the preview is the words on every other surface, so it goes with them"
+        );
+
+        // A measurement that silenced the words, overruled.
+        let mut measured = entry_with_a_detected_fix();
+        measured.lyrics_hidden = true;
+        let before = measured.clone();
+        let edits = Edits {
+            lyrics_hidden: Some(false),
+            ..Edits::default()
+        };
+        assert_eq!(apply_edits(&mut measured, &edits, &before), 1);
+        assert!(!measured.lyrics_hidden);
+        assert!(measured.is_edited(EditedField::LyricsHidden));
+    }
+
+    /// Agreeing with the measurement records nothing, exactly as confirming a melody channel does.
+    #[test]
+    fn agreeing_about_the_words_marks_nothing() {
+        let mut entry = entry_with_a_detected_fix();
+        entry.lyrics_hidden = false;
+        let detected = entry.clone();
+
+        let edits = Edits {
+            lyrics_hidden: Some(false),
+            ..Edits::default()
+        };
+        assert_eq!(apply_edits(&mut entry, &edits, &detected), 0);
+        assert!(!entry.is_edited(EditedField::LyricsHidden));
     }
 
     /// *No melody* is a decision, and the reason detection gave up stops being the explanation.

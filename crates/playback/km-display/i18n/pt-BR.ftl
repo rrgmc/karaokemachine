@@ -78,6 +78,7 @@ no-lyrics = (esta música não tem letra)
 badge-key = tom { $semitones }
 badge-tempo = ritmo { $ratio }x
 badge-melody = melodia
+badge-lyrics-hidden = sem letra
 
 ## O medidor de quadros
 

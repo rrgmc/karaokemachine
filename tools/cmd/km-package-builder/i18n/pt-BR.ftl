@@ -837,6 +837,17 @@ song-tab-filing = Organização
 song-tab-lyrics = Letra
 song-tab-advanced = Avançado
 
+song-lyrics-heading = Letra na tela
+song-lyrics-automatic = Automático
+song-lyrics-automatic-hidden = não mostrar, porque não há nada a acompanhar
+song-lyrics-automatic-shown = mostrar
+song-lyrics-show = Sempre mostrar
+song-lyrics-hide = Nunca mostrar
+song-lyrics-note =
+    A máquina toca a música de qualquer jeito. Desligue a letra de um arquivo cuja letra está fora
+    do tempo, traz os dados de quem fez o arranjo, ou é de outra música; a televisão então diz
+    "sem letra" no canto. Monte o pacote de novo para uma mudança aqui chegar a uma máquina.
+
 package-tab-songs = Músicas
 package-tab-sources = Fontes
 package-tab-build = Montagem
@@ -995,6 +1006,9 @@ said-package-created = { $name } criado. Abra para escolher o que entra e para m
 said-package-deleted = Excluído. Qualquer .kmpkg já gravado fica como está.
 said-rated = Nota { $value }/10.
 said-rating-cleared = Nota apagada.
+said-lyrics-hidden = A letra não será mostrada enquanto esta música tocar.
+said-lyrics-shown = A letra será mostrada enquanto esta música tocar.
+said-lyrics-automatic = A letra segue o que a análise encontrar.
 said-removed-from-favorite = Tirada dessa lista.
 said-removed = Tirado deste pacote. A música em si fica como está.
 said-renumbered = { $count ->

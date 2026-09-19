@@ -170,6 +170,13 @@ pub const BADGE_KEY: &str = "badge-key";
 pub const BADGE_TEMPO: &str = "badge-tempo";
 /// The guide-melody badge.
 pub const BADGE_MELODY: &str = "badge-melody";
+/// The badge over a song whose words are turned off.
+///
+/// **A different message from [`NO_LYRICS`] although both read as *no lyrics*, and the ids are what
+/// keep them apart.** That one is said about a file with no words in it; this one is said about a
+/// decision taken over a file that has some. A translator seeing one id would have to write one
+/// sentence for two facts.
+pub const BADGE_LYRICS_HIDDEN: &str = "badge-lyrics-hidden";
 
 /// A number that is not a song number at all.
 pub const NUMBER_INVALID: &str = "number-invalid";
@@ -294,6 +301,7 @@ pub const ALL_IDS: &[&str] = &[
     BADGE_KEY,
     BADGE_TEMPO,
     BADGE_MELODY,
+    BADGE_LYRICS_HIDDEN,
     NUMBER_INVALID,
     FRAMES_HEADING,
     FRAMES_MEASURING,
