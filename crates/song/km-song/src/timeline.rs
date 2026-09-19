@@ -337,17 +337,37 @@ pub const MIN_JUDGED_SYLLABLES: usize = 32;
 /// its space still counts.
 pub const WORD_END_SHARE_PERCENT: usize = 95;
 
-/// Mean syllable length, in tenths of a character, above which the fragments are words.
+/// Mean fragment length, in hundredths of a character, below which the fragments are syllables.
 ///
 /// **This is what separates a file that lost its word ends from one that never had syllables.** A
 /// file with one event per whole word, each carrying a space, meets every other condition here
 /// while its words are exactly where it says they are — narrowing those would run correct words
 /// together.
 ///
-/// Measured over 11,857 files: every file whose word ends are lost averages 2.17 to 2.75 characters
-/// a syllable, and the nearest word-per-event files 3.40 and 3.44. This sits in that gap, with room
-/// on both sides.
-pub const MAX_JUDGED_MEAN_TENTHS: usize = 30;
+/// Below this mean the corpus holds syllable files only. Above it, up to
+/// [`MAX_JUDGED_MEAN_WITH_FEW_LONG_HUNDREDTHS`], the two kinds overlap: English is mostly words of
+/// one syllable, so a file that spaces its syllables averages what a file of short whole words does.
+pub const MAX_JUDGED_MEAN_HUNDREDTHS: usize = 300;
+
+/// Mean fragment length, in hundredths of a character, below which a file with few long fragments
+/// is still judged.
+///
+/// Between [`MAX_JUDGED_MEAN_HUNDREDTHS`] and this, the mean alone cannot tell the two kinds apart,
+/// and the share of long fragments decides (see [`MAX_LONG_FRAGMENT_SHARE_PERCENT`]). Above it, the
+/// files the corpus holds are whole words almost without exception.
+pub const MAX_JUDGED_MEAN_WITH_FEW_LONG_HUNDREDTHS: usize = 365;
+
+/// How many characters make a fragment long.
+///
+/// A syllable seldom reaches this in a language written with spaces; a whole word often does.
+pub const LONG_FRAGMENT_CHARS: usize = 7;
+
+/// What share of fragments may be long, in percent, for a file between the two means to be judged.
+///
+/// Measured over the corpus files whose mean falls between the two: those that space their
+/// syllables hold 0 to 3.4% long fragments, and those of whole words mostly 4.3% and above. A file
+/// of whole words that falls under this draws its words a divider apart, which still reads as words.
+pub const MAX_LONG_FRAGMENT_SHARE_PERCENT: usize = 4;
 
 /// Whether a file's spaces say nothing about where its words end.
 ///
@@ -366,6 +386,7 @@ fn marks_no_word_ends(raws: &[RawSyllable]) -> bool {
     let mut judged = 0usize;
     let mut word_ends = 0usize;
     let mut body_chars = 0usize;
+    let mut long = 0usize;
     for raw in raws.iter().filter(|r| !r.text.is_empty()) {
         if raw.text.starts_with(' ') {
             return false;
@@ -374,11 +395,18 @@ fn marks_no_word_ends(raws: &[RawSyllable]) -> bool {
         if raw.text.ends_with(' ') {
             word_ends += 1;
         }
-        body_chars += raw.text.trim_end().chars().count();
+        let chars = raw.text.trim_end().chars().count();
+        body_chars += chars;
+        if chars >= LONG_FRAGMENT_CHARS {
+            long += 1;
+        }
     }
-    judged >= MIN_JUDGED_SYLLABLES
-        && word_ends * 100 >= judged * WORD_END_SHARE_PERCENT
-        && body_chars * 10 < judged * MAX_JUDGED_MEAN_TENTHS
+    if judged < MIN_JUDGED_SYLLABLES || word_ends * 100 < judged * WORD_END_SHARE_PERCENT {
+        return false;
+    }
+    body_chars * 100 < judged * MAX_JUDGED_MEAN_HUNDREDTHS
+        || (body_chars * 100 < judged * MAX_JUDGED_MEAN_WITH_FEW_LONG_HUNDREDTHS
+            && long * 100 < judged * MAX_LONG_FRAGMENT_SHARE_PERCENT)
 }
 
 /// What share of syllables may carry a space, in percent, for the file still to be marking nothing.
@@ -400,9 +428,9 @@ pub const MAX_SPACED_SHARE_PERCENT: usize = 5;
 /// than [`MAX_SPACED_SHARE_PERCENT`] of it is saying where its words are and is trusted completely.
 ///
 /// **No mean fragment length is measured, where [`marks_no_word_ends`] measures one.**
-/// [`MAX_JUDGED_MEAN_TENTHS`] is there to spare a file whose one event per whole word carries a real
-/// space. Here there is no space to spare, and joining is wrong whether the fragments are words or
-/// syllables, so their length settles nothing.
+/// [`MAX_JUDGED_MEAN_HUNDREDTHS`] is there to spare a file whose one event per whole word carries a
+/// real space. Here there is no space to spare, and joining is wrong whether the fragments are words
+/// or syllables, so their length settles nothing.
 fn marks_no_word_boundaries(raws: &[RawSyllable]) -> bool {
     if raws.len() < MIN_JUDGED_SYLLABLES {
         return false;
@@ -1534,6 +1562,43 @@ mod tests {
     fn short_whole_words_keep_their_spaces_too() {
         let timeline = narrowed(&["MY ", "LOVE'S ", "HERE, ", "IT'S ", "NO ", "DREAM "], 42);
         assert!(!timeline.word_ends.divided());
+        assert!(timeline.lines[0].text().contains(' '));
+    }
+
+    /// English syllables average what short whole words do, so the mean alone would spare them.
+    /// None of them is long, and that is what says they are syllables.
+    #[test]
+    fn short_english_syllables_are_divided_when_none_is_long() {
+        let timeline = narrowed(
+            &[
+                "wal ", "king ", "down ", "the ", "ci ", "ty ", "road ", "at ", "night ", "a ",
+                "lone ", "wait ", "ing ",
+            ],
+            52,
+        );
+        assert_eq!(timeline.word_ends, WordEnds::EverySyllableSpaced);
+    }
+
+    /// Whole words at the same mean carry long ones among them, and keep their spaces.
+    #[test]
+    fn short_whole_words_with_long_ones_among_them_keep_their_spaces() {
+        let timeline = narrowed(
+            &[
+                "I ",
+                "remember ",
+                "you ",
+                "and ",
+                "me ",
+                "in ",
+                "the ",
+                "rain ",
+                "so ",
+                "long ",
+                "ago ",
+            ],
+            44,
+        );
+        assert_eq!(timeline.word_ends, WordEnds::AsWritten);
         assert!(timeline.lines[0].text().contains(' '));
     }
 

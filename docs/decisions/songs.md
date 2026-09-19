@@ -733,8 +733,15 @@ as saying so.** It says where a line ends and nothing about the words inside it,
 every one of its lines and still space every syllable. The file is judged on its words and not on
 its line markers, on two measurements, and the second matters as much as the first:
 a file with one event per *whole word* also spaces every event and marks no ends, and its words are
-exactly where it says they are — so mean fragment length is what separates the two, with the syllable
-files at 2.17 to 2.75 characters and the nearest word-per-event files at 3.40.
+exactly where it says they are — so fragment length is what separates the two. **Below a mean of 3.0
+characters the corpus holds syllable files only**, and they are judged on that alone. **Between 3.0
+and 3.65 the two kinds overlap**, because English is mostly words of one syllable and a file that
+spaces them averages what a file of short whole words does. There the share of fragments of seven
+characters or more decides: the syllable files hold 0 to 3.4% of them and the word files mostly 4.3%
+and above, so a file under 4% is judged. The few word files that fall under it draw their words a
+divider apart, which still reads as words; the syllable files it reaches would otherwise draw every
+syllable as a word. Above 3.65 the files are whole words almost without exception, and none is
+touched.
 
 **The point off is the words, not the timing.** These files are syllable-timed and the highlight
 follows the singing, so this is nothing like line-level timing and does not score like it. What is

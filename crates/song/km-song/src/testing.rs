@@ -784,6 +784,25 @@ pub fn word_ends_unmarked_lines_marked() -> Vec<u8> {
     song_around(words)
 }
 
+/// [`word_ends_unmarked`] in English, whose fragments average what a file of short whole words does.
+///
+/// A real shape from the corpus: English is mostly words of one syllable, so a file that spaces
+/// every syllable averages over three characters a fragment. None of its fragments is long, and that
+/// is what says they are syllables.
+pub fn word_ends_unmarked_short_words() -> Vec<u8> {
+    let mut words = TrackWriter::new();
+    words.track_name(0, b"Words");
+    // "walking down the city road at night alone waiting", 3.15 characters a fragment.
+    const SYLLABLES: [&[u8]; 13] = [
+        b"wal ", b"king ", b"down ", b"the ", b"ci ", b"ty ", b"road ", b"at ", b"night ", b"a ",
+        b"lone ", b"wait ", b"ing ",
+    ];
+    for i in 0..260usize {
+        words.lyric(if i == 0 { 0 } else { 480 }, SYLLABLES[i % SYLLABLES.len()]);
+    }
+    song_around(words)
+}
+
 /// A song with no space anywhere in its lyrics, so nothing in it says where a word ends.
 ///
 /// A real shape from the corpus, and the other half of what [`crate::timeline::SYLLABLE_DIVIDER`]
@@ -1856,6 +1875,10 @@ pub const FIXTURES: &[Fixture] = &[
     (
         "word_ends_unmarked_lines_marked.mid",
         word_ends_unmarked_lines_marked,
+    ),
+    (
+        "word_ends_unmarked_short_words.mid",
+        word_ends_unmarked_short_words,
     ),
     ("word_boundaries_unmarked.mid", word_boundaries_unmarked),
     ("truncated_by_realtime_byte.mid", truncated_by_realtime_byte),

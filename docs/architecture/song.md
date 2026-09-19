@@ -75,8 +75,10 @@ suitability, under
 right order: `spacing` resolves the marks in `collect_raws`, so a file that cancels the spaces it
 does not mean arrives with the word-final ones already distinguished and is left alone here. What
 reaches this rule marks no word, and two measurements keep it narrow — a stream with a single
-leading space is untouched, and mean fragment length separates a file whose syllables are spaced from
-one whose whole words are. **Break markers are not among them**: a file can place every line with
+leading space is untouched, and fragment length separates a file whose syllables are spaced from
+one whose whole words are. The mean decides below 3.0 characters; up to 3.65, where English syllable
+files and short-word files overlap, the share of fragments of seven characters or more decides as
+well. **Break markers are not among them**: a file can place every line with
 `\r` and still space every syllable, and only fragments with text are counted, so a marker standing
 alone does not dilute the share.
 
