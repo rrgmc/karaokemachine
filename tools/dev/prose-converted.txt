@@ -4,6 +4,29 @@
 # file that is not named here is read over the lines a branch adds and no further, so the tree
 # converts one document at a time and a converted one cannot slide back.
 #
-# One path per line, from the repository root, exactly as `git ls-files` spells it.
+# One path per line, from the repository root, exactly as `git ls-files` spells it. A `.html` page is
+# read only because it is named here, and a page in another language is judged by its structure.
 
 README.md
+CHANGELOG.md
+CLAUDE.md
+RELEASE.md
+SECURITY.md
+.github/pull_request_template.md
+assets/wallpapers/CREDITS.md
+crates/CLAUDE.md
+docs/decisions/README.md
+docs/research/README.md
+fixtures/CLAUDE.md
+fixtures/README.md
+icon/CLAUDE.md
+ports/CLAUDE.md
+ports/machine/ios/README.md
+site/CLAUDE.md
+site/README.md
+site/index.html
+site/pt-BR/index.html
+tools/CLAUDE.md
+tools/cmd/km-pack/CLAUDE.md
+tools/cmd/km-package-builder/static/README.md
+tools/dist/release-notes.md

@@ -1,7 +1,7 @@
 # Cutting a release
 
 The order to do it in. Each step names the document that holds the detail, because a second copy of
-a command list goes stale against the first — [`BUILDING.md`](BUILDING.md) is the command reference
+a command list goes stale against the first. [`BUILDING.md`](BUILDING.md) is the command reference,
 and this is the sequence.
 
 A release raises the **minor** number and zeroes the patch: one number covers every program here, so
@@ -12,31 +12,30 @@ they all move together. See
 
 [`CHANGELOG.md`](CHANGELOG.md) — retitle `## [Unreleased]` to `## [X.Y.0] - <today>`, and open an
 empty `## [Unreleased]` above it. An entry names what somebody with the machine gets, in one
-sentence, consequence first. A crate, a route, a thread, a build flag or a file format's internals
-in an entry is the shape to catch: it names what was changed rather than what the change gives.
+sentence, consequence first. A crate, a route, a thread, a build flag or a format's internals is the
+shape to catch. It names what changed rather than what the change gives.
 
 **Do this first**, while the range is still `git log --merges v<previous>..HEAD` rather than
 something to reconstruct after the tag exists.
 
-**A release with no predecessor is the one case that skips the range.** Where there is no
-`v<previous>` to resolve, the entry is written from the branch's own commits and from what the
-machine does, and it is written into the empty `## [Unreleased]` rather than by retitling one that
-already carries a release's worth of entries.
+**A release with no predecessor is the one case that skips the range.** Where no `v<previous>`
+resolves, write the entry from the branch's own commits and from what the machine does. It goes into
+the empty `## [Unreleased]`, rather than into a retitled one that already carries a release's worth
+of entries.
 
 ## 2. Write the download page's body
 
 [`tools/dist/release-notes.md`](tools/dist/release-notes.md) — its `## What changed` list is this
 release's few highlights, taken from the section just written. A release with no predecessor heads
-that list `## What it does` instead and says what the machine is, because a page whose reader cannot
-reach the version before it has nothing to state a difference against. The tracked file names no
+that list `## What it does` instead, and says what the machine is. A page whose reader cannot reach
+the version before it has nothing to state a difference against. The tracked file names no
 version; the run substitutes one. Its register is
 [`What a release page says, and to whom`](docs/decisions/distribution.md#what-a-release-page-says-and-to-whom),
 and the narration rule reaches it like any other published word —
 [`How a document in this repository is written`](docs/decisions/repository.md#how-a-document-in-this-repository-is-written).
 
-**Edit the file, never the GitHub form.** A body typed at the point of upload is read by neither
-`check-prose.sh` nor `check-no-local-refs.sh`, both of which choose what to read through
-`git ls-files`.
+**Edit the file, never the GitHub form.** Neither `check-prose.sh` nor `check-no-local-refs.sh` reads
+a body typed at the point of upload, because both choose what to read through `git ls-files`.
 
 ## 3. Raise the number
 
@@ -44,7 +43,7 @@ The two manifests, then both lockfiles, then the eight places written by hand th
 [`Bumping the version`](BUILDING.md#bumping-the-version) has the commands and the table.
 
 `git grep -F <old version>` afterwards is the check that exists. The changelog's headings are hits it
-is meant to find and leave alone: they are a record of a release that happened, not a number that
+is meant to find and leave alone. They record a release that happened, rather than a number that
 advances. A release with no predecessor has no such heading yet, so every hit it reports is one to
 move.
 
@@ -125,20 +124,20 @@ tools/dist/release.sh           # gather what is staged into dist/release/<versi
 tools/dist/release.sh --upload  # ...and fill the draft release
 ```
 
-**It gathers and never builds**, so every carrier has to be staged first —
+**It gathers and never builds**, so every carrier has to be staged first.
 [`Releases`](BUILDING.md#releases) lists the script behind each one, and `release.sh` names any that
 is missing and stops.
 
 **Name the platforms where a Mac is not to hand.** `--platforms windows,linux,android` carries those
-and leaves the two `.pkg` files and the two `.ipa` files out of the count and off the page, rather
-than failing on four carriers the machine cannot build. Everything else holds: a named platform
-whose carrier is missing still stops the run. See
+and leaves the two `.pkg` files and the two `.ipa` files out of the count and off the page. It does
+that rather than failing on four carriers the machine cannot build. Everything else holds: a named
+platform whose carrier is missing still stops the run. See
 [`A release page carries the platforms the machine cutting it can build`](docs/decisions/distribution.md#a-release-page-carries-the-platforms-the-machine-cutting-it-can-build).
 
 ## 8. Publish
 
-Either way, the result is a **draft**. Publishing is typed by somebody who has opened the page,
-seen all twelve files on it, and looked at it:
+Either way, the result is a **draft**. Somebody opens the page, sees all twelve files on it, reads
+it, and only then types this:
 
 ```sh
 gh release edit vX.Y.0 --draft=false

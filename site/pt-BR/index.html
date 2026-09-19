@@ -44,8 +44,8 @@
     <p class="lede">
       Uma máquina de karaokê que funciona como um aparelho doméstico: <strong>escolha uma música pelo
       número, ela toca, e a letra acende no tempo certo.</strong> Ela roda em tela cheia numa
-      televisão, e os celulares da mesma rede viram controles através de uma API HTTP — procurar no
-      catálogo, pôr uma música na fila, mudar o tom, pular.
+      televisão, e qualquer celular da mesma rede vira um controle por uma API HTTP. Procure no
+      catálogo, ponha uma música na fila, mude o tom, pule.
     </p>
     <p class="actions">
       <a class="btn btn-primary" href="https://github.com/rrgmc/karaokemachine/releases/latest">Baixar</a>
@@ -54,7 +54,7 @@
     </p>
     <p class="honesty">
       Software livre, <code>MIT OR Apache-2.0</code>. O pacote do macOS é assinado e reconhecido pela
-      Apple; todos os outros downloads não são assinados, e a página de versões diz o que cada
+      Apple. Todos os outros downloads não são assinados, e a página de versões diz o que cada
       sistema vai perguntar.
     </p>
   </div>
@@ -150,8 +150,9 @@
           em Rust.</li>
         <li><b>Músicas em UltraStar</b> — o <code>.txt</code> em que um jogo de cantar marca o tempo
           das palavras, ao lado do MP3 que ele nomeia. A letra acende sílaba por sílaba.</li>
-        <li><b>Uma nota de adequação de 0 a 10</b> para cada arquivo, com o detalhamento — e o canal
-          de melodia quando dá para achar com segurança, com o motivo dito quando não dá.</li>
+        <li><b>Uma nota de adequação de 0 a 10</b> para cada arquivo, com o detalhamento. Ela também
+          aponta o canal de melodia quando dá para achar com segurança, e diz o motivo quando não
+          dá.</li>
       </ul>
     </article>
 
@@ -162,17 +163,17 @@
           <code>F</code> alterna e a escolha fica guardada. No Linux ela desenha direto no DRM/KMS a
           partir de um terminal puro, sem nenhum ambiente gráfico instalado.</li>
         <li><b>Ou numa televisão em outro cômodo.</b> Iniciada com <code>--stream</code>, a máquina
-          não abre janela nenhuma e serve o que teria mostrado, imagem e som juntos, como uma única
-          transmissão HLS contínua. Um aparelho, um celular ou um computador abre a página
-          <code>/watch/</code> da própria máquina — e, como a lista de reprodução é a interface,
-          qualquer coisa que toque uma delas aceita <code>/stream/live.m3u8</code> no VLC, no Kodi ou
-          no próprio aparelho de televisão, sem precisar de navegador nenhum.</li>
+          não abre janela nenhuma. Ela serve o que teria mostrado, imagem e som juntos, como uma
+          única transmissão HLS contínua. Um aparelho, um celular ou um computador abre a página
+          <code>/watch/</code> da própria máquina. A lista de reprodução é a interface, então
+          qualquer coisa que toque uma delas aceita <code>/stream/live.m3u8</code>. O VLC, o Kodi e o
+          próprio aparelho de televisão tocam, sem navegador nenhum.</li>
         <li><b>A letra acende no tempo certo</b>, sílaba por sílaba, pelo relógio do próprio
           sequenciador.</li>
         <li><b>Tom e ritmo</b> por música, e uma <b>melodia guia</b> que pode ser silenciada.</li>
-        <li><b>Um ajuste de sincronia da letra em milissegundos</b>, regulável com a música tocando,
-          porque uma televisão atrasa a imagem e uma mesa de som adianta o áudio. Ele move só o
-          destaque da letra — nunca o áudio, porque os microfones estão nesse áudio.</li>
+        <li><b>Um ajuste de sincronia da letra em milissegundos</b>, regulável com a música tocando.
+          Uma televisão atrasa a imagem, e uma mesa de som adianta o áudio. Ele move só o destaque da
+          letra, nunca o áudio, porque os microfones estão nesse áudio.</li>
         <li><b>Papéis de parede fotográficos</b> atrás da letra, com transição suave, cada um medido
           para dar contraste na faixa da tela em que a letra fica.</li>
       </ul>
@@ -183,9 +184,9 @@
       <ul>
         <li><b>A máquina serve um controle no próprio endereço dela</b> — qualquer celular da rede,
           sem instalar nada, e um QR code na tela de espera.</li>
-        <li><b>Um controle offline avulso</b>, que guarda a própria cópia do catálogo de uma máquina,
-          então procurar, navegar e marcar favoritas funciona com a máquina desligada.</li>
-        <li><b>Uma API HTTP com eventos por WebSocket</b>, cobrindo busca, fila, controles de
+        <li><b>Um controle offline avulso</b>, que guarda a própria cópia do catálogo de uma máquina.
+          Procurar, navegar e marcar favoritas funciona com a máquina desligada.</li>
+        <li><b>Uma API HTTP com eventos por WebSocket.</b> Ela cobre busca, fila, controles de
           reprodução, configurações, pacotes, papéis de parede, modo demonstração, microfones e saída
           de áudio.</li>
         <li>Encontrada na rede por <b>mDNS</b>. <b>Uma senha de administrador, que a própria máquina
@@ -199,12 +200,11 @@
       <h3>Pondo uma coleção em ordem</h3>
       <ul>
         <li><b><code>km-package-builder</code></b>, um servidor web local sobre uma pasta de
-          arquivos: navegar, procurar <em>dentro da própria letra</em>, dar nota, corrigir os nomes,
-          agrupar duplicatas e escolher músicas para os pacotes na mão.</li>
-        <li><b><code>km-pack</code></b> para montar e conferir pacotes,
-          <b><code>km-lyrics</code></b> para ver a linha do tempo de um arquivo já interpretada, e
-          <b><code>km-wallpaper-pack</code></b> para montar um conjunto de papéis de parede filtrado
-          pelo que deixa a letra legível.</li>
+          arquivos. Navegue, procure <em>dentro da própria letra</em>, dê nota, corrija os nomes,
+          agrupe duplicatas e escolha músicas para os pacotes na mão.</li>
+        <li><b><code>km-pack</code></b> monta e confere pacotes, e <b><code>km-lyrics</code></b>
+          mostra a linha do tempo de um arquivo já interpretada. <b><code>km-wallpaper-pack</code></b>
+          monta um conjunto de papéis de parede, guardando o que deixa a letra legível.</li>
         <li><b>Um livro de músicas impresso.</b> Quatro colunas — artista, número, título e o começo
           da letra — no formato do livro que uma máquina comercial traz num fichário. A máquina serve
           um para o próprio catálogo, então ele não é só uma peça de curadoria.</li>
@@ -217,20 +217,20 @@
   <div class="wrap">
     <h2>Imagens e instrumentos, achados para ela</h2>
     <p>
-      O <b><code>km-admin</code></b> acha fotografias em que a letra continua legível — medindo na
-      faixa da tela que a letra ocupa — e bancos General MIDI a partir de uma tabela de sessenta e
-      três, e manda os dois para a máquina. <b>Ele também manda um arquivo que você já tem</b>: um
-      pacote, um banco, uma fotografia sua.
+      O <b><code>km-admin</code></b> acha fotografias em que a letra continua legível, medindo na
+      faixa da tela que a letra ocupa. Ele também oferece bancos General MIDI de uma tabela de
+      sessenta e três, e manda os dois para a máquina. <b>Ele manda também um arquivo que você já
+      tem</b>: um pacote, um banco, uma fotografia sua.
     </p>
     <p>
       <b>Ele é a metade que a máquina não consegue fazer sozinha.</b> Uma caixa embaixo da televisão
-      não tem teclado nem janela, pode não ter como chegar à internet, e não é lugar para guardar as
-      suas contas.
+      não tem teclado nem janela. Ela pode não ter como chegar à internet, e não é lugar para guardar
+      as suas contas.
     </p>
     <p class="dim">
       As imagens vêm do Openverse por padrão, e os conjuntos feitos com ele podem ser repassados. O
-      Pixabay e o Pexels funcionam com uma chave de API sua, e os termos deles, que não permitem
-      redistribuição, aparecem ao lado do campo da chave.
+      Pixabay e o Pexels funcionam com uma chave de API sua. Os termos deles não permitem
+      redistribuição, e aparecem ao lado do campo da chave.
     </p>
   </div>
 </section>
@@ -239,40 +239,40 @@
   <div class="wrap">
     <h2>Números que não podem colidir</h2>
     <p>
-      O número de uma música é <b class="mono">banco&nbsp;×&nbsp;1000&nbsp;+&nbsp;vaga</b> — a vaga é
-      o número que o pacote deu à música, de 1 a 999, e o banco é o bloco de mil em que ela fica.
+      O número de uma música é <b class="mono">banco&nbsp;×&nbsp;1000&nbsp;+&nbsp;vaga</b>. A vaga é
+      o número que o pacote deu à música, de 1 a 999. O banco é o bloco de mil em que ela fica.
       Dois pacotes que numeraram uma música como 500 não colidem: uma é 3500 e a outra é 611500.
     </p>
     <p>
       <b>O banco de um pacote vem do identificador dele</b>, então os números dele são os mesmos em
-      qualquer máquina. Instale o mesmo volume aqui e na casa de um amigo, em qualquer ordem — ele
-      recebe o mesmo banco nas duas, então uma lista de músicas impressa viaja junto com o arquivo.
+      qualquer máquina. Instale o mesmo volume aqui e na casa de um amigo, em qualquer ordem, e ele
+      recebe o mesmo banco nas duas. Uma lista de músicas impressa viaja junto com o arquivo.
     </p>
     <p>
-      Um pacote tem no máximo 999 músicas. Não é um limite de armazenamento — a máquina aguenta mil
-      pacotes, quase um milhão de músicas — é um empurrão na direção de <em>fazer curadoria</em> de
-      um volume, em vez de apontar uma ferramenta para uma pasta. A coleção contra a qual isto foi
-      construído é enorme, e a diferença entre um catálogo e um monte está inteira no que alguém
-      deixou de fora.
+      Um pacote tem no máximo 999 músicas. Não é um limite de armazenamento, porque a máquina aguenta
+      mil pacotes e quase um milhão de músicas. É um empurrão na direção de <em>fazer curadoria</em>
+      de um volume, em vez de apontar uma ferramenta para uma pasta. A coleção contra a qual isto foi
+      construído é enorme. O que alguém deixou de fora é toda a diferença entre um catálogo e um
+      monte.
     </p>
   </div>
 </section>
 
 <section class="wrap" id="deliberately-not">
   <h2>Deliberadamente, não</h2>
-  <p class="prose">
-    <b>Cantor não recebe nota.</b>
-    <b>Nada de arquivos de áudio soltos</b> — um MP3 sem um <code>.cdg</code> ao lado não tem letra
-    nenhuma dentro — e nada de imagens de disco CD+G, só o par de arquivos.
-    <b>Nada de papel de parede em vídeo</b>: uma música em vídeo não é um fundo em vídeo.
-    <b>Nada de mudar o tom de áudio gravado.</b>
-    <b>Nada de tratamento de microfone no programa</b> — o áudio dos microfones é misturado no
-    hardware, e o programa cuida só do controle e do estado.
-    <b>Nada de escritas com formação de glifos</b>: tailandês, árabe e as escritas índicas precisam
-    de um formatador de texto que esta compilação não inclui, e não há suporte a escrita da direita
-    para a esquerda. CJK funciona — uma música em japonês ou chinês usa uma fonte do sistema, e a
-    leitura da letra já lida com as codificações antigas citadas acima.
-  </p>
+  <ul class="prose">
+    <li><b>Cantor não recebe nota.</b></li>
+    <li><b>Nada de arquivos de áudio soltos</b>, porque um MP3 sem um <code>.cdg</code> ao lado não
+      tem letra nenhuma dentro. Nada de imagens de disco CD+G também, só o par de arquivos.</li>
+    <li><b>Nada de papel de parede em vídeo</b>: uma música em vídeo não é um fundo em vídeo.</li>
+    <li><b>Nada de mudar o tom de áudio gravado.</b></li>
+    <li><b>Nada de tratamento de microfone no programa.</b> O hardware mistura os microfones, e o
+      programa cuida só do controle e do estado.</li>
+    <li><b>Nada de escritas com formação de glifos</b>: tailandês, árabe e as escritas índicas
+      precisam de um formatador de texto que esta compilação não inclui. Também não há suporte a
+      escrita da direita para a esquerda. CJK funciona: uma música em japonês ou chinês usa uma fonte
+      do sistema. A leitura da letra já lida com as codificações antigas citadas acima.</li>
+  </ul>
   <p class="prose dim">
     Estas são decisões deliberadas, não funcionalidades faltando. Para propor uma mudança, comece
     pelas <a href="https://github.com/rrgmc/karaokemachine/tree/master/docs/decisions">decisões</a>.
@@ -285,7 +285,7 @@
     <b>Todo pacote abaixo está na
     <a href="https://github.com/rrgmc/karaokemachine/releases/latest">página de versões</a></b>, um
     arquivo por sistema, com as dezesseis canções de Natal ao lado como download separado. Compilar a
-    partir do código é o outro caminho —
+    partir do código é o outro caminho.
     <a href="https://github.com/rrgmc/karaokemachine/blob/master/BUILDING.md"><code>BUILDING.md</code></a>
     diz como, e é um comando por sistema depois que os pré-requisitos estão no lugar.
   </p>
@@ -299,7 +299,7 @@
       <tr>
         <th scope="row">Windows</th>
         <td>Um instalador com os sete programas atrás de caixas de seleção. Ele instala <b>só para o
-          seu usuário</b> e não pede permissão de administrador, e oferece se colocar no seu
+          seu usuário</b> e não pede permissão de administrador. Ele também oferece se colocar no seu
           <code>PATH</code> e abrir arquivos de coleção <code>.kmbuild</code>. Ou uma <b>pasta
           portátil</b>: descompacte e execute.</td>
       </tr>
@@ -313,9 +313,9 @@
       <tr>
         <th scope="row">Debian, Ubuntu</th>
         <td>Um <code>.deb</code>. As dependências de ffmpeg e de fontes são declaradas em vez de
-          embutidas, então o apt as fornece. Ele instala como um aplicativo comum — entrada no menu,
-          ícone, e <code>karaokemachine</code> como comando — e traz também o serviço de aparelho de
-          televisão, desligado.</td>
+          embutidas, então o apt as fornece. Ele instala como um aplicativo comum, com entrada no
+          menu, ícone e <code>karaokemachine</code> como comando. Ele traz também o serviço de
+          aparelho de televisão, desligado.</td>
       </tr>
       <tr>
         <th scope="row">Qualquer Linux</th>
@@ -330,7 +330,7 @@
       <tr>
         <th scope="row">iPhone, iPad</th>
         <td>Um <code>.ipa</code> para a máquina e outro para o controle, os dois <b>sem
-          assinatura</b>: o iOS não aceita assinatura de desconhecido, então você assina com o seu
+          assinatura</b>. O iOS não aceita assinatura de desconhecido, então você assina com o seu
           próprio Apple ID. É a máquina inteira — o mesmo sintetizador, catálogo, tela e API — e as
           músicas chegam pelo aplicativo Arquivos.</td>
       </tr>
@@ -354,8 +354,8 @@
       vazia de propósito, porque as músicas são suas.
     </p>
     <p class="dim">
-      É o único pacote desse tipo. Um MIDI de karaokê não é uma obra só, são quatro ou cinco — a
-      melodia, o arranjo, a letra, a tradução se houver, e quem digitou as notas — e quase nada no
+      É o único pacote desse tipo. Um MIDI de karaokê não é uma obra só, são quatro ou cinco. A
+      melodia, o arranjo, a letra, a tradução se houver, e quem digitou as notas. Quase nada no
       mundo tem todas essas livres e escritas. Canções de Natal têm.
     </p>
   </div>

@@ -1,12 +1,12 @@
 # Test material
 
-**This repository commits no song.** Every karaoke file the tests use is written by
-`km_song::testing`, which produces standard MIDI bytes by hand — so the parser is tested against
-bytes we control end to end, and each fixture pins exactly the shape it is named for. See the
+**This repository commits no song.** `km_song::testing` writes every karaoke file the tests use, and
+it produces standard MIDI bytes by hand. The parser therefore meets bytes we control end to end, and
+each fixture pins exactly the shape it is named for. See the
 `Every fixture in the tree is synthetic` decision in `docs/decisions/`.
 
-Nothing under this directory is tracked. Both folders below are gitignored, and neither is needed to
-build or test: the fixtures the test suite runs on are compiled in, not read from disk.
+Nothing under this directory is tracked. Both folders below are gitignored, and neither one builds or
+tests anything: the test suite compiles its fixtures in rather than reading them from disk.
 
 | Folder | What it is |
 |---|---|
@@ -22,8 +22,8 @@ cargo run -p km-lyrics -- dump fixtures/generated/soft_karaoke_header_on_words_t
 ```
 
 It writes two sets. `km_song::testing::FIXTURES` are files that must **play**, one per shape the
-parser has to handle; `UNREADABLE_FIXTURES` are files that must be **refused**, which is the other
-half of what a parser is judged on. Pointing a tool at one of those is how you see what it says
+parser has to handle. `UNREADABLE_FIXTURES` are files it must **refuse**, which is the other half of
+what a parser answers for. Pointing a tool at one of those is how you see what it says
 about a bad file.
 
 **When a real file exposes a bug, distil it.** The shape goes into `crates/song/km-song/src/testing.rs`
