@@ -580,6 +580,31 @@ The box sits with the filters although it narrows nothing, because it is turned 
 browsing and has to survive a page turn, and it is **not** persisted: it belongs to the browsing
 somebody is doing now, not to the folder.
 
+## What the analysis found wrong, in the browse list
+
+**A second box beside the file-name one shows every row's warnings, off by default.** They are what
+the analysis had to say against a song — `no_lyrics`, `poor_lyric_sync`, `line_level_lyrics` — and
+otherwise they are on the song's own page alone, so finding the defective files in a folder means
+opening songs one at a time.
+
+**The code is the chip and the message is its tooltip**, which is how the song's own page draws the
+same two fields. A code is short enough to scan down a page of fifty and specific enough to be
+looked up; the sentence is what somebody reads once they have found the row.
+
+**Last in the title cell, after every other chip.** It is the one mark that can come several at a
+time, and the only one that is a judgment about the file rather than a name for it — so a row with
+three warnings pushes nothing a reader was using off to the right of them.
+
+**Off by default, for the file-name box's reason with a column that is empty on most of a corpus.**
+The width comes out of Title and Artist until the table scrolls sideways, and the pass this is for
+is hunting defects rather than browsing. Like that box it narrows nothing, so it keeps the page,
+survives *clear all*, and is not persisted: it belongs to the pass somebody is making now.
+
+**Nothing filters or sorts by them, and that is deliberate.** Suitability is the number that already
+orders a corpus by how much is wrong with each file, and it is built from these same findings — a
+second control over the parts would offer a curator two answers to one question. This shows what the
+number is made of on the rows the number already ranked.
+
 ## Copies, in the song row
 
 **Hovering a title lists every folder the song sits in, headed by how many there are.** Showing only
@@ -2233,6 +2258,65 @@ beside it keeps its name, because there is no title filter for it to collide wit
 **No index of its own.** This is a residual predicate over whichever sort index the query is already
 walking, like `kind`, `granularity` and `encoding_source`. `Db::create_browse_indexes` serves the
 nine *sorts*, and nothing here changes what that list has to hold.
+
+## Throwing a song away
+
+**A curator can say a song is not worth keeping, and what that means is that it leaves every list
+and its files are not read again.** A corpus holds a bad rip, a copy the clustering could not match
+and a `.kar` whose lyric track is the arranger's credits, and the only answer available otherwise is
+to take the file off the disk — a different decision, about somebody's files rather than about their
+catalog, and not always theirs to make.
+
+**It is a third way of hiding a song and must not be confused with the two above it.**
+[`merged_into`](#duplicate-aggregation) is a person saying two files are one recording and
+`duplicate_of` is the tool's guess at the same thing; both answer *which copy do I show*. This one
+answers *does this belong in the catalog at all*, which is why it survives a clustering pass that
+rewrites every group from nothing — a song set aside by a guess comes back when the guess changes,
+and one somebody discarded does not.
+
+**The bar has one box for it and there is no *both*.** Every other control there narrows a list of
+songs being curated; this one chooses which of two lists is on the page. A deleted song carries a
+rating, a filing and a package that nobody means any more, so mixing the two would put rows into
+every count and every page that none of the other controls can say anything useful about. It is a
+filter and not a view: it changes which songs match, so turning it on starts again at the top and
+*clear all* takes it off, where the two view boxes survive one.
+
+**The scan does not read a deleted song's files, and `--force` does not reach them.** Every other
+skip in a scan is an optimisation — the file would be read to arrive at the row already stored — and
+a forced run exists to overrule them when a heuristic moves. A song somebody discarded is not
+waiting on a better answer, so this is the one skip a forced run keeps, and on a corpus this size
+the reading it saves is most of what deleting is for.
+
+**The file rows stay where they are.** *Which files are gone* is what the walk found subtracted from
+what the database holds, and a skipped file is still a file the walk found — so nothing forgets its
+row and bringing a song back needs no rescan to find it again. Undelete is beside Delete in the tab
+for the reason [`Assigning tags in bulk`](#assigning-tags-in-bulk) gives about direction: one button
+that discarded a song or restored it depending on what the row already was would be a single tick
+meaning two opposite things.
+
+**A song a package names goes like any other, and the confirmation counts how many.** Deleting one
+takes it out of the list that package is rebuilt from. The number is on the screen before the button
+is pressed, and the judgment belongs to whoever curated the package — a refusal here would mean a
+corpus cannot be tidied until its packages are emptied first, which is the wrong way round. This is
+the one place the builder parts company with the scanner's own rule, which keeps a file gone from
+disk where a package still names the song: that is a drive that went away, and this is somebody
+saying so on purpose.
+
+**It keeps the page, alone among the bulk actions, and answers with the table.** The others write
+*onto* songs that go on matching the filter that found them, so the rows stay true and a toast is
+the whole answer. This takes songs out of the list they were ticked in, so a table left as it was
+would offer rows that have gone. The page rides in the frozen query string the confirmation
+writes — the same mechanism that freezes the filter — and a page the write pushed past the end comes
+back as the last real one, which is
+[`What keeps the page you are on`](#what-keeps-the-page-you-are-on) applied to a write that changes
+how many songs match. The count does not travel with it, for that entry's other half.
+
+**Deleting is hand curation, so a backup carries it and the edit stamp moves with it**, which are
+the two things `merged_into` already gets and for its reason: both are a person deciding a song does
+not belong in a list, and a scan can work out neither. A whole corpus of judgment about what to keep
+is exactly what a backup exists to hold. **A restore never brings a song back**, in either
+direction — a file saying nothing about a song leaves a deletion made here in place — because
+returning a song to the catalog is a decision somebody makes on the page.
 
 ## Test-playing to a machine that is not this one
 

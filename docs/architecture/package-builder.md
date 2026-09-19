@@ -432,6 +432,37 @@ writes it on the representative only; `browse_columns` reads a hidden version's 
 representative through `duplicate_of`, one primary-key lookup per hidden row, and selects
 `duplicate_of` itself so the row can mark and link it.
 
+### Deleting is the third term, and both sides of it come from one function
+
+A song somebody threw away carries `songs.deleted_at`, and every browse query excludes it. **The
+predicate is `sql::browsable(alias)` and nothing spells it out anywhere else**: `Filter::to_sql`
+composes it from `DeletedFilter::Live`'s own clause, and the ten `songs_browse_*` indexes are
+partial on the same function with an empty alias. The *only deleted* box inverts the half this type
+owns and keeps the other, because a song both merged and discarded is still a merge with no row of
+its own.
+
+**A term on one side and not the other does not fail — it costs the indexes silently.** SQLite
+serves a partial index only where the query implies its `WHERE`, so a predicate that grew a term the
+indexes do not carry sends every sort back to reading the filtered corpus into a temp B-tree, which
+is the 4.21 s above with nothing on screen saying why. Eleven copies of the predicate were eleven
+chances for that; there is now one, and `create_browse_indexes` compares the *stored statement*
+rather than the name, so the widened predicate rebuilds itself on the next open with no migration
+step.
+
+**`songs_countable` gains the column, and answers the deleted list as well.** The entry that index
+already carries explains why two terms on two separately indexed columns defeat both; a third is the
+same failure again, so the key is `(merged_into, duplicate_of, deleted_at)`. The migration drops it
+by name, because every statement in `schema.sql` is `IF NOT EXISTS` and a database already holding
+the narrow shape would keep it for ever. **The partial index beside it was built and measured and is
+not here**: with all three terms in one key the deleted list is equality on two columns and a range
+on the third, so the planner seeks it — `the_deleted_list_is_answered_from_its_own_index` reads the
+plan and says so, and a second corpus-sized B-tree maintained on every write would buy nothing.
+
+The scan reads the column through the join `known_files` already makes, and skips a deleted song's
+files **before** the unchanged test and regardless of `--force`. `seen` is the whole walk and is
+built before the per-file loop, so a skipped file is still seen, `forget_missing` passes it by, and
+undeleting needs no rescan to find the file again.
+
 ## The browse list writes
 
 Every score, corrected name and favorite can be set from the list, not only from a detail page — over
@@ -466,10 +497,14 @@ colored by the second — a song in nothing but working lists is in lists and fi
 last in `browse_columns` so no existing index into the row moves, and its own subquery rather than a
 narrowing of the first because the row needs both numbers.
 
-**Showing file names is a class on `#rows`, not a flag on the row.** The name is written into every
-row's markup and revealed by `#rows.filenames .filename`. Threading a bool down would have had to reach
-the fragment routes too — which never see the browse query — so a row would have lost its file name the
-moment anybody scored it.
+**The two view boxes are classes on `#rows`, not flags on the row.** The file name and the warning
+chips are written into every row's markup and revealed by `#rows.filenames .filename` and
+`#rows.warnings .song-warning`. Threading a bool down would have had to reach the fragment routes
+too — which never see the browse query — so a row would have lost both the moment anybody scored it.
+`SongRows::block_class` joins the names in Rust rather than as two conditionals in the markup: the
+second would have to know whether the first had opened the attribute and owed a space, which is a
+rule about HTML syntax living in a template. `browse_columns` selects `s.warnings` on every page
+whether or not the box is ticked, for the same reason the name is always in the markup.
 
 ### Two rules that are walked into repeatedly
 

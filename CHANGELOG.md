@@ -33,6 +33,15 @@ Entries are written for somebody who has the machine. Why any of it is the way i
   first instant, or are credits, or are a chord chart, turns them off by itself; any other file is a
   judgement to make, and the choice survives every rebuild. Video and MP3+G songs carry their words
   in their own picture and are not offered the choice.
+- **A song in the package builder can be thrown away.** The Delete tab takes the ticked rows or
+  everything a filter matches, after saying how many there are and how many of them a package holds.
+  A song thrown away is in no list but the bar's *only deleted* box, and a scan does not read its
+  files again — so a corpus full of bad rips stops costing time on every scan. Nothing is removed
+  from the disk, the same tab brings a song back, and a backup carries what you threw away.
+- **The song list can show what the analysis found wrong with each file.** Tick *show file warnings*
+  and every row carries its warnings as chips beside its title, so the files with no lyrics, with
+  words timed a line at a time, or with words that stop halfway are visible down a page instead of
+  one song page at a time.
 
 ### Changed
 
