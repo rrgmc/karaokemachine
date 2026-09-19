@@ -478,6 +478,7 @@ it are the same entry. How the thing is built is [`ARCHITECTURE.md`](../ARCHITEC
 - [`master` takes pull requests, and CI is one required check](repository.md#master-takes-pull-requests-and-ci-is-one-required-check)
 - [A vulnerability is reported privately, through GitHub](repository.md#a-vulnerability-is-reported-privately-through-github)
 - [An issue carries the platform and the program it is about](repository.md#an-issue-carries-the-platform-and-the-program-it-is-about)
+- [A pull request carries its type, and the programs and platforms it touches](repository.md#a-pull-request-carries-its-type-and-the-programs-and-platforms-it-touches)
 - [One version number for the whole repository](repository.md#one-version-number-for-the-whole-repository)
 - [A release keeps what it changed, and the changelog is where it is kept](repository.md#a-release-keeps-what-it-changed-and-the-changelog-is-where-it-is-kept)
 - [Catalogs live beside the words they translate](repository.md#catalogs-live-beside-the-words-they-translate)

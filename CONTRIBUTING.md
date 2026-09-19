@@ -18,7 +18,7 @@ tools/dev/check-prose.sh --commits   # ...and the messages it adds them in
 tools/dev/check-toolchain-pin.sh     # or: task lint:pin
 tools/dev/check-version-pin.sh       # or: task lint:version
 tools/dev/check-cargo-config.sh      # or: task lint:cargo  — every value a worktree can inherit
-tools/dev/labels.sh check            # or: task lint:labels — a label for every platform and program
+tools/dev/labels.sh check            # or: task lint:labels — a label for every platform, program and path row
 cargo fmt --all
 cargo km-lint                        # clippy over every target, -D warnings
 cargo km-test                        # the test suite
@@ -52,6 +52,17 @@ tools/platform/linux/check.sh        # fmt + clippy + tests on Linux, in Docker;
 
 Worth running. Three failures appear only off Windows: `Path` treating `\` as an ordinary character,
 a missing system library, and a wrong `#[cfg]`. All three have happened here.
+
+**A pull request is opened with its type label**: `bug`, `enhancement` or `documentation`, as
+`gh pr create --label enhancement`. A workflow adds the program and platform labels from the changed
+paths. To see what it will add:
+
+```sh
+git diff --name-only master... | tools/dev/pr-labels.sh
+```
+
+The rule is
+[A pull request carries its type, and the programs and platforms it touches](docs/decisions/repository.md#a-pull-request-carries-its-type-and-the-programs-and-platforms-it-touches).
 
 ## Branching, and worktrees
 
