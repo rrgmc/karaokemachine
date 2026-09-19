@@ -185,14 +185,36 @@ is identical each time, and the window it has to fill is minutes: to somebody wa
 sentence and a hang are the same picture. So every stretch of an open says which one it is — the
 version ladder and each repair after it, not only the two that were easy to count — and beside the
 sentence runs a count of seconds, which goes on moving through the one step that cannot say anything
-more specific than its own name. **The bar that moves is the third of the three and the weakest**: it
-is what says *working* to somebody who has not read the other two, and it is the one a browser may
-throttle, disable or never paint, so it is drawn full and resting rather than animated from nothing.
+more specific than its own name.
 
-**What it may not do is name work it is not doing.** A folder that opens in a moment passes through
-the same steps too quickly to read, and that is fine; promising it several minutes of index building
-is not. The console keeps a size threshold the page does not, because a block of three lines about
-spinning disks is noise in a terminal and the page has no quieter thing to show instead.
+**An open lists all eleven of its rungs, and a rung it did not need is one it climbed past.** The
+reason is the one
+[`A scan shows its steps`](#a-scan-shows-its-steps-what-is-left-and-can-be-stopped-from-the-page)
+gives: a name for the running step says neither what is still to come nor whether a step showing the
+same words for five minutes is working. Where the two jobs differ is how a step that does not run is
+marked. A scan knows its skips at the gate that decides them; an open's gates are conditions inside
+the open itself, with no page in reach, so reaching a later rung is the only thing that says an
+earlier one did not run. **That makes the dash mean two things, told apart by where it sits** — above
+the rung a failure stopped at, a rung the open passed and did not need; below it, a rung it was never
+going to reach.
+
+**An open that fails keeps its list, because a reason alone does not say which rung broke.** That is
+the difference between a database that would not open and one whose index has been rewritten halfway,
+and the second is the state the folder is left in. **A refusal made before any rung was climbed shows
+no list at all** — the folder is not there, it holds no database, it holds two — because eleven rungs
+marked *not needed* would say the open had considered each one and declined it.
+
+**The bar is a proportion where the rung counts what it does, and says only *working* where it does
+not.** Nine rungs are one statement each — an `ALTER TABLE`, a `CREATE INDEX`, an `ANALYZE` — with
+nothing inside them to count, and a partial bar beside one of those is a proportion nobody stated; it
+is drawn full and resting rather than animated from nothing, since a browser may throttle, disable or
+never paint it. The two that fold titles and read words go in chunks and know how far through they
+are, and those are the two that take the minutes.
+
+**What none of it may do is name work it is not doing.** A folder that opens in a moment passes
+through the same rungs too quickly to read, and that is fine; promising it several minutes of index
+building is not. The console keeps a size threshold the page does not, because a block of three lines
+about spinning disks is noise in a terminal and the page has no quieter thing to show instead.
 
 **The folder being left is closed before the next one is opened, and one process opens a file once.**
 The connections an open folder holds are the two

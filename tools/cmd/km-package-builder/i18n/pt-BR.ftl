@@ -238,6 +238,12 @@ failure-bad-ultrastar = é um arquivo UltraStar que esta máquina não toca
 failure-ultrastar-audio = é um arquivo UltraStar cujo MP3 não está ao lado
 failure-panicked = o leitor quebrou
 
+## A lista de etapas de um trabalho demorado ----------------------------------------
+
+steps = Etapas
+step-not-needed = não foi preciso desta vez
+step-not-reached = não chegou aqui
+
 ## Ler o acervo --------------------------------------------------------------------
 
 scan-reads-lead = Lê e interpreta todo arquivo compatível dentro de
@@ -275,10 +281,7 @@ scan-found = { $count ->
   }
 scan-rate = { $rate } arquivos por segundo
 scan-remaining = faltam uns { $time }
-scan-steps = Etapas
 scan-step-if-changed = só se algo mudou
-scan-step-not-needed = não foi preciso desta vez
-scan-step-not-reached = não chegou aqui
 scan-stop = Parar
 scan-stop-title = Para depois de gravar os arquivos já lidos. Tudo o que foi lido fica salvo, e a próxima leitura continua de onde parou.
 scan-stopping = Parando: gravando os arquivos já lidos.
@@ -493,6 +496,21 @@ opening-reading-words = lendo a letra de { $done } de { $total } músicas
 opening-gathering-statistics = reunindo estatísticas do acervo inteiro
 opening-folding-journal = juntando o diário de volta ao banco de dados
 opening-finishing = terminando
+
+# Os mesmos onze, como os nomes na lista de etapas ao lado da frase acima. Sem as contagens, que
+# aparecem junto da etapa em andamento como `opening-step-count`.
+opening-step-closing-previous = fechando a pasta que estava aberta
+opening-step-database = abrindo o banco de dados
+opening-step-up-to-date = atualizando o banco de dados
+opening-step-indexing = criando os índices
+opening-step-folding = preparando os títulos para a ordem da lista
+opening-step-working-out-language = descobrindo a língua de cada música
+opening-step-reading-words = lendo a letra de cada música
+opening-step-tidying-text = arrumando o texto lido dos arquivos
+opening-step-gathering-statistics = reunindo estatísticas do acervo inteiro
+opening-step-folding-journal = juntando o diário de volta ao banco de dados
+opening-step-finishing = terminando
+opening-step-count = { $done } de { $total } · { $percent }%
 
 ## O seletor de pastas --------------------------------------------------------------
 

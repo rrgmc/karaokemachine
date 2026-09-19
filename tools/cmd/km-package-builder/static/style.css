@@ -655,9 +655,11 @@ dl.facts dd { margin: 0; }
 .bar { height: 8px; background: var(--panel-2); border-radius: 4px; overflow: hidden; border: 1px solid var(--line); }
 .bar > span { display: block; height: 100%; background: var(--accent); }
 
-/* The same bar where there is no proportion to draw. An open has phases and no denominator -- the
-   step that takes the minutes is one `ANALYZE` or one table rewrite, with nothing inside it to count
-   -- so what the bar can honestly say is *working*, and it says it by moving.
+/* The same bar where there is no proportion to draw. Nine of an open's eleven rungs are one statement
+   each -- an `ALTER TABLE`, a `CREATE INDEX`, an `ANALYZE` -- with nothing inside them to count, so
+   what the bar can honestly say beside one of those is *working*, and it says it by moving. The two
+   that fold titles or read words go in chunks and know how far through they are, and those draw a
+   real proportion through the rule above.
 
    **The resting opacity is on the rule, not on the keyframe's 0%.** A browser throttles animations in
    a tab it is not painting, and the whole point of this element is to be right when somebody comes
@@ -679,30 +681,31 @@ dl.facts dd { margin: 0; }
     .bar.working > span { animation: none; }
 }
 
-/* The scan's checklist. The mark before each step is drawn here from its state, so the markup carries
-   no characters of its own: a tick for done, a pulsing dot for running, a hollow ring for waiting, a
-   dash for a step this run does not take, a cross for the step a run failed in. A skipped step is
-   dimmed as a whole, because it is the one thing on the list that will not happen. */
-ol.scan-steps { list-style: none; margin: 0.8rem 0 0; padding: 0; }
-ol.scan-steps li { padding: 0.15rem 0; }
-ol.scan-steps li::before { display: inline-block; width: 1.4rem; text-align: center; color: var(--dim); }
-ol.scan-steps li.done::before { content: "\2713"; color: var(--accent); }
-ol.scan-steps li.running::before { content: "\25CF"; color: var(--accent); animation: bar-working 1.4s ease-in-out infinite; }
-ol.scan-steps li.running .step-name { font-weight: 600; }
-ol.scan-steps li.waiting::before { content: "\25CB"; }
-ol.scan-steps li.skipped { color: var(--dim); }
-ol.scan-steps li.skipped::before { content: "\2013"; }
-ol.scan-steps li.failed::before { content: "\2717"; color: var(--bad); }
+/* The checklist a long job draws, which is the Scan page's steps and the Open page's rungs. The mark
+   before each step is drawn here from its state, so the markup carries no characters of its own: a
+   tick for done, a pulsing dot for running, a hollow ring for waiting, a dash for a step the job does
+   not take, a cross for the step a job failed in. A skipped step is dimmed as a whole, because it is
+   the one thing on the list that will not happen. */
+ol.steps { list-style: none; margin: 0.8rem 0 0; padding: 0; }
+ol.steps li { padding: 0.15rem 0; }
+ol.steps li::before { display: inline-block; width: 1.4rem; text-align: center; color: var(--dim); }
+ol.steps li.done::before { content: "\2713"; color: var(--accent); }
+ol.steps li.running::before { content: "\25CF"; color: var(--accent); animation: bar-working 1.4s ease-in-out infinite; }
+ol.steps li.running .step-name { font-weight: 600; }
+ol.steps li.waiting::before { content: "\25CB"; }
+ol.steps li.skipped { color: var(--dim); }
+ol.steps li.skipped::before { content: "\2013"; }
+ol.steps li.failed::before { content: "\2717"; color: var(--bad); }
 
 /* A run that reached its end draws its phase, its bar and its ticks in green, so a glance from across
    the room tells a finished scan from one still at 100% of its reading with the tail to come. A
    stopped or failed run keeps the accent: it ended, but not the way that means *done*. */
 .panel.succeeded > p > strong { color: var(--good); }
 .panel.succeeded .bar > span { background: var(--good); }
-.panel.succeeded ol.scan-steps li.done::before { color: var(--good); }
+.panel.succeeded ol.steps li.done::before { color: var(--good); }
 
 @media (prefers-reduced-motion: reduce) {
-    ol.scan-steps li.running::before { animation: none; }
+    ol.steps li.running::before { animation: none; }
 }
 
 /* Lyrics ----------------------------------------------------------------- */
@@ -1130,6 +1133,11 @@ main.open #opening .opening-now p { margin: 0; }
    reaches on a page that holds nothing else. */
 main.open #opening .opening-now .bar { margin-bottom: 1rem; }
 main.open #opening .opening-now .hint { display: block; margin-top: 0.6rem; font-size: 0.85rem; }
+/* The rungs, under the sentence rather than against it — and at the page's ordinary size, because the
+   panel around them is set larger and a list of eleven at 1.05rem crowds out everything above it.
+   Outside `.opening-now` as well as in, since the arm that failed draws the list and is a bare
+   `.message.error` with no panel to sit in. */
+main.open #opening ol.steps { margin-top: 1.2rem; font-size: 0.95rem; line-height: 1.45; }
 main.open h2 {
     font-size: 0.82rem;
     text-transform: uppercase;

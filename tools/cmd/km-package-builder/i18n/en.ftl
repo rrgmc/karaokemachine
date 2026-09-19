@@ -259,6 +259,15 @@ failure-bad-ultrastar = an UltraStar file this machine does not play
 failure-ultrastar-audio = an UltraStar file whose MP3 is not beside it
 failure-panicked = the parser panicked
 
+## The checklist a long job draws ---------------------------------------------------
+#
+# Both the Scan page and the Open page list their steps, so these three belong to neither. The names
+# of the steps themselves are `scan-phase-` and `opening-step-`, one set per job.
+
+steps = Steps
+step-not-needed = not needed this time
+step-not-reached = not reached
+
 ## Reading the corpus -------------------------------------------------------------
 #
 # The phases are keys because a phase is named on the worker thread, where no language is in reach.
@@ -295,10 +304,7 @@ scan-found = { $count ->
   }
 scan-rate = { $rate } files a second
 scan-remaining = about { $time } left
-scan-steps = Steps
 scan-step-if-changed = only if something changed
-scan-step-not-needed = not needed this time
-scan-step-not-reached = not reached
 scan-stop = Stop
 scan-stop-title = Stops after writing the files already read. Everything read so far is kept, and the next scan carries on from there.
 scan-stopping = Stopping: writing the files already read.
@@ -516,6 +522,22 @@ opening-reading-words = reading the words of { $done } of { $total } songs
 opening-gathering-statistics = gathering statistics over the whole corpus
 opening-folding-journal = folding the journal back into the database
 opening-finishing = finishing
+
+# The same eleven again, as the names on the checklist beside the sentence above. Bare of the counts,
+# which arrive next to the running rung as `opening-step-count`, and in the present tense of a list
+# rather than of a thing happening now.
+opening-step-closing-previous = closing the folder that was open
+opening-step-database = opening the database
+opening-step-up-to-date = bringing the database up to date
+opening-step-indexing = building the indexes
+opening-step-folding = folding titles for the browse order
+opening-step-working-out-language = working out what language each song is in
+opening-step-reading-words = reading the words of each song
+opening-step-tidying-text = tidying the text read out of the files
+opening-step-gathering-statistics = gathering statistics over the whole corpus
+opening-step-folding-journal = folding the journal back into the database
+opening-step-finishing = finishing
+opening-step-count = { $done } of { $total } · { $percent }%
 
 ## The folder picker ----------------------------------------------------------------
 

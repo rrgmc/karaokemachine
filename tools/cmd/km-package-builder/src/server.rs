@@ -1200,6 +1200,11 @@ impl State {
                 phase(crate::db::OpeningPhase::ClosingPrevious);
             }
             state.close_folder();
+            // **Said here, by the caller, rather than by `Db::prepare`.** Closing the folder that
+            // was open is the rung below this one and happens on this thread, so a job that starts
+            // already on `Database` would have to climb backwards to report it. `Db::prepare` opens
+            // a connection it was handed and has nothing to say about this.
+            phase(crate::db::OpeningPhase::Database);
             let opened = if create {
                 Db::create_saying(&root, &phase)
             } else {
@@ -1305,6 +1310,12 @@ pub struct Opening {
     /// seconds` gives, and it survives an animation a browser has throttled, disabled or never
     /// painted.
     started: Instant,
+    /// Every rung of the open, in order, with where each stands and how long each took.
+    ///
+    /// **The half the sentence and the seconds cannot cover.** A name for the running step says
+    /// neither what is still to come nor whether a step showing the same words for five minutes is
+    /// working, and an open's longest rung is exactly that shape. See [`crate::db::OPENING_LADDER`].
+    steps: crate::step::Ladder,
     /// Whether it has ended.
     finished: AtomicBool,
     /// What went wrong, if anything.
@@ -1313,12 +1324,17 @@ pub struct Opening {
 
 impl Opening {
     /// Starts one.
-    fn new(root: &Path) -> Self {
+    ///
+    /// **No rung is open yet.** The first one is named by the worker, so that a job which closes a
+    /// folder before opening one has its rungs in the order they happen. The phase behind the
+    /// sentence starts at `Database` because that is what an open with nothing to close does first.
+    pub(crate) fn new(root: &Path) -> Self {
         Self {
             path: root.to_path_buf(),
             root: root.display().to_string(),
             phase: Mutex::new(crate::db::OpeningPhase::Database),
             started: Instant::now(),
+            steps: crate::step::Ladder::of(crate::db::OPENING_LADDER),
             finished: AtomicBool::new(false),
             error: Mutex::new(None),
         }
@@ -1335,9 +1351,12 @@ impl Opening {
     /// of this type's life nothing wrote it at all: the page polled a sentence fixed at construction
     /// and so reported "opening the database" for however many minutes an open ran. `Db::prepare`
     /// knew better the whole time and was telling the console. See `db::OpeningPhase`.
-    fn set_phase(&self, phase: crate::db::OpeningPhase) {
+    pub(crate) fn set_phase(&self, phase: crate::db::OpeningPhase) {
         let mut slot = self.phase.lock().unwrap_or_else(|error| error.into_inner());
         *slot = phase;
+        // `advance_to` and not `say`, because an open names only the rungs it takes: the ones it
+        // had nothing to do are marked by being climbed past. See `crate::step::Ladder`.
+        self.steps.advance_to(phase.step());
     }
 
     /// Records the outcome, and only the first one.
@@ -1349,21 +1368,31 @@ impl Opening {
     /// The error is written *before* `finished` is published, so a page that sees a finished job
     /// sees its reason with it. The lock is what serializes the two callers, which is why no second
     /// atomic is needed to claim the right to record.
-    fn finish(&self, error: Option<String>) {
+    pub(crate) fn finish(&self, error: Option<String>) {
         let mut slot = self.error.lock().unwrap_or_else(|error| error.into_inner());
         if self.finished.load(Ordering::Acquire) {
             return;
         }
+        // The checklist is closed inside the lock that already decides which caller wins, so the
+        // rung a failed open stopped at cannot be overwritten by the guard behind it.
+        self.steps.end(error.is_some());
         *slot = error;
         self.finished.store(true, Ordering::Release);
     }
 
     /// A snapshot for the page.
-    fn snapshot(&self) -> OpeningView {
+    pub(crate) fn snapshot(&self) -> OpeningView {
+        let phase = *self.phase.lock().unwrap_or_else(|error| error.into_inner());
         OpeningView {
             root: self.root.clone(),
-            phase: *self.phase.lock().unwrap_or_else(|error| error.into_inner()),
+            phase,
             elapsed_secs: self.started.elapsed().as_secs(),
+            steps: self.steps.views(Instant::now()),
+            // Rounded down, so a bar reaches full width only when the step it draws is over rather
+            // than when it is near enough.
+            percent: phase.counted().and_then(|(done, total)| {
+                (total > 0).then(|| (done.min(total) * 100 / total) as u32)
+            }),
             finished: self.finished(),
             error: self
                 .error
@@ -1394,7 +1423,7 @@ impl Drop for EndsTheJob {
 }
 
 /// A snapshot of a folder being opened.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct OpeningView {
     /// The folder.
     pub root: String,
@@ -1402,6 +1431,10 @@ pub struct OpeningView {
     pub phase: crate::db::OpeningPhase,
     /// How long it has been going, in seconds.
     pub elapsed_secs: u64,
+    /// Every rung, in order, with where each stands.
+    pub steps: Vec<crate::step::StepView>,
+    /// How far through the running rung, where that rung counts what it does.
+    pub percent: Option<u32>,
     /// Whether it has ended.
     pub finished: bool,
     /// What went wrong, if anything.
@@ -4022,6 +4055,28 @@ mod tests {
         // Replaced rather than appended to — the field is what it is doing *now*.
         job.set_phase(crate::db::OpeningPhase::Finishing);
         assert_eq!(job.snapshot().phase, crate::db::OpeningPhase::Finishing);
+
+        // And the checklist beside it moved with every one of those, which is the half a field
+        // holding only the current step cannot answer: what is over, and what there was nothing to
+        // do. Nothing reported the six rungs between indexing and finishing, so they were passed.
+        let states = |view: &OpeningView| {
+            view.steps
+                .iter()
+                .map(|step| step.state)
+                .collect::<Vec<_>>()
+                .join(" ")
+        };
+        assert_eq!(
+            states(&job.snapshot()),
+            "skipped skipped skipped done skipped skipped skipped skipped skipped skipped running",
+            "the rungs do not follow what the job was told"
+        );
+
+        job.finish(None);
+        assert!(
+            !states(&job.snapshot()).contains("running"),
+            "a job that has ended leaves a rung claiming to be going on"
+        );
     }
 
     /// The clock reaches the page too, and it runs from the job rather than from the poll.
