@@ -1639,6 +1639,15 @@ slot inside a pane is a button that appears to do nothing whenever another tab i
 language is the fifth and aims at nothing, because it redraws the document; the redraw reopens
 Machine, which is the *which tab is open is not remembered* rule arriving for free.
 
+**This folder names the size of the discard pile, and it is the only place that does.** The browse
+list shows what has been thrown away only to somebody who asks for it. A corpus holding a hundred
+discarded songs therefore reads exactly like one holding none. The pile is a list somebody can still
+act on, and one whose size is nowhere is one nobody goes back to.
+
+**That row is drawn at nought as well**, unlike the header's failure badge. The badge is a call to go
+and look, so a nought would be a permanent fixture saying nothing. This is a page somebody opened to
+read facts about a folder, and there a nought is the answer.
+
 ## What a browse list shows without being asked
 
 **Not the file names.** A great many of this corpus's files carry no title at all and many more carry

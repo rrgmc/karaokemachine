@@ -4385,6 +4385,41 @@ mod tests {
         );
     }
 
+    /// This folder says how much is in the discard pile, which no other page does.
+    ///
+    /// The browse list shows what has been thrown away only to somebody who asked for it, so
+    /// without this row a corpus holding discarded songs reads exactly like one holding none. Drawn
+    /// at nought as well, because a page somebody opened to read facts answers rather than nags.
+    #[tokio::test]
+    async fn the_settings_page_says_how_much_has_been_thrown_away() {
+        let (_corpus, state) = a_corpus_of("settings-discard-pile", 3);
+
+        let (status, html) = get(&state, "/settings").await;
+        assert_eq!(status, axum::http::StatusCode::OK);
+        assert!(
+            html.contains("Thrown away"),
+            "the folder panel does not name the discard pile: {html}"
+        );
+
+        state
+            .blocking(|db| {
+                db.set_deleted_of(&["song-0001".to_owned()], true)
+                    .map(|_| ())
+            })
+            .await
+            .expect("throw one away");
+
+        let (_, html) = get(&state, "/settings").await;
+        let pile = html
+            .split("Thrown away")
+            .nth(1)
+            .expect("the row is on the page");
+        assert!(
+            pile.starts_with("</dt><dd>1</dd>"),
+            "the discard pile is not counted: {pile}"
+        );
+    }
+
     /// The password box is on the page, because three refusals send people to it by name.
     ///
     /// **This is the half that was missing for as long as the sentence existed.** `app.rs`'s

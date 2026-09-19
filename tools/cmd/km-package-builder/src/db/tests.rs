@@ -2452,6 +2452,50 @@ fn nothing_can_be_written_without_the_counts_noticing() {
     assert_eq!(db.counts().expect("counts").packages, 1, "a package");
 }
 
+/// The discard pile is counted the way the list of it is filtered.
+///
+/// **Settings is the only place this number is written**, because the browse list shows the pile
+/// only to somebody who has already asked for it. A corpus with a hundred songs thrown away looks
+/// exactly like one with none until then.
+///
+/// The merged song is the case worth pinning. *Only deleted* keeps `merged_into IS NULL`, since a
+/// song both merged and thrown away is still a merge and has no row of its own — so a count that
+/// dropped that half would report more than the list it counts.
+#[test]
+fn the_discard_pile_is_counted_as_the_list_of_it_is_filtered() {
+    let mut db = Db::open_in_memory(Path::new("/corpus")).expect("open");
+    add(&mut db, "keep", Some("Keep"), "folder/KEEP.kar");
+    add(&mut db, "toss", Some("Toss"), "folder/TOSS.kar");
+    add(&mut db, "both", Some("Both"), "folder/BOTH.kar");
+
+    assert_eq!(
+        db.counts().expect("counts").deleted,
+        0,
+        "a corpus nobody has thrown anything away from"
+    );
+
+    db.set_deleted_of(&["toss".to_owned()], true)
+        .expect("throw one away");
+    assert_eq!(db.counts().expect("counts").deleted, 1);
+
+    db.set_deleted_of(&["both".to_owned()], true)
+        .expect("throw another away");
+    db.set_merged_into("both", Some("keep")).expect("merge it");
+    assert_eq!(
+        db.counts().expect("counts").deleted,
+        1,
+        "a song both merged and thrown away has no row of its own in either list"
+    );
+
+    db.set_deleted_of(&["toss".to_owned()], false)
+        .expect("bring it back");
+    assert_eq!(
+        db.counts().expect("counts").deleted,
+        0,
+        "and bringing one back empties the pile again"
+    );
+}
+
 /// A page asks for one row more than it shows, and that spare row is what says *next*.
 ///
 /// The count it replaces was `SELECT COUNT(*)` over the filtered corpus on **every page turn**,

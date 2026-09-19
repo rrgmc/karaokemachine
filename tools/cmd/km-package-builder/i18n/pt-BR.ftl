@@ -732,6 +732,7 @@ settings-kept-in-tail = , que você também pode editar à mão.
 settings-this-folder = Esta pasta
 settings-root = Raiz
 settings-files = Arquivos
+settings-deleted = Jogadas fora
 settings-did-not-parse = { $count ->
     [0] { $count } dos quais não foram lidos
     [one] { $count } dos quais não foi lido

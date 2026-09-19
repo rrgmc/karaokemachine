@@ -747,6 +747,7 @@ settings-kept-in-tail = , which you can also edit by hand.
 settings-this-folder = This folder
 settings-root = Root
 settings-files = Files
+settings-deleted = Thrown away
 settings-did-not-parse = { $count ->
     [one] { $count } of which did not parse
    *[other] { $count } of which did not parse
