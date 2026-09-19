@@ -16,8 +16,8 @@ use km_suitability::Abstention;
 
 use crate::app::Client;
 use crate::db::{
-    AddedFilter, CopiesFilter, DbError, FavoritedFilter, Filter, Initial, LanguageFilter,
-    LyricSearch, ScoreFilter, SongEdit, Sort, SuitabilityFilter, VersionsFilter,
+    AddedFilter, CopiesFilter, DbError, DeletedFilter, FavoritedFilter, Filter, Initial,
+    LanguageFilter, LyricSearch, ScoreFilter, SongEdit, Sort, SuitabilityFilter, VersionsFilter,
 };
 use crate::form::Fields;
 use crate::model::{PackageRow, SongKind};
@@ -448,6 +448,16 @@ pub struct FilterQuery {
     versions: String,
     #[serde(default)]
     unpackaged: Option<String>,
+    /// Which of two lists this is: `only` for what has been thrown away, empty for the corpus.
+    ///
+    /// **A string and not the presence flag `unpackaged` beside it**, because the control's own
+    /// vocabulary is [`DeletedFilter`]'s and a third arm would otherwise need a second parameter.
+    ///
+    /// **A filter, unlike the two view boxes below**: it changes which songs match, so it is not in
+    /// `ui.js`'s `KEEPS_THE_PAGE`, it does not survive *clear all*, and turning it on starts again
+    /// at the top of the list.
+    #[serde(default)]
+    deleted: String,
     /// Not a filter: whether each row shows the name of its file beside its title. It travels with
     /// the filters because it is set while browsing and has to survive a page turn, and because the
     /// one form on the page is what sends all of them.
@@ -455,6 +465,12 @@ pub struct FilterQuery {
     /// Read through [`Self::filenames`], which is the one place the default lives.
     #[serde(default)]
     filename: Option<String>,
+    /// Not a filter either: whether each row shows what the analysis had to say against the song.
+    ///
+    /// The box beside the one above, and the same shape end to end — a presence key read through
+    /// [`Self::warnings`], off by default, surviving a page turn and *clear all*.
+    #[serde(default)]
+    warnings: Option<String>,
     #[serde(default)]
     sort: String,
     #[serde(default)]
@@ -548,6 +564,16 @@ impl FilterQuery {
         self.filename.is_some()
     }
 
+    /// Whether each row shows what the analysis had to say against the song.
+    ///
+    /// Off by default, for the box above's reason applied to a column that is empty on most of a
+    /// corpus: a chip per warning on every row costs Title and Artist the width, and the pass this
+    /// is for is hunting defects rather than browsing. An absent key is off, which is what an
+    /// unticked checkbox sends — so this is one line and no marker field is needed.
+    fn warnings(&self) -> bool {
+        self.warnings.is_some()
+    }
+
     /// The tags being narrowed by, with `add_tag` merged in — folded, sorted, de-duplicated.
     ///
     /// Merging here rather than at the one call site is what keeps the picker a *filter* and not a
@@ -616,6 +642,7 @@ impl FilterQuery {
             copies: CopiesFilter::parse(&self.copies),
             added: AddedFilter::parse(&self.added),
             versions: VersionsFilter::parse(&self.versions),
+            deleted: DeletedFilter::parse(&self.deleted),
             unpackaged: self.unpackaged.is_some(),
             in_package: None,
             granularity: (!self.granularity.is_empty()).then(|| self.granularity.clone()),
@@ -676,8 +703,10 @@ impl FilterQuery {
             copies: CopiesFilter::parse(&self.copies).as_str().to_owned(),
             added: AddedFilter::parse(&self.added).as_str().to_owned(),
             versions: VersionsFilter::parse(&self.versions).as_str().to_owned(),
+            deleted: DeletedFilter::parse(&self.deleted) == DeletedFilter::Only,
             unpackaged: self.unpackaged.is_some(),
             filename: self.filenames(),
+            warnings: self.warnings(),
             sort: Sort::parse(&self.sort).as_str().to_owned(),
         }
     }
@@ -848,6 +877,13 @@ impl FilterQuery {
             VersionsFilter::Collapsed => {}
             other => chip("versions", other.describe(locale)),
         }
+        // A chip like any other, and it has to be: this is the one filter whose page holds nothing
+        // the rest of the bar describes, so a strip that said nothing would leave an empty list
+        // with no word anywhere for why.
+        match DeletedFilter::parse(&self.deleted) {
+            DeletedFilter::Live => {}
+            other => chip("deleted", other.describe(locale)),
+        }
         if self.unpackaged.is_some() {
             chip("unpackaged", words.msg("songs-not-packaged").into_owned());
         }
@@ -881,6 +917,11 @@ impl FilterQuery {
         // `filenames`.
         if self.filenames() {
             parts.push("filename=1".to_owned());
+        }
+        // The other view box, and it survives for the same reason: it narrows nothing, so clearing
+        // the filters has nothing to say about it.
+        if self.warnings() {
+            parts.push("warnings=1".to_owned());
         }
         parts.join("&")
     }
@@ -966,6 +1007,7 @@ impl FilterQuery {
         push("copies", CopiesFilter::parse(&self.copies).as_str());
         push("added", AddedFilter::parse(&self.added).as_str());
         push("versions", VersionsFilter::parse(&self.versions).as_str());
+        push("deleted", DeletedFilter::parse(&self.deleted).as_str());
         // Normalized like `copies` above, which is also what gives the `1` a checkbox sent one page
         // turn to live and no more.
         push(
@@ -980,6 +1022,10 @@ impl FilterQuery {
         // and off says nothing, which is what the default being off buys.
         if self.filenames() && dropped != "filename" {
             parts.push("filename=1".to_owned());
+        }
+        // The other view box, same shape and for the same reason.
+        if self.warnings() && dropped != "warnings" {
+            parts.push("warnings=1".to_owned());
         }
         if offset > 0 {
             parts.push(format!("offset={offset}"));
@@ -1205,6 +1251,7 @@ async fn rows_for(state: &State, query: &FilterQuery) -> Result<SongRows, DbErro
         last_played,
         scanning: state.scan_running(),
         show_filename: query.filenames(),
+        show_warnings: query.warnings(),
         // After the rest, because it counts what is in there and reads whether a scan is running.
         range: String::new(),
     };
@@ -2836,6 +2883,161 @@ pub async fn bulk_tag(AxumState(state): AxumState<State>, action: BulkAction) ->
 
 /// `GET /songs/tag-bulk/cancel` — clears the confirmation without doing anything.
 pub async fn bulk_tag_cancel() -> Response {
+    MessageFragment::ok("")
+}
+
+/// `POST /songs/delete-bulk`
+///
+/// Throws away, or brings back, the ticked rows or the whole filter. [`bulk_tag`] end to end — the
+/// same two steps, the same scope select with the same default, the same frozen query string — with
+/// three differences, each of which is a property of what deleting is.
+///
+/// **It answers with the list rather than with a toast alone.** Every other bulk action here leaves
+/// the rows saying what they said: a language, a tag and a favorite are written *onto* songs that go
+/// on matching the filter that found them. This one takes them out of it, so a table left as it was
+/// would show songs that are no longer there, and the next tick would act on a row that had gone.
+///
+/// **So the page it was pressed on has to be carried, and it rides in the frozen query string.**
+/// The confirmation writes the offset into the URL the confirm button posts to, which is the same
+/// mechanism that already freezes the filter — no `data-keeps-the-page`, nothing for `ui.js` to
+/// read, and nothing for `rebuild` to keep in step. `rows_for`'s clamp then answers a page that the
+/// write pushed past the end with the last real one.
+///
+/// **The count does not travel**, for the reason `What keeps the page you are on` gives: this
+/// changes how many songs match, so the total is taken again rather than carried, and the label
+/// cannot contradict the rows under it.
+///
+/// **A packaged song goes like any other, and the confirmation names how many.** Deleting one takes
+/// it out of the list its package is rebuilt from. The number is on the screen before the button is
+/// pressed, and the judgment belongs to whoever curated the package. See `Throwing a song away` in
+/// `docs/decisions/curation.md`.
+pub async fn bulk_delete(AxumState(state): AxumState<State>, action: BulkAction) -> Response {
+    let BulkAction {
+        query,
+        whole_filter,
+        ticked,
+        confirmed,
+        form,
+    } = action;
+
+    // `delete_action`, not `deleted`: the bar rides in the same body and has a `deleted` field of
+    // its own, so one spelling for both would be a repeated key and a 400 — and the two mean
+    // opposite things, since the bar's names the list being looked at and this names what to do to
+    // it. The same rule `set_language` and `set_tag` follow above.
+    let restoring = form.one("delete_action") == Some("undelete");
+    let filter = query.to_filter();
+
+    if !confirmed {
+        let counting = filter.clone();
+        let ids = ticked.clone();
+        let counted = state
+            .blocking(move |db| {
+                let (count, packaged) = if whole_filter {
+                    (
+                        db.count_matching(&counting)?,
+                        db.packaged_count_matching(&counting)?,
+                    )
+                } else if ids.is_empty() {
+                    (0, 0)
+                } else {
+                    // Counted rather than taken from the number of ticks, so a page holding rows
+                    // already in the state being asked for says what the write will do.
+                    (
+                        db.deletable_count_of(&ids, !restoring)?,
+                        db.packaged_count_of(&ids)?,
+                    )
+                };
+                Ok((count, packaged, db.favorites()?))
+            })
+            .await;
+        let (count, packaged, favorites) = match counted {
+            Ok(triple) => triple,
+            Err(error) => return MessageFragment::failed(error.say(state.locale())),
+        };
+        if count == 0 {
+            return MessageFragment::failed(match (whole_filter, ticked.is_empty()) {
+                (false, true) => "Nothing is ticked.".to_owned(),
+                (false, false) if restoring => "Nothing ticked was deleted.".to_owned(),
+                (false, false) => "Everything ticked is already deleted.".to_owned(),
+                (true, _) => "Nothing matches that filter.".to_owned(),
+            });
+        }
+        let filters: Vec<String> = if whole_filter {
+            query
+                .active(&favorites, state.locale())
+                .into_iter()
+                .map(|chip| chip.label)
+                .collect()
+        } else {
+            vec![format!("{} ticked", ticked.len())]
+        };
+        let (subject, confirm) = confirm_words(
+            state.locale(),
+            count,
+            "confirm-songs",
+            if restoring {
+                "confirm-undelete"
+            } else {
+                "confirm-delete"
+            },
+        );
+        let words = crate::words::messages(state.locale());
+        return page(
+            &crate::views::BulkDeleteConfirm {
+                subject,
+                confirm,
+                whole_corpus: whole_filter && filters.is_empty(),
+                filters,
+                restoring,
+                // Said only when there are any, and only when something is being thrown away:
+                // bringing songs back puts them into the lists their packages read, which is the
+                // direction nobody needs warning about.
+                packaged: match packaged > 0 && !restoring {
+                    true => words
+                        .msg_with(
+                            "confirm-delete-packaged",
+                            &[("count", i64::from(packaged).into())],
+                        )
+                        .into_owned(),
+                    false => String::new(),
+                },
+                // The offset goes in where the other confirmations write a zero, which is the whole
+                // of how this action keeps its page.
+                query: query.rebuild(query.offset.unwrap_or(0), "", None),
+                songs: if whole_filter { Vec::new() } else { ticked },
+            },
+            state.locale(),
+        );
+    }
+
+    let written = state
+        .blocking(move |db| match whole_filter {
+            true => db.set_deleted_for(&filter, !restoring),
+            false => db.set_deleted_of(&ticked, !restoring),
+        })
+        .await;
+    let count = match written {
+        Ok(count) => count,
+        Err(error) => return crate::views::toast_only(&Toast::bad(error.say(state.locale()))),
+    };
+    let said = crate::words::messages(state.locale())
+        .msg_with(
+            if restoring {
+                "said-undeleted"
+            } else {
+                "said-deleted"
+            },
+            &[("count", i64::from(count).into())],
+        )
+        .into_owned();
+    // The write has happened, so a redraw that fails is reported as itself with the sentence the
+    // write earned still in it — `redraw_over_the_write`'s own rule, and the reason this goes
+    // through it rather than rendering rows here.
+    redraw_over_the_write(&state, Redraw::Rows(Box::new(query)), said).await
+}
+
+/// `GET /songs/delete-bulk/cancel` — clears the confirmation without doing anything.
+pub async fn bulk_delete_cancel() -> Response {
     MessageFragment::ok("")
 }
 
@@ -8783,6 +8985,76 @@ mod tests {
         let off = FilterQuery::default().with_offset(100, 4200);
         assert!(!off.contains("filename"), "{off}");
         assert!(!FilterQuery::default().only_view().contains("filename"));
+    }
+
+    /// The warnings box is the file-name box's twin: not a filter, and it survives both.
+    #[test]
+    fn the_warnings_box_is_not_a_filter_and_survives_paging_and_clearing() {
+        let on = FilterQuery {
+            warnings: Some("1".to_owned()),
+            q: "jobim".to_owned(),
+            ..FilterQuery::default()
+        };
+        assert!(on.warnings());
+        assert!(on.to_form(&[], &[]).warnings);
+        // It narrows nothing, so the filter it produces is the one an untouched bar produces.
+        assert_eq!(on.to_filter().deleted, DeletedFilter::Live);
+
+        let next = on.with_offset(100, 4200);
+        assert!(next.contains("warnings=1"), "{next}");
+        let cleared = on.only_view();
+        assert!(cleared.contains("warnings=1"), "{cleared}");
+        assert!(!cleared.contains("q="), "{cleared}");
+
+        let off = FilterQuery::default().with_offset(100, 4200);
+        assert!(!off.contains("warnings"), "{off}");
+        assert!(!FilterQuery::default().only_view().contains("warnings"));
+    }
+
+    /// *Only deleted* is a filter, so it travels, it draws a chip, and *clear all* takes it off.
+    ///
+    /// **The last assertion is the one worth having.** The two view boxes beside it survive a clear
+    /// because they narrow nothing; this one narrows to a list holding none of the corpus, and
+    /// somebody who has just pressed *clear all* must not be handed the discard pile.
+    #[test]
+    fn only_deleted_is_a_filter_rather_than_a_view() {
+        let on = FilterQuery {
+            deleted: "only".to_owned(),
+            ..FilterQuery::default()
+        };
+        assert_eq!(on.to_filter().deleted, DeletedFilter::Only);
+        assert!(on.with_offset(100, 4200).contains("deleted=only"));
+        assert!(
+            !on.only_view().contains("deleted"),
+            "clear all means the corpus"
+        );
+
+        // Normalized through the enum, so a hand-typed value shows the box as the bar can draw it
+        // rather than leaving a filter nothing on the page admits to.
+        let nonsense = FilterQuery {
+            deleted: "sometimes".to_owned(),
+            ..FilterQuery::default()
+        };
+        assert_eq!(nonsense.to_filter().deleted, DeletedFilter::Live);
+        assert!(!nonsense.with_offset(0, 10).contains("deleted"));
+    }
+
+    /// The Delete tab's field cannot collide with the bar's box of nearly the same name.
+    ///
+    /// Both ride in one body — `hx-include="#filters, #rows"` — and a repeated key is a 400 from
+    /// `serde_urlencoded` that takes the button out of service with nothing said anywhere. The two
+    /// words also mean opposite things: the bar's names which list is on screen, the tab's names
+    /// what to do to it.
+    #[test]
+    fn the_delete_action_can_ride_in_the_same_body_as_the_bar() {
+        let body = "deleted=only&delete_action=undelete&scope=matching&q=jobim";
+        let query = FilterQuery::from_body(body).expect("the bar reads its own fields");
+        assert_eq!(query.to_filter().deleted, DeletedFilter::Only);
+        assert_eq!(query.q, "jobim");
+
+        let fields = Fields::parse(body);
+        assert_eq!(fields.one("delete_action"), Some("undelete"));
+        assert_eq!(fields.one("scope"), Some("matching"));
     }
 
     /// A package's name becomes something that can be a file on three platforms.

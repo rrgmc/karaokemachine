@@ -114,6 +114,27 @@ pub(super) fn eff_language(alias: &str) -> String {
     )
 }
 
+/// The terms every browse query carries and every `songs_browse_*` index is partial on.
+///
+/// **One function rather than the predicate at each call site, because the two sides have to match
+/// exactly or the indexes stop being used.** SQLite serves a partial index only where the query
+/// implies its `WHERE`, and a term added to [`Filter::to_sql`] but not to
+/// [`Db::create_browse_indexes`] does not fail — it makes every sort read the whole corpus into a
+/// temp B-tree with nothing anywhere saying why. Eleven copies of the predicate were eleven chances
+/// for that.
+///
+/// `alias` is what the query prefixes its columns with and an index cannot have any, which is why
+/// this takes one at all — the shape [`eff_title`] and [`eff_language`] above already have.
+///
+/// A song set aside as a near-duplicate is not here: `VersionsFilter` decides that one, and a
+/// filter naming a single favorite drops it.
+pub(super) fn browsable(alias: &str) -> String {
+    format!(
+        "{alias}merged_into IS NULL AND {}",
+        DeletedFilter::Live.clause(alias)
+    )
+}
+
 /// How many ids go into one `IN (…)`.
 ///
 /// SQLite binds at most 999 parameters in a statement and nothing stops a caller handing more: the
@@ -147,6 +168,21 @@ pub(super) fn unset_narrowing(only_unset: bool) -> String {
         .clause(&eff_language(""))
         .map(|clause| format!(" AND {clause}"))
         .unwrap_or_default()
+}
+
+/// What `deleted_at` is set to by a delete or an undelete.
+///
+/// **A SQL expression rather than a bound value, because the time has to be the statement's.**
+/// `'now'` is fixed for one step of a statement, so a write over a whole filter lands one timestamp
+/// on every row it changes; a value bound from Rust would do the same, and this way the shape is
+/// `crate::scan::timestamp()`'s character for character without a second place spelling it — UTC,
+/// four-digit year, two digits everywhere else, `Z`. The same expression `songs_stamp_update` uses.
+pub(super) fn deleted_value(deleted: bool) -> &'static str {
+    if deleted {
+        "strftime('%Y-%m-%dT%H:%M:%SZ', 'now')"
+    } else {
+        "NULL"
+    }
 }
 
 /// Whether the title being shown is only the file's name — nobody typed one and the file said none.
@@ -316,7 +352,16 @@ pub(super) fn browse_columns() -> String {
          -- Word for word the predicate `lyrics_fts_insert` indexes by, so a row that offers the
          -- search is a row that can be a candidate. The empty string is never stored, which makes
          -- the second test redundant today and keeps the two from parting if that ever changes.
-         (s.lyrics IS NOT NULL AND s.lyrics <> '') AS has_words",
+         (s.lyrics IS NOT NULL AND s.lyrics <> '') AS has_words,
+         -- What the analysis had to say against this song, for the browse row's warning chips.
+         -- Appended, for the reason above.
+         --
+         -- **Selected on every page whether or not the box asking for them is ticked**, which the
+         -- chips being a class on the block rather than a flag on the row already requires: a row
+         -- redrawn on its own by the single-row route never sees the browse query, and a row that
+         -- fetched its warnings only when asked would lose them the first time somebody rated it.
+         -- The column is a short JSON array and empty on most of a corpus.
+         s.warnings",
         eff_title("s."),
         eff_artist("s."),
         title_is_filename("s."),
@@ -364,6 +409,7 @@ pub(super) fn song_row(row: &Row<'_>) -> rusqlite::Result<SongRow> {
         permanent_count: row.get::<_, i64>(16)? as u32,
         duplicate_of: row.get(17)?,
         has_words: row.get::<_, i64>(18)? != 0,
+        warnings: row.get(19)?,
     })
 }
 

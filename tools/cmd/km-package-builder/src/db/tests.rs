@@ -2782,6 +2782,255 @@ fn filtering_by_language_narrows_and_both_sentinels_work() {
     assert!(matching(LanguageFilter::parse("ja")).is_empty());
 }
 
+/// A song thrown away leaves every list but the one that asks for it, and comes back whole.
+///
+/// **The count is asserted beside the rows**, because the two are answered by different SQL over
+/// the same `Filter::to_sql` — a page that hides a song while the label goes on counting it is the
+/// failure a term added to one and not the other produces.
+#[test]
+fn a_song_thrown_away_is_in_no_list_but_the_one_that_asks_for_it() {
+    let mut db = Db::open_in_memory(Path::new("/corpus")).expect("open");
+    add(&mut db, "keep", Some("Corcovado"), "folder/keep.kar");
+    add(&mut db, "toss", Some("Chega de Saudade"), "folder/toss.kar");
+
+    let listed = |deleted: DeletedFilter| {
+        let filter = Filter {
+            deleted,
+            ..Filter::default()
+        };
+        let mut ids: Vec<String> = db
+            .songs(&filter)
+            .expect("browse")
+            .iter()
+            .map(|row| row.id.clone())
+            .collect();
+        ids.sort();
+        (ids, db.count_matching(&filter).expect("count"))
+    };
+
+    assert_eq!(
+        db.set_deleted_of(&["toss".to_owned()], true)
+            .expect("throw"),
+        1
+    );
+
+    let (live, live_count) = listed(DeletedFilter::Live);
+    assert_eq!(live, vec!["keep".to_owned()]);
+    assert_eq!(
+        live_count, 1,
+        "the label has to agree with the rows under it"
+    );
+
+    let (gone, gone_count) = listed(DeletedFilter::Only);
+    assert_eq!(gone, vec!["toss".to_owned()]);
+    assert_eq!(gone_count, 1);
+
+    // Every other surface asks the same question through the same clause, so a search that found
+    // it before must not find it now.
+    assert!(
+        db.songs(&Filter {
+            query: Some("Saudade".to_owned()),
+            ..Filter::default()
+        })
+        .expect("search")
+        .is_empty(),
+        "a search is a narrowing of the browse list and inherits the term"
+    );
+
+    // And back. The row was never removed, so nothing has to be scanned to return it.
+    assert_eq!(
+        db.set_deleted_of(&["toss".to_owned()], false)
+            .expect("back"),
+        1
+    );
+    assert_eq!(listed(DeletedFilter::Live).0.len(), 2);
+    assert!(listed(DeletedFilter::Only).0.is_empty());
+}
+
+/// Deleting over a filter writes the rows that filter lists, and counts a package before it does.
+#[test]
+fn deleting_a_whole_filter_takes_what_it_lists_and_counts_what_a_package_holds() {
+    let mut db = Db::open_in_memory(Path::new("/corpus")).expect("open");
+    add(&mut db, "one", Some("Corcovado"), "brasil/one.kar");
+    add(&mut db, "two", Some("Insensatez"), "brasil/two.kar");
+    add(&mut db, "far", Some("Yesterday"), "ingles/far.kar");
+
+    db.create_package(
+        &PackageRow::new("1f4a9c8e2b7d0356", "Brasil"),
+        "2026-09-18T00:00:00Z",
+    )
+    .expect("a package");
+    db.add_to_package(
+        "1f4a9c8e2b7d0356",
+        &["one".to_owned()],
+        "2026-09-18T00:00:00Z",
+    )
+    .expect("file one of them");
+
+    let brasil = Filter {
+        folder: Some("brasil/".to_owned()),
+        ..Filter::default()
+    };
+    assert_eq!(db.count_matching(&brasil).expect("count"), 2);
+    assert_eq!(
+        db.packaged_count_matching(&brasil).expect("packaged"),
+        1,
+        "the confirmation names this number before the write"
+    );
+
+    assert_eq!(db.set_deleted_for(&brasil, true).expect("throw"), 2);
+    // A packaged song goes with the rest: the count is said, not enforced.
+    assert_eq!(db.count_matching(&brasil).expect("count"), 0);
+    assert_eq!(
+        db.count_matching(&Filter::default()).expect("count"),
+        1,
+        "the folder that was not named keeps its song"
+    );
+}
+
+/// A ticked row already in the state being asked for is not a row the write touches.
+#[test]
+fn the_ticked_count_is_what_the_write_will_do_rather_than_what_was_ticked() {
+    let mut db = Db::open_in_memory(Path::new("/corpus")).expect("open");
+    add(&mut db, "gone", Some("Corcovado"), "folder/gone.kar");
+    add(&mut db, "here", Some("Insensatez"), "folder/here.kar");
+    db.set_deleted_of(&["gone".to_owned()], true)
+        .expect("throw");
+
+    let both = ["gone".to_owned(), "here".to_owned()];
+    assert_eq!(
+        db.deletable_count_of(&both, true).expect("count"),
+        1,
+        "one of the two is already thrown away"
+    );
+    assert_eq!(
+        db.deletable_count_of(&both, false).expect("count"),
+        1,
+        "and the other way round"
+    );
+}
+
+/// Songs enough to reason from, with the statistics gathered.
+///
+/// **A plan read off an empty table says nothing.** SQLite has no `sqlite_stat1` to consult, guesses
+/// which term is selective, and picks an index a real corpus would never make it pick — so a planner
+/// test without this passes and fails for reasons unconnected to the code. The same setup
+/// `the_browse_order_is_an_index_seek_and_not_a_sort_of_the_corpus` makes, and its note says why at
+/// length.
+fn corpus_with_statistics() -> Db {
+    let mut db = Db::open_in_memory(Path::new("/corpus")).expect("open");
+    for number in 0..300 {
+        add(
+            &mut db,
+            &format!("song-{number:04}"),
+            Some(&format!("Song {number:04}")),
+            &format!("folder/SONG{number:04}.kar"),
+        );
+    }
+    db.refresh_statistics();
+    db
+}
+
+/// The *only deleted* list seeks its own partial index rather than reading the corpus.
+///
+/// **A planner test rather than a behavior one**, like the browse sorts beside it: the predicate is
+/// true of nearly no row, so a page that scans to find the handful somebody discarded does not
+/// fail — it is merely slow for ever.
+///
+/// **It is also what says a partial index beside `songs_countable` would be waste.** All three
+/// terms are in that key, so this is equality on two columns and a range on the third; a second
+/// corpus-sized B-tree to answer the same question would be maintained on every write for nothing.
+#[test]
+fn the_deleted_list_is_answered_from_its_own_index() {
+    let db = corpus_with_statistics();
+    // A handful thrown away out of three hundred, because an empty partial index has no statistics
+    // row at all and the planner walks past one it cannot price. The proportion is the point as
+    // much as the rows: a discard pile is a sliver of a corpus, which is what makes the partial
+    // index worth having.
+    db.set_deleted_of(
+        &[
+            "song-0007".to_owned(),
+            "song-0042".to_owned(),
+            "song-0100".to_owned(),
+        ],
+        true,
+    )
+    .expect("throw three away");
+    db.refresh_statistics();
+
+    let filter = Filter {
+        deleted: DeletedFilter::Only,
+        ..Filter::default()
+    };
+    let (where_clause, _values) = filter.to_sql();
+    let plan = db
+        .plan_for_test(
+            &format!(
+                "SELECT s.id FROM songs s WHERE {where_clause} ORDER BY {} LIMIT 51",
+                filter.order_by()
+            ),
+            &[],
+        )
+        .expect("a plan");
+    assert!(
+        plan.contains("songs_deleted"),
+        "the deleted list has to seek its own partial index rather than scan the corpus: {plan}"
+    );
+}
+
+/// Deleting must not cost the browse list its orderings, which is the expensive way to be wrong.
+///
+/// **The `ORDER BY` is the whole test, and leaving it out is what let this through once.** Checking
+/// the `WHERE` alone says an index was chosen and nothing about which; the browse page's cost is
+/// decided by whether the chosen one also supplies the order. `songs_countable` holding `deleted_at`
+/// as a third *key* column beat `songs_browse_*` on the equality terms, carried no order, and every
+/// sorted page read `USE TEMP B-TREE FOR ORDER BY` over the whole corpus — measured at four seconds
+/// a page against milliseconds, on a real corpus, with nothing on screen saying why. The predicate
+/// lives in that index's `WHERE` for exactly this reason.
+///
+/// One assertion per sort, because an index is chosen per query and a single sort passing says
+/// nothing about the other nine.
+#[test]
+fn deleting_costs_the_browse_sorts_none_of_their_indexes() {
+    let db = corpus_with_statistics();
+    for sort in [
+        Sort::Title,
+        Sort::Artist,
+        Sort::Suitability,
+        Sort::UserScore,
+        Sort::Duration,
+        Sort::Copies,
+        Sort::Language,
+        Sort::Updated,
+        Sort::Added,
+    ] {
+        let filter = Filter {
+            sort,
+            ..Filter::default()
+        };
+        let (where_clause, _values) = filter.to_sql();
+        let plan = db
+            .plan_for_test(
+                &format!(
+                    "SELECT s.id FROM songs s WHERE {where_clause} ORDER BY {} LIMIT 51",
+                    filter.order_by()
+                ),
+                &[],
+            )
+            .expect("a plan");
+        assert!(
+            !plan.contains("TEMP B-TREE"),
+            "sorting by {} reads the corpus into a temp B-tree: {plan}",
+            sort.as_str()
+        );
+        assert!(
+            plan.contains("songs_browse_"),
+            "sorting by {} has to walk a browse index: {plan}",
+            sort.as_str()
+        );
+    }
+}
+
 /// The bulk set writes exactly the rows the same filter lists, and nothing else.
 ///
 /// The property worth pinning is not that it works but that it agrees: it and the browse list
@@ -3549,12 +3798,32 @@ fn a_database_at_schema_14_steps_to_the_current_schema() {
             // The stamp trigger names the hand-set columns, so a column it watches cannot be
             // dropped underneath it. Every trigger is dropped and recreated on open, so taking it
             // off here costs nothing and is what a schema-14 database would have had anyway.
+            //
+            // Every browse index is partial on `deleted_at` as well, and SQLite refuses to drop a
+            // column any index names — so all ten go, and the one this test is about is put back in
+            // the shape a schema-14 build wrote it in. `create_browse_indexes` rebuilds the rest on
+            // the open below, which is exactly what a database in the field gets.
             "DROP TRIGGER IF EXISTS songs_stamp_update;
+             DROP INDEX IF EXISTS songs_browse_title_artist;
+             DROP INDEX IF EXISTS songs_browse_letter_artist;
+             DROP INDEX IF EXISTS songs_browse_suitability_artist;
+             DROP INDEX IF EXISTS songs_browse_sort_artist;
              DROP INDEX IF EXISTS songs_browse_language_artist;
+             DROP INDEX IF EXISTS songs_browse_user_score_artist;
+             DROP INDEX IF EXISTS songs_browse_duration;
+             DROP INDEX IF EXISTS songs_browse_copies;
+             DROP INDEX IF EXISTS songs_browse_updated_artist;
+             DROP INDEX IF EXISTS songs_browse_added_artist;
+             DROP INDEX IF EXISTS songs_countable;
+             DROP INDEX IF EXISTS songs_deleted;
              ALTER TABLE packages DROP COLUMN number_one_volume;
              ALTER TABLE songs DROP COLUMN det_language_guess;
              ALTER TABLE songs DROP COLUMN det_language_guess_confidence;
              ALTER TABLE songs DROP COLUMN lyrics_hidden;
+             ALTER TABLE songs DROP COLUMN deleted_at;
+             -- The narrow shape a schema-14 build wrote, so the step's `DROP INDEX` has the index
+             -- it exists to replace rather than a wider one already in place.
+             CREATE INDEX songs_countable ON songs(merged_into, duplicate_of);
              CREATE INDEX songs_browse_language_artist ON songs(
                  coalesce(nullif(language, ''), det_language_tag) IS NULL,
                  coalesce(nullif(language, ''), det_language_tag),
@@ -3593,6 +3862,23 @@ fn a_database_at_schema_14_steps_to_the_current_schema() {
     assert!(
         key.contains("det_language_guess"),
         "the language index still holds a key that predates the guess: {key}"
+    );
+    // And its partial predicate was widened with it. A browse index still partial on `merged_into`
+    // alone cannot serve a query that also asks `deleted_at IS NULL`, so the planner would walk
+    // away from it and sort the corpus instead — silently, which is what this whole rebuild guards.
+    assert!(
+        key.contains("deleted_at"),
+        "the language index is partial on a predicate that predates deleting: {key}"
+    );
+    // The count's index too, which is dropped by the step rather than by the index rebuild: it
+    // lives in `schema.sql` under `IF NOT EXISTS`, so without the drop a database in the field
+    // would keep the two-column shape for ever and the count would read every row.
+    let countable = db
+        .index_sql_for_test("songs_countable")
+        .expect("the index is there");
+    assert!(
+        countable.contains("deleted_at"),
+        "the count's index kept the shape that predates deleting: {countable}"
     );
 }
 
@@ -5519,6 +5805,48 @@ fn an_index_this_build_no_longer_intends_is_dropped_rather_than_left_to_be_chose
             .expect("indexes")
             .iter()
             .any(|name| name == "songs_browse_stale")
+    );
+}
+
+/// Rebuilding an index says so, because the statistics describing the old one outlive it.
+///
+/// **The hole this closes is the one `missing_indexes` cannot see.** That list is read before
+/// `schema.sql` runs and it holds *names*; an index whose key or predicate changed keeps its name
+/// all the way through, so it is never reported missing and nothing asks for an `ANALYZE`. Its
+/// `sqlite_stat1` row then survives describing a shape the database no longer has, and the planner
+/// prices an index that is gone.
+///
+/// **Measured on a real corpus rather than reasoned about**: every browse sort abandoned its index
+/// and read the whole corpus into a temp B-tree, four seconds a page, and one `ANALYZE` by hand put
+/// all nine back. The plan was correct the moment the statistics were, which is why this is about
+/// the signal and not about the index.
+///
+/// The false case matters as much as the true one: an open that rebuilt nothing must not pay for a
+/// corpus-sized `ANALYZE`, which is minutes on the database this tool is for.
+#[test]
+fn a_rebuilt_index_asks_for_the_statistics_it_invalidated() {
+    let db = db();
+    assert!(
+        !db.create_browse_indexes().expect("a settled database"),
+        "an open that changed no index must not ask for an ANALYZE"
+    );
+
+    // The shape a build one predicate behind wrote: the right name, the wrong `WHERE`.
+    db.execute_for_test(
+        "DROP INDEX songs_browse_title_artist;
+         CREATE INDEX songs_browse_title_artist
+             ON songs(sort_title, sort_artist IS NULL, sort_artist, id)
+           WHERE merged_into IS NULL",
+    )
+    .expect("an index from a build that is behind");
+
+    assert!(
+        db.create_browse_indexes().expect("rebuild"),
+        "an index rebuilt under its own name has to ask for the statistics it invalidated"
+    );
+    assert!(
+        !db.create_browse_indexes().expect("settled again"),
+        "and the open after it has nothing left to gather"
     );
 }
 

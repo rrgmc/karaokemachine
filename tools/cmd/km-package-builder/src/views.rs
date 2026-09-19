@@ -347,11 +347,37 @@ pub struct SongRows {
     /// row's markup already, and a row re-rendered on its own — by a route that never sees this
     /// query — is swapped back inside `#rows` and inherits the answer from where it lands.
     pub show_filename: bool,
+    /// Whether the block is asked to show what the analysis had to say against each song.
+    ///
+    /// A class on `#rows` too, and for the reason above word for word: the chips are in every row's
+    /// markup already, and a row redrawn on its own has to inherit the answer from where it lands
+    /// rather than lose it.
+    pub show_warnings: bool,
     /// Which page of rows this is, out of how many, as the pager says it. Set by [`Self::say_range`].
     pub range: String,
 }
 
 impl SongRows {
+    /// The classes on `#rows`, which are the two view boxes and nothing else.
+    ///
+    /// **Composed here rather than as two conditionals in the markup.** The second one would have
+    /// to know whether the first had already opened the attribute and whether a separating space
+    /// was owed, which is a rule about HTML syntax living in a template; a third box later would
+    /// have to know it about both.
+    ///
+    /// Empty when neither is on, which is what the markup tests for: a bare `class=""` on every
+    /// page would be an attribute that says nothing.
+    pub fn block_class(&self) -> String {
+        let mut classes = Vec::new();
+        if self.show_filename {
+            classes.push("filenames");
+        }
+        if self.show_warnings {
+            classes.push("warnings");
+        }
+        classes.join(" ")
+    }
+
     /// Which page of rows this is, out of how many, as the pager says it. See [`say_page`].
     ///
     /// **Two sentences rather than a `~` in front of the counts**, because a scan writing rows
@@ -929,9 +955,14 @@ pub struct FilterForm {
     pub suggested_tags: Vec<String>,
     /// Only songs in no package.
     pub unpackaged: bool,
-    /// Whether each row shows its file name beside its title. The one box in this form that narrows
-    /// nothing; it is here because it is set while browsing and has to survive a page turn.
+    /// Whether the list is what has been thrown away rather than the corpus.
+    pub deleted: bool,
+    /// Whether each row shows its file name beside its title. One of the two boxes in this form
+    /// that narrow nothing; they are here because they are set while browsing and have to survive a
+    /// page turn.
     pub filename: bool,
+    /// Whether each row shows what the analysis had to say against the song. The other one.
+    pub warnings: bool,
     /// Sort key.
     pub sort: String,
 }
@@ -2772,6 +2803,40 @@ pub struct BulkTagConfirm {
     pub songs: Vec<String>,
 }
 
+/// `POST /songs/delete-bulk` before it is confirmed: how many songs, which way, and how many of
+/// them a package names.
+///
+/// [`BulkTagConfirm`] with the tag swapped for a sentence about packages. That sentence is the one
+/// thing here the other confirmations have no equivalent of: every other bulk action writes onto
+/// songs that stay in the lists they are in, where this takes them out of the list a package is
+/// rebuilt from.
+#[derive(Template)]
+#[template(path = "bulk_delete_confirm.html")]
+pub struct BulkDeleteConfirm {
+    /// Whether that is the whole corpus, said out loud rather than left to be inferred from a large
+    /// number. A field rather than `filters.is_empty()`, for [`BulkLanguageConfirm`]'s reason.
+    pub whole_corpus: bool,
+    /// What is narrowing it, in the words the chips use.
+    pub filters: Vec<String>,
+    /// What is being changed, counted: *155 songs*.
+    pub subject: String,
+    /// The button that goes ahead, which names the count again.
+    pub confirm: String,
+    /// Whether this brings songs back rather than throwing them away.
+    pub restoring: bool,
+    /// How many of them a package names, composed and counted, or empty when none do.
+    ///
+    /// Composed in Rust rather than a number the markup puts a word beside, for [`Self::subject`]'s
+    /// reason: the word follows the number and each language chooses its own form. Empty is the
+    /// ordinary case and draws nothing at all.
+    pub packaged: String,
+    /// The query string that was counted, carrying the page it was pressed on, so the confirmed
+    /// write is over exactly that set and the list comes back where it was.
+    pub query: String,
+    /// The ticked ids, as hidden fields. Empty for a filter-wide write.
+    pub songs: Vec<String>,
+}
+
 /// `POST /songs/favorite-bulk` before it is confirmed: which songs, and in or out of what.
 #[derive(Template)]
 #[template(path = "bulk_favorite_confirm.html")]
@@ -3257,6 +3322,7 @@ mod tests {
             title: title.to_owned(),
             artist: artist.map(ToOwned::to_owned),
             language: Some("pt".to_owned()),
+            warnings: "[]".to_owned(),
             tags: Vec::new(),
             hint: None,
             artist_title: String::new(),
@@ -3320,6 +3386,7 @@ mod tests {
             last_played: None,
             scanning: false,
             show_filename: false,
+            show_warnings: false,
             range: String::new(),
         };
         rows.say_range(km_locale::Locale::English, 50);
@@ -4664,6 +4731,62 @@ mod tests {
             .in_english()
             .expect("render");
         assert!(alone.contains(">CORCOVAD.kar<"), "{alone}");
+    }
+
+    /// The warnings are the same switch, and the two boxes compose into one class attribute.
+    ///
+    /// **The both-on case is what this exists for.** Each box drawn by its own conditional in the
+    /// markup would have the second one needing to know whether the first had opened the attribute
+    /// and owed a space — so the names are joined in Rust and the markup asks once.
+    #[test]
+    fn warnings_are_shown_by_a_class_on_the_block_and_compose_with_file_names() {
+        let mut song = row("Corcovado", Some("Tom Jobim"), "Brasil/CORCOVAD.kar");
+        song.warnings =
+            "[{\"code\":\"no_lyrics\",\"message\":\"nothing to sing from\"}]".to_owned();
+
+        let off = rows(vec![song.clone()]).in_english().expect("render");
+        assert!(!off.contains("class=\"warnings\""), "{off}");
+
+        let mut asked = rows(vec![song.clone()]);
+        asked.show_warnings = true;
+        let on = asked.in_english().expect("render");
+        assert!(on.contains("id=\"rows\" class=\"warnings\""), "{on}");
+
+        let mut both = rows(vec![song.clone()]);
+        both.show_filename = true;
+        both.show_warnings = true;
+        let html = both.in_english().expect("render");
+        assert!(
+            html.contains("id=\"rows\" class=\"filenames warnings\""),
+            "{html}"
+        );
+
+        // The chips are in the markup whichever way the box is set, which is what lets a row
+        // redrawn on its own inherit the answer. The code is the chip and the message its tooltip.
+        for html in [&off, &on] {
+            assert!(html.contains(">no_lyrics<"), "{html}");
+            assert!(html.contains("nothing to sing from"), "{html}");
+        }
+        let alone = SongRowFragment::new(song, false, Choice::languages_in(&[], None))
+            .in_english()
+            .expect("render");
+        assert!(alone.contains(">no_lyrics<"), "{alone}");
+    }
+
+    /// A column that is not a warning list draws no chips rather than failing the page.
+    ///
+    /// Fifty rows are rendered at a time, so a row whose column cannot be read has to cost its own
+    /// chips and nothing else — the rule the song's own page follows over the same text.
+    #[test]
+    fn a_warnings_column_that_cannot_be_read_draws_nothing() {
+        let mut song = row("Corcovado", Some("Tom Jobim"), "Brasil/CORCOVAD.kar");
+        song.warnings = "not json at all".to_owned();
+        assert!(song.parsed_warnings().is_empty());
+
+        let mut asked = rows(vec![song]);
+        asked.show_warnings = true;
+        let html = asked.in_english().expect("render");
+        assert!(html.contains("Corcovado"), "{html}");
     }
 
     /// A song whose title already *is* its file name does not say so twice.

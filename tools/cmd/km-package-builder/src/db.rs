@@ -283,6 +283,11 @@ const HEAVY_INDEXES: &[&str] = &[
     // list: without them the planner goes on scanning `songs` for a filtered count, which is the
     // thirteen seconds this index exists to remove.
     "songs_countable",
+    // The discard pile, and it is here for the same second reason: it is empty on a corpus nobody
+    // has deleted from, so the first deletion is the moment the planner needs statistics for it.
+    // Without them the *only deleted* list takes `songs_duplicate_of`'s equality instead, which
+    // matches nearly every song and then filters.
+    "songs_deleted",
     // **An index whose key changes takes a new name, and the name says what the key is.** Every
     // `CREATE` in `create_browse_indexes` is `IF NOT EXISTS`, which cannot see a key — so under the
     // same name an existing database would keep the old one for ever, and nothing would say so.

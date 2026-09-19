@@ -420,6 +420,12 @@ td.tick { white-space: nowrap; }
 .filename { display: none; }
 #rows.filenames .filename { display: inline-block; }
 
+/* What the analysis had to say against a song, on the same switch as the file name above and for
+   the same reasons. It takes `--warn` from `.tag.warn`, which is the claim it makes: something is
+   off with this file. */
+.song-warning { display: none; }
+#rows.warnings .song-warning { display: inline-block; }
+
 /* Panels ----------------------------------------------------------------- */
 
 .panel {
@@ -809,7 +815,8 @@ ul.found li { display: flex; align-items: baseline; gap: .5rem; padding: .25rem 
 #curate-favorites:checked ~ .panel.favorites,
 #curate-titles:checked ~ .panel.titles,
 #curate-analysis:checked ~ .panel.analysis,
-#curate-quality:checked ~ .panel.quality { display: block; }
+#curate-quality:checked ~ .panel.quality,
+#curate-delete:checked ~ .panel.delete { display: block; }
 
 #curate-language:checked ~ .tabstrip label[for="curate-language"],
 #curate-tags:checked ~ .tabstrip label[for="curate-tags"],
@@ -817,7 +824,8 @@ ul.found li { display: flex; align-items: baseline; gap: .5rem; padding: .25rem 
 #curate-favorites:checked ~ .tabstrip label[for="curate-favorites"],
 #curate-titles:checked ~ .tabstrip label[for="curate-titles"],
 #curate-analysis:checked ~ .tabstrip label[for="curate-analysis"],
-#curate-quality:checked ~ .tabstrip label[for="curate-quality"] {
+#curate-quality:checked ~ .tabstrip label[for="curate-quality"],
+#curate-delete:checked ~ .tabstrip label[for="curate-delete"] {
     color: var(--text);
     border-bottom-color: var(--accent);
 }
@@ -830,7 +838,8 @@ ul.found li { display: flex; align-items: baseline; gap: .5rem; padding: .25rem 
 #curate-favorites:focus-visible ~ .tabstrip label[for="curate-favorites"],
 #curate-titles:focus-visible ~ .tabstrip label[for="curate-titles"],
 #curate-analysis:focus-visible ~ .tabstrip label[for="curate-analysis"],
-#curate-quality:focus-visible ~ .tabstrip label[for="curate-quality"] {
+#curate-quality:focus-visible ~ .tabstrip label[for="curate-quality"],
+#curate-delete:focus-visible ~ .tabstrip label[for="curate-delete"] {
     outline: 2px solid var(--accent);
     outline-offset: -2px;
 }

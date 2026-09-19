@@ -81,6 +81,10 @@ pub(crate) const HAND_SET_COLUMNS: &[&str] = &[
     "user_score",
     "notes",
     "merged_into",
+    // Which songs somebody threw away, which is months of judgment and exactly what a backup is
+    // for. Hand-set beside `merged_into` above and for that column's reason: both are a person
+    // deciding a song does not belong in a list, and neither is anything a scan could work out.
+    "deleted_at",
 ];
 
 /// Everything else in `songs`: what a scan writes, what a trigger keeps, what this build derives.
@@ -309,6 +313,12 @@ pub struct SongBackup {
     /// The song this one was folded into, when somebody said they are the same recording.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub merged_into: Option<String>,
+    /// When somebody threw this song away, and absent when nobody has.
+    ///
+    /// Carried as the stored timestamp rather than as a flag, so restoring puts back *when* it was
+    /// discarded and not merely that it was — the deleted list is ordered by it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub deleted_at: Option<String>,
     /// The favorites this song is filed under, by name.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub favorites: Vec<FavoriteRef>,
@@ -503,6 +513,7 @@ pub fn backup_of(db: &Db) -> Result<Backup, DbError> {
                 user_score: song.user_score,
                 notes: song.notes,
                 merged_into: song.merged_into,
+                deleted_at: song.deleted_at,
             })
             .collect(),
     })
@@ -566,6 +577,12 @@ pub struct PlannedSong {
     pub user_score: Option<i64>,
     /// See [`Self::title`].
     pub notes: Option<String>,
+    /// When the file says this song was thrown away. See [`Self::title`].
+    ///
+    /// Carried as the timestamp the file holds rather than re-stamped with now, because *when* a
+    /// song was discarded is what the deleted list is ordered by — and a restore that re-dated
+    /// every one of them would make a morning's work look like one moment's.
+    pub deleted_at: Option<String>,
 }
 
 impl PlannedSong {
@@ -585,6 +602,7 @@ impl PlannedSong {
             || self.melody_chosen.is_some()
             || self.user_score.is_some()
             || self.notes.is_some()
+            || self.deleted_at.is_some()
     }
 }
 
@@ -804,6 +822,7 @@ fn plan(
             melody_chosen,
             user_score,
             notes: song.notes.clone(),
+            deleted_at: song.deleted_at.clone(),
         };
         if planned.writes_anything() {
             plan.songs.push(planned);
@@ -932,6 +951,7 @@ mod tests {
                 user_score: Some(9),
                 notes: Some("the good one".to_owned()),
                 merged_into: Some("def".to_owned()),
+                deleted_at: Some("2026-09-19T00:00:00Z".to_owned()),
                 favorites: vec![FavoriteRef::Name("Brasil / Bossa".to_owned())],
                 seen_as: Some("Corcovado".to_owned()),
             }
@@ -1547,6 +1567,7 @@ mod tests {
                 melody_chosen: None,
                 user_score: None,
                 notes: None,
+                deleted_at: None,
             }],
             merges: Vec::new(),
             memberships: vec![("nobody".to_owned(), "Brasil".to_owned())],

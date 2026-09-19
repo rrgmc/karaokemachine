@@ -91,6 +91,13 @@ confirm-without = sem
 confirm-into = para dentro de
 confirm-out-of = para fora de
 confirm-read-again = ler de novo
+confirm-deleting = jogadas fora
+confirm-undeleting = trazidas de volta
+confirm-delete-packaged = { $count ->
+    [0] { $count } delas estão em um pacote
+    [one] { $count } delas está em um pacote
+   *[other] { $count } delas estão em um pacote
+  }
 
 confirm-set = Sim, definir { $count }
 confirm-tag = Sim, etiquetar { $count }
@@ -98,6 +105,8 @@ confirm-untag = Sim, tirar a etiqueta de { $count }
 confirm-file = Sim, guardar { $count }
 confirm-unfile = Sim, tirar { $count }
 confirm-reread = Sim, reler { $count }
+confirm-delete = Sim, jogar fora { $count }
+confirm-undelete = Sim, trazer de volta { $count }
 package-add-room-left = que tem lugar para { $room }, então as { $room } primeiras desta ordem entram
 
 ## Filtros que alguém nomeou ----------------------------------------------------
@@ -751,6 +760,8 @@ songs-language-not = deixar de fora
 songs-language-not-title = esconder todas as músicas nesta língua, além das já deixadas de fora
 songs-show-filenames = mostrar os nomes dos arquivos
 songs-show-filenames-title = mostrar o nome do arquivo de cada música ao lado do título
+songs-show-warnings = mostrar os avisos dos arquivos
+songs-show-warnings-title = mostrar o que a análise encontrou de errado em cada música
 songs-band-quality = Qualidade
 songs-suitability-title = a qualidade do arquivo de origem
 songs-any = qualquer
@@ -794,6 +805,8 @@ songs-added-over-month = há mais de 30 dias
 songs-every-version = todas as versões
 songs-every-version-title = mostrar todo arquivo de uma gravação, e não só a melhor cópia de cada
 songs-not-packaged = fora de pacotes
+songs-only-deleted = só as excluídas
+songs-only-deleted-title = mostrar o que foi jogado fora em vez do acervo
 
 kind-midi = MIDI
 kind-video = vídeo
@@ -806,6 +819,7 @@ songs-tab-language = Língua
 songs-tab-tags = Etiquetas
 songs-tab-titles = Títulos
 songs-tab-analysis = Análise
+songs-tab-delete = Excluir
 songs-scope-ticked = as músicas marcadas
 songs-scope-matching = todas as músicas da lista
 songs-to = para
@@ -813,6 +827,9 @@ songs-set-language-of = definir a língua de
 songs-only-if-not-set = só se ainda não tiver
 songs-tag-add = pôr
 songs-tag-remove = tirar
+songs-delete = jogar fora
+songs-undelete = trazer de volta
+songs-delete-note = uma música jogada fora não aparece em lista nenhuma além de "só as excluídas", e seus arquivos não são lidos de novo
 songs-the-tag = a etiqueta
 songs-tag-title = só letras ASCII, números e -; os acentos caem, então "Forró" vira "forro"
 songs-apply = Aplicar
@@ -1067,6 +1084,16 @@ said-tag-removed = { $count ->
     [0] A etiqueta foi tirada de { $count } músicas.
     [one] A etiqueta foi tirada de { $count } música.
    *[other] A etiqueta foi tirada de { $count } músicas.
+  }
+said-deleted = { $count ->
+    [0] { $count } músicas jogadas fora.
+    [one] { $count } música jogada fora.
+   *[other] { $count } músicas jogadas fora.
+  }
+said-undeleted = { $count ->
+    [0] { $count } músicas trazidas de volta.
+    [one] { $count } música trazida de volta.
+   *[other] { $count } músicas trazidas de volta.
   }
 said-filed = { $count ->
     [0] { $count } músicas guardadas.

@@ -1,4 +1,7 @@
-<div id="rows"{% if show_filename %} class="filenames"{% endif %}
+{# The two view boxes are classes on this block and never flags on a row -- see `SongRows`. Composed
+   in Rust rather than as two `{% if %}`s here, because a second one would have to know whether the
+   first had already written the attribute and the space between the names. #}
+<div id="rows"{% if !block_class().is_empty() %} class="{{ block_class() }}"{% endif %}
      data-offset="{{ offset }}" data-total="{{ total }}">
 <div id="action-result"></div>
 {% if songs.is_empty() %}

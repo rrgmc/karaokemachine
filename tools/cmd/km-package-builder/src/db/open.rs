@@ -192,7 +192,7 @@ impl Db {
         db.backfill_sort_keys(phase)?;
         // No sentence of its own: the one `missing_indexes` produced above names exactly this, and is
         // set before `schema.sql` runs because that file builds half of it.
-        db.create_browse_indexes()?;
+        let rebuilt = db.create_browse_indexes()?;
         phase(OpeningPhase::WorkingOutLanguage);
         db.backfill_language_tags()?;
         // After the tags and not before: that one is a table lookup over the rows a file spoke for,
@@ -212,7 +212,13 @@ impl Db {
         // `sqlite_stat1` row is one the planner will not choose, so a database that already had
         // statistics and has just gained indexes needs them gathered again or the indexes are dead
         // weight — and the symptom of getting this wrong is the fix appearing not to work at all.
-        if !missing.is_empty() || db.has_no_statistics() {
+        // **`rebuilt` is the same condition reached by the other route**, and it is the one `missing`
+        // cannot see. That list is read before `schema.sql` runs and holds names; an index whose key
+        // or predicate changed kept its name, so it is never missing, and its `sqlite_stat1` row
+        // survives describing the shape it no longer has. The planner then prices an index that is
+        // gone. Measured on a real corpus: every browse sort abandoned its index and read the whole
+        // of it into a temp B-tree, four seconds a page, until an `ANALYZE` was run by hand.
+        if !missing.is_empty() || rebuilt || db.has_no_statistics() {
             // The largest single thing an open does on a real corpus, and it is one statement with
             // nothing inside it to count, so this is the only sentence it can offer.
             phase(OpeningPhase::GatheringStatistics);
@@ -332,8 +338,9 @@ impl Db {
     /// anything — because it has to fold accents and a fold has no SQL spelling. Losing the
     /// fragility with it is a second benefit rather than the reason.
     ///
-    /// All of them are partial on `merged_into IS NULL`, which [`Filter::to_sql`] emits first and
-    /// always, so every browse query implies the predicate and can use them.
+    /// All of them are partial on [`browsable`], which [`Filter::to_sql`] emits first and always,
+    /// so every browse query implies the predicate and can use them. Both sides ask that one
+    /// function, because a term on one side and not the other costs the indexes silently.
     ///
     /// **There is one index per arm of [`Filter::order_by`], and the key mirrors that arm term for
     /// term** — including the leading `x IS NULL` the five "unrated last" sorts open with, and
@@ -352,58 +359,61 @@ impl Db {
     /// this runs to decide whether to announce a pause and whether to gather statistics again. **A
     /// new index with no `sqlite_stat1` row is an index the planner will not use**, so the two lists
     /// agreeing is a correctness condition rather than tidiness; a `debug_assert!` below says so.
-    pub(super) fn create_browse_indexes(&self) -> Result<(), DbError> {
+    pub(super) fn create_browse_indexes(&self) -> Result<bool, DbError> {
         let letter = title_initial("");
         let language = eff_language("");
+        // The predicate every browse query implies, with no alias because an index can carry none.
+        // `Filter::to_sql` asks the same function for the aliased spelling.
+        let browsable = browsable("");
         let indexes = [
             (
                 "songs_browse_title_artist",
-                format!("ON songs({WITHIN_TITLE_KEY}) WHERE merged_into IS NULL"),
+                format!("ON songs({WITHIN_TITLE_KEY}) WHERE {browsable}"),
             ),
             (
                 "songs_browse_letter_artist",
-                format!("ON songs({letter}, {WITHIN_TITLE_KEY}) WHERE merged_into IS NULL"),
+                format!("ON songs({letter}, {WITHIN_TITLE_KEY}) WHERE {browsable}"),
             ),
             (
                 "songs_browse_suitability_artist",
-                format!("ON songs(suitability DESC, {WITHIN_TITLE_KEY}) WHERE merged_into IS NULL"),
+                format!("ON songs(suitability DESC, {WITHIN_TITLE_KEY}) WHERE {browsable}"),
             ),
             (
                 "songs_browse_sort_artist",
-                "ON songs(sort_artist IS NULL, sort_artist, sort_title, id) \
-                 WHERE merged_into IS NULL"
-                    .to_owned(),
+                format!(
+                    "ON songs(sort_artist IS NULL, sort_artist, sort_title, id) \
+                     WHERE {browsable}"
+                ),
             ),
             (
                 "songs_browse_language_artist",
                 format!(
                     "ON songs({language} IS NULL, {language}, {WITHIN_TITLE_KEY}) \
-                     WHERE merged_into IS NULL"
+                     WHERE {browsable}"
                 ),
             ),
             (
                 "songs_browse_user_score_artist",
                 format!(
                     "ON songs(user_score IS NULL, user_score DESC, {WITHIN_TITLE_KEY}) \
-                     WHERE merged_into IS NULL"
+                     WHERE {browsable}"
                 ),
             ),
             // `schema.sql` already has a `songs(duration_ms)`, and it is not partial, so it cannot
-            // combine with the `merged_into IS NULL` every browse query carries. This one can, and
-            // it carries `id` so the tiebreak needs no sort either.
+            // combine with the terms every browse query carries. This one can, and it carries `id`
+            // so the tiebreak needs no sort either.
             (
                 "songs_browse_duration",
-                "ON songs(duration_ms DESC, id) WHERE merged_into IS NULL".to_owned(),
+                format!("ON songs(duration_ms DESC, id) WHERE {browsable}"),
             ),
             // The eighth, and the one that could not exist until `file_count` was a column. The
             // same relationship to `schema.sql`'s `songs_file_count` that the entry above has to
             // `songs(duration_ms)`: that one is not partial and serves the filter under any sort,
-            // this one carries the `merged_into IS NULL` every browse query implies, plus the
-            // tiebreak terms, so the sort needs no pass of its own.
+            // this one carries the terms every browse query implies, plus the tiebreak terms, so
+            // the sort needs no pass of its own.
             (
                 "songs_browse_copies",
-                "ON songs(file_count DESC, suitability DESC, id) WHERE merged_into IS NULL"
-                    .to_owned(),
+                format!("ON songs(file_count DESC, suitability DESC, id) WHERE {browsable}"),
             ),
             // The one whose key is nearly all sentinel, and it is worth pricing. On a corpus
             // somebody has just opened every entry reads `(1, NULL, <the title terms>)` -- a copy of
@@ -415,13 +425,13 @@ impl Db {
                 "songs_browse_updated_artist",
                 format!(
                     "ON songs(updated_at IS NULL, updated_at DESC, {WITHIN_TITLE_KEY}) \
-                     WHERE merged_into IS NULL"
+                     WHERE {browsable}"
                 ),
             ),
             // Leading on `first_seen` also serves the added-date filter's range under this sort.
             (
                 "songs_browse_added_artist",
-                format!("ON songs(first_seen DESC, {WITHIN_TITLE_KEY}) WHERE merged_into IS NULL"),
+                format!("ON songs(first_seen DESC, {WITHIN_TITLE_KEY}) WHERE {browsable}"),
             ),
         ];
 
@@ -452,19 +462,34 @@ impl Db {
         // still wants under a name it still uses, built on an expression that has since gained a
         // term, is the case a name comparison walks straight past — `eff_language` grew a third leg
         // and `songs_browse_language_artist` is spelled the same either way.
+        // **Whether anything was dropped is the return value, and the caller owes an `ANALYZE` for
+        // it.** `missing_indexes` is read before `schema.sql` runs and reports a *name* that is not
+        // there; an index rebuilt here kept its name throughout, so it is never missing and nothing
+        // above would gather statistics for it. Its `sqlite_stat1` row then survives from the shape
+        // it no longer has, and the planner reasons from a description of an index that is gone --
+        // measured on a real corpus as every browse sort reading the whole of it into a temp B-tree,
+        // which is the exact failure this function exists to prevent, arriving by the one route it
+        // did not cover.
+        let mut rebuilt = false;
         for (name, sql) in own_indexes_with_sql(&self.conn, "songs")? {
             if !name.starts_with("songs_browse_") {
                 continue;
             }
+            // **`IF NOT EXISTS` is left out of the comparison, and leaving it in is not cosmetic.**
+            // SQLite stores a `CREATE INDEX` statement verbatim except for that clause, which it
+            // drops -- so a `wanted` carrying it matches nothing that was ever stored, every browse
+            // index is dropped and rebuilt on every open, and nothing says so. On a real corpus
+            // that is half a minute of an open spent arriving back where it started, and the
+            // statistics describing the rebuilt indexes are never gathered, which is the half that
+            // does the damage.
             let wanted = indexes
                 .iter()
                 .find(|(known, _)| *known == name)
-                .map(|(known, body)| {
-                    index_shape(&format!("CREATE INDEX IF NOT EXISTS {known} {body}"))
-                });
+                .map(|(known, body)| index_shape(&format!("CREATE INDEX {known} {body}")));
             if wanted.as_deref() != Some(index_shape(&sql).as_str()) {
                 self.conn
                     .execute_batch(&format!("DROP INDEX IF EXISTS {name}"))?;
+                rebuilt = true;
             }
         }
 
@@ -472,7 +497,7 @@ impl Db {
             self.conn
                 .execute_batch(&format!("CREATE INDEX IF NOT EXISTS {name} {body};"))?;
         }
-        Ok(())
+        Ok(rebuilt)
     }
 
     /// Folds the browse sort keys of every row still waiting for one.

@@ -54,9 +54,9 @@ const COMPOSED: &[&str] = &[
     "header-files",
     "header-failed",
     "header-favorites",
-    // The five confirmations, whose subject and button are both plurals over one count and are
-    // worded together by `handlers::confirm_words`. Which button a press gets is a branch, so the
-    // key arrives as an argument and the scanner sees a variable.
+    // The confirmations, whose subject and button are both plurals over one count and are worded
+    // together by `handlers::confirm_words`. Which button a press gets is a branch, so the key
+    // arrives as an argument and the scanner sees a variable.
     "confirm-songs",
     "confirm-files",
     "confirm-set",
@@ -65,6 +65,8 @@ const COMPOSED: &[&str] = &[
     "confirm-file",
     "confirm-unfile",
     "confirm-reread",
+    "confirm-delete",
+    "confirm-undelete",
     // ...and the pagers' labels, all worded by `views::say_page`, where the browse list's two depend
     // on whether a scan is writing rows underneath. See `SongRows::say_range`.
     "songs-range",
@@ -84,6 +86,8 @@ const COMPOSED: &[&str] = &[
     // went — so the key reaches `msg_with` as a variable.
     "said-tag-set",
     "said-tag-removed",
+    "said-deleted",
+    "said-undeleted",
     "said-filed",
     "said-took-out",
     "said-now-a-working-list",

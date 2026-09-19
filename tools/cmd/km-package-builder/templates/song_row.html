@@ -84,6 +84,19 @@
       {% for tag in song.tags %}<span class="tag song-tag">{{ tag }}</span>{% endfor %}
       {% if !song.from_filename %}<span class="tag mono filename"
          title="{{ "row-file-name-title"|t }}">{{ song.file_name() }}</span>{% endif %}
+      {# What the analysis had to say against this song, last because it is the chip that can come
+         several at a time and the only one that is a judgment about the file rather than a name
+         for it.
+
+         The code is the chip and the message is its tooltip, which is how the song's own page draws
+         the same two fields. Both are written by the scanner and read out of the database, so
+         neither is a word this template invented.
+
+         **Always in the markup, shown by `#rows.warnings`**, exactly as the file name above is: a
+         row redrawn on its own by the single-row route never saw the browse query, and a chip
+         rendered only when asked would vanish the first time somebody rated the song. #}
+      {% for warning in song.parsed_warnings() %}<span class="tag warn song-warning"
+         title="{{ warning.message }}">{{ warning.code }}</span>{% endfor %}
     </td>
     {% endif %}
     <td class="lang">

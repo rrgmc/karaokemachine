@@ -432,6 +432,60 @@ writes it on the representative only; `browse_columns` reads a hidden version's 
 representative through `duplicate_of`, one primary-key lookup per hidden row, and selects
 `duplicate_of` itself so the row can mark and link it.
 
+### Deleting is the third term, and both sides of it come from one function
+
+A song somebody threw away carries `songs.deleted_at`, and every browse query excludes it. **The
+predicate is `sql::browsable(alias)` and nothing spells it out anywhere else**: `Filter::to_sql`
+composes it from `DeletedFilter::Live`'s own clause, and the ten `songs_browse_*` indexes are
+partial on the same function with an empty alias. The *only deleted* box inverts the half this type
+owns and keeps the other, because a song both merged and discarded is still a merge with no row of
+its own.
+
+**A term on one side and not the other does not fail — it costs the indexes silently.** SQLite
+serves a partial index only where the query implies its `WHERE`, so a predicate that grew a term the
+indexes do not carry sends every sort back to reading the filtered corpus into a temp B-tree, which
+is the 4.21 s above with nothing on screen saying why. Eleven copies of the predicate were eleven
+chances for that; there is now one, and `create_browse_indexes` compares the *stored statement*
+rather than the name, so the widened predicate rebuilds itself on the next open with no migration
+step.
+
+**`songs_countable` takes the term as a partial predicate and never as a third key column**, and the
+difference between those two is four seconds a page. The obvious shape is
+`songs(merged_into, duplicate_of, deleted_at)`; it was built and measured against a whole corpus and
+it is catastrophic. Three equality terms in one key look like the best match available, so the
+planner takes that index for the *browse* query as well — and it carries no order, so every sorted
+page reads `USE TEMP B-TREE FOR ORDER BY` over the whole corpus. Partial, the key stays two columns,
+the count still implies the predicate and stays covering, and a two-column key that supplies no order
+no longer out-bids one that does. `songs_deleted` is the other side of the same predicate, keyed on
+`deleted_at` so that `IS NOT NULL` is a range to seek — keyed on `id` there is no term at all, and
+the planner takes `songs_duplicate_of`'s equality instead, which matches nearly every song and then
+filters.
+
+**A query that leaves a term out loses the index entirely**, which is the same trap one step along.
+`languages_present` asked only `merged_into IS NULL` against indexes now partial on two terms, so it
+stopped matching and fell back to a full scan per recursion step: five seconds, on every page render.
+It asks `browsable` for the whole predicate now, which is also the honest list — a song somebody
+threw away should put no language in the picker.
+
+**An index rebuilt under its own name invalidates the statistics that describe it, and nothing used
+to say so.** `missing_indexes` is read before `schema.sql` runs and it holds names; an index whose key
+or predicate changed keeps its name, so it is never missing and no `ANALYZE` is asked for. Its
+`sqlite_stat1` row survives describing a shape the database no longer has, and the planner prices an
+index that is gone — measured as every browse sort abandoning its index for a temp B-tree, four
+seconds a page, until an `ANALYZE` was run by hand. `create_browse_indexes` returns whether it
+rebuilt anything and the open gathers statistics when it did.
+
+**And the comparison that decides it had never matched.** SQLite stores a `CREATE INDEX` statement
+verbatim except for `IF NOT EXISTS`, which it drops; the wanted statement was built *with* that
+clause, so no stored index ever equalled its intended shape and all ten were dropped and rebuilt on
+every open — half a minute of a real corpus's open spent arriving back where it started, with the
+statistics never regathered.
+
+The scan reads the column through the join `known_files` already makes, and skips a deleted song's
+files **before** the unchanged test and regardless of `--force`. `seen` is the whole walk and is
+built before the per-file loop, so a skipped file is still seen, `forget_missing` passes it by, and
+undeleting needs no rescan to find the file again.
+
 ## The browse list writes
 
 Every score, corrected name and favorite can be set from the list, not only from a detail page — over
@@ -466,10 +520,14 @@ colored by the second — a song in nothing but working lists is in lists and fi
 last in `browse_columns` so no existing index into the row moves, and its own subquery rather than a
 narrowing of the first because the row needs both numbers.
 
-**Showing file names is a class on `#rows`, not a flag on the row.** The name is written into every
-row's markup and revealed by `#rows.filenames .filename`. Threading a bool down would have had to reach
-the fragment routes too — which never see the browse query — so a row would have lost its file name the
-moment anybody scored it.
+**The two view boxes are classes on `#rows`, not flags on the row.** The file name and the warning
+chips are written into every row's markup and revealed by `#rows.filenames .filename` and
+`#rows.warnings .song-warning`. Threading a bool down would have had to reach the fragment routes
+too — which never see the browse query — so a row would have lost both the moment anybody scored it.
+`SongRows::block_class` joins the names in Rust rather than as two conditionals in the markup: the
+second would have to know whether the first had opened the attribute and owed a space, which is a
+rule about HTML syntax living in a template. `browse_columns` selects `s.warnings` on every page
+whether or not the box is ticked, for the same reason the name is always in the markup.
 
 ### Two rules that are walked into repeatedly
 

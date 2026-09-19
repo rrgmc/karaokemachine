@@ -580,6 +580,13 @@ pub struct SongRow {
     /// Most of a real corpus is instrumental, and a button that can only lead to a page saying *this
     /// song has no words* is a button worth not drawing.
     pub has_words: bool,
+    /// What the analysis had to say against this song, as the JSON array the column holds.
+    ///
+    /// Kept as the raw text and parsed by [`Self::parsed_warnings`] when a row is drawn, which is
+    /// what [`SongDetail`](crate::db::SongDetail) does with the same column. A video, an MP3+G pair
+    /// and an UltraStar song hold `[]`: nothing analyzes them, so there is nothing to have gone
+    /// wrong.
+    pub warnings: String,
     /// The first file's path, for the "open" and "play" actions.
     pub path: String,
     /// Every copy's path, newline-separated, straight from the query.
@@ -857,6 +864,15 @@ impl SongRow {
         } else {
             String::new()
         }
+    }
+
+    /// The warnings, parsed, for the chips a row draws when the box asks for them.
+    ///
+    /// An unreadable column yields none rather than an error, which is what the song's own page
+    /// does with the same text: a warning list is not worth failing a page render over, and here it
+    /// would fail fifty rows rather than one.
+    pub fn parsed_warnings(&self) -> Vec<StoredWarning> {
+        serde_json::from_str(&self.warnings).unwrap_or_default()
     }
 
     pub fn searchable(&self) -> bool {
@@ -1208,6 +1224,8 @@ pub struct HandSetSong {
     pub notes: Option<String>,
     /// The song this one was folded into, when somebody said they are the same recording.
     pub merged_into: Option<String>,
+    /// When somebody threw this song away. `None` is *nobody has*.
+    pub deleted_at: Option<String>,
     /// What this song is called here, for a report to name it by. Never restored.
     pub seen_as: String,
 }
@@ -1421,6 +1439,7 @@ mod tests {
             version_count: 1,
             duplicate_of: None,
             has_words: false,
+            warnings: "[]".to_owned(),
             path: path.to_owned(),
             paths: paths.to_owned(),
             from_filename: false,
