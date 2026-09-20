@@ -9,6 +9,14 @@
 # heading closes a paragraph, and a `<script>`, a `<style>`, a comment and a heading's own words are
 # never read.
 #
+# **`-v ftl=1` reads a Fluent catalog**, where the words inside a program live. A message, a term and
+# an attribute each open a value, and each value is a paragraph of its own. A placeable is one word,
+# as a code span is. A comment there is the catalog's own commentary and stays outside the shape.
+#
+# **A selector is read at its default variant, and the others are passed over.** A plural's arms
+# differ by a word, so reading them all would count one sentence several times and report a length
+# no reader meets.
+#
 # **It is one process per file, where a phrase shape is one `grep` per shape per file.** The
 # whole-tree form already spends two thirds of its time creating processes. A second scanner may add
 # one process to a file, and it may not add fourteen.
@@ -34,6 +42,7 @@ BEGIN {
 }
 
 page { readpage($0); next }
+ftl  { readftl($0); next }
 
 /^[ \t]*(```|~~~)/ { flush(); fence = !fence; next }
 fence            { next }
@@ -224,6 +233,45 @@ function drop(line, opener, closer, mark,   head, rest) {
     }
   }
   return line
+}
+
+# **A catalog is read one value at a time, and the state it carries is which value is open.** A
+# message, a term and an attribute each close the value before them, so each is a paragraph and
+# carries its own six sentences. An indented line continues the value above it.
+function readftl(line,   text) {
+  if (line ~ /^[ \t]*#/)  { flush(); return }
+  if (line ~ /^[ \t]*$/)  { flush(); return }
+  if (line ~ /^-?[a-zA-Z][a-zA-Z0-9_-]*[ \t]*=/ ||
+      line ~ /^[ \t]*\.[a-zA-Z][a-zA-Z0-9_-]*[ \t]*=/) {
+    flush()
+    sub(/^[^=]*=[ \t]*/, "", line)
+  } else if (line ~ /^[ \t]*\*\[/) {
+    sub(/^[ \t]*\*\[[^]]*\][ \t]*/, "", line)
+  } else if (line ~ /^[ \t]*\[/) {
+    return
+  }
+  text = placeables(line)
+  # A selector closes on a line of its own, and what it leaves behind is punctuation rather than a
+  # word. Counting that would add one to the sentence it closes.
+  if (text ~ /^[ \t]*[)\].,;:]*[ \t]*$/) return
+  add(FNR, text)
+}
+
+# **A placeable is one word, as a code span is.** A variable, a term and a function call are exact
+# items the decision says keep their spelling. It takes no padding, so the comma after one stays on
+# the word it follows rather than becoming a word of its own.
+#
+# **A selector's opening leaves nothing behind**, because the variant below it carries the same
+# placeable again. Emitting one here would count the plural's own number twice.
+function placeables(s,   before) {
+  do {
+    before = s
+    gsub(/\{[^{}]*\}/, "CODE", s)
+  } while (s != before)
+  gsub(/\{[^{}]*->[ \t]*$/, "", s)
+  gsub(/\{[^{}]*$/, "CODE", s)
+  gsub(/[{}]/, " ", s)
+  return s
 }
 
 # A comment closed on the line it opens on, as many times as it appears; one left open sets the

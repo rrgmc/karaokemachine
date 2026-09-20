@@ -466,7 +466,7 @@ backup-restore = Restore from a file
 backup-restore-sub = Add the contents of a saved backup to your favorites
 backup-add-only =
     Restoring only ever adds. Folders that are missing are created, songs that are already here stay
-    as they are, and nothing is removed — so restoring the same file twice changes nothing the
+    as they are, and nothing is removed. So restoring the same file twice changes nothing the
     second time.
 backup-restore-title = Restore favorites
 backup-choose-hint =
@@ -487,7 +487,7 @@ backup-unreadable =
         [one] One line in the file was not a song number, so it was skipped.
        *[other] { $count } lines in the file were not song numbers, so they were skipped.
     }
-backup-format-newer = That file was written by a newer version. Some of it could not be read.
+backup-format-newer = A newer version wrote that file. Some of it could not be read.
 backup-unchanged =
     Nothing was removed, and the file is unchanged — restoring it again would add nothing.
 backup-open-favorites = Open favorites

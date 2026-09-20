@@ -204,7 +204,7 @@ discovered-already-set = já é a atual
 
 settings-locale-heading = A língua deste programa
 settings-locale-field = Mostrar estas páginas em
-settings-locale-note = A língua das páginas do próprio programa. Não muda nada nas músicas: a língua de uma música é aquela em que ela é cantada, e você define isso na música ou no pacote.
+settings-locale-note = A língua das páginas do próprio programa. Não muda nada nas músicas. A língua de uma música é aquela em que ela é cantada, e você define isso na música ou no pacote.
 settings-locale-save = Salvar
 
 ## O que o navegador diz por conta própria ------------------------------------
@@ -560,7 +560,7 @@ access-signed-in = Conectado a esta máquina.
 access-forget-it = Esquecer
 access-debugging-off = Desligar a depuração
 access-debugging-on = Ligar a depuração
-access-what-signing-in-buys = Enviar e instalar um pacote exigem acesso de administrador, que esta conexão dá. A depuração é um ajuste separado, na própria máquina, e o botão Tocar precisa dela para ouvir uma música numa máquina que não seja este computador. A mudança vale quando aquela máquina reiniciar, então o botão acima mostra com qual ajuste ela está rodando agora.
+access-what-signing-in-buys = Enviar e instalar um pacote exigem acesso de administrador, que esta conexão dá. A depuração é um ajuste separado, na própria máquina. O botão Tocar precisa dela para ouvir uma música numa máquina que não seja este computador. A mudança vale quando aquela máquina reiniciar, então o botão acima mostra com qual ajuste ela está rodando agora.
 access-password-saved = Este computador tem a senha desta máquina.
 access-retype = Digitar outra senha
 access-password = Senha
@@ -577,18 +577,18 @@ access-nothing-to-save-for = Nenhuma máquina respondeu neste endereço ainda, e
 ## Arquivos que parecem uma mesma gravação ----------------------------------------------
 
 duplicates-heading = Arquivos que parecem uma mesma gravação
-duplicates-none-lead = Nada agrupado ainda. A comparação põe a forma de cada música contra a de todas as outras e precisa que uma leitura já as tenha lido; num acervo de algumas centenas de milhares de arquivos leva alguns segundos.
+duplicates-none-lead = Nada agrupado ainda. A comparação põe a forma de cada música contra a de todas as outras, e precisa que uma leitura já as tenha lido. Num acervo de algumas centenas de milhares de arquivos leva alguns segundos.
 duplicates-none-tail = termina com ela, então apertar aqui é para o tempo entre uma leitura e outra.
 duplicates-found = { $groups ->
-    [0] { $groups } grupos de arquivos parecem uma mesma gravação, e a lista mostra a melhor cópia de cada um — escondendo { $hidden } músicas que seriam organizadas duas vezes.
-    [one] { $groups } grupo de arquivos parece uma mesma gravação, e a lista mostra a melhor cópia de cada um — escondendo { $hidden } músicas que seriam organizadas duas vezes.
-   *[other] { $groups } grupos de arquivos parecem uma mesma gravação, e a lista mostra a melhor cópia de cada um — escondendo { $hidden } músicas que seriam organizadas duas vezes.
+    [0] { $groups } grupos de arquivos parecem uma mesma gravação. A lista mostra a melhor cópia de cada um, escondendo { $hidden } músicas que seriam organizadas duas vezes.
+    [one] { $groups } grupo de arquivos parece uma mesma gravação. A lista mostra a melhor cópia de cada um, escondendo { $hidden } músicas que seriam organizadas duas vezes.
+   *[other] { $groups } grupos de arquivos parecem uma mesma gravação. A lista mostra a melhor cópia de cada um, escondendo { $hidden } músicas que seriam organizadas duas vezes.
   }
-duplicates-nothing-to-judge = Nada foi juntado e nada precisa ser julgado. Qual arquivo de um grupo é a mesma gravação se descobre ouvindo, então o grupo aparece na página da própria música com um botão de tocar ao lado de cada versão, e “todas as versões” na barra de filtros desliga o agrupamento.
+duplicates-nothing-to-judge = Nada foi juntado e nada precisa ser julgado. Ouvir é o que diz qual arquivo de um grupo é a mesma gravação. Por isso o grupo aparece na página da própria música, com um botão de tocar ao lado de cada versão. “Todas as versões”, na barra de filtros, desliga o agrupamento.
 duplicates-look-again = Procurar de novo
 duplicates-look-again-note = Lê o acervo inteiro, e a resposta substitui a anterior — um par que não corresponde mais é descartado. Um par descartado como diferente continua descartado.
 duplicates-identical-heading = Cópias idênticas byte a byte
-duplicates-identical-note = Nada a decidir aqui, e nada a rodar. A identidade de uma música é o hash dos bytes dela, então arquivos idênticos já são uma música com vários caminhos, e a coluna Cópias diz quantos.
+duplicates-identical-note = Nada a decidir aqui, e nada a rodar. A identidade de uma música é o hash dos bytes dela, então arquivos idênticos já são uma música com vários caminhos. A coluna Cópias diz quantos.
 duplicates-more-than-one-copy = Músicas com mais de uma cópia, as de mais primeiro
 
 ## Pacotes --------------------------------------------------------------------------
@@ -605,7 +605,7 @@ packages-version = Versão
 packages-version-title = Três números separados por pontos, como 1.0.0
 packages-publisher = Quem publica
 packages-first-number = Primeiro número
-packages-numbering = O identificador do pacote é gerado e nunca muda, então montar de novo com mais músicas produz o mesmo pacote. O número de uma música dentro de um pacote vai de 1 a { $highest }, e a máquina acrescenta os milhares que dizem de qual pacote ela é, então nada digitado aqui pode bater com um pacote já instalado.
+packages-numbering = O identificador do pacote é gerado e nunca muda, então montar de novo com mais músicas produz o mesmo pacote. O número de uma música dentro de um pacote vai de 1 a { $highest }. A máquina acrescenta os milhares que dizem de qual pacote ela é, então nada digitado aqui pode bater com um pacote já instalado.
 packages-create = Criar
 packages-open = Abrir pacote
 packages-path-to = Caminho de um
@@ -910,7 +910,7 @@ song-lyrics-show = Sempre mostrar
 song-lyrics-hide = Nunca mostrar
 song-lyrics-note =
     A máquina toca a música de qualquer jeito. Desligue a letra de um arquivo cuja letra está fora
-    do tempo, traz os dados de quem fez o arranjo, ou é de outra música; a televisão então diz
+    do tempo, traz os dados de quem fez o arranjo, ou é de outra música. A televisão então diz
     "sem letra" no canto. Monte o pacote de novo para uma mudança aqui chegar a uma máquina.
 
 package-tab-songs = Músicas
@@ -919,7 +919,7 @@ package-tab-build = Montagem
 
 song-file-says-nothing = (o arquivo não diz)
 song-language-declared = Em branco, então esta música conta como { $name } - o cabeçalho do arquivo diz { $code }.
-song-language-declared-default = Em branco, então esta música conta como { $name } - o cabeçalho do arquivo diz { $code }, que é o que a maioria dos arquivos de karaokê diz, seja qual for a língua.
+song-language-declared-default = Em branco, então esta música conta como { $name }. O cabeçalho do arquivo diz { $code }, que é o que a maioria dos arquivos de karaokê diz, seja qual for a língua.
 song-language-from-encoding = Em branco, então esta música conta como { $name } - deduzido da codificação em que a letra está escrita.
 song-language-guessed = Em branco, então esta música conta como { $name } - lido da própria letra, { $percent }% de certeza.
 song-language-unknown-code = O cabeçalho do arquivo diz { $code }, que não é um código de língua que esta versão conheça.
@@ -1150,7 +1150,7 @@ said-dropped-second-copies = { $count ->
   }
 said-grouping-done = { $groups } grupos parecem uma mesma gravação, escondendo { $hidden } músicas. { $pairs } pares.
 said-version-refused = Uma versão são três números separados por pontos — 1.0.0, por exemplo. “{ $version }” não é, e não foi salva.
-said-start-number-refused = Um pacote numera as músicas de 1 a { $highest }; a máquina acrescenta o bloco, então um primeiro número acima disso seria discado como de outro pacote. { $number } não foi salvo.
+said-start-number-refused = Um pacote numera as músicas de 1 a { $highest }. A máquina acrescenta o bloco, então um primeiro número acima disso seria discado como de outro pacote. { $number } não foi salvo.
 said-package-full = { $name } não tem mais números. Um pacote guarda { $highest } músicas e este está cheio.
 said-name-has-no-file-name = { $name } não deixa nada que sirva de nome de arquivo. Tente um nome com letras ou números.
 said-spec-written = { $count ->
@@ -1294,7 +1294,7 @@ said-package-made = { $count ->
     [one] { $package } feito com { $count } música. Está na página Pacotes, onde é montado.
    *[other] { $package } feito com { $count } músicas. Está na página Pacotes, onde é montado.
   }
-said-package-made-sourced = Ele continua vindo daquela lista, então não aparece onde se põem músicas num pacote uma a uma, e Sincronizar, na página dele, é o que mantém os dois juntos.
+said-package-made-sourced = Ele continua vindo daquela lista, então não aparece onde se põem músicas num pacote uma a uma. Sincronizar, na página dele, é o que mantém os dois juntos.
 said-package-took-the-first = O filtro pegou mais músicas do que um pacote comporta, então as { $count } primeiras desta ordem entraram.
 said-package-no-room = { $count ->
     [0] { $count } delas ficaram sem número.
@@ -1343,7 +1343,7 @@ said-build-unlanguaged = { $count ->
     [one] Não foi gravado — { $count } música está sem língua, e um pacote não sai sem isso:
    *[other] Não foi gravado — { $count } músicas estão sem língua, e um pacote não sai sem isso:
   }
-said-build-unlanguaged-ways-out = Ou defina “músicas sem língua são” acima — o que as preenche só neste pacote e não grava nada de volta nas músicas — ou classifique-as de vez na página Músicas: filtre pelas que estão sem língua, acrescente a pasta em que estão, e use “definir a língua de todas as músicas da lista”.
+said-build-unlanguaged-ways-out = Ou defina “músicas sem língua são” acima, o que as preenche só neste pacote e não grava nada de volta nas músicas. Ou classifique-as de vez na página Músicas. Filtre pelas que estão sem língua, acrescente a pasta em que estão, e use “definir a língua de todas as músicas da lista”.
 said-build-written = { $count ->
     [0] { $file } gravado, versão { $version }, com { $count } músicas
     [one] { $file } gravado, versão { $version }, com { $count } música

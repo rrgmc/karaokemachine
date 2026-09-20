@@ -217,7 +217,7 @@ discovered-already-set = already set
 
 settings-locale-heading = This tool's language
 settings-locale-field = Show these pages in
-settings-locale-note = The language of this tool's own pages. It changes nothing about the songs: a song's language is what it is sung in, and you set that on a song or on a package.
+settings-locale-note = The language of this tool's own pages. It changes nothing about the songs. A song's language is what it is sung in, and you set that on a song or on a package.
 settings-locale-save = Save
 
 ## What the browser says for itself -------------------------------------------
@@ -560,7 +560,7 @@ open-choose-a-folder = choose a folder of karaoke files
 open-opening = Opening
 open-opened = Opened
 open-progress = Opening { $root } — { $phase } · { $seconds }s.
-open-migrating-hint = A large corpus migrates the first time it is opened by a new build, which can take minutes. It resumes if you stop it.
+open-migrating-hint = A new build migrates a large corpus the first time it opens one, which can take minutes. It resumes if you stop it.
 open-recent = Recent
 open-database-gone = its curation database is gone
 open-not-found = not found
@@ -601,17 +601,17 @@ access-nothing-to-save-for = No machine has answered at this address yet, so the
 ## Files that look like one recording ---------------------------------------------------
 
 duplicates-heading = Files that look like one recording
-duplicates-none-lead = Nothing grouped yet. The pass compares every song's shape against every other's and needs a scan to have read them first; on a corpus of a few hundred thousand files it takes a few seconds.
+duplicates-none-lead = Nothing grouped yet. The pass compares every song's shape against every other's, and needs a scan to have read them first. On a corpus of a few hundred thousand files it takes a few seconds.
 duplicates-none-tail = ends with it, so pressing this is for the times in between.
 duplicates-found = { $groups ->
-    [one] { $groups } group of files looks like one recording, and the song list shows the best copy of each — hiding { $hidden } songs that would otherwise be curated twice.
-   *[other] { $groups } groups of files look like one recording, and the song list shows the best copy of each — hiding { $hidden } songs that would otherwise be curated twice.
+    [one] { $groups } group of files looks like one recording. The song list shows the best copy of each, hiding { $hidden } songs that would otherwise be curated twice.
+   *[other] { $groups } groups of files look like one recording. The song list shows the best copy of each, hiding { $hidden } songs that would otherwise be curated twice.
   }
-duplicates-nothing-to-judge = Nothing was merged and nothing needs judging. Which file of a group is the same recording is answered by listening, so the group is listed on each song's own page with a play button beside every version, and “every version” on the song list's filter bar turns the grouping off.
+duplicates-nothing-to-judge = Nothing was merged and nothing needs judging. Listening is what tells you which file of a group is the same recording. So each song's own page lists the group, with a play button beside every version. “Every version” on the song list's filter bar turns the grouping off.
 duplicates-look-again = Look again
 duplicates-look-again-note = Reads the whole corpus, and its answer replaces the last one — a pair that no longer matches is dropped. A pair dismissed as different stays dismissed.
 duplicates-identical-heading = Byte-identical copies
-duplicates-identical-note = Nothing to decide here, and nothing to run. A song's identity is the hash of its bytes, so identical files are already one song with several paths, and the Copies column carries how many.
+duplicates-identical-note = Nothing to decide here, and nothing to run. A song's identity is the hash of its bytes, so identical files are already one song with several paths. The Copies column carries how many.
 duplicates-more-than-one-copy = Songs with more than one copy, most first
 
 ## Packages -------------------------------------------------------------------------
@@ -627,7 +627,7 @@ packages-version = Version
 packages-version-title = Three numbers with dots between them, like 1.0.0
 packages-publisher = Publisher
 packages-first-number = First number
-packages-numbering = The package id is generated and never changes, so rebuilding with more songs produces the same package. A song's number inside a package runs 1 to { $highest }, and the machine adds the thousands that say which package it is, so nothing typed here can collide with a package already installed.
+packages-numbering = The package id is generated and never changes, so rebuilding with more songs produces the same package. A song's number inside a package runs 1 to { $highest }, and the machine adds the thousands that say which package it is. So nothing typed here can collide with a package already installed.
 packages-create = Create
 packages-open = Open package
 packages-path-to = Path to a
@@ -675,7 +675,7 @@ package-volume-tab = { $count ->
   }
 package-number = No.
 package-source-missing = source missing
-package-numbering-note = Changing a number saves when the field loses focus. A number already used by another song in this package is rejected; numbers are not swapped automatically. When a sync takes a song out, its number is held for it: no other song gets that number until you fill it or release it.
+package-numbering-note = Changing a number saves when the field loses focus. A number already used by another song in this package is rejected; numbers are not swapped automatically. When a sync takes a song out, its number is held for it. No other song gets that number until you fill it or release it.
 package-held-for = Held for
 package-held-title = A sync took this song out, and a printed songbook still lists it at this number. Put another version of it here, or release the number.
 package-held-gone = no longer in the corpus
@@ -695,7 +695,7 @@ package-no-favorites-lead = No favorites yet. Make one on the
 package-every-list-is-a-source = Every list this package can read is already a source of it.
 package-also-source-from = Also source it from
 package-add-source = Add
-package-sources-note = A package sourced from a list holds what that list holds, and is not offered where songs are added to a package one at a time. A working list is offered to no package: songs somebody set aside to decide about later are not a volume to build.
+package-sources-note = A package sourced from a list holds what that list holds. It is not offered where songs are added to a package one at a time. A working list is offered to no package: songs somebody set aside to decide about later are not a volume to build.
 sync-button = { $count ->
     [one] Sync from { $count } list…
    *[other] Sync from { $count } lists…
@@ -931,7 +931,7 @@ song-lyrics-show = Always show them
 song-lyrics-hide = Never show them
 song-lyrics-note =
     The machine plays the song either way. Turn the words off for a file whose lyrics are mistimed,
-    are the arranger's own details, or belong to another song; the television then says "no lyrics"
+    are the arranger's own details, or belong to another song. The television then says "no lyrics"
     in the corner. Rebuild the package for a change here to reach a machine.
 
 package-tab-songs = Songs
@@ -940,7 +940,7 @@ package-tab-build = Build
 
 song-file-says-nothing = (the file says nothing)
 song-language-declared = Unknown, so this song counts as { $name } - the file's own header says { $code }.
-song-language-declared-default = Unknown, so this song counts as { $name } - the file's own header says { $code }, which is what most karaoke files say whatever language they are in.
+song-language-declared-default = Unknown, so this song counts as { $name }. The file's own header says { $code }, which is what most karaoke files say whatever language they are in.
 song-language-from-encoding = Unknown, so this song counts as { $name } - worked out from the encoding its lyrics are written in.
 song-language-guessed = Unknown, so this song counts as { $name } - read from its own words, { $percent }% sure.
 song-language-unknown-code = The file's header says { $code }, which is not a language code this build knows.
@@ -1002,7 +1002,7 @@ song-versions-heading = { $count ->
    *[other] Other versions - { $count }
   }
 song-no-other-versions = No other file here looks like this recording.
-song-other-versions-note = Different bytes, the same shape and the same name. The browse list shows one of these and hides the rest, so nothing gets curated twice. Which of them is really the same recording is answered by listening, and that is what the play buttons are for.
+song-other-versions-note = Different bytes, the same shape and the same name. The browse list shows one of these and hides the rest, so nothing gets curated twice. Listening is what tells you which of them is really the same recording, and that is what the play buttons are for.
 song-test-play-version-title = test-play it, to hear whether it is the same recording
 song-not-the-same = Not the same
 song-not-the-same-title = stop grouping these two, for good
@@ -1163,8 +1163,8 @@ said-start-number-refused = A package numbers its songs 1 to { $highest }; the m
 said-package-full = { $name } has no numbers left. A package holds { $highest } songs and this one is full.
 said-name-has-no-file-name = { $name } leaves nothing that can be a file name. Try a name with letters or digits in it.
 said-spec-written = { $count ->
-    [one] Wrote { $file } describing { $count } song. Edit it in any text editor and build it with km-pack, or go on building from this page, which reads the same description without the file.
-   *[other] Wrote { $file } describing { $count } songs. Edit it in any text editor and build it with km-pack, or go on building from this page, which reads the same description without the file.
+    [one] Wrote { $file } describing { $count } song. Edit it in any text editor and build it with km-pack, or go on building from this page. This page reads the same description without the file.
+   *[other] Wrote { $file } describing { $count } songs. Edit it in any text editor and build it with km-pack, or go on building from this page. This page reads the same description without the file.
   }
 said-build-gone = { $file } is not there any more. Build it again.
 said-imported-all = { $count ->
@@ -1194,7 +1194,7 @@ said-restored = Restored { $songs ->
     [one] { $merges } merge
    *[other] { $merges } merges
   }.
-said-restored-later-format = This file was written by a later build (format { $format }); everything this one understands was read anyway.
+said-restored-later-format = A later build wrote this file (format { $format }); everything this one understands was read anyway.
 
 ## What a chip says a filter is doing -----------------------------------------------------
 #
@@ -1289,7 +1289,7 @@ said-package-made = { $count ->
     [one] Made { $package } with { $count } song. It is on the Packages page, where it is built.
    *[other] Made { $package } with { $count } songs. It is on the Packages page, where it is built.
   }
-said-package-made-sourced = It stays sourced from that list, so it is not offered where songs are added to a package one at a time, and Sync on its own page is what keeps the two together.
+said-package-made-sourced = It stays sourced from that list, so it is not offered where songs are added to a package one at a time. Sync on its own page is what keeps the two together.
 said-package-took-the-first = The filter matched more songs than a package holds, so the first { $count } in this order went in.
 said-package-no-room = { $count ->
     [one] { $count } of them had no number left in it.
@@ -1331,7 +1331,7 @@ said-build-unlanguaged = { $count ->
     [one] Not written — { $count } song has no language, and a package cannot ship without one:
    *[other] Not written — { $count } songs have no language, and a package cannot ship without one:
   }
-said-build-unlanguaged-ways-out = Either set “unclassified songs are” above — which fills them in this package only and writes nothing back to the songs — or classify them for good on the Songs page: filter to the songs with no language, add the folder they are in, and use “set the language of every matching song”.
+said-build-unlanguaged-ways-out = Either set “unclassified songs are” above, which fills them in this package only and writes nothing back to the songs. Or classify them for good on the Songs page. Filter to the songs with no language, add the folder they are in, and use “set the language of every matching song”.
 said-build-written = { $count ->
     [one] Wrote { $file }, version { $version }, with { $count } song
    *[other] Wrote { $file }, version { $version }, with { $count } songs

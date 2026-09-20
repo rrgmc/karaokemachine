@@ -40,7 +40,7 @@ door-already = This program is already logged in to this machine.
 door-retype = Type a different password
 door-retype-again = Type the password again
 door-remember = Remember this password on this computer
-door-remember-open = On this computer the file is protected by your user profile and nothing more.
+door-remember-open = On this computer your user profile protects the file, and nothing more does.
 door-forget = Forget it
 door-where = The password is a six-digit code on the machine's own screen until somebody changes it.
 
@@ -153,7 +153,7 @@ key-remember-unix = Written to this program's own folder, readable only by you.
 # and it is the `<strong>` in the markup — a message split around its own emphasis would force
 # English word order onto every other language.
 key-remember-windows-lead = Written to this program's own folder.
-key-remember-windows-warning = Windows has no per-file owner-only setting this program can set, so it is protected by your profile folder and nothing more.
+key-remember-windows-warning = Windows has no per-file owner-only setting this program can set, so your profile folder protects it and nothing more does.
 
 pack-name-field = Call the pack
 pack-name-hint = Goes into the zip's name, which is also what the machine will call it. Lowercase letters, digits and dashes; anything else is dropped, and what is left is shown back here.
