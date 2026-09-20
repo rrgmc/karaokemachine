@@ -216,6 +216,28 @@ itself**. So the global stayed empty and the first caller panicked.
   caution. `ndk-context` keeps the context in a private static. So a different version would be a
   different crate, a different static, and an initialization cpal never sees.
 
+### Audio focus, and the first call from Rust into Java
+
+`audiofocus.rs` is the seam, and it is built on every platform. The policy is a pure function, so
+every branch of it is tested on a desktop. Only three things are Android's: a request, an abandon,
+and the listener.
+
+**Rust calls a method on the Activity rather than on a class it looked up.** JNI's `FindClass`
+searches the system class loader when a thread the JVM did not start runs it. That loader knows
+nothing of an application's own classes, and the watchdog thread is such a thread. Calling
+`requestAudioFocus` on the Activity object asks that object's class directly, so there is no lookup
+to get wrong. Both handles come back out of `ndk_context::android_context()`, which the subsection
+above filled in for cpal, so this needed nothing new.
+
+**`jni_str!` and `jni_sig!` rather than string literals.** `jni` 0.22 takes a `JNIStr` for a method
+name and a `MethodSignature` for its type. Both are built at compile time, so a `&str` does not
+compile. The helper therefore takes the name as a `&JNIStr` and the two callers pass the macro.
+
+**The listener stores one integer.** It arrives on Android's main thread, which is the thread an ANR
+is measured on. So it does what SDL's visibility watch does and leaves the work to `Machine::poll`.
+`Java_com_rrgmc_karaokemachine_AudioFocus_onAudioFocusChange` is the exported symbol, name-mangled
+the way `km-remote-android` exports its six.
+
 ### A GPU texture leak, and it was on every platform
 
 Something killed the app about ninety seconds in. It looked like Samsung's background killer, then

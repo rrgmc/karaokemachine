@@ -251,6 +251,42 @@ That rule is about an idle machine on a desk, and its five-second release still 
 rule is about a machine that has gone away, where the transport may be `Paused` and the device goes
 back anyway.
 
+## The machine asks Android for the sound, and gives it back
+
+**A song holds audio focus, and the machine does what the system says about it.** Android arbitrates
+who is heard. An application that does not join in is both rude and unprotected: it talks over
+whatever was playing, and a call talks over it. The machine asks, so another player yields to a song.
+It listens, so a call stops one.
+
+**Focus is held only while a song plays, and that is what protects the rule next door.** An
+application holding focus is exempt from Android's cached-application freezer, which
+[`Leaving the screen stops the music`](interface.md#leaving-the-screen-stops-the-music) names as the
+backstop it must not remove. Leaving the screen pauses the machine, the pause drops the focus, and
+the freezer applies exactly as it did.
+
+**The system ducks, and the machine does not.** A request declares that the machine will not pause
+when ducked, so Android lowers the volume itself for something short. A notification chime is the
+ordinary case. A singer sings through a chime, and stopping the song for one would be worse than the
+chime. The machine's own `music_volume` could not serve here anyway. It is written to `settings.json`
+and drawn as a slider on every remote, so a duck through it would be saved and seen.
+
+**A call that ends resumes the song, and nothing else resumes anything.** Android reports a transient
+loss when something needs the sound for a moment, and returns it afterwards. The machine remembers
+that it owes itself that song, and only that memory can make it play unasked. Coming back to the
+screen sets nothing, so
+[`Leaving the screen stops the music`](interface.md#leaving-the-screen-stops-the-music) stands. That
+rule rejects auto-resume because somebody walked away, and a singer waiting out a call did not.
+
+**A debt lasts while the song does.** A song unloaded or stopped during the call cancels it, because
+getting the sound back must not start something nobody chose.
+
+**Android alone.** A desktop lets every application make a sound at once, and iOS has a session
+rather than focus, which cpal's own backend answers. The policy is written once and the platform call
+is the only part that is Android's.
+
+**A refusal is not a failure.** Android may decline the request, and the machine plays anyway, which
+is what it did before it ever asked. It asks again on the next song.
+
 ## Choosing the audio output device
 
 **The machine names its own output, by an identifier that survives a reboot, and remembers it.** On
