@@ -344,9 +344,6 @@ jobs:
           name: carols
           path: dist/carols
 
-      # `quest` is built above and deliberately not named here, so the headset APK reaches the
-      # artifact and not the page. Adding the word is what ships it. See
-      # `What the machine *is*, on a headset` in docs/decisions/distribution.md.
-      - run: bash tools/dist/release.sh --upload --platforms windows,linux,android,ios --elsewhere macos
+      - run: bash tools/dist/release.sh --upload --platforms windows,linux,android,quest,ios --elsewhere macos
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

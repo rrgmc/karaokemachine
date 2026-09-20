@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>KaraokeMachine — uma máquina de karaokê que funciona como um aparelho doméstico</title>
-<meta name="description" content="Escolha uma música pelo número, ela toca, e a letra acende no tempo certo. Tela cheia na televisão; todo celular da rede é um controle. Músicas em MIDI, vídeo, MP3+G e UltraStar. Windows, macOS, Linux, Android e iOS.">
+<meta name="description" content="Escolha uma música pelo número, ela toca, e a letra acende no tempo certo. Tela cheia na televisão; todo celular da rede é um controle. Músicas em MIDI, vídeo, MP3+G e UltraStar. Windows, macOS, Linux, Android, Meta Quest e iOS.">
 <link rel="icon" type="image/png" href="../favicon.png">
 <link rel="apple-touch-icon" href="../icon-512.png">
 <link rel="stylesheet" href="../style.css">
@@ -38,7 +38,7 @@
     <!-- A língua se chama pelo próprio nome, porque quem precisa ler este link é justamente quem não
          lê a página em volta. `Locale::endonym` enuncia a regra para as telas que têm Rust atrás. -->
     <p class="lang"><a href="../" hreflang="en" lang="en">English</a></p>
-    <p class="eyebrow">MIDI · Vídeo · MP3+G · UltraStar &nbsp;·&nbsp; Windows, macOS, Linux, Android, iOS</p>
+    <p class="eyebrow">MIDI · Vídeo · MP3+G · UltraStar &nbsp;·&nbsp; Windows, macOS, Linux, Android, Meta Quest, iOS</p>
     <!-- `alt=""`: o nome está logo ao lado, e uma descrição diria a mesma coisa duas vezes. -->
     <h1><img class="mark" src="../icon-512.png" width="512" height="512" alt="">Karaoke<span>Machine</span></h1>
     <p class="lede">
@@ -326,6 +326,12 @@
       <tr>
         <th scope="row">Android, Google TV</th>
         <td>Um APK com as duas arquiteturas, então ele instala num celular e numa televisão.</td>
+      </tr>
+      <tr>
+        <th scope="row">Meta Quest</th>
+        <td>Um APK próprio, que pendura a tela no ambiente com o ambiente ainda atrás dela. A tela é
+          reta ou curva, e você escolhe qual logo abaixo dela. Ele instala ao lado do APK de Android,
+          e não por cima.</td>
       </tr>
       <tr>
         <th scope="row">iPhone, iPad</th>
