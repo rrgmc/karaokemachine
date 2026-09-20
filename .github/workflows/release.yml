@@ -212,13 +212,16 @@ jobs:
       - run: bash tools/setup/fetch-assets.sh
       - run: bash tools/port/machine/android/ffmpeg.sh
 
+      # One native half serves both flavours, because they share `src/main/`. So the headset's APK
+      # costs a second `assemble` and nothing else.
       - name: The machine
         run: |
           bash tools/port/machine/android/build.sh --release
           bash tools/port/machine/android/stage.sh --release
           bash tools/port/machine/android/assets.sh
-          bash ports/machine/android/gradlew -p ports/machine/android assembleRelease
-          bash tools/port/apk-signer.sh ports/machine/android/app/build/outputs/apk/release/app-release.apk
+          bash ports/machine/android/gradlew -p ports/machine/android assembleFlatRelease assembleHeadsetRelease
+          bash tools/port/apk-signer.sh ports/machine/android/app/build/outputs/apk/flat/release/app-flat-release.apk
+          bash tools/port/apk-signer.sh ports/machine/android/app/build/outputs/apk/headset/release/app-headset-release.apk
 
       - name: The remote
         run: |
@@ -233,7 +236,8 @@ jobs:
         with:
           name: android
           path: |
-            ports/machine/android/app/build/outputs/apk/release/app-release.apk
+            ports/machine/android/app/build/outputs/apk/flat/release/app-flat-release.apk
+            ports/machine/android/app/build/outputs/apk/headset/release/app-headset-release.apk
             ports/remote/android/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
 
@@ -340,6 +344,9 @@ jobs:
           name: carols
           path: dist/carols
 
+      # `quest` is built above and deliberately not named here, so the headset APK reaches the
+      # artifact and not the page. Adding the word is what ships it. See
+      # `What the machine *is*, on a headset` in docs/decisions/distribution.md.
       - run: bash tools/dist/release.sh --upload --platforms windows,linux,android,ios --elsewhere macos
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -61,6 +61,7 @@ windows|c5def5|platform|Windows|On Windows
 macos|c5def5|platform|macOS|On macOS
 linux|c5def5|platform|Linux|On Linux
 android|c5def5|platform|Android|On Android
+quest|c5def5|platform|Meta Quest|On a Meta Quest headset
 ios|c5def5|platform|iOS|On iOS
 machine|d4c5f9|program|The machine (karaokemachine)|The machine itself
 remote|d4c5f9|program|The remote (KM Remote)|The offline remote
@@ -100,6 +101,7 @@ linux|tools/platform/linux/
 macos|tools/platform/macos/
 android|ports/machine/android/
 android|ports/remote/android/
+quest|ports/machine/android/app/src/headset/
 android|crates/remote/km-remote-android/
 android|crates/platform/km-androidlog/
 ios|ports/machine/ios/

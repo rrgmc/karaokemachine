@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The phone and television flavour. What it adds to the shared manifest is the two ways this
+  platform puts an application in front of somebody: a home screen, and a television's home row.
+
+  The merger folds this into `src/main/AndroidManifest.xml`, so everything about the activity other
+  than how it is launched is written once, there.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application>
+        <activity android:name=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <!-- Without this the app is invisible on a television: not in the Play listing, and not
+                 on the home row even after a successful `adb install`. Kept alongside LAUNCHER so
+                 one APK serves phones and TVs both. -->
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+
+</manifest>

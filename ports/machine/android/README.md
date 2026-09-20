@@ -49,11 +49,13 @@ app-private storage on first run. Its module docs say why a `MANIFEST` is needed
 Skip the step and the machine still starts, on its test tone with a system font and a generated
 gradient.
 
-Out comes `app/build/outputs/apk/debug/app-debug.apk`, about 78 MB with video and the wallpaper pack.
+Out comes `app/build/outputs/apk/flat/debug/app-flat-debug.apk`, about 78 MB with video and the
+wallpaper pack. `task build:android:quest` produces the headset's `app-headset-debug.apk` beside it,
+from the same native libraries.
 The four ffmpeg libraries across both ABIs are only ~5 MB of that. The SoundFont (31 MB) and a
 wallpaper pack (19 MB) are most of it; both are assets, and `assets.sh` prints the total.
 
-`task build:android RELEASE=1` writes `app/build/outputs/apk/release/app-release.apk` instead, signed
+`task build:android RELEASE=1` writes `app/build/outputs/apk/flat/release/app-flat-release.apk`, signed
 with the key `KM_ANDROID_KEYSTORE` names and with `android:debuggable` off. That is the one to hand
 somebody; see `How the Android applications are signed` in `docs/decisions/remotes.md`.
 

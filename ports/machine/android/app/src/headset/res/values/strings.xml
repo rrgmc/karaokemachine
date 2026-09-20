@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="headset_screen_shape">Screen</string>
+    <string name="headset_screen_flat">Flat</string>
+    <string name="headset_screen_curved">Curved</string>
+</resources>

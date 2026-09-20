@@ -82,7 +82,7 @@ cd "$(dirname "$0")/../.."
 . tools/dist/common.sh
 DIST_SCRIPT=dist-release
 
-ALL_PLATFORMS="windows macos linux android ios any"
+ALL_PLATFORMS="windows macos linux android quest ios any"
 
 UPLOAD=0
 ADD=0
@@ -249,8 +249,9 @@ macos|dist/setup/macos|km-remote-setup-$VERSION-macos-*[0-9].pkg|=|task dist:set
 linux|dist/karaokemachine/linux|karaokemachine_$VERSION-1_*.deb|=|task dist:deb
 linux|dist/karaokemachine-tools/linux|karaokemachine-tools_$VERSION-1_*.deb|=|task dist:deb:tools
 linux|dist/karaokemachine/linux|karaokemachine-$VERSION-*.tar.gz|=|task dist:tarball
-android|ports/machine/android/app/build/outputs/apk/release|app-release.apk|karaokemachine-$VERSION-android.apk|task build:android RELEASE=1
+android|ports/machine/android/app/build/outputs/apk/flat/release|app-flat-release.apk|karaokemachine-$VERSION-android.apk|task build:android RELEASE=1
 android|ports/remote/android/app/build/outputs/apk/release|app-release.apk|km-remote-$VERSION-android.apk|task build:android:remote RELEASE=1
+quest|ports/machine/android/app/build/outputs/apk/headset/release|app-headset-release.apk|karaokemachine-$VERSION-quest.apk|task build:android:quest RELEASE=1
 ios|dist/karaokemachine/ios|karaokemachine-$VERSION-ios-unsigned.ipa|=|task build:ios RELEASE=1 DEVICE=1 IPA=1
 ios|dist/km-remote/ios|km-remote-$VERSION-ios-unsigned.ipa|=|task build:ios:remote RELEASE=1 DEVICE=1 IPA=1
 any|dist/carols|*.kmpkg|=|task carols

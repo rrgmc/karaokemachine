@@ -79,6 +79,48 @@ alternative is an APK that installs and dies at launch.
 
 SDL's Java is copied verbatim from the vendored template and is not to be edited.
 
+**Two APKs come out of the one project, and `src/main/` is what they share.** The `flat` flavour is
+the phone and the television. The `headset` flavour is Meta Horizon OS, where a Kotlin
+`ImmersiveActivity` owns a scene and hosts `MainActivity` on a panel. The native libraries and the
+unpacked assets are staged into the main source set, so both flavours get them and
+`tools/port/machine/android/stage.sh` knows about neither.
+
+What the flavours differ in is small and all of it is in `app/build.gradle`. `headset` takes an
+`applicationIdSuffix` of `.quest`, a `minSdk` of 34 where the shared default is 26, and
+`arm64-v8a` alone. Its Spatial SDK dependencies are scoped `headsetImplementation`, so the flat APK
+carries no Kotlin runtime at all. Each flavour's manifest holds one thing: how the machine is
+launched. A home screen and a television's home row in one, an immersive scene in the other.
+
+**`checkNativeLibs` keeps matching, and that is worth knowing rather than rediscovering.** AGP names
+the merge task `merge<Flavour><BuildType>JniLibFolders`, and the `tasks.configureEach` predicate
+tests the ends of the name rather than the whole of it.
+
+**Three manifest entries in the headset flavour each fail silently when absent**, and none of them
+reports itself to the application:
+
+1. **`com.oculus.feature.PASSTHROUGH`.** Without it the scene draws a black void, however many times
+   it calls `enablePassthrough`. `PT is: ON` in the log says only that the headset offers
+   passthrough, and `numLayers` beside it says whether the scene submits a layer.
+2. **`oculus.software.handtracking`.** Horizon OS refuses to start an immersive application when no
+   controller is awake, and the refusal is a system dialog reading
+   `app_launch_blocked_controller_required`. Nothing reaches the application, and the launch simply
+   does not happen.
+3. **`com.oculus.supportedDevices`.** A store listing needs it, and a sideload does not.
+
+**A panel bends in place, and `PanelSceneObject.reshape()` is what does it.** Rebuilding the scene to
+change a screen's shape takes the machine down with it, because `AppSystemActivity` does not survive
+`recreate()`. A reshape leaves the song playing. A curved screen also costs nothing, running at 90
+frames a second with no stale frames, the same as a flat one.
+
+**`VRFeature` draws a controller's ray and no hand's.** `IsdkFeature`, from Meta's Interaction SDK,
+is what a hand points with. A headset whose controllers are flat has no other way to reach the
+keypad, so both features are registered.
+
+**`singleInstance` survives embedding, and `MainActivity` keeps it.** A panel hosts an activity on a
+virtual display, which looks like it should want the ordinary launch mode, and it does not. What
+rides on that is the `.kmpkg` route, because `onNewIntent` exists only because of `singleInstance`.
+It is the only way songs reach a headset without a cable.
+
 **It needs a JDK 17 or 21.** Gradle 8.12 will not run on JDK 25. It reports `Unsupported class file major
 version 69` while parsing the build script, because its bundled Groovy predates that format. **A
 Gradle *toolchain* does not help.** The failure is in the daemon JVM that compiles the build script,
@@ -423,6 +465,11 @@ writable=true`. Uploading a package through the owner's page confirmed it: the p
 
 The asymmetry is the point. A package reaches tens of gigabytes and internal storage is the smaller
 volume. Meanwhile nothing dropped onto shared storage may displace what is already installed.
+
+**The application id keys both folders, so the headset flavour has a pair of its own.** A Quest
+holding both APKs holds two libraries, and a package pushed to one is absent from the other. That is
+the cost of the `.quest` suffix, and it is what lets somebody compare the two screens with one
+headset.
 
 **The one case where that combination surprises is an upgraded machine.** It is worth knowing before
 somebody diagnoses it as an upload that did nothing. A build older than this wrote handed-in packages

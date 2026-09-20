@@ -1,6 +1,12 @@
 plugins {
     id 'com.android.application'
+    // Meta Spatial SDK is Kotlin, and it reaches the `headset` flavour alone. The `flat` APK gains
+    // no Kotlin runtime, because no Kotlin source is compiled into it.
+    id 'org.jetbrains.kotlin.android'
 }
+
+// The Spatial SDK line is pre-1.0 and moves, so the version is named once here.
+def metaSpatialSdkVersion = '0.14.0'
 
 // `KM_ANDROID_KEYSTORE` names the release key, and absent it the debug key signs the release build.
 // A fresh clone, another developer's machine and a CI runner hold no keystore, so requiring one would
@@ -46,6 +52,37 @@ android {
     sourceSets {
         main {
             jniLibs.srcDirs = ['src/main/jniLibs']
+        }
+    }
+
+    // **Two APKs from one project, and `src/main/` is what they share.** The native libraries and
+    // the unpacked assets are staged into the main source set, so both flavours get them and
+    // `tools/port/machine/android/stage.sh` needs to know nothing about either one.
+    //
+    // What differs is how the machine reaches a screen. `flat` is launched from a home screen or a
+    // television's home row. `headset` is launched into an immersive scene that hosts the same
+    // activity on a panel.
+    flavorDimensions += 'device'
+    productFlavors {
+        flat {
+            dimension = 'device'
+            // The default, so `assembleDebug` without a flavour still means the phone and the
+            // television.
+            isDefault = true
+        }
+        headset {
+            dimension = 'device'
+            // **A separate application id, and it is permanent.** One headset holds the flat panel
+            // and this at once, each with a packages folder of its own. A store listing would key
+            // every buyer's install to this name, so it is chosen once rather than renamed later.
+            applicationIdSuffix = '.quest'
+            // Meta Spatial SDK's floor. Named here rather than in `defaultConfig`, so a phone still
+            // installs on Android 8.
+            minSdk = 34
+            // Horizon OS is 64-bit, and the armv7 library would be 40 MB of nothing.
+            ndk {
+                abiFilters 'arm64-v8a'
+            }
         }
     }
 
@@ -97,9 +134,23 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
+    kotlinOptions {
+        jvmTarget = '17'
+    }
+
     lint {
         abortOnError = false
     }
+}
+
+// **Scoped to the flavour, so the phone and television APK carries none of it.** A plain
+// `implementation` would put the Spatial SDK in both, and the one that cannot use it is the one
+// people install.
+dependencies {
+    headsetImplementation "com.meta.spatial:meta-spatial-sdk:${metaSpatialSdkVersion}"
+    headsetImplementation "com.meta.spatial:meta-spatial-sdk-toolkit:${metaSpatialSdkVersion}"
+    headsetImplementation "com.meta.spatial:meta-spatial-sdk-vr:${metaSpatialSdkVersion}"
+    headsetImplementation "com.meta.spatial:meta-spatial-sdk-isdk:${metaSpatialSdkVersion}"
 }
 
 // Fail early and clearly rather than shipping an APK with no native library in it: the error a

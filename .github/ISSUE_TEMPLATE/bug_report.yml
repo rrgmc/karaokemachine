@@ -28,6 +28,7 @@ body:
         - macOS
         - Linux
         - Android
+        - Meta Quest
         - iOS
     validations:
       required: true
