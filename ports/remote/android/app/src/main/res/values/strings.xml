@@ -6,21 +6,17 @@
          reads the activity's label before falling back to the application's — so it is the one
          under the icon and the only place the short form appears.
 
-         This file used to hold one string and argue for it. The argument was that
-         `KaraokeMachine Remote` is twenty-one characters, that a phone cuts it inside the first
-         word so "Remote" is the half that goes, and that the icons being amber and green tell the
-         two applications apart anyway. Every clause of that is true and the conclusion was still
-         wrong: a launcher entry reading `KaraokeMac…` names neither the family nor the program,
-         and the icon was left doing all of the work while the label did none. `KM Remote` says
-         which family *and* which program in nine characters, and the amber and green go on
-         separating two icons sitting side by side.
+         **A launcher label names the family and the program, and nine characters is the room it
+         has.** `KaraokeMachine Remote` is twenty-one, and a phone cuts it inside the first word,
+         so `KaraokeMac…` names neither. `KM Remote` says both. The amber and green icons separate
+         the two applications sitting side by side, and a label that says nothing leaves the icon
+         doing all of the work.
 
-         **The product's name did not change** — see `What the product is called` in
-         docs/decisions/foundations.md. This is a label for a space nine characters wide, not a
-         second name for the program, which is exactly why the long one stays above it rather than
-         being replaced by it. Nothing lowercase moves either: the `applicationId`, the namespace
-         and `rootProject.name` are what this is called to Gradle and to a package manager, and
-         they are untouched.
+         **The product's name is what `What the product is called` in docs/decisions/foundations.md
+         settles**, and this is not it. It is a label for a space nine characters wide, so the long
+         form stays above it rather than giving way to it. The `applicationId`, the namespace and
+         `rootProject.name` are what this is called to Gradle and to a package manager, and they
+         are lowercase and separate.
 
          **Neither is translated, and that is not an omission**: both are the product's name, which
          `What the product is called` settles once for every surface. -->

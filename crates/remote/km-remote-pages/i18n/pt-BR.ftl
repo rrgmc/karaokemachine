@@ -387,7 +387,7 @@ backup-restore = Restaurar de um arquivo
 backup-restore-sub = Adicionar o conteúdo de um backup salvo às suas favoritas
 backup-add-only =
     Restaurar só adiciona. As pastas que estiverem faltando são criadas, as músicas que já estão
-    aqui ficam como estão, e nada é removido — então restaurar o mesmo arquivo duas vezes não muda
+    aqui ficam como estão, e nada é removido. Então restaurar o mesmo arquivo duas vezes não muda
     nada na segunda.
 backup-restore-title = Restaurar favoritas
 backup-choose-hint =

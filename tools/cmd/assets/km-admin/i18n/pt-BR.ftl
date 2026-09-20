@@ -116,7 +116,7 @@ pack-remove-confirm = Remover { $pack } da pasta deste programa? Uma máquina pa
 ## Procurando imagens --------------------------------------------------------
 
 pictures-heading = Imagens
-pictures-lead = Encontre imagens de fundo com contraste suficiente para as letras continuarem legíveis e envie-as para a máquina. O contraste é medido na parte da tela que as letras ocupam, contra a cor com que são desenhadas e o escurecimento que a máquina aplica.
+pictures-lead = Encontre imagens de fundo com contraste suficiente para as letras continuarem legíveis e envie-as para a máquina. O contraste é medido na parte da tela que as letras ocupam. A comparação é com a cor com que são desenhadas e com o escurecimento que a máquina aplica.
 
 providers-heading = Onde procurar
 provider-no-account = não precisa de conta
@@ -129,7 +129,7 @@ key-placeholder = deixe em branco para manter a que já está definida
 key-remember = Lembrar dela nesta máquina
 key-remember-unix = Gravada na pasta deste programa, legível só por você.
 key-remember-windows-lead = Gravada na pasta deste programa.
-key-remember-windows-warning = O Windows não tem uma configuração por arquivo, só para o dono, que este programa possa aplicar, então ela fica protegida pela sua pasta de perfil e por mais nada.
+key-remember-windows-warning = O Windows não tem uma configuração por arquivo, só para o dono, que este programa possa aplicar. Então a sua pasta de perfil protege a chave, e nada mais a protege.
 
 pack-name-field = Nome do pacote
 pack-name-hint = Entra no nome do zip, que também é como a máquina vai chamá-lo. Letras minúsculas, dígitos e traços; qualquer outra coisa é descartada, e o que sobra é mostrado de volta aqui.
