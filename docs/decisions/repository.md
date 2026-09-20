@@ -694,14 +694,21 @@ tail or the paragraph of reassurance, so a clean run is a floor rather than a pa
 
 **`tools/dev/prose-sentences.awk` reads the sentence shapes.** It counts the words in a sentence and
 the sentences in a paragraph. It catches a passive verb that names its agent. Idiom, metaphor and a
-long noun string have no shape, so a person still reads new prose. It reads `*.md` and commit
-messages, and it hands a code comment to that person.
+long noun string have no shape, so a person still reads new prose. It reads `*.md`, a Fluent catalog
+and commit messages, and it hands a code comment to that person.
 
 **A page is prose only where the list names it.** `-v page=1` reads HTML instead of Markdown. A tag
 becomes a space, and a `</p>`, a `</li>` or a heading's close ends a paragraph. It never reads a
 `<script>`, a `<style>`, a comment or a heading's own words. The tracked pages are mostly Fluent
 templates, where a line is markup and a sentence counter would report the markup. Naming the page in
 `prose-converted.txt` is what makes it prose, and the site's two pages are what that is for.
+
+**A catalog of program strings is read like a document.** `-v ftl=1` reads Fluent, where a message, a
+term and an attribute each open a value, and each value is a paragraph of its own. A placeable is one
+word, as a code span is, and a selector is read at its default variant. A plural's arms differ by a
+word, and reading them all would count one sentence several times. A comment there is the catalog's
+own commentary and stays outside the shape. Every word in a catalog is a word somebody reads on a
+screen, so the twelve catalogs are named in the list beside the documents.
 
 **Structure is what reaches a page in another language.** The active voice, one idea to a sentence,
 the word limit and the paragraph limit hold in any language. The vocabulary half does not travel,
@@ -711,9 +718,10 @@ reaches a translation, so a person reads a translated page for the rest.
 
 **The tree converts one document at a time.** `tools/dev/prose-converted.txt` names the documents
 somebody has already written to the shape, and every mode reads those whole. Outside that list the
-checker reads only the lines a branch adds. More than a third of the sentences in this tree run past
-twenty-five words. A tree-wide sentence run would therefore fail every branch, and a gate that always
-fails teaches a session to skip the gate.
+checker reads only the lines a branch adds. The code comments are what a tree-wide sentence run
+reaches next, and a third of the sentences in them run past twenty-five words. Reading those before
+they are written to the shape would fail every branch. A gate that always fails teaches a session to
+skip the gate.
 
 **`--commits` puts the same shapes over the messages, and its reach is `origin/master..HEAD`.** The
 subject and the body both, merges included, because a merge here carries a written subject rather

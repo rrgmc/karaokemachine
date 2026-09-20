@@ -5,7 +5,8 @@
 # converts one document at a time and a converted one cannot slide back.
 #
 # One path per line, from the repository root, exactly as `git ls-files` spells it. A `.html` page is
-# read only because it is named here, and a page in another language is judged by its structure.
+# read only because it is named here, and a page in another language is judged by its structure. A
+# `.ftl` catalog holds the words inside a program, and naming one here reads its messages whole.
 
 README.md
 BUILDING.md
@@ -18,7 +19,15 @@ SECURITY.md
 .github/pull_request_template.md
 assets/wallpapers/CREDITS.md
 crates/CLAUDE.md
+crates/machine/km-admin-pages/i18n/en.ftl
+crates/machine/km-admin-pages/i18n/pt-BR.ftl
+crates/machine/km-api/i18n/en.ftl
+crates/machine/km-api/i18n/pt-BR.ftl
 crates/machine/km-api/static/README.md
+crates/playback/km-display/i18n/en.ftl
+crates/playback/km-display/i18n/pt-BR.ftl
+crates/remote/km-remote-pages/i18n/en.ftl
+crates/remote/km-remote-pages/i18n/pt-BR.ftl
 crates/remote/km-remote-pages/static/README.md
 docs/ARCHITECTURE.md
 docs/architecture/admin.md
@@ -80,8 +89,12 @@ site/index.html
 site/pt-BR/index.html
 tools/CLAUDE.md
 tools/cmd/assets/CLAUDE.md
+tools/cmd/assets/km-admin/i18n/en.ftl
+tools/cmd/assets/km-admin/i18n/pt-BR.ftl
 tools/cmd/assets/km-admin/static/README.md
 tools/cmd/km-pack/CLAUDE.md
+tools/cmd/km-package-builder/i18n/en.ftl
+tools/cmd/km-package-builder/i18n/pt-BR.ftl
 tools/cmd/km-package-builder/static/README.md
 tools/dev/remote/README.md
 tools/dist/release-notes.md
