@@ -34,13 +34,14 @@
 #
 # **The sentence shapes are a second scanner, and `prose-sentences.awk` holds it.** A body sentence
 # stops at twenty-five words and a paragraph at six sentences, and a passive verb that names its
-# agent is a hit. It reads `*.md` and commit messages, and it is one process per file rather than one
+# agent is a hit. It reads `*.md`, a Fluent catalog and commit messages, one process per file not one
 # per shape.
 #
-# **The whole-tree form reads the sentence shapes over `prose-converted.txt` alone.** A third of the
-# sentences in the tree are longer than the limit, so a tree-wide sentence run would fail on every
-# branch and teach a session to skip the gate. A file converts, it joins that list, and CI reads it
-# whole from then on. A branch's own added lines are read wherever they land.
+# **The whole-tree form reads the sentence shapes over `prose-converted.txt` alone.** The code
+# comments are what it reaches next, and a third of the sentences in them are longer than the limit,
+# so reading those now would fail every branch and teach a session to skip the gate. A file converts,
+# it joins that list, and CI reads it whole from then on. A branch's own added lines are read
+# wherever they land.
 
 set -uo pipefail
 
@@ -148,7 +149,12 @@ FILES_MODE=1
 [ "$COMMITS" -eq 1 ] && [ "$CHANGED" -eq 0 ] && FILES_MODE=0
 
 # Text this repository writes: documents, and the languages whose comments carry reasoning.
-KINDS=('*.md' '*.rs' '*.html' '*.css' '*.ftl' '*.toml' '*.sh' '*.yml')
+#
+# **`*.xml` is here for the phrase shapes and not for the sentence ones.** Android's `strings.xml`
+# holds the words the remote's shell draws before its page exists, and the comments around them carry
+# the same reasoning a `.rs` comment does. The values themselves are short, so the sentence shapes
+# would add a reader for a file that has nothing for it to find.
+KINDS=('*.md' '*.rs' '*.html' '*.css' '*.ftl' '*.toml' '*.sh' '*.yml' '*.xml')
 
 # The default branch's tip is what both `--changed` and `--commits` measure from: the lines this
 # branch added, and the commits it added them in.
@@ -300,9 +306,9 @@ scan() {
 # A hit arrives as `<line>|<rule>|<text>` and meets the same scope filter, so `--changed` reads the
 # lines a branch added here too. The line is the one the sentence *starts* on.
 sentence_scan() {
-  local label="$1" scope="$2" kind="${3:-file}" src="${4:-}" page="${5:-0}"
+  local label="$1" scope="$2" kind="${3:-file}" src="${4:-}" reader="${5:-}"
   local hit number rule text where mode=()
-  [ "$page" -eq 1 ] && mode=(-v page=1)
+  [ -n "$reader" ] && mode=(-v "$reader=1")
   while IFS= read -r hit; do
     [ -z "$hit" ] && continue
     number="${hit%%|*}"
@@ -348,7 +354,8 @@ if [ "$FILES_MODE" -eq 1 ]; then
     #
     # **A page is read only where `prose-converted.txt` names it, in every mode.** The tracked pages
     # are mostly Fluent templates, where a line is markup and a sentence counter would report the
-    # markup; naming a page is what makes it prose.
+    # markup; naming a page is what makes it prose. A catalog of program strings is read like a
+    # document, because every word in one is a word somebody reads.
     case "$file" in
       *.md)
         if [ "$CHANGED" -eq 1 ] || converted "$file"; then
@@ -357,7 +364,15 @@ if [ "$FILES_MODE" -eq 1 ]; then
         ;;
       *.html)
         if converted "$file"; then
-          sentence_scan "$file" "$scope" file "$file" 1
+          sentence_scan "$file" "$scope" file "$file" page
+        fi
+        ;;
+      # **A catalog is the words inside a program, and the decision reaches those.** It is read whole
+      # once the list names it, exactly as a document is, because a message is a sentence somebody
+      # reads on a screen rather than a line of markup.
+      *.ftl)
+        if [ "$CHANGED" -eq 1 ] || converted "$file"; then
+          sentence_scan "$file" "$scope" file "$file" ftl
         fi
         ;;
     esac
