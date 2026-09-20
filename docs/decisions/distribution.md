@@ -1354,6 +1354,69 @@ the one carrier whose instructions are a procedure the recipient carries out, ra
 double-click. The README is the document written for somebody who has the machine rather than the
 source.
 
+## What the machine *is*, on a headset
+
+**The same program again, on a screen that hangs in the room.** `ports/machine/android/` builds a
+second APK for Meta Horizon OS. A Kotlin shell owns the immersive scene and hosts the machine's own
+activity in a panel. The synthesizer, the catalog, the display and the API are untouched. Horizon OS
+already ran the ordinary APK as a flat system panel, so this row is about the screen rather than
+about the port.
+
+**No Rust changes, and that is what separates this from iOS.**
+[`What the machine *is*, on iOS`](#what-the-machine-is-on-ios) relinks the machine as a `staticlib`
+behind a new entry point. Here `SDLActivity` still calls `SDL_main`, and the renderer is still
+OpenGL ES. Meta Spatial SDK hands the activity a panel, and the headset's compositor draws that panel
+at its own resolution. Reaching OpenXR directly would cost a wait for SDL 3.6.0 and a move to Vulkan,
+and it would buy the same screen.
+
+**The microphone non-goal is untouched, and a headset does not reopen it.**
+[`Microphones`](audio.md#microphones) puts mixing in hardware and applies no DSP. A headset carries
+no mixer. The wearer hears the music in the headset and their own voice through the air, which is
+what practising alone sounds like.
+
+**Only the wearer sees the words, and that is accepted rather than answered.** A karaoke machine
+serves a room, and the room sees nothing here. Casting to a television gives the room a picture and
+adds delay to it. So a headset is a practice device for one person, and it serves a smaller product
+than the box under a television does.
+
+**A release names this platform or leaves it out entirely.** `--platforms` takes `quest`, and a cut
+that omits the word drops the row, the count and the download table entry together.
+[`A release page carries the platforms the machine cutting it can build`](#a-release-page-carries-the-platforms-the-machine-cutting-it-can-build)
+already makes that the normal shape. A platform serving one person alone earns a place on the page by
+being asked for.
+
+**One headset holds this and the flat panel at once.** The application id takes a `.quest` suffix, so
+the two install side by side. Each keeps a packages folder of its own, so songs pushed to one are
+absent from the other. Somebody comparing the two screens wants both installed, and the cost is
+copying a package twice.
+
+**The room shows behind the screen.** Passthrough is on, so the wearer sees the furniture, the
+microphone stand and whoever else is there. A headset that blacks out the room is a headset somebody
+takes off between songs.
+
+**The screen's shape belongs to the headset rather than to the settings file.** Flat or curved is a
+property of where somebody is standing, the way a window's position is a property of a desktop. The
+Kotlin shell remembers the choice, and `settings.json` never learns it. This keeps a second screen
+shape out of every platform that has one screen.
+
+**The Meta Horizon Store stays reachable, and one thing has to be settled now to keep it so.** A
+listing keys the entitlement and every buyer's install to the application id, which is why
+`com.rrgmc.karaokemachine.quest` is chosen once rather than renamed later. The store takes 2D
+applications and Spatial SDK applications alike, so being immersive is not what would gate a listing.
+Everything else a submission wants can be added the week before one.
+
+**Getting songs in without a cable is the constraint that reaches the code.** Android 11 closed
+`/Android/data/<pkg>/files/` to file managers, so `adb push` reaches the packages folder and nothing
+a person has to hand does. Somebody who bought this has no cable workflow. So the `.kmpkg` route from
+a file manager is load-bearing here in a way it is not on a phone. A headset build may not trade it
+away for a simpler activity, and `singleInstance` in the manifest is what that costs.
+
+**What a submission would still need is listed rather than built.** The store expects an entitlement
+check through Meta's platform SDK, which this repository does not carry. A listing also wants a
+privacy policy covering the listening socket and the mDNS advertisement, and a pass against the
+Virtual Reality Checks. None of that is work the sideload needs, and all of it is work a listing
+cannot skip.
+
 ## A log file for the runs nobody is watching
 
 **`--log-file`, or `KM_LOG_FILE=1`, puts the log in a `logs` folder in the application's own data

@@ -430,6 +430,7 @@ it are the same entry. How the thing is built is [`ARCHITECTURE.md`](../ARCHITEC
 - [What a macOS bundle says it is for](distribution.md#what-a-macos-bundle-says-it-is-for)
 - [What the machine *is*, on iOS](distribution.md#what-the-machine-is-on-ios)
 - [An iOS carrier is unsigned, and the person installing signs it](distribution.md#an-ios-carrier-is-unsigned-and-the-person-installing-signs-it)
+- [What the machine *is*, on a headset](distribution.md#what-the-machine-is-on-a-headset)
 - [A log file for the runs nobody is watching](distribution.md#a-log-file-for-the-runs-nobody-is-watching)
 - [A log that goes to a viewer instead of a console](distribution.md#a-log-that-goes-to-a-viewer-instead-of-a-console)
 - [A panic writes a file even when nothing else does](distribution.md#a-panic-writes-a-file-even-when-nothing-else-does)
