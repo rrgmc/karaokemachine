@@ -1,9 +1,9 @@
 # Research: the machine on a Meta Quest 3
 
-**Research only. Nothing implemented, nothing decided.** A platform is a product decision, so a
-headset carrier needs an entry in `docs/decisions/distribution.md` beside
-[`What the machine *is*, on Linux`](../decisions/distribution.md#what-the-machine-is-on-linux) and
-[`What the machine *is*, on iOS`](../decisions/distribution.md#what-the-machine-is-on-ios) first.
+**Measurements, and the decision they fed.** A platform is a product decision, and the one this note
+produced is
+[`What the machine *is*, on a headset`](../decisions/distribution.md#what-the-machine-is-on-a-headset).
+That entry is authoritative wherever the two disagree.
 
 Investigated 2026-09-19. **The headset claims here were measured on a Meta Quest 3**, and the marker
 on each says how far it can be trusted.
@@ -301,9 +301,8 @@ the other route and ships a separate OpenXR build.
 
 ## 8. Recommendation
 
-**The flat panel works, and it is a sideload rather than a carrier.** Somebody who owns a Quest 3 can
-install today's APK and sing to it. That costs this project nothing: no code, no build, no release
-artefact, and no row in the download table.
+**The flat panel works, and it needs nothing.** Somebody who owns a Quest 3 installs today's ordinary
+APK and sings to it. No code, no build and no release artefact sit behind that.
 
 **An immersive version is cheap to build and still answers nothing.** Spatial SDK costs a Kotlin
 activity, a second build variant and a `minSdk` of 34. It buys a fixed screen with the room behind
