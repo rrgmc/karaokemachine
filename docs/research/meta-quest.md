@@ -16,10 +16,15 @@ One behaviour differs from a phone, and it follows this machine's own rule rathe
 Horizon OS stops the activity when the headset leaves the wearer's face. The machine pauses, holds
 its position, and waits for somebody to press play.
 
-The product problems are larger than the port. Only the wearer sees the words, and the room sees
-nothing. A headset has no hardware mixer for the microphones. **An immersive build is out of reach
-today**, because SDL carries OpenXR from 3.6.0, which falls near January 2027 on SDL's own cadence.
-That route also moves the renderer to Vulkan.
+**An immersive build is cheap, and Meta Spatial SDK is what makes it cheap.** A Kotlin activity of
+about fifty lines hosts the existing SDL activity as a panel in a scene of its own. The room shows
+behind it. It runs at ninety frames a second, the lyrics are sharp, and no Rust changes. The price is
+two APKs rather than one. Reaching OpenXR directly stays expensive, because SDL carries it from
+3.6.0, which falls near January 2027, and that route also moves the renderer to Vulkan.
+
+The product problems are larger than the port, and the cheap route answers none of them. Only the
+wearer sees the words, and the room sees nothing. A headset has no hardware mixer for the
+microphones.
 
 | Marker | Meaning |
 |---|---|
@@ -89,7 +94,34 @@ headset, and it changes no behaviour.
 redraw at the new size. SDL declares the surface resizable and Horizon OS honours it. **This is most
 of what an immersive build would buy**, and it costs nothing.
 
-## 3. The headset coming off pauses the machine
+## 3. The icon comes from the APK and the name comes from the store
+
+**[repo]** The library tile draws `android:icon`, which the machine already carries. A sideload needs
+nothing added to get its own icon, and being immersive rather than flat changes none of it.
+
+**[repo]** The name is the half a sideload cannot supply. The shell's control bar reads
+`app name unavailable` under the running application, and the log says why:
+
+```
+OVRLibrary: null cursor received for query content://com.oculus.ocms.library/apps/<package>
+LibraryModule: Received null app from OCMS for package name <package>
+AppManagerInternal: Entitlement not found, channels=[Store, Q4B, PcStore]
+```
+
+**[repo]** `android:label` and `android:icon` named on the immersive activity itself do not change
+it. The shell asks its own library database rather than the package manager, and only a store entry
+puts a row there.
+
+**[web]** The rectangular cover art store applications show comes from the same place, keyed by
+application id. Meta's asset guidelines describe the set as listing material. It holds a 512x512
+icon, a 2560x1440 landscape cover, a 1440x1440 square, a 1008x1440 portrait and a 3000x900 hero.
+Nothing in Meta's manifest guide puts any of them in an APK.
+
+**[web]** MetaMetadata scrapes the store, SideQuest and OculusDB daily so that launchers such as
+Lightning Launcher have banners and icons to draw. It carries nothing for an application in none of
+the three, and those launchers let a wearer pick a cover by hand.
+
+## 4. The headset coming off pauses the machine
 
 **[repo]** Taking the headset off drives the ordinary Android activity lifecycle. SDL reports
 `onWindowFocusChanged(): false`, then `onPause()`, `surfaceDestroyed()` and `nativePause()`.
@@ -109,10 +141,67 @@ rejects auto-resume. A song that restarts on return surprises a room the way one
 does. A headset would need that decision changed, and one Android build serves phones, televisions
 and headsets alike.
 
-## 4. An immersive build is out of reach today
+## 5. Meta Spatial SDK draws the machine in a panel
 
 The alternative to a flat panel is a window of this project's own. One large screen sits in the room,
-with the real room behind it. That route runs through OpenXR, and the obvious path to OpenXR is SDL.
+with the real room behind it. Two routes reach it. Meta Spatial SDK hosts the existing activity, and
+OpenXR asks the application to drive the headset itself.
+
+### Spatial SDK costs no Rust at all
+
+Meta Spatial SDK is a Kotlin framework for Horizon OS. It owns the immersive scene and places
+ordinary Android activities in it as panels, so an application reaches a headset without touching
+OpenXR.
+
+**[repo]** A Kotlin activity of about fifty lines put the machine in a panel. It extends
+`AppSystemActivity`, registers one panel naming `MainActivity` as its `activityClass`, and places it
+two metres out at eye height. The manifest gives that activity `allowEmbedded` and
+`resizeableActivity`, drops its `singleInstance` launch mode, and adds the
+`com.oculus.intent.category.VR` category to the new one.
+
+**[repo]** Measured on a Quest 3, with a MIDI song playing:
+
+| Check | Result |
+|---|---|
+| The machine draws in the panel | Yes, at 2880x1620, the 1600x900 dp asked for |
+| Frames | 91 of 90 a second, no stale frames |
+| Application time a frame | 0.97 ms to 3.34 ms of an 11.1 ms budget |
+| Dropped frames | One, at 12.5 ms |
+| Lyrics on a compositor layer | Sharp |
+| Controller input reaching the keypad | Yes |
+| Temperature | 41 C at the start, 48 C after a session |
+
+**[repo]** Passthrough takes three things, and any two of them give a black void.
+`scene.enablePassthrough(true)` and `scene.enableHolePunching(true)` ask for it, and
+`<uses-feature android:name="com.oculus.feature.PASSTHROUGH" />` is what lets Horizon OS grant it.
+An application missing the feature is refused silently, with no error and no warning.
+
+**[repo]** `PT is: ON` in the system log says only that the headset offers passthrough. The count
+beside it answers whether the scene submits a layer: `numLayers: 0` is the void, `numLayers: 1` is
+the room.
+
+**[repo]** The renderer never moved. The log still reads `renderer=opengles2 vsync=true`, and
+Spatial SDK runs inside the machine's own process beside `SDL_main`.
+
+**[repo]** The headset warms to 48 C and its fan becomes audible, while still holding 90 frames a
+second. Passthrough is what costs this, because it runs the cameras and the depth pipeline for as
+long as the scene asks for it. A flat panel leaves all of that off.
+
+**[repo]** `adb shell am broadcast -a com.oculus.vrpowermanager.prox_close` stops the headset
+sleeping when it leaves the wearer's face, which a measurement over adb needs.
+`com.oculus.vrpowermanager.automation_disable` puts it back, and a headset left on the desk with
+passthrough running is what makes putting it back matter. Neither survives a reboot.
+
+**[repo]** `scene.setReferenceSpace(ReferenceSpace.LOCAL_FLOOR)` is what makes the headset's Reset
+View bring the panel round. `scene.setViewOrigin` pins the origin to the tracking space instead. A
+screen the wearer cannot bring back in front of them is a screen in the wrong place for good.
+
+**[repo]** The cost is two APKs rather than one. Spatial SDK needs `minSdk` 34 against this project's
+26, Kotlin against one Java activity, and three `com.meta.spatial` dependencies. Meta's own porting
+guide keeps a `mobile` and a `quest` build variant, each with its own manifest. The Quest manifest
+names an immersive launcher, and merging the two leaves a phone with two launcher entries.
+
+### OpenXR is the other route, and it is the expensive one
 
 **[source]** The workspace builds **SDL 3.4.14**. `Cargo.lock` resolves `sdl3-sys 0.6.8+SDL-3.4.14`,
 and the vendored `SDL_version.h` agrees.
@@ -174,7 +263,7 @@ caches across frames.
 `xrWaitFrame` and `xrEndFrame` set the pace instead. That file is the largest single change an
 immersive build would need.
 
-## 5. What a headset does to the product
+## 6. What a headset does to the product
 
 These matter more than the port, and they hold for a flat panel and an immersive build alike.
 
@@ -189,14 +278,14 @@ air.
 **[inferred]** Bluetooth headphones add delay a singer notices, and the 40 ms output period in §2
 comes before any of that.
 
-**[repo]** The machine pauses when the headset comes off, as §3 describes. Somebody adjusting the
+**[repo]** The machine pauses when the headset comes off, as §4 describes. Somebody adjusting the
 strap interrupts their own song.
 
 **[inferred]** A headset therefore suits one person practising alone, and it is a poor fit for a room
 of singers. Passthrough helps with the room, because the wearer still sees it, and it answers neither
 of the first two problems.
 
-## 6. What others have built
+## 7. What others have built
 
 **[web]** Three karaoke titles sell on the Meta store, and all three are full VR applications.
 Songbird is a singing game with a story world. KaraMeta is a virtual room with a sound stage, a vocal
@@ -210,17 +299,21 @@ karaoke player on the Quest was found.
 and behaves much as it does on a phone, which makes it the closest match to this machine. PPSSPP took
 the other route and ships a separate OpenXR build.
 
-## 7. Recommendation
+## 8. Recommendation
 
 **The flat panel works, and it is a sideload rather than a carrier.** Somebody who owns a Quest 3 can
 install today's APK and sing to it. That costs this project nothing: no code, no build, no release
 artefact, and no row in the download table.
 
-**Do not build an immersive version.** Both routes are expensive. Waiting for SDL 3.6.0 costs about a
-year and then a move to Vulkan, and the `openxr` crate costs weeks of hand-written OpenXR. The frame
-loop is the largest file in the machine either way, and the product problems in §5 would survive all
-of it. The panel already moves and resizes, so what the work buys is a curved screen, no system
-frame, and passthrough behind it.
+**An immersive version is cheap to build and still answers nothing.** Spatial SDK costs a Kotlin
+activity, a second build variant and a `minSdk` of 34. It buys a fixed screen with the room behind
+it. The product problems in §6 survive all of it, and the flat panel already moves and resizes. So
+the case rests on whether a fixed screen in passthrough beats a system panel the wearer places. That
+is a matter of taste rather than of capability.
+
+**The OpenXR route stays closed.** Waiting for SDL 3.6.0 costs about a year and then a move to
+Vulkan, and the `openxr` crate costs weeks of hand-written OpenXR. Neither buys anything Spatial SDK
+does not.
 
 **The question worth answering first is the microphone**, and it is a product question rather than a
 build one. A headset with no mixer reopens a standing non-goal. Until somebody reopens it, a headset
@@ -233,6 +326,10 @@ video decode as it warms.
 ## Sources
 
 - Meta's guide to making an existing Android application compatible with Horizon OS.
+- Meta's Spatial SDK documentation: the panel registration and media playback pages. Also the guide
+  to adding Spatial SDK to an existing 2D application, and the `HybridSample` project.
+- The Spatial SDK archives on Maven Central, read with `javap` for the signatures the documentation
+  leaves out.
 - Meta's native OpenXR and passthrough documentation, for floating panels and `XR_FB_passthrough`.
 - The Meta store listings for Songbird, KaraMeta and SingRoom.
 - RetroArch and PPSSPP, for the two routes an existing Android application can take.
