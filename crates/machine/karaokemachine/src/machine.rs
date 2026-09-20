@@ -48,6 +48,7 @@ use km_queue::queue::{Queue, QueueEntry, QueueFull, QueueRequest};
 use km_song::{ParseOptions, Song};
 use km_songcode::SongCode;
 
+use crate::audiofocus;
 use crate::cdg::CdgSong;
 use crate::engine::{Engine, Sound};
 use crate::settings::{Paths, Settings, tidy};
@@ -627,6 +628,23 @@ pub struct Machine {
     /// for the same reason: what it leads to takes a lock, and the watch runs on the thread that
     /// must not wait for one.
     foreground_pending: AtomicBool,
+    /// Whether the machine has asked Android for the sound and been given it.
+    ///
+    /// **Held only while a song is actually playing**, which is what leaves
+    /// `Leaving the screen stops the music` standing: an application holding focus is exempt from
+    /// Android's cached-application freezer, so a machine that kept it in the background would throw
+    /// away the backstop that entry names.
+    ///
+    /// False on every platform but Android, where [`crate::audiofocus::request`] answers true
+    /// without asking anybody, because nothing there arbitrates the sound.
+    holds_focus: AtomicBool,
+    /// A song the machine stopped because something else needed the sound, and owes itself.
+    ///
+    /// **The one thing that can make the machine play without being asked**, and it is deliberately
+    /// narrow. A call takes the sound, the machine pauses, the call ends and the song goes on. The
+    /// screen coming back sets nothing here, so it resumes nothing, which is the rule
+    /// `Leaving the screen stops the music` settled.
+    owes_resume: AtomicBool,
     /// How to ask the API server to take its port again.
     ///
     /// Empty in every program that builds a machine without an API, which is most tests and both
@@ -791,6 +809,9 @@ impl Machine {
             foreground: AtomicBool::new(true),
             background_pending: AtomicBool::new(false),
             foreground_pending: AtomicBool::new(false),
+            // Nothing has been asked for yet, and nothing is owed.
+            holds_focus: AtomicBool::new(false),
+            owes_resume: AtomicBool::new(false),
             relisten: OnceLock::new(),
             performance_overlay: AtomicBool::new(false),
             engine,
@@ -1647,6 +1668,10 @@ impl Machine {
     /// The output device is deliberately **not** handed back here. `should_release` excludes
     /// `Paused` on purpose, and its reasoning holds: reopening would lose the position, so releasing
     /// it would cost exactly the thing pausing was for. What is left open renders silence.
+    ///
+    /// **Audio focus *is* handed back, and this is the pause that does it.**
+    /// [`Machine::settle_audio_focus`] holds focus only while a song plays, so the pause above drops
+    /// it on the next tick and the exemption named in the first paragraph never applies.
     fn settle_foreground(&self) {
         if !self.background_pending.swap(false, Ordering::AcqRel) {
             return;
@@ -1698,6 +1723,70 @@ impl Machine {
         }
     }
 
+    /// Holds the sound while a song plays, and answers whatever the system says about it.
+    ///
+    /// **Two jobs that belong together, because each is the other's edge.** The machine asks for
+    /// focus when a song starts and gives it back when one stops, so that another player yields to
+    /// it; and it acts on what Android reports, so that it yields to a call. Splitting them would
+    /// mean two places that both have to agree about whether the machine is holding anything.
+    ///
+    /// **Driven from the transport rather than from the call sites.** Every route into playing — a
+    /// press, a queue advancing, a song ending, a seek, the screen going away — moves the transport,
+    /// so watching it here catches all of them and none of them learns that focus exists.
+    ///
+    /// Off Android the whole method is one atomic read and one comparison per tick: nothing
+    /// arbitrates the sound there, [`crate::audiofocus::take`] answers nothing, and a request that
+    /// is always granted leaves the flag matching the transport after the first song.
+    fn settle_audio_focus(&self) {
+        // What the system said, before what the machine wants, because losing the sound changes the
+        // transport and there is no point asking for what a pause is about to hand back.
+        if let Some(change) = audiofocus::take() {
+            let owed = self.owes_resume.load(Ordering::Acquire);
+            let (command, still_owed) = audiofocus::action(change, owed);
+            self.owes_resume.store(still_owed, Ordering::Release);
+            if let Some(command) = command {
+                match Controller::transport(self, command) {
+                    Ok(()) => tracing::info!(?change, ?command, "the sound changed hands"),
+                    // Not a fault, and the same reason `settle_foreground` gives: the song can end
+                    // between the report and this line.
+                    Err(error) => tracing::debug!(%error, ?change, "nothing to do about the sound"),
+                }
+            }
+        }
+
+        let transport = self.engine.transport();
+        // **A debt outlives a pause and nothing else.** `Paused` still has the song loaded at its
+        // position, which is the thing a call interrupted; `Idle` and `Stopped` mean it went away
+        // while the call ran, and getting the sound back then must not start something nobody asked
+        // for.
+        if self.owes_resume.load(Ordering::Acquire)
+            && !matches!(transport, Transport::Playing | Transport::Paused)
+        {
+            self.owes_resume.store(false, Ordering::Release);
+        }
+
+        // **The level, not the edge.** A song that is playing wants the sound, and so does one
+        // waiting on a call to end: abandoning the request there would leave the system with nothing
+        // to hand back to, and the song would sit paused for good. Asked every tick and acted on
+        // only when the answer differs from what is held, so an idle machine costs a few atomics.
+        let wants = transport == Transport::Playing || self.owes_resume.load(Ordering::Acquire);
+        if wants == self.holds_focus.load(Ordering::Acquire) {
+            return;
+        }
+        if wants {
+            let granted = audiofocus::request();
+            self.holds_focus.store(granted, Ordering::Release);
+            if !granted {
+                // Refused rather than broken. The machine plays anyway, which is what it did before
+                // it ever asked, and the next tick asks again.
+                tracing::info!("the sound was not given to this machine");
+            }
+        } else {
+            audiofocus::abandon();
+            self.holds_focus.store(false, Ordering::Release);
+        }
+    }
+
     /// One step of the machine's own business: advancing the queue, and announcing lyric lines.
     ///
     /// Called from a watchdog thread at [`crate::POLL_INTERVAL`]. It exists because a song ending is
@@ -1720,6 +1809,9 @@ impl Machine {
         // Its twin on the other edge, and one atomic in the same way: on exactly the tick the app
         // came back, a request for the port.
         self.settle_relisten();
+        // A few atomics on every platform, and on a phone the two moments the sound changes hands:
+        // a song starting asks for it, and a call taking it stops the song.
+        self.settle_audio_focus();
 
         let ended = self.engine.songs_ended();
         let (was_seen, has_song, was_demo) = {

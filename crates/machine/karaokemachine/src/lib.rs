@@ -28,6 +28,10 @@
 mod androidassets;
 #[cfg(target_os = "android")]
 mod androidctx;
+// Built everywhere, unlike the two modules around it, and that is what keeps `cfg` out of the
+// machine. Only Android arbitrates who is heard, so only Android has anything to ask; the policy
+// that decides what to do about an answer is ordinary Rust and is tested on the desktop.
+mod audiofocus;
 // Public, unlike `androidctx` beside it, and the difference is who calls it. Android's context
 // arrives through `JNI_OnLoad`, which the loader calls inside this library; iOS's directories arrive
 // from Swift through `km-machine-ios`, which is a separate crate and needs a name it can reach.

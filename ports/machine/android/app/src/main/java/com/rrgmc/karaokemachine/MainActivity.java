@@ -45,6 +45,14 @@ public class MainActivity extends SDLActivity {
     private static final String PART_SUFFIX = ".part";
 
     /**
+     * Who holds the sound, built once the native libraries are loaded.
+     *
+     * <p>Null until {@link #onCreate}, and every caller checks, because a machine that crashed
+     * rather than played over somebody would be the worse of the two faults.
+     */
+    private AudioFocus focus;
+
+    /**
      * The native libraries to load, in dependency order.
      *
      * <p>Order matters and the defaults are wrong for us. {@code SDLActivity} would load
@@ -83,7 +91,48 @@ public class MainActivity extends SDLActivity {
         Intent opened = getIntent();
         setIntent(new Intent(Intent.ACTION_MAIN));
         super.onCreate(savedInstanceState);
+        // After the libraries are loaded, because the listener it builds calls a native.
+        focus = new AudioFocus(this);
         open(opened);
+    }
+
+    /**
+     * Gives the sound back on the way out.
+     *
+     * <p>The system reclaims focus from a dead process anyway. Doing it here is what makes the next
+     * application's turn immediate rather than a moment later.
+     */
+    @Override
+    protected void onDestroy() {
+        if (focus != null) {
+            focus.abandon();
+        }
+        super.onDestroy();
+    }
+
+    /**
+     * Asks Android for the sound. Called from Rust, on the machine's watchdog thread.
+     *
+     * <p>Named without a prefix because {@link android.app.Activity} has nothing of the name, and
+     * called by name from JNI: the Rust side looks the method up on this object rather than on a
+     * class it found, because {@code FindClass} on a thread the JVM did not start cannot see an
+     * application's own classes.
+     */
+    public boolean requestAudioFocus() {
+        return focus != null && focus.request();
+    }
+
+    /**
+     * Gives the sound back. Called from Rust, on the machine's watchdog thread.
+     *
+     * <p>Answers a boolean it always sets true, so that one helper on the Rust side calls both this
+     * and {@link #requestAudioFocus()}.
+     */
+    public boolean abandonAudioFocus() {
+        if (focus != null) {
+            focus.abandon();
+        }
+        return true;
     }
 
     /**

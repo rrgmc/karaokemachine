@@ -43,6 +43,7 @@ it are the same entry. How the thing is built is [`ARCHITECTURE.md`](../ARCHITEC
 - [Guide melody default](audio.md#guide-melody-default)
 - [Holding the audio device](audio.md#holding-the-audio-device)
 - [The machine sleeps when it leaves the screen](audio.md#the-machine-sleeps-when-it-leaves-the-screen)
+- [The machine asks Android for the sound, and gives it back](audio.md#the-machine-asks-android-for-the-sound-and-gives-it-back)
 - [Choosing the audio output device](audio.md#choosing-the-audio-output-device)
 - [The machine sets the level its output runs at](audio.md#the-machine-sets-the-level-its-output-runs-at)
 - [A song's own defects are corrected at playback, and only from what the file says](audio.md#a-songs-own-defects-are-corrected-at-playback-and-only-from-what-the-file-says)

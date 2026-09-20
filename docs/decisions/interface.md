@@ -1162,13 +1162,16 @@ would be read on return, minutes after it mattered. A watch runs synchronously o
 pushed the event — Android's UI thread. So what it does is one atomic store, and the poll thread does
 the pausing fifty milliseconds later. Blocking there is an ANR.
 
-**Two things this deliberately does not do.** The output device is *not* handed back:
+**One thing this deliberately does not do.** The output device is *not* handed back:
 [`Holding the audio device`](audio.md#holding-the-audio-device) excludes `Paused` because reopening
 would lose the position, which is the thing pausing was for. So a backgrounded machine leaves a
-stream open, rendering silence. And it does **not** request audio focus, so a call, an alarm or
-another media app talks over a machine that is on the screen. That is a real gap on a phone,
-known and unfixed, and a separate decision from this one. It is about sharing the screen, where this
-is about not having it.
+stream open, rendering silence.
+
+**Sharing the sound is a separate rule, and it leans on this one.**
+[`The machine asks Android for the sound, and gives it back`](audio.md#the-machine-asks-android-for-the-sound-and-gives-it-back)
+is what stops a call talking over a song. It holds focus only while a song plays, so the exemption
+above never applies and the freezer keeps its place. That rule is about sharing the screen, where
+this one is about not having it.
 
 ## Photographed wallpapers
 
