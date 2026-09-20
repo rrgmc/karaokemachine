@@ -16,11 +16,11 @@
 #   dist/release/<version>/            every asset under the name it is published as
 #   dist/release/<version>-notes.md    the body, rendered from tools/dist/release-notes.md
 #
-# **It gathers; it does not build.** Twelve carriers, six build systems, three of them in Docker, one
+# **It gathers; it does not build.** Thirteen carriers, six build systems, three of them in Docker, one
 # needing a JDK and two a Mac: a script that ran all of them would be a release cut by whoever typed
 # one word, from artifacts nobody had looked at. So each row below names the command that produces
 # it, a missing artifact is reported by name rather than skipped, and the run stops. `BUILDING.md`
-# has the twelve commands in order.
+# has the thirteen commands in order.
 #
 # **`--platforms` is for the release no one machine can cut.** The two `.pkg` files and the two
 # `.ipa` files are built on a Mac and the rest are not, so a machine without one has four carriers it

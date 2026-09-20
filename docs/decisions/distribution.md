@@ -1379,11 +1379,10 @@ serves a room, and the room sees nothing here. Casting to a television gives the
 adds delay to it. So a headset is a practice device for one person, and it serves a smaller product
 than the box under a television does.
 
-**A release names this platform or leaves it out entirely.** `--platforms` takes `quest`, and a cut
-that omits the word drops the row, the count and the download table entry together.
-[`A release page carries the platforms the machine cutting it can build`](#a-release-page-carries-the-platforms-the-machine-cutting-it-can-build)
-already makes that the normal shape. A platform serving one person alone earns a place on the page by
-being asked for.
+**A release carries this platform, and `quest` is its own word in `--platforms`.** The headset APK is
+a thirteenth carrier and the tag builds it beside the rest. It stays a word of its own rather than
+folding into `android`. The two files install side by side, so somebody choosing a download is
+choosing between them.
 
 **One headset holds this and the flat panel at once.** The application id takes a `.quest` suffix, so
 the two install side by side. Each keeps a packages folder of its own, so songs pushed to one are
@@ -2449,7 +2448,7 @@ files that mean nothing to a reader who has a download.
 - a `.deb` and a tarball, which carry Debian's own conventions
 
 **A release page is flat**, so the folder that says it in `dist/setup/windows/` and
-`dist/setup/macos/` is not there. A reader choosing between twelve files has the filename and
+`dist/setup/macos/` is not there. A reader choosing between thirteen files has the filename and
 the sentence beside it.
 
 **The extension is not enough on its own.** A `.pkg` and an `.exe` each belong to one system, and
@@ -2465,9 +2464,9 @@ name the build gave it, so one name holds in `dist/`, in the documents and on th
 
 **`tools/dist/release.sh --platforms windows,linux,android` names what a cut carries**, and the rows
 for every other platform leave the table, the count and the body's download table together. A run
-that names none carries all twelve, which is the full release and the default.
+that names none carries all thirteen, which is the full release and the default.
 
-**No one desk machine builds all twelve.** The two `.pkg` files and the two `.ipa` files are
+**No one desk machine builds all thirteen.** The two `.pkg` files and the two `.ipa` files are
 produced on a Mac and the rest are not. So a machine without one has four carriers it cannot stage,
 and a refusal it can do nothing about. Holding a release until every platform can be built on one
 computer waits on hardware rather than on the software being ready. The release workflow names its
@@ -2500,7 +2499,7 @@ the rows the first one wrote with it.
 
 ## CI builds the release, and a Mac adds its packages
 
-**A pushed `v*` tag runs `.github/workflows/release.yml`, which builds ten of the twelve carriers
+**A pushed `v*` tag runs `.github/workflows/release.yml`, which builds eleven of the thirteen carriers
 and fills the draft release.** Each platform's job runs the same staging script a person types, and
 a last job runs `tools/dist/release.sh --upload` over what they staged. Publishing stays
 `gh release edit v<version> --draft=false`, typed by somebody who has opened the page.

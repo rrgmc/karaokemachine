@@ -83,7 +83,7 @@ lightweight. A published tag is never moved or deleted; a mistake is the next pa
 
 ## 6. Stage the carriers, and upload
 
-**The pushed tag does this.** `.github/workflows/release.yml` builds Windows, Linux, Android and iOS
+**The pushed tag does this.** `.github/workflows/release.yml` builds Windows, Linux, Android, Meta Quest and iOS
 from the tag, checks each carrier, and fills the draft. The draft's text already names the two macOS
 packages. Watch it with `gh run watch`. A job that failed on something outside the tree is re-run
 with `gh workflow run release.yml -f tag=vX.Y.0`.
@@ -136,7 +136,7 @@ platform whose carrier is missing still stops the run. See
 
 ## 8. Publish
 
-Either way, the result is a **draft**. Somebody opens the page, sees all twelve files on it, reads
+Either way, the result is a **draft**. Somebody opens the page, sees all thirteen files on it, reads
 it, and only then types this:
 
 ```sh
