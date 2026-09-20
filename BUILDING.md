@@ -824,7 +824,8 @@ workflow, is [`What CI runs`](CONTRIBUTING.md#what-ci-runs) in `CONTRIBUTING.md`
 
 ```sh
 task ffmpeg:android      # once per machine: the LGPL ffmpeg, both ABIs
-task build:android       # cargo cross-compiles both ABIs, Gradle packages -> app-debug.apk
+task build:android       # cargo cross-compiles both ABIs, Gradle packages -> app-flat-debug.apk
+task build:android:quest # the headset APK, from the same native libraries
 ```
 
 [`ports/machine/android/README.md`](ports/machine/android/README.md) is the full account. It says why
@@ -835,6 +836,11 @@ the JBR that ships with Android Studio.
 `RELEASE=1`, `ARM64=1` and `NO_VIDEO=1` reach the underlying scripts. `ARM64=1` is for a quick
 phone-only iteration, and is **not** a thing to ship. Every Google TV device runs a 32-bit OS and
 loads `armeabi-v7a` alone. An APK without it installs on a phone and fails on a television.
+
+**The two commands are two product flavours of one Gradle project**, `flat` and `headset`, and they
+share the native libraries and the assets. So a headset APK costs a second `assemble` and no second
+cross-compile. The headset one takes `arm64-v8a` alone, needs Android 14, and installs beside the
+flat one under its own application id.
 
 
 ---
@@ -2144,8 +2150,9 @@ again with `WAIT=1` if it will not start.
 ## Android and iOS
 
 ```sh
-task build:android                    # all four steps, out comes app-debug.apk
+task build:android                    # all four steps, out comes app-flat-debug.apk
 task build:android RELEASE=1 | ARM64=1 | NO_VIDEO=1
+task build:android:quest              # the headset APK, out comes app-headset-debug.apk
 task build:android:native             # ...the cargo half, no Gradle and no JDK
 task build:android:remote             # the offline remote, a much smaller APK
 task build:ios                        # the machine as an .app, assets and ffmpeg included

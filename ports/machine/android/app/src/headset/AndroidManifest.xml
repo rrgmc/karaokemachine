@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The Meta Horizon OS flavour. What it adds to the shared manifest is a scene to put the machine in.
+
+  `ImmersiveActivity` is what a headset launches. It owns the scene and hosts `MainActivity` in a
+  panel, so the machine itself is the same activity the phone and the television run. The merger
+  folds this into `src/main/AndroidManifest.xml`, which keeps everything else about that activity
+  written once.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Horizon OS grants no passthrough layer to an application that does not declare this, and
+         grants it silently: the scene draws a black void and nothing in the log names the manifest.
+         `required` is false because the machine is worth running on a headset without it. -->
+    <uses-feature
+        android:name="com.oculus.feature.PASSTHROUGH"
+        android:required="false" />
+
+    <!-- **Hands, or Horizon OS refuses to start an immersive application with no controller awake.**
+         The refusal is a system dialog reading `app_launch_blocked_controller_required`, and nothing
+         reaches the application. Declaring hands is also the honest answer for this machine: the
+         keypad is a thing somebody points at, and a controller is the remote a room already has. -->
+    <uses-feature
+        android:name="oculus.software.handtracking"
+        android:required="false" />
+
+    <application>
+        <meta-data
+            android:name="com.oculus.supportedDevices"
+            android:value="quest2|questpro|quest3|quest3s" />
+        <!-- The scene keeps running while a system panel is in front of it, rather than being
+             paused. Without it the machine stops the song to show somebody a settings dialog. -->
+        <meta-data
+            android:name="com.oculus.vr.focusaware"
+            android:value="true" />
+        <meta-data
+            android:name="com.oculus.handtracking.version"
+            android:value="V2.0" />
+
+        <!-- The scene. It is what the headset's library launches, and the only launcher entry in
+             this flavour. -->
+        <activity
+            android:name=".ImmersiveActivity"
+            android:label="@string/app_name_launcher"
+            android:icon="@mipmap/ic_launcher"
+            android:theme="@android:style/Theme.Black.NoTitleBar.Fullscreen"
+            android:launchMode="singleTask"
+            android:excludeFromRecents="false"
+            android:configChanges="screenSize|screenLayout|orientation|keyboardHidden|keyboard|navigation|uiMode"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="com.oculus.intent.category.VR" />
+                <category android:name="android.intent.category.LAUNCHER" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
+        <!-- The machine, hosted in a panel rather than launched from a tile. `allowEmbedded` is what
+             lets a scene put an activity on one, and the panel is a virtual display, so the activity
+             has to accept a size it did not choose. -->
+        <activity
+            android:name=".MainActivity"
+            android:allowEmbedded="true"
+            android:resizeableActivity="true" />
+    </application>
+
+</manifest>

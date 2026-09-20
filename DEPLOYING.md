@@ -4,12 +4,13 @@
 [`BUILDING.md`](BUILDING.md) is what produced the artifact — this is what puts it on the phone, the
 television or the box under it.
 
-Six targets, and they are not equally finished. One has a script that does the whole job. Three stop
+Seven targets, and they are not equally finished. One has a script that does the whole job. Four stop
 at a file you install by hand, and two are a project you open and press Run in.
 
 | Target | Build | Onto the device |
 |---|---|---|
 | [The machine → Android](#the-machine--android) | `task build:android` | `adb install -r` |
+| [The machine → Meta Quest](#the-machine--meta-quest) | `task build:android:quest` | `adb install -r` |
 | [The machine → iOS](#the-machine--ios) | `task build:ios` | Xcode, press Run |
 | [The remote → Android](#the-remote--android) | `task build:android:remote` | `adb install -r` |
 | [The remote → iOS](#the-remote--ios) | `task build:ios:remote` | Xcode, press Run |
@@ -115,7 +116,7 @@ Also needed, and each fails in a way that does not name itself:
 
 ```sh
 task build:android
-adb install -r ports/machine/android/app/build/outputs/apk/debug/app-debug.apk
+adb install -r ports/machine/android/app/build/outputs/apk/flat/debug/app-flat-debug.apk
 adb logcat -s karaokemachine
 ```
 
@@ -144,17 +145,59 @@ with it closed, and is what a device that never meets a computer uses.
 ### Three things that bite
 
 - **`RELEASE=1` assembles a release APK**, at
-  `ports/machine/android/app/build/outputs/apk/release/app-release.apk`. It takes the key
+  `ports/machine/android/app/build/outputs/apk/flat/release/app-flat-release.apk`. It takes the key
   `KM_ANDROID_KEYSTORE` names, and the debug key where it names none; the build prints which. It is
   the one to hand somebody. A debug APK is debuggable, and anything holding ADB access can attach to
   a debuggable application and run code as it. Without `RELEASE=1` the debug APK is what comes out,
-  at the `debug/app-debug.apk` path above.
+  at the `flat/debug/app-flat-debug.apk` path above.
 - **Never ship `ARM64=1`.** Every Google TV device runs a 32-bit OS and loads `armeabi-v7a` alone, so
   an ARM64-only APK installs on a phone and fails on a television. It is a quick-iteration flag.
 - **`NO_VIDEO=1` drops the ffmpeg prerequisite** and produces a machine that cannot play video songs.
   The build refuses to start without ffmpeg rather than do that silently.
 
 ---
+
+## The machine → Meta Quest
+
+A headset is an Android device, so everything above holds. What differs is the APK. It puts the
+machine on a screen hanging in the room rather than in a system panel.
+
+### Once per machine
+
+The same prerequisites as Android, plus developer mode on the headset. The Meta Horizon phone
+application turns that on, rather than anything in the headset.
+
+### Build and install
+
+```sh
+task build:android:quest
+adb install -r ports/machine/android/app/build/outputs/apk/headset/debug/app-headset-debug.apk
+```
+
+It installs **beside** the ordinary Android APK rather than over it, because the application id ends
+in `.quest`. A headset can hold both, and each keeps its own songs.
+
+### Songs
+
+The same two routes as Android, and the folder is the one belonging to `com.rrgmc.karaokemachine.quest`.
+Opening a `.kmpkg` from the headset's Files application is the route that needs no cable.
+
+### Three things that bite
+
+- **Wireless debugging needs a cable once per boot.** `adb tcpip 5555` over USB, then
+  `adb connect <address>:5555`. Horizon OS shows no pairing-code screen, so the `adb pair` flow above
+  does not reach it.
+- **The headset sleeps the moment it leaves your face**, which stops the song and ends a measurement.
+  `adb shell am broadcast -a com.oculus.vrpowermanager.prox_close` stops that, and
+  `com.oculus.vrpowermanager.automation_disable` puts it back. Neither survives a reboot, and a
+  headset left awake with passthrough running warms up and turns its fan on.
+- **The library shows the icon and no name.** A name comes from Meta's store, and a sideloaded
+  application has no entry there. See `What the machine *is*, on a headset` in
+  [`docs/decisions/distribution.md`](docs/decisions/distribution.md).
+- **A launch that does nothing is usually the controllers.** Horizon OS refuses to start an immersive
+  application with no controller awake, and says so in a dialog the application never sees. The log
+  line is `app_launch_blocked_controller_required`. Wake a controller, or use hands, which this
+  application declares.
 
 ## The remote → Android
 
@@ -591,7 +634,8 @@ no login session, so none of the machine's `-t` caveat applies.
 
 | Target | Command | Artifact | Installed as |
 |---|---|---|---|
-| Machine → Android | `task build:android` | `ports/machine/android/app/build/outputs/apk/debug/app-debug.apk` | `com.rrgmc.karaokemachine` |
+| Machine → Android | `task build:android` | `ports/machine/android/app/build/outputs/apk/flat/debug/app-flat-debug.apk` | `com.rrgmc.karaokemachine` |
+| Machine → Meta Quest | `task build:android:quest` | `ports/machine/android/app/build/outputs/apk/headset/debug/app-headset-debug.apk` | `com.rrgmc.karaokemachine.quest` |
 | Machine → iOS | `task build:ios` | `ports/machine/ios/KaraokeMachine.xcodeproj` | `com.rrgmc.karaokemachine` |
 | Remote → Android | `task build:android:remote` | `ports/remote/android/app/build/outputs/apk/debug/app-debug.apk` | `com.rrgmc.karaokemachine.remote` |
 | Remote → iOS | `task build:ios:remote` | `ports/remote/ios/KaraokeRemote.xcodeproj` | `com.rrgmc.karaokemachine.remote` |

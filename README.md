@@ -19,7 +19,7 @@ A song is one of four things:
 
 An MP3 on its own is not a song, because it has no words in it.
 
-Native on Windows, macOS and Linux, on Android, and on an iPhone and an iPad.
+Native on Windows, macOS and Linux, on Android, on a Meta Quest, and on an iPhone and an iPad.
 
 The site is **[rrgmc.github.io/karaokemachine](https://rrgmc.github.io/karaokemachine/)** — the
 pictures, and the download.
@@ -176,7 +176,8 @@ and it is one command per platform once the prerequisites are in.
 | **Windows or macOS, the remote alone** | A second, small setup program: `km-remote-setup-<version>-windows-x86_64.exe` (about 5 MB) or `km-remote-setup-<version>-macos-<arch>.pkg`. It installs KM Remote and nothing else, for a computer that is never going to play a song — a laptop somebody holds while somebody else's machine does. It sits happily beside a full install and is removed on its own. |
 | **Debian, Ubuntu** | A `.deb`. Its ffmpeg and font dependencies are named rather than bundled. It installs as an ordinary application — menu entry, icon, and `karaokemachine` as a command — and carries the television-appliance service, switched off. A second `.deb`, `karaokemachine-tools`, holds the package builder, the offline remote and the picture-and-bank tool; name both files in one `apt install` to get them, or take the machine alone for a box under a television. |
 | **Any Linux** | A `.tar.gz`. Unpack anywhere, run it, delete it — no root, no package manager. It carries its own ffmpeg, because a folder can name no dependency. |
-| **Android, Google TV** | An APK carrying both ABIs, so it installs on a phone and on a television. A Meta Quest 3 takes the same file by sideload and shows it as a flat panel you can move and resize. |
+| **Android, Google TV** | An APK carrying both ABIs, so it installs on a phone and on a television. |
+| **Meta Quest** | An APK of its own, which puts the machine on a screen hanging in the room with the room still behind it. The screen is flat or curved, and you pick which under it. The Android APK above also installs, as a flat system panel you move and resize, and the two live side by side. |
 | **iPhone, iPad** | An `.ipa` for the machine and one for the remote, both **unsigned**: iOS takes no signature from a stranger, so you sign it yourself with your own Apple ID. It is the machine itself — the same synthesizer, catalog, display and API — and songs arrive through the Files app. The section below is the procedure. |
 
 **Every carrier also installs a second launcher that starts the machine streaming**, for a television

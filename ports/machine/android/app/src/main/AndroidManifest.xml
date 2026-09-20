@@ -92,17 +92,11 @@
             android:configChanges="layoutDirection|locale|grammaticalGender|fontScale|fontWeightAdjustment|orientation|uiMode|screenLayout|screenSize|smallestScreenSize|keyboard|keyboardHidden|navigation"
             android:preferMinimalPostProcessing="true"
             android:exported="true">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-            <!-- Without this the app is invisible on a television: not in the Play listing, and not
-                 on the home row even after a successful `adb install`. Kept alongside LAUNCHER so
-                 one APK serves phones and TVs both. -->
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
-            </intent-filter>
+            <!-- What puts this activity on a launcher is the flavour's own manifest: a home screen
+                 and a television's home row in `flat`, an immersive scene in `headset`. A headset
+                 reaches this activity through a panel rather than through a tile, so one filter
+                 cannot serve both. -->
+
             <!-- So a USB controller attaching wakes the app rather than being ignored. -->
             <intent-filter>
                 <action android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED" />

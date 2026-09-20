@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A Spatial SDK panel registration is keyed by a resource id. -->
+<resources>
+    <item name="machine_panel" type="id" />
+    <item name="shape_panel" type="id" />
+</resources>

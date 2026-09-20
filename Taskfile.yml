@@ -117,6 +117,7 @@ vars:
   REFRESH: ''
   RELEASE: ''
   ARM64: ''
+  QUEST: ''
   DEVICE: ''
   FORCE: ''
   HOMEBREW: ''
@@ -414,6 +415,22 @@ tasks:
       - task: build:android:native
       - task: build:android:gradle
 
+  # **The headset's APK, from the same project and the same native libraries.** `QUEST=1` picks the
+  # `headset` product flavour, which is the immersive scene hosting the machine on a panel. It is a
+  # separate application id, so it installs beside the flat one rather than over it. See
+  # `What the machine *is*, on a headset` in docs/decisions/distribution.md.
+  #
+  # `ARM64=1` because Horizon OS is 64-bit and the flavour packages that ABI alone. A native half
+  # built for both ABIs serves this just as well, so the two tasks share a staging directory.
+  build:android:quest:
+    desc: 'Build, stage and package the headset APK (RELEASE=1, NO_VIDEO=1) -- needs JAVA_HOME'
+    cmds:
+      - task: _java-home
+      - task: build:android:native
+        vars: { ARM64: '1' }
+      - task: build:android:gradle
+        vars: { QUEST: '1' }
+
   build:android:native:
     desc: '...the cargo half alone: both ABIs, staged into jniLibs, with assets bundled (RELEASE=1, ARM64=1, NO_VIDEO=1)'
     cmds:
@@ -451,8 +468,8 @@ tasks:
     internal: true
     cmds:
       - task: _java-home
-      - '"{{.SH}}" ports/machine/android/gradlew -p ports/machine/android {{if .RELEASE}}assembleRelease{{else}}assembleDebug{{end}} {{.CLI_ARGS}}'
-      - '{{if .RELEASE}}"{{.SH}}" tools/port/apk-signer.sh ports/machine/android/app/build/outputs/apk/release/app-release.apk{{else}}true{{end}}'
+      - '"{{.SH}}" ports/machine/android/gradlew -p ports/machine/android assemble{{if .QUEST}}Headset{{else}}Flat{{end}}{{if .RELEASE}}Release{{else}}Debug{{end}} {{.CLI_ARGS}}'
+      - '{{if .RELEASE}}"{{.SH}}" tools/port/apk-signer.sh ports/machine/android/app/build/outputs/apk/{{if .QUEST}}headset{{else}}flat{{end}}/release/app-{{if .QUEST}}headset{{else}}flat{{end}}-release.apk{{else}}true{{end}}'
 
   # -- the offline remote's APK ----------------------------------------------------------------------
   #

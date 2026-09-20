@@ -23,6 +23,7 @@ for search, queueing and control.
 | `karaokemachine-@VERSION@-x86_64-unknown-linux-gnu.tar.gz` | Any other 64-bit Linux. Unpack it anywhere and run it. It includes the libraries it needs. |
 | `karaokemachine-@VERSION@-android.apk` | The machine on Android and Google TV. One file covers 32-bit and 64-bit ARM. |
 | `km-remote-@VERSION@-android.apk` | The remote, for a phone. It works when the machine is not reachable. One file covers both ARM architectures. |
+| `karaokemachine-@VERSION@-quest.apk` | The machine on a Meta Quest, on a screen that hangs in the room with the room still behind it. It installs beside the Android APK rather than over it. |
 | `karaokemachine-@VERSION@-ios-unsigned.ipa` | The machine on an iPhone or iPad. Sign it before installing it; see **Signing on iOS** below. |
 | `km-remote-@VERSION@-ios-unsigned.ipa` | The remote on an iPhone or iPad. Sign it the same way. |
 
@@ -48,6 +49,12 @@ Each file answers for itself, and what a platform says about a download differs.
   **A device holding an APK signed with a different key has to uninstall it first**, which Android
   reports as a refusal rather than a question. Export the remote's favorites from its share page
   beforehand and import them afterwards.
+<!-- /platform -->
+<!-- platform: quest -->
+- **The Quest APK** is sideloaded, so the headset lists it under *Unknown Sources* and shows no name
+  beside its icon. That name comes from Meta's store, which a sideloaded application has no entry in.
+  Songs reach it the way they reach a phone: open a `.kmpkg` from the headset's Files application, or
+  push one over a cable.
 <!-- /platform -->
 <!-- platform: linux -->
 - **The two `.deb` files and the tarball** are unsigned, and apt reports this when you install a file
