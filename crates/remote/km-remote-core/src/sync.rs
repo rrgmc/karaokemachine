@@ -149,13 +149,13 @@ pub async fn refresh(
     // would leave the mirror claiming to be current when it holds a stitched-together catalog.
     let version = reported.unwrap_or_default();
     let count = songs.len();
-    // Names only, and a failure here does not cost the songs: a package with no name row is listed
+    // Names and flags only, and a failure here does not cost the songs: a package with no name row is listed
     // on Setup under its id, which is worse than its name and far better than an empty mirror.
-    let packages: Vec<(String, String)> = match api.packages().await {
+    let packages: Vec<(String, String, u32)> = match api.packages().await {
         Ok(list) => list
             .packages
             .into_iter()
-            .map(|package| (package.id, package.name))
+            .map(|package| (package.id, package.name, package.flags))
             .collect(),
         Err(error) => {
             tracing::warn!(%error, "package names did not arrive; Setup will list packages by id");

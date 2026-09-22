@@ -337,6 +337,11 @@ pub struct PackageRow {
     pub remove_label: String,
     /// What a screen reader announces for this row's bank picker.
     pub bank_label: String,
+    /// A label per flag the package carries, each drawn as a badge beside its title.
+    ///
+    /// Worded in [`crate::handlers`] through `flag_label`, so a flag this page has no word for is
+    /// left out rather than printed as a code.
+    pub flags: Vec<String>,
 }
 
 /// The songs tab.

@@ -567,6 +567,7 @@ impl TestMachine {
                 song_count: count as usize,
                 installed_at: "2026-08-23T12:00:00Z".to_owned(),
                 bank: 1,
+                flags: km_kmpkg::PackageFlags::NONE,
             });
         }
         machine
@@ -614,6 +615,15 @@ impl TestMachine {
     /// one file without restating the interval and the shuffle to do it.
     pub fn set_pictures(&self, pictures: Vec<Picture>) {
         self.lock().pictures = pictures;
+    }
+
+    /// Sets an installed package's flags word, so a surface that marks a flag can be exercised.
+    pub fn set_package_flags(&self, package_id: &str, flags: km_kmpkg::PackageFlags) {
+        for package in &mut self.lock().packages {
+            if package.id == package_id {
+                package.flags = flags;
+            }
+        }
     }
 
     /// Declares packages the machine refused, so the reporting path can be exercised.
@@ -877,6 +887,7 @@ impl Catalog for TestMachine {
                 song_count: 2,
                 installed_at: "2026-08-23T12:00:00Z".to_owned(),
                 bank: 5,
+                flags: km_kmpkg::PackageFlags::NONE,
             });
         }
         Ok(InstallReport {

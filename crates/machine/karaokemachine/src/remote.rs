@@ -275,6 +275,7 @@ impl Songs for OnlineSongs {
                 id: package.id,
                 name: package.name,
                 songs: package.song_count,
+                flags: package.flags,
             })
             .collect();
         // By name, as the offline mirror lists them, so both remotes draw one order.

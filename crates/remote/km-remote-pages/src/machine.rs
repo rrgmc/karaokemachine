@@ -306,6 +306,8 @@ pub struct PackageRow {
     pub name: String,
     /// How many songs.
     pub songs: usize,
+    /// The package header's flags word, drawn as a badge per flag this page has a word for.
+    pub flags: km_kmpkg::PackageFlags,
 }
 
 /// An artist, and how many songs are filed under them.

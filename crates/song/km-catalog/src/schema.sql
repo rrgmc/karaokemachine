@@ -57,7 +57,10 @@ CREATE TABLE IF NOT EXISTS packages (
     --
     -- The default is never taken -- every insert names a bank, and `Library::install` refuses 0 --
     -- so it stands as the column's zero value rather than as a bank anything lands in.
-    bank         INTEGER NOT NULL DEFAULT 0
+    bank         INTEGER NOT NULL DEFAULT 0,
+    -- The package header's flags word, whole and with unknown bits kept, so a new flag needs no
+    -- column. See `A package's header carries flags, and an unknown one is kept`.
+    flags        INTEGER NOT NULL DEFAULT 0
 );
 
 -- Two packages may not share a bank, or their songs would not have distinct numbers after all.

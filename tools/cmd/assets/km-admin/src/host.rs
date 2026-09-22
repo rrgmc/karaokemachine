@@ -577,6 +577,7 @@ impl Songs for RemoteMachine {
                 // number, and `PackageRow` already renders `None` as nothing for that reason.
                 // Publishing it would be an additive change to that DTO and a decision of its own.
                 bytes: None,
+                flag_names: package.flag_names,
             })
             .collect())
     }

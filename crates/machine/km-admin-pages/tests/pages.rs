@@ -1002,20 +1002,34 @@ async fn a_host_that_keeps_its_own_token_is_sent_no_cookie() {
     );
 }
 
-/// The same handlers, rendered under a tool's capabilities, draw a smaller page.
-///
-/// **The test the flags exist for, and the one nothing else can be.** Every other test here runs
-/// `Capabilities::machine()`, where every flag is on — so a template that ignored a flag entirely
-/// would pass all of them. This renders the *same* routes against `Capabilities::desktop()` and
-/// asserts what goes away.
-///
-/// **What a tool's capabilities take away is three things, each for its own reason**: the Problems
-/// tab cannot be answered over HTTP at all, *Screen language* has no route in the API, and a
-/// password *reset* draws a new PIN on a television the tool is not standing in front of.
-///
-/// Note what stays on both: the upload forms, the output picker, the song and package counts. A
-/// surface that sends a package but cannot say how many songs the machine now holds could not
-/// confirm its own work.
+/// A flagged package carries its badge on the Songs tab, and an unflagged one carries none.
+#[tokio::test]
+async fn an_uncurated_package_is_marked_on_the_songs_tab() {
+    let label = km_admin_pages::words::messages(km_locale::Locale::English)
+        .msg("package-flag-uncurated")
+        .into_owned();
+
+    let (plain_app, _) = nested_as(
+        Host::Machine,
+        TestMachine::with_catalog(2),
+        Arc::new(SpyGuard::default()),
+    );
+    let (_, plain) = get(&plain_app, "/admin/songs").await;
+    assert!(!plain.contains(&label), "{plain}");
+
+    let machine = TestMachine::with_catalog(2);
+    machine.set_package_flags("vol1", km_kmpkg::PackageFlags::UNCURATED);
+    let (app, _) = nested_as(Host::Machine, machine, Arc::new(SpyGuard::default()));
+    let (status, flagged) = get(&app, "/admin/songs").await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(
+        flagged.contains(&format!(
+            r#"<span class="badge badge-quiet">{label}</span>"#
+        )),
+        "{flagged}"
+    );
+}
+
 #[tokio::test]
 async fn a_tools_capabilities_take_the_machines_own_controls_away() {
     // A tool's capabilities over the *same* implementation, which is the point: nothing about the

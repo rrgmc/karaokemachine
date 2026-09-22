@@ -489,6 +489,11 @@ pub async fn songs_page(
                 bank_label: words
                     .msg_with("package-bank", &[("package", title.as_str().into())])
                     .into_owned(),
+                flags: listing
+                    .flag_names
+                    .iter()
+                    .filter_map(|name| flag_label(words, name))
+                    .collect(),
                 title,
                 id: listing.id,
                 version: listing.version,
@@ -1668,6 +1673,17 @@ pub async fn remove_picture(
 /// **One function rather than the same three lines in two places**, which is what it was: the Songs
 /// row worked the title out and so did its confirmation, and a page that named the same package two
 /// ways in two steps of one errand is exactly the kind of thing nobody notices until they hit it.
+/// The badge a package flag is drawn as, or `None` for one this page has no word for.
+///
+/// **One arm per flag, with the key spelled out**, so the catalog parity test sees every key. A key
+/// built from the name would hide a missing translation until somebody installed such a package.
+fn flag_label(words: &km_locale::Catalog, name: &str) -> Option<String> {
+    match name {
+        "uncurated" => Some(words.msg("package-flag-uncurated").into_owned()),
+        _ => None,
+    }
+}
+
 fn package_title(listing: &crate::machine::Listing) -> String {
     if listing.name.is_empty() {
         listing.id.clone()

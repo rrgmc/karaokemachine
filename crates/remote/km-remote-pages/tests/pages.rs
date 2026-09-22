@@ -251,6 +251,7 @@ impl Songs for StubSongs {
                 name: format!("Volume {id}"),
                 id,
                 songs,
+                flags: km_kmpkg::PackageFlags::NONE,
             })
             .collect())
     }

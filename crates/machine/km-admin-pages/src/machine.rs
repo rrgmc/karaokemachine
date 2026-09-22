@@ -483,6 +483,12 @@ pub struct Listing {
     /// matters is the page asking whether to delete it, and that page is one somebody just asked
     /// for. So the listing leaves it `None` and the confirmation reads it.
     pub bytes: Option<u64>,
+    /// The package's flags by name, such as `uncurated`, each drawn as a badge.
+    ///
+    /// **Names rather than the word**, because a name is what the page prints and a bit it has no
+    /// label for is nothing it can say. The machine names them through `PackageFlags::names`, and
+    /// `PackageDto::flag_names` carries the same list to the desktop host.
+    pub flag_names: Vec<String>,
 }
 
 /// The Songs tab: which packages are installed and where their numbers sit.

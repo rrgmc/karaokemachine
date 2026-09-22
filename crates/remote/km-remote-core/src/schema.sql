@@ -81,13 +81,16 @@ CREATE INDEX IF NOT EXISTS songs_language ON songs(language);
 CREATE INDEX IF NOT EXISTS songs_content_hash ON songs(content_hash);
 CREATE INDEX IF NOT EXISTS songs_package      ON songs(package_id);
 
--- What each package is called, for the list a person hides packages from on Setup. Only the name:
--- a song row already carries its package id, and nothing here installs or removes a package.
+-- What each package is called and which flags it carries, for the list a person hides packages
+-- from on Setup. A song row already carries its package id, and nothing here installs or removes a
+-- package.
 -- Not a foreign key from `songs`, because the two arrive in separate requests and a song whose
 -- package has no row here still has to be browsable.
 CREATE TABLE IF NOT EXISTS packages (
-    id   TEXT PRIMARY KEY,
-    name TEXT NOT NULL
+    id    TEXT PRIMARY KEY,
+    name  TEXT NOT NULL,
+    -- The package header's flags word, whole, as `km-catalog` keeps it: a new flag needs no column.
+    flags INTEGER NOT NULL DEFAULT 0
 );
 
 -- One row per tag a song carries: the index the tag filter and the tag picker seek through. The

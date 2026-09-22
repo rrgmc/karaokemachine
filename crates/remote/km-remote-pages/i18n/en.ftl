@@ -309,6 +309,7 @@ machine-more-answered =
 
 singer-set = Your songs will be queued as { $name }.
 singer-cleared = Your songs will be queued with no name.
+package-flag-uncurated = uncurated
 packages-shown = Packages in my song list
 packages-shown-hint = An unticked package stays out of searches, artists and filters on this phone. A song number and your favorites still find its songs.
 packages-hidden-saved = Your song list leaves out the unticked packages.

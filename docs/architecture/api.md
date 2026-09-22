@@ -340,6 +340,11 @@ and the reason a page prints cannot drift apart. Every one of those sentences na
 `PackageDto` carries `removable` alone. `/admin/` reads the sentence in-process, and a remote gets the
 flag. The bank half is `Machine::bank_not_mine_to_delete`, reported on `SoundFontBank`.
 
+**A package's flags ship as a word and as names.** `PackageDto::flags` is the header's `u32`, and
+`flag_names` lists the set bits `PackageFlags::names` knows. A page prints a badge per name. Both
+default when absent, so a newer page reads an older machine. The rule is
+[`A package's header carries flags, and an unknown one is kept`](../decisions/packaging.md#a-packages-header-carries-flags-and-an-unknown-one-is-kept).
+
 **Size is read at the moment of asking.** It is not a column on `InstalledPackage`. That is a row out
 of an index of songs and has never counted bytes. A stored number goes stale. A `metadata` call inside
 `Catalog::packages` would put one filesystem touch per package on a read path that has none. The
