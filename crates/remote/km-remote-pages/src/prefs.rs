@@ -62,14 +62,20 @@ pub const MAX_HIDDEN: usize = 128;
 /// `Accept-Language`, so a guest who has never used this remote gets their own language on the
 /// first load. See [`Prefs::locale`].
 pub const LOCALE: &str = km_locale::COOKIE;
-/// The admin token, once somebody has typed the machine's password.
+/// The access token, once somebody has typed a code on the Setup tab.
 ///
 /// A cookie rather than anything cleverer, because these are ordinary page loads and form posts: a
 /// browser cannot be told to put an `Authorization` header on a link, which is what the JSON API
 /// expects and what the dev remote can do because it is driven by script. `HttpOnly` means no script
-/// on the page can read it, which is worth having even here — the token is the machine's password by
-/// another name.
-pub const TOKEN: &str = "km_token";
+/// on the page can read it, which is worth having even here — the token is a code by another name.
+///
+/// **Not `km_token`, which is the owner's page's cookie on the same origin.** A code typed here must
+/// not sign the owner out of `/admin/`. The owner's cookie is still read when this one is absent,
+/// so an owner logged in there has the admin level here too. See [`OWNER_TOKEN`].
+pub const TOKEN: &str = "km_access";
+
+/// The owner's page's cookie, read as a fallback and never written here.
+pub const OWNER_TOKEN: &str = "km_token";
 
 /// The row that was at the top of the Songs list when you last left it.
 ///
@@ -126,6 +132,8 @@ pub struct Prefs {
     pub locale: Locale,
     /// The package ids this phone leaves out of its song list. See [`HIDDEN`].
     pub hidden_packages: Vec<String>,
+    /// The access token this phone holds, if it holds one. See [`TOKEN`].
+    pub token: Option<String>,
 }
 
 impl Prefs {
@@ -140,6 +148,9 @@ impl Prefs {
             hidden_packages: cookie(headers, HIDDEN)
                 .map(|value| hidden_packages(value.split('.')))
                 .unwrap_or_default(),
+            token: cookie(headers, TOKEN)
+                .or_else(|| cookie(headers, OWNER_TOKEN))
+                .filter(|token| !token.is_empty()),
         }
     }
 }
@@ -237,13 +248,11 @@ pub fn set_pref(name: &str, value: &str) -> String {
     set(name, value, PREF_MAX_AGE)
 }
 
-/// The `Set-Cookie` value for an admin token.
+/// The `Set-Cookie` value for an access token.
 ///
-/// Its lifetime comes from the machine, not from here, and that matters: the machine holds its
-/// tokens in memory and forgets them all on a restart, so a cookie that outlived the token would
-/// leave a phone quietly holding something that no longer works — and every action failing for a
-/// reason the page could not name. Matching the two means the cookie disappears at about the moment
-/// the token does, and the login page comes back.
+/// Its lifetime comes from the machine, not from here. A cookie that outlived the token would leave
+/// a phone holding something that no longer works. Matching the two means the cookie disappears at
+/// about the moment the token does, and the phone falls back to the room level.
 pub fn set_token(token: &str, expires_in_secs: u64) -> String {
     set(TOKEN, token, expires_in_secs.min(u32::MAX as u64) as u32)
 }

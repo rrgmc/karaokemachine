@@ -7,8 +7,9 @@
 ## The URL prefix is the permission
 
 **One shared admin password, and everything it guards lives under `/api/v1/admin/`.** A path under
-that prefix demands a valid token; a path outside it never does. There is nothing to configure and
-nothing an owner can get wrong.
+that prefix demands a valid admin token. A path outside it never needs the admin password, and
+[`Four access levels`](#four-access-levels-and-the-method-and-path-decide-them) decides what else it
+needs. There is nothing to configure for the admin routes and nothing an owner can get wrong.
 
 **There is no `public`/`admin` map in `settings.json`.** A table of route ids is free to drift out of
 step with the router it describes. The freedom that forty-six entries bought was closing
@@ -35,7 +36,66 @@ instead.
 
 **There is no `settings.transpose` or `settings.melody`, and there cannot be.** A key change is the
 same permission as any other setting: a performance knob a singer reaches for. So it sits outside
-`/admin/` with search and queueing, permanently.
+`/admin/` with queueing, permanently, and needs the queue level.
+
+## Four access levels, and the method and path decide them
+
+**Four levels, each including the ones below it: view, queue, control and admin.**
+
+| Level | What it adds |
+|---|---|
+| `view` | Every `GET`: the catalog, the queue, what is playing, the event stream. |
+| `queue` | `POST /queue`, and `PUT /settings` for key, tempo, volume, melody and lyric offset. |
+| `control` | Every other write outside `/admin/`: skip, play now, the transport, any queue entry, the mics, the demo, the next picture. |
+| `admin` | Everything under `/api/v1/admin/`. |
+
+**A room level, and two codes.** The room level is what a phone with no code gets, and it starts at
+`queue`. So anybody in the room can queue a song unless the owner says otherwise. An owner may set
+it to `view` or `control`, and never to `admin`. A queue code and a control code each raise a phone
+to their level. The admin password opens the admin level, as it always does.
+
+**No accounts.** A karaoke machine's owner hands a code to the people who may skip, and changes it
+when that stops being true. Names and passwords per guest would be a list nobody keeps. The singer
+name a phone queues under stays a label, never an identity.
+
+**The levels are a `match` in code, not a table in settings.** `routes::required_access` reads the
+method and the path. A read needs `view`, two routes need `queue`, and every other write outside
+`/admin/` needs `control`. **A write added tomorrow needs `control` until somebody decides
+otherwise**, so a new route fails closed. A table of route ids in `settings.json` could drift out of
+step with the router, which is the fault [`The URL prefix is the permission`](#the-url-prefix-is-the-permission)
+answers.
+
+**Interrupting somebody else is `control`, and adding a song is not.** Moving or removing a queue
+entry is `control` too, because the queue holds no owner for an entry. A queuer who adds the wrong
+song asks somebody with the control code to take it out.
+
+**A token carries its level, and a code's hash is inside its MAC.** `POST /api/v1/login` takes the
+admin password or either code and answers with a token of the highest level the words open. Changing
+or clearing a code ends that level's tokens and no others. It shares the admin login's rate limiter,
+so a second door is not a second guessing budget.
+
+**A caller's level is the higher of the room's and the token's.** No token, or one that does not
+verify, gets a 401 when the room is too low. A valid token of too low a level gets a 403, because
+logging in again with the same code would not change the answer. `GET /api/v1/access` reports the
+caller's level, the room's, and whether each code is set.
+
+**A code may not be the admin password or the other code.** The login tries the admin password first,
+so a code equal to it would hand out the admin level. A code equal to the other code would open only
+the higher of the two, and the owner would not be told. Four characters is the floor, as for the
+password.
+
+**The singer's remote checks the level itself.** Its pages call the machine in-process, so the API's
+check never runs for them. See
+[`The singer's remote asks for a code and has no login page`](remotes.md#the-singers-remote-asks-for-a-code-and-has-no-login-page).
+
+**The two debug play routes stay open whenever they are mounted.** They exist only in debugging mode,
+and a curation tool drives them with no token. That keeps
+[`Debugging is a mode`](#debugging-is-a-mode-and-the-machine-says-when-it-is-on)'s rule: on means
+open, off means absent, and there is no middle.
+
+**The dev mirror at `/dev/api/v1/` stays open at every level.** It is outside `/api/v1/`, so
+`required_access` answers `view` for every path under it, and the two switches that serve it are what
+bound it.
 
 ## Network reach
 
@@ -47,8 +107,9 @@ QR code and the connect panel all exist to serve a phone, and every one of them 
 loopback default.
 
 This default comes with a password the machine gives itself and a fixed set of admin routes. Together
-they are a judgment about a **home LAN**. Anybody in the room can queue a song, and that is the design.
-Everything that reconfigures the machine is behind a code on its own screen.
+they are a judgment about a **home LAN**. Anybody in the room can queue a song unless the owner lowers
+the room level, and that is the design. Everything that reconfigures the machine is behind a code on
+its own screen.
 
 **It stops being right the moment port 8177 is reachable from outside one**, and then what changes is
 the password, not a list of routes. A generated PIN is fine for a room and is not a secret from the
@@ -557,7 +618,8 @@ a home LAN. It is what a Chromecast, a smart television and a printer all do, fo
 
 **The panel draws a PIN or nothing, and never the words "password required".** It is the *singer's*
 panel, beside the QR code a phone is meant to scan. The remote that phone opens asks for no
-password, because everything the door guards is under `/api/v1/admin/`, the owner's tools. A line
+password, because everything the password guards is under `/api/v1/admin/`, the owner's tools. A
+queue code or a control code is the owner's to hand out, and the panel never draws either. A line
 demanding a password there answers a question nobody in the room asked, and answers it as *you cannot
 use this*. A PIN is the opposite case and belongs on the screen. It is the one fact about the machine
 that exists nowhere its owner can reach, which is why this decision puts it on a television.

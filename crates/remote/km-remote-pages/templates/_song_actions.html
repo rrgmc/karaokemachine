@@ -1,9 +1,9 @@
 <div class="song-actions" id="song-{{ number }}">
-  <button class="icon-btn primary" title="{{ "song-queue"|t }}" aria-label="{{ "song-queue"|t }}"
+  <button class="icon-btn primary needs-queue" title="{{ "song-queue"|t }}" aria-label="{{ "song-queue"|t }}"
           hx-post="/song/{{ number }}/queue" hx-target="#song-{{ number }}" hx-swap="afterbegin">+</button>
-  <button class="icon-btn extra-action" title="{{ "song-play-next"|t }}" aria-label="{{ "song-play-next"|t }}"
+  <button class="icon-btn extra-action needs-control" title="{{ "song-play-next"|t }}" aria-label="{{ "song-play-next"|t }}"
           hx-post="/song/{{ number }}/next" hx-target="#song-{{ number }}" hx-swap="afterbegin">&#8593;</button>
-  <button class="icon-btn extra-action" title="{{ "song-play-now"|t }}" aria-label="{{ "song-play-now"|t }}"
+  <button class="icon-btn extra-action needs-control" title="{{ "song-play-now"|t }}" aria-label="{{ "song-play-now"|t }}"
           hx-post="/song/{{ number }}/now" hx-target="#song-{{ number }}" hx-swap="afterbegin">&#9654;</button>
   {% match in_folder %}
   {% when Some with (folder) %}

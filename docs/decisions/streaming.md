@@ -46,10 +46,11 @@ panel. That is worse than the generation of encoding it saves.
 **It carries the backing track and never a singer.** Mic audio is mixed in hardware, downstream of
 anything this process can see. So what a stream can publish is what a package holds.
 
-**Public, on the same terms as the queue.** It sits outside `/api/v1/admin/`, so no token is asked
-for. That is the judgment [`Network reach`](api-and-network.md#network-reach) already makes about a
-home LAN indoors. Anybody in the room can queue a song, so anybody in the room can watch the screen
-they are queueing it onto.
+**Public, on the same terms as reading the queue.** It sits outside `/api/v1/admin/`, so no token is
+asked for. That is the judgment [`Network reach`](api-and-network.md#network-reach) already makes
+about a home LAN indoors. Watching is the
+[`view level`](api-and-network.md#four-access-levels-and-the-method-and-path-decide-them), which
+every phone in the room holds whatever the room level is.
 
 **A machine that is not streaming has neither path**, rather than a page explaining itself. That is
 [`Power is a capability of the host`](api-and-network.md#power-is-a-capability-of-the-host-not-a-method-on-the-machine)

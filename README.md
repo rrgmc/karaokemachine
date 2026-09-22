@@ -99,8 +99,8 @@ favorite"></td>
 <tr>
 <td><sub><b>Search and queue</b> from any phone. No app to install.</sub></td>
 <td><sub><b>The song as it plays</b> — key, tempo, guide melody, music volume.</sub></td>
-<td><sub><b>Who is up next</b>, changeable by anyone. The controls stay folded until asked
-for.</sub></td>
+<td><sub><b>Who is up next</b>, changeable by anyone with the skip level. The controls stay
+folded until asked for.</sub></td>
 <td><sub><b>The offline remote</b> adds favorites and an A–Z picker, and works with the machine
 switched off.</sub></td>
 </tr>
@@ -145,6 +145,9 @@ switched off.</sub></td>
   machine switched off.
 - **One admin password, which the machine shows on its own screen.** Everything that reconfigures
   the machine needs it, and nothing a singer does needs it.
+- **Three levels below the owner: watch, queue, and queue plus skip.** Anybody in the room can queue
+  a song out of the box. You can lower that to watching only, or raise it to skipping as well. Two
+  codes you choose raise one phone at a time: one to queue, one to skip and play now.
 
 **Giving the machine pictures and instruments**
 
@@ -427,6 +430,18 @@ the *This machine* tab, which every tab links to until you do.
 The singer's remote offers only search, queue, and the controls a song allows. Nothing on it can
 delete songs.
 
+**The password tab also says who may do what.** A phone with no code gets the room level:
+
+| Room level | A phone with no code can |
+|---|---|
+| Watch only | Browse the songs and see the queue and what is playing. |
+| Queue songs | Also add a song, and change the key, tempo, volume and guide melody. This is the default. |
+| Queue, skip and play now | Also skip, play a song now, use the other transport buttons, and move or remove anybody's song. |
+
+Set a **code to queue** and a **code to skip** on the same card, and give each to whoever should
+have it. They type it on the remote's Setup tab, which then says what that phone can do. Clearing or
+changing a code takes that level back from every phone that used it.
+
 ### The song book
 
 **The song book is a printable PDF of every installed song.** It has four columns: artist, number,
@@ -503,6 +518,11 @@ fills the screen, and one you built yourself opens in a window.
   wallpapers, demo mode, microphones and audio output.
 - **The URL prefix says which routes need the machine's password.** Everything that reconfigures the
   machine is under `/api/v1/admin/`.
+- **Outside it, the method and the path set the level.** A read needs nothing. Adding a song and the
+  settings patch need the queue level. Every other write needs the control level, except the two
+  debug play routes, which are open whenever debugging mounts them.
+  `POST /api/v1/login` exchanges a code for a token of its level, and `GET /api/v1/access` says what
+  the caller holds.
 - **mDNS finds the machine on the network**, and a `/discover` endpoint answers as well.
 - **`POST /api/v1/admin/packages` installs a package without a restart.** Removing one through the
   API deletes its `.kmpkg`.

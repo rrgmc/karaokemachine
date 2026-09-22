@@ -211,6 +211,54 @@
       {% endif %}
     </section>
 
+    {# **Who may do what, beside the password that is the top of it.** The room level is what a
+       phone with no code gets. Each code raises a phone to its level, and is never drawn back. #}
+    {% match access %}
+    {% when Some with (access) %}
+    <section class="card">
+      <h2>{{ "access-heading"|t }}</h2>
+      <p class="hint">{{ "access-explained"|t }}</p>
+      <form method="post" action="/admin/machine/access">
+        <label>
+          {{ "access-room"|t }}
+          <select name="room">
+            <option value="view"{% if access.room == km_api::Access::View %} selected{% endif %}>{{ "access-view"|t }}</option>
+            <option value="queue"{% if access.room == km_api::Access::Queue %} selected{% endif %}>{{ "access-queue"|t }}</option>
+            <option value="control"{% if access.room == km_api::Access::Control %} selected{% endif %}>{{ "access-control"|t }}</option>
+          </select>
+        </label>
+        <button type="submit">{{ "access-save"|t }}</button>
+      </form>
+      <form method="post" action="/admin/machine/access-code">
+        <input type="hidden" name="level" value="queue">
+        <label>
+          {{ "access-queue-code"|t }}
+          ({% if access.queue_code %}{{ "access-code-set"|t }}{% else %}{{ "access-code-unset"|t }}{% endif %})
+          <input type="password" name="code" minlength="4" autocomplete="off"
+                 placeholder="{{ "password-placeholder"|t }}">
+        </label>
+        <button type="submit">{{ "access-save"|t }}</button>
+        {% if access.queue_code %}
+        <button type="submit" name="clear" value="yes" class="danger">{{ "access-code-clear"|t }}</button>
+        {% endif %}
+      </form>
+      <form method="post" action="/admin/machine/access-code">
+        <input type="hidden" name="level" value="control">
+        <label>
+          {{ "access-control-code"|t }}
+          ({% if access.control_code %}{{ "access-code-set"|t }}{% else %}{{ "access-code-unset"|t }}{% endif %})
+          <input type="password" name="code" minlength="4" autocomplete="off"
+                 placeholder="{{ "password-placeholder"|t }}">
+        </label>
+        <button type="submit">{{ "access-save"|t }}</button>
+        {% if access.control_code %}
+        <button type="submit" name="clear" value="yes" class="danger">{{ "access-code-clear"|t }}</button>
+        {% endif %}
+      </form>
+    </section>
+    {% when None %}
+    {% endmatch %}
+
     <section class="card">
       <h2>{{ "sessions-heading"|t }}</h2>
       <p class="hint">{{ "sessions-explained"|t }}</p>

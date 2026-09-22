@@ -62,6 +62,15 @@
     <button class="icon-btn">{{ "machine-save"|t }}</button>
   </form>
 
+  {# What this phone may do, and the box that raises it. A code is typed once and kept in an
+     `HttpOnly` cookie, so it is never drawn back into this page. #}
+  <form class="pref-row field-row" hx-post="/access">
+    <label for="access-code">{{ "access-level"|t }} <b>{{ chrome.access_key()|t }}</b></label>
+    <input type="password" id="access-code" name="code" autocomplete="off" enterkeyhint="done"
+           placeholder="{{ "access-code-placeholder"|t }}" aria-label="{{ "access-code"|t }}">
+    <button class="icon-btn">{{ "access-code-use"|t }}</button>
+  </form>
+
   <form class="pref-row field-row" hx-post="/locale">
     <label for="locale">{{ "language-picker"|t }}</label>
     <select id="locale" name="locale" onchange="this.form.requestSubmit()"

@@ -13,9 +13,9 @@ use axum::http::{Method, Request, StatusCode};
 use km_api::machine::{
     AudioOutput, SoundFontBank, SoundFontBanks, SoundFontChoice, SoundFontStatus, SoundKind,
 };
-use km_api::routes::{API_PREFIX, LOG_SURFACE, POWER_SURFACE, SURFACE, router};
+use km_api::routes::{API_PREFIX, LOG_SURFACE, POWER_SURFACE, SURFACE, required_access, router};
 use km_api::testing::{Faults, Recorded, TestMachine, TestPower};
-use km_api::{ApiConfig, ApiState, PowerError};
+use km_api::{Access, ApiConfig, ApiState, PowerError};
 use serde_json::{Value, json};
 use std::sync::Arc;
 use tower::ServiceExt;
@@ -426,6 +426,10 @@ fn sample_body(path: &str) -> Option<Value> {
         "/admin/demo" => json!({ "enabled": false }),
         "/admin/debug" => json!({ "enabled": false }),
         "/admin/login" => json!({ "password": "wrong" }),
+        "/login" => json!({ "password": "wrong" }),
+        "/admin/access" => json!({ "room": "queue" }),
+        "/admin/access/queue-code" => json!({ "code": "sweep-queue" }),
+        "/admin/access/control-code" => json!({ "code": "sweep-control" }),
         // **The password the sweep already holds, not `null` and not a new one.** `null` now *resets*
         // the password to a fresh PIN rather than clearing it, which would invalidate the token this
         // sweep is carrying and close every remaining admin route to the next request. Setting the
@@ -537,9 +541,9 @@ async fn every_documented_route_is_actually_mounted() {
             StatusCode::UNPROCESSABLE_ENTITY,
             "{method} {path} rejected the sample body: {body}"
         );
-        // Login is the exception: its sample body is a deliberately wrong password, so a 401 there
+        // The two logins are the exception: their sample body is a deliberately wrong password, so a 401 there
         // is the route working rather than the route refusing the sweep.
-        if *path != "/admin/login" {
+        if *path != "/admin/login" && *path != "/login" {
             assert_ne!(
                 status,
                 StatusCode::UNAUTHORIZED,
@@ -556,41 +560,191 @@ async fn every_documented_route_is_actually_mounted() {
     }
 }
 
-/// Every path under `/api/v1/admin/` refuses a caller with no token, and every other path does not.
+/// Every route admits exactly the callers whose level reaches what it needs.
 ///
-/// **The whole permission system, swept.** It replaces about a dozen tests that each named one route
-/// id and asserted it was admin or public — a table mirroring `acl.rs`'s own. There is no table now:
-/// the prefix decides, so the assertion is over the prefix, and a route added under `/admin/` is
-/// covered by this the day it is written.
+/// **The whole permission system, swept.** Each room level is tried with no token and with a token
+/// of each level. A route is admitted when the caller's level is at least what
+/// `routes::required_access` says it needs, and refused with a 401 or a 403 otherwise. A route added
+/// tomorrow is covered the day it is written.
 #[tokio::test]
-async fn the_admin_prefix_is_exactly_what_needs_a_token() {
-    // Genuinely tokenless: the harness mints one by default, which is what every *other* test in
-    // this file wants and exactly what this one must not have.
-    let harness = Harness::with_password(SWEEP_PASSWORD)
-        .at_the_machine()
-        .tokenless();
+async fn every_route_admits_exactly_the_levels_that_reach_it() {
+    // These change the password, the epoch or a code, so a harness that ran one is rebuilt.
+    const RESETS: &[&str] = &[
+        "/admin/password",
+        "/admin/sessions/reset",
+        "/admin/access",
+        "/admin/access/queue-code",
+        "/admin/access/control-code",
+    ];
+    let config = ApiConfig::default()
+        .without_mdns()
+        .with_password(SWEEP_PASSWORD)
+        .expect("argon2 hashes a password")
+        .with_codes("sweep-queue", "sweep-control")
+        .expect("argon2 hashes a code");
 
-    for (method, path) in SURFACE {
-        if *path == "/events" || *path == "/admin/login" {
-            continue;
-        }
-        let (status, body) = harness
-            .request(method_of(method), path, sample_body(path))
-            .await;
-        if path.starts_with("/admin/") {
-            assert_eq!(
-                status,
-                StatusCode::UNAUTHORIZED,
-                "{method} {path} is under /admin/ and let a tokenless caller through: {body}"
-            );
-        } else {
-            assert_ne!(
-                status,
-                StatusCode::UNAUTHORIZED,
-                "{method} {path} is not under /admin/ and demanded a token: {body}"
-            );
+    for room in Access::ROOM {
+        for held in [
+            None,
+            Some(Access::Queue),
+            Some(Access::Control),
+            Some(Access::Admin),
+        ] {
+            let fresh = || {
+                let mut harness =
+                    Harness::with_config(config.clone().with_room_access(room)).at_the_machine();
+                harness.token =
+                    held.map(|level| harness.state.auth().issue_for(level).expect("a code").token);
+                harness
+            };
+            let mut harness = fresh();
+            let caller = held.map_or(room, |level| level.max(room));
+            for (method, path) in SURFACE {
+                if matches!(*path, "/events" | "/admin/login" | "/login") {
+                    continue;
+                }
+                let needed = required_access(&method_of(method), &format!("{API_PREFIX}{path}"));
+                let (status, body) = harness
+                    .request(method_of(method), path, sample_body(path))
+                    .await;
+                let refused = matches!(status, StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN);
+                assert_eq!(
+                    refused,
+                    caller < needed,
+                    "room {room}, token {held:?}: {method} {path} needs {needed} and answered \
+                     {status}: {body}"
+                );
+                if RESETS.contains(path) && !refused {
+                    harness = fresh();
+                }
+            }
         }
     }
+}
+
+/// A caller with no token is told to log in; a caller whose token is too low is told no.
+#[tokio::test]
+async fn no_token_is_a_401_and_a_token_too_low_is_a_403() {
+    let mut harness = Harness::with_config(
+        ApiConfig::default()
+            .without_mdns()
+            .with_password(SWEEP_PASSWORD)
+            .expect("argon2 hashes a password")
+            .with_codes("sweep-queue", "sweep-control")
+            .expect("argon2 hashes a code")
+            .with_room_access(Access::View),
+    )
+    .tokenless();
+    let (status, _) = harness.request(Method::POST, "/transport/skip", None).await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+
+    harness.token = harness
+        .state
+        .auth()
+        .issue_for(Access::Queue)
+        .map(|grant| grant.token);
+    let (status, _) = harness.request(Method::POST, "/transport/skip", None).await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+}
+
+/// A code exchanged at `/login` comes back as a token of its level, and `/access` reports it.
+#[tokio::test]
+async fn a_code_buys_a_token_of_its_own_level() {
+    let mut harness = Harness::with_config(
+        ApiConfig::default()
+            .without_mdns()
+            .with_password(SWEEP_PASSWORD)
+            .expect("argon2 hashes a password")
+            .with_codes("sweep-queue", "sweep-control")
+            .expect("argon2 hashes a code")
+            .with_room_access(Access::View),
+    )
+    .tokenless();
+
+    let body = harness.ok(Method::GET, "/access", None).await;
+    assert_eq!(body["access"], "view");
+    assert_eq!(body["room"], "view");
+    assert_eq!(body["queue_code"], true);
+    assert_eq!(body["control_code"], true);
+
+    let (status, body) = harness
+        .request(
+            Method::POST,
+            "/login",
+            Some(json!({ "password": "sweep-control" })),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(body["access"], "control");
+    harness.token = body["token"].as_str().map(str::to_owned);
+
+    let body = harness.ok(Method::GET, "/access", None).await;
+    assert_eq!(body["access"], "control");
+    let (status, body) = harness.request(Method::POST, "/transport/skip", None).await;
+    assert!(
+        !matches!(status, StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN),
+        "a control token skips: {status} {body}"
+    );
+
+    let (status, _) = harness
+        .request(Method::POST, "/login", Some(json!({ "password": "wrong" })))
+        .await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+}
+
+/// The owner sets the room level and the codes, and each change is written down.
+#[tokio::test]
+async fn the_owner_sets_the_room_level_and_the_codes() {
+    let harness = Harness::with_password(SWEEP_PASSWORD);
+
+    let (status, body) = harness
+        .put("/admin/access", json!({ "room": "view" }))
+        .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(body["room"], "view");
+    assert_eq!(harness.state.room_access(), Access::View);
+
+    let (status, _) = harness
+        .put("/admin/access", json!({ "room": "admin" }))
+        .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "a room is never admin");
+
+    let (status, body) = harness
+        .put("/admin/access/control-code", json!({ "code": "boss1" }))
+        .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(body["control_code"], true);
+    assert_eq!(body["queue_code"], false);
+
+    let (status, _) = harness
+        .put("/admin/access/queue-code", json!({ "code": "boss1" }))
+        .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "the other code is taken");
+    let (status, _) = harness
+        .put(
+            "/admin/access/queue-code",
+            json!({ "code": SWEEP_PASSWORD }),
+        )
+        .await;
+    assert_eq!(
+        status,
+        StatusCode::BAD_REQUEST,
+        "the admin password is taken"
+    );
+    let (status, _) = harness
+        .put("/admin/access/queue-code", json!({ "code": "ab" }))
+        .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "too short");
+
+    let (status, body) = harness
+        .put("/admin/access/control-code", json!({ "code": null }))
+        .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(body["control_code"], false);
+
+    let recorded = harness.machine.recorded();
+    assert!(recorded.contains(&Recorded::RoomAccessSet(Access::View)));
+    assert!(recorded.contains(&Recorded::AccessCodeSet(Access::Control, None)));
 }
 
 /// Logging in is reachable without a token, because it is how a caller gets one.
@@ -2585,18 +2739,36 @@ async fn the_demo_delay_is_its_own_admin_route_and_is_always_written_down() {
     assert_eq!(body["delay_secs"], 30, "a refusal changes nothing");
 }
 
-/// Starting one demo song is anybody's, where turning the mode on is an owner's.
+/// Starting one demo song needs the control level, where turning the mode on is an owner's.
 ///
 /// **The difference is one song against a mode**, and the pair to compare it with is one screen over:
-/// `wallpapers.next` ships public and `wallpapers.upload` ships admin for the same reason. A trigger
-/// that first needed the admin password would be useless to the room it exists for — the point of it
-/// is that somebody standing in a silent house can make the box show what it holds.
+/// `wallpapers/next` needs the control level and `wallpapers` upload is admin for the same reason.
 #[tokio::test]
-async fn starting_a_demo_song_needs_no_password_where_turning_the_mode_on_does() {
-    let harness = Harness::with_password("hunter2").tokenless();
+async fn starting_a_demo_song_needs_the_control_level_where_turning_the_mode_on_needs_admin() {
+    let mut harness = Harness::with_config(
+        ApiConfig::default()
+            .without_mdns()
+            .with_password("hunter2")
+            .expect("argon2 hashes a password")
+            .with_codes("sing", "boss")
+            .expect("argon2 hashes a code"),
+    )
+    .tokenless();
 
+    let (status, _) = harness.post("/demo/start", json!(null)).await;
+    assert_eq!(
+        status,
+        StatusCode::UNAUTHORIZED,
+        "a room that queues cannot start one"
+    );
+
+    harness.token = harness
+        .state
+        .auth()
+        .issue_for(Access::Control)
+        .map(|grant| grant.token);
     let (status, _) = harness.put("/admin/demo", json!({ "enabled": true })).await;
-    assert_eq!(status, StatusCode::UNAUTHORIZED, "the mode is an owner's");
+    assert_eq!(status, StatusCode::FORBIDDEN, "the mode is an owner's");
 
     let (status, body) = harness.post("/demo/start", json!(null)).await;
     assert!(status.is_success(), "one song is not: {body}");

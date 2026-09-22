@@ -488,6 +488,14 @@ input[type="search"], input[type="text"], select {
  * one is a phone's, so this box is checked from the `km_extra` cookie and writes it back. */
 #extra-actions:not(:checked) ~ #browse .extra-action { display: none; }
 
+/* **What this phone may not do is not drawn.** `<body>` carries the phone's level, and each button
+ * above the lowest level carries the level it needs. A class rather than a branch in each template,
+ * because the event stream pushes one fragment to every open page whatever each phone's level. The
+ * handler behind each button refuses a phone below its level anyway; this is what it is offered. */
+.access-view .needs-queue,
+.access-view .needs-control,
+.access-queue .needs-control { display: none; }
+
 /* The ⋯ is a label, so it needs the two affordances a button gets for free — as the gear does, and
  * for the same reason. Its box and its centering come from `.icon-btn` and `label.icon-btn`. */
 .actions-toggle { cursor: pointer; user-select: none; }

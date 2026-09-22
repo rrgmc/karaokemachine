@@ -1514,6 +1514,22 @@ pub trait Controller: Send + Sync + 'static {
     /// exactly the bug this exists to close.
     fn set_session_epoch(&self, epoch: u64) -> Result<(), ControlError>;
 
+    /// The room access level moved; write it down.
+    ///
+    /// No default implementation, for [`Self::set_session_epoch`]'s reason: a room lowered to
+    /// `view` that came back as `queue` after a restart is a decision quietly reverted.
+    fn set_room_access(&self, room: crate::access::Access) -> Result<(), ControlError>;
+
+    /// The code for one level was set or cleared; write its hash down.
+    ///
+    /// `level` is [`crate::access::Access::Queue`] or [`crate::access::Access::Control`]. No
+    /// default implementation, for the same reason as [`Self::set_room_access`].
+    fn set_access_code(
+        &self,
+        level: crate::access::Access,
+        hash: Option<String>,
+    ) -> Result<(), ControlError>;
+
     /// Turn debugging mode on or off, and write it down.
     ///
     /// Governs whether the two `debug/play-*` routes are mounted at all, and whether the whole

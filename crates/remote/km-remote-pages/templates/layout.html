@@ -15,7 +15,7 @@
 <script src="/static/htmx.min.js?v={{ chrome.assets }}" defer></script>
 <script src="/static/live.js?v={{ chrome.assets }}" defer></script>
 </head>
-<body hx-sync="body:queue last">
+<body class="access-{{ chrome.access.access }}" hx-sync="body:queue last">
 
 <div id="toasts" class="toasts"></div>
 <div class="busy" aria-hidden="true"><span class="spinner"></span></div>

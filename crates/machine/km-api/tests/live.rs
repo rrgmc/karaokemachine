@@ -18,7 +18,7 @@ use std::time::Duration;
 
 use futures_util::{SinkExt, StreamExt};
 use km_api::testing::TestMachine;
-use km_api::{ApiConfig, ApiState, Extras, Listening, bind, bind_with};
+use km_api::{Access, ApiConfig, ApiState, Extras, Listening, bind, bind_with};
 use serde_json::Value;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
@@ -83,8 +83,15 @@ impl Server {
         }
     }
 
+    /// A machine whose room holds the control level, so a test can press every button without a
+    /// code. The admin routes stay shut, because a room never holds the admin level.
     async fn plain() -> Self {
-        Self::start(ApiConfig::default().without_mdns()).await
+        Self::start(
+            ApiConfig::default()
+                .without_mdns()
+                .with_room_access(Access::Control),
+        )
+        .await
     }
 
     /// One request, one connection, whole response as text.
@@ -403,6 +410,24 @@ async fn an_admin_route_is_refused_over_a_real_socket_even_from_loopback() {
     assert!(
         response.starts_with("HTTP/1.1 401"),
         "expected 401, got: {response}"
+    );
+}
+
+/// The level check answers on the wire as well: a room that can queue cannot skip.
+#[tokio::test]
+async fn a_control_route_is_refused_over_a_real_socket_in_a_room_that_only_queues() {
+    let server = Server::start(ApiConfig::default().without_mdns()).await;
+    let response = server.raw("POST", "/api/v1/transport/skip", None).await;
+    assert!(
+        response.starts_with("HTTP/1.1 401"),
+        "expected 401, got: {response}"
+    );
+    let response = server
+        .raw("POST", "/api/v1/queue", Some(r#"{"number":"1001"}"#))
+        .await;
+    assert!(
+        !response.starts_with("HTTP/1.1 401"),
+        "a room that queues must be able to queue: {response}"
     );
 }
 

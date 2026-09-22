@@ -9,7 +9,7 @@
 
 error-unavailable = A máquina não pode fazer isso agora.
 error-queue-full = A fila está cheia.
-error-unauthorized = Esta máquina exige uma senha.
+error-unauthorized = Isto precisa de um código. Digite um na aba Configuração.
 browse-back = Voltar para as músicas
 error-not-found = Isso não está mais aí.
 error-not-acknowledged = Enviado, mas a máquina não confirmou.
@@ -98,6 +98,15 @@ queue-empty-hint = A fila está vazia. Ache uma música na aba Músicas e toque 
 singing-as = Cantando como
 singer-name = Nome com que suas músicas entram na fila
 singer-placeholder = seu nome
+access-level = Este celular pode:
+access-view = Só assistir
+access-queue = Pôr músicas na fila
+access-control = Pôr na fila, pular e tocar agora
+access-admin = Tudo
+access-code = Um código do dono
+access-code-placeholder = código
+access-code-use = Usar
+access-code-wrong = Esse código não está certo.
 
 ## Tocando agora
 

@@ -2,7 +2,7 @@
 {% if rows.is_empty() %}
   <p class="empty">{{ "queue-empty-hint"|t }}&nbsp;<b>+</b>.</p>
 {% else %}
-<div class="queue-head">
+<div class="queue-head needs-control">
   <label for="queue-actions" class="icon-btn actions-toggle"
          title="{{ "row-actions"|t }}">&hellip;</label>
 </div>
@@ -14,7 +14,7 @@
       <div class="song-name">{{ row.title() }}</div>
       <div class="song-sub">{{ row.artist() }}{% match row.singer() %}{% when Some with (singer) %} &middot; {{ singer }}{% when None %}{% endmatch %}</div>
     </div>
-    <div class="song-actions">
+    <div class="song-actions needs-control">
       <button class="icon-btn" aria-label="{{ "queue-move-up"|t }}" title="{{ "queue-move-up"|t }}"
               hx-post="/queue/{{ row.id() }}/up" hx-target="#queue" hx-swap="outerHTML"
               {% if row.first || !online %}disabled{% endif %}>&#8593;</button>
