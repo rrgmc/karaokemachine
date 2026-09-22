@@ -275,6 +275,11 @@ struct BuildArgs {
     /// length and language. It is for whoever is handed the package and has no tool to open it.
     #[arg(long)]
     listing: bool,
+    /// Mark the package as uncurated: built from a folder, with nobody reviewing it.
+    ///
+    /// The machine's lists of packages show the mark, and the television does not.
+    #[arg(long)]
+    uncurated: bool,
 }
 
 #[derive(Args)]
@@ -791,6 +796,7 @@ fn describe(args: &SpecArgs) -> Result<()> {
             require_lyrics: args.require_lyrics,
             limit: args.limit,
             index,
+            unbounded: false,
         },
         walk_progress(),
     )?;
@@ -843,6 +849,11 @@ fn build(args: &BuildArgs) -> Result<()> {
             dry_run: args.dry_run,
             measure_loudness: !args.no_loudness,
             write_listing: args.listing,
+            flags: if args.uncurated {
+                km_kmpkg::PackageFlags::UNCURATED
+            } else {
+                km_kmpkg::PackageFlags::NONE
+            },
         },
         build_progress(),
     )?;
@@ -1211,6 +1222,7 @@ fn inspect(args: &InspectArgs) -> Result<()> {
     println!("  name       {}", manifest.package.name);
     println!("  version    {}", manifest.package.version);
     println!("  songs      {}", manifest.songs.len());
+    print_flags(package.flags(), "  flags      ");
 
     let values: Vec<u8> = manifest
         .songs
@@ -1319,6 +1331,21 @@ fn inspect(args: &InspectArgs) -> Result<()> {
     Ok(())
 }
 
+/// Prints a package's flags by name, and a bit this build has no name for as a number.
+///
+/// Prints nothing for a package with no flag, which is almost every package.
+fn print_flags(flags: km_kmpkg::PackageFlags, label: &str) {
+    if flags.is_empty() {
+        return;
+    }
+    let names: Vec<&str> = flags.names().collect();
+    if names.is_empty() {
+        println!("{label}{:#x}", flags.bits());
+    } else {
+        println!("{label}{} ({:#x})", names.join(", "), flags.bits());
+    }
+}
+
 fn check(args: &CheckArgs) -> Result<()> {
     // Read unchecked first, so a package that will not open still gets diagnosed rather than just
     // refused. Telling somebody "invalid" without saying why is useless.
@@ -1327,6 +1354,9 @@ fn check(args: &CheckArgs) -> Result<()> {
 
     println!("{}", args.package.display());
     println!("  songs {}", manifest.songs.len());
+    let flags = km_kmpkg::read_flags(&args.package)
+        .with_context(|| format!("reading {}", args.package.display()))?;
+    print_flags(flags, "  flags ");
 
     let problems = manifest.problems();
     if problems.is_empty() {

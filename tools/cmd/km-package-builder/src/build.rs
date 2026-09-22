@@ -249,6 +249,7 @@ pub fn build(
             // worse is not one worth drawing.
             measure_loudness: true,
             write_listing,
+            flags: km_kmpkg::PackageFlags::NONE,
         },
         |event| progress.observe(&event),
     )
@@ -1626,6 +1627,7 @@ mod tests {
                 dry_run: false,
                 measure_loudness: true,
                 write_listing: false,
+                flags: km_kmpkg::PackageFlags::NONE,
             },
             |_| std::ops::ControlFlow::Continue(()),
         )

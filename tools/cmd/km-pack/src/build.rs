@@ -69,6 +69,12 @@ pub struct BuildOptions<'a> {
     /// It says only what the manifest says — see [`crate::listing`], which is where the rule about
     /// naming nothing local is kept.
     pub write_listing: bool,
+    /// The flags the package's header carries. See [`km_kmpkg::PackageFlags`].
+    ///
+    /// **Not in the description**, because a flag is a fact about how the file was made rather than
+    /// about its songs. `km-package-simple` sets `uncurated`, the curation tool passes on what an
+    /// imported package carried, and `km-pack build --uncurated` sets it by hand.
+    pub flags: km_kmpkg::PackageFlags,
 }
 
 /// What a build is doing, as it does it.
@@ -468,6 +474,7 @@ pub fn build(
     // the machine scans at every start is not, and with media inside the package that is what an
     // interrupted build would leave.
     let partial = out.with_extension("kmpkg.part");
+    builder.set_flags(options.flags);
     builder
         .write(&partial)
         .with_context(|| format!("writing {}", partial.display()))?;
@@ -483,8 +490,11 @@ pub fn build(
         // `outcome.manifest` was set above from the builder, so the listing describes exactly what
         // went in rather than what the description asked for.
         if let Some(manifest) = &outcome.manifest {
-            std::fs::write(&listing_path, crate::listing::listing(manifest))
-                .with_context(|| format!("writing {}", listing_path.display()))?;
+            std::fs::write(
+                &listing_path,
+                crate::listing::listing(manifest, options.flags),
+            )
+            .with_context(|| format!("writing {}", listing_path.display()))?;
             outcome.listing_path = Some(listing_path);
         }
     }
@@ -904,6 +914,7 @@ mod tests {
                 dry_run: false,
                 measure_loudness: true,
                 write_listing,
+                flags: km_kmpkg::PackageFlags::NONE,
             },
             |_| ControlFlow::Continue(()),
         )
@@ -1120,6 +1131,44 @@ mod tests {
     ///
     /// The other half of the test above: the flag adds a file and adds nothing else, so the three
     /// absences that test is about hold whichever way it is set.
+    /// The flags asked for land in the header and in the listing, and a default build sets none.
+    #[test]
+    fn the_flags_asked_for_are_the_flags_written() {
+        let scratch = Scratch::new("flags");
+        scratch.write("a.kar", km_song::testing::soft_karaoke());
+        let spec = spec_for(vec![SpecSong {
+            file: "a.kar".to_owned(),
+            ..SpecSong::default()
+        }]);
+
+        let plain = scratch.0.join("plain.kmpkg");
+        run(&spec, &scratch.0, &plain);
+        let opened = km_kmpkg::Package::open(&plain).expect("open");
+        assert_eq!(opened.flags(), km_kmpkg::PackageFlags::NONE);
+
+        let flagged = scratch.0.join("flagged.kmpkg");
+        build(
+            &spec,
+            &BuildOptions {
+                base: &scratch.0,
+                out: Some(&flagged),
+                dry_run: false,
+                measure_loudness: false,
+                write_listing: true,
+                flags: km_kmpkg::PackageFlags::UNCURATED,
+            },
+            |_| ControlFlow::Continue(()),
+        )
+        .expect("build");
+        assert!(
+            km_kmpkg::Package::open(&flagged)
+                .expect("open")
+                .is_uncurated()
+        );
+        let text = std::fs::read_to_string(listing_path(&flagged)).expect("listing");
+        assert!(text.contains("Uncurated: "), "{text}");
+    }
+
     #[test]
     fn a_listing_is_written_beside_the_package_when_it_is_asked_for() {
         let scratch = Scratch::new("listing-beside");
@@ -1173,6 +1222,7 @@ mod tests {
                 dry_run: true,
                 measure_loudness: true,
                 write_listing: true,
+                flags: km_kmpkg::PackageFlags::NONE,
             },
             |_| ControlFlow::Continue(()),
         )
@@ -1202,6 +1252,7 @@ mod tests {
                 dry_run: true,
                 measure_loudness: true,
                 write_listing: false,
+                flags: km_kmpkg::PackageFlags::NONE,
             },
             |_| ControlFlow::Continue(()),
         )
@@ -1238,6 +1289,7 @@ mod tests {
                 dry_run: false,
                 measure_loudness: true,
                 write_listing: false,
+                flags: km_kmpkg::PackageFlags::NONE,
             },
             |event| {
                 if let BuildEvent::Song { .. } = event {
@@ -1275,6 +1327,7 @@ mod tests {
                 dry_run: false,
                 measure_loudness: true,
                 write_listing: false,
+                flags: km_kmpkg::PackageFlags::NONE,
             },
             |event| {
                 if let BuildEvent::Writing { .. } = event {
@@ -1314,6 +1367,7 @@ mod tests {
                 dry_run: true,
                 measure_loudness: true,
                 write_listing: false,
+                flags: km_kmpkg::PackageFlags::NONE,
             },
             |_| ControlFlow::Continue(()),
         )
@@ -1334,6 +1388,7 @@ mod tests {
                 dry_run: true,
                 measure_loudness: true,
                 write_listing: false,
+                flags: km_kmpkg::PackageFlags::NONE,
             },
             |_| ControlFlow::Continue(()),
         )

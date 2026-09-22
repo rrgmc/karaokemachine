@@ -1666,6 +1666,7 @@ could reach a header, and the body varies with it.
 ```sh
 cargo km-pack spec ./songs --out vol1.kmspec.yaml   # describe a folder
 cargo km-pack build vol1.kmspec.yaml                # build what it describes
+cargo km-pack build vol1.kmspec.yaml --uncurated    # ...and mark it as reviewed by nobody
 cargo km-pack check vol1.kmpkg                      # validate + report
 cargo km-pack check vol1.kmpkg --verify             # + every entry against its checksum
 cargo km-pack book vol1.kmpkg vol2.kmpkg --out brasil.pdf
@@ -1702,6 +1703,9 @@ cargo km-pack-video spec ./songs --out v.yaml --no-transcode
 - **Videos are checked against one profile and copied byte-for-byte when they already match**, which a
   download normally does. `--no-transcode` stores irregular files as they are; one the machine could
   not *play* is still refused.
+- **`--uncurated` sets the header flag `km-package-simple` sets**, for a description nobody reviewed.
+  `inspect` and `check` print a package's flags by name, and the listing says it too. See
+  [`An uncurated package says so everywhere but the television`](docs/decisions/packaging.md#an-uncurated-package-says-so-everywhere-but-the-television).
 - **`book` needs no `video` feature and no ffmpeg**, unlike every other command that meets a video
   song. A book is manifest metadata and never opens a song's bytes.
 

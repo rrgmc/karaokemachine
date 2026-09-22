@@ -61,6 +61,12 @@ pub struct DescribeOptions {
     pub limit: Option<usize>,
     /// Per-file overrides read from a CSV, keyed by [`crate::index_key`].
     pub index: BTreeMap<String, Override>,
+    /// Number past [`km_songcode::MAX_SLOT`] rather than refuse the folder.
+    ///
+    /// **For a caller that divides the result into volumes**, with
+    /// [`crate::volumes::split_into_volumes`]. A description numbered past the cap cannot be built
+    /// as one package, and `km-pack spec` never sets this.
+    pub unbounded: bool,
 }
 
 impl Default for DescribeOptions {
@@ -79,6 +85,7 @@ impl Default for DescribeOptions {
             require_lyrics: false,
             limit: None,
             index: BTreeMap::new(),
+            unbounded: false,
         }
     }
 }
@@ -95,6 +102,11 @@ pub struct Description {
     /// Said out loud rather than skipped: a folder that quietly loses files is a folder nobody can
     /// reconcile against what they put in it.
     pub orphans: Vec<(PathBuf, CdgOrphan)>,
+    /// Each MIDI song's suitability out of 10, keyed by its `file:` value.
+    ///
+    /// The walk analyses every MIDI file anyway, so a page that lists the songs reads the number
+    /// here. Only MIDI has one: nothing analyses a video, an MP3+G pair or an UltraStar file.
+    pub suitability: BTreeMap<String, u8>,
 }
 
 /// Walks a folder and describes what is in it.
@@ -118,6 +130,12 @@ pub fn describe(
         .collect();
     let mut next_number = options.start_number.max(1);
     let mut hashes: BTreeMap<String, u32> = BTreeMap::new();
+    let mut suitability: BTreeMap<String, u8> = BTreeMap::new();
+    let ceiling = if options.unbounded {
+        u32::MAX - 1
+    } else {
+        u32::from(km_songcode::MAX_SLOT)
+    };
 
     let mut files = Vec::new();
     crate::collect_midi(dir, &mut files);
@@ -170,7 +188,7 @@ pub fn describe(
             continue;
         }
 
-        let Some(number) = claim(over.number, &mut taken, &mut next_number) else {
+        let Some(number) = claim(over.number, &mut taken, &mut next_number, ceiling) else {
             rejected.push((path.clone(), Rejection::NoNumber));
             continue;
         };
@@ -186,6 +204,7 @@ pub fn describe(
             });
 
         hashes.insert(hash, number);
+        suitability.insert(relative(dir, path), analysis.suitability_value());
         songs.push(SpecSong {
             file: relative(dir, path),
             number: Some(number),
@@ -240,7 +259,7 @@ pub fn describe(
             .get(&crate::index_key(dir, path))
             .cloned()
             .unwrap_or_default();
-        let Some(number) = claim(over.number, &mut taken, &mut next_number) else {
+        let Some(number) = claim(over.number, &mut taken, &mut next_number, ceiling) else {
             rejected.push((path.clone(), Rejection::NoNumber));
             continue;
         };
@@ -269,7 +288,7 @@ pub fn describe(
             .get(&crate::index_key(dir, &pair.audio))
             .cloned()
             .unwrap_or_default();
-        let Some(number) = claim(over.number, &mut taken, &mut next_number) else {
+        let Some(number) = claim(over.number, &mut taken, &mut next_number, ceiling) else {
             rejected.push((pair.audio.clone(), Rejection::NoNumber));
             continue;
         };
@@ -299,7 +318,7 @@ pub fn describe(
             .get(&crate::index_key(dir, &source.text))
             .cloned()
             .unwrap_or_default();
-        let Some(number) = claim(over.number, &mut taken, &mut next_number) else {
+        let Some(number) = claim(over.number, &mut taken, &mut next_number, ceiling) else {
             rejected.push((source.text.clone(), Rejection::NoNumber));
             continue;
         };
@@ -325,7 +344,7 @@ pub fn describe(
     // **The folder being too big, not the numbering running out.** A high `start_number` with a
     // handful of files legitimately exhausts the range and is reported per song, as it always was;
     // what is refused here is a folder that could never be one package.
-    if songs.len() + overflowed > usize::from(km_songcode::MAX_SLOT) {
+    if !options.unbounded && songs.len() + overflowed > usize::from(km_songcode::MAX_SLOT) {
         anyhow::bail!(
             "a package holds at most {} songs; this folder yields {} — split it, or select with \
              --min-suitability, --require-lyrics or --limit",
@@ -354,28 +373,35 @@ pub fn describe(
         },
         rejected,
         orphans,
+        suitability,
     })
 }
 
 /// The number a song gets: the one the index claimed, or the next free one.
 ///
 /// `None` means there is no number to be had — the index claimed zero or something above
-/// [`km_songcode::MAX_SLOT`], or the folder has run past the last number a keypad can dial. The
+/// `ceiling`, or the folder has run past it. `ceiling` is [`km_songcode::MAX_SLOT`], the last number
+/// a keypad can dial in one package, unless the caller divides the result into volumes. The
 /// caller turns that into a [`Rejection::NoNumber`], so a folder too large to number tells you
 /// which songs it could not place rather than producing a package nobody can ask for.
-fn claim(claimed: Option<u32>, taken: &mut BTreeSet<u32>, next: &mut u32) -> Option<u32> {
+fn claim(
+    claimed: Option<u32>,
+    taken: &mut BTreeSet<u32>,
+    next: &mut u32,
+    ceiling: u32,
+) -> Option<u32> {
     if let Some(number) = claimed {
-        return (number != 0 && number <= u32::from(km_songcode::MAX_SLOT)).then(|| {
+        return (number != 0 && number <= ceiling).then(|| {
             taken.insert(number);
             number
         });
     }
-    while taken.contains(next) && *next <= u32::from(km_songcode::MAX_SLOT) {
+    while taken.contains(next) && *next <= ceiling {
         *next += 1;
     }
     // Also the overflow guard the unbounded walk never had: `*next += 1` at `u32::MAX` panics in
     // debug, and the limit is reached six thousand times sooner than that anyway.
-    if *next > u32::from(km_songcode::MAX_SLOT) {
+    if *next > ceiling {
         return None;
     }
     let number = *next;
