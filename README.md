@@ -580,6 +580,9 @@ favorite, edit its title and artist, and look it up on YouTube">
 
 - **`km-package-builder`**, a local web server over a folder of source files. Browse, search *the
   lyrics themselves*, rate, fix names, group duplicates, pick songs into packages by hand.
+- **`km-package-simple`** makes a package straight from a folder, in a window of its own. Rename a
+  song or leave it out, then build. What it writes is marked *uncurated*, and the machine's lists of
+  packages say so.
 - **`km-pack`** builds and validates packages, **`km-lyrics`** dumps one file's parsed timeline, and
   **`km-wallpaper-pack`** builds a wallpaper set, keeping what lyrics stay readable over.
 

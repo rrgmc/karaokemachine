@@ -1,0 +1,18 @@
+{% extends "layout.html" %}
+{% block content %}
+<h1>{{ "home-heading"|t }}</h1>
+<p>{{ "home-intro"|t }}</p>
+<p class="hint">{{ "home-uncurated"|t }}</p>
+
+{% if let Some(error) = error %}
+<p class="error">{{ "said-failed"|t }} {{ error }}</p>
+{% endif %}
+
+<form class="folder" hx-post="/folder" hx-swap="none">
+  <label for="path">{{ "home-folder"|t }}</label>
+  <div class="row">
+    <input id="path" name="path" value="{{ last_folder }}" placeholder="{{ "home-folder-placeholder"|t }}" required autofocus>
+    <button type="submit">{{ "action-read"|t }}</button>
+  </div>
+</form>
+{% endblock %}

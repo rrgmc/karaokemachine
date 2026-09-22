@@ -48,6 +48,9 @@ replace.
 | `cargo km-pkgbuild` | the same as `km-package-builder`, for people who would rather not type all of that |
 | `cargo km-pkgbuild-video` | …with `--features video` |
 | `cargo km-pkgbuild-desktop` | …with `--features desktop`, the windowed build |
+| `cargo km-package-simple` | `run -p km-package-simple --` |
+| `cargo km-package-simple-video` | …with `--features video` |
+| `cargo km-package-simple-desktop` | …with `--features desktop`, the windowed build |
 | `cargo km-pack` | `run -p km-pack --` |
 | `cargo km-pack-video` | …with `--features video` |
 | `cargo km-lyrics` | `run -p km-lyrics --` |
@@ -816,6 +819,7 @@ workflow, is [`What CI runs`](CONTRIBUTING.md#what-ci-runs) in `CONTRIBUTING.md`
 | `tools/cmd/km-pack` | Packaging, as a library *and* a command |
 | `tools/cmd/km-lyrics` | Dump a parsed lyric timeline and analysis for one file, or scan a folder |
 | `tools/cmd/km-package-builder` | The curation web tool: a folder of source files in, `.kmpkg` packages out |
+| `tools/cmd/km-package-simple` | The folder packager: one folder in, uncurated `.kmpkg` packages out, with no database |
 | `tools/cmd/assets/km-wallpaper-pack` | Builds a legibility-verified wallpaper pack. **In the second workspace** — `tools/cmd/assets` is `exclude`d from this one, see the note in `Cargo.toml` |
 
 ---
@@ -1764,6 +1768,20 @@ cargo run --release -p km-pack --features video -- reanalyze old.kmpkg --out new
 
 Drop the `.kmpkg` into the packages folder `--show-paths` names and restart, or install it without a
 restart with `POST /api/v1/admin/packages`.
+
+## The simple packager
+
+```sh
+cargo km-package-simple                         # the first page asks for a folder
+cargo km-package-simple ./songs                 # ...or read this one at once
+cargo km-package-simple-video ./songs           # a folder holding video songs
+cargo km-package-simple-desktop                 # ...in a window
+```
+
+It serves `http://127.0.0.1:8181/`, or any free port when that one is taken. It keeps a settings file
+with the language and the last folder, and nothing else. Every package it writes carries the
+`uncurated` flag, and a listing goes beside each one. See
+[`A package can be built straight from a folder`](docs/decisions/curation.md#a-package-can-be-built-straight-from-a-folder).
 
 ## The curation tool
 

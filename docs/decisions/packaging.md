@@ -547,6 +547,7 @@ the song that will not fit. A package of a thousand songs numbered 1 to 1000 tri
 The packagers refuse earlier, where somebody can still act. `km-pack spec` refuses to describe a
 folder that overflows. It names the count and points at `--min-suitability`, `--require-lyrics` and
 `--limit`. `km-package-builder` refuses a hand add past the cap and offers **Re-flow**.
+`km-package-simple` divides the folder into volumes instead, because it offers no way to narrow one.
 
 **A curated set larger than 999 songs is several packages, and the curation tool divides it.** A
 package there holds volumes, each a `.kmpkg` under this cap. A package sourced from favorites starts

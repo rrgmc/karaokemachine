@@ -1,0 +1,107 @@
+/* km-package-simple's stylesheet: the package builder's dark palette, and only what these five
+   pages use. Compiled into the binary by `include_str!` in `src/server.rs`. */
+
+:root {
+    /* One palette, and it is dark, so the form controls are told dark too. */
+    color-scheme: dark;
+    --bg: #14161a;
+    --panel: #1c1f26;
+    --line: #2f343d;
+    --text: #e6e8ec;
+    --dim: #9aa1ad;
+    --accent: #6ea8fe;
+    --accent-ink: #0b1220;
+    --bad: #f47067;
+}
+
+* { box-sizing: border-box; }
+
+body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+.bar {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.5rem 1rem;
+    background: var(--panel);
+    border-bottom: 1px solid var(--line);
+}
+
+.brand { font-weight: 600; }
+.grow { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+
+main { padding: 1rem; max-width: 80rem; margin: 0 auto; }
+
+h1 { font-size: 1.25rem; margin: 0 0 0.75rem; }
+
+.row { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+
+.hint { color: var(--dim); }
+.error { color: var(--bad); }
+.mono { font-family: ui-monospace, "Cascadia Mono", Menlo, monospace; overflow-wrap: anywhere; }
+
+input, select, button { font: inherit; color: inherit; }
+
+input, select {
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 0.3rem 0.45rem;
+}
+
+button {
+    background: var(--accent);
+    color: var(--accent-ink);
+    border: 0;
+    border-radius: 4px;
+    padding: 0.4rem 0.9rem;
+    cursor: pointer;
+}
+
+button.quiet {
+    background: transparent;
+    color: var(--text);
+    border: 1px solid var(--line);
+}
+
+.folder input { flex: 1; min-width: 20rem; }
+
+.package {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 0.75rem 1rem;
+    margin-bottom: 1rem;
+}
+
+.fields {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
+    gap: 0.5rem 1rem;
+}
+
+.fields label { display: flex; flex-direction: column; gap: 0.2rem; color: var(--dim); }
+.fields label.wide { grid-column: 1 / -1; }
+
+table { width: 100%; border-collapse: collapse; }
+th { text-align: left; color: var(--dim); font-weight: 500; }
+th, td { padding: 0.25rem 0.4rem; border-bottom: 1px solid var(--line); }
+td input:not([type="checkbox"]) { width: 100%; }
+.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* A row left out stays on the list, dimmed, so it can be put back. */
+tr.left-out { opacity: 0.45; }
+
+.summary { font-weight: 600; }
+.pager { display: flex; gap: 1rem; margin: 0.75rem 0; color: var(--dim); }
+.pager a { color: var(--accent); }
+
+.left { margin-top: 1rem; color: var(--dim); }
+.files { padding-left: 1.2rem; }
+
+progress { width: 100%; max-width: 32rem; }

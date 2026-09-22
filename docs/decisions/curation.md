@@ -1403,6 +1403,47 @@ one a different number. So the new song takes the old one's place in each list t
 That includes a list holding a song merged into the old one, so the next sync has nothing to move.
 A list the package does not follow is left alone, and the confirmation names the lists that change.
 
+## A package can be built straight from a folder
+
+**`km-package-simple` turns a folder into packages without a curation database.** Somebody with a
+folder of songs and an evening wants them on the machine tonight. The curation tool asks for a scan,
+a database and a pass over every song first. This tool asks for a folder, a name and a version.
+
+**It is a second program, not a mode of the curation tool.** Its window takes the package builder's
+shape. It is a local web server, in a window of its own on Windows and macOS and in a browser on
+Linux.
+It holds no database and keeps no edits between runs. Reading the folder again is the whole of
+opening it again.
+
+**What it offers is a song list and a package form, and no more.**
+
+- Each song shows its number, its kind, its language and its suitability. Only a MIDI song has a
+  suitability, because nothing analyses the other kinds.
+- A title and an artist can be typed over, and a blank box takes back what the file says.
+- A song can be left out, and every number after it closes the gap. A package nobody curated has no
+  printed book whose numbers a gap would protect.
+- A copy of a song already listed is not a song, and neither is half an MP3+G pair. Both are listed
+  below the songs with the reason.
+- The form takes a name, a version, a publisher, the language for songs that name none, and the
+  folder to write to. The language starts at `und`, which is the honest answer for songs nobody
+  reviewed. The id is generated.
+
+**A folder of more than 999 songs becomes volumes.** Each volume is a package of its own, named
+`<name> vol<n>`, and the first volume's id is the set's. The curation tool divides a set the same way.
+Refusing the folder would send the person to a tool that exists to be slower.
+
+**Every package it writes is marked `uncurated`.** The description it builds says so, and the build
+sets the header flag from that. See
+[`An uncurated package says so everywhere but the television`](packaging.md#an-uncurated-package-says-so-everywhere-but-the-television).
+
+**It does not install to a machine.** The package lands in a folder, beside a listing of its songs,
+and it goes onto a machine the way any package does. Discovery, a password and an upload would make
+the simple tool the curation tool's size.
+
+**The work is `km-pack`'s.** `describe` walks the folder, and `build` writes each volume. The tool
+adds the page on which the description changes, and so the two tools cannot build different packages
+from the same songs.
+
 ## Importing an uncurated package keeps the flag
 
 **The curation tool imports an uncurated package like any other, and every build of it stays

@@ -214,6 +214,8 @@ tools/                     # six folders and nothing loose -- see "How things he
     km-lyrics/             # CLI: dump a parsed lyric timeline + analysis as JSON (debugging)
     km-package-builder/    # the curation tool: a local web server over a folder of source files,
                            # with a Fluent catalog of its own in i18n/
+    km-package-simple/     # the folder packager: km-pack's describe and build behind one page,
+                           # no database, every package it writes marked uncurated
     assets/                # **a second workspace**, excluded from the one above because these two
                            # need TLS from reqwest and km-package-builder needs it to have none.
                            # One root for the pair: one lockfile, one CI job, one fmt line.
