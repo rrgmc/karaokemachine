@@ -258,7 +258,7 @@ inno_install_to "$SETUP" "$lean" || fail "the silent install failed"
 # report above makes out loud, and each would be broken by one careless [Files] line.
 [ -f "$lean/km-remote-console.exe" ] \
   && fail "the console twin was installed; this installs the windowed program only"
-for exe in karaokemachine km-package-builder km-admin km-pack km-lyrics km-wallpaper-pack; do
+for exe in karaokemachine km-package-builder km-package-simple km-admin km-pack km-lyrics km-wallpaper-pack; do
   [ -f "$lean/$exe.exe" ] && fail "$exe.exe was installed by the remote's own setup program"
 done
 [ -d "$lean/assets" ] && fail "the assets folder was installed -- the remote reads no bank"

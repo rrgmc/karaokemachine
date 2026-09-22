@@ -1084,15 +1084,32 @@ tasks:
           BIN: km-package-builder
           STAGE: 'dist:tools -- km-package-builder'
 
-  # The folder packager is a server with a page too. It has no macOS bundle, so the staged folder is
-  # what runs on every platform.
+  # The folder packager is a server with a page too, and on macOS it is staged as a bundle as well,
+  # which is what runs there.
   run:package-simple:
     desc: 'Run the staged folder packager -- `task run:package-simple -- /path/to/songs` (WAIT=1 CONSOLE=1)'
+    cmds:
+      - task: run:package-simple:folder
+      - task: run:package-simple:bundle
+
+  run:package-simple:folder:
+    internal: true
+    platforms: [windows, linux]
     cmds:
       - task: _staged
         vars:
           APP: km-package-simple
           BIN: '{{if .CONSOLE}}km-package-simple-console{{else}}km-package-simple{{end}}'
+          STAGE: 'dist:tools -- km-package-simple'
+
+  run:package-simple:bundle:
+    internal: true
+    platforms: [darwin]
+    cmds:
+      - task: _staged_bundle
+        vars:
+          BUNDLE: 'dist/km-package-simple/macos/KM Simple Package.app'
+          BIN: km-package-simple
           STAGE: 'dist:tools -- km-package-simple'
 
   # The other two products that are servers with a page rather than one-shot commands, and so the

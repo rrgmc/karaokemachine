@@ -560,8 +560,8 @@ sends that, so the tracked file names no version. Edit its `What changed` list b
 `--notes-file <path>` overrides it. Every `--upload` rewrites a draft's body, so a corrected sentence
 is a re-run.
 
-**Linux carries three**, and the third is `karaokemachine-tools`. That package holds the package
-builder, the offline remote and km-admin, and the machine Recommends it. It is a download beside the
+**Linux carries three**, and the third is `karaokemachine-tools`. That package holds the two package
+builders, the offline remote and km-admin, and the machine Recommends it. It is a download beside the
 machine's `.deb` rather than something `apt` fetches, there being no repository to fetch it from.
 `task dist:deb:tools` stages it, and the release page names both files in one `apt install` line.
 

@@ -127,7 +127,7 @@ desktop_capable() {
 # See `bundle=` in the staging loop, which is where the two are actually combined.
 bundle_capable() {
   case "$1" in
-    km-package-builder|km-remote|km-admin) [ "$PLATFORM" = "macos" ] ;;
+    km-package-builder|km-package-simple|km-remote|km-admin) [ "$PLATFORM" = "macos" ] ;;
     *) return 1 ;;
   esac
 }
@@ -145,6 +145,7 @@ bundle_capable() {
 bundle_name()  {
   case "$1" in
     km-package-builder) printf 'KM Package Builder' ;;
+    km-package-simple)  printf 'KM Simple Package' ;;
     km-remote)          printf 'KM Remote' ;;
     km-admin)           printf 'KM Admin' ;;
     *) echo "dist-tools: no bundle name for $1" >&2; exit 1 ;;
@@ -153,6 +154,7 @@ bundle_name()  {
 bundle_plist() {
   case "$1" in
     km-package-builder) printf 'tools/platform/macos/Info.package-builder.plist' ;;
+    km-package-simple)  printf 'tools/platform/macos/Info.package-simple.plist' ;;
     km-remote)          printf 'tools/platform/macos/Info.remote.plist' ;;
     km-admin)           printf 'tools/platform/macos/Info.admin.plist' ;;
     *) echo "dist-tools: no bundle plist for $1" >&2; exit 1 ;;
@@ -161,6 +163,7 @@ bundle_plist() {
 bundle_icns()  {
   case "$1" in
     km-package-builder) printf 'icon/km-package-builder.icns' ;;
+    km-package-simple)  printf 'icon/km-package-simple.icns' ;;
     km-remote)          printf 'icon/km-remote.icns' ;;
     km-admin)           printf 'icon/km-admin.icns' ;;
     *) echo "dist-tools: no bundle icon for $1" >&2; exit 1 ;;
@@ -524,7 +527,7 @@ km-lyrics is MIT OR Apache-2.0, at your option; both texts are beside this file.
 README
 }
 
-readme_km_package_simple() { # <file> <video: 1 or 0> <console twin: 1 or 0>
+readme_km_package_simple() { # <file> <video: 1 or 0> <console twin: 1 or 0> <macOS bundle: 1 or 0>
   cat > "$1" <<'README'
 km-package-simple
 =================
@@ -543,6 +546,34 @@ README
 
 If there is a km-package-simple-console.exe beside km-package-simple.exe, that is the same program
 with somewhere to print, for when you need to see why something did not start.
+README
+  fi
+  if [ "${4:-0}" -eq 1 ]; then
+    cat >> "$1" <<'README'
+
+The application beside this folder
+----------------------------------
+
+    KM Simple Package.app
+
+That bundle is this same program with a Dock icon and a window of its own. Double-click it; there is
+nothing to run first and nothing to register.
+README
+    if ! dist_signing; then
+      cat >> "$1" <<'README'
+
+It is signed only ad-hoc, so on any Mac other than the one that built it macOS will refuse to open
+it until you clear the quarantine flag:
+
+    xattr -dr com.apple.quarantine "KM Simple Package.app"
+
+The first launch is also slow while macOS assesses it, and immediate afterwards.
+README
+    fi
+    cat >> "$1" <<'README'
+
+The km-package-simple executable in this folder is the same program for a terminal, and every
+command below is typed against it.
 README
   fi
   cat >> "$1" <<'README'
@@ -1522,6 +1553,19 @@ for d in "${staged[@]}"; do
         fi
       fi
       printf '    cd %s && ./%s%s%s\n' "$d" "$exe" "$EXT" "$open" ;;
+    km-package-simple)
+      # The remote's two decisions again: the console twin on Windows, and `--open` only where no
+      # window opens by itself.
+      exe="km-package-simple"
+      open=" --open"
+      if desktop_capable km-package-simple && [ "$DESKTOP" -eq 1 ]; then
+        if [ "$PLATFORM" = "windows" ]; then
+          exe="km-package-simple-console"
+        else
+          open=""
+        fi
+      fi
+      printf '    cd %s && ./%s%s <your karaoke folder>%s\n' "$d" "$exe" "$EXT" "$open" ;;
   esac
 done
 

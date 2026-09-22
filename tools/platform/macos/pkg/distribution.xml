@@ -55,6 +55,7 @@
     <choices-outline>
         <line choice="machine"/>
         <line choice="builder"/>
+        <line choice="simple"/>
         <line choice="remote"/>
         <line choice="admin"/>
         <line choice="tools"/>
@@ -72,6 +73,11 @@
             description="Turns a folder of songs into a package. Opens .kmbuild corpus files.">
         <pkg-ref id="com.rrgmc.karaokemachine.builder"/>
     </choice>
+    <choice id="simple" visible="true" start_selected="true" start_enabled="true"
+            title="KM Simple Package"
+            description="Makes a package straight from a folder of songs, in one step. Its packages are marked uncurated.">
+        <pkg-ref id="com.rrgmc.karaokemachine.simple"/>
+    </choice>
     <choice id="remote" visible="true" start_selected="true" start_enabled="true"
             title="KM Remote"
             description="Search and queue from this computer, with your own copy of the song list.">
@@ -82,13 +88,13 @@
             description="Finds pictures and instrument banks for the machine, and sends them to it.">
         <pkg-ref id="com.rrgmc.karaokemachine.admin"/>
     </choice>
-    <!-- All six commands, not three: on macOS the package builder, the remote and Assets each have a
+    <!-- All seven commands, not three: on macOS the two package builders, the remote and Assets each have a
          terminal form as well as an application, and this is the tick that installs it. That is a
          real difference from Windows, where one tick gives both because everything lands in one
          folder. -->
     <choice id="tools" visible="true" start_selected="true" start_enabled="true"
             title="Command-line tools"
-            description="km-pack, km-lyrics, km-wallpaper-pack, and the terminal forms of the package builder, the remote and Assets. Installed in /usr/local/bin.">
+            description="km-pack, km-lyrics, km-wallpaper-pack, and the terminal forms of the two package builders, the remote and Assets. Installed in /usr/local/bin.">
         <pkg-ref id="com.rrgmc.karaokemachine.tools"/>
     </choice>
     <!-- **The one choice that installs no files.** Its component package is built with pkgbuild's
@@ -118,6 +124,8 @@
              auth="Root" onConclusion="None">#karaokemachine-machine.pkg</pkg-ref>
     <pkg-ref id="com.rrgmc.karaokemachine.builder" version="@VERSION@"
              auth="Root" onConclusion="None">#karaokemachine-builder.pkg</pkg-ref>
+    <pkg-ref id="com.rrgmc.karaokemachine.simple" version="@VERSION@"
+             auth="Root" onConclusion="None">#karaokemachine-simple.pkg</pkg-ref>
     <pkg-ref id="com.rrgmc.karaokemachine.remote" version="@VERSION@"
              auth="Root" onConclusion="None">#karaokemachine-remote.pkg</pkg-ref>
     <pkg-ref id="com.rrgmc.karaokemachine.admin" version="@VERSION@"

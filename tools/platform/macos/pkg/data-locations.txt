@@ -6,6 +6,7 @@ the bank. They are under:
   ~/Library/Application Support/karaokemachine            settings.json, library.sqlite
   ~/Library/Application Support/karaokemachine/packages   your .kmpkg song packages
   ~/Library/Application Support/km-package-builder        the recent-folder list
+  ~/Library/Application Support/km-package-simple         the last folder and the language
   ~/Library/Application Support/km-remote                 catalog.sqlite, favorites.sqlite
   ~/Library/Application Support/km-admin                  downloaded banks and picture packs,
                                                           and any provider key you asked it to keep

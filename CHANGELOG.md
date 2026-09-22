@@ -13,10 +13,14 @@ Entries are written for somebody who has the machine. Why any of it is the way i
 
 ### Added
 
-- **A folder becomes a package without the curation tool.** `km-package-simple` reads a folder and
-  lists its songs, with each one's language and suitability. You can rename a song or leave it out,
-  then build. A folder of more than 999 songs becomes several packages. Every package it writes is
-  marked *uncurated*, and so is one `km-pack spec` describes from a folder.
+- **A folder becomes a package without the curation tool.** KM Simple Package, `km-package-simple`,
+  reads a folder and lists its songs, with each one's language and suitability. You can rename a song
+  or leave it out, and a shift-click keeps or leaves out a whole run. Then build. A folder of more
+  than 999 songs becomes several packages. Every package it writes is marked *uncurated*, and so is
+  one `km-pack spec` describes from a folder.
+- **KM Simple Package installs like the other tools.** The setup programs for Windows and macOS offer
+  it, and the `karaokemachine-tools` package carries it on Linux. Its icon is the package builder's
+  with a lightning bolt.
 - **An uncurated package says so.** The machine's list of packages on the admin page, the remote's
   package list and the API mark it, and `km-pack inspect` and `check` print it. The television does
   not show it. The package builder keeps the mark on a package it imports, and every rebuild keeps

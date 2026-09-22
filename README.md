@@ -88,6 +88,10 @@ switched off.</sub></td>
 - **Songs arrive in packages** (`.kmpkg`), each carrying its own queue number, title, artist and
   analysis. Drop one in the packages folder, or onto the machine's window, and it goes in without a
   restart.
+- **KM Simple Package turns a folder of your own songs into a package in one step.** Choose the
+  folder, look down the list, rename a song or leave it out, and build. It is for somebody who wants
+  their songs on the machine without curating them first, so every package it writes is marked
+  *uncurated*.
 - **A language per song**, so a catalog can be asked what Portuguese it has.
 - **A 0–10 suitability rating** for every file, computed when it is packaged, with a breakdown.
 - **The melody channel, when it can be found confidently** — and an abstention with a stated reason
@@ -171,10 +175,10 @@ and it is one command per platform once the prerequisites are in.
 
 | Platform | What you get |
 |---|---|
-| **Windows** | A setup program, `karaokemachine-setup-<version>-windows-x86_64.exe`, holding all seven products behind component checkboxes. It installs **per-user** into `%LOCALAPPDATA%\Programs` and raises no UAC prompt, and offers to put itself on your `PATH` and to open `.kmbuild` files. Or a **portable folder**: unzip and run. |
-| **macOS** | An installer package, `karaokemachine-setup-<version>-macos-<arch>.pkg` — the same seven products behind six component ticks. Applications go to `/Applications`, command-line tools to `/usr/local/karaokemachine` with symlinks in `/usr/local/bin`. It asks for your administrator password once and fetches nothing. Or `Karaoke Machine.app` on its own. |
+| **Windows** | A setup program, `karaokemachine-setup-<version>-windows-x86_64.exe`, holding all eight products behind component checkboxes. It installs **per-user** into `%LOCALAPPDATA%\Programs` and raises no UAC prompt, and offers to put itself on your `PATH` and to open `.kmbuild` files. Or a **portable folder**: unzip and run. |
+| **macOS** | An installer package, `karaokemachine-setup-<version>-macos-<arch>.pkg` — the same eight products behind seven component ticks. Applications go to `/Applications`, command-line tools to `/usr/local/karaokemachine` with symlinks in `/usr/local/bin`. It asks for your administrator password once and fetches nothing. Or `Karaoke Machine.app` on its own. |
 | **Windows or macOS, the remote alone** | A second, small setup program: `km-remote-setup-<version>-windows-x86_64.exe` (about 5 MB) or `km-remote-setup-<version>-macos-<arch>.pkg`. It installs KM Remote and nothing else, for a computer that is never going to play a song — a laptop somebody holds while somebody else's machine does. It sits happily beside a full install and is removed on its own. |
-| **Debian, Ubuntu** | A `.deb`. Its ffmpeg and font dependencies are named rather than bundled. It installs as an ordinary application — menu entry, icon, and `karaokemachine` as a command — and carries the television-appliance service, switched off. A second `.deb`, `karaokemachine-tools`, holds the package builder, the offline remote and the picture-and-bank tool; name both files in one `apt install` to get them, or take the machine alone for a box under a television. |
+| **Debian, Ubuntu** | A `.deb`. Its ffmpeg and font dependencies are named rather than bundled. It installs as an ordinary application — menu entry, icon, and `karaokemachine` as a command — and carries the television-appliance service, switched off. A second `.deb`, `karaokemachine-tools`, holds the two package builders, the offline remote and the picture-and-bank tool; name both files in one `apt install` to get them, or take the machine alone for a box under a television. |
 | **Any Linux** | A `.tar.gz`. Unpack anywhere, run it, delete it — no root, no package manager. It carries its own ffmpeg, because a folder can name no dependency. |
 | **Android, Google TV** | An APK carrying both ABIs, so it installs on a phone and on a television. |
 | **Meta Quest** | An APK of its own, which puts the machine on a screen hanging in the room with the room still behind it. The screen is flat or curved, and you pick which under it. The Android APK above also installs, as a flat system panel you move and resize, and the two live side by side. |
@@ -395,7 +399,10 @@ A change renumbers every song in that package, so **anything already printed goe
 refuses while a song is playing or queued, because the queue holds numbers. Do it once, when the
 package goes in.
 
-**A folder of your own files becomes a package** with [two commands](#getting-a-corpus-into-shape).
+**A folder of your own files becomes a package in KM Simple Package**, `km-package-simple`. Choose
+the folder, rename or leave out songs, and build. It writes the package beside the folder, marked
+*uncurated* because nobody reviewed its songs. Install it like any other package. To choose the songs
+more carefully, use the package builder or [two commands](#getting-a-corpus-into-shape).
 
 ### The remotes
 
@@ -580,8 +587,8 @@ favorite, edit its title and artist, and look it up on YouTube">
 
 - **`km-package-builder`**, a local web server over a folder of source files. Browse, search *the
   lyrics themselves*, rate, fix names, group duplicates, pick songs into packages by hand.
-- **`km-package-simple`** makes a package straight from a folder, in a window of its own. Rename a
-  song or leave it out, then build. What it writes is marked *uncurated*, and the machine's lists of
+- **`km-package-simple`**, KM Simple Package, makes a package straight from a folder, in a window of
+  its own. Rename a song or leave it out, then build. What it writes is marked *uncurated*, and the machine's lists of
   packages say so.
 - **`km-pack`** builds and validates packages, **`km-lyrics`** dumps one file's parsed timeline, and
   **`km-wallpaper-pack`** builds a wallpaper set, keeping what lyrics stay readable over.

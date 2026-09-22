@@ -407,7 +407,7 @@ it are the same entry. How the thing is built is [`ARCHITECTURE.md`](../ARCHITEC
 - [Bundling assets](distribution.md#bundling-assets)
 - [What the machine *is*, on Linux](distribution.md#what-the-machine-is-on-linux)
 - [An appliance install carries no display-server stack](distribution.md#an-appliance-install-carries-no-display-server-stack)
-- [The three tools are a package of their own, which the machine recommends](distribution.md#the-three-tools-are-a-package-of-their-own-which-the-machine-recommends)
+- [The desktop tools are a package of their own, which the machine recommends](distribution.md#the-desktop-tools-are-a-package-of-their-own-which-the-machine-recommends)
 - [What the box shows before the machine does](distribution.md#what-the-box-shows-before-the-machine-does)
 - [Any screen size, and the screen chooses the mode](distribution.md#any-screen-size-and-the-screen-chooses-the-mode)
 - [What a shipped build says out loud](distribution.md#what-a-shipped-build-says-out-loud)

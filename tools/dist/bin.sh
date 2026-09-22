@@ -79,7 +79,7 @@ DIST_SCRIPT=dist-bin
 
 # Every product with an executable in it. The order is the order they are reported in: the machine
 # first, then the tools in the order tools/dist/cmd.sh names them.
-ALL_APPS=(karaokemachine km-pack km-lyrics km-package-builder km-remote km-admin km-wallpaper-pack)
+ALL_APPS=(karaokemachine km-pack km-lyrics km-package-builder km-package-simple km-remote km-admin km-wallpaper-pack)
 
 # Is this the name of a program somebody runs, as opposed to a support file that happens to be marked
 # executable?

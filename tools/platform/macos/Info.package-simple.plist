@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  KM Simple Package's bundle manifest. `tools/dist/cmd.sh` substitutes @VERSION@ and copies this
+  in; everything else is fixed.
+
+  A plist of its own, on the reasoning the others give: short manifests that each say what is true
+  beat one with conditions in it. This one declares no document type, because the tool saves
+  nothing a person double-clicks. It does read a folder the person chooses, so it takes the
+  package builder's folder keys.
+-->
+<plist version="1.0">
+<dict>
+    <key>CFBundleName</key>
+    <string>KM Simple Package</string>
+    <key>CFBundleDisplayName</key>
+    <string>KM Simple Package</string>
+    <!-- Distinct from the others. LaunchServices keys its whole database on the identifier, and a
+         collision means one bundle silently replaces the other. -->
+    <key>CFBundleIdentifier</key>
+    <string>com.karaokemachine.package-simple</string>
+    <key>CFBundleExecutable</key>
+    <string>km-package-simple</string>
+    <!-- Without extension. macOS looks for `<this>.icns` in Contents/Resources.
+
+         The package builder's blue with a bolt. Written by
+         crates/playback/km-display/examples/icon.rs and staged by tools/dist/cmd.sh. Renaming
+         icon/km-package-simple.icns means changing this string with it. -->
+    <key>CFBundleIconFile</key>
+    <string>km-package-simple</string>
+    <key>CFBundleShortVersionString</key>
+    <string>@VERSION@</string>
+    <key>CFBundleVersion</key>
+    <string>@VERSION@</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleInfoDictionaryVersion</key>
+    <string>6.0</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>11.0</string>
+    <key>LSApplicationCategoryType</key>
+    <string>public.app-category.utilities</string>
+    <key>NSHighResolutionCapable</key>
+    <true/>
+
+    <!--
+      The folder a person chooses is often on the Desktop, in Documents or Downloads, or on an
+      external drive. Each needs a TCC grant, and each key makes the prompt say what the access is
+      for. No local network key: the page is served on loopback, and macOS asks nothing for that.
+    -->
+    <key>NSDesktopFolderUsageDescription</key>
+    <string>KM Simple Package reads the karaoke files in the folder you choose, so that it can make a package of them.</string>
+    <key>NSDocumentsFolderUsageDescription</key>
+    <string>KM Simple Package reads the karaoke files in the folder you choose, so that it can make a package of them.</string>
+    <key>NSDownloadsFolderUsageDescription</key>
+    <string>KM Simple Package reads the karaoke files in the folder you choose, so that it can make a package of them.</string>
+    <key>NSRemovableVolumeUsageDescription</key>
+    <string>KM Simple Package reads the karaoke files in the folder you choose, which is often a collection kept on an external drive.</string>
+</dict>
+</plist>

@@ -747,9 +747,10 @@ Mac at once. The check runs each uninstaller first in turn. The one that runs fi
 `/Applications/KM Remote.app` and says so, because the other carrier's receipt still claims it. The
 one that runs second takes it.
 
-## The four macOS bundles
+## The macOS bundles
 
-`Karaoke Machine.app`, `KM Package Builder.app`, `KM Remote.app` and `KM Admin.app`.
+`Karaoke Machine.app`, `KM Stream.app`, `KM Package Builder.app`, `KM Simple Package.app`,
+`KM Remote.app` and `KM Admin.app`.
 
 **Why a bundle rather than the bare binary.** A bare Mach-O is a terminal program. It has no icon in
 the Dock or Finder, it is not double-clickable, and it has no `Info.plist`. So nothing names the
@@ -887,16 +888,16 @@ honestly rather than pretending.
 
 ### A second package, from a manifest that is not the machine's
 
-`deb.sh --tools` builds `karaokemachine-tools` — `km-package-builder`, `km-remote` and `km-admin` in
-one package the machine Recommends, per
-[`The three tools are a package of their own`](../decisions/distribution.md#the-three-tools-are-a-package-of-their-own-which-the-machine-recommends).
+`deb.sh --tools` builds `karaokemachine-tools` — `km-package-builder`, `km-package-simple`,
+`km-remote` and `km-admin` in one package the machine Recommends, per
+[`The desktop tools are a package of their own`](../decisions/distribution.md#the-desktop-tools-are-a-package-of-their-own-which-the-machine-recommends).
 It shares `deb-in-container.sh` with the machine because it shares everything around the build: the
 image, the target volume, the checkout guard and the report. What differs is which manifest cargo-deb
 is pointed at, `[package.metadata.deb]` living on `km-package-builder` and naming the package for
 what it holds.
 
 **km-admin comes from the second cargo workspace**, so the tools build is two `cargo build` calls
-under one `CARGO_TARGET_DIR`. That lets one asset list name all three under `target/release`.
+under one `CARGO_TARGET_DIR`. That lets one asset list name all four under `target/release`.
 
 **It is a release carrier, so `task dist:deb:tools` is a task of its own rather than
 `dist:deb -- --tools`.** `dist:app:linux` names it beside the other two, and `tools/dist/release.sh`

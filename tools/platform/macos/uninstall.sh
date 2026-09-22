@@ -111,6 +111,7 @@ app_candidates() {
     "/Applications/Karaoke Machine.app" \
     "/Applications/KM Stream.app" \
     "/Applications/KM Package Builder.app" \
+    "/Applications/KM Simple Package.app" \
     "/Applications/KM Remote.app" \
     "/Applications/KM Admin.app"
 }
@@ -195,7 +196,7 @@ done
 # /usr/local/bin/km-pack is Homebrew's, or somebody else's build, rather than assuming the uninstall
 # missed it. Anything taken above no longer exists, so this only ever speaks about what stayed.
 for name in karaokemachine km-pack km-lyrics km-wallpaper-pack \
-            km-package-builder km-remote km-admin
+            km-package-builder km-package-simple km-remote km-admin
 do
   entry="$BINDIR/$name"
   { [ -e "$entry" ] || [ -L "$entry" ]; } || continue
