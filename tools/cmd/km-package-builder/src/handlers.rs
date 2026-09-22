@@ -7272,6 +7272,21 @@ fn duplicate_detail(report: &km_api::dto::InstallReportDto, locale: km_locale::L
     )
 }
 
+/// What an import says about the flags it kept, after a space, or nothing for a file with none.
+///
+/// The import is the one moment this tool says it: a rebuild writes the flag back unchanged, and no
+/// other page draws it. See `Importing an uncurated package keeps the flag`.
+fn kept_flags(report: &crate::build::ImportReport, locale: km_locale::Locale) -> String {
+    if report.flags.is_uncurated() {
+        format!(
+            " {}",
+            crate::words::messages(locale).msg("said-import-uncurated")
+        )
+    } else {
+        String::new()
+    }
+}
+
 /// `POST /packages/import`
 pub async fn import_package(AxumState(state): AxumState<State>, body: String) -> Response {
     let raw = PathBuf::from(Fields::parse(&body).one("path").unwrap_or_default());
@@ -7297,7 +7312,9 @@ pub async fn import_package(AxumState(state): AxumState<State>, body: String) ->
                     ),
                 ],
             );
-            said_with_packages(&state, true, said.into_owned()).await
+            let mut said = said.into_owned();
+            said.push_str(&kept_flags(&report, state.locale()));
+            said_with_packages(&state, true, said).await
         }
         Ok(report) => {
             let mut text = crate::words::messages(state.locale())
@@ -7347,6 +7364,7 @@ pub async fn import_package(AxumState(state): AxumState<State>, body: String) ->
                     .map(|(number, raw)| format!("{number}: {raw}")),
                 state.locale(),
             ));
+            text.push_str(&kept_flags(&report, state.locale()));
             said_with_packages(&state, true, text).await
         }
         Err(error) => MessageFragment::failed(error.say(state.locale())),

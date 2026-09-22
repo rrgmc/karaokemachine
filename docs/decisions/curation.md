@@ -1403,6 +1403,20 @@ one a different number. So the new song takes the old one's place in each list t
 That includes a list holding a song merged into the old one, so the next sync has nothing to move.
 A list the package does not follow is left alone, and the confirmation names the lists that change.
 
+## Importing an uncurated package keeps the flag
+
+**The curation tool imports an uncurated package like any other, and every build of it stays
+uncurated.** The import adds the file's header flags to its package's row, and a build writes
+them back. So the flag survives a round trip through the tool. The tool never clears it on its own.
+
+**The import is the one place this tool says so.** Its message ends with a sentence about the
+mark. No other page draws it, because the tool's pages are about the songs, and the flag is about
+the file.
+
+**The row keeps the whole word and adds to it.** Importing one volume cannot clear what another
+volume of the same package brought in. A bit this build does not know stays too. See
+[`A package's header carries flags, and an unknown one is kept`](packaging.md#a-packages-header-carries-flags-and-an-unknown-one-is-kept).
+
 ## A package holds volumes
 
 **A package is what a curator names, and a volume is what a build writes.** A package holds one volume

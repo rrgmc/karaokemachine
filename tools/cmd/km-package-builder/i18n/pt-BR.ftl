@@ -1159,6 +1159,7 @@ said-spec-written = { $count ->
    *[other] { $file } gravado, descrevendo { $count } músicas. Edite em qualquer editor de texto e monte com o km-pack, ou continue montando por esta página, que lê a mesma descrição sem o arquivo.
   }
 said-build-gone = { $file } não está mais lá. Monte de novo.
+said-import-uncurated = O arquivo está marcado como sem curadoria, e cada compilação deste pacote mantém a marca.
 said-imported-all = { $count ->
     [0] { $package } importado com { $count } músicas, todas ligadas a arquivos desta pasta.
     [one] { $package } importado com { $count } música, ligada a um arquivo desta pasta.

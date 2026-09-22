@@ -189,6 +189,7 @@ it are the same entry. How the thing is built is [`ARCHITECTURE.md`](../ARCHITEC
 - [A package can be the songs in some favorites](curation.md#a-package-can-be-the-songs-in-some-favorites)
 - [What a sync keeps, and what it hands out](curation.md#what-a-sync-keeps-and-what-it-hands-out)
 - [A song in a package can be replaced at its number](curation.md#a-song-in-a-package-can-be-replaced-at-its-number)
+- [Importing an uncurated package keeps the flag](curation.md#importing-an-uncurated-package-keeps-the-flag)
 - [A package holds volumes](curation.md#a-package-holds-volumes)
 - [A sync is pressed, and it asks first](curation.md#a-sync-is-pressed-and-it-asks-first)
 - [The curation actions are tabs](curation.md#the-curation-actions-are-tabs)
