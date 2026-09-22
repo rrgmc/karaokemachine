@@ -69,11 +69,11 @@ pub struct BuildOptions<'a> {
     /// It says only what the manifest says — see [`crate::listing`], which is where the rule about
     /// naming nothing local is kept.
     pub write_listing: bool,
-    /// The flags the package's header carries. See [`km_kmpkg::PackageFlags`].
+    /// Flags the package's header carries, beyond what the description says.
     ///
-    /// **Not in the description**, because a flag is a fact about how the file was made rather than
-    /// about its songs. `km-package-simple` sets `uncurated`, the curation tool passes on what an
-    /// imported package carried, and `km-pack build --uncurated` sets it by hand.
+    /// The header is this word with [`km_kmpkg::PackageFlags::UNCURATED`] added when
+    /// [`crate::SpecPackage::uncurated`] is set. The curation tool passes on here what an imported
+    /// package carried. See [`km_kmpkg::PackageFlags`].
     pub flags: km_kmpkg::PackageFlags,
 }
 
@@ -474,7 +474,12 @@ pub fn build(
     // the machine scans at every start is not, and with media inside the package that is what an
     // interrupted build would leave.
     let partial = out.with_extension("kmpkg.part");
-    builder.set_flags(options.flags);
+    let flags = if spec.package.uncurated {
+        options.flags.with(km_kmpkg::PackageFlags::UNCURATED)
+    } else {
+        options.flags
+    };
+    builder.set_flags(flags);
     builder
         .write(&partial)
         .with_context(|| format!("writing {}", partial.display()))?;
@@ -490,11 +495,8 @@ pub fn build(
         // `outcome.manifest` was set above from the builder, so the listing describes exactly what
         // went in rather than what the description asked for.
         if let Some(manifest) = &outcome.manifest {
-            std::fs::write(
-                &listing_path,
-                crate::listing::listing(manifest, options.flags),
-            )
-            .with_context(|| format!("writing {}", listing_path.display()))?;
+            std::fs::write(&listing_path, crate::listing::listing(manifest, flags))
+                .with_context(|| format!("writing {}", listing_path.display()))?;
             outcome.listing_path = Some(listing_path);
         }
     }
@@ -894,6 +896,7 @@ mod tests {
                 start_number: 1,
                 transcode: true,
                 out: None,
+                uncurated: false,
             },
             root: None,
             songs,
@@ -1167,6 +1170,17 @@ mod tests {
         );
         let text = std::fs::read_to_string(listing_path(&flagged)).expect("listing");
         assert!(text.contains("Uncurated: "), "{text}");
+
+        // A description written from a folder says so itself, and needs no option to carry it.
+        let mut described = spec.clone();
+        described.package.uncurated = true;
+        let from_folder = scratch.0.join("from-folder.kmpkg");
+        run(&described, &scratch.0, &from_folder);
+        assert!(
+            km_kmpkg::Package::open(&from_folder)
+                .expect("open")
+                .is_uncurated()
+        );
     }
 
     #[test]

@@ -367,6 +367,8 @@ pub fn describe(
                 start_number: options.start_number.max(1),
                 transcode: options.transcode,
                 out: options.out.clone(),
+                // A walk of a folder is the definition of a package nobody reviewed.
+                uncurated: true,
             },
             root: None,
             songs,
@@ -637,6 +639,10 @@ mod tests {
         assert_eq!(found.spec.package.id, km_kmpkg::EXAMPLE_ID);
         assert_eq!(found.spec.package.default_language.as_deref(), Some("pt"));
         assert_eq!(found.spec.package.out.as_deref(), Some("vol1.kmpkg"));
+        assert!(
+            found.spec.package.uncurated,
+            "a walk of a folder is reviewed by nobody"
+        );
         assert!(!found.spec.package.transcode);
     }
 }

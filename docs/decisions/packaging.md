@@ -24,7 +24,8 @@ maintains. **A stored list can lie about itself and a comparison cannot.**
 **The selection flags live on `spec`**: `--min-suitability`, `--require-lyrics`, `--limit` and
 `--index`. They decide what is *in* the package, and a file they exclude simply has no row.
 `spec --from <existing.kmpkg>` seeds the hand-edited fields into a description rather than carrying
-them invisibly.
+them invisibly. A description `spec` writes also says `uncurated: true`, because nobody has reviewed a walk of
+a folder yet.
 
 **The curation tool builds through the same description**, in memory, so the two tools cannot produce
 different packages from the same songs.
@@ -591,9 +592,10 @@ flags on through `PackageBuilder::set_flags`.
 ## An uncurated package says so everywhere but the television
 
 **The first flag is `uncurated`: a package built straight from a folder, with nobody reviewing its
-titles, duplicates or numbers.** `km-package-simple` sets it on every package it writes, and
-`km-pack build --uncurated` sets it on a hand-written description. See
-[`A package can be built straight from a folder`](curation.md#a-package-can-be-built-straight-from-a-folder).
+titles, duplicates or numbers.** Both tools that walk a folder set it. `km-package-simple` sets it on
+every package it writes. `km-pack spec` writes `uncurated: true` into the description, and
+`km-pack build` sets the flag from that line. A person who reviews the description deletes the line.
+See [`A package can be built straight from a folder`](curation.md#a-package-can-be-built-straight-from-a-folder).
 
 **It shows on every list of packages that is not the television.** That is the HTTP API, the admin
 pages and the remote's list of packages. It is also `km-pack inspect`, `km-pack check` and the

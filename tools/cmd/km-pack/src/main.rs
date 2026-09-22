@@ -275,11 +275,6 @@ struct BuildArgs {
     /// length and language. It is for whoever is handed the package and has no tool to open it.
     #[arg(long)]
     listing: bool,
-    /// Mark the package as uncurated: built from a folder, with nobody reviewing it.
-    ///
-    /// The machine's lists of packages show the mark, and the television does not.
-    #[arg(long)]
-    uncurated: bool,
 }
 
 #[derive(Args)]
@@ -849,11 +844,7 @@ fn build(args: &BuildArgs) -> Result<()> {
             dry_run: args.dry_run,
             measure_loudness: !args.no_loudness,
             write_listing: args.listing,
-            flags: if args.uncurated {
-                km_kmpkg::PackageFlags::UNCURATED
-            } else {
-                km_kmpkg::PackageFlags::NONE
-            },
+            flags: km_kmpkg::PackageFlags::NONE,
         },
         build_progress(),
     )?;

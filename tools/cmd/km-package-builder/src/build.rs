@@ -183,6 +183,7 @@ pub fn spec_for(db: &Db, package_id: &str, volume: u32) -> Result<Curated, DbErr
                 // change convention halfway down — and forward slashes are the spelling that also
                 // works when the description is carried to the appliance.
                 out: package.out_path.as_deref().map(km_pack::spec::slashed),
+                uncurated: false,
             },
             // The corpus root, named absolutely: a description written out of this database may be
             // saved anywhere, and the songs it names do not move with it.
