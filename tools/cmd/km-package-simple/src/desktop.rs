@@ -28,8 +28,8 @@ enum Wake {
     ServerStopped,
 }
 
-/// The mark this program wears in the bar on macOS: the package builder's, until it has its own.
-const TRAY_ICON_PNG: &[u8] = include_bytes!("../../../../icon/km-package-builder-256.png");
+/// The mark this program wears in the bar on macOS.
+const TRAY_ICON_PNG: &[u8] = include_bytes!("../../../../icon/km-package-simple-256.png");
 
 /// What the window is called.
 const TITLE: &str = "KaraokeMachine Simple Package Builder";

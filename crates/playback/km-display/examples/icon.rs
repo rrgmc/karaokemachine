@@ -229,6 +229,12 @@ const REMOTE_TILE_SIZES: &[u32] = &[32, 256];
 /// the executable's own icon — so the 16-to-128 rung the builder has is not wanted here.
 const ADMIN_TILE_SIZES: &[u32] = &[32, 256];
 
+/// The loose sizes the simple package builder needs.
+///
+/// The admin's two, for the same two readers: 32 is the favicon `km-package-simple` serves, and 256
+/// is what the icon tests sample and the macOS menu bar takes.
+const SIMPLE_TILE_SIZES: &[u32] = &[32, 256];
+
 /// The loose sizes the streaming launcher's mark needs.
 ///
 /// **Not a fifth program, so not a fifth palette — the machine's own mark with a badge on it.** The
@@ -410,15 +416,18 @@ fn extended(from: (f32, f32), to: (f32, f32), amount: f32) -> (f32, f32) {
 
 /// What the mark carries besides the letters.
 ///
-/// **A badge says how the program was started, where the hue says which program it is.** The four
-/// leads are four programs; this is one program with two launchers, and a fifth hue would say it
-/// was a fifth program. See [`Badge::Stream`].
+/// **The hue says which family a program belongs to, and a badge says which member it is.** The
+/// four leads are four programs. [`Badge::Stream`] is the machine started one way rather than
+/// another, and [`Badge::Quick`] is the package builder's quick sibling. Neither takes a hue, because
+/// the theme has no hue left, and a hue would say the two have nothing in common with their family.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Badge {
     /// Nothing. The mark as the four programs wear it.
     None,
     /// A source and the waves leaving it, for the launcher that starts the machine streaming.
     Stream,
+    /// A lightning bolt, for the simple package builder: a package in one step, from a folder.
+    Quick,
 }
 
 /// The badge, in the coordinates of the plate it sits on, like [`monogram`].
@@ -456,14 +465,42 @@ mod badge {
     pub const WEIGHT: f32 = 0.019;
 }
 
+/// The simple package builder's bolt, in plate units like [`badge`], in the same corner.
+///
+/// **Three strokes in a zigzag**, which is how every platform already draws a bolt. The strokes are
+/// capsules, so the joints come out round and no rotation enters this file.
+///
+/// The top stays clear of the M's lower right corner, and the bottom stays inside the plate's
+/// rounded corner, whose curve starts at `1 - PLATE_RADIUS` on both axes.
+mod bolt {
+    /// The corners of the zigzag, from the top down.
+    pub const POINTS: [(f32, f32); 4] = [
+        (0.870, 0.740),
+        (0.775, 0.860),
+        (0.865, 0.835),
+        (0.775, 0.945),
+    ];
+
+    /// Half the weight of a stroke. A little heavier than a wave, because a bolt is lines alone
+    /// and has no dot to anchor it.
+    pub const WEIGHT: f32 = 0.030;
+}
+
 /// Signed distance to the badge, in plate units. Negative inside.
 ///
 /// [`Badge::None`] is a distance nothing ever gets inside of rather than a branch in [`render`]:
 /// the pixel loop asks one question and the answer is a number, which is the same arrangement the
 /// plate's own `None` already has.
 fn badge_distance(q: (f32, f32), badge: Badge) -> f32 {
-    if badge == Badge::None {
-        return f32::MAX;
+    match badge {
+        Badge::None => return f32::MAX,
+        Badge::Quick => {
+            let [a, b, c, d] = bolt::POINTS;
+            return capsule(q, a, b, bolt::WEIGHT)
+                .min(capsule(q, b, c, bolt::WEIGHT))
+                .min(capsule(q, c, d, bolt::WEIGHT));
+        }
+        Badge::Stream => {}
     }
 
     let mut distance = disc(q, badge::SOURCE, badge::DOT);
@@ -1360,6 +1397,50 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         })
         .collect();
     write(&icons.join("km-admin.icns"), &icns(&members)?)?;
+    written += 1;
+
+    // -- the simple package builder ---------------------------------------------------------------
+    //
+    // **The package builder's blue with a bolt on it.** It makes the same packages as the builder,
+    // in one step and without a curation database. The blue says it belongs with the builder, and
+    // the bolt tells the two apart on one desktop. A desktop program with a window, a menu bar icon
+    // and a macOS bundle, so it takes the admin's shape.
+
+    for &size in SIMPLE_TILE_SIZES {
+        let path = icons.join(format!("km-package-simple-{size}.png"));
+        write(
+            &path,
+            &png(&render(
+                size,
+                &Layout::tile(size),
+                builder_lead(),
+                Badge::Quick,
+            ))?,
+        )?;
+        written += 1;
+    }
+
+    let members: Vec<RgbaImage> = ICO_SIZES
+        .iter()
+        .map(|&size| render(size, &Layout::tile(size), builder_lead(), Badge::Quick))
+        .collect();
+    write(&icons.join("km-package-simple.ico"), &ico(&members)?)?;
+    written += 1;
+
+    // macOS. The same small/large split as the others. `Info.package-simple.plist` names this file
+    // once, in `CFBundleIconFile`, because the tool declares no document type.
+    let members: Vec<(&[u8; 4], RgbaImage)> = ICNS_MEMBERS
+        .iter()
+        .map(|&(kind, size)| {
+            let layout = if size <= SMALL_UP_TO {
+                Layout::tile(size)
+            } else {
+                Layout::inset()
+            };
+            (kind, render(size, &layout, builder_lead(), Badge::Quick))
+        })
+        .collect();
+    write(&icons.join("km-package-simple.icns"), &icns(&members)?)?;
     written += 1;
 
     // -- the machine, started streaming -----------------------------------------------------------

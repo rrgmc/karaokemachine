@@ -14,11 +14,11 @@ fn attach_icon() {
         return;
     }
 
-    // The package builder's icon. This program has no mark of its own yet.
-    println!("cargo:rerun-if-changed=../../../icon/km-package-builder.ico");
+    // The builder's blue with a bolt. `crates/playback/km-display/examples/icon.rs` draws it.
+    println!("cargo:rerun-if-changed=../../../icon/km-package-simple.ico");
 
     let mut resource = winresource::WindowsResource::new();
-    resource.set_icon("../../../icon/km-package-builder.ico");
+    resource.set_icon("../../../icon/km-package-simple.ico");
     resource.set("ProductName", "KaraokeMachine");
     resource.set("FileDescription", "KaraokeMachine Simple Package Builder");
     if let Err(error) = resource.compile() {

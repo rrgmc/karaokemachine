@@ -40,8 +40,8 @@ const UI_JS: &str = include_str!("../static/ui.js");
 /// htmx, from the copy the package builder vendors, so the repository holds one.
 const HTMX_JS: &str = include_str!("../../km-package-builder/static/htmx.min.js");
 
-/// The favicon. The package builder's mark until this program has one of its own.
-const ICON_PNG: &[u8] = include_bytes!("../../../../icon/km-package-builder-32.png");
+/// The favicon.
+const ICON_PNG: &[u8] = include_bytes!("../../../../icon/km-package-simple-32.png");
 
 /// Every route.
 pub fn router(app: Arc<App>) -> Router {

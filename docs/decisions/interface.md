@@ -240,6 +240,24 @@ the second by ordinal and by icon index. Nothing installs a second `.ico` beside
 the reason `km_webshell::with_icons` already reads the first one back out of the running process.
 One copy of a picture is one thing to keep in step with `icon/`.
 
+## The simple package builder wears the builder's mark with a bolt
+
+**`km-package-simple` takes the package builder's blue and adds a lightning bolt.** Its short name
+is **KM Simple Package**, and that is what a Start Menu entry, a macOS bundle and a setup program
+call it. The window title keeps the long name, as the builder's does.
+
+**No hue is left to give it.** The four leads are spent, and the magenta already shares a hue with
+its own band. The blue is the honest choice, because the two programs make the same packages. The
+simple one makes them in one step, from a folder, with no curation database.
+
+**The bolt is a badge, in the corner the stream badge uses.** A badge separates two things that
+stand side by side, and these two do: both can sit in one taskbar. A bolt is the stock glyph for
+*quick*, and it keeps clear of the M. `km_display::icon`'s test holds that outside the bolt's corner
+the mark is byte-identical to the builder's.
+
+**Below 32 pixels the bolt is a blue corner rather than a glyph.** At that size it has to say *not
+the builder*, and it does.
+
 ## The on-screen number pad
 
 **Drawn only where there is no keyboard — every Android, televisions included — and
