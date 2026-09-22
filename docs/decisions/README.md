@@ -139,6 +139,8 @@ it are the same entry. How the thing is built is [`ARCHITECTURE.md`](../ARCHITEC
 - [A song number is a bank and a slot](packaging.md#a-song-number-is-a-bank-and-a-slot)
 - [A package holds at most 999 songs](packaging.md#a-package-holds-at-most-999-songs)
 - [A package file can say which set it is a volume of](packaging.md#a-package-file-can-say-which-set-it-is-a-volume-of)
+- [A package's header carries flags, and an unknown one is kept](packaging.md#a-packages-header-carries-flags-and-an-unknown-one-is-kept)
+- [An uncurated package says so everywhere but the television](packaging.md#an-uncurated-package-says-so-everywhere-but-the-television)
 - [A package's id asks for a bank; the machine assigns one](packaging.md#a-packages-id-asks-for-a-bank-the-machine-assigns-one)
 - [A package's bank comes from its id, and from nothing else](packaging.md#a-packages-bank-comes-from-its-id-and-from-nothing-else)
 - [Bank 0 is the machine's own](packaging.md#bank-0-is-the-machines-own)

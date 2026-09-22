@@ -11,7 +11,7 @@
 //! the package *as a file* from that offset. Nothing is extracted and nothing is held.
 //!
 //! ```text
-//! 0                header: magic, container version
+//! 0                header: magic, container version, flags
 //! 16               the entries, back to back
 //!                  the directory: one record per entry
 //!                  footer: where the directory is, and the closing magic
@@ -38,6 +38,8 @@ use crc32fast::Hasher;
 use flate2::Compression;
 use flate2::write::{DeflateDecoder, DeflateEncoder};
 
+use crate::PackageFlags;
+
 /// The first eight bytes of every package.
 ///
 /// `KMPKG` so that a hex dump says what the file is, then `0x1a` so that a terminal asked to print
@@ -50,8 +52,14 @@ pub(crate) const MAGIC: [u8; 8] = [b'K', b'M', b'P', b'K', b'G', 0x1a, 0x00, 0x0
 /// says how to find them.
 pub(crate) const CONTAINER_VERSION: u16 = 1;
 
-/// Magic, version, and room to grow without moving the first entry.
+/// Magic, version, flags, and two zero bytes, so the first entry stays where it is.
 pub(crate) const HEADER_LEN: u64 = 16;
+
+/// Where the flags word begins in the header: a `u32`, after the magic and the version.
+///
+/// A build that predates it wrote zeros here and never read the bytes, so a package with no flag is
+/// the same file either way, and an older machine opens a flagged one. See [`crate::PackageFlags`].
+const FLAGS_AT: usize = 10;
 
 /// The last eight bytes of every package. Distinct from [`MAGIC`] so that a file cut in half cannot
 /// end in something that reads like a whole one.
@@ -183,6 +191,8 @@ pub(crate) fn read_capped(
 #[derive(Debug)]
 pub(crate) struct Container<R> {
     reader: R,
+    /// The header's flags word, unknown bits included.
+    flags: PackageFlags,
     entries: BTreeMap<String, Entry>,
     /// The order they were written in, which is the order a listing reports them.
     order: Vec<String>,
@@ -210,6 +220,11 @@ impl<R: Read + Seek> Container<R> {
         if version != CONTAINER_VERSION {
             return Err(ContainerError::UnsupportedContainer(version));
         }
+        let flags = PackageFlags::from_bits(u32::from_le_bytes(
+            header[FLAGS_AT..FLAGS_AT + 4]
+                .try_into()
+                .expect("four bytes"),
+        ));
 
         reader.seek(SeekFrom::Start(total - FOOTER_LEN))?;
         let mut footer = [0_u8; FOOTER_LEN as usize];
@@ -244,9 +259,15 @@ impl<R: Read + Seek> Container<R> {
         let (entries, order) = parse_directory(&directory, directory_at)?;
         Ok(Self {
             reader,
+            flags,
             entries,
             order,
         })
+    }
+
+    /// The header's flags word.
+    pub(crate) fn flags(&self) -> PackageFlags {
+        self.flags
     }
 
     /// One entry by name.
@@ -468,11 +489,18 @@ pub(crate) struct Writer<W: Write> {
 }
 
 impl<W: Write> Writer<W> {
-    /// Starts a package, writing its header.
-    pub(crate) fn new(mut writer: W) -> Result<Self, ContainerError> {
+    /// Starts a package with no flag set, writing its header.
+    #[cfg(test)]
+    pub(crate) fn new(writer: W) -> Result<Self, ContainerError> {
+        Self::with_flags(writer, PackageFlags::NONE)
+    }
+
+    /// Starts a package, writing its header with these flags.
+    pub(crate) fn with_flags(mut writer: W, flags: PackageFlags) -> Result<Self, ContainerError> {
         let mut header = [0_u8; HEADER_LEN as usize];
         header[..8].copy_from_slice(&MAGIC);
         header[8..10].copy_from_slice(&CONTAINER_VERSION.to_le_bytes());
+        header[FLAGS_AT..FLAGS_AT + 4].copy_from_slice(&flags.bits().to_le_bytes());
         writer.write_all(&header)?;
         Ok(Self {
             writer,
