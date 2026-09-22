@@ -35,7 +35,7 @@ body {
 .brand { font-weight: 600; }
 .grow { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 
-main { padding: 1rem; max-width: 80rem; margin: 0 auto; }
+main { padding: 1rem; max-width: 64rem; margin: 0 auto; }
 
 h1 { font-size: 1.25rem; margin: 0 0 0.75rem; }
 

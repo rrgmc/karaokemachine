@@ -326,12 +326,18 @@ impl Session {
         true
     }
 
-    /// Puts a song in the package, or leaves it out.
-    pub fn keep(&mut self, index: usize, kept: bool) -> bool {
-        let Some(row) = self.rows.get_mut(index) else {
+    /// Puts every song from `from` to `to` in the package, or leaves them all out.
+    ///
+    /// Both ends count, and either may come first, because a shift-click reaches back up the list
+    /// as often as down it. One song is a run whose two ends are the same.
+    pub fn keep(&mut self, from: usize, to: usize, kept: bool) -> bool {
+        let (first, last) = (from.min(to), from.max(to));
+        let Some(rows) = self.rows.get_mut(first..=last) else {
             return false;
         };
-        row.kept = kept;
+        for row in rows {
+            row.kept = kept;
+        }
         true
     }
 
@@ -450,9 +456,25 @@ mod tests {
     }
 
     #[test]
+    fn a_run_is_kept_or_left_out_whichever_end_comes_first() {
+        let mut session = session(5);
+        assert!(session.keep(3, 1, false));
+        let kept: Vec<bool> = session.slots().iter().map(Option::is_some).collect();
+        assert_eq!(kept, [true, false, false, false, true]);
+        assert!(session.keep(1, 2, true));
+        let kept: Vec<bool> = session.slots().iter().map(Option::is_some).collect();
+        assert_eq!(kept, [true, true, true, false, true]);
+        assert!(
+            !session.keep(4, 5, false),
+            "a run past the end changes nothing"
+        );
+        assert!(session.slots()[4].is_some());
+    }
+
+    #[test]
     fn leaving_a_song_out_closes_its_gap() {
         let mut session = session(3);
-        session.keep(1, false);
+        session.keep(1, 1, false);
         assert_eq!(
             session.slots(),
             [

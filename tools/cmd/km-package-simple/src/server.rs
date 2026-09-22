@@ -34,6 +34,9 @@ pub const SAID_KEYS: &[&str] = &[
 /// The stylesheet.
 const STYLE_CSS: &str = include_str!("../static/style.css");
 
+/// The page's own script: the shift-click that keeps or leaves out a run of songs.
+const UI_JS: &str = include_str!("../static/ui.js");
+
 /// htmx, from the copy the package builder vendors, so the repository holds one.
 const HTMX_JS: &str = include_str!("../../km-package-builder/static/htmx.min.js");
 
@@ -47,7 +50,7 @@ pub fn router(app: Arc<App>) -> Router {
         .route("/progress", get(progress))
         .route("/folder", post(read_folder))
         .route("/songs/{index}", post(rename))
-        .route("/songs/{index}/keep", post(keep))
+        .route("/songs/keep", post(keep))
         .route("/build", post(build))
         .route("/back", post(back))
         .route("/close", post(close))
@@ -56,6 +59,7 @@ pub fn router(app: Arc<App>) -> Router {
         .route("/quit", post(quit))
         .route("/static/style.css", get(|| async { css(STYLE_CSS) }))
         .route("/static/htmx.min.js", get(|| async { script(HTMX_JS) }))
+        .route("/static/ui.js", get(|| async { script(UI_JS) }))
         .route("/static/icon.png", get(|| async { png(ICON_PNG) }))
         .layer(axum::middleware::from_fn(refuse_cross_site))
         .with_state(app)
@@ -168,14 +172,15 @@ async fn rename(
 
 #[derive(Debug, Deserialize)]
 struct KeepForm {
+    from: usize,
+    to: usize,
     keep: Option<String>,
 }
 
-/// `POST /songs/{index}/keep`: keep a song or leave it out, and redraw the list.
+/// `POST /songs/keep`: keep the songs from `from` to `to` or leave them out, and redraw the list.
 async fn keep(
     State(app): State<Arc<App>>,
     headers: HeaderMap,
-    Path(index): Path<usize>,
     Query(query): Query<PageQuery>,
     Form(form): Form<KeepForm>,
 ) -> Response {
@@ -185,7 +190,7 @@ async fn keep(
     let changed = inner
         .session
         .as_mut()
-        .is_some_and(|session| session.keep(index, kept));
+        .is_some_and(|session| session.keep(form.from, form.to, kept));
     if !changed {
         return StatusCode::NOT_FOUND.into_response();
     }

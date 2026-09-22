@@ -44,6 +44,7 @@ songs-summary = { $count ->
    *[other] { $volumes } pacotes.
   }
 songs-range = Músicas { $first } a { $last } de { $count }
+songs-shift-hint = Clique numa caixa com Shift para manter ou deixar de fora todas as músicas entre ela e a última caixa clicada.
 column-number = Número
 column-kind = Tipo
 column-title = Título

@@ -35,7 +35,7 @@ const TRAY_ICON_PNG: &[u8] = include_bytes!("../../../../icon/km-package-builder
 const TITLE: &str = "KaraokeMachine Simple Package Builder";
 
 /// The size the window asks for. Landscape, because the song list is a wide table.
-const WANTED: (f64, f64) = (1300.0, 900.0);
+const WANTED: (f64, f64) = (1000.0, 800.0);
 
 /// How long to wait for the server to finish on the way out.
 const SHUTDOWN_GRACE: std::time::Duration = std::time::Duration::from_secs(2);

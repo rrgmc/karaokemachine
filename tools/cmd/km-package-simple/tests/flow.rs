@@ -105,7 +105,7 @@ async fn a_folder_becomes_an_uncurated_package_with_the_changes_made_on_the_page
     // Rename the first song and leave the second out.
     let (status, _) = post(&app, "/songs/0", "title=Renamed&artist=Somebody").await;
     assert_eq!(status, StatusCode::NO_CONTENT);
-    let (status, list) = post(&app, "/songs/1/keep?page=0", "").await;
+    let (status, list) = post(&app, "/songs/keep?page=0", "from=1&to=1").await;
     assert_eq!(status, StatusCode::OK);
     assert!(list.contains("left-out"), "{list}");
 

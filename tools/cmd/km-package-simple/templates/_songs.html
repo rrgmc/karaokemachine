@@ -1,6 +1,7 @@
 {# Redrawn whole when a song is kept or left out, because every number after it moves. #}
-<section id="songs">
+<section id="songs" data-page="{{ page }}">
   <p class="summary">{{ summary }}</p>
+  <p class="hint">{{ "songs-shift-hint"|t }}</p>
   <table>
     <thead>
       <tr>
@@ -25,9 +26,9 @@
                    hx-post="/songs/{{ row.index }}" hx-trigger="change" hx-include="closest tr" hx-swap="none"></td>
         <td>{{ row.language }}</td>
         <td class="num">{{ row.suitability }}</td>
+        {# `static/ui.js` posts it, because a shift-click sends a run of songs in one request. #}
         <td><input type="checkbox" name="keep" value="on"{% if row.kept %} checked{% endif %}
-                   aria-label="{{ "column-keep"|t }}"
-                   hx-post="/songs/{{ row.index }}/keep?page={{ page }}" hx-target="#songs" hx-swap="outerHTML"></td>
+                   aria-label="{{ "column-keep"|t }}" data-index="{{ row.index }}"></td>
       </tr>
     {% endfor %}
     </tbody>

@@ -42,6 +42,7 @@ songs-summary = { $count ->
    *[other] { $volumes } packages.
   }
 songs-range = Songs { $first } to { $last } of { $count }
+songs-shift-hint = Shift-click a box to keep or leave out every song between it and the last box you clicked.
 column-number = Number
 column-kind = Kind
 column-title = Title
