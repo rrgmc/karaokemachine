@@ -93,6 +93,7 @@ remote|ports/remote/
 package-builder|tools/cmd/km-package-builder/
 admin|tools/cmd/assets/km-admin/
 tools|tools/cmd/km-pack/
+tools|tools/cmd/km-package-simple/
 tools|tools/cmd/km-lyrics/
 tools|tools/cmd/km-carols/
 tools|tools/cmd/assets/km-wallpaper-pack/

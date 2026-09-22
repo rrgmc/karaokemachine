@@ -41,6 +41,7 @@ body:
         - The machine (karaokemachine)
         - The remote (KM Remote)
         - km-package-builder
+        - km-package-simple
         - km-admin
         - km-pack or another command-line tool
         - The HTTP API

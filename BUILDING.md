@@ -111,7 +111,7 @@ with a sentence beside each. Neither a cargo alias file nor a directory of scrip
 | `task lint:cargo` | asserts every value in `.cargo/config.toml` is a string, which is what a worktree can inherit without doubling it |
 | `task lint:labels` | asserts every platform and program the bug form offers has a label in `tools/dev/labels.sh` |
 | `task check:linux` | what CI's Linux job runs, in Docker, on this machine |
-| `task dist` | stages every release this platform can carry — the machine, then all six tools |
+| `task dist` | stages every release this platform can carry — the machine, then all seven tools |
 | `task run` | starts the staged machine, at whatever version this workspace is on, and hands the prompt back |
 | `task run:package-builder` | the same for the curation tool; `-- /path/to/songs` is forwarded |
 | `task run:remote` / `task run:assets` | the same for the other two products that are servers with a page |
@@ -506,8 +506,8 @@ tools/platform/linux/deb.sh --tools     # ...and karaokemachine-tools, the three
 tools/platform/linux/verify-deb.sh      # install that .deb in a clean container (--tools for the other)
 tools/platform/linux/tarball.sh         # a portable Linux folder + .tar.gz, built in Docker
 tools/platform/linux/verify-tarball.sh  # unpack and run it in a clean container (--image to pick one)
-tools/dist/cmd.sh            # all six: km-pack, km-lyrics, km-package-builder, km-remote,
-                             #          km-admin, km-wallpaper-pack
+tools/dist/cmd.sh            # all seven: km-pack, km-lyrics, km-package-builder,
+                             #   km-package-simple, km-remote, km-admin, km-wallpaper-pack
 tools/dist/cmd.sh km-package-builder  #   ...or just one of them
 tools/dist/cmd.sh --no-video #   ...without the video feature; every script above takes this
 tools/dist/bin.sh              # one folder with every executable in it, instead of one per product

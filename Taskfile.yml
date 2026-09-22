@@ -755,7 +755,7 @@ tasks:
       - '"{{.SH}}" tools/platform/linux/tarball.sh {{if .NO_VIDEO}}--no-video{{end}} {{if .VERBOSE}}--verbose{{end}} {{.CLI_ARGS}}'
 
   dist:tools:
-    desc: 'Stage the command-line tools -- all six, or `task dist:tools -- km-pack km-lyrics` (NO_VIDEO=1 ZIP=1 VERBOSE=1)'
+    desc: 'Stage the command-line tools -- all seven, or `task dist:tools -- km-pack km-lyrics` (NO_VIDEO=1 ZIP=1 VERBOSE=1)'
     cmds:
       - '"{{.SH}}" tools/dist/cmd.sh {{if .NO_VIDEO}}--no-video{{end}} {{if .ZIP}}--zip{{end}} {{if .VERBOSE}}--verbose{{end}} {{.CLI_ARGS}}'
 
@@ -1083,6 +1083,17 @@ tasks:
           BUNDLE: 'dist/km-package-builder/macos/KM Package Builder.app'
           BIN: km-package-builder
           STAGE: 'dist:tools -- km-package-builder'
+
+  # The folder packager is a server with a page too. It has no macOS bundle, so the staged folder is
+  # what runs on every platform.
+  run:package-simple:
+    desc: 'Run the staged folder packager -- `task run:package-simple -- /path/to/songs` (WAIT=1 CONSOLE=1)'
+    cmds:
+      - task: _staged
+        vars:
+          APP: km-package-simple
+          BIN: '{{if .CONSOLE}}km-package-simple-console{{else}}km-package-simple{{end}}'
+          STAGE: 'dist:tools -- km-package-simple'
 
   # The other two products that are servers with a page rather than one-shot commands, and so the
   # other two worth *starting* rather than invoking. `tools/dist/cmd.sh` has staged both as macOS
