@@ -618,11 +618,13 @@ a home LAN. It is what a Chromecast, a smart television and a printer all do, fo
 
 **The panel draws a PIN or nothing, and never the words "password required".** It is the *singer's*
 panel, beside the QR code a phone is meant to scan. The remote that phone opens asks for no
-password, because everything the password guards is under `/api/v1/admin/`, the owner's tools. A
-queue code or a control code is the owner's to hand out, and the panel never draws either. A line
+password, because everything the password guards is under `/api/v1/admin/`, the owner's tools. A line
 demanding a password there answers a question nobody in the room asked, and answers it as *you cannot
 use this*. A PIN is the opposite case and belongs on the screen. It is the one fact about the machine
 that exists nowhere its owner can reach, which is why this decision puts it on a television.
+
+**The panel never draws a queue code or a control code.** Each is the owner's to hand out, to the
+people who should hold that level.
 
 **`factory_pin` is the whole of what the display knows about passwords.** The bit and the plain PIN
 move together, because an owner setting their own clears both in one write. So a bool beside the PIN
