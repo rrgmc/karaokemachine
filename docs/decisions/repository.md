@@ -468,6 +468,9 @@ else's work` governs what the tree carries, where a `.kar` in it *is* the song a
 playable leaves with a PNG. The script regenerates from any corpus, so the pictures follow whatever
 the demo corpus holds.
 
+**The one exception is the animated picture**, which shows a public-domain carol. See
+`The animated picture is of a public-domain carol`.
+
 The corpus stays out of the repository as `CLAUDE.local.md` requires. The pictures are built from a
 copy outside the tree. `tools/dev/screenshots.sh` **will not write a published picture on a machine
 that cannot reach a corpus**, so nobody can replace one with a fixture by accident.
@@ -541,6 +544,37 @@ a run, which is why raising them is a comment change and not a loosened check.
 **The gradients are kept, in `examples/wallpapers.rs`.** They are the one set that cannot fail the
 contrast gate, because they are drawn against it. They are what to reach for the day a photograph has
 to be withdrawn.
+
+## The animated picture is of a public-domain carol
+
+**One picture on the README moves: `screen-singing.webp`, two lines of a carol sung on the playing
+screen.** A still catches one syllable part-way through its wipe. It cannot show the wipe keeping
+time, and keeping time is what the screen is for. The clip loops about ten seconds of the song, at
+full size and twelve frames a second.
+
+**The song is a carol from the released pack, and never a song from a corpus.** A still publishes
+two lines caught mid-syllable. A clip publishes whole lines of words in motion, and that is a larger
+part of somebody else's work. The carol pack is the only song whose words this project may publish.
+So this is the one exception to the rule that the pictures show the owner's own catalog.
+
+**The carol is one most readers have not already heard**: *Angels From the Realms of Glory*, and
+not *Silent Night*. The reason is the one `What the README may show of a catalog` gives. The five
+most famous carols read as a stock demo too.
+
+**`tools/dev/screen-animation.sh` reads the pack as a release asset, pinned by digest.** So the
+picture regenerates on any machine with the network. It needs no corpus and no `abc2midi`.
+`KM_CAROLS` names a pack built locally instead.
+
+**The format is animated WebP, lossy at quality 75.** A GIF has 256 colors and bands the
+photograph behind the words. A lossless format stores a starfield at several times the size.
+WebP keeps the clip near 330 KB, and GitHub and every current browser play it.
+
+**Everything a still keeps out, the clip keeps out as well**: the build number, the debugging
+labels and any language but English. It draws no queue. A carol sung alone needs no invented party
+behind it, so the clip fabricates nothing.
+
+**The site's hero and its `og:image` stay `screen-playing.png`.** A link preview shows the first
+frame of an animation or nothing at all. The still is the better picture for that.
 
 ## Who the README is for
 

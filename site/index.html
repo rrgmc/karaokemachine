@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>KaraokeMachine — a karaoke machine that behaves like a commercial home unit</title>
-<meta name="description" content="Pick a song by number, it plays, the words highlight in time. Full-screen on a television; every phone on the network is a remote. MIDI, video, MP3+G and UltraStar songs. Windows, macOS, Linux, Android, Meta Quest and iOS.">
+<meta name="description" content="Pick a song by number, it plays, the words highlight in time. Full-screen on a television; every phone on the network is a remote. MIDI, video, MP3+G, UltraStar and LRC songs. Windows, macOS, Linux, Android, Meta Quest and iOS.">
 <link rel="icon" type="image/png" href="favicon.png">
 <link rel="apple-touch-icon" href="icon-512.png">
 <link rel="stylesheet" href="style.css">
@@ -39,7 +39,7 @@
          cannot read the page around it. `Locale::endonym` states the rule for the screens that have
          Rust behind them. -->
     <p class="lang"><a href="pt-BR/" hreflang="pt-BR" lang="pt-BR">Português (Brasil)</a></p>
-    <p class="eyebrow">MIDI · Video · MP3+G · UltraStar &nbsp;·&nbsp; Windows, macOS, Linux, Android, Meta Quest, iOS</p>
+    <p class="eyebrow">MIDI · Video · MP3+G · UltraStar · LRC &nbsp;·&nbsp; Windows, macOS, Linux, Android, Meta Quest, iOS</p>
     <!-- `alt=""`: the name is right beside it, and a description would say it twice. -->
     <h1><img class="mark" src="icon-512.png" width="512" height="512" alt="">Karaoke<span>Machine</span></h1>
     <p class="lede">
@@ -88,6 +88,15 @@
       <figcaption><b>The queue.</b> What is waiting, and who asked for it.</figcaption>
     </figure>
   </div>
+
+  <figure class="shot shot-singing">
+    <img loading="lazy" src="images/screen-singing.webp" width="1920" height="1080"
+         alt="Two lines of the carol Angels From the Realms of Glory sung on the playing screen: each
+              syllable fills in amber as it is sung, the next line waits below in gray, and when the
+              first line ends the one after the next takes its row">
+    <figcaption><b>Singing.</b> Each syllable fills in time with the music, and the next line is
+      already waiting.</figcaption>
+  </figure>
 
   <h3 class="gallery-title">Every phone is a remote</h3>
   <div class="gallery gallery-4">
@@ -141,53 +150,54 @@
     <article class="card card-amber">
       <h3>Songs</h3>
       <ul>
-        <li><b>MIDI and KAR files with embedded karaoke lyrics</b>, in all three conventions that
-          exist in the wild. Legacy encodings are detected rather than assumed.</li>
+        <li><b>MIDI and KAR files with embedded karaoke lyrics</b>, in all three karaoke conventions.
+          The machine detects a legacy encoding such as Shift-JIS.</li>
         <li><b>Video songs</b> — H.264/AAC MP4.</li>
-        <li><b>MP3+G songs</b> — an MP3 with a <code>.cdg</code> of the same stem, which is what most
-          commercial karaoke discs hold. The CD+G graphics are drawn here, in Rust.</li>
+        <li><b>MP3+G songs</b> — an MP3 with a <code>.cdg</code> of the same stem. The machine draws
+          the CD+G graphics itself, in Rust.</li>
         <li><b>UltraStar songs</b> — the <code>.txt</code> a singing game times its words in, beside
-          the MP3 it names. The words are highlighted syllable by syllable.</li>
+          the MP3 it names. The words light up syllable by syllable.</li>
+        <li><b>LRC songs</b> — an <code>.lrc</code> of timed lyrics, beside the MP3 of the same name.
+          A file that times each word lights word by word. A file that times only its lines lights a
+          whole line at a time, and counts you back in after a break.</li>
         <li><b>A 0–10 suitability rating</b> for every file, with a breakdown. It also names the
-          melody channel where it finds one confidently, and gives a reason where it cannot.</li>
+          melody channel where it finds one with confidence, and gives a reason where it cannot.</li>
       </ul>
     </article>
 
     <article class="card card-amber">
       <h3>Playing</h3>
       <ul>
-        <li>Full-screen on a television, drawn by SDL3, or in a window on a desktop —
-          <code>F</code> toggles and the choice is remembered. On Linux it draws straight to DRM/KMS
+        <li>Full-screen on a television, drawn by SDL3, or in a window on a desktop.
+          <code>F</code> switches between them, and the machine remembers the choice. On Linux it draws straight to DRM/KMS
           from a bare TTY, with no desktop installed.</li>
-        <li><b>Or on a television in another room.</b> Started with <code>--stream</code> the machine
-          opens no window and serves what it would have shown, picture and sound together, as one
-          continuous HLS stream. A set, a phone or a computer opens the machine's own
-          <code>/watch/</code> page. The playlist is the interface, so anything that plays one takes
-          <code>/stream/live.m3u8</code>. VLC, Kodi and the television's own media pipeline all do,
-          with no browser at all.</li>
+        <li><b>Or on a television in another room.</b> With <code>--stream</code> the machine opens no
+          window, and serves picture and sound as one HLS stream. A browser opens it at
+          <code>/watch/</code>, and VLC, Kodi or a television's own player opens
+          <code>/stream/live.m3u8</code>.</li>
         <li><b>Words highlight in time</b>, syllable by syllable, on the sequencer's own clock.</li>
         <li><b>Transpose and tempo</b> per song, and a <b>guide melody</b> that can be muted.</li>
-        <li><b>A lyric timing offset in milliseconds</b>, adjustable mid-song, because a television
-          adds picture lag and a mixer takes the sound out early. It moves the highlight only — never
-          the audio, because the microphones are in that audio.</li>
+        <li><b>A lyric timing offset in milliseconds</b>, adjustable mid-song, for the picture lag of a
+          television. It moves the highlight only and never the audio, because the microphones are in
+          that audio.</li>
         <li><b>Photographed wallpapers</b> behind the words, crossfading, each one checked for
-          contrast in the band the lyrics actually sit in.</li>
+          contrast in the band the lyrics sit in.</li>
       </ul>
     </article>
 
     <article class="card card-green">
       <h3>Remotes, and the API</h3>
       <ul>
-        <li><b>The machine serves a remote at its own address.</b> Any phone on the network, no app
-          to install, and a QR code on the idle screen.</li>
-        <li><b>A standalone offline remote</b> keeping its own copy of a machine's catalog, so
-          browsing, searching and favorites work with the machine switched off.</li>
+        <li><b>The machine serves a remote at its own address.</b> Any phone on the network opens it
+          with no app to install, from a QR code on the idle screen.</li>
+        <li><b>A standalone offline remote</b> keeps its own copy of a machine's catalog. Browsing,
+          searching and favorites work with the machine switched off.</li>
         <li><b>An HTTP API with a WebSocket event stream</b> covering search, queue, transport,
           settings, packages, wallpapers, demo mode, microphones and audio output.</li>
-        <li>Found on the network by <b>mDNS</b>. <b>One admin password, which the machine gives
-          itself</b> — a six-digit PIN on the idle screen. Everything that reconfigures the machine
-          needs the password; nothing a singer does needs it. The admin routes all live under
-          <code>/api/v1/admin/</code>.</li>
+        <li><b>mDNS</b> finds the machine on the network.</li>
+        <li><b>One admin password, which the machine shows on its idle screen</b> as a six-digit
+          PIN. Everything under <code>/api/v1/admin/</code> needs it, and nothing a singer does needs
+          it.</li>
       </ul>
     </article>
 
@@ -195,15 +205,15 @@
       <h3>Getting a corpus into shape</h3>
       <ul>
         <li><b><code>km-package-builder</code></b>, a local web server over a folder of source files.
-          Browse, search <em>the lyrics themselves</em>, rate, fix the names, group duplicates, and
-          pick songs into packages by hand.</li>
+          Browse, search <em>the lyrics themselves</em>, rate, fix names, group duplicates, and pick
+          songs into packages.</li>
         <li><b><code>km-pack</code></b> builds and validates packages, and
           <b><code>km-lyrics</code></b> dumps one file's parsed timeline.
-          <b><code>km-wallpaper-pack</code></b> builds a wallpaper set, keeping what lyrics stay
+          <b><code>km-wallpaper-pack</code></b> builds a wallpaper set from pictures the lyrics stay
           readable over.</li>
-        <li><b>A printed song book.</b> Four columns — artist, number, title and first line —
-          modeled on the book a commercial machine ships in a ring binder. The machine serves one for
-          its own catalog, so it is not only a curation artifact.</li>
+        <li><b>A printed song book</b> with four columns: artist, number, title and first line. It
+          follows the ring-binder book of a commercial machine, and the machine serves one for its own
+          catalog.</li>
       </ul>
     </article>
   </div>
@@ -213,19 +223,18 @@
   <div class="wrap">
     <h2>Pictures and instruments, found for it</h2>
     <p>
-      <b><code>km-admin</code></b> finds photographs the lyrics stay readable over, measured in the
-      band of the screen the words occupy. It also offers General MIDI banks from a table of
+      <b><code>km-admin</code></b> finds photographs the lyrics stay readable over. It measures each
+      one in the band of the screen the words occupy. It also offers General MIDI banks from a table of
       sixty-three, and it sends either to the machine. <b>It sends a file you already have too</b>: a
       package, a bank, a photograph of your own.
     </p>
     <p>
-      <b>It is the half the machine cannot do itself.</b> A box under a television has no shell, may
-      have no way onto the internet, and should not be holding your accounts.
+      <b>The machine cannot do this itself.</b> A box under a television has no shell and may have no
+      internet, and it should not hold your accounts.
     </p>
     <p class="dim">
-      Pictures come from Openverse by default, and its packs may be passed on. Pixabay and Pexels
-      work with your own API key, and their terms, which do not allow redistribution, are shown next to
-      the key field.
+      Pictures come from Openverse by default, and you may pass its packs on. Pixabay and Pexels need
+      your own API key, and their terms forbid that. The key field shows those terms.
     </p>
   </div>
 </section>
@@ -234,20 +243,17 @@
   <div class="wrap">
     <h2>Numbers that cannot clash</h2>
     <p>
-      A song's number is <b class="mono">bank&nbsp;×&nbsp;1000&nbsp;+&nbsp;slot</b>. The slot is what
-      the package numbered the song, 1 to 999, and the bank is the block of a thousand it sits in.
-      Two packages that both number a song 500 cannot collide: one is 3500, the other 611500.
+      A song's number is <b class="mono">bank&nbsp;×&nbsp;1000&nbsp;+&nbsp;slot</b>. The slot is the
+      number the package gave the song, 1 to 999. The bank is the block of a thousand the package
+      sits in. Two packages that both number a song 500 do not clash: one is 3500, the other 611500.
     </p>
     <p>
       <b>A package's bank comes from its id</b>, so its numbers are the same on every machine.
-      Install the same volume here and at a friend's house, in any order, and it takes the same bank
-      both times. A printed song list therefore travels with the file.
+      A printed song list therefore travels with the file.
     </p>
     <p>
-      A package holds at most 999 songs. It is not a storage limit, because the machine holds a
-      thousand packages and so very nearly a million songs. It is a nudge towards <em>curating</em> a
-      volume rather than pointing a tool at a folder. The corpus this was built against is a large
-      one, and what somebody left out is the whole difference between a catalog and a heap.
+      A package holds at most 999 songs, and the machine holds a thousand packages. The limit is there
+      to encourage a <em>curated</em> volume rather than a whole folder.
     </p>
   </div>
 </section>
@@ -256,19 +262,17 @@
   <h2>Deliberately not</h2>
   <ul class="prose">
     <li><b>No scoring of singers.</b></li>
-    <li><b>No bare audio files</b>, because an MP3 with no <code>.cdg</code> beside it contains no
-      lyrics. No CD+G disc images either, only the file pair.</li>
+    <li><b>No bare audio files</b>, because an MP3 on its own has no words in it. No CD+G disc
+      images either, only the file pair.</li>
     <li><b>No video wallpapers</b>: a video song is not a video background.</li>
     <li><b>No pitch shifting of audio.</b></li>
-    <li><b>No microphone processing in the app.</b> Hardware mixes the microphones, and the app
-      handles control and state only.</li>
-    <li><b>No shaped scripts</b>: Thai, Arabic and Indic need a text shaper this build does not
-      include, and there is no right-to-left support. CJK works, though. A Japanese or Chinese song
-      uses a font from the system, and lyric decoding already handles the legacy encodings listed
-      above.</li>
+    <li><b>No microphone processing in the app</b>, because hardware mixes the microphones.</li>
+    <li><b>No shaped scripts, and no right-to-left.</b> Thai, Arabic and Indic need a text shaper,
+      and this build does not include one. Japanese and Chinese work, with a font from the
+      system.</li>
   </ul>
   <p class="prose dim">
-    These are deliberate decisions rather than missing features. To propose a change, start with
+    Each of these is a decision with a reason. To propose a change, start with
     <a href="https://github.com/rrgmc/karaokemachine/tree/master/docs/decisions">the
     decisions</a>.
   </p>
@@ -277,12 +281,10 @@
 <section class="wrap" id="getting-it">
   <h2>Getting it</h2>
   <p class="prose">
-    <b>Every package below is on the
+    <b>Every package is on the
     <a href="https://github.com/rrgmc/karaokemachine/releases/latest">release page</a></b>, one file
-    per platform, with the sixteen carols beside them as a separate download. Building from source is
-    the other way in —
-    <a href="https://github.com/rrgmc/karaokemachine/blob/master/BUILDING.md"><code>BUILDING.md</code></a>
-    is how, and it is one command per platform once the prerequisites are in.
+    per platform. The sixteen carols are a separate download beside them. To build from source, see
+    <a href="https://github.com/rrgmc/karaokemachine/blob/master/BUILDING.md"><code>BUILDING.md</code></a>.
   </p>
 
   <div class="table-scroll">
@@ -294,28 +296,27 @@
       <tr>
         <th scope="row">Windows</th>
         <td>A setup program holding all seven products behind component checkboxes. It installs
-          <b>per-user</b> and raises no UAC prompt, and offers to put itself on your
-          <code>PATH</code> and to open <code>.kmbuild</code> corpus files. Or a <b>portable
-          folder</b>: unzip it and run it.</td>
+          <b>per-user</b> with no UAC prompt. It offers to add itself to your <code>PATH</code> and to
+          open <code>.kmbuild</code> corpus files. Or a <b>portable folder</b>: unzip it and run
+          it.</td>
       </tr>
       <tr>
         <th scope="row">macOS</th>
-        <td>An Apple installer package — the same seven products behind six component ticks.
+        <td>An Apple installer package with the same seven products.
           Applications go to <code>/Applications</code> and command-line tools to
           <code>/usr/local</code>, already on your <code>PATH</code>. It asks for your administrator
-          password once, and fetches nothing.</td>
+          password once.</td>
       </tr>
       <tr>
         <th scope="row">Debian, Ubuntu</th>
-        <td>A <code>.deb</code>. Its ffmpeg and font dependencies are named rather than bundled, so
-          apt supplies them. It installs as an ordinary application, with a menu entry, an icon and
-          <code>karaokemachine</code> as a command. It also carries the television-appliance service,
-          switched off.</td>
+        <td>A <code>.deb</code> that names its ffmpeg and font dependencies, so apt supplies them. It
+          installs a menu entry, an icon and the <code>karaokemachine</code> command, plus the
+          appliance service, switched off.</td>
       </tr>
       <tr>
         <th scope="row">Any Linux</th>
-        <td>A <code>.tar.gz</code>. Unpack it anywhere, run it, delete it — no root and no package
-          manager. It carries its own ffmpeg, because a folder can name no dependency.</td>
+        <td>A <code>.tar.gz</code>. Unpack it anywhere and run it, with no root and no package
+          manager. It carries its own ffmpeg.</td>
       </tr>
       <tr>
         <th scope="row">Android, Google TV</th>
@@ -323,16 +324,14 @@
       </tr>
       <tr>
         <th scope="row">Meta Quest</th>
-        <td>An APK of its own, which hangs the screen in the room with the room still behind it.
-          The screen is flat or curved, and you pick which under it. It installs beside the Android
-          APK rather than over it.</td>
+        <td>An APK of its own, which puts the machine on a flat or curved screen in the room. It
+          installs beside the Android APK rather than over it.</td>
       </tr>
       <tr>
         <th scope="row">iPhone, iPad</th>
-        <td>An <code>.ipa</code> for the machine and one for the remote, both <b>unsigned</b>. iOS
-          takes no signature from a stranger, so you sign it yourself with your own Apple ID. It is
-          the machine itself — the same synthesizer, catalog, display and API — and songs arrive
-          through the Files app.</td>
+        <td>An <code>.ipa</code> for the machine and one for the remote, both <b>unsigned</b>. You sign
+          them yourself with your own Apple ID. It is the whole machine, and songs arrive through the
+          Files app.</td>
       </tr>
     </tbody>
   </table>
@@ -344,19 +343,17 @@
   <div class="wrap">
     <h2>Sixteen carols, free</h2>
     <p>
-      <b>There is one package you can just download</b> — Silent Night, Joy to the World, The First
-      Noel, Hark! The Herald Angels Sing, O Come All Ye Faithful, What Child Is This and ten more.
-      Every one public domain, four or five verses each, seventy-six minutes of singing in a
-      28&nbsp;KiB file.
+      <b>One package is free to download</b>: Silent Night, Joy to the World and fourteen more carols.
+      Every one is public domain, with four or five verses each.
     </p>
     <p>
-      It is a <b>separate download, and no install carries it</b>. A fresh install starts empty on
-      purpose, because you supply your own songs.
+      It is a <b>separate download, and no install carries it</b>. A new install starts empty, because
+      you supply your own songs.
     </p>
     <p class="dim">
-      It is the only pack of its kind. A karaoke MIDI is not one work but four or five: the tune,
-      the arrangement, the words, any translation, and whoever typed the notes in. Almost nothing in
-      the world has all of those free and written down. Carols do.
+      It is the only pack of its kind. A karaoke MIDI holds four or five works: the tune, the
+      arrangement, the words, any translation and the entered notes. Carols are among the few songs
+      where all of them are free.
     </p>
   </div>
 </section>
@@ -369,9 +366,9 @@
       <div>
         <h3>KaraokeMachine</h3>
         <p class="dim">Written in Rust. <code>MIT OR Apache-2.0</code>, at your option.</p>
-        <p class="dim">That covers the application only. The ffmpeg
-          libraries included in a release are LGPL, and the bundled instrument bank has its own
-          license. Each ships with its own license text.</p>
+        <p class="dim">The license covers the application only. A release carries the ffmpeg
+          libraries under the LGPL, and the instrument bank has its own license. Each has its own
+          license text.</p>
       </div>
       <nav aria-label="Documentation">
         <h3>Read more</h3>

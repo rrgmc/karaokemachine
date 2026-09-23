@@ -25,16 +25,24 @@ pub enum Kind {
     Cdg,
     /// An UltraStar `.txt` and the audio it names.
     UltraStar,
+    /// An LRC file and the MP3 of its stem.
+    Lrc,
 }
 
 impl Kind {
     /// Every key [`Self::key`] returns, for the catalog parity tests.
-    pub const KEYS: &[&str] = &["kind-midi", "kind-video", "kind-cdg", "kind-ultrastar"];
+    pub const KEYS: &[&str] = &[
+        "kind-midi",
+        "kind-video",
+        "kind-cdg",
+        "kind-ultrastar",
+        "kind-lrc",
+    ];
 
     /// The kind a description's `file:` value names.
     ///
-    /// `describe` writes an MP3+G pair under its audio and an UltraStar song under its text file, so
-    /// the extension is the whole answer.
+    /// `describe` writes an MP3+G pair under its audio, and an UltraStar or LRC song under its text
+    /// file, so the extension is the whole answer.
     #[must_use]
     pub fn of(file: &str) -> Self {
         let extension = Path::new(file)
@@ -44,6 +52,8 @@ impl Kind {
             .to_ascii_lowercase();
         if extension == "txt" {
             Self::UltraStar
+        } else if extension == "lrc" {
+            Self::Lrc
         } else if km_pack::VIDEO_EXTENSIONS.contains(&extension.as_str()) {
             Self::Video
         } else if matches!(extension.as_str(), "mid" | "midi" | "kar" | "rmi") {
@@ -61,6 +71,7 @@ impl Kind {
             Self::Video => "kind-video",
             Self::Cdg => "kind-cdg",
             Self::UltraStar => "kind-ultrastar",
+            Self::Lrc => "kind-lrc",
         }
     }
 }
@@ -109,6 +120,8 @@ pub enum Why {
     Copy(String),
     /// An UltraStar file this project does not package, with `km-pack`'s own reason.
     UltraStar(String),
+    /// An LRC file this project does not package, with `km-pack`'s own reason.
+    Lrc(String),
     /// An MP3 with no `.cdg` beside it.
     NoGraphics,
     /// A `.cdg` with no audio beside it.
@@ -124,13 +137,14 @@ impl Why {
         "left-not-midi",
         "left-copy",
         "left-ultrastar",
+        "left-lrc",
         "left-no-graphics",
         "left-no-audio",
         "left-other",
     ];
 
-    /// The catalog key this reason is worded by. `left-copy`, `left-ultrastar` and `left-other`
-    /// take a `$detail`.
+    /// The catalog key this reason is worded by. `left-copy`, `left-ultrastar`, `left-lrc` and
+    /// `left-other` take a `$detail`.
     #[must_use]
     pub fn key(&self) -> &'static str {
         match self {
@@ -138,6 +152,7 @@ impl Why {
             Self::NotMidi => "left-not-midi",
             Self::Copy(_) => "left-copy",
             Self::UltraStar(_) => "left-ultrastar",
+            Self::Lrc(_) => "left-lrc",
             Self::NoGraphics => "left-no-graphics",
             Self::NoAudio => "left-no-audio",
             Self::Other(_) => "left-other",
@@ -148,7 +163,10 @@ impl Why {
     #[must_use]
     pub fn detail(&self) -> Option<&str> {
         match self {
-            Self::Copy(detail) | Self::UltraStar(detail) | Self::Other(detail) => Some(detail),
+            Self::Copy(detail)
+            | Self::UltraStar(detail)
+            | Self::Lrc(detail)
+            | Self::Other(detail) => Some(detail),
             _ => None,
         }
     }
@@ -258,6 +276,7 @@ impl Session {
                     Rejection::NotMidi => Why::NotMidi,
                     Rejection::DuplicateOf(number) => Why::Copy(file_of(*number)),
                     Rejection::UltraStar(reason) => Why::UltraStar(reason.clone()),
+                    Rejection::Lrc(reason) => Why::Lrc(reason.clone()),
                     other => Why::Other(other.to_string()),
                 },
             })
@@ -444,6 +463,7 @@ mod tests {
         assert_eq!(Kind::of("clip.mp4"), Kind::Video);
         assert_eq!(Kind::of("pair.mp3"), Kind::Cdg);
         assert_eq!(Kind::of("song.txt"), Kind::UltraStar);
+        assert_eq!(Kind::of("song.LRC"), Kind::Lrc);
     }
 
     #[test]

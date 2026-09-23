@@ -16,6 +16,8 @@
 pub mod encoding;
 pub mod karaoke;
 pub mod loudness;
+pub mod lrc;
+pub mod recording;
 pub mod redact;
 pub mod spacing;
 pub mod tempo;

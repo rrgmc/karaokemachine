@@ -1,7 +1,7 @@
 # karaokemachine — repository guide
 
-A karaoke machine like a commercial home unit. MIDI files, video files, MP3+G pairs and UltraStar
-files with their audio are the only song sources. A native cross-platform app, Windows, macOS and
+A karaoke machine like a commercial home unit. MIDI files, video files, MP3+G pairs, and UltraStar
+and LRC files with their audio are the only song sources. A native cross-platform app, Windows, macOS and
 Linux first and Android second, with synced word highlighting. An HTTP API covers search, queueing
 and control.
 
@@ -64,9 +64,10 @@ Standing decisions — do not add these without recording the change in `docs/de
 
 - **No scoring of singers.** Nothing here rates a performance. The 0–10 number is a song *file*'s
   **suitability**, and it is called that everywhere — never `score`.
-- **A song is a MIDI file, a video file, an MP3+G pair, or an UltraStar `.txt` with the MP3 it
-  names, and nothing else.** No bare audio-file song sources: an MP3 or WAV on its own has no words
-  in it. The machine reads an UltraStar file for its timed words only, and discards its pitches.
+- **A song is a MIDI file, a video file, an MP3+G pair, or an UltraStar or LRC file with its MP3,
+  and nothing else.** An UltraStar `.txt` names its MP3, and an `.lrc` shares its stem. No bare
+  audio-file song sources: an MP3 or WAV on its own has no words in it. The machine reads an UltraStar file for its timed words only,
+  and discards its pitches.
   **CD+G as a *disc* format is not supported** — `.bin`/`.cue` images and raw subcode rips — because
   the corpus holds none of them. The file pair is what the world actually trades.
 - **No video backgrounds; wallpapers are still images.** A video *song* is not a video wallpaper.

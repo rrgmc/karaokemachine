@@ -211,6 +211,8 @@ pub const SONG_KIND_VIDEO: &str = "song-kind-video";
 pub const SONG_KIND_CDG: &str = "song-kind-cdg";
 /// The diagnostic panel's name for an UltraStar song.
 pub const SONG_KIND_ULTRASTAR: &str = "song-kind-ultrastar";
+/// The diagnostic panel's name for an LRC song.
+pub const SONG_KIND_LRC: &str = "song-kind-lrc";
 
 /// A media song levelled against the loudness its package measured.
 pub const SONG_LEVELLED_PACKAGE: &str = "song-levelled-package";
@@ -310,6 +312,7 @@ pub const ALL_IDS: &[&str] = &[
     SONG_KIND_VIDEO,
     SONG_KIND_CDG,
     SONG_KIND_ULTRASTAR,
+    SONG_KIND_LRC,
     SONG_LEVELLED_PACKAGE,
     SONG_LEVELLED_EVENTS,
     SONG_LEVELLED_OFF,

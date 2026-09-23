@@ -13,6 +13,13 @@ Entries are written for somebody who has the machine. Why any of it is the way i
 
 ### Added
 
+- **An LRC file beside an MP3 of the same name is a song.** A file that times each word gets the
+  word-by-word highlight. A file that times only its lines lights each whole line as it starts. A
+  bar above the next line fills during a break, so you know when to come back in. The next line
+  brightens just before it starts, so you see it coming. A package that holds an LRC song needs
+  this release, and an older machine refuses the whole package.
+- **A MIDI file that times its words a line at a time is drawn the same way.** Its lines light
+  whole rather than being wiped across at a speed the file never gave.
 - **A folder becomes a package without the curation tool.** KM Simple Package, `km-package-simple`,
   reads a folder and lists its songs, with each one's language and suitability. You can rename a song
   or leave it out, and a shift-click keeps or leaves out a whole run. Then build. A folder of more

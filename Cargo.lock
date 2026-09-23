@@ -2408,6 +2408,7 @@ name = "km-display"
 version = "1.18.0"
 dependencies = [
  "image",
+ "km-kmpkg",
  "km-locale",
  "km-queue",
  "km-song",

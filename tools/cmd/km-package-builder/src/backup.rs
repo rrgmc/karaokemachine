@@ -917,6 +917,7 @@ mod tests {
             video: None,
             cdg: None,
             ultrastar: None,
+            lrc: None,
         };
         let file = crate::model::ScannedFile {
             path: format!("folder/{stem}.kar"),

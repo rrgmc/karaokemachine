@@ -2870,6 +2870,63 @@ async fn an_uploaded_ultrastar_song_is_its_mp3_with_the_words_beside_it() {
     );
 }
 
+/// An LRC song crosses as an UltraStar song does, with its kind named beside the words.
+#[tokio::test]
+async fn an_uploaded_lrc_song_names_its_kind_beside_the_words() {
+    let harness = Harness::debugging();
+    let words = km_song::lrc::parse(b"[00:01.00]First line\n[00:04.00]Second line\n")
+        .expect("an LRC song")
+        .timeline;
+    let lyrics = serde_json::to_vec(&words).expect("encodes");
+    let (status, body) = harness
+        .post_multipart(
+            "/debug/play-upload",
+            &[
+                ("stem", None, b"Ace Of Spades"),
+                ("lyrics", None, lyrics.as_slice()),
+                ("lyrics_kind", None, b"lrc"),
+                ("primary", Some("Ace Of Spades.mp3"), b"ID3 audio"),
+            ],
+        )
+        .await;
+
+    assert_eq!(status, StatusCode::OK, "{body}");
+    let recorded = harness.machine.recorded();
+    assert!(
+        recorded.iter().any(|entry| matches!(
+            entry,
+            Recorded::Decided(decided)
+                if decided.lyrics.as_ref() == Some(&words)
+                    && decided.lyrics_kind == Some(km_catalog::SongKind::Lrc)
+        )),
+        "{recorded:?}"
+    );
+}
+
+/// A kind that carries no words is refused, rather than words played as a song they do not belong to.
+#[tokio::test]
+async fn an_uploaded_lyrics_kind_that_carries_no_words_is_a_400() {
+    let harness = Harness::debugging();
+    let (status, body) = harness
+        .post_multipart(
+            "/debug/play-upload",
+            &[
+                ("stem", None, b"Ace Of Spades"),
+                ("lyrics_kind", None, b"video"),
+                ("primary", Some("Ace Of Spades.mp3"), b"ID3 audio"),
+            ],
+        )
+        .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert!(
+        body["message"]
+            .as_str()
+            .expect("text")
+            .contains("lyrics_kind"),
+        "{body}"
+    );
+}
+
 /// Words that will not read are refused, rather than an UltraStar song playing with none.
 #[tokio::test]
 async fn uploaded_words_that_will_not_read_are_a_400() {

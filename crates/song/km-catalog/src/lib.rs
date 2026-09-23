@@ -1193,6 +1193,7 @@ fn read_song(row: &rusqlite::Row<'_>) -> rusqlite::Result<CatalogSong> {
             k if k == SongKind::Video.as_str() => SongKind::Video,
             k if k == SongKind::Cdg.as_str() => SongKind::Cdg,
             k if k == SongKind::UltraStar.as_str() => SongKind::UltraStar,
+            k if k == SongKind::Lrc.as_str() => SongKind::Lrc,
             _ => SongKind::Midi,
         },
         file: row.get(6)?,

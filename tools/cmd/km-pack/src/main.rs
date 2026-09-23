@@ -1118,9 +1118,11 @@ fn report_outcome(outcome: &km_pack::BuildOutcome) {
         .iter()
         .filter(|song| song.kind.is_midi())
         .count();
-    let (videos, cdg, ultrastar) = media_counts(&manifest.songs);
-    if videos > 0 || cdg > 0 || ultrastar > 0 {
-        println!("of which   {midi} midi, {videos} video, {cdg} mp3+g, {ultrastar} ultrastar");
+    let (videos, cdg, ultrastar, lrc) = media_counts(&manifest.songs);
+    if videos > 0 || cdg > 0 || ultrastar > 0 || lrc > 0 {
+        println!(
+            "of which   {midi} midi, {videos} video, {cdg} mp3+g, {ultrastar} ultrastar, {lrc} lrc"
+        );
     }
     if outcome.videos_transcoded > 0 {
         println!(
@@ -1235,9 +1237,11 @@ fn inspect(args: &InspectArgs) -> Result<()> {
         .iter()
         .filter(|song| song.kind.is_midi())
         .count();
-    let (videos, cdg, ultrastar) = media_counts(&manifest.songs);
-    if videos > 0 || cdg > 0 || ultrastar > 0 {
-        println!("  of which   {midi} midi, {videos} video, {cdg} mp3+g, {ultrastar} ultrastar");
+    let (videos, cdg, ultrastar, lrc) = media_counts(&manifest.songs);
+    if videos > 0 || cdg > 0 || ultrastar > 0 || lrc > 0 {
+        println!(
+            "  of which   {midi} midi, {videos} video, {cdg} mp3+g, {ultrastar} ultrastar, {lrc} lrc"
+        );
     }
     let with_melody = manifest
         .songs
@@ -1580,13 +1584,14 @@ fn human(bytes: u64) -> String {
 }
 
 /// How many video, MP3+G and UltraStar songs a package holds, each counted by its own kind.
-fn media_counts(songs: &[km_kmpkg::SongEntry]) -> (usize, usize, usize) {
+fn media_counts(songs: &[km_kmpkg::SongEntry]) -> (usize, usize, usize, usize) {
     let count =
         |wanted: km_kmpkg::SongKind| songs.iter().filter(|song| song.kind == wanted).count();
     (
         count(km_kmpkg::SongKind::Video),
         count(km_kmpkg::SongKind::Cdg),
         count(km_kmpkg::SongKind::UltraStar),
+        count(km_kmpkg::SongKind::Lrc),
     )
 }
 
@@ -1616,7 +1621,7 @@ fn measure_in_package(
         }
     };
 
-    let measured = if song.kind.is_cdg() || song.kind.is_ultrastar() {
+    let measured = if song.kind.is_cdg() || song.kind.carries_timeline() {
         km_cdg::measure_loudness_from(reader, &name).map_err(|error| error.to_string())
     } else {
         measure_packaged_video(reader, &name)
@@ -1657,19 +1662,27 @@ fn measure_packaged_video(
     Err("this build has no `video` feature, so it cannot measure a video".to_owned())
 }
 
-/// How long a media song in a package is sung for.
+/// The suitability of a media song in a package.
 ///
-/// An UltraStar song carries its timeline, so the span is read from it. A video's words are pixels
-/// and an MP3+G pair's are one-bit tiles, so those two are answered by their own length, and so is
-/// an UltraStar song whose timeline will not open, which is the honest fallback rather than a
-/// refusal: a package that opens far enough to be re-analyzed should be re-analyzed.
-fn media_sung_ms(package: &Package, song: &km_kmpkg::SongEntry) -> u32 {
-    if song.kind.is_ultrastar()
+/// An UltraStar or LRC song carries its timeline, so how long it is sung for is read from it, and
+/// so is whether an LRC song times its words a line at a time. A video's words are pixels and an
+/// MP3+G pair's are one-bit tiles, so those two are answered by their own length, and so is a song
+/// whose timeline will not open. That is the honest fallback rather than a refusal: a package that
+/// opens far enough to be re-analyzed should be re-analyzed.
+fn media_suitability(package: &Package, song: &km_kmpkg::SongEntry) -> km_kmpkg::SuitabilityRecord {
+    if song.kind.carries_timeline()
         && let Ok(timeline) = package.lyric_timeline(song.number)
     {
-        return km_suitability::sung_span_ms(&km_song::ultrastar::song_from_timeline(timeline));
+        let granularity = timeline.granularity();
+        let sung_ms =
+            km_suitability::sung_span_ms(&km_song::recording::song_from_timeline(timeline));
+        return if song.kind.is_lrc() {
+            km_pack::purpose_made_suitability_for(sung_ms, granularity)
+        } else {
+            km_pack::purpose_made_suitability(sung_ms)
+        };
     }
-    song.duration_ms
+    km_pack::purpose_made_suitability(song.duration_ms)
 }
 
 fn reanalyze(args: &ReanalyzeArgs) -> Result<()> {
@@ -1690,9 +1703,8 @@ fn reanalyze(args: &ReanalyzeArgs) -> Result<()> {
         // package and the bytes are copied rather than re-encoded.
         if !song.kind.is_midi() {
             let mut entry = song.clone();
-            let sung_ms = media_sung_ms(&package, song);
             let before = entry.suitability.as_ref().map(|record| record.value);
-            let record = km_pack::purpose_made_suitability(sung_ms);
+            let record = media_suitability(&package, song);
             let after = record.value;
             if before != Some(after) {
                 changed += 1;

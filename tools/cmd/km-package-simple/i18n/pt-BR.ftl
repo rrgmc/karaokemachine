@@ -59,6 +59,7 @@ kind-midi = MIDI
 kind-video = Vídeo
 kind-cdg = MP3+G
 kind-ultrastar = UltraStar
+kind-lrc = LRC
 
 left-heading = { $count ->
     [0] { $count } arquivos não são músicas
@@ -69,6 +70,7 @@ left-unreadable = não pôde ser lido.
 left-not-midi = não é um arquivo MIDI que este programa consiga ler.
 left-copy = tem a mesma música que { $detail }.
 left-ultrastar = é um arquivo UltraStar que este programa não usa: { $detail }
+left-lrc = é um arquivo LRC que este programa não usa: { $detail }
 left-no-graphics = não tem um .cdg ao lado, então não tem letra.
 left-no-audio = não tem áudio ao lado, então não há o que cantar.
 left-other = ficou de fora: { $detail }

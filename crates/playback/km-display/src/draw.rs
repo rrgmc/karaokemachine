@@ -23,8 +23,8 @@ use crate::numbers::NumberEntry;
 use crate::performance::FrameStats;
 use crate::song_stats::{GainSource, SongMedia, SongStats};
 use crate::text::{
-    Align, Fonts, TextCache, TextStyle, WipeStyle, WipedLine, draw_text, draw_wiped_line,
-    measure_line,
+    Align, Fonts, LineMetrics, TextCache, TextStyle, WipeStyle, WipedLine, draw_text,
+    draw_wiped_line, measure_line,
 };
 use crate::theme::Theme;
 
@@ -1234,6 +1234,7 @@ fn draw_performance<T: RenderTarget, C>(
         SongMedia::Video => words.msg(crate::words::SONG_KIND_VIDEO),
         SongMedia::Cdg => words.msg(crate::words::SONG_KIND_CDG),
         SongMedia::UltraStar => words.msg(crate::words::SONG_KIND_ULTRASTAR),
+        SongMedia::Lrc => words.msg(crate::words::SONG_KIND_LRC),
     };
     let song_heading = if song.worth_attention() {
         theme.alert
@@ -2478,6 +2479,55 @@ fn idle_preview_half_width(frame: &Frame<'_>, theme: &Theme, layout: Layout) -> 
     half
 }
 
+/// A color part of the way from `from` to `to`, alpha included.
+fn mix(from: Color, to: Color, share: f32) -> Color {
+    let share = share.clamp(0.0, 1.0);
+    let channel =
+        |a: u8, b: u8| (f32::from(a) + (f32::from(b) - f32::from(a)) * share).round() as u8;
+    Color::RGBA(
+        channel(from.r, to.r),
+        channel(from.g, to.g),
+        channel(from.b, to.b),
+        channel(from.a, to.a),
+    )
+}
+
+/// How tall the lead-in cue is, as a share of the line it sits above.
+const CUE_HEIGHT: f32 = 0.08;
+
+/// How far above its line the lead-in cue sits, as a share of the line's height.
+const CUE_GAP: f32 = 0.06;
+
+/// Draws the lead-in cue above a line-timed line: a bar as wide as the line, filling from the left.
+///
+/// **It is full exactly when the line lights**, so a singer reads it as a count-in. It sits inside
+/// the row, above the words, so it stays in the lyric band that `tools/cmd/assets/km-wallpaper-pack`
+/// measures for legibility. The track is the upcoming color and the fill the sung one, so the cue
+/// reads as the same highlight arriving early.
+fn draw_lead_in_cue<T: RenderTarget>(
+    canvas: &mut Canvas<T>,
+    theme: &Theme,
+    metrics: &LineMetrics,
+    center: (f32, f32),
+    cue: f32,
+) {
+    let (x, top) = center;
+    let height = (metrics.height * CUE_HEIGHT).max(2.0).round();
+    let y = (top - metrics.height * CUE_GAP - height).round();
+    let left = (x - metrics.width / 2.0).round();
+    canvas.set_blend_mode(BlendMode::Blend);
+    let track = theme.lyric_upcoming;
+    canvas.set_draw_color(Color::RGBA(track.r, track.g, track.b, 120));
+    let _ = canvas.fill_rect(FRect::new(left, y, metrics.width.round(), height));
+    canvas.set_draw_color(theme.lyric_sung);
+    let _ = canvas.fill_rect(FRect::new(
+        left,
+        y,
+        metrics.width * cue.clamp(0.0, 1.0),
+        height,
+    ));
+}
+
 fn draw_playing<T: RenderTarget, C>(
     canvas: &mut Canvas<T>,
     cache: &mut TextCache<C>,
@@ -2637,7 +2687,8 @@ fn draw_playing<T: RenderTarget, C>(
             };
             let y = first_row_y + row as f32 * row_height;
             let text = line.text();
-            if text.is_empty() {
+            // A line-timed line that has faded out is not drawn at all, rather than drawn invisibly.
+            if text.is_empty() || visible.opacity <= 0.0 {
                 continue;
             }
 
@@ -2662,23 +2713,40 @@ fn draw_playing<T: RenderTarget, C>(
                     &wiped,
                     (layout.w / 2.0, y),
                     &WipeStyle {
-                        pending: center(theme.lyric_pending),
+                        pending: center(theme.lyric_pending).faded(visible.opacity),
                         sung: theme.lyric_sung,
                     },
                 );
+                if let Some(cue) = visible.cue {
+                    draw_lead_in_cue(canvas, theme, &metrics, (layout.w / 2.0, y), cue);
+                }
             } else {
                 // The upcoming line is dimmer, so the eye knows which one is live. It is measured
                 // for the first time here: it used to go straight to `draw_text`, which asks the
                 // rendered surface how wide it came out and so could never have noticed.
-                let (font, _) = fonts.fit_lyric(&[text.as_str()], available);
+                let (font, metrics) = fonts.fit_lyric(&[text.as_str()], available);
+                // **A cued line is drawn as a line about to be sung**, in the pending color: the
+                // cue says it is next, and a dim line under a filling cue would say two things.
+                let color = if visible.cue.is_some() {
+                    theme.lyric_pending
+                } else {
+                    mix(
+                        theme.lyric_upcoming,
+                        theme.lyric_pending,
+                        visible.brightened,
+                    )
+                };
                 draw_text(
                     canvas,
                     cache,
                     font,
                     &text,
                     (layout.w / 2.0, y),
-                    &center(theme.lyric_upcoming),
+                    &center(color).faded(visible.opacity),
                 );
+                if let Some(cue) = visible.cue {
+                    draw_lead_in_cue(canvas, theme, &metrics, (layout.w / 2.0, y), cue);
+                }
             }
         }
     } else if frame.song.is_some() {

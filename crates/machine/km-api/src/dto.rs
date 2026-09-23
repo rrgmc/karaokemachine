@@ -113,7 +113,7 @@ pub struct NowPlayingDto {
     pub language: Option<String>,
     /// Who asked for it.
     pub singer: Option<String>,
-    /// `"midi"`, `"video"` or `"cdg"`.
+    /// `"midi"`, `"video"`, `"cdg"`, `"ultrastar"` or `"lrc"`.
     ///
     /// **The enum, not its spelling.** This was a `String` while `km_kmpkg::SongKind` was an enum
     /// on both sides of the wire, so the remote and the mirror compared string literals where the
@@ -1939,12 +1939,18 @@ pub struct PlayFileRequest {
         deserialize_with = "present"
     )]
     pub melody: Option<Option<u8>>,
-    /// The words of an UltraStar song, already read out of its `.txt` by the sender.
+    /// The words of an UltraStar or LRC song, already read out of its lyrics file by the sender.
     ///
-    /// Present only when `path` is the song's MP3. The machine never reads an UltraStar file, so
-    /// the timeline arrives in the form a package stores it in.
+    /// Present only when `path` is the song's MP3. The machine never reads either file, so the
+    /// timeline arrives in the form a package stores it in.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub lyrics: Option<km_song::LyricTimeline>,
+    /// Which file [`Self::lyrics`] was read from: `"ultrastar"` or `"lrc"`.
+    ///
+    /// Absent is `"ultrastar"`, so a sender that names no kind plays its words as an UltraStar
+    /// song. It decides only what the song is called, and which refusal a key change gets.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub lyrics_kind: Option<km_catalog::SongKind>,
     /// Play the song and draw none of its words, in place of whatever this machine would detect.
     ///
     /// **Absent is not the same as `false`**, on [`Self::fixes`]'s terms: absent leaves the machine

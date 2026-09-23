@@ -246,6 +246,8 @@ failure-not-audio = não é um arquivo de áudio legível
 failure-bad-graphics = é um .cdg que não desenha letra nenhuma
 failure-bad-ultrastar = é um arquivo UltraStar que esta máquina não toca
 failure-ultrastar-audio = é um arquivo UltraStar cujo MP3 não está ao lado
+failure-bad-lrc = é um arquivo LRC sem palavras com tempo
+failure-lrc-audio = é um arquivo LRC sem um MP3 próprio ao lado
 failure-panicked = o leitor quebrou
 
 ## A lista de etapas de um trabalho demorado ----------------------------------------
@@ -832,6 +834,7 @@ kind-midi = MIDI
 kind-video = vídeo
 kind-cdg = MP3+G
 kind-ultrastar = UltraStar
+kind-lrc = LRC
 
 ## As abas de curadoria -----------------------------------------------------------------
 
@@ -1370,6 +1373,11 @@ said-build-ultrastar = { $count ->
     [0] { $count } músicas UltraStar
     [one] { $count } música UltraStar
    *[other] { $count } músicas UltraStar
+  }
+said-build-lrc = { $count ->
+    [0] { $count } músicas LRC
+    [one] { $count } música LRC
+   *[other] { $count } músicas LRC
   }
 said-build-left-out = { $count ->
     [0] { $count } músicas de fora:

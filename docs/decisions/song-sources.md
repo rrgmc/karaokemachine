@@ -1,4 +1,4 @@
-# Song sources — video, MP3+G and UltraStar
+# Song sources — video, MP3+G, UltraStar and LRC
 
 > Product decisions, each with the reasoning that produced it -- what the product must do, and why
 > it is that way. Part of [`docs/decisions/`](README.md); how the thing is built is in
@@ -536,3 +536,75 @@ The audio is stored as `media/<number>.mp3`, as an MP3+G song's is, and is copie
 
 **A preview follows the same rule.** The package builder's Play button sends the machine the MP3 and
 the timeline it read, over either debug route, and never the `.txt`.
+
+## LRC as a song source
+
+**A song may be an `.lrc` file together with the MP3 of the same stem.** Each line of the file opens
+with the time it is sung, so its words are text with timing. An MP3 with one beside it has words,
+where a bare MP3 has none.
+
+**Most LRC files time a whole line, and that is still a song.** The enhanced form adds a time before
+each word, and those words are wiped as an UltraStar song's syllables are. A line-timed file lights a
+line at a time, by [`A line-timed song lights a line at a time`](interface.md#a-line-timed-song-lights-a-line-at-a-time).
+Refusing line-timed files would refuse most of the LRC files that exist.
+
+**The recording is usually the original, with its vocals.** A person timed the words to it, so the
+timing is theirs to get right, and a bad file is curation's to hide. See `No audio-file pitch
+shifting` for why the control refusals below are permanent.
+
+## What an LRC song has, and what it does not
+
+**It has a lyric timeline, drawn over the wallpaper as an UltraStar song's is.** Its words are
+searchable, and they give the songbook its first line.
+
+**It has no transpose, no tempo and no guide melody.** Each is a 409 with code `unavailable` naming
+which, for the reasons an MP3+G song has none. The codes are `no_key_lrc`, `no_tempo_lrc` and
+`no_melody_lrc`, so the remote can name the kind.
+
+**Its suitability is a 10 when its words are timed, and an 8 when only its lines are.** A person
+timed it to this recording, as an UltraStar song is timed. A line-timed file loses the words' share
+of the number, as a MIDI file timed by the line does. See `Suitability, for a song that was made to
+be sung to`.
+
+`display.lyric_offset_ms` applies unchanged, because it moves the words and not the sound.
+
+## Which LRC files are songs
+
+**A file is a song when one line has a timestamp and words, and an MP3 of its stem is beside it.**
+The format has no specification, so these are the rules the reader keeps:
+
+- **A timestamp is `[mm:ss]`, `[mm:ss.xx]`, `[mm:ss.xxx]` or `[mm:ss:xx]`.** Minutes may pass 59.
+- **A line with several timestamps is sung at each one.** A chorus is often written once with every
+  time it comes round.
+- **`[offset:]` is applied when the file is read.** A positive offset makes the words come sooner, as
+  the tag is defined. Nothing moves before the start of the audio.
+- **A blank timestamped line ends the line before it.** It is how a file marks an instrumental break.
+- **A `<mm:ss.xx>` tag before a word times that word.** A tag with no word after it ends the word
+  before it.
+- **`M:`, `F:` and `D:` at the start of a line are dropped.** They mark duet parts, and the display
+  has one voice.
+- **A second line at the same time as another is dropped.** Players that show two languages write a
+  translation that way, and the first line is the one sung.
+- **The reader detects the encoding from the whole file.** An LRC file declares none. The reader
+  knows a UTF-16 file by its byte-order mark.
+- **The reader finds the audio by the stem, tolerantly.** The search is the one an MP3+G pair makes, so a
+  mixed-case extension and a trailing space in the stem still pair.
+- **An MP3 that is already another song keeps that song.** An MP3+G pair comes first, then an
+  UltraStar song, and an `.lrc` beside either is refused with the reason.
+
+## Where an LRC song's title and artist come from
+
+**A person's answer first, then `[ti:]` and `[ar:]`, then the stem.** An LRC file names no language,
+so the language comes from a person or from the guess the words give.
+
+## The machine never reads an LRC file
+
+**The package builder turns the file into a lyric timeline, as it does an UltraStar file.** The
+package stores the timeline and the MP3 exactly as it stores an UltraStar song's, under the kind `lrc`.
+A package holding one is format 6, so an older build refuses it and names the build that reads it.
+
+**A preview follows the same rule.** The package builder's Play button sends the MP3, the timeline
+and the kind `lrc`, and never the `.lrc`.
+
+**Finding lyrics for an MP3 on the internet is not part of this.** An `.lrc` is a file the owner
+already has.

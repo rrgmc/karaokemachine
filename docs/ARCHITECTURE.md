@@ -24,6 +24,7 @@ Two neighbors worth knowing before you start:
 | [`stream.md`](architecture/stream.md) | `km-stream` encoding, the watch page, and what is silent when it is wrong |
 | [`cdg.md`](architecture/cdg.md) | `km-cdg`, packaging and curating MP3+G |
 | [`ultrastar.md`](architecture/ultrastar.md) | UltraStar songs: the parser, the timeline entry, finding the audio, playing it on the audio clock |
+| [`lrc.md`](architecture/lrc.md) | LRC songs: the parser, pairing by stem, and what they share with UltraStar |
 | [`songbook.md`](architecture/songbook.md) | `km-songbook`, the printed book |
 | [`api.md`](architecture/api.md) | `km-api` — control surface, admin mode, discovery |
 | [`display.md`](architecture/display.md) | `km-display`, the now bar, the browse bar, the keypad, the queue overlay, the lyric timing offset |
@@ -248,7 +249,8 @@ tools/                     # six folders and nothing loose -- see "How things he
     common.sh              # sourced by fourteen callers; asserts the caller reached the repo root
     bin.sh cmd.sh clean.sh check-assets.sh
   dev/                     # the working session
-    worktree.sh claude-worktree-hook.sh screenshots.sh check-no-local-refs.sh
+    worktree.sh claude-worktree-hook.sh screenshots.sh screen-animation.sh
+    check-no-local-refs.sh
     clean.sh               # the whole checkout, where dist/clean.sh is the releases in it
     soundfont.sh soundfont-debug.sh soundfont-measure.sh
     km-pick/               # the one crate under dev/: a checkbox list over `inquire`, so a shell

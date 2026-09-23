@@ -88,10 +88,10 @@ corpus to find its audio would cost a disk seek per file on every scan.
 **The audio is an MP3+G song's audio without the graphics.** `km_cdg::open_audio_from` starts the
 same decoder thread and feed, and the song reaches the engine as `Load::Track`.
 
-**The words are a `km_song::Song` with nothing to play.** `ultrastar::song_from_timeline` builds one
+**The words are a `km_song::Song` with nothing to play.** `recording::song_from_timeline` builds one
 with no events and a timecode tempo map at 1,000 ticks a second. It does so because the lyric view,
 the `lyric_line` events and `LyricsDto::from_song` all read a `Song`. The machine holds it in
-`UltraStarSong`.
+`TimedSong`, which an LRC song shares: see [`lrc.md`](lrc.md).
 
 Four things differ from a MIDI song, and each is a trap:
 

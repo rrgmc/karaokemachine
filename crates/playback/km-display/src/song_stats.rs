@@ -28,6 +28,8 @@ pub enum SongMedia {
     Cdg,
     /// An MP3 and the lyric timeline read from an UltraStar file.
     UltraStar,
+    /// An MP3 and the lyric timeline read from an LRC file.
+    Lrc,
 }
 
 /// Where the gain in force came from.
@@ -157,7 +159,7 @@ impl SongStats {
     pub fn rows(&self) -> u32 {
         match self.kind {
             SongMedia::Midi => 6 + u32::from(self.damaged()),
-            SongMedia::Video | SongMedia::Cdg | SongMedia::UltraStar => 4,
+            SongMedia::Video | SongMedia::Cdg | SongMedia::UltraStar | SongMedia::Lrc => 4,
         }
     }
 

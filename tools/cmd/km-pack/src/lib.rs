@@ -29,6 +29,7 @@ pub mod book;
 pub mod build;
 pub mod describe;
 pub mod listing;
+pub mod lrc;
 pub mod spec;
 pub mod ultrastar;
 pub mod volumes;
@@ -39,6 +40,7 @@ mod cdg_tests;
 pub use build::{BuildEvent, BuildOptions, BuildOutcome, Skipped};
 pub use describe::{DescribeOptions, Description, describe};
 pub use listing::listing;
+pub use lrc::{LrcRefusal, LrcSource, is_lrc_candidate, lrc_naming, read_lrc};
 pub use spec::{Spec, SpecPackage, SpecSong};
 pub use ultrastar::{
     UltraStarRefusal, UltraStarSource, is_ultrastar_candidate, read_ultrastar, ultrastar_naming,
@@ -94,6 +96,8 @@ pub enum Rejection {
     NoNumber,
     /// An UltraStar file this project does not package, with the reason.
     UltraStar(String),
+    /// An LRC file this project does not package, with the reason.
+    Lrc(String),
 }
 
 impl std::fmt::Display for Rejection {
@@ -109,7 +113,7 @@ impl std::fmt::Display for Rejection {
                 "no song number available (they run 1 to {})",
                 km_songcode::MAX_SLOT
             ),
-            Self::UltraStar(reason) => write!(f, "{reason}"),
+            Self::UltraStar(reason) | Self::Lrc(reason) => write!(f, "{reason}"),
         }
     }
 }
@@ -1071,6 +1075,27 @@ pub fn purpose_made_suitability(sung_ms: u32) -> SuitabilityRecord {
     })
 }
 
+/// [`purpose_made_suitability`], for a file whose words may be timed a line at a time.
+///
+/// **An LRC file is the one purpose-made kind that can be.** A line-timed file keeps what a person
+/// timed and loses the words' share of the number, as a MIDI file timed by the line does. Too little
+/// singing still decides first, because it is the fault worth naming.
+#[must_use]
+pub fn purpose_made_suitability_for(
+    sung_ms: u32,
+    granularity: km_song::LyricGranularity,
+) -> SuitabilityRecord {
+    let record = purpose_made_suitability(sung_ms);
+    if record.value < 10 || granularity != km_song::LyricGranularity::LineLevel {
+        return record;
+    }
+    SuitabilityRecord::purpose_made_line_timed(WarningRecord {
+        code: warning_code(km_suitability::WarningCode::LineLevelLyrics),
+        message: "lyrics are timed a line at a time, so the highlight cannot follow the words"
+            .to_owned(),
+    })
+}
+
 /// A span as minutes and seconds, for a warning somebody reads.
 fn format_span(ms: u32) -> String {
     format!("{}:{:02}", ms / 60_000, (ms / 1_000) % 60)
@@ -1609,6 +1634,7 @@ pub fn collect_songs_observed(
             || is_audio(&path)
             || is_graphics(&path)
             || is_ultrastar_candidate(&path)
+            || is_lrc_candidate(&path)
         {
             out.push(path);
         }
