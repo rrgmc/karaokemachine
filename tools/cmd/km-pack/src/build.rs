@@ -164,6 +164,8 @@ pub struct BuildOutcome {
     pub cdg_written: usize,
     /// UltraStar songs written, as their audio and a lyric timeline each.
     pub ultrastar_written: usize,
+    /// LRC songs written, as their audio and a lyric timeline each.
+    pub lrc_written: usize,
     /// Whether the callback asked the build to stop before it ran out of songs.
     pub canceled: bool,
     /// Where the plain-text listing went, when one was asked for and written.
@@ -405,9 +407,19 @@ pub fn build(
                 options.measure_loudness,
                 &mut outcome,
             )
+        } else if crate::is_lrc_candidate(&source) {
+            add_lrc(
+                &mut builder,
+                song,
+                &source,
+                number,
+                options.dry_run,
+                options.measure_loudness,
+                &mut outcome,
+            )
         } else {
             Err(format!(
-                "{} is not a MIDI file, a video, an MP3+G pair or an UltraStar file",
+                "{} is not a MIDI file, a video, an MP3+G pair, an UltraStar file or an LRC file",
                 source.display()
             ))
         };
@@ -798,6 +810,35 @@ fn add_ultrastar(
         .map_err(|error| format!("{error:#}"))?;
 
     outcome.ultrastar_written += 1;
+    let note = added.findings.join("\n      ");
+    Ok((!note.is_empty()).then_some(note))
+}
+
+/// Adds one LRC song, from its `.lrc`.
+fn add_lrc(
+    builder: &mut PackageBuilder,
+    song: &SpecSong,
+    lyrics: &Path,
+    number: u32,
+    dry_run: bool,
+    measure_loudness: bool,
+    outcome: &mut BuildOutcome,
+) -> Result<Option<String>, String> {
+    let source = crate::read_lrc(lyrics).map_err(|refusal| refusal.to_string())?;
+    let request = crate::lrc::LrcRequest {
+        number,
+        title: song.title.clone(),
+        artist: song.artist.clone(),
+        language: song.language.clone(),
+        tags: song.tags.clone(),
+        lyrics_hidden: song.lyrics_hidden,
+        measure_loudness,
+        dry_run,
+    };
+    let added = crate::lrc::add_lrc_song(builder, &source, &request)
+        .map_err(|error| format!("{error:#}"))?;
+
+    outcome.lrc_written += 1;
     let note = added.findings.join("\n      ");
     Ok((!note.is_empty()).then_some(note))
 }

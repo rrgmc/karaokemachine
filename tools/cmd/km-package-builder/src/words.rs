@@ -101,6 +101,7 @@ const COMPOSED: &[&str] = &[
     "said-build-copied",
     "said-build-cdg-pairs",
     "said-build-ultrastar",
+    "said-build-lrc",
     // Which of the two the Debugging button answers with is a branch on what it just set.
     "said-debugging-on",
     "said-debugging-off",

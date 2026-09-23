@@ -13,6 +13,13 @@ Entries are written for somebody who has the machine. Why any of it is the way i
 
 ### Added
 
+- **An LRC file beside an MP3 of the same name is a song.** A file that times each word gets the
+  word-by-word highlight. A file that times only its lines lights each whole line as it starts. A
+  bar above the next line fills during a break, so you know when to come back in. A package that
+  holds an LRC song needs this release, and an older machine refuses the whole package.
+- **A MIDI file that times its words a line at a time is drawn the same way.** Its lines light
+  whole rather than being wiped across at a speed the file never gave.
+
 - **The machine runs on a Meta Quest, on a screen that hangs in the room.** It is a separate APK from
   the Android one, and it installs beside it rather than over it, so a headset can hold both. The
   room shows behind the screen, the controllers reach the on-screen keypad, and every song kind plays

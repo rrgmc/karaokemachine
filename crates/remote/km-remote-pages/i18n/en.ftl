@@ -29,18 +29,21 @@ error-no-key = { $kind ->
     [video] A video song has no key to change.
     [cdg] An MP3+G song has no key to change.
     [ultrastar] An UltraStar song has no key to change.
+    [lrc] An LRC song has no key to change.
    *[other] This song has no key to change.
  }
 error-no-tempo = { $kind ->
     [video] A video song has no tempo to change.
     [cdg] An MP3+G song has no tempo to change.
     [ultrastar] An UltraStar song has no tempo to change.
+    [lrc] An LRC song has no tempo to change.
    *[other] This song has no tempo to change.
  }
 error-no-melody = { $kind ->
     [video] A video song has no guide melody.
     [cdg] An MP3+G song has no guide melody.
     [ultrastar] An UltraStar song has no guide melody.
+    [lrc] An LRC song has no guide melody.
    *[other] This song has no guide melody.
  }
 error-no-melody-channel = The guide melody could not be found in this song.

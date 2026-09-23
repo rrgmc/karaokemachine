@@ -9,13 +9,14 @@ A karaoke machine that behaves like a commercial home unit: pick a song by numbe
 words highlight in time. It runs full-screen on a television, and any phone on the network is a
 remote: search the catalog, queue a song, change the key, skip.
 
-A song is one of four things:
+A song is one of five things:
 
 - a **MIDI file with embedded karaoke lyrics**;
 - a **video file**;
 - an **MP3+G pair**, an MP3 with a `.cdg` of the same stem beside it, which is what most commercial
   karaoke discs hold;
-- an **UltraStar song**: the `.txt` a singing game times its words in, and the MP3 it names.
+- an **UltraStar song**: the `.txt` a singing game times its words in, and the MP3 it names;
+- an **LRC song**: an `.lrc` of timed lyrics, and the MP3 of the same name.
 
 An MP3 on its own is not a song, because it has no words in it.
 
@@ -119,6 +120,7 @@ switched off.</sub></td>
 - **Video songs**, in an MP4.
 - **MP3+G songs** — an MP3 with a `.cdg` of the same stem.
 - **UltraStar songs** — the `.txt` a singing game times its words in, beside the MP3 it names.
+- **LRC songs** — an `.lrc` of timed lyrics, beside the MP3 of the same name.
 - **Songs arrive in packages** (`.kmpkg`), each carrying its own queue number, title, artist and
   analysis. Drop one in the packages folder, or onto the machine's window, and it goes in without a
   restart.
@@ -579,6 +581,9 @@ fills the screen, one you built yourself opens in a window, and either takes the
   itself, in Rust.
 - **An UltraStar song** is a `.txt` beside the MP3 it names. The machine reads its timed words and
   discards its pitches.
+- **An LRC song** is an `.lrc` beside the MP3 of the same name. A file that times each word gets the
+  word wipe. A file that times only its lines lights a whole line at a time, and counts you back in
+  after a break.
 - **A song's language is an ISO 639-1 code**, so you can ask a catalog what Portuguese it holds.
 
 ### Text encodings and writing systems

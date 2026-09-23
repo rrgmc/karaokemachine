@@ -28,6 +28,8 @@ pub enum SongKind {
     Cdg,
     /// An UltraStar `.txt` and the MP3 its header names.
     UltraStar,
+    /// An `.lrc` and the MP3 with its stem.
+    Lrc,
 }
 
 impl SongKind {
@@ -38,6 +40,7 @@ impl SongKind {
             Self::Video => "video",
             Self::Cdg => "cdg",
             Self::UltraStar => "ultrastar",
+            Self::Lrc => "lrc",
         }
     }
 
@@ -50,6 +53,7 @@ impl SongKind {
             "video" => Self::Video,
             "cdg" => Self::Cdg,
             "ultrastar" => Self::UltraStar,
+            "lrc" => Self::Lrc,
             _ => Self::Midi,
         }
     }
@@ -64,6 +68,7 @@ impl SongKind {
             "video" => Some(Self::Video),
             "cdg" => Some(Self::Cdg),
             "ultrastar" => Some(Self::UltraStar),
+            "lrc" => Some(Self::Lrc),
             _ => None,
         }
     }
@@ -92,7 +97,7 @@ impl SongKind {
     /// the enum — which exists because the curation tool compiles without the `video` feature. A
     /// control about the words is offered exactly where this is true.
     pub fn draws_words(self) -> bool {
-        matches!(self, Self::Midi | Self::UltraStar)
+        matches!(self, Self::Midi | Self::UltraStar | Self::Lrc)
     }
 
     /// Which sentence a page writes for this.
@@ -106,13 +111,19 @@ impl SongKind {
             Self::Video => "kind-video",
             Self::Cdg => "kind-cdg",
             Self::UltraStar => "kind-ultrastar",
+            Self::Lrc => "kind-lrc",
         }
     }
 
     /// Every key [`Self::key`] can return, for the parity tests in [`crate::words`].
     #[cfg(test)]
-    pub const KEYS: &'static [&'static str] =
-        &["kind-midi", "kind-video", "kind-cdg", "kind-ultrastar"];
+    pub const KEYS: &'static [&'static str] = &[
+        "kind-midi",
+        "kind-video",
+        "kind-cdg",
+        "kind-ultrastar",
+        "kind-lrc",
+    ];
 }
 
 /// What happened when the scanner last looked at a file.
@@ -158,6 +169,10 @@ pub enum ScanStatus {
     BadUltraStar,
     /// An UltraStar file whose named audio is not beside it, is not MP3, or is a video.
     UltraStarAudio,
+    /// An LRC file with no line that has a timestamp and words.
+    BadLrc,
+    /// An LRC file with no MP3 of its stem beside it, or one that is already another song.
+    LrcAudio,
     /// Parsing panicked. Kept as a status rather than allowed to end the scan.
     Panicked,
 }
@@ -177,6 +192,8 @@ impl ScanStatus {
             Self::BadGraphics => "bad_graphics",
             Self::BadUltraStar => "bad_ultrastar",
             Self::UltraStarAudio => "ultrastar_audio",
+            Self::BadLrc => "bad_lrc",
+            Self::LrcAudio => "lrc_audio",
             Self::Panicked => "panicked",
         }
     }
@@ -196,6 +213,8 @@ impl ScanStatus {
             "bad_graphics" => Self::BadGraphics,
             "bad_ultrastar" => Self::BadUltraStar,
             "ultrastar_audio" => Self::UltraStarAudio,
+            "bad_lrc" => Self::BadLrc,
+            "lrc_audio" => Self::LrcAudio,
             _ => Self::Panicked,
         }
     }
@@ -222,6 +241,8 @@ impl ScanStatus {
             Self::BadGraphics => "failure-bad-graphics",
             Self::BadUltraStar => "failure-bad-ultrastar",
             Self::UltraStarAudio => "failure-ultrastar-audio",
+            Self::BadLrc => "failure-bad-lrc",
+            Self::LrcAudio => "failure-lrc-audio",
             Self::Panicked => "failure-panicked",
         }
     }
@@ -243,6 +264,8 @@ impl ScanStatus {
         "failure-bad-graphics",
         "failure-bad-ultrastar",
         "failure-ultrastar-audio",
+        "failure-bad-lrc",
+        "failure-lrc-audio",
         "failure-panicked",
     ];
 }
@@ -312,6 +335,8 @@ pub struct ScannedSong {
     pub cdg: Option<CdgFacts>,
     /// What reading the file found, for an UltraStar song.
     pub ultrastar: Option<UltraStarFacts>,
+    /// What reading the file found, for an LRC song: the facts an UltraStar song has.
+    pub lrc: Option<UltraStarFacts>,
 }
 
 impl ScannedSong {
@@ -325,6 +350,8 @@ impl ScannedSong {
             SongKind::Cdg
         } else if self.ultrastar.is_some() {
             SongKind::UltraStar
+        } else if self.lrc.is_some() {
+            SongKind::Lrc
         } else {
             SongKind::Midi
         }
@@ -388,6 +415,12 @@ impl SuitabilityFacts {
     #[must_use]
     pub fn purpose_made(sung_ms: u32) -> Self {
         Self::from(&km_pack::purpose_made_suitability(sung_ms))
+    }
+
+    /// [`Self::purpose_made`], for a file whose words may be timed a line at a time.
+    #[must_use]
+    pub fn purpose_made_for(sung_ms: u32, granularity: km_song::LyricGranularity) -> Self {
+        Self::from(&km_pack::purpose_made_suitability_for(sung_ms, granularity))
     }
 }
 

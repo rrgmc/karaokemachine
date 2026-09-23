@@ -72,6 +72,8 @@ pub struct BuildReport {
     pub cdg_written: usize,
     /// UltraStar songs written.
     pub ultrastar_written: usize,
+    /// LRC songs written.
+    pub lrc_written: usize,
     /// Where the song list went, when one was asked for. Empty when it was not.
     ///
     /// Said back for the reason the version is: a build that wrote two files and named one leaves
@@ -733,6 +735,7 @@ fn report_from(outcome: &km_pack::BuildOutcome, version: &str) -> BuildReport {
         videos_transcoded: outcome.videos_transcoded,
         cdg_written: outcome.cdg_written,
         ultrastar_written: outcome.ultrastar_written,
+        lrc_written: outcome.lrc_written,
         listing_path: outcome
             .listing_path
             .as_ref()

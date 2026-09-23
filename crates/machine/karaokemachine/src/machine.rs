@@ -52,7 +52,7 @@ use crate::audiofocus;
 use crate::cdg::CdgSong;
 use crate::engine::{Engine, Sound};
 use crate::settings::{Paths, Settings, tidy};
-use crate::ultrastar::UltraStarSong;
+use crate::timed::TimedSong;
 use crate::video::VideoSong;
 
 /// What the machine does about SoundFonts — a second `impl Machine`, in a file of its own.
@@ -89,8 +89,8 @@ enum Media {
     /// **No `cfg` on this one**, unlike the variant above: `km-cdg` is pure Rust, so every build
     /// that can list one of these can play it.
     Cdg(Arc<CdgSong>),
-    /// A running UltraStar song: the MP3 decoder, and the words the display draws.
-    UltraStar(Arc<UltraStarSong>),
+    /// A running UltraStar or LRC song: the MP3 decoder, and the words the display draws.
+    Timed(Arc<TimedSong>),
 }
 
 /// What is loaded, and enough about it to describe it without going back to the catalog.
@@ -179,16 +179,17 @@ impl Loaded {
 
     /// The parsed MIDI song, if this is one.
     ///
-    /// **MIDI only, and an UltraStar song is not one**: switching the bank reloads whatever this
+    /// **MIDI only, and an UltraStar or LRC song is not one**: switching the bank reloads whatever this
     /// returns into the synthesizer. The words of either kind are [`Self::lyric_song`].
     fn song(&self) -> Option<&Arc<Song>> {
         match &self.media {
             Media::Midi(song) => Some(song),
-            Media::Video(_) | Media::Cdg(_) | Media::UltraStar(_) => None,
+            Media::Video(_) | Media::Cdg(_) | Media::Timed(_) => None,
         }
     }
 
-    /// The song whose lyric timeline the machine draws: a MIDI song, or an UltraStar song's words.
+    /// The song whose lyric timeline the machine draws: a MIDI song, or an UltraStar or LRC song's
+    /// words.
     ///
     /// **`None` for a song whose words are turned off, and this is the only place that says so.**
     /// The television's rows, the streamed screen's rows, `announce_lyric_line` and
@@ -200,7 +201,7 @@ impl Loaded {
         }
         match &self.media {
             Media::Midi(song) => Some(song),
-            Media::UltraStar(song) => Some(song.song()),
+            Media::Timed(song) => Some(song.song()),
             Media::Video(_) | Media::Cdg(_) => None,
         }
     }
@@ -227,10 +228,10 @@ enum LoadedMedia {
         /// Sent to the audio thread.
         track: TrackPlayer,
     },
-    /// An UltraStar song, split the same way and for the same reason.
-    UltraStar {
+    /// An UltraStar or LRC song, split the same way and for the same reason.
+    Timed {
         /// Kept on the control thread; dropping it stops decoding.
-        song: UltraStarSong,
+        song: TimedSong,
         /// Sent to the audio thread.
         track: TrackPlayer,
     },
@@ -277,8 +278,8 @@ fn split_media(
             Media::Cdg(Arc::new(song)),
             km_audio::audio::Load::Track(Box::new(track)),
         ),
-        LoadedMedia::UltraStar { song, track } => (
-            Media::UltraStar(Arc::new(song)),
+        LoadedMedia::Timed { song, track } => (
+            Media::Timed(Arc::new(song)),
             km_audio::audio::Load::Track(Box::new(track)),
         ),
     }
@@ -353,6 +354,7 @@ fn no_key_code(kind: SongKind) -> &'static str {
         SongKind::Video => "no_key_video",
         SongKind::Cdg => "no_key_cdg",
         SongKind::UltraStar => "no_key_ultrastar",
+        SongKind::Lrc => "no_key_lrc",
         SongKind::Unknown => "no_key",
     }
 }
@@ -364,6 +366,7 @@ fn no_tempo_code(kind: SongKind) -> &'static str {
         SongKind::Video => "no_tempo_video",
         SongKind::Cdg => "no_tempo_cdg",
         SongKind::UltraStar => "no_tempo_ultrastar",
+        SongKind::Lrc => "no_tempo_lrc",
         SongKind::Unknown => "no_tempo",
     }
 }
@@ -375,6 +378,7 @@ fn no_melody_code(kind: SongKind) -> &'static str {
         SongKind::Video => "no_melody_video",
         SongKind::Cdg => "no_melody_cdg",
         SongKind::UltraStar => "no_melody_ultrastar",
+        SongKind::Lrc => "no_melody_lrc",
         SongKind::Unknown => "no_melody",
     }
 }
@@ -1091,7 +1095,8 @@ impl Machine {
         self.lock_problems().retain(|held| held.path != path);
     }
 
-    /// The song whose lyric timeline is on the screen: a MIDI song, or an UltraStar song's words.
+    /// The song whose lyric timeline is on the screen: a MIDI song, or an UltraStar or LRC song's
+    /// words.
     ///
     /// `None` while a video or an MP3+G song is playing: its words are already in its own picture.
     pub fn current_lyric_song(&self) -> Option<Arc<Song>> {
@@ -1110,7 +1115,7 @@ impl Machine {
     pub fn current_video(&self) -> Option<Arc<VideoSong>> {
         match &self.lock_state().loaded.as_ref()?.media {
             Media::Video(song) => Some(Arc::clone(song)),
-            Media::Midi(_) | Media::Cdg(_) | Media::UltraStar(_) => None,
+            Media::Midi(_) | Media::Cdg(_) | Media::Timed(_) => None,
         }
     }
 
@@ -1120,7 +1125,7 @@ impl Machine {
     pub fn current_cdg(&self) -> Option<Arc<CdgSong>> {
         match &self.lock_state().loaded.as_ref()?.media {
             Media::Cdg(song) => Some(Arc::clone(song)),
-            Media::Midi(_) | Media::Video(_) | Media::UltraStar(_) => None,
+            Media::Midi(_) | Media::Video(_) | Media::Timed(_) => None,
         }
     }
 
@@ -1237,16 +1242,21 @@ impl Machine {
             return self.play_video_path(path);
         }
 
-        // A loose UltraStar song: its MP3, with the words the sender already read out of the `.txt`.
-        // Checked before the MP3+G pair, because an MP3 with words is not half of one.
+        // A loose UltraStar or LRC song: its MP3, with the words the sender already read out of its
+        // lyrics file. Checked before the MP3+G pair, because an MP3 with words is not half of one.
         if let Some(timeline) = decided.lyrics {
+            let kind = decided
+                .lyrics_kind
+                .filter(SongKind::carries_timeline)
+                .unwrap_or(SongKind::UltraStar);
             if !km_kmpkg::is_audio_file(path) {
                 return Err(ControlError::Rejected(format!(
-                    "{}: an UltraStar song's words arrive only with its MP3",
-                    path.display()
+                    "{}: {}'s words arrive only with its MP3",
+                    path.display(),
+                    kind.article_name()
                 )));
             }
-            return self.play_ultrastar_path(path, timeline, decided);
+            return self.play_timed_path(path, kind, timeline, decided);
         }
 
         // Either half of a loose MP3+G pair, auditioned before anybody has decided to package it.
@@ -1467,13 +1477,15 @@ impl Machine {
         self.start(loaded, 0, km_audio::audio::Load::Track(Box::new(track)))
     }
 
-    /// Plays a loose UltraStar song: an MP3 and the words the sender read out of its `.txt`.
+    /// Plays a loose UltraStar or LRC song: an MP3 and the words the sender read out of its lyrics
+    /// file.
     ///
-    /// The machine never reads an UltraStar file, so the words arrive as the timeline a package
-    /// stores, and from here the song plays as a packaged one does.
-    fn play_ultrastar_path(
+    /// The machine never reads either file, so the words arrive as the timeline a package stores,
+    /// and from here the song plays as a packaged one does.
+    fn play_timed_path(
         &self,
         audio: &Path,
+        kind: SongKind,
         timeline: &km_song::LyricTimeline,
         decided: &km_api::Audition<'_>,
     ) -> Result<(), ControlError> {
@@ -1491,7 +1503,7 @@ impl Machine {
             .duration_ms;
         let file = std::fs::File::open(audio).map_err(|error| rejected(&error))?;
         let name = audio.display().to_string();
-        let (song, track) = UltraStarSong::open_from(file, &name, timeline.clone(), rate)
+        let (song, track) = TimedSong::open_from(file, &name, timeline.clone(), rate)
             .map_err(|error| rejected(&error))?;
 
         let title = decided.title.map_or_else(
@@ -1508,19 +1520,20 @@ impl Machine {
             audio = %audio.display(),
             %title,
             duration_ms,
-            "playing an UltraStar song directly"
+            kind = kind.as_str(),
+            "playing a song with a lyric timeline directly"
         );
 
         let loaded = Loaded {
             origin: Origin::File { path: name },
             title,
-            kind: SongKind::UltraStar,
+            kind,
             artist: decided.artist.map(ToOwned::to_owned),
             language: None,
             singer: None,
             duration_ms,
             melody_channel: None,
-            // Nothing measures this for an UltraStar song — the three faults that answer it are
+            // Nothing measures this for an UltraStar or LRC song — the three faults that answer it are
             // read from MIDI events — so the curator's word is the only one, and their silence
             // draws the words.
             lyrics_hidden: decided.lyrics_hidden.unwrap_or(false),
@@ -1529,7 +1542,7 @@ impl Machine {
             // A loose file has no package, so nothing measured it. See `Loaded::loudness_lufs`.
             loudness_lufs: None,
             gain: Loaded::UNLEVELLED,
-            media: Media::UltraStar(Arc::new(song)),
+            media: Media::Timed(Arc::new(song)),
         };
         self.start(loaded, 0, km_audio::audio::Load::Track(Box::new(track)))
     }
@@ -2014,7 +2027,7 @@ impl Machine {
         let Some(song) = loaded.lyric_song().map(Arc::clone) else {
             return;
         };
-        // A MIDI song's clock is the sequencer's tick; an UltraStar song's is the audio's
+        // A MIDI song's clock is the sequencer's tick; an UltraStar or LRC song's is the audio's
         // position, which its millisecond tempo map turns into the timeline's ticks.
         let tick = if loaded.kind.is_midi() {
             self.engine.position_ticks()
@@ -2462,9 +2475,9 @@ impl Machine {
             return Ok(Some((LoadedMedia::Cdg { song, track }, row)));
         }
 
-        if row.kind.is_ultrastar() {
+        if row.kind.carries_timeline() {
             // The audio is seeked into, as an MP3+G song's is, and the words were turned into a
-            // timeline when the package was built: nothing here reads an UltraStar file.
+            // timeline when the package was built: nothing here reads an UltraStar or LRC file.
             let slot = u32::from(number.slot());
             let audio = package
                 .media_reader(slot)
@@ -2477,9 +2490,9 @@ impl Machine {
                 0 => 48_000,
                 rate => rate,
             };
-            let (song, track) = UltraStarSong::open_from(audio, &audio_name, timeline, rate)
+            let (song, track) = TimedSong::open_from(audio, &audio_name, timeline, rate)
                 .map_err(|error| CatalogError::Failed(format!("song {number}: {error}")))?;
-            return Ok(Some((LoadedMedia::UltraStar { song, track }, row)));
+            return Ok(Some((LoadedMedia::Timed { song, track }, row)));
         }
 
         // **The slot, not the whole number**, and the same for the three media lookups above. A
@@ -3453,16 +3466,16 @@ impl Catalog for Machine {
         if row.lyrics_hidden {
             return Ok(None);
         }
-        // An UltraStar song's timeline is read out of its package without its audio: loading the
-        // song whole would start a decoder thread to answer a question about its words.
-        if row.kind.is_ultrastar() {
+        // An UltraStar or LRC song's timeline is read out of its package without its audio: loading
+        // the song whole would start a decoder thread to answer a question about its words.
+        if row.kind.carries_timeline() {
             let Some((_, package)) = self.package_for(number)? else {
                 return Ok(None);
             };
             let timeline = package
                 .lyric_timeline(u32::from(number.slot()))
                 .map_err(|error| CatalogError::Failed(format!("song {number}: {error}")))?;
-            return Ok(Some(Arc::new(km_song::ultrastar::song_from_timeline(
+            return Ok(Some(Arc::new(km_song::recording::song_from_timeline(
                 timeline,
             ))));
         }
@@ -3475,9 +3488,9 @@ impl Catalog for Machine {
             .load_from_catalog(number)?
             .and_then(|(media, _)| match media {
                 LoadedMedia::Midi(song) => Some(song),
-                LoadedMedia::Video { .. }
-                | LoadedMedia::Cdg { .. }
-                | LoadedMedia::UltraStar { .. } => None,
+                LoadedMedia::Video { .. } | LoadedMedia::Cdg { .. } | LoadedMedia::Timed { .. } => {
+                    None
+                }
             }))
     }
 
@@ -5264,16 +5277,19 @@ mod tests {
             no_key_code(SongKind::Video),
             no_key_code(SongKind::Cdg),
             no_key_code(SongKind::UltraStar),
+            no_key_code(SongKind::Lrc),
             no_key_code(SongKind::Unknown),
             no_tempo_code(SongKind::Midi),
             no_tempo_code(SongKind::Video),
             no_tempo_code(SongKind::Cdg),
             no_tempo_code(SongKind::UltraStar),
+            no_tempo_code(SongKind::Lrc),
             no_tempo_code(SongKind::Unknown),
             no_melody_code(SongKind::Midi),
             no_melody_code(SongKind::Video),
             no_melody_code(SongKind::Cdg),
             no_melody_code(SongKind::UltraStar),
+            no_melody_code(SongKind::Lrc),
             no_melody_code(SongKind::Unknown),
             NO_MELODY_CHANNEL,
             NOTHING_PLAYING,
@@ -5299,6 +5315,7 @@ mod tests {
             (SongKind::Video, "video"),
             (SongKind::Cdg, "cdg"),
             (SongKind::UltraStar, "ultrastar"),
+            (SongKind::Lrc, "lrc"),
             (SongKind::Unknown, "other"),
         ] {
             assert_eq!(

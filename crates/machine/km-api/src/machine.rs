@@ -1216,11 +1216,13 @@ pub struct Audition<'a> {
     /// melody channel, and `Some(Some(channel))` names one. The guide-melody toggle is offered only
     /// on a song with a channel, so both inner states change what the preview offers.
     pub melody: Option<Option<u8>>,
-    /// The words of an UltraStar song, read out of its `.txt` by the sender.
+    /// The words of an UltraStar or LRC song, read out of its lyrics file by the sender.
     ///
-    /// Present only with the song's MP3, which is then played as an UltraStar song. The machine never
-    /// reads an UltraStar file, so the words arrive as the timeline a package stores.
+    /// Present only with the song's MP3, which is then played as that song. The machine never reads
+    /// either file, so the words arrive as the timeline a package stores.
     pub lyrics: Option<&'a km_song::LyricTimeline>,
+    /// Which kind of song [`Self::lyrics`] makes the MP3. `None` is an UltraStar song.
+    pub lyrics_kind: Option<SongKind>,
     /// Play the song and draw none of its words, in place of whatever this machine would measure.
     ///
     /// Three states in two, as the corrections are: `None` measures the file, `Some(true)` silences
@@ -1239,6 +1241,7 @@ impl Audition<'_> {
             && self.fixes.is_none()
             && self.melody.is_none()
             && self.lyrics.is_none()
+            && self.lyrics_kind.is_none()
             && self.lyrics_hidden.is_none()
     }
 }

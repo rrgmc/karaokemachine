@@ -157,6 +157,7 @@ pub fn refusal_kind(code: &str) -> &'static str {
         Some("video") => "video",
         Some("cdg") => "cdg",
         Some("ultrastar") => "ultrastar",
+        Some("lrc") => "lrc",
         _ => "other",
     }
 }
@@ -164,7 +165,7 @@ pub fn refusal_kind(code: &str) -> &'static str {
 /// A code with its kind suffix removed, so one arm serves every kind of one refusal.
 fn family(code: &str) -> &str {
     match code.rsplit_once('_') {
-        Some((head, "midi" | "video" | "cdg" | "ultrastar")) => head,
+        Some((head, "midi" | "video" | "cdg" | "ultrastar" | "lrc")) => head,
         _ => code,
     }
 }

@@ -227,9 +227,10 @@ room. It was the first upload endpoint here. For a long time it was **the only `
 the tree**. axum puts 2 MB on every request, which would refuse every MP3+G pair and every video. So
 the layer sits on this route at a gigabyte.
 
-**An UltraStar song crosses both debug routes as its MP3 and a `lyrics` field**, the JSON timeline a
-package stores. The package builder reads the `.txt`, because the machine never reads one. A `.txt`
-is not among the extensions an upload may be staged under.
+**An UltraStar or LRC song crosses both debug routes as its MP3 and a `lyrics` field**, the JSON
+timeline a package stores. A `lyrics_kind` field says `ultrastar` or `lrc`, and absent is
+`ultrastar`. The package builder reads the `.txt` or the `.lrc`, because the machine never reads
+either. Neither extension is among those an upload may be staged under.
 
 **There are four now**, and the other three are the owner's uploads: `POST /admin/packages/upload`,
 `POST /admin/wallpapers` and `POST /admin/audio/soundfonts`. They are the same shape with the

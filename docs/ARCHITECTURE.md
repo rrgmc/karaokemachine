@@ -24,6 +24,7 @@ Two neighbors worth knowing before you start:
 | [`stream.md`](architecture/stream.md) | `km-stream` encoding, the watch page, and what is silent when it is wrong |
 | [`cdg.md`](architecture/cdg.md) | `km-cdg`, packaging and curating MP3+G |
 | [`ultrastar.md`](architecture/ultrastar.md) | UltraStar songs: the parser, the timeline entry, finding the audio, playing it on the audio clock |
+| [`lrc.md`](architecture/lrc.md) | LRC songs: the parser, pairing by stem, and what they share with UltraStar |
 | [`songbook.md`](architecture/songbook.md) | `km-songbook`, the printed book |
 | [`api.md`](architecture/api.md) | `km-api` — control surface, admin mode, discovery |
 | [`display.md`](architecture/display.md) | `km-display`, the now bar, the browse bar, the keypad, the queue overlay, the lyric timing offset |

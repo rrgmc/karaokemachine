@@ -4444,6 +4444,30 @@ pub async fn unmerge(AxumState(state): AxumState<State>, UrlPath(id): UrlPath<St
 
 // -- listening ------------------------------------------------------------------------------
 
+/// An UltraStar or LRC file read for what a preview sends: its kind, its MP3 and its words.
+fn read_timed(
+    lyrics: &std::path::Path,
+) -> Result<
+    (
+        km_kmpkg::SongKind,
+        std::path::PathBuf,
+        km_song::LyricTimeline,
+    ),
+    String,
+> {
+    if km_pack::is_lrc_candidate(lyrics) {
+        let source = km_pack::read_lrc(lyrics).map_err(|refusal| refusal.to_string())?;
+        Ok((km_kmpkg::SongKind::Lrc, source.audio, source.song.timeline))
+    } else {
+        let source = km_pack::read_ultrastar(lyrics).map_err(|refusal| refusal.to_string())?;
+        Ok((
+            km_kmpkg::SongKind::UltraStar,
+            source.audio,
+            source.song.timeline,
+        ))
+    }
+}
+
 /// `POST /songs/{id}/play`
 pub async fn play(
     AxumState(state): AxumState<State>,
@@ -4473,23 +4497,25 @@ pub async fn play(
     // path against its *own* working directory, which is not this tool's; a machine elsewhere never
     // sees the path at all, and this is simply how the file gets opened here to be read.
     let absolute = crate::model::tidy(&path);
-    // An UltraStar song is found from its `.txt`, and the machine never reads one: the words are
-    // read here, and the machine is sent the MP3 the header names with the words beside it. The
-    // stem stays the `.txt`'s, so a title the machine falls back to is the one this page shows.
-    let ultrastar = if km_pack::is_ultrastar_candidate(&absolute) {
-        let text = absolute.clone();
-        let read = tokio::task::spawn_blocking(move || km_pack::read_ultrastar(&text)).await;
-        match read {
-            Ok(Ok(source)) => Some(source),
-            // Worded as the scan reported the same refusal, which is the sentence on this row already.
-            Ok(Err(refusal)) => {
-                return said(&reply, false, format!("{}: {refusal}", absolute.display()));
+    // An UltraStar song is found from its `.txt` and an LRC song from its `.lrc`, and the machine
+    // never reads either: the words are read here, and the machine is sent the MP3 with the words
+    // beside it. The stem stays the lyrics file's, so a title the machine falls back to is the one
+    // this page shows.
+    let timed =
+        if km_pack::is_ultrastar_candidate(&absolute) || km_pack::is_lrc_candidate(&absolute) {
+            let lyrics = absolute.clone();
+            let read = tokio::task::spawn_blocking(move || read_timed(&lyrics)).await;
+            match read {
+                Ok(Ok(source)) => Some(source),
+                // Worded as the scan reported the same refusal, which is the sentence on this row already.
+                Ok(Err(refusal)) => {
+                    return said(&reply, false, format!("{}: {refusal}", absolute.display()));
+                }
+                Err(join) => return said(&reply, false, join.to_string()),
             }
-            Err(join) => return said(&reply, false, join.to_string()),
-        }
-    } else {
-        None
-    };
+        } else {
+            None
+        };
     let decided = km_api::Audition {
         title: Some(title.as_str()),
         artist: artist.as_deref(),
@@ -4504,16 +4530,17 @@ pub async fn play(
         // offers is the one the package will.
         melody: crate::fixes::MelodyChoice::parse(detail.melody_chosen.as_deref())
             .map(crate::fixes::MelodyChoice::channel),
-        lyrics: ultrastar.as_ref().map(|source| &source.song.timeline),
+        lyrics: timed.as_ref().map(|(_, _, timeline)| timeline),
+        lyrics_kind: timed.as_ref().map(|(kind, _, _)| *kind),
         // Silent where nobody has said, so the machine measures the file exactly as a build would.
         // Where somebody has, this is what the preview exists to show them: a curator who has just
         // turned the words off is looking at the television to see the screen they chose.
         lyrics_hidden: detail.lyrics_hidden,
     };
-    // The file the machine plays: an UltraStar song's MP3, and every other song's own file.
-    let played = ultrastar
+    // The file the machine plays: an UltraStar or LRC song's MP3, and every other song's own file.
+    let played = timed
         .as_ref()
-        .map_or(absolute.as_path(), |source| source.audio.as_path());
+        .map_or(absolute.as_path(), |(_, audio, _)| audio.as_path());
 
     // Only the path route's refusal message uses this, but a workspace with no root is an error on
     // both branches — so it stays where it is rather than becoming conditional.
@@ -4531,8 +4558,8 @@ pub async fn play(
     } else {
         // Found here rather than over there: an MP3+G song is a `.mp3` and a `.cdg` sharing a stem,
         // and the half beside this one is on *this* disk. Both travel, staged under one name. An
-        // UltraStar song's MP3 has no partner: its words travel as a field.
-        let partner = if ultrastar.is_some() {
+        // UltraStar or LRC song's MP3 has no partner: its words travel as a field.
+        let partner = if timed.is_some() {
             None
         } else {
             km_kmpkg::pair_for(&absolute)
@@ -7066,6 +7093,9 @@ fn build_detail(report: &crate::build::BuildReport, locale: km_locale::Locale) -
     }
     if report.ultrastar_written > 0 {
         parts.push(counted("said-build-ultrastar", report.ultrastar_written));
+    }
+    if report.lrc_written > 0 {
+        parts.push(counted("said-build-lrc", report.lrc_written));
     }
     if parts.is_empty() {
         return String::new();

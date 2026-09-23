@@ -266,6 +266,8 @@ failure-not-audio = not a readable audio file
 failure-bad-graphics = a .cdg that draws no words at all
 failure-bad-ultrastar = an UltraStar file this machine does not play
 failure-ultrastar-audio = an UltraStar file whose MP3 is not beside it
+failure-bad-lrc = an LRC file with no timed words
+failure-lrc-audio = an LRC file with no MP3 of its own beside it
 failure-panicked = the parser panicked
 
 ## The checklist a long job draws ---------------------------------------------------
@@ -848,6 +850,7 @@ kind-midi = MIDI
 kind-video = video
 kind-cdg = MP3+G
 kind-ultrastar = UltraStar
+kind-lrc = LRC
 
 ## The curation tabs --------------------------------------------------------------------
 
@@ -1352,6 +1355,10 @@ said-build-cdg-pairs = { $count ->
 said-build-ultrastar = { $count ->
     [one] { $count } UltraStar song
    *[other] { $count } UltraStar songs
+  }
+said-build-lrc = { $count ->
+    [one] { $count } LRC song
+   *[other] { $count } LRC songs
   }
 said-build-left-out = { $count ->
     [one] { $count } song left out:

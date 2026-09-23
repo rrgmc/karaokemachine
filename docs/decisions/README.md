@@ -8,7 +8,8 @@ worth protecting. What the product must do is here too — a requirement and the
 it are the same entry. How the thing is built is [`ARCHITECTURE.md`](../ARCHITECTURE.md).
 
 [Foundations](foundations.md) · [Audio](audio.md) · [Songs and suitability](songs.md) ·
-[Song sources — video, MP3+G and UltraStar](song-sources.md) · [Packages and song numbers](packaging.md) ·
+[Song sources — video, MP3+G, UltraStar and LRC](song-sources.md) ·
+[Packages and song numbers](packaging.md) ·
 [Curation](curation.md) · [The remotes](remotes.md) ·
 [The API and the network](api-and-network.md) · [Streaming](streaming.md) ·
 [The interface](interface.md) ·
@@ -90,7 +91,7 @@ it are the same entry. How the thing is built is [`ARCHITECTURE.md`](../ARCHITEC
 - [A name made of marks is not a name](songs.md#a-name-made-of-marks-is-not-a-name)
 - [A song's words can be turned off, and three faults turn them off without being asked](songs.md#a-songs-words-can-be-turned-off-and-three-faults-turn-them-off-without-being-asked)
 
-## [Song sources — video, MP3+G and UltraStar](song-sources.md)
+## [Song sources — video, MP3+G, UltraStar and LRC](song-sources.md)
 
 - [Video as a song source](song-sources.md#video-as-a-song-source)
 - [What a video song does not have](song-sources.md#what-a-video-song-does-not-have)
@@ -119,6 +120,11 @@ it are the same entry. How the thing is built is [`ARCHITECTURE.md`](../ARCHITEC
 - [Which UltraStar files are songs](song-sources.md#which-ultrastar-files-are-songs)
 - [Where an UltraStar song's title, artist and language come from](song-sources.md#where-an-ultrastar-songs-title-artist-and-language-come-from)
 - [The machine never reads an UltraStar file](song-sources.md#the-machine-never-reads-an-ultrastar-file)
+- [LRC as a song source](song-sources.md#lrc-as-a-song-source)
+- [What an LRC song has, and what it does not](song-sources.md#what-an-lrc-song-has-and-what-it-does-not)
+- [Which LRC files are songs](song-sources.md#which-lrc-files-are-songs)
+- [Where an LRC song's title and artist come from](song-sources.md#where-an-lrc-songs-title-and-artist-come-from)
+- [The machine never reads an LRC file](song-sources.md#the-machine-never-reads-an-lrc-file)
 
 ## [Packages and song numbers](packaging.md)
 
@@ -382,6 +388,7 @@ it are the same entry. How the thing is built is [`ARCHITECTURE.md`](../ARCHITEC
 - [The connect panel's box is the size of what is in it](interface.md#the-connect-panels-box-is-the-size-of-what-is-in-it)
 - [The song book](interface.md#the-song-book)
 - [A lyric line that will not fit](interface.md#a-lyric-line-that-will-not-fit)
+- [A line-timed song lights a line at a time](interface.md#a-line-timed-song-lights-a-line-at-a-time)
 - [A song whose words are turned off draws none, and says so in the corner](interface.md#a-song-whose-words-are-turned-off-draws-none-and-says-so-in-the-corner)
 - [What the machine does when nobody is singing](interface.md#what-the-machine-does-when-nobody-is-singing)
 - [Skip into silence asks demo mode for a song](interface.md#skip-into-silence-asks-demo-mode-for-a-song)

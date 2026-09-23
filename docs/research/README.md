@@ -9,7 +9,7 @@ trust it. Add one when an investigation produces knowledge worth not repeating.
 
 | Note | Subject | Bearing on the project |
 |---|---|---|
-| [`st3.md`](st3.md) | The Star 3 (`.st3`) karaoke format | Supporting it would be a **requirements change** — MIDI, video, MP3+G and UltraStar are the only permitted sources. Undecided. |
+| [`st3.md`](st3.md) | The Star 3 (`.st3`) karaoke format | Supporting it would be a **requirements change** — MIDI, video, MP3+G, UltraStar and LRC are the only permitted sources. Undecided. |
 | [`ultrastar.md`](ultrastar.md) | UltraStar (`.txt`) syllable-timed lyrics beside an audio file | Read for the synced lyrics only. It reuses the MP3+G audio path and the MIDI lyric renderer. A local collection measures the dialects: unversioned files, decimal commas, legacy code pages and 18% relative mode, which converts to absolute beats. Public content is text without audio. **Decided**: see `UltraStar as a song source` in `song-sources.md`. |
 | [`kar-formats.md`](kar-formats.md) | What a `.kar` file puts in its lyric stream | **Findings only.** Five formats share the extension, and the lyric stream also carries credits, legal notices and section labels — three ways, one of which announces itself. |
 | [`midi-loudness.md`](midi-loudness.md) | How far apart MIDI songs are, and what could level them | Levelling them is a **change to a decision** — `Video and MP3+G play at the MIDI reference level` makes MIDI the untouched reference. Undecided. |

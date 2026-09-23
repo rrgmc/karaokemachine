@@ -183,7 +183,8 @@ impl Db {
                     let midi = song.midi.as_ref();
                     let video = song.video.as_ref();
                     let cdg = song.cdg.as_ref();
-                    let ultrastar = song.ultrastar.as_ref();
+                    // An LRC song's facts are an UltraStar song's, and land in the same columns.
+                    let ultrastar = song.ultrastar.as_ref().or(song.lrc.as_ref());
                     // Read once and bound twice, so the code and the confidence beside it cannot
                     // come from two different readings of the same song.
                     let guessed = km_langguess::guess(

@@ -1346,6 +1346,7 @@ pub async fn play_file(
         transpose,
         melody,
         lyrics,
+        lyrics_kind,
         lyrics_hidden,
         ..
     } = body;
@@ -1362,6 +1363,7 @@ pub async fn play_file(
                 fixes: fixes.as_deref(),
                 melody,
                 lyrics: lyrics.as_ref(),
+                lyrics_kind,
                 lyrics_hidden,
             },
         )?;
@@ -1416,12 +1418,19 @@ pub const TRANSPOSE_FIELD: &str = "transpose";
 /// tell from the curator's choice being wrong.
 pub const MELODY_FIELD: &str = "melody";
 
-/// The optional text part carrying an UltraStar song's words, as the JSON timeline a package stores.
+/// The optional text part carrying an UltraStar or LRC song's words, as the JSON timeline a package
+/// stores.
 ///
-/// Sent beside the song's MP3, because the machine never reads an UltraStar file. Refused when it
+/// Sent beside the song's MP3, because the machine never reads either file. Refused when it
 /// will not read, for the corrections' reason: a song playing with no words looks like a fault in
 /// the song rather than in the request.
 pub const LYRICS_FIELD: &str = "lyrics";
+
+/// The optional text part naming which file the words were read from: `ultrastar` or `lrc`.
+///
+/// Absent is `ultrastar`. A value naming another kind is refused, because the words would then be
+/// played as a song they do not belong to.
+pub const LYRICS_KIND_FIELD: &str = "lyrics_kind";
 
 /// The optional text part saying whether to draw the song's words: `true` or `false`.
 ///
@@ -1519,6 +1528,7 @@ pub async fn play_upload(
     let mut transpose: Option<i8> = None;
     let mut melody: Option<Option<u8>> = None;
     let mut lyrics: Option<km_song::LyricTimeline> = None;
+    let mut lyrics_kind: Option<km_catalog::SongKind> = None;
     let mut lyrics_hidden: Option<bool> = None;
     let mut names: Vec<String> = Vec::new();
     let mut total: usize = 0;
@@ -1589,6 +1599,20 @@ pub async fn play_upload(
                 lyrics = Some(serde_json::from_str(&text).map_err(|error| {
                     ApiError::BadRequest(format!("the {LYRICS_FIELD} are not a timeline: {error}"))
                 })?);
+            } else if field.name() == Some(LYRICS_KIND_FIELD) {
+                let text = field.text().await.map_err(|error| {
+                    ApiError::BadRequest(format!(
+                        "the {LYRICS_KIND_FIELD} could not be read: {}",
+                        error.body_text()
+                    ))
+                })?;
+                let kind = km_catalog::SongKind::from_wire(text.trim());
+                if !kind.carries_timeline() {
+                    return Err(ApiError::BadRequest(format!(
+                        "the {LYRICS_KIND_FIELD} is neither `ultrastar` nor `lrc`: {text}"
+                    )));
+                }
+                lyrics_kind = Some(kind);
             } else if field.name() == Some(LYRICS_HIDDEN_FIELD) {
                 let text = field.text().await.map_err(|error| {
                     ApiError::BadRequest(format!(
@@ -1653,6 +1677,7 @@ pub async fn play_upload(
                 fixes: fixes.as_deref(),
                 melody,
                 lyrics: lyrics.as_ref(),
+                lyrics_kind,
                 lyrics_hidden,
             },
         )?;

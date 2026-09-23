@@ -2049,6 +2049,36 @@ step and the line stays a lyric.
 **When even the narrowest will not fit, it is used and SDL clips it.** There is no legible rendering of
 a 1,667-character line, and every alternative is only a different way of being unreadable.
 
+## A line-timed song lights a line at a time
+
+**A line whose file times only its start lights whole at that start, and is never wiped.** A wipe
+says where the singer is inside the line. A line-timed file does not know that, so a wipe would
+cross the line at a speed nobody chose. It would also carry on across the pause after the line.
+It applies to every line-timed song, an LRC file and a MIDI file alike. The fault is in the timing,
+not in the kind.
+
+**Precise at the one moment the file knows.** The line changes color exactly on its timestamp. The
+two fixed rows stay as they are, with the next line dimmed below.
+
+**A line ends when its file says, or after a hold.** A blank line in an LRC file ends the line
+before it. Otherwise the line runs until the next one starts. That includes any solo after it, so
+the machine counts the line as sung for a fixed hold of beats.
+
+**Before a long gap, the lit line fades out after its hold.** A line still lit over a guitar break
+reads as words the singer missed. A line followed at once by the next never fades, because a fade
+over a breath looks like a fault.
+
+**A line after a long gap is cued in.** A bar above it fills over a bar of music and is full exactly
+when the line lights. The song's first line after its intro has one too. The cued line is drawn in the
+pending color rather than dimmed, because the cue says it comes next.
+
+**Coming back in is the hard part, and the cue answers it.** A commercial machine counts a singer
+back in after a break, and a line-timed file gives the exact moment to count to. A bar across the
+line while it is sung would show time passing, and time passing is not where the singer is.
+
+**A song timed by the syllable is unchanged.** It keeps its wipe, and no line of it fades or is cued.
+Whether a song is line-timed is the file's timing on average, as the suitability reads it.
+
 ## A song whose words are turned off draws none, and says so in the corner
 
 **The lyric band is empty, the way it is for a video song**. The badge run at the top right

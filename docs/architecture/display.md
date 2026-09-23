@@ -923,6 +923,28 @@ Five details that are easy to get wrong, and one that already was:
 lines are 27 and 25 characters. **So a sheet that exists to be judged by eye could not show the one
 defect the eye would catch instantly.** It carries a 56-character line and an 85-character one.
 
+## A line-timed song, drawn a line at a time
+
+**`LyricView::frame` decides the mode per frame from `LyricTimeline::granularity`.** A line-level
+timeline reports its current line as the last syllable at full progress once the line has started.
+`draw_wiped_line` then draws it whole in the sung color, so the renderer needed no mode of its own.
+The cost is one pass over the lines per frame, which is small beside drawing them.
+
+**Two fields on `VisibleLine` carry the rest, and both stay neutral for a syllable-timed song.**
+`opacity` fades the current line once its singing is over, before a long gap. `cue` is the fill of
+the lead-in bar over a line that starts after one. `draw_lead_in_cue` draws that bar above the words,
+inside the row, so it stays in the band the wallpaper pack measures.
+
+**The thresholds are beats, scaled by `for_ticks_per_quarter`**, as the lead-in is. A millisecond
+timeline's beat is half a second, so the hold is four seconds and the cue two. `CUE_BEATS` is
+asserted no longer than `LEAD_IN_BEATS` at compile time, because a cue on a line not yet shown
+fills under nothing.
+
+**`sung_until` trusts an end the file gave.** The file bounded a line whose end is before the next
+start: a blank LRC line, or the last line's hold. Only a line that runs into the next start
+takes the hold instead. The faded line stays the frame's current line, so `current()` and the
+page logic see nothing new.
+
 ## The keypad line, which was the other one
 
 **The keypad line had the same fault, and it went unfixed for another release.** The sentence

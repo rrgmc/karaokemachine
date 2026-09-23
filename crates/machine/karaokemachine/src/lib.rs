@@ -70,9 +70,9 @@ mod soundfont;
 #[cfg(feature = "video")]
 mod stream;
 // The icon in the bar, for a streaming run that has no window to be its face.
+mod timed;
 #[cfg(all(feature = "video", feature = "tray"))]
 mod tray;
-mod ultrastar;
 mod video;
 
 use std::net::SocketAddr;

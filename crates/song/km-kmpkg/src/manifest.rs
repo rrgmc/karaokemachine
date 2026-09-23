@@ -14,7 +14,7 @@ use sha2::{Digest, Sha256};
 ///
 /// Note that it is **not** what a package is written as: see [`FORMAT_VERSION_MIDI_ONLY`]. What a
 /// reader opens is [`FORMAT_VERSIONS_READ`].
-pub const FORMAT_VERSION: u32 = 5;
+pub const FORMAT_VERSION: u32 = 6;
 
 /// The version written for a package that holds only MIDI songs.
 ///
@@ -37,15 +37,23 @@ pub const FORMAT_VERSION_MEDIA: u32 = 4;
 /// version it had.
 pub const FORMAT_VERSION_ULTRASTAR: u32 = 5;
 
+/// The version written for a package that holds any LRC song.
+///
+/// **An LRC song is stored exactly as an UltraStar song is**, and a format 5 reader would open one.
+/// It would then meet a kind it does not know. The version makes that refusal name the build that
+/// reads it, as [`FORMAT_VERSION_ULTRASTAR`] does. A package without one keeps the version it had.
+pub const FORMAT_VERSION_LRC: u32 = 6;
+
 /// The manifest versions this build opens: exactly the ones it writes.
 ///
 /// **Any other number is refused, older or newer**, by the rule in `A store opens at its current
 /// version or is refused`. A version this build does not write is a shape it does not read, and a
 /// package read as a shape it does not have fails song by song rather than at the door.
-pub const FORMAT_VERSIONS_READ: [u32; 3] = [
+pub const FORMAT_VERSIONS_READ: [u32; 4] = [
     FORMAT_VERSION_MIDI_ONLY,
     FORMAT_VERSION_MEDIA,
     FORMAT_VERSION_ULTRASTAR,
+    FORMAT_VERSION_LRC,
 ];
 
 /// What kind of file a song is.
@@ -68,6 +76,8 @@ pub enum SongKind {
     /// An MP3 and the lyric timeline read from the UltraStar file beside it, both inside the
     /// package.
     UltraStar,
+    /// An MP3 and the lyric timeline read from the LRC file beside it, both inside the package.
+    Lrc,
     /// A kind written by a build newer than this one. Never constructed here.
     ///
     /// **This catch-all is the load-bearing part, and it was added a kind too late to help.**
@@ -109,10 +119,26 @@ impl SongKind {
         matches!(self, Self::UltraStar)
     }
 
+    /// Whether this is an LRC song: an MP3 and a lyric timeline, both inside the archive.
+    #[must_use]
+    pub fn is_lrc(&self) -> bool {
+        matches!(self, Self::Lrc)
+    }
+
+    /// Whether this song is an MP3 with a lyric timeline stored beside it in the archive.
+    ///
+    /// **UltraStar and LRC differ only in the file the timeline was read from**, and the package
+    /// builder reads that file. Everything that loads, stores or plays the song asks this question,
+    /// and only a label asks which of the two it is.
+    #[must_use]
+    pub fn carries_timeline(&self) -> bool {
+        matches!(self, Self::UltraStar | Self::Lrc)
+    }
+
     /// Whether the machine draws this song's words, rather than the song bringing its own picture.
     #[must_use]
     pub fn draws_words(&self) -> bool {
-        matches!(self, Self::Midi | Self::UltraStar)
+        matches!(self, Self::Midi | Self::UltraStar | Self::Lrc)
     }
 
     /// The wire name, as it appears in a manifest and in the API.
@@ -123,6 +149,7 @@ impl SongKind {
             Self::Video => "video",
             Self::Cdg => "cdg",
             Self::UltraStar => "ultrastar",
+            Self::Lrc => "lrc",
             Self::Unknown => "unknown",
         }
     }
@@ -144,6 +171,7 @@ impl SongKind {
             "video" => Self::Video,
             "cdg" => Self::Cdg,
             "ultrastar" => Self::UltraStar,
+            "lrc" => Self::Lrc,
             _ => Self::Unknown,
         }
     }
@@ -156,6 +184,7 @@ impl SongKind {
             Self::Video => "a video song",
             Self::Cdg => "an MP3+G song",
             Self::UltraStar => "an UltraStar song",
+            Self::Lrc => "an LRC song",
             Self::Unknown => "this song",
         }
     }
@@ -882,6 +911,26 @@ impl SuitabilityRecord {
         }
     }
 
+    /// What a file made to be sung to scores when its words are timed a line at a time.
+    ///
+    /// Two points off the words, as a MIDI file timed by the line loses them: the line lights when
+    /// it starts, and nothing follows the singing across it. The timing it has is a person's, so the
+    /// other three components stay full. The caller supplies the warning, as for
+    /// [`Self::too_brief_to_choose`].
+    #[must_use]
+    pub fn purpose_made_line_timed(warning: WarningRecord) -> Self {
+        Self {
+            value: 8,
+            breakdown: BreakdownRecord {
+                lyrics: 1,
+                sync: 3,
+                channels: 2,
+                arrangement: 2,
+            },
+            warnings: vec![warning],
+        }
+    }
+
     /// What a file made to be sung to scores when there is too little of it to sing.
     ///
     /// The same four points a MIDI file of the same length keeps, the backing being spread across
@@ -988,7 +1037,7 @@ pub enum ManifestProblem {
         /// The number that duplicates it.
         second: u32,
     },
-    /// An MP3+G or UltraStar song's `file` does not name an audio file, so the entry beside its
+    /// An MP3+G, UltraStar or LRC song's `file` does not name an audio file, so the entry beside its
     /// audio cannot be found.
     FileNotAudio {
         /// The song number.
@@ -1022,7 +1071,8 @@ impl std::fmt::Display for ManifestProblem {
             Self::UnsupportedFormat(version) => write!(
                 f,
                 "manifest format {version} is not one this build reads (it reads \
-                 {FORMAT_VERSION_MIDI_ONLY}, {FORMAT_VERSION_MEDIA} and {FORMAT_VERSION_ULTRASTAR})"
+                 {FORMAT_VERSION_MIDI_ONLY}, {FORMAT_VERSION_MEDIA}, {FORMAT_VERSION_ULTRASTAR} and \
+                 {FORMAT_VERSION_LRC})"
             ),
             Self::DuplicateNumber(number) => write!(
                 f,
@@ -1127,13 +1177,21 @@ impl Manifest {
         self.songs.iter().any(|song| song.kind.is_ultrastar())
     }
 
+    /// Whether any song in this package is an LRC song.
+    #[must_use]
+    pub fn has_lrc(&self) -> bool {
+        self.songs.iter().any(|song| song.kind.is_lrc())
+    }
+
     /// The format version this manifest should be written as.
     ///
     /// Chosen by content rather than fixed, so adopting video costs nothing to the packages that
     /// do not use it. See [`FORMAT_VERSION_MIDI_ONLY`].
     #[must_use]
     pub fn required_format(&self) -> u32 {
-        if self.has_ultrastar() {
+        if self.has_lrc() {
+            FORMAT_VERSION_LRC
+        } else if self.has_ultrastar() {
             FORMAT_VERSION_ULTRASTAR
         } else if self.has_cdg() || self.has_video() {
             FORMAT_VERSION_MEDIA
@@ -1259,7 +1317,9 @@ impl Manifest {
                     number: song.number,
                     path: song.file.clone(),
                 });
-            } else if (song.kind.is_cdg() || song.kind.is_ultrastar()) && !names_audio(&song.file) {
+            } else if (song.kind.is_cdg() || song.kind.carries_timeline())
+                && !names_audio(&song.file)
+            {
                 // An MP3+G song's graphics are found by rule from its audio's name, so a `file`
                 // that is not audio makes `graphics_path` return nothing at all. Caught here
                 // because the alternative surfaces at singing time as "song 421 names no usable
