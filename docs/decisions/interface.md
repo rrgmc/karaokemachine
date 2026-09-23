@@ -2072,6 +2072,10 @@ over a breath looks like a fault.
 when the line lights. The song's first line after its intro has one too. The cued line is drawn in the
 pending color rather than dimmed, because the cue says it comes next.
 
+**The next line brightens as it comes.** It sits dimmed below the live one. Over the
+last two beats before it starts, it brightens to the pending color, and it lights on its start.
+Lines sung back to back get no cue, so this shows the singer the next line coming without a bar.
+
 **Coming back in is the hard part, and the cue answers it.** A commercial machine counts a singer
 back in after a break, and a line-timed file gives the exact moment to count to. A bar across the
 line while it is sung would show time passing, and time passing is not where the singer is.

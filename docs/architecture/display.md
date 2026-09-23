@@ -932,7 +932,8 @@ The cost is one pass over the lines per frame, which is small beside drawing the
 
 **Two fields on `VisibleLine` carry the rest, and both stay neutral for a syllable-timed song.**
 `opacity` fades the current line once its singing is over, before a long gap. `cue` is the fill of
-the lead-in bar over a line that starts after one. `draw_lead_in_cue` draws that bar above the words,
+the lead-in bar over a line that starts after one. `brightened` moves the upcoming row from the
+upcoming color to the pending one, through `draw::mix`. `draw_lead_in_cue` draws that bar above the words,
 inside the row, so it stays in the band the wallpaper pack measures.
 
 **The thresholds are beats, scaled by `for_ticks_per_quarter`**, as the lead-in is. A millisecond

@@ -2479,6 +2479,19 @@ fn idle_preview_half_width(frame: &Frame<'_>, theme: &Theme, layout: Layout) -> 
     half
 }
 
+/// A color part of the way from `from` to `to`, alpha included.
+fn mix(from: Color, to: Color, share: f32) -> Color {
+    let share = share.clamp(0.0, 1.0);
+    let channel =
+        |a: u8, b: u8| (f32::from(a) + (f32::from(b) - f32::from(a)) * share).round() as u8;
+    Color::RGBA(
+        channel(from.r, to.r),
+        channel(from.g, to.g),
+        channel(from.b, to.b),
+        channel(from.a, to.a),
+    )
+}
+
 /// How tall the lead-in cue is, as a share of the line it sits above.
 const CUE_HEIGHT: f32 = 0.08;
 
@@ -2717,7 +2730,11 @@ fn draw_playing<T: RenderTarget, C>(
                 let color = if visible.cue.is_some() {
                     theme.lyric_pending
                 } else {
-                    theme.lyric_upcoming
+                    mix(
+                        theme.lyric_upcoming,
+                        theme.lyric_pending,
+                        visible.brightened,
+                    )
                 };
                 draw_text(
                     canvas,

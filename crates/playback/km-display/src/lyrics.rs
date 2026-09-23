@@ -51,6 +51,10 @@ pub struct VisibleLine {
     ///
     /// Only a line-timed song has one. See [`LyricView::cue_ticks`].
     pub cue: Option<f32>,
+    /// How far an upcoming line-timed line has brightened toward the pending color, 0.0 to 1.0.
+    ///
+    /// Only the line not yet current has one. See [`LyricView::brighten_ticks`].
+    pub brightened: f32,
 }
 
 /// What to draw for one frame.
@@ -103,6 +107,11 @@ pub struct LyricView {
     /// Between two lines sung back to back a cue would flicker, and a line fading for a breath would
     /// read as a fault.
     pub cue_min_gap_ticks: u32,
+    /// How long the upcoming line-timed line takes to brighten before it starts, in ticks.
+    ///
+    /// The upcoming line is dim so the eye knows which line is live. Two lines sung back to back get
+    /// no cue, so the next one brightens instead, and the singer sees it coming.
+    pub brighten_ticks: u32,
 }
 
 /// Beats of lead-in: two bars of common time.
@@ -120,6 +129,9 @@ const FADE_BEATS: u32 = 1;
 
 /// Beats the lead-in cue takes to fill: one bar, which is how a count-in is felt.
 const CUE_BEATS: u32 = 4;
+
+/// Beats the upcoming line-timed line takes to brighten before it starts.
+const BRIGHTEN_BEATS: u32 = 2;
 
 /// Beats of gap before a line-timed line that earn a fade and a cue.
 const CUE_MIN_GAP_BEATS: u32 = 6;
@@ -144,6 +156,7 @@ impl LyricView {
             fade_ticks: beat * FADE_BEATS,
             cue_ticks: beat * CUE_BEATS,
             cue_min_gap_ticks: beat * CUE_MIN_GAP_BEATS,
+            brighten_ticks: beat * BRIGHTEN_BEATS,
         }
     }
 
@@ -178,13 +191,18 @@ impl LyricView {
                 }
                 (true, true) => (None, 0.0),
             };
-            let (opacity, cue) = if line_timed {
+            let (opacity, cue, brightened) = if line_timed {
                 (
                     self.opacity(timeline, index, tick),
                     self.cue(timeline, index, tick),
+                    if is_current {
+                        0.0
+                    } else {
+                        self.brightened(line, tick)
+                    },
                 )
             } else {
-                (1.0, None)
+                (1.0, None, 0.0)
             };
             lines.push(VisibleLine {
                 index,
@@ -194,6 +212,7 @@ impl LyricView {
                 syllable_progress,
                 opacity,
                 cue,
+                brightened,
             });
         }
 
@@ -263,6 +282,18 @@ impl LyricView {
             return None;
         }
         Some(((tick - from) as f32 / self.cue_ticks.max(1) as f32).clamp(0.0, 1.0))
+    }
+
+    /// How far an upcoming line-timed line has brightened at `tick`.
+    ///
+    /// **Full exactly at the line's start**, where it becomes the current line and lights. It reaches
+    /// every line, back to back or after a gap, because it asks only when the line starts.
+    fn brightened(&self, line: &LyricLine, tick: u32) -> f32 {
+        let from = line.start_tick.saturating_sub(self.brighten_ticks);
+        if tick < from {
+            return 0.0;
+        }
+        ((tick - from) as f32 / self.brighten_ticks.max(1) as f32).clamp(0.0, 1.0)
     }
 
     /// The line the singer is on.
@@ -810,5 +841,31 @@ mod tests {
             .expect("the first line waits in the top row");
         assert_eq!(first.index, 0);
         assert!(first.cue.is_some_and(|cue| cue > 0.7));
+    }
+
+    #[test]
+    fn the_next_line_timed_line_brightens_before_it_starts_even_back_to_back() {
+        let lyrics = line_timed(WITH_A_SOLO);
+        let view = ms_view();
+        let early = view.frame(&lyrics, 13_000 - view.brighten_ticks - 1);
+        assert_eq!(early.lines[1].brightened, 0.0);
+
+        let halfway = view.frame(&lyrics, 13_000 - view.brighten_ticks / 2);
+        let next = &halfway.lines[1];
+        assert_eq!(next.index, 1);
+        assert!((next.brightened - 0.5).abs() < 0.01, "{}", next.brightened);
+        assert_eq!(next.cue, None, "a line sung back to back has no cue");
+        assert_eq!(
+            halfway.lines[0].brightened, 0.0,
+            "the current line has none"
+        );
+    }
+
+    #[test]
+    fn a_syllable_timed_songs_next_line_does_not_brighten() {
+        let lyrics = timeline(&testing::soft_karaoke());
+        let start = lyrics.lines[1].start_tick;
+        let frame = view().frame(&lyrics, start - 1);
+        assert!(frame.lines.iter().all(|line| line.brightened == 0.0));
     }
 }
