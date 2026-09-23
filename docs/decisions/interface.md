@@ -247,16 +247,16 @@ is **KM Simple Package**, and that is what a Start Menu entry, a macOS bundle an
 call it. The window title keeps the long name, as the builder's does.
 
 **No hue is left to give it.** The four leads are spent, and the magenta already shares a hue with
-its own band. The blue is the honest choice, because the two programs make the same packages. The
-simple one makes them in one step, from a folder, with no curation database.
+its own band. The blue says the two programs belong together, because they make the same packages.
+The simple one makes them in one step, from a folder, with no curation database.
 
 **The bolt is a badge, in the corner the stream badge uses.** A badge separates two things that
 stand side by side, and these two do: both can sit in one taskbar. A bolt is the stock glyph for
 *quick*, and it keeps clear of the M. `km_display::icon`'s test holds that outside the bolt's corner
 the mark is byte-identical to the builder's.
 
-**Below 32 pixels the bolt is a blue corner rather than a glyph.** At that size it has to say *not
-the builder*, and it does.
+**Below 32 pixels the bolt is a blue corner rather than a glyph.** At that size it only has to say
+*not the builder*.
 
 ## The on-screen number pad
 

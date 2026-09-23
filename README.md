@@ -114,9 +114,6 @@ switched off.</sub></td>
 
 - **Songs arrive in packages** (`.kmpkg`). Each one carries its own queue numbers, titles, artists
   and analysis, and it goes in without a restart.
-- **KM Simple Package makes a package from a folder of your own songs in one step.** It is for
-  songs you want on the machine without curating them first, so each package it writes is marked
-  *uncurated*.
 - **A language per song**, so a catalog can say what Portuguese it has.
 - **A 0–10 suitability rating** for every file, with a breakdown.
 - **The melody channel, where the machine can find it with confidence**, and a stated reason where
@@ -365,9 +362,8 @@ A change renumbers every song in that package, so **a printed list becomes wrong
 refuses while a song of the package plays or waits in the queue. Do it once, when the package goes
 in.
 
-To make a package from a folder of your own files, open KM Simple Package, `km-package-simple`.
-Choose the folder, rename or leave out songs, and build. Each package is marked *uncurated*. To
-choose the songs with more care, see [Getting a corpus into shape](#getting-a-corpus-into-shape).
+To make a package from a folder of your own files, see
+[Getting a corpus into shape](#getting-a-corpus-into-shape).
 
 ### The remotes
 
@@ -527,10 +523,14 @@ favorite, edit its title and artist, and look it up on YouTube">
 <br><sub><b>km-package-builder</b>, for getting a folder of files into shape before it is packaged.</sub>
 </p>
 
-**Five tools turn a folder of files into packages.** `km-package-builder` curates the folder, and
-`km-package-simple` makes an *uncurated* package from it in one step. `km-pack` builds and checks
-packages, and `km-lyrics` shows one file's parsed timeline. `km-wallpaper-pack` builds a wallpaper
-set from pictures the lyrics stay readable over.
+**KM Simple Package, `km-package-simple`, makes a package from a folder in one step.** It is for
+songs you want on the machine without curating them first. Choose the folder, rename a song or leave
+it out, and build. Each package it writes is marked *uncurated*, and the machine's package lists
+show the mark.
+
+**Four more tools turn a folder of files into packages.** `km-package-builder` curates the folder,
+`km-pack` builds and checks packages, and `km-lyrics` shows one file's parsed timeline.
+`km-wallpaper-pack` builds a wallpaper set from pictures the lyrics stay readable over.
 
 ```sh
 # Curation: a local web server at http://127.0.0.1:8178. Browse, search the lyrics themselves,

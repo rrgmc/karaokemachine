@@ -562,9 +562,10 @@ sends that, so the tracked file names no version. Edit its `What changed` list b
 is a re-run.
 
 **Linux carries three**, and the third is `karaokemachine-tools`. That package holds the two package
-builders, the offline remote and km-admin, and the machine Recommends it. It is a download beside the
-machine's `.deb` rather than something `apt` fetches, there being no repository to fetch it from.
-`task dist:deb:tools` stages it, and the release page names both files in one `apt install` line.
+builders, the offline remote and km-admin, and the machine Recommends it. It is a download beside
+the machine's `.deb` rather than something `apt` fetches, there being no repository to fetch it
+from. `task dist:deb:tools` stages it, and the release page names both files in one `apt install`
+line.
 
 **The macOS carrier is the notarized package**, which is why that row names
 `task dist:setup:notarized` and its pattern stops at the architecture. The signed-only and ad-hoc
@@ -1708,8 +1709,8 @@ cargo km-pack-video spec ./songs --out v.yaml --no-transcode
   download normally does. `--no-transcode` stores irregular files as they are; one the machine could
   not *play* is still refused.
 - **A description `spec` writes says `uncurated: true`**, and the build marks the package with it.
-  Nobody has reviewed a walk of a folder. Delete the line once somebody has. `inspect` and
-  `check` print a package's flags by name, and the listing says it too. See
+  Nobody has reviewed a walk of a folder. Delete the line once somebody has. `inspect` and `check`
+  print a package's flags by name, and so does the listing beside the package. See
   [`An uncurated package says so everywhere but the television`](docs/decisions/packaging.md#an-uncurated-package-says-so-everywhere-but-the-television).
 - **`book` needs no `video` feature and no ffmpeg**, unlike every other command that meets a video
   song. A book is manifest metadata and never opens a song's bytes.
@@ -1779,9 +1780,9 @@ cargo km-package-simple-video ./songs           # a folder holding video songs
 cargo km-package-simple-desktop                 # ...in a window
 ```
 
-It serves `http://127.0.0.1:8181/`, or any free port when that one is taken. It keeps a settings file
-with the language and the last folder, and nothing else. Every package it writes carries the
-`uncurated` flag, and a listing goes beside each one. See
+It serves `http://127.0.0.1:8181/`, or any free port when that one is taken. It keeps a settings
+file with the language and the last folder. Every package it writes carries the `uncurated` flag,
+and a listing goes beside each one. See
 [`A package can be built straight from a folder`](docs/decisions/curation.md#a-package-can-be-built-straight-from-a-folder).
 
 ## The curation tool

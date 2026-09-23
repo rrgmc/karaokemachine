@@ -1406,14 +1406,13 @@ A list the package does not follow is left alone, and the confirmation names the
 ## A package can be built straight from a folder
 
 **`km-package-simple` turns a folder into packages without a curation database.** Somebody with a
-folder of songs and an evening wants them on the machine tonight. The curation tool asks for a scan,
-a database and a pass over every song first. This tool asks for a folder, a name and a version.
+folder of songs wants them on the machine without reviewing them first. The curation tool asks for a
+scan, a database and a pass over every song. This tool asks for a folder, a name and a version.
 
 **It is a second program, not a mode of the curation tool.** Its window takes the package builder's
 shape. It is a local web server, in a window of its own on Windows and macOS and in a browser on
-Linux.
-It holds no database and keeps no edits between runs. Reading the folder again is the whole of
-opening it again.
+Linux. It holds no database and keeps no edits between runs, so opening a folder again means reading
+it again.
 
 **What it offers is a song list and a package form, and no more.**
 
@@ -1425,12 +1424,12 @@ opening it again.
 - A copy of a song already listed is not a song, and neither is half an MP3+G pair. Both are listed
   below the songs with the reason.
 - The form takes a name, a version, a publisher, the language for songs that name none, and the
-  folder to write to. The language starts at `und`, which is the honest answer for songs nobody
-  reviewed. The id is generated.
+  folder to write to. The language starts at `und`, because nobody has checked what language the
+  songs are in. The id is generated.
 
 **A folder of more than 999 songs becomes volumes.** Each volume is a package of its own, named
-`<name> vol<n>`, and the first volume's id is the set's. The curation tool divides a set the same way.
-Refusing the folder would send the person to a tool that exists to be slower.
+`<name> vol<n>`, and the first volume's id is the set's. The curation tool divides a set the same
+way. A refusal would send the person back to the curation tool.
 
 **Every package it writes is marked `uncurated`.** The description it builds says so, and the build
 sets the header flag from that. See

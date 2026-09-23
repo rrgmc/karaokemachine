@@ -154,10 +154,10 @@ destination one by one, and a size added to the generator does not silently acqu
 
 The builder gets six: no Debian package, so no 512, but `--register` writes 16 through 256 into the
 user's `hicolor`. The remote, `km-admin` and `km-package-simple` get **two** each. The 32 is what
-each one's own page serves, and the 256 is what the icon tests sample and the menu bar takes. None of
-the three registers anything into `hicolor`.
-**All five desktop programs have a macOS bundle and therefore an `.icns`**, which moves no loose-size count. An
-`.icns` carries its own sizes, and `ICNS_MEMBERS` is what writes it.
+each one's own page serves, and the 256 is what the icon tests sample and the menu bar takes. None
+of the three registers anything into `hicolor`. **All five desktop programs have a macOS bundle and
+therefore an `.icns`**, which moves no loose-size count. An `.icns` carries its own sizes, and
+`ICNS_MEMBERS` is what writes it.
 
 **The remote has an Android launcher entry too.** It is an application on a phone, so it gets the
 same three files per density the machine does, in the green. The loose-size count still does not

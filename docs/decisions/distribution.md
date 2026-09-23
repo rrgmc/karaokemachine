@@ -163,9 +163,9 @@ anybody rebuilding this for a distribution, and it is not what a release carries
 ## The desktop tools are a package of their own, which the machine recommends
 
 **`karaokemachine-tools` carries `km-package-builder`, `km-package-simple`, `km-remote` and
-`km-admin`, and `karaokemachine` Recommends it.** Without it, Linux would be the one platform where the tools could
-not be installed at all. Windows has a setup program, and macOS has one `.pkg` for every product. A
-folder to unpack is not an answer on a system with a package manager.
+`km-admin`, and `karaokemachine` Recommends it.** Without it, Linux would be the one platform where
+the tools could not be installed at all. Windows has a setup program, and macOS has one `.pkg` for
+every product. A folder to unpack is not an answer on a system with a package manager.
 
 **Recommends rather than Depends, and that is the same mechanism the backends use.** A desktop
 running `apt-get install karaokemachine` gets the tools. `deploy.sh` passes
@@ -179,10 +179,10 @@ the machine alone names the one file. That is the same choice `--no-install-reco
 box that already has a repository.
 
 **They install under `/opt/karaokemachine/tools/` and Depend on the machine, for one directory.**
-The two package builders are built with `video`. So they link the four ffmpeg libraries the machine's
-package already carries at `/opt/karaokemachine/lib`, and an rpath of `$ORIGIN/../lib` reaches them.
-A second copy would be 20 MB saying the same thing twice. The alternative is a third package holding
-only libraries, and it costs more than it returns while there are two consumers.
+The two package builders are built with `video`. So they link the four ffmpeg libraries the
+machine's package already carries at `/opt/karaokemachine/lib`, and an rpath of `$ORIGIN/../lib`
+reaches them. A second copy would be 20 MB saying the same thing twice. The alternative is a third
+package holding only libraries, and it costs more than it returns while there are two consumers.
 
 **None of them has a window here**, so the package installs four servers and four names on `PATH`.
 What each opens is a browser, which is [`The package builder's
