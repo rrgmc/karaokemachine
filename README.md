@@ -24,6 +24,33 @@ Native on Windows, macOS and Linux, on Android, on a Meta Quest, and on an iPhon
 The site is **[rrgmc.github.io/karaokemachine](https://rrgmc.github.io/karaokemachine/)** — the
 pictures, and the download.
 
+## Contents
+
+- [What it looks like](#what-it-looks-like)
+- [What it does](#what-it-does)
+- [Installing](#installing)
+  - [On Debian, it is also an appliance — if you ask](#on-debian-it-is-also-an-appliance--if-you-ask)
+  - [On an iPhone or an iPad, you sign it yourself](#on-an-iphone-or-an-ipad-you-sign-it-yourself)
+  - [On an iPhone or an iPad, two things are different](#on-an-iphone-or-an-ipad-two-things-are-different)
+  - [Removing it](#removing-it)
+- [Using it](#using-it)
+  - [The keyboard](#the-keyboard)
+  - [Getting songs in](#getting-songs-in)
+  - [The remotes](#the-remotes)
+  - [Watching it in another room](#watching-it-in-another-room)
+  - [Setting it up from a browser](#setting-it-up-from-a-browser)
+  - [The song book](#the-song-book)
+- [For a technical reader](#for-a-technical-reader)
+  - [The command line](#the-command-line)
+  - [Song files and their formats](#song-files-and-their-formats)
+  - [Text encodings and writing systems](#text-encodings-and-writing-systems)
+  - [The HTTP API and the network](#the-http-api-and-the-network)
+  - [Getting a corpus into shape](#getting-a-corpus-into-shape)
+- [Building it](#building-it)
+- [Documentation](#documentation)
+- [License](#license)
+- [Author](#author)
+
 ---
 
 ## What it looks like
