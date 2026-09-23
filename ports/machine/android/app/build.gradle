@@ -3,10 +3,15 @@ plugins {
     // Meta Spatial SDK is Kotlin, and it reaches the `headset` flavour alone. The `flat` APK gains
     // no Kotlin runtime, because no Kotlin source is compiled into it.
     id 'org.jetbrains.kotlin.android'
+    // The headset's controls are Compose. Only Kotlin passes through this plugin, and the `flat`
+    // flavour has none, so the phone and television APK is untouched by it.
+    id 'org.jetbrains.kotlin.plugin.compose'
 }
 
 // The Spatial SDK line is pre-1.0 and moves, so the version is named once here.
 def metaSpatialSdkVersion = '0.14.0'
+// What `meta-spatial-sdk-uiset` at that version declares for Compose. It moves with the SDK.
+def composeVersion = '1.7.8'
 
 // `KM_ANDROID_KEYSTORE` names the release key, and absent it the debug key signs the release build.
 // A fresh clone, another developer's machine and a CI runner hold no keystore, so requiring one would
@@ -138,6 +143,10 @@ android {
         jvmTarget = '17'
     }
 
+    buildFeatures {
+        compose = true
+    }
+
     lint {
         abortOnError = false
     }
@@ -151,6 +160,17 @@ dependencies {
     headsetImplementation "com.meta.spatial:meta-spatial-sdk-toolkit:${metaSpatialSdkVersion}"
     headsetImplementation "com.meta.spatial:meta-spatial-sdk-vr:${metaSpatialSdkVersion}"
     headsetImplementation "com.meta.spatial:meta-spatial-sdk-isdk:${metaSpatialSdkVersion}"
+    // The room the headset scanned, which puts the screen on a wall and keeps it there.
+    headsetImplementation "com.meta.spatial:meta-spatial-sdk-mruk:${metaSpatialSdkVersion}"
+    // The controls under the screen: Compose panels, drawn in Horizon OS's own UI Set.
+    headsetImplementation "com.meta.spatial:meta-spatial-sdk-compose:${metaSpatialSdkVersion}"
+    headsetImplementation "com.meta.spatial:meta-spatial-sdk-uiset:${metaSpatialSdkVersion}"
+    // The Compose version the UI Set is built against, named so the controls compile against it too.
+    headsetImplementation "androidx.compose.ui:ui:${composeVersion}"
+    headsetImplementation "androidx.compose.foundation:foundation:${composeVersion}"
+    // The OVR Metrics Tool overlay, in a debug build only. `src/headsetRelease/` holds the empty
+    // twin of the one function that uses it, so a release APK carries none of it.
+    headsetDebugImplementation "com.meta.spatial:meta-spatial-sdk-ovrmetrics:${metaSpatialSdkVersion}"
 }
 
 // Fail early and clearly rather than shipping an APK with no native library in it: the error a

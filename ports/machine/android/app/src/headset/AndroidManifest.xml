@@ -24,7 +24,14 @@
         android:name="oculus.software.handtracking"
         android:required="false" />
 
-    <application>
+    <!-- The room the headset scanned, which is what puts the screen on a wall and brings it back
+         where the wearer left it. Horizon OS asks the wearer. A refusal costs only the wall, and
+         the screen still moves by hand. -->
+    <uses-permission android:name="com.oculus.permission.USE_SCENE" />
+
+    <!-- The configuration lets the queue panel's WebView reach the machine's own remote over
+         loopback, and nothing else. See the file for why cleartext needs saying at all. -->
+    <application android:networkSecurityConfig="@xml/network_security_config">
         <meta-data
             android:name="com.oculus.supportedDevices"
             android:value="quest2|questpro|quest3|quest3s" />

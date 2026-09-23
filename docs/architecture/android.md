@@ -114,7 +114,39 @@ frames a second with no stale frames, the same as a flat one.
 
 **`VRFeature` draws a controller's ray and no hand's.** `IsdkFeature`, from Meta's Interaction SDK,
 is what a hand points with. A headset whose controllers are flat has no other way to reach the
-keypad, so both features are registered.
+keypad, so both features are registered. Spatial SDK 0.14.0 marks `IsdkFeature` deprecated and says
+`VRFeature` registers it. The explicit registration stays until a headset shows hands working
+without it.
+
+**The screen's place is saved against a wall of the scanned room.** Spatial SDK 0.14.0 has no public
+persistent spatial anchor: `Scene.createUserAnchor` is internal. `MRUKFeature` does hand over the
+scanned room, and its wall anchors are stable across sessions. So `Placement.kt` stores the
+screen's pose relative to the nearest wall, by that wall's UUID, in the `headset` preferences. A
+restore multiplies the wall's current pose by the saved one.
+
+**`IsdkGrabbable` moves a panel and `IsdkPanelResize` resizes it.** The resize runs in
+`ResizeMode.Simple`, which writes the entity's `Scale` and leaves the panel's dp layout alone.
+`ResizeMode.Relayout` would resize SDL's surface instead. `onSceneTick` watches the grab state and
+the active resize corner, and saves once when both let go.
+
+**The wall's facing is flipped towards the wearer rather than trusted.** The sign of a plane
+anchor's forward axis is not measured here, so `Placement.onWall` points the normal at the viewer.
+A panel shows its face along its own negative Z, so the screen's forward points into the wall.
+
+**The queue panel is a WebView on `http://127.0.0.1:<port>/`.** The port comes from `api.bind` in
+the machine's own `settings.json`, which lives in `Context.getFilesDir()`. A missing file means 8177,
+and the panel retries every two seconds while the machine starts. Android blocks cleartext to
+loopback as well, so the headset manifest names `res/xml/network_security_config.xml`. That file
+permits `127.0.0.1` and `localhost` and nothing else, as the remote's application does.
+
+**The controls are Compose, in Horizon OS's UI Set.** `meta-spatial-sdk-compose` gives a panel a
+`ComposeView`, and `meta-spatial-sdk-uiset` gives the buttons. The Compose compiler plugin reaches
+only Kotlin, and the `flat` flavour has none. Compose is pinned at the version the UI Set declares.
+
+**The metrics overlay is in a debug build only.** `src/headsetDebug/` and `src/headsetRelease/` each
+hold a `debugFeatures()`. The debug one returns `OVRMetricsFeature` with the scene's tick and object
+counts, and the release one returns nothing. The dependency is `headsetDebugImplementation`, so a
+release APK carries none of it. The overlay draws only while the OVR Metrics Tool runs.
 
 **`singleInstance` survives embedding, and `MainActivity` keeps it.** A panel hosts an activity on a
 virtual display, which looks like it should want the ordinary launch mode, and it does not. What

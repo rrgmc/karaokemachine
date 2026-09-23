@@ -1398,6 +1398,25 @@ property of where somebody is standing, the way a window's position is a propert
 Kotlin shell remembers the choice, and `settings.json` never learns it. This keeps a second screen
 shape out of every platform that has one screen.
 
+**The wearer places the screen, and the room remembers it.** It starts on the main wall of the
+room the headset scanned. A hand or a controller moves it, and a corner resizes it. The headset's
+floor-relative space recentres each session, so a bare position would land wherever the wearer
+faced. The screen is therefore saved relative to the nearest wall of the scanned room, which does
+not move. That record is the headset's, like the shape, and `settings.json` never learns it.
+
+**Reading the room is asked for, and refusing it costs only the wall.** Horizon OS guards the
+scanned room behind `com.oculus.permission.USE_SCENE`. Without it, or in a room never scanned, the
+screen opens straight ahead and still moves by hand. It opens there again on the next launch. No
+error is shown, because nothing has failed that the wearer needs to fix.
+
+**The queue hangs beside the screen, and it is the machine's own remote.** A wearer holds no phone,
+so the scene shows the page every phone in the room gets. It reaches it over loopback in the same
+process. It is not a second remote to keep in step. An owner who turns the remote off gets no panel.
+
+**Resizing scales the screen and never re-lays it.** The machine draws at 1600x900 dp whatever size
+the wearer makes the screen. A resize that reached SDL would rebuild its surface under a playing
+song, and the machine pauses when its surface goes.
+
 **The Meta Horizon Store stays reachable, and one thing has to be settled now to keep it so.** A
 listing keys the entitlement and every buyer's install to the application id, which is why
 `com.rrgmc.karaokemachine.quest` is chosen once rather than renamed later. The store takes 2D
