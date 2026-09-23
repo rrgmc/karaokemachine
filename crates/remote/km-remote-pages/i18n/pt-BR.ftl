@@ -22,18 +22,21 @@ error-no-key = { $kind ->
     [video] Uma música em vídeo não tem tom para mudar.
     [cdg] Uma música MP3+G não tem tom para mudar.
     [ultrastar] Uma música UltraStar não tem tom para mudar.
+    [lrc] Uma música LRC não tem tom para mudar.
    *[other] Esta música não tem tom para mudar.
  }
 error-no-tempo = { $kind ->
     [video] Uma música em vídeo não tem ritmo para mudar.
     [cdg] Uma música MP3+G não tem ritmo para mudar.
     [ultrastar] Uma música UltraStar não tem ritmo para mudar.
+    [lrc] Uma música LRC não tem ritmo para mudar.
    *[other] Esta música não tem ritmo para mudar.
  }
 error-no-melody = { $kind ->
     [video] Uma música em vídeo não tem melodia guia.
     [cdg] Uma música MP3+G não tem melodia guia.
     [ultrastar] Uma música UltraStar não tem melodia guia.
+    [lrc] Uma música LRC não tem melodia guia.
    *[other] Esta música não tem melodia guia.
  }
 error-no-melody-channel = Não foi possível achar o canal de melodia nesta música.

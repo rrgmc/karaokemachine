@@ -365,8 +365,8 @@ Three improve: 78% to 100%, 82% to 100%, 95% to 100%. Eighteen are unchanged. On
 
 ## Suitability, for a song that was made to be sung to
 
-**A flat 10, for a video song, an MP3+G song and an UltraStar song alike. It comes from what the file
-is, not from measurement, once there is enough of it sung.**
+**A flat 10, for a video song, an MP3+G song, an UltraStar song and a word-timed LRC song alike. It
+comes from what the file is, not from measurement, once there is enough of it sung.**
 
 The suitability exists to answer "how good is this file as a karaoke source". A commercial karaoke
 disc or a purpose-made karaoke video is the best possible answer. The words are there, whoever
@@ -384,7 +384,12 @@ arrangement it still plainly has.
 **What stands in for the span differs by kind, and only because the words do.** A video's words are
 pixels in somebody else's picture, and CD+G's are one-bit tiles. So neither has a span to read, and
 both take their answer from their own length. A person timed an UltraStar song against this recording, so
-it is measured on the words like any file that has them.
+it is measured on the words like any file that has them. An LRC song is measured on its words too.
+
+**A line-timed LRC song scores 8.** Its lines are a person's timing, so sync, channels and
+arrangement stay full. The words lose two points and carry the `LineLevelLyrics` warning, which is
+what a MIDI file timed by the line gets. Too little singing is decided first, because it is the fault
+worth naming.
 
 The stored breakdown is filled to match rather than left at zero, so it cannot contradict the
 suitability it explains. It is a derivation that does not apply here, not a measurement that came

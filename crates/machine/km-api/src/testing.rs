@@ -47,8 +47,10 @@ pub struct Decided {
     pub fixes: Option<Vec<km_fixes::Fix>>,
     /// The melody channel it was told to play with, in [`Audition::melody`]'s three states.
     pub melody: Option<Option<u8>>,
-    /// The UltraStar words it was told to play the audio with.
+    /// The UltraStar or LRC words it was told to play the audio with.
     pub lyrics: Option<km_song::LyricTimeline>,
+    /// Which of the two files the words were read from.
+    pub lyrics_kind: Option<km_catalog::SongKind>,
 }
 
 /// Something the machine was asked to do.
@@ -1633,6 +1635,7 @@ fn record_decided(inner: &mut Inner, decided: &Audition<'_>) {
         fixes: decided.fixes.map(<[_]>::to_vec),
         melody: decided.melody,
         lyrics: decided.lyrics.cloned(),
+        lyrics_kind: decided.lyrics_kind,
     }));
 }
 

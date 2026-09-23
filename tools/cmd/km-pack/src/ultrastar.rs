@@ -400,7 +400,7 @@ pub fn add_ultrastar_song(
         // Measured off the timeline rather than taken from `words_end` above, which asks a different
         // question, whether this MP3 is the recording these words were timed to, and answers it with
         // an end rather than a span.
-        sung_ms: km_suitability::sung_span_ms(&km_song::ultrastar::song_from_timeline(
+        sung_ms: km_suitability::sung_span_ms(&km_song::recording::song_from_timeline(
             source.song.timeline.clone(),
         )),
         loudness: measured.record,
@@ -410,7 +410,8 @@ pub fn add_ultrastar_song(
         lyrics_hidden: request.lyrics_hidden.unwrap_or(false),
         content_hash: Some(source_hash.clone()),
     });
-    builder.add_ultrastar_source(
+    builder.add_timeline_source(
+        km_kmpkg::SongKind::UltraStar,
         entry,
         &file,
         &source.audio,

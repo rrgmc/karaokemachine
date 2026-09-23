@@ -138,6 +138,7 @@ song-kind-midi = midi, { $tracks } tracks
 song-kind-video = video
 song-kind-cdg = mp3+g
 song-kind-ultrastar = ultrastar
+song-kind-lrc = lrc
 
 # Where playback has reached, then the length. The two numbers are drawn by the machine.
 song-position = position

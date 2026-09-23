@@ -869,6 +869,8 @@ fn song_stats(
     Some(midi.unwrap_or(km_display::SongStats {
         kind: if kind.is_some_and(|kind| kind.is_ultrastar()) {
             km_display::SongMedia::UltraStar
+        } else if kind.is_some_and(|kind| kind.is_lrc()) {
+            km_display::SongMedia::Lrc
         } else if machine.current_cdg().is_some() {
             km_display::SongMedia::Cdg
         } else {
@@ -3558,6 +3560,7 @@ mod tests {
         assert_eq!(drawn_adjustments(None, &settings), (2, 1.1));
         for kind in [
             km_catalog::SongKind::UltraStar,
+            km_catalog::SongKind::Lrc,
             km_catalog::SongKind::Cdg,
             km_catalog::SongKind::Video,
         ] {

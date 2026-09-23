@@ -222,9 +222,15 @@ pub fn describe(
     let (mut sung, mut refused) = (Vec::new(), Vec::new());
     crate::ultrastar::collect_ultrastar(dir, &mut sung, &mut refused);
     sung.sort_by(|a, b| a.text.cmp(&b.text));
+    // An LRC file claims its MP3 the same way, once no pair or UltraStar file has: `read_lrc` refuses
+    // an MP3 that is already one of those songs.
+    let (mut timed, mut refused_lrc) = (Vec::new(), Vec::new());
+    crate::lrc::collect_lrc(dir, &mut timed, &mut refused_lrc);
+    timed.sort_by(|a, b| a.lyrics.cmp(&b.lyrics));
     let claimed: BTreeSet<PathBuf> = sung
         .iter()
         .flat_map(crate::UltraStarSource::claimed_media)
+        .chain(timed.iter().map(|source| source.audio.clone()))
         .collect();
 
     let mut videos = Vec::new();
@@ -305,6 +311,33 @@ pub fn describe(
         };
         songs.push(SpecSong {
             file: relative(dir, &source.text),
+            number: Some(number),
+            title: over.title,
+            artist: over.artist,
+            language: over.language.map(|language| language.code().to_owned()),
+            ..SpecSong::default()
+        });
+    }
+
+    // Numbered after the UltraStar songs, so a folder that gains an `.lrc` keeps every number it had.
+    for (path, refusal) in refused_lrc {
+        rejected.push((path, Rejection::Lrc(refusal.to_string())));
+    }
+    for source in &timed {
+        if options.limit.is_some_and(|limit| songs.len() >= limit) {
+            break;
+        }
+        let over = options
+            .index
+            .get(&crate::index_key(dir, &source.lyrics))
+            .cloned()
+            .unwrap_or_default();
+        let Some(number) = claim(over.number, &mut taken, &mut next_number) else {
+            rejected.push((source.lyrics.clone(), Rejection::NoNumber));
+            continue;
+        };
+        songs.push(SpecSong {
+            file: relative(dir, &source.lyrics),
             number: Some(number),
             title: over.title,
             artist: over.artist,

@@ -770,6 +770,33 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         render(&out_dir, name, &fonts, &theme, frame, theme_dim())?;
     }
 
+    // A line-timed song, as most LRC files are: the whole line lit at its start, the line before a
+    // solo gone once its hold is over, and the cue filling toward the line after the solo.
+    let lrc = km_song::lrc::parse(LINE_TIMED.as_bytes())?;
+    let lrc_song = km_song::recording::song_from_timeline(lrc.timeline.clone());
+    let lrc_view = LyricView::for_ticks_per_quarter(lrc_song.beat_ticks());
+    let lrc_info = SongInfo {
+        number: Some(km_songcode::SongCode::new(10_235)),
+        title: "A Line-Timed Song".to_owned(),
+        artist: Some("An LRC File".to_owned()),
+        language: None,
+    };
+    for (name, tick) in [
+        ("27-line-timed-intro-cue", 9_000),
+        ("27a-line-timed-lit", 16_500),
+        ("27b-line-timed-cue-after-a-solo", 39_000),
+    ] {
+        let frame = playing(
+            &lrc_info,
+            &lrc_song.lyrics,
+            &lrc_view,
+            tick,
+            &empty_entry,
+            &lrc_song,
+        );
+        render(&out_dir, name, &fonts, &theme, &frame, theme_dim())?;
+    }
+
     // Each connect-panel failure state, because a wrong URL on screen is worse than none.
     for (name, problem, bound) in [
         (
@@ -968,6 +995,11 @@ fn split_words(text: &str, start: u32) -> Vec<Syllable> {
         })
         .collect()
 }
+
+/// An LRC file that times its lines only: three lines sung back to back, a solo, and one after it.
+const LINE_TIMED: &str = "[00:10.00]Every line lights as it starts\n\
+    [00:13.00]and nothing crawls across it\n[00:16.00]then the band plays on alone\n\
+    [00:40.00]and the cue counts you back in\n";
 
 fn playing<'a>(
     song_info: &'a SongInfo,

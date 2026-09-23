@@ -4031,6 +4031,7 @@ fn scanned(
             video,
             cdg,
             ultrastar: None,
+            lrc: None,
         }),
     }
 }
@@ -5524,6 +5525,7 @@ fn add_built(
         video: None,
         cdg: None,
         ultrastar: None,
+        lrc: None,
     };
     adjust(&mut song);
     let file = crate::model::ScannedFile {

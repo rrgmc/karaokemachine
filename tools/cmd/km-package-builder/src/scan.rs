@@ -776,6 +776,14 @@ fn run_inner(
                         let (text_size, text_mtime) = stat(&text);
                         size = size.saturating_add(text_size);
                         mtime = mtime.max(text_mtime);
+                    } else if km_pack::is_audio(path)
+                        && let Some(lyrics) = km_pack::lrc_naming(path)
+                    {
+                        // The same fold for an MP3 an `.lrc` claims, and for the same second job: a
+                        // row that read it as half a pair is read again once the `.lrc` arrives.
+                        let (lyrics_size, lyrics_mtime) = stat(&lyrics);
+                        size = size.saturating_add(lyrics_size);
+                        mtime = mtime.max(lyrics_mtime);
                     }
 
                     // **A song somebody threw away is not read again, and `--force` does not
@@ -1057,6 +1065,7 @@ fn scan_video(path: &Path, relative: String, size: u64, mtime: i64, hash: String
                 }),
                 cdg: None,
                 ultrastar: None,
+                lrc: None,
             }),
             path: relative,
         },
@@ -1109,9 +1118,9 @@ fn scan_cdg(audio: &Path, relative: String, size: u64, mtime: i64) -> ScannedFil
     };
 
     let Some(graphics) = km_pack::pair_for(audio) else {
-        // **The audio half of an UltraStar song is not half a pair.** Its song is filed under the
-        // `.txt` that names it, so this row says only that the file is accounted for.
-        if km_pack::ultrastar_naming(audio).is_some() {
+        // **The audio half of an UltraStar or LRC song is not half a pair.** Its song is filed under
+        // the lyrics file, so this row says only that the file is accounted for.
+        if km_pack::ultrastar_naming(audio).is_some() || km_pack::lrc_naming(audio).is_some() {
             return claimed(relative, size, mtime);
         }
         return fail(
@@ -1201,6 +1210,7 @@ fn scan_cdg(audio: &Path, relative: String, size: u64, mtime: i64) -> ScannedFil
             midi: None,
             video: None,
             ultrastar: None,
+            lrc: None,
             cdg: Some(CdgFacts {
                 graphics_path: graphics
                     .file_name()
@@ -1301,14 +1311,93 @@ fn scan_ultrastar(text: &Path, relative: String, size: u64, mtime: i64) -> Scann
             // The one media kind whose span is read rather than stood in for: a person timed these
             // words to this recording, so the file says how much of it is sung.
             suitability: crate::model::SuitabilityFacts::purpose_made(
-                km_suitability::sung_span_ms(&km_song::ultrastar::song_from_timeline(
+                km_suitability::sung_span_ms(&km_song::recording::song_from_timeline(
                     song.timeline.clone(),
                 )),
             ),
             midi: None,
             video: None,
             cdg: None,
+            lrc: None,
             ultrastar: Some(UltraStarFacts {
+                line_count: u32::try_from(song.timeline.line_count()).unwrap_or(u32::MAX),
+                syllable_count: u32::try_from(song.timeline.syllable_count()).unwrap_or(u32::MAX),
+                det_encoding: song.decoder.name().to_owned(),
+                det_encoding_source: format!("{:?}", song.decoder.source()).to_lowercase(),
+            }),
+        }),
+        path: relative,
+    }
+}
+
+/// Reads one `.lrc`: an LRC song, or a file an LRC song refuses.
+///
+/// **Filed under the `.lrc`**, as an UltraStar song is filed under its `.txt`, and identified by the
+/// hash of the audio and the lyrics together, as `km-pack` records it.
+fn scan_lrc(lyrics: &Path, relative: String, size: u64, mtime: i64) -> ScannedFile {
+    let fail = |status, error: String| ScannedFile {
+        path: relative.clone(),
+        size,
+        mtime,
+        content_hash: None,
+        status,
+        error: Some(error),
+        song: None,
+    };
+
+    let source = match km_pack::read_lrc(lyrics) {
+        Ok(source) => source,
+        Err(error @ km_pack::LrcRefusal::Unreadable(_)) => {
+            return fail(ScanStatus::Unreadable, error.to_string());
+        }
+        Err(error @ km_pack::LrcRefusal::Refused(_)) => {
+            return fail(ScanStatus::BadLrc, error.to_string());
+        }
+        Err(error @ (km_pack::LrcRefusal::AudioMissing | km_pack::LrcRefusal::AudioTaken(_))) => {
+            return fail(ScanStatus::LrcAudio, error.to_string());
+        }
+    };
+
+    let info = match km_cdg::probe_audio(&source.audio) {
+        Ok(info) => info,
+        Err(error) => return fail(ScanStatus::NotAudio, error.to_string()),
+    };
+    let Ok(hash) = km_kmpkg::pair_content_hash_of(&source.audio, lyrics) else {
+        return fail(
+            ScanStatus::Unreadable,
+            "the MP3 beside it could not be read".to_owned(),
+        );
+    };
+
+    let song = &source.song;
+    let plain = song.timeline.plain_text();
+    ScannedFile {
+        size,
+        mtime,
+        content_hash: Some(hash.clone()),
+        status: ScanStatus::Ok,
+        error: None,
+        song: Some(ScannedSong {
+            id: hash,
+            det_title: song.title.as_deref().and_then(km_song::clean_meta_name),
+            det_artist: song.artist.as_deref().and_then(km_song::clean_meta_name),
+            // An LRC file names no language, so the guess from the words is all there is.
+            det_language: None,
+            stem: km_pack::file_stem(Path::new(&relative)),
+            duration_ms: info.duration_ms,
+            lyrics: (!plain.trim().is_empty()).then_some(plain),
+            fingerprint: String::new(),
+            suitability: crate::model::SuitabilityFacts::purpose_made_for(
+                km_suitability::sung_span_ms(&km_song::recording::song_from_timeline(
+                    song.timeline.clone(),
+                )),
+                song.timeline.granularity(),
+            ),
+            midi: None,
+            video: None,
+            cdg: None,
+            ultrastar: None,
+            lrc: Some(UltraStarFacts {
                 line_count: u32::try_from(song.timeline.line_count()).unwrap_or(u32::MAX),
                 syllable_count: u32::try_from(song.timeline.syllable_count()).unwrap_or(u32::MAX),
                 det_encoding: song.decoder.name().to_owned(),
@@ -1335,6 +1424,9 @@ pub fn scan_one(path: &Path, relative: String, size: u64, mtime: i64) -> Scanned
     }
     if km_pack::is_ultrastar_candidate(path) {
         return scan_ultrastar(path, relative, size, mtime);
+    }
+    if km_pack::is_lrc_candidate(path) {
+        return scan_lrc(path, relative, size, mtime);
     }
     // A singing game's music video is not a video song: it has no words in its picture, and the
     // UltraStar file that names it is the song.
@@ -1492,6 +1584,7 @@ fn describe(id: String, relative: &str, song: &Song, analysis: &Analysis) -> Sca
         video: None,
         cdg: None,
         ultrastar: None,
+        lrc: None,
     }
 }
 

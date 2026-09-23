@@ -26,10 +26,10 @@ use crate::container::{CappedRead, Container, ContainerError, Method, Writer};
 pub use crate::language::{Language, TABLE_REVISION as LANGUAGE_TABLE_REVISION};
 pub use crate::manifest::EditedField;
 pub use crate::manifest::{
-    BreakdownRecord, EXAMPLE_ID, FORMAT_VERSION, FORMAT_VERSION_MEDIA, FORMAT_VERSION_MIDI_ONLY,
-    FORMAT_VERSION_ULTRASTAR, FORMAT_VERSIONS_READ, GENERATED_ID_CHARS, LoudnessRecord,
-    MANIFEST_PATH, Manifest, ManifestProblem, MelodyRecord, PackageMeta, SongEntry, SongKind,
-    SuitabilityRecord, VolumeOf, WarningRecord, is_safe_name, is_safe_path, name_slug,
+    BreakdownRecord, EXAMPLE_ID, FORMAT_VERSION, FORMAT_VERSION_LRC, FORMAT_VERSION_MEDIA,
+    FORMAT_VERSION_MIDI_ONLY, FORMAT_VERSION_ULTRASTAR, FORMAT_VERSIONS_READ, GENERATED_ID_CHARS,
+    LoudnessRecord, MANIFEST_PATH, Manifest, ManifestProblem, MelodyRecord, PackageMeta, SongEntry,
+    SongKind, SuitabilityRecord, VolumeOf, WarningRecord, is_safe_name, is_safe_path, name_slug,
 };
 pub use crate::tag::Tag;
 
@@ -433,17 +433,17 @@ impl Package {
         self.read_entry_whole(number, &graphics_entry_for(&entry.file), MAX_GRAPHICS_BYTES)
     }
 
-    /// An UltraStar song's lyric timeline, in milliseconds from the start of its audio.
+    /// An UltraStar or LRC song's lyric timeline, in milliseconds from the start of its audio.
     ///
     /// Read whole, as [`Package::graphics_bytes`] reads a `.cdg`, and parsed here so that no caller
     /// holds the stored form. The ticks are milliseconds: pair it with
-    /// `km_song::ultrastar::TICKS_PER_SECOND`.
+    /// `km_song::recording::TICKS_PER_SECOND`.
     pub fn lyric_timeline(&self, number: u32) -> Result<km_song::LyricTimeline, PackageError> {
         let entry = self
             .manifest
             .song(number)
             .ok_or(PackageError::NoSuchSong(number))?;
-        if !entry.kind.is_ultrastar() {
+        if !entry.kind.carries_timeline() {
             return Err(PackageError::NotMedia {
                 number,
                 file: entry.file.clone(),
@@ -734,10 +734,10 @@ pub fn graphics_entry_for(audio: &str) -> String {
     }
 }
 
-/// The extension a packaged UltraStar song's lyric timeline is stored under.
+/// The extension a packaged UltraStar or LRC song's lyric timeline is stored under.
 pub const LYRICS_EXTENSION: &str = "json";
 
-/// The lyric timeline entry that pairs with an UltraStar song's audio entry.
+/// The lyric timeline entry that pairs with an UltraStar or LRC song's audio entry.
 ///
 /// Resolved by rule, as [`graphics_entry_for`] is and for its reason.
 #[must_use]
@@ -756,7 +756,7 @@ pub fn lyrics_entry_for(audio: &str) -> String {
 pub fn companion_entry_for(kind: SongKind, file: &str) -> Option<String> {
     match kind {
         SongKind::Cdg => Some(graphics_entry_for(file)),
-        SongKind::UltraStar => Some(lyrics_entry_for(file)),
+        SongKind::UltraStar | SongKind::Lrc => Some(lyrics_entry_for(file)),
         SongKind::Midi | SongKind::Video | SongKind::Unknown => None,
     }
 }
@@ -807,6 +807,17 @@ pub fn is_graphics_file(path: &Path) -> bool {
         .is_some_and(|ext| ext.eq_ignore_ascii_case(GRAPHICS_EXTENSION))
 }
 
+/// The extension an LRC lyrics file has.
+pub const LRC_EXTENSION: &str = "lrc";
+
+/// Whether a path looks like an LRC lyrics file.
+#[must_use]
+pub fn is_lrc_file(path: &Path) -> bool {
+    path.extension()
+        .and_then(|ext| ext.to_str())
+        .is_some_and(|ext| ext.eq_ignore_ascii_case(LRC_EXTENSION))
+}
+
 /// Whether a path looks like the audio half of an MP3+G song.
 #[must_use]
 pub fn is_audio_file(path: &Path) -> bool {
@@ -837,7 +848,15 @@ pub fn pair_for(path: &Path) -> Option<PathBuf> {
     } else {
         return None;
     };
+    sibling_with_extension(path, wanted)
+}
 
+/// Finds the file beside `path` with the same stem and one of the `wanted` extensions.
+///
+/// The search [`pair_for`] makes, for any pair of extensions: the obvious spellings first, then the
+/// directory matched on a trimmed, lowercased stem. An LRC file finds its audio the same way.
+#[must_use]
+pub fn sibling_with_extension(path: &Path, wanted: &[&str]) -> Option<PathBuf> {
     for extension in wanted {
         for spelling in [
             extension.to_ascii_lowercase(),
@@ -1137,24 +1156,30 @@ impl PackageBuilder {
         Ok(self.manifest.songs.last().expect("just pushed"))
     }
 
-    /// Adds an UltraStar song: its audio under `name`, and its lyric timeline under the name
-    /// [`lyrics_entry_for`] derives from it.
+    /// Adds an UltraStar or LRC song: its audio under `name`, and its lyric timeline under the
+    /// name [`lyrics_entry_for`] derives from it.
     ///
-    /// The timeline is what the machine reads, so the UltraStar file itself never enters the
-    /// package: its dialects are handled once, here at the packager. See `The machine never reads an
+    /// The timeline is what the machine reads, so the lyrics file itself never enters the package:
+    /// its dialects are handled once, here at the packager. See `The machine never reads an
     /// UltraStar file` in `docs/decisions/song-sources.md`.
-    pub fn add_ultrastar_source(
+    ///
+    /// # Panics
+    ///
+    /// When `kind` is not one that [`SongKind::carries_timeline`].
+    pub fn add_timeline_source(
         &mut self,
+        kind: SongKind,
         mut entry: SongEntry,
         name: &str,
         audio: &Path,
         timeline: &km_song::LyricTimeline,
         content_hash: Option<String>,
     ) -> Result<&SongEntry, PackageError> {
+        assert!(kind.carries_timeline(), "{kind:?} carries no timeline");
         if self.manifest.song(entry.number).is_some() {
             return Err(PackageError::DuplicateNumber(entry.number));
         }
-        entry.kind = SongKind::UltraStar;
+        entry.kind = kind;
         entry.file = name.to_owned();
         entry.content_hash = content_hash;
 
@@ -2575,7 +2600,8 @@ mod tests {
         let mut builder = PackageBuilder::new(meta());
         builder.add(entry(1), b"midi".to_vec()).expect("midi");
         builder
-            .add_ultrastar_source(
+            .add_timeline_source(
+                SongKind::UltraStar,
                 entry(12),
                 "media/0012.mp3",
                 &audio,
@@ -2585,7 +2611,6 @@ mod tests {
             .expect("ultrastar");
         let manifest = builder.write(&path).expect("write");
         assert_eq!(manifest.format, FORMAT_VERSION_ULTRASTAR);
-        assert_eq!(manifest.format, FORMAT_VERSION);
         assert!(read_manifest_json(&path).contains("\"kind\": \"ultrastar\""));
 
         let package = Package::open(&path).expect("open");
@@ -2620,6 +2645,73 @@ mod tests {
         builder.write(&rebuilt).expect("write rebuilt");
         let rebuilt = Package::open(&rebuilt).expect("open rebuilt");
         assert_eq!(rebuilt.lyric_timeline(12).expect("timeline"), timeline);
+    }
+
+    #[test]
+    fn an_lrc_song_is_stored_as_an_ultrastar_song_is_under_its_own_kind_and_format() {
+        let dir = temp_dir("write-lrc");
+        let audio = dir.join("song.mp3");
+        std::fs::write(&audio, pattern(4_000)).expect("audio");
+        let timeline = km_song::lrc::parse(b"[00:01.00]First line\n[00:04.00]Second line\n")
+            .expect("parses")
+            .timeline;
+
+        let path = dir.join("vol1.kmpkg");
+        let mut builder = PackageBuilder::new(meta());
+        builder
+            .add_timeline_source(
+                SongKind::Lrc,
+                entry(3),
+                "media/0003.mp3",
+                &audio,
+                &timeline,
+                None,
+            )
+            .expect("lrc");
+        builder
+            .add_timeline_source(
+                SongKind::UltraStar,
+                entry(4),
+                "media/0004.mp3",
+                &audio,
+                &a_timeline(),
+                None,
+            )
+            .expect("ultrastar");
+        let manifest = builder.write(&path).expect("write");
+        assert_eq!(manifest.format, FORMAT_VERSION_LRC);
+        assert_eq!(manifest.format, FORMAT_VERSION);
+        assert!(read_manifest_json(&path).contains("\"kind\": \"lrc\""));
+
+        let package = Package::open(&path).expect("open");
+        assert!(package.missing_entries().expect("check").is_empty());
+        assert_eq!(package.lyric_timeline(3).expect("timeline"), timeline);
+        assert_eq!(SongKind::from_wire("lrc"), SongKind::Lrc);
+        assert_eq!(
+            companion_entry_for(SongKind::Lrc, "media/0003.mp3").as_deref(),
+            Some("media/0003.json")
+        );
+    }
+
+    #[test]
+    fn an_lrc_file_finds_the_audio_with_its_stem() {
+        let dir = temp_dir("lrc-sibling");
+        let lyrics = dir.join("Someone - Song.lrc");
+        std::fs::write(&lyrics, "[00:01.00]words").expect("lyrics");
+        assert_eq!(sibling_with_extension(&lyrics, &AUDIO_EXTENSIONS), None);
+        std::fs::write(dir.join("Someone - Song.MP3"), pattern(16)).expect("audio");
+        let found = sibling_with_extension(&lyrics, &AUDIO_EXTENSIONS).expect("found");
+        // Compared without case: a file system that ignores it opens the upper-case file under the
+        // lower-case spelling tried first, and hands that spelling back.
+        assert!(found.is_file(), "{found:?}");
+        assert!(
+            found
+                .to_string_lossy()
+                .to_lowercase()
+                .ends_with("someone - song.mp3"),
+            "{found:?}"
+        );
+        assert!(is_lrc_file(&lyrics));
     }
 
     #[test]

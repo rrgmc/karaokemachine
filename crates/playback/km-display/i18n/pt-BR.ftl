@@ -99,6 +99,7 @@ song-kind-midi = midi, { $tracks } trilhas
 song-kind-video = vídeo
 song-kind-cdg = mp3+g
 song-kind-ultrastar = ultrastar
+song-kind-lrc = lrc
 
 song-position = posição
 song-gain = ganho

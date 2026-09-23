@@ -49,8 +49,11 @@ const TITLE_FIELD: &str = km_api::handlers::TITLE_FIELD;
 /// The form field carrying its performer.
 const ARTIST_FIELD: &str = km_api::handlers::ARTIST_FIELD;
 
-/// The form field carrying an UltraStar song's words, beside its MP3.
+/// The form field carrying an UltraStar or LRC song's words, beside its MP3.
 const LYRICS_FIELD: &str = km_api::handlers::LYRICS_FIELD;
+
+/// The form field naming which of the two files the words were read from.
+const LYRICS_KIND_FIELD: &str = km_api::handlers::LYRICS_KIND_FIELD;
 
 /// The form field carrying the key it is to play in.
 const TRANSPOSE_FIELD: &str = km_api::handlers::TRANSPOSE_FIELD;
@@ -339,6 +342,9 @@ impl Client {
             if let Some(lyrics) = decided.lyrics {
                 object.insert("lyrics".to_owned(), serde_json::json!(lyrics));
             }
+            if let Some(kind) = decided.lyrics_kind {
+                object.insert("lyrics_kind".to_owned(), serde_json::json!(kind));
+            }
         }
         let response = self
             .http
@@ -448,6 +454,9 @@ impl Client {
                 AppError::Refused(format!("the words would not encode: {error}"))
             })?;
             form = form.text(LYRICS_FIELD, text);
+        }
+        if let Some(kind) = decided.lyrics_kind {
+            form = form.text(LYRICS_KIND_FIELD, kind.as_str());
         }
         form = form.part("primary", file_part(path).await?);
         if let Some(partner) = partner {
