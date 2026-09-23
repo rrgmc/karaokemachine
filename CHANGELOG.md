@@ -36,9 +36,17 @@ Entries are written for somebody who has the machine. Why any of it is the way i
 - **The machine runs on a Meta Quest, on a screen that hangs in the room.** It is a separate APK from
   the Android one, and it installs beside it rather than over it, so a headset can hold both. The
   room shows behind the screen, the controllers reach the on-screen keypad, and every song kind plays
-  with the words highlighting in time. Two buttons under the screen make it flat or curved. Only the
-  wearer sees the words, so this suits one person practising rather than a room of singers. There is
-  no microphone path either, because a headset has no mixer.
+  with the words highlighting in time. Only the wearer sees the words, so this suits one person
+  practising rather than a room of singers. There is no microphone path either, because a headset
+  has no mixer.
+
+- **On a Quest, the screen goes where you put it.** It starts on the main wall of the room the
+  headset scanned. Grab it with a hand or a controller to move it, and pull a corner to make it
+  larger. It comes back to the same place on the next launch. The buttons under it make it flat or
+  curved, and put it back on the wall. The headset asks once to read the room, and a refusal leaves
+  the screen straight ahead, still moving by hand.
+- **On a Quest, the queue hangs beside the screen.** It is the same remote a phone gets, so a
+  wearer can search and add songs without holding a phone. A button under the screen hides it.
 
 - **The package builder has a Folders page.** It lists the corpus by folder, with how many distinct
   songs are in each one and beneath it. Each folder opens the songs list narrowed to that folder,

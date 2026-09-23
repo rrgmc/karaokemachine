@@ -2,5 +2,6 @@
 <!-- A Spatial SDK panel registration is keyed by a resource id. -->
 <resources>
     <item name="machine_panel" type="id" />
-    <item name="shape_panel" type="id" />
+    <item name="controls_panel" type="id" />
+    <item name="queue_panel" type="id" />
 </resources>
