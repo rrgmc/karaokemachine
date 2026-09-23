@@ -46,11 +46,8 @@ android {
         // a downgrade or an equal versionCode outright.
         versionCode = 21
         versionName = '1.18.0'
-        // Only what cargo actually builds. Adding an ABI here without building it produces an APK
-        // that installs on a device and then cannot find its own library.
-        ndk {
-            abiFilters 'arm64-v8a', 'armeabi-v7a'
-        }
+        // No `abiFilters` here. The plugin joins a flavour's filters to these rather than replacing
+        // them, so a filter here would reach both flavours whatever the headset names.
     }
 
     // No externalNativeBuild. cargo builds the native side; Gradle only packages it.
@@ -74,6 +71,11 @@ android {
             // The default, so `assembleDebug` without a flavour still means the phone and the
             // television.
             isDefault = true
+            // Only what cargo actually builds. Adding an ABI here without building it produces an
+            // APK that installs on a device and then cannot find its own library.
+            ndk {
+                abiFilters 'arm64-v8a', 'armeabi-v7a'
+            }
         }
         headset {
             dimension = 'device'
