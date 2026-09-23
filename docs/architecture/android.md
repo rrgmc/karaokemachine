@@ -176,6 +176,11 @@ hold a `debugFeatures()`. The debug one returns `OVRMetricsFeature` with the sce
 counts, and the release one returns nothing. The dependency is `headsetDebugImplementation`, so a
 release APK carries none of it. The overlay draws only while the OVR Metrics Tool runs.
 
+**A variant's own configuration is declared before it is used.** The Android plugin makes a
+configuration for each flavour and each build type, and none for a pair of them. So
+`app/build.gradle` declares `headsetDebugImplementation` in a `configurations` block before using
+it, or Gradle cannot evaluate the project at all.
+
 **`singleInstance` survives embedding, and `MainActivity` keeps it.** A panel hosts an activity on a
 virtual display, which looks like it should want the ordinary launch mode, and it does not. What
 rides on that is the `.kmpkg` route, because `onNewIntent` exists only because of `singleInstance`.
