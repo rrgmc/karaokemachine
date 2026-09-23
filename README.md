@@ -287,54 +287,65 @@ words and nothing else, and a phone does everything except play the song.
 ### The keyboard
 
 Mid-song a strip of buttons appears along the bottom whenever you press a key, and **each says which
-function key presses it**. `F1` pauses, `F4` skips, `F6` shows the queue, and `F7` and `F8` change
-the key. The function keys work whether or not the strip is on screen.
+function key presses it**. The function keys work whether or not the strip is on screen, and each
+has a letter key that does the same.
 
-The older letter keys still work too: `Space`, `N`, `R`, `Q` and `M`, with `,` and `.` for ten
-seconds either way. `+` and `-` change the key, `W` takes the next wallpaper, `I` shows the address
-and QR code, and `F` fills the screen. Type a song number on the number row or the keypad, where
-`Enter` queues, `Backspace` corrects and `Delete` clears.
+| Key | Letter key | What it does |
+|---|---|---|
+| `F1` | `Space` | Pause and resume |
+| `F2` | `,` | Go back ten seconds |
+| `F3` | `.` | Go forward ten seconds |
+| `F4` | `N` | Skip to the next song |
+| `F5` | `R` | Start the song again |
+| `F6` | `Q` | Show the queue |
+| `F7` | `-` | Lower the key |
+| `F8` | `+` | Raise the key |
+| `F9` | `M` | Turn the guide melody on and off, for a song that has one |
+| | `W` | Show the next wallpaper |
+| | `I` | Show the address and QR code |
+| | `F` | Fill the screen |
+| | `T` | Keep the window in front of everything else |
+| | `D` | Turn demo mode on and off |
+| `0`–`9` | | Type a song number, on the number row or the keypad |
+| `Enter` | | Queue the song number |
+| `Backspace` | | Correct the song number |
+| `Delete` | | Clear the song number |
+| `F10` | | Open the packages folder |
+| `Ctrl+F10` | | Read the packages folder again |
+| `F11`, or `Ctrl+F11` on a Mac | | Open the remote in this computer's browser |
+| `F12` | | Show how the picture is doing |
+| `Ctrl+F12` | | Stop the strip of buttons timing out |
+| `Ctrl+Q` | | Stop the machine |
 
-**`T` keeps the window in front of everything else.** It is for a machine sharing a screen with a
-browser or a chat window rather than driving a television. Press it again to let the window fall back
-into the stack. The machine remembers how you left it, so a window left in front starts in front. Some
-Linux desktops do not let an application place itself, and there the key does nothing.
+**`T`** is for a machine sharing a screen with a browser or a chat window rather than driving a
+television. The machine remembers how you left it. Some Linux desktops do not let an application
+place itself, and there the key does nothing.
 
-**`D` turns demo mode on and off** — the machine picking songs and playing them by itself. A room
-hears what the box holds without working out how to drive it. Turning the mode on starts a song
-straight away, rather than waiting out the usual minute of quiet.
+**`D`** is the machine picking songs and playing them by itself. A room hears what the box holds
+without working out how to drive it. Turning the mode on starts a song straight away, rather than
+waiting out the usual minute of quiet.
 
 Where something is already playing or queued, the mode still goes on and takes over when the queue
 runs out, and the screen says so. Turning it off leaves the song that is playing alone, and `N` is
 what means stop. It lasts until the machine closes, and the `/admin/` page is where you make it
-permanent.
+permanent. With the mode on, **`N` on a quiet machine starts the next song rather than waiting**.
+With the mode off it says `nothing is playing`.
 
-With the mode on, **`N` on a quiet machine starts the next song rather than waiting**. It is the same
-key that takes a demo's turn, doing the same thing to a silence. With the mode off it says
-`nothing is playing`, as it always does with nothing to skip.
+**`F10`** opens the folder in whatever this computer uses for folders, and a machine with nothing to
+open a folder in says so. **`Ctrl+F10`** lets a package you just copied in play without a restart.
 
-**Three keys past the strip do the things that are not about the song.**
+**`F11`** opens the same page a phone gets. It says so if the remote is switched off or the web
+server never started. macOS keeps `F11` for itself, and the panel names whichever key this computer
+answers to.
 
-**`F10` opens the packages folder** in whatever this computer uses for folders. The window that opens
-is the answer, and a machine with nothing to open a folder in says so. **`Ctrl+F10` reads that folder
-again**, so a package you just copied in plays without a restart.
+**`F12`** shows frames a second, how long each took to draw, and whether sound or video ran short. It
+is the same measurement `--frame-stats` writes to the log, but it writes nothing to the log itself.
+**`Ctrl+F12`** suits somebody changing how the strip looks rather than singing. The machine remembers
+neither key when it closes.
 
-**`F11` opens the remote** in this computer's browser, the same page a phone gets. It says so if the
-remote is switched off or the web server never started. **On a Mac it is `Ctrl+F11`**, because macOS
-keeps `F11` for itself. The panel names whichever one this computer answers to.
-
-**`F12` shows how the picture is doing** — frames a second, how long each took to draw, and whether
-sound or video ran short. It is the same measurement `--frame-stats` writes to the log. Press again
-to put it away, and it writes nothing to the log unless you asked separately.
-
-**`Ctrl+F12` stops the strip of buttons timing out**, which suits somebody changing how the strip
-looks rather than singing. Press it again to give the six seconds back. The machine remembers neither
-key when it closes.
-
-**`Ctrl+Q` stops the machine.** On a computer it closes the application, the way Control-Q does
-everywhere else. On the Linux appliance it switches the box off instead, exactly as its power button
-does, because that box has nothing to go back to. Plain `Q` is still the queue, and the modifier is
-what keeps the two apart.
+**`Ctrl+Q`** closes the application on a computer. On the Linux appliance it switches the box off
+instead, exactly as its power button does, because that box has nothing to go back to. Plain `Q`
+is the queue, and the modifier keeps the two apart.
 
 The machine draws a hint only where there is a keyboard, so a television or a phone gets the same
 buttons without them.
