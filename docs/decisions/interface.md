@@ -10,6 +10,8 @@
 from a window), with the cursor shown only while windowed. **Android is always fullscreen.** It is a
 fixed-function appliance with no desktop to return to. A remote that dropped the television out
 of fullscreen would leave nobody a way back. Compiled out there rather than merely unreachable.
+It starts fullscreen whatever `display.fullscreen` says, with the status and navigation bars hidden.
+The theme alone does not hold that, because SDL shows both bars when it leaves fullscreen.
 
 **Who put the machine there decides where it starts, not a default.** A machine a setup
 program installed starts fullscreen; one built out of a checkout, or unzipped from a portable folder,
