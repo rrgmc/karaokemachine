@@ -185,7 +185,7 @@ file per platform. The carol package is a separate download beside them. To buil
 | **Debian, Ubuntu** | A `.deb` that names its ffmpeg and font dependencies. It installs a menu entry, an icon and the `karaokemachine` command, plus the appliance service, switched off. A second `.deb`, `karaokemachine-tools`, holds the two package builders, the offline remote and the picture-and-bank tool. Name both files in one `apt install` to get both. |
 | **Any Linux** | A `.tar.gz`. Unpack it anywhere and run it, with no root and no package manager. It carries its own ffmpeg. |
 | **Android, Google TV** | An APK carrying both ABIs, for a phone and for a television. |
-| **Meta Quest** | An APK of its own, which puts the machine on a flat or curved screen in the room. The Android APK also installs, as a flat panel you move and resize. |
+| **Meta Quest** | An APK of its own, which puts the machine on a screen hanging in the room with the room still behind it. The screen starts on your wall, and you move it, resize it and bend it by hand. The singer's queue hangs beside it. A button switches to an ordinary system window and back, once the queue is empty. |
 | **iPhone, iPad** | An `.ipa` for the machine and one for the remote, both **unsigned**. You sign them yourself with your own Apple ID. |
 
 **Every install also has a second launcher, which starts the machine streaming.** See

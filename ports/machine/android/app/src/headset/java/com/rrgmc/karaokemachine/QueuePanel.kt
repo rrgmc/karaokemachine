@@ -8,9 +8,6 @@ import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
-import java.io.File
-import org.json.JSONException
-import org.json.JSONObject
 
 /**
  * The singer's remote, served by the machine in this same process and shown beside the screen.
@@ -21,19 +18,9 @@ import org.json.JSONObject
  */
 internal object QueuePanel {
 
-    /**
-     * The remote's address on this device, or null when the owner has turned the remote off.
-     *
-     * Read from the machine's own `settings.json`, in the internal storage directory SDL reports to
-     * the machine. A missing or unreadable file means the defaults, which are the port below and
-     * the remote on. The machine writes the file on its first start, and that can come after this.
-     */
-    fun address(context: Context): String? {
-        val api = readApi(File(context.filesDir, SETTINGS_FILE))
-        if (api?.opt(SERVE_REMOTE) == false) return null
-        val port = api?.optString(BIND)?.substringAfterLast(':')?.toIntOrNull() ?: DEFAULT_PORT
-        return "http://127.0.0.1:$port/"
-    }
+    /** The remote's address on this device, or null when the owner has turned the remote off. */
+    fun address(context: Context): String? =
+        if (Machine.servesRemote(context)) Machine.root(context) else null
 
     /**
      * The page, retrying until the machine answers.
@@ -62,24 +49,6 @@ internal object QueuePanel {
         web.loadUrl(address)
         return web
     }
-
-    private fun readApi(file: File): JSONObject? =
-        try {
-            if (file.isFile) JSONObject(file.readText()).optJSONObject(API) else null
-        } catch (_: JSONException) {
-            null
-        } catch (_: java.io.IOException) {
-            null
-        }
-
-    /** The file and keys `crates/machine/karaokemachine/src/settings.rs` writes. */
-    private const val SETTINGS_FILE = "settings.json"
-    private const val API = "api"
-    private const val BIND = "bind"
-    private const val SERVE_REMOTE = "serve_remote"
-
-    /** `km_api::DEFAULT_PORT`, which the machine binds when the file names none. */
-    private const val DEFAULT_PORT = 8177
 
     private const val RETRY_MS = 2000L
 }

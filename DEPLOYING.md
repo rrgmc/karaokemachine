@@ -174,8 +174,10 @@ task build:android:quest
 adb install -r ports/machine/android/app/build/outputs/apk/headset/debug/app-headset-debug.apk
 ```
 
-It installs **beside** the ordinary Android APK rather than over it, because the application id ends
-in `.quest`. A headset can hold both, and each keeps its own songs.
+This is the only APK a headset needs. It shows the machine in the room or in a system window. A
+button in each moves to the other once the queue is empty. The ordinary Android APK would install
+beside it rather than over it, because the application id ends in `.quest`. It would keep its own
+songs.
 
 ### Songs
 

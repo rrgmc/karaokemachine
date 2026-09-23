@@ -1,6 +1,7 @@
 package com.rrgmc.karaokemachine
 
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Bundle
 import androidx.compose.ui.platform.ComposeView
@@ -40,7 +41,8 @@ import com.meta.spatial.vr.VRFeature
  * involved. See `What the machine *is*, on a headset` in docs/decisions/distribution.md.
  *
  * The wearer places the screen. It starts on the main wall of the scanned room, moves and resizes
- * by hand, and comes back where it was left. The singer's remote hangs beside it.
+ * by hand, and comes back where it was left. The singer's remote hangs beside it. A button under it
+ * takes the machine into a system window, which is [FlatActivity].
  */
 class ImmersiveActivity : AppSystemActivity() {
 
@@ -96,6 +98,7 @@ class ImmersiveActivity : AppSystemActivity() {
         ) + debugFeatures(this)
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        Mode.started(this, Mode.IMMERSIVE)
         super.onCreate(savedInstanceState)
         controls.queueAvailable = queueAddress != null
         if (!sceneAllowed()) {
@@ -234,10 +237,21 @@ class ImmersiveActivity : AppSystemActivity() {
         placement.save(found, ScreenPlace(pose, SCREEN_WIDTH * scale))
     }
 
-    /** The machine, on the screen the wearer chose. */
+    /**
+     * The machine, on the screen the wearer chose.
+     *
+     * A `.kmpkg` that started the scene rides on to the machine in the panel's intent, so the
+     * machine opens it as it would on a phone. Spatial SDK takes either an activity class or an
+     * intent, and never both.
+     */
     private fun machinePanel() =
         PanelRegistration(R.id.machine_panel) {
-            activityClass = MainActivity::class.java
+            val opened = intent
+            if (opened?.action == Intent.ACTION_VIEW) {
+                panelIntent = Intent(opened).setClass(this@ImmersiveActivity, MainActivity::class.java)
+            } else {
+                activityClass = MainActivity::class.java
+            }
             config {
                 width = SCREEN_WIDTH
                 height = SCREEN_WIDTH * 9.0f / 16.0f
@@ -281,6 +295,11 @@ class ImmersiveActivity : AppSystemActivity() {
             placement.save(found, place)
         }
 
+        override fun toWindow() {
+            controls.refused = false
+            Switch.toFlat(this@ImmersiveActivity) { controls.refused = true }
+        }
+
         override fun toggleQueue() {
             val shown = !controls.queueShown
             prefs().edit().putBoolean(QUEUE_SHOWN, shown).apply()
@@ -297,9 +316,9 @@ class ImmersiveActivity : AppSystemActivity() {
         return PanelRegistration(R.id.controls_panel) {
             composePanel(content)
             config {
-                width = 0.9f
+                width = 1.6f
                 height = 0.16f
-                layoutWidthInDp = 900f
+                layoutWidthInDp = 1600f
                 layoutHeightInDp = 160f
                 layerConfig = LayerConfig()
                 enableTransparent = false

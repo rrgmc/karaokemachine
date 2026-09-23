@@ -1384,10 +1384,22 @@ a thirteenth carrier and the tag builds it beside the rest. It stays a word of i
 folding into `android`. The two files install side by side, so somebody choosing a download is
 choosing between them.
 
-**One headset holds this and the flat panel at once.** The application id takes a `.quest` suffix, so
-the two install side by side. Each keeps a packages folder of its own, so songs pushed to one are
-absent from the other. Somebody comparing the two screens wants both installed, and the cost is
-copying a package twice.
+**One application shows both screens, and a headset needs nothing else.** The `.quest` APK opens
+the machine in the room or in a system window, and a button in each moves to the other. The library
+tile opens whichever was used last, and the first launch opens the room. The ordinary Android APK
+still installs on a headset, but nothing here sends a headset owner to it. Its application id
+differs, so it would keep a second packages folder, and songs pushed to one would be absent from
+the other.
+
+**A switch waits for an idle machine, because a switch restarts it.** SDL starts the machine once
+per process, so each screen runs the machine in a process of its own. The queue lives in memory, and
+ending the process loses it. So the switch works only with no song loaded and nobody waiting.
+Otherwise it says why and changes nothing. Carrying a queue across would mean persisting it, which
+is a change to the machine rather than to the headset shell.
+
+**A `.kmpkg` opened on a headset goes to the machine already running.** Two machines at once would
+fight over one port and one catalog. So the file finds whichever screen holds the machine, and with
+none running it starts the last one used.
 
 **The room shows behind the screen.** Passthrough is on, so the wearer sees the furniture, the
 microphone stand and whoever else is there. A headset that blacks out the room is a headset somebody

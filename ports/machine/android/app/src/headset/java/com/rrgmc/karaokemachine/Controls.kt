@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -13,7 +14,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.meta.spatial.uiset.button.PrimaryButton
 import com.meta.spatial.uiset.button.SecondaryButton
 import com.meta.spatial.uiset.theme.SpatialTheme
@@ -29,6 +32,9 @@ internal class ControlsState(curved: Boolean, queueShown: Boolean) {
 
     /** Whether the machine serves a remote to put on the queue panel. */
     var queueAvailable by mutableStateOf(false)
+
+    /** Whether the last switch to a window was refused, because a song or a queue would be lost. */
+    var refused by mutableStateOf(false)
 }
 
 /** What the controls ask the scene to do. */
@@ -36,6 +42,8 @@ internal interface ControlsActions {
     fun shape(curved: Boolean)
 
     fun toWall()
+
+    fun toWindow()
 
     fun toggleQueue()
 }
@@ -67,6 +75,13 @@ internal fun Controls(state: ControlsState, actions: ControlsActions) {
                 Choice(stringResource(R.string.headset_queue), state.queueShown) {
                     actions.toggleQueue()
                 }
+            }
+            SecondaryButton(stringResource(R.string.headset_to_window), { actions.toWindow() })
+            if (state.refused) {
+                BasicText(
+                    stringResource(R.string.headset_switch_refused),
+                    style = TextStyle(color = Color.White, fontSize = 16.sp),
+                )
             }
         }
     }

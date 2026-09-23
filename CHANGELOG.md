@@ -45,6 +45,11 @@ Entries are written for somebody who has the machine. Why any of it is the way i
   larger. It comes back to the same place on the next launch. The buttons under it make it flat or
   curved, and put it back on the wall. The headset asks once to read the room, and a refusal leaves
   the screen straight ahead, still moving by hand.
+- **On a Quest, one app shows the machine in the room or in a window.** A button under the screen
+  moves it into an ordinary system window, and a button in the window moves it back. The library
+  tile opens whichever you used last. A switch restarts the machine, so it waits until no song is
+  loaded and the queue is empty. A song package opened from Files goes to whichever screen is
+  running.
 - **On a Quest, the queue hangs beside the screen.** It is the same remote a phone gets, so a
   wearer can search and add songs without holding a phone. A button under the screen hides it.
 

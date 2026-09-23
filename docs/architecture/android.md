@@ -143,6 +143,34 @@ permits `127.0.0.1` and `localhost` and nothing else, as the remote's applicatio
 `ComposeView`, and `meta-spatial-sdk-uiset` gives the buttons. The Compose compiler plugin reaches
 only Kotlin, and the `flat` flavour has none. Compose is pinned at the version the UI Set declares.
 
+**Each headset mode runs the machine in a process of its own.** A second SDL activity in one
+process makes `SDLActivity.onCreate` call `System.exit(0)`, because
+`SDL_HINT_ANDROID_ALLOW_RECREATE_ACTIVITY` is off. Turning it on would re-run the Rust `main` in a
+live process. So `ImmersiveActivity` and its panel keep the main process, and `FlatActivity`, a
+subclass of `MainActivity`, declares `android:process=":flat"`. `Switch` in `Modes.kt` starts the
+other mode, finishes the task and kills its own process. The new process binds the port and opens
+the catalog alone.
+
+**The switch asks `GET /api/v1/state` whether anything would be lost.** The route is public and
+loopback needs no password. A null `now_playing` and a `queue_len` of 0 mean idle. A machine that
+does not answer counts as idle, because it holds nothing.
+
+**The two directions follow Meta's `HybridSample`.** Into the room is a plain `startActivity` of the
+VR-category activity with `FLAG_ACTIVITY_NEW_TASK`. Out of it is a `CATEGORY_HOME` intent carrying
+a `PendingIntent` for the window in `extra_launch_in_home_pending_intent`. The launcher entry
+carries `com.oculus.intent.category.2D`, as the sample's does.
+
+**`EntryActivity` owns the launcher and both `.kmpkg` filters on a headset.** The headset manifest
+removes `MainActivity`'s filters with `tools:node="removeAll"`, so only the scene and
+`EntryActivity` start it. The last mode is a file in `getFilesDir()` rather than a preference,
+because each process caches its preferences.
+
+A `.kmpkg` with a machine running goes to that mode's
+activity, which is `singleInstance` and takes it in `onNewIntent`. With none running, the file
+starts the last mode. `ImmersiveActivity` passes it on as the panel's `panelIntent`, because Spatial
+SDK takes a class or an intent and never both. The USB attach filter goes with the rest, and a
+headset has no use for it.
+
 **The metrics overlay is in a debug build only.** `src/headsetDebug/` and `src/headsetRelease/` each
 hold a `debugFeatures()`. The debug one returns `OVRMetricsFeature` with the scene's tick and object
 counts, and the release one returns nothing. The dependency is `headsetDebugImplementation`, so a
@@ -499,9 +527,8 @@ The asymmetry is the point. A package reaches tens of gigabytes and internal sto
 volume. Meanwhile nothing dropped onto shared storage may displace what is already installed.
 
 **The application id keys both folders, so the headset flavour has a pair of its own.** A Quest
-holding both APKs holds two libraries, and a package pushed to one is absent from the other. That is
-the cost of the `.quest` suffix, and it is what lets somebody compare the two screens with one
-headset.
+holding both APKs holds two libraries, and a package pushed to one is absent from the other. The
+headset APK shows a system window itself, so nothing needs both installed.
 
 **The one case where that combination surprises is an upgraded machine.** It is worth knowing before
 somebody diagnoses it as an upload that did nothing. A build older than this wrote handed-in packages
