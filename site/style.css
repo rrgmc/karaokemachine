@@ -231,6 +231,9 @@ a:hover { text-decoration-color: var(--amber); }
 
 .shot-wide { margin-top: 3rem; }
 
+/* The animated playing screen sits under the two television stills, a gallery gap below them. */
+.shot-singing { margin-top: 1.8rem; }
+
 /* km-package-builder's is a dense table of small text. Scaled to fit a phone it is a gray smear, so
    below its natural width it becomes pannable inside its own figure instead — the reader drags it,
    which is what you do with a wide table on a phone anyway. `.table-scroll` does the same for the

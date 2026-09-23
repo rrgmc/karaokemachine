@@ -18,9 +18,10 @@
 # links out, which is the drift a grep can see. Prose is not checked, and a page that fell behind in
 # words is found by reading it.
 #
-# ** The screenshots are staged, never committed twice. ** The English page asks for `images/*.png`
-# and the Portuguese one for `../images/*.png`, and this is what puts them there, out of
-# `docs/images/` -- which `tools/dev/screenshots.sh` regenerates and which the README links directly.
+# ** The screenshots are staged, never committed twice. ** The English page asks for `images/*` and
+# the Portuguese one for `../images/*`, and this is what puts them there, out of `docs/images/`.
+# `tools/dev/screenshots.sh` regenerates the PNGs there, `tools/dev/screen-animation.sh` the one
+# WebP, and the README links them directly.
 # A second tracked copy would be 1.3 MB of PNG that goes stale the first time the pictures are
 # retaken, silently, in the one place nobody looks. The cost is that opening either page straight
 # from the checkout shows broken images; `site/README.md` says so in its first paragraph, and this
@@ -99,7 +100,7 @@ done < <(find site -mindepth 1 -maxdepth 1 -type d | sed 's|^site/||' | LC_ALL=C
 
 # Not a formality: the pictures are the page. An empty `docs/images` stages a page of broken frames
 # and says nothing, which is the failure this whole arrangement is otherwise vulnerable to.
-SHOTS=$(find docs/images -maxdepth 1 -name '*.png' | wc -l | tr -d ' ')
+SHOTS=$(find docs/images -maxdepth 1 \( -name '*.png' -o -name '*.webp' \) | wc -l | tr -d ' ')
 if [ "$SHOTS" -eq 0 ]; then
   echo "$DIST_SCRIPT: no screenshots in docs/images -- run tools/dev/screenshots.sh" >&2
   exit 1
@@ -120,7 +121,7 @@ dist_detail "style     site/style.css, shared by every page"
 
 # `site/README.md` is for somebody reading the repository, not for the web.
 mkdir -p "$OUT/images"
-cp docs/images/*.png "$OUT/images/"
+cp docs/images/*.png docs/images/*.webp "$OUT/images/"
 dist_detail "images    $SHOTS from docs/images"
 
 # The favicon and the Open Graph / apple-touch image, both out of the generated icon set. 32 is the

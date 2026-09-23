@@ -75,6 +75,13 @@ blue at the right"></td>
 </tr>
 </table>
 
+<img src="docs/images/screen-singing.webp" alt="Two lines of the carol Angels From the Realms of
+Glory sung on the playing screen: each syllable fills in amber as it is sung, the next line waits
+below in gray, and when the first line ends the one after the next takes its row">
+
+<sub><b>Singing.</b> Each syllable fills in time with the music, and the next line is already
+waiting.</sub>
+
 <table>
 <tr>
 <td width="25%"><img src="docs/images/remote-browse.png" alt="The singer's remote on a phone: mode

@@ -73,6 +73,9 @@ sdl3 = { version = "0.18.4", default-features = false, features = [
 
 [dev-dependencies]
 km-song = { workspace = true, features = ["testing"] }
+# `examples/screen_animation.rs` reads its song out of a released package. A dev-dependency reaches
+# no library and no binary, so the crate itself still avoids `km-kmpkg`.
+km-kmpkg = { workspace = true }
 
 [[example]]
 name = "preview"
