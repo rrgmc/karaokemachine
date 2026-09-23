@@ -2701,8 +2701,14 @@ mod tests {
         assert_eq!(sibling_with_extension(&lyrics, &AUDIO_EXTENSIONS), None);
         std::fs::write(dir.join("Someone - Song.MP3"), pattern(16)).expect("audio");
         let found = sibling_with_extension(&lyrics, &AUDIO_EXTENSIONS).expect("found");
+        // Compared without case: a file system that ignores it opens the upper-case file under the
+        // lower-case spelling tried first, and hands that spelling back.
+        assert!(found.is_file(), "{found:?}");
         assert!(
-            found.to_string_lossy().ends_with("Someone - Song.MP3"),
+            found
+                .to_string_lossy()
+                .to_lowercase()
+                .ends_with("someone - song.mp3"),
             "{found:?}"
         );
         assert!(is_lrc_file(&lyrics));
