@@ -1505,6 +1505,18 @@ pub struct PackageDto {
     /// does: every refusal names one. A page running inside the machine reads the sentence in
     /// process and prints it; a remote gets the flag.
     pub removable: bool,
+    /// The package header's flags word, unknown bits included.
+    ///
+    /// `0` from a machine that predates it, which is also what a package with no flag carries.
+    #[serde(default)]
+    pub flags: u32,
+    /// The set bits this machine has a name for, such as `uncurated`, in bit order.
+    ///
+    /// A page reads these rather than the number. A bit with no name here is still in [`Self::flags`].
+    /// See `A package's header carries flags, and an unknown one is kept` in
+    /// `docs/decisions/packaging.md`.
+    #[serde(default)]
+    pub flag_names: Vec<String>,
 }
 
 impl PackageDto {
@@ -1525,6 +1537,8 @@ impl PackageDto {
             installed_at: package.installed_at.clone(),
             bank: package.bank,
             removable,
+            flags: package.flags.bits(),
+            flag_names: package.flags.names().map(str::to_owned).collect(),
         }
     }
 }
@@ -2239,6 +2253,7 @@ mod tests {
             song_count: 12,
             installed_at: "2026-08-23".to_owned(),
             bank: 1,
+            flags: km_kmpkg::PackageFlags::NONE,
         };
         let json = serde_json::to_string(&PackageDto::new(&package, false)).expect("json");
         assert!(!json.contains("private"));
@@ -2247,6 +2262,33 @@ mod tests {
         // full path, which is the thing this test exists to keep off the wire.
         assert!(json.contains("\"removable\":false"));
         assert!(!json.contains("debug.packages"));
+    }
+
+    /// The word goes out whole, and the names say only the bits this build knows.
+    #[test]
+    fn a_package_row_carries_its_flags_as_a_word_and_as_names() {
+        let package = InstalledPackage {
+            id: "vol1".to_owned(),
+            name: "Volume 1".to_owned(),
+            version: "1".to_owned(),
+            path: String::new(),
+            song_count: 1,
+            installed_at: "2026-08-23".to_owned(),
+            bank: 1,
+            flags: km_kmpkg::PackageFlags::from_bits(0b1001),
+        };
+        let json = serde_json::to_string(&PackageDto::new(&package, true)).expect("json");
+        assert!(json.contains("\"flags\":9"), "{json}");
+        assert!(json.contains("\"flag_names\":[\"uncurated\"]"), "{json}");
+
+        // A machine that predates the field sends neither, and the row still reads.
+        let older: PackageDto = serde_json::from_str(
+            r#"{"id":"a","name":"A","version":"1","song_count":1,"installed_at":"x","bank":1,
+                "removable":true}"#,
+        )
+        .expect("an older row");
+        assert_eq!(older.flags, 0);
+        assert!(older.flag_names.is_empty());
     }
 
     /// The sentence quotes the name, and an id is exactly what it must not say.

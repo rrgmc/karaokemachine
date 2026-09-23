@@ -23,7 +23,7 @@
 <p><b>Installed.</b></p>
 
 <p>Whatever you ticked is now in <b>Applications</b> &mdash; <i>KaraokeMachine</i>,
-<i>KM Package Builder</i>, <i>KM Remote</i>, <i>KM Admin</i> &mdash; and the command-line tools are on
+<i>KM Package Builder</i>, <i>KM Simple Package</i>, <i>KM Remote</i>, <i>KM Admin</i> &mdash; and the command-line tools are on
 your <code>PATH</code>, in <code>/usr/local/bin</code>:</p>
 
 <pre style="font: 12px ui-monospace, monospace">karaokemachine --show-paths

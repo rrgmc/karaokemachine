@@ -330,7 +330,7 @@ install_to "$full" "$(IFS=,; printf '%s' "${COMPONENTS[*]}")" || fail "the silen
 # The exit status, not the output: what is being proved is that the process got as far as running its
 # own code, which means every DLL it imports resolved from the install folder with nothing else on
 # PATH to rescue it.
-for exe in karaokemachine km-package-builder km-remote km-admin km-pack km-lyrics km-wallpaper-pack; do
+for exe in karaokemachine km-package-builder km-package-simple km-remote km-admin km-pack km-lyrics km-wallpaper-pack; do
   [ -f "$full/$exe.exe" ] || fail "$exe.exe was not installed"
   ( cd "$full" && PATH="/c/Windows/System32:/c/Windows" "./$exe.exe" --version >/dev/null 2>&1 ) \
     || fail "$exe.exe would not start from an installed folder with a bare PATH"

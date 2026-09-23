@@ -1,0 +1,27 @@
+{% extends "layout.html" %}
+{% block content %}
+<h1>{{ heading }}</h1>
+<p class="mono">{{ out_dir }}</p>
+<p class="hint">{{ "built-uncurated"|t }}</p>
+<ul class="files">
+  {% for file in files %}
+  <li><span class="mono">{{ file.name }}</span> {{ file.songs }}</li>
+  {% endfor %}
+</ul>
+<p class="hint">{{ "built-listing"|t }}</p>
+<div class="row">
+  <button type="button" hx-post="/reveal" hx-swap="none">{{ "action-reveal"|t }}</button>
+  <button type="button" class="quiet" hx-post="/back" hx-swap="none">{{ "action-back"|t }}</button>
+  <button type="button" class="quiet" hx-post="/close" hx-swap="none">{{ "action-other-folder"|t }}</button>
+</div>
+{% if !skipped.is_empty() %}
+<details class="left" open>
+  <summary>{{ skipped_heading }}</summary>
+  <ul>
+    {% for line in skipped %}
+    <li>{{ line }}</li>
+    {% endfor %}
+  </ul>
+</details>
+{% endif %}
+{% endblock %}

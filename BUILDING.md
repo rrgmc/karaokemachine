@@ -48,6 +48,9 @@ replace.
 | `cargo km-pkgbuild` | the same as `km-package-builder`, for people who would rather not type all of that |
 | `cargo km-pkgbuild-video` | …with `--features video` |
 | `cargo km-pkgbuild-desktop` | …with `--features desktop`, the windowed build |
+| `cargo km-package-simple` | `run -p km-package-simple --` |
+| `cargo km-package-simple-video` | …with `--features video` |
+| `cargo km-package-simple-desktop` | …with `--features desktop`, the windowed build |
 | `cargo km-pack` | `run -p km-pack --` |
 | `cargo km-pack-video` | …with `--features video` |
 | `cargo km-lyrics` | `run -p km-lyrics --` |
@@ -108,7 +111,7 @@ with a sentence beside each. Neither a cargo alias file nor a directory of scrip
 | `task lint:cargo` | asserts every value in `.cargo/config.toml` is a string, which is what a worktree can inherit without doubling it |
 | `task lint:labels` | asserts every platform and program the bug form offers has a label in `tools/dev/labels.sh` |
 | `task check:linux` | what CI's Linux job runs, in Docker, on this machine |
-| `task dist` | stages every release this platform can carry — the machine, then all six tools |
+| `task dist` | stages every release this platform can carry — the machine, then all seven tools |
 | `task run` | starts the staged machine, at whatever version this workspace is on, and hands the prompt back |
 | `task run:package-builder` | the same for the curation tool; `-- /path/to/songs` is forwarded |
 | `task run:remote` / `task run:assets` | the same for the other two products that are servers with a page |
@@ -504,8 +507,8 @@ tools/platform/linux/deb.sh --tools     # ...and karaokemachine-tools, the three
 tools/platform/linux/verify-deb.sh      # install that .deb in a clean container (--tools for the other)
 tools/platform/linux/tarball.sh         # a portable Linux folder + .tar.gz, built in Docker
 tools/platform/linux/verify-tarball.sh  # unpack and run it in a clean container (--image to pick one)
-tools/dist/cmd.sh            # all six: km-pack, km-lyrics, km-package-builder, km-remote,
-                             #          km-admin, km-wallpaper-pack
+tools/dist/cmd.sh            # all seven: km-pack, km-lyrics, km-package-builder,
+                             #   km-package-simple, km-remote, km-admin, km-wallpaper-pack
 tools/dist/cmd.sh km-package-builder  #   ...or just one of them
 tools/dist/cmd.sh --no-video #   ...without the video feature; every script above takes this
 tools/dist/bin.sh              # one folder with every executable in it, instead of one per product
@@ -558,10 +561,11 @@ sends that, so the tracked file names no version. Edit its `What changed` list b
 `--notes-file <path>` overrides it. Every `--upload` rewrites a draft's body, so a corrected sentence
 is a re-run.
 
-**Linux carries three**, and the third is `karaokemachine-tools`. That package holds the package
-builder, the offline remote and km-admin, and the machine Recommends it. It is a download beside the
-machine's `.deb` rather than something `apt` fetches, there being no repository to fetch it from.
-`task dist:deb:tools` stages it, and the release page names both files in one `apt install` line.
+**Linux carries three**, and the third is `karaokemachine-tools`. That package holds the two package
+builders, the offline remote and km-admin, and the machine Recommends it. It is a download beside
+the machine's `.deb` rather than something `apt` fetches, there being no repository to fetch it
+from. `task dist:deb:tools` stages it, and the release page names both files in one `apt install`
+line.
 
 **The macOS carrier is the notarized package**, which is why that row names
 `task dist:setup:notarized` and its pattern stops at the architecture. The signed-only and ad-hoc
@@ -817,6 +821,7 @@ workflow, is [`What CI runs`](CONTRIBUTING.md#what-ci-runs) in `CONTRIBUTING.md`
 | `tools/cmd/km-pack` | Packaging, as a library *and* a command |
 | `tools/cmd/km-lyrics` | Dump a parsed lyric timeline and analysis for one file, or scan a folder |
 | `tools/cmd/km-package-builder` | The curation web tool: a folder of source files in, `.kmpkg` packages out |
+| `tools/cmd/km-package-simple` | The folder packager: one folder in, uncurated `.kmpkg` packages out, with no database |
 | `tools/cmd/assets/km-wallpaper-pack` | Builds a legibility-verified wallpaper pack. **In the second workspace** — `tools/cmd/assets` is `exclude`d from this one, see the note in `Cargo.toml` |
 
 ---
@@ -1703,6 +1708,10 @@ cargo km-pack-video spec ./songs --out v.yaml --no-transcode
 - **Videos are checked against one profile and copied byte-for-byte when they already match**, which a
   download normally does. `--no-transcode` stores irregular files as they are; one the machine could
   not *play* is still refused.
+- **A description `spec` writes says `uncurated: true`**, and the build marks the package with it.
+  Nobody has reviewed a walk of a folder. Delete the line once somebody has. `inspect` and `check`
+  print a package's flags by name, and so does the listing beside the package. See
+  [`An uncurated package says so everywhere but the television`](docs/decisions/packaging.md#an-uncurated-package-says-so-everywhere-but-the-television).
 - **`book` needs no `video` feature and no ffmpeg**, unlike every other command that meets a video
   song. A book is manifest metadata and never opens a song's bytes.
 
@@ -1761,6 +1770,20 @@ cargo run --release -p km-pack --features video -- reanalyze old.kmpkg --out new
 
 Drop the `.kmpkg` into the packages folder `--show-paths` names and restart, or install it without a
 restart with `POST /api/v1/admin/packages`.
+
+## The simple packager
+
+```sh
+cargo km-package-simple                         # the first page asks for a folder
+cargo km-package-simple ./songs                 # ...or read this one at once
+cargo km-package-simple-video ./songs           # a folder holding video songs
+cargo km-package-simple-desktop                 # ...in a window
+```
+
+It serves `http://127.0.0.1:8181/`, or any free port when that one is taken. It keeps a settings
+file with the language and the last folder. Every package it writes carries the `uncurated` flag,
+and a listing goes beside each one. See
+[`A package can be built straight from a folder`](docs/decisions/curation.md#a-package-can-be-built-straight-from-a-folder).
 
 ## The curation tool
 

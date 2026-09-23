@@ -66,7 +66,7 @@ KM_FEATURES="km-song/testing,km-api/testing"
 # what gives that build a real ffmpeg rather than the empty library a bare workspace build compiles.
 # `km-stream/ffmpeg` is the same spelling for the same reason, one crate over: that one encodes where
 # `km-video` decodes, and a member built without it is a crate with its encoder configured out.
-KM_FEATURES_VIDEO="$KM_FEATURES,km-video/ffmpeg,km-stream/ffmpeg,karaokemachine/video,km-pack/video,km-package-builder/video"
+KM_FEATURES_VIDEO="$KM_FEATURES,km-video/ffmpeg,km-stream/ffmpeg,karaokemachine/video,km-pack/video,km-package-builder/video,km-package-simple/video"
 
 # ...and what an **Android** build turns on, which is deliberately much shorter than either of the
 # two above and is a third entry rather than a reuse of one.

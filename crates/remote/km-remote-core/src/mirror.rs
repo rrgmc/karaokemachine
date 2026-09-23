@@ -116,23 +116,26 @@ impl Mirror {
     /// song removed by uninstalling a package would stay in the mirror forever and be queueable from
     /// a phone and unqueueable from anywhere else.
     ///
-    /// `packages` is each package's id and name, the one thing about a package the Setup page shows
-    /// that a song row does not carry.
+    /// `packages` is each package's id, name and flags word: what the Setup page shows about a
+    /// package that a song row does not carry.
+    ///
+    /// **A flag moves only with a reinstall**, and a reinstall moves the catalog version. So the
+    /// download that version triggers is the one that carries a changed flag here.
     pub fn replace(
         &mut self,
         machine_id: &str,
         version: u64,
         songs: &[SongDto],
-        packages: &[(String, String)],
+        packages: &[(String, String, u32)],
     ) -> Result<(), rusqlite::Error> {
         let transaction = self.conn.transaction()?;
         transaction.execute("DELETE FROM songs", [])?;
         transaction.execute("DELETE FROM packages", [])?;
         {
             let mut insert_package = transaction
-                .prepare("INSERT OR REPLACE INTO packages (id, name) VALUES (?1, ?2)")?;
-            for (id, name) in packages {
-                insert_package.execute(params![id, name])?;
+                .prepare("INSERT OR REPLACE INTO packages (id, name, flags) VALUES (?1, ?2, ?3)")?;
+            for (id, name, flags) in packages {
+                insert_package.execute(params![id, name, i64::from(*flags)])?;
             }
         }
         {
@@ -523,7 +526,7 @@ impl Mirror {
     /// and a package whose name did not arrive is listed under its id rather than left out.
     fn packages(&self) -> Result<Vec<PackageRow>, rusqlite::Error> {
         let mut statement = self.conn.prepare(
-            "SELECT s.package_id, COALESCE(p.name, s.package_id), COUNT(*)
+            "SELECT s.package_id, COALESCE(p.name, s.package_id), COUNT(*), COALESCE(p.flags, 0)
              FROM songs s LEFT JOIN packages p ON p.id = s.package_id
              GROUP BY s.package_id ORDER BY 2 COLLATE NOCASE, s.package_id",
         )?;
@@ -532,6 +535,9 @@ impl Mirror {
                 id: row.get(0)?,
                 name: row.get(1)?,
                 songs: usize::try_from(row.get::<_, i64>(2)?).unwrap_or(0),
+                flags: km_kmpkg::PackageFlags::from_bits(
+                    row.get::<_, i64>(3)?.try_into().unwrap_or(0),
+                ),
             })
         })?;
         rows.collect()
@@ -767,7 +773,7 @@ fn discard_unless_current(conn: &Connection) -> Result<(), rusqlite::Error> {
     if !has_table(conn, "songs")? {
         return Ok(());
     }
-    let mut current = has_table(conn, "packages")?;
+    let mut current = has_table(conn, "packages")? && has_column(conn, "packages", "flags")?;
     for column in ["initial", "sort_artist", "tags", "content_hash"] {
         current = current && has_column(conn, "songs", column)?;
     }
@@ -876,7 +882,7 @@ mod tests {
                     tagged(2001, "Two", "Only Hidden", "en", "hidden"),
                     tagged(2002, "Three", "Cazuza", "pt", "hidden"),
                 ],
-                &[("kept".to_owned(), "Rock Brasil".to_owned())],
+                &[("kept".to_owned(), "Rock Brasil".to_owned(), 1)],
             )
             .expect("import");
         let hide = vec!["hidden".to_owned()];
@@ -922,12 +928,14 @@ mod tests {
                 PackageRow {
                     id: "hidden".to_owned(),
                     name: "hidden".to_owned(),
-                    songs: 2
+                    songs: 2,
+                    flags: km_kmpkg::PackageFlags::NONE,
                 },
                 PackageRow {
                     id: "kept".to_owned(),
                     name: "Rock Brasil".to_owned(),
-                    songs: 1
+                    songs: 1,
+                    flags: km_kmpkg::PackageFlags::UNCURATED,
                 },
             ],
             "by name, and a package with no name arrives under its id"

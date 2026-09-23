@@ -20,7 +20,7 @@
   <input type="hidden" name="listed" value="{{ package.id }}">
   <label class="package-row">
     <input type="checkbox" name="show" value="{{ package.id }}"{% if package.shown %} checked{% endif %}>
-    <span class="package-name">{{ package.name }}</span>
+    <span class="package-name">{{ package.name }}{% if package.uncurated %} <span class="badge">{{ "package-flag-uncurated"|t }}</span>{% endif %}</span>
     <span class="package-songs">{{ package.songs }}</span>
   </label>
   {% endfor %}

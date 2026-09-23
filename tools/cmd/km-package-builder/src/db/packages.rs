@@ -295,6 +295,38 @@ impl Db {
         Ok(())
     }
 
+    /// The header flags the package's builds carry: what its imported files carried, and nothing
+    /// this tool decides for itself.
+    pub fn package_flags(&self, id: &str) -> Result<km_kmpkg::PackageFlags, DbError> {
+        let bits: i64 = self
+            .conn
+            .query_row("SELECT flags FROM packages WHERE id = ?1", [id], |row| {
+                row.get(0)
+            })
+            .optional()?
+            .ok_or_else(|| DbError::NotFound(format!("package {id}")))?;
+        Ok(km_kmpkg::PackageFlags::from_bits(
+            u32::try_from(bits).unwrap_or(0),
+        ))
+    }
+
+    /// Adds the flags an imported file carried to its package's.
+    ///
+    /// **Added, never replaced**, so importing one volume cannot clear what another volume of the
+    /// same package brought in. See `Importing an uncurated package keeps the flag` in
+    /// `docs/decisions/curation.md`.
+    pub fn add_package_flags(
+        &self,
+        id: &str,
+        flags: km_kmpkg::PackageFlags,
+    ) -> Result<(), DbError> {
+        self.conn.execute(
+            "UPDATE packages SET flags = flags | ?2 WHERE id = ?1",
+            params![id, i64::from(flags.bits())],
+        )?;
+        Ok(())
+    }
+
     /// Gives one member a specific number, inside the volume that holds it.
     pub fn set_package_number(
         &self,

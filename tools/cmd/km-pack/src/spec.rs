@@ -59,6 +59,14 @@ fn yes() -> bool {
     true
 }
 
+#[expect(
+    clippy::trivially_copy_pass_by_ref,
+    reason = "serde's skip_serializing_if hands over a reference"
+)]
+fn is_false(value: &bool) -> bool {
+    !*value
+}
+
 /// A package, and the songs that go into it.
 ///
 /// `deny_unknown_fields` throughout, and it is a deliberate trade rather than strictness for its own
@@ -131,6 +139,14 @@ pub struct SpecPackage {
     /// Where the `.kmpkg` goes, relative to the description. `--out` overrides it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub out: Option<String>,
+    /// The package was described straight from a folder, and nobody has reviewed it.
+    ///
+    /// **`km-pack spec` writes `true`**, and the build sets the header flag
+    /// [`km_kmpkg::PackageFlags::UNCURATED`] from it. A person who reviews the description deletes
+    /// the line. See `An uncurated package says so everywhere but the television` in
+    /// `docs/decisions/packaging.md`.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub uncurated: bool,
 }
 
 /// One song: where to read it from, and what to call it.
@@ -250,6 +266,9 @@ impl Spec {
 #
 # Every song field but `file` may be left out, and leaving one out means \"whatever the file says\".
 # Setting one to something the file does not say records it as a correction, so a rebuild keeps it.
+#
+# `uncurated: true` marks the package as described from a folder that nobody reviewed. The machine's
+# lists of packages say so. Delete the line once somebody has reviewed the songs.
 #
 # Two values YAML can read as something other than what you meant, if you edit them by hand:
 #
@@ -444,6 +463,7 @@ mod tests {
                 start_number: 1,
                 transcode: true,
                 out: Some("vol1.kmpkg".to_owned()),
+                uncurated: false,
             },
             root: Some("songs".to_owned()),
             songs: vec![

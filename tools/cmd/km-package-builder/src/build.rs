@@ -94,6 +94,8 @@ impl BuildReport {
 pub struct Curated {
     /// The description, ready to build or to write out.
     pub spec: Spec,
+    /// The header flags the package's imported files carried, which its build writes back.
+    pub flags: km_kmpkg::PackageFlags,
     /// Members whose source file is gone, so there was nothing to describe.
     pub missing: Vec<(u32, String)>,
 }
@@ -156,6 +158,7 @@ pub fn spec_for(db: &Db, package_id: &str, volume: u32) -> Result<Curated, DbErr
     }
 
     Ok(Curated {
+        flags: db.package_flags(package_id)?,
         spec: Spec {
             package: SpecPackage {
                 // The volume's own id and name, which are the package's own while it has one volume.
@@ -185,6 +188,7 @@ pub fn spec_for(db: &Db, package_id: &str, volume: u32) -> Result<Curated, DbErr
                 // change convention halfway down — and forward slashes are the spelling that also
                 // works when the description is carried to the appliance.
                 out: package.out_path.as_deref().map(km_pack::spec::slashed),
+                uncurated: false,
             },
             // The corpus root, named absolutely: a description written out of this database may be
             // saved anywhere, and the songs it names do not move with it.
@@ -251,6 +255,7 @@ pub fn build(
             // worse is not one worth drawing.
             measure_loudness: true,
             write_listing,
+            flags: curated.flags,
         },
         |event| progress.observe(&event),
     )
@@ -749,6 +754,8 @@ fn report_from(outcome: &km_pack::BuildOutcome, version: &str) -> BuildReport {
 pub struct ImportReport {
     /// The package's id.
     pub package_id: String,
+    /// The header flags the file carried, which the package now keeps.
+    pub flags: km_kmpkg::PackageFlags,
     /// Entries matched to a song already in the corpus.
     pub matched: usize,
     /// Entries whose bytes are nowhere under the root, with their titles.
@@ -811,9 +818,11 @@ pub fn import(db: &mut Db, path: &Path) -> Result<ImportReport, DbError> {
     }
     db.ensure_volume(&package_id, volume, &manifest.package.id, &now)?;
     db.update_package(&row)?;
+    db.add_package_flags(&package_id, package.flags())?;
 
     let mut report = ImportReport {
         package_id: row.id.clone(),
+        flags: package.flags(),
         ..ImportReport::default()
     };
 
@@ -1136,6 +1145,44 @@ mod tests {
         let report = import(&mut guard, &out).expect("import");
         assert_eq!(report.matched, 1, "unmatched: {:?}", report.unmatched);
         assert_eq!(guard.song(&id).expect("song").user_score, None);
+    }
+
+    /// An imported package's flags stay with its package here, and every build of it writes them.
+    #[test]
+    fn an_uncurated_package_imports_and_builds_back_uncurated() {
+        let scratch = Scratch::new("uncurated-source");
+        let (db, id) = corpus(&scratch);
+        let out = scratch.0.join("vol1.kmpkg");
+        package_with(&mut db.lock(), std::slice::from_ref(&id));
+        build_now(&db, km_kmpkg::EXAMPLE_ID, &out);
+        assert!(!km_kmpkg::Package::open(&out).expect("open").is_uncurated());
+
+        // The flag as `km-package-simple` writes it: the header word at bytes 10..14.
+        let mut bytes = std::fs::read(&out).expect("read");
+        bytes[10] = 1;
+        let flagged = scratch.0.join("flagged.kmpkg");
+        std::fs::write(&flagged, bytes).expect("write");
+
+        let second = Scratch::new("uncurated-import");
+        let (fresh, _) = corpus(&second);
+        let report = import(&mut fresh.lock(), &flagged).expect("import");
+        assert!(report.flags.is_uncurated());
+        assert!(
+            fresh
+                .lock()
+                .package_flags(km_kmpkg::EXAMPLE_ID)
+                .expect("flags")
+                .is_uncurated()
+        );
+
+        let rebuilt = second.0.join("rebuilt.kmpkg");
+        build_now(&fresh, km_kmpkg::EXAMPLE_ID, &rebuilt);
+        assert!(
+            km_kmpkg::Package::open(&rebuilt)
+                .expect("open")
+                .is_uncurated(),
+            "a build of an imported uncurated package keeps the mark"
+        );
     }
 
     /// A later volume is written under its own id and name, says which package it belongs to, and
@@ -1629,6 +1676,7 @@ mod tests {
                 dry_run: false,
                 measure_loudness: true,
                 write_listing: false,
+                flags: km_kmpkg::PackageFlags::NONE,
             },
             |_| std::ops::ControlFlow::Continue(()),
         )

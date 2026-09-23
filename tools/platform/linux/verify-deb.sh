@@ -182,8 +182,8 @@ if [ "$tools" = "1" ]; then
   apt-get install -y -qq --no-install-recommends "/machine-deb/$machine_deb" "/debs/$deb" 2>&1 | tail -5
   echo
 
-  echo "== the three names are on PATH =="
-  for t in km-package-builder km-remote km-admin; do
+  echo "== the four names are on PATH =="
+  for t in km-package-builder km-package-simple km-remote km-admin; do
     link="/usr/bin/$t"
     target="/opt/karaokemachine/tools/$t"
     if [ ! -L "$link" ]; then echo "  FAIL: $link is not a symlink"; exit 1; fi
@@ -216,18 +216,19 @@ if [ "$tools" = "1" ]; then
   esac
   echo
 
-  echo "== the other two run =="
+  echo "== the other three run =="
+  km-package-simple --version
   km-remote --version
   km-admin --version
   echo
 
   echo "== removing the tools leaves the machine, and takes the names with them =="
   apt-get remove -y -qq karaokemachine-tools >/dev/null 2>&1
-  for t in km-package-builder km-remote km-admin; do
+  for t in km-package-builder km-package-simple km-remote km-admin; do
     if [ -e "/usr/bin/$t" ]; then echo "  FAIL: /usr/bin/$t survived the removal"; exit 1; fi
   done
   if [ ! -x /usr/bin/karaokemachine ]; then echo "  FAIL: removing the tools took the machine too"; exit 1; fi
-  echo "  PASS: the three names are gone and karaokemachine is still installed"
+  echo "  PASS: the four names are gone and karaokemachine is still installed"
   echo
   echo "== every check ran"
   exit 0

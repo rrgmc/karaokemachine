@@ -17,14 +17,14 @@
 
 use std::fmt::Write as _;
 
-use km_kmpkg::Manifest;
+use km_kmpkg::{Manifest, PackageFlags};
 
 /// The package and its songs as plain text.
 ///
 /// Ordered by song number, which is the order a singer meets them in and the order the book prints.
 /// The columns are padded to line up, because the point of the file is being read down.
 #[must_use]
-pub fn listing(manifest: &Manifest) -> String {
+pub fn listing(manifest: &Manifest, flags: PackageFlags) -> String {
     let package = &manifest.package;
     let mut out = String::new();
 
@@ -43,6 +43,13 @@ pub fn listing(manifest: &Manifest) -> String {
         let _ = writeln!(out, "Volume:    {} of {}", volume.number, volume.name);
     }
     let _ = writeln!(out, "Songs:     {}", manifest.songs.len());
+    // A reader who was handed the file is the one who most needs to know nobody reviewed it.
+    if flags.is_uncurated() {
+        let _ = writeln!(
+            out,
+            "Uncurated: built straight from a folder, with nobody reviewing it"
+        );
+    }
     let _ = writeln!(out);
 
     let mut songs: Vec<&km_kmpkg::SongEntry> = manifest.songs.iter().collect();
@@ -142,7 +149,7 @@ mod tests {
 
     #[test]
     fn it_reads_as_a_page_about_the_package() {
-        let text = listing(&manifest());
+        let text = listing(&manifest(), PackageFlags::NONE);
         assert!(text.starts_with("Bossa nova\n==========\n"), "{text}");
         assert!(text.contains("Version:   1.2.0"), "{text}");
         assert!(text.contains("Publisher: Someone"), "{text}");
@@ -163,15 +170,23 @@ mod tests {
     /// A volume says which set it belongs to, and a package that is not one prints no line for it.
     #[test]
     fn a_volume_names_its_set() {
-        assert!(!listing(&manifest()).contains("Volume:"));
+        assert!(!listing(&manifest(), PackageFlags::NONE).contains("Volume:"));
         let mut volume = manifest();
         volume.package.volume = Some(km_kmpkg::VolumeOf {
             of: "a1b2c3d4e5f60718".to_owned(),
             name: "Bossa nova".to_owned(),
             number: 2,
         });
-        let text = listing(&volume);
+        let text = listing(&volume, PackageFlags::NONE);
         assert!(text.contains("Volume:    2 of Bossa nova"), "{text}");
+    }
+
+    /// An uncurated package says so, and one that is not prints no line for it.
+    #[test]
+    fn an_uncurated_package_says_so() {
+        assert!(!listing(&manifest(), PackageFlags::NONE).contains("Uncurated"));
+        let text = listing(&manifest(), PackageFlags::UNCURATED);
+        assert!(text.contains("Uncurated: "), "{text}");
     }
 
     /// The rule the archive is held to, pointed at the file beside it.
@@ -181,7 +196,7 @@ mod tests {
     /// are asserted absent rather than trusted.
     #[test]
     fn it_says_nothing_about_the_machine_that_built_it() {
-        let text = listing(&manifest());
+        let text = listing(&manifest(), PackageFlags::NONE);
         for leak in ["/", "\\", "songs/0001.kar", ".kmpkg"] {
             assert!(
                 !text.contains(leak),
@@ -195,7 +210,7 @@ mod tests {
     fn an_empty_package_is_a_header_and_no_rows() {
         let mut empty = manifest();
         empty.songs.clear();
-        let text = listing(&empty);
+        let text = listing(&empty, PackageFlags::NONE);
         assert!(text.contains("Songs:     0"), "{text}");
         assert!(text.trim_end().ends_with("Songs:     0"), "{text}");
     }

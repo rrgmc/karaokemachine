@@ -92,6 +92,12 @@ both would scale the two axes by different amounts and draw the letters stretche
 Windows takes no such file. The notification area draws the colored mark out of the executable's own
 resources, and has no template convention to follow.
 
+**A seventh mark carries a badge too, on the package builder's blue.** `km-package-simple-*` is the
+simple package builder: it makes the same packages as the builder, in one step and without a
+curation database. The theme has no hue left for it. The blue says it is the builder's sibling, and
+a lightning bolt in the same corner as the stream badge tells the two apart. Outside that corner it
+is byte-identical to `km-package-builder-*`, which a test holds.
+
 There are **four** icons, and they are the same artwork under four palettes. The machine leads with
 the theme's sung-lyric amber and `km-package-builder` with its blue accent. `km-remote` leads with
 the second accent green, and `km-admin` with the magenta. That hue reaches exactly
@@ -147,11 +153,11 @@ executable nor a web page. `hicolor` still stops at 512. The package's asset lis
 destination one by one, and a size added to the generator does not silently acquire a directory.
 
 The builder gets six: no Debian package, so no 512, but `--register` writes 16 through 256 into the
-user's `hicolor`. The remote and `km-admin` get **two** each. The 32 is what each one's own page
-serves, and the 256 is what the icon tests sample and the menu bar takes. Neither registers anything
-into `hicolor`.
-**All four have a macOS bundle and therefore an `.icns`**, which moves no loose-size count. An
-`.icns` carries its own sizes, and `ICNS_MEMBERS` is what writes it.
+user's `hicolor`. The remote, `km-admin` and `km-package-simple` get **two** each. The 32 is what
+each one's own page serves, and the 256 is what the icon tests sample and the menu bar takes. None
+of the three registers anything into `hicolor`. **All five desktop programs have a macOS bundle and
+therefore an `.icns`**, which moves no loose-size count. An `.icns` carries its own sizes, and
+`ICNS_MEMBERS` is what writes it.
 
 **The remote has an Android launcher entry too.** It is an application on a phone, so it gets the
 same three files per density the machine does, in the green. The loose-size count still does not
@@ -189,6 +195,10 @@ system's, and a transparent pixel is a hole in it. The loose-size count did not 
 | `km-admin-256.png` | `crates/playback/km-display/src/icon.rs`'s tests, which sample it with the other three and check its lead is the magenta and nobody else's hue — and `tools/cmd/assets/km-admin/src/desktop.rs`, which hands it to `km-tray` for the **macOS menu bar**, on the same terms as the package builder's |
 | `km-admin.ico` | `tools/cmd/assets/km-admin/build.rs`, which puts it in the Windows executable — and `km_webshell::with_icons` then reads it back out of the running process, at 16 for the title bar and at the large metric for the taskbar, as `km-tray` does for the notification area. It was the last of the three to ask for one, and looked right in the taskbar the whole time it did not — then stopped looking right the moment it got one, which is how the missing second slot was found |
 | `km-admin.icns` | `tools/dist/cmd.sh`, which puts it in `KM Admin.app/Contents/Resources`. Its name without the extension is what `tools/platform/macos/Info.admin.plist` holds in `CFBundleIconFile` — once, like the remote's, because it declares no document type either |
+| `km-package-simple-32.png` | `tools/cmd/km-package-simple/src/server.rs`, as `ICON_PNG`: the favicon that tool's own page serves |
+| `km-package-simple-256.png` | `crates/playback/km-display/src/icon.rs`'s test, which checks it is the builder's mark with a bolt and nothing else. `tools/cmd/km-package-simple/src/desktop.rs` hands it to `km-tray` for the **macOS menu bar**, on the same terms as the package builder's |
+| `km-package-simple.ico` | `tools/cmd/km-package-simple/build.rs`, which puts it in the Windows executable. `km_webshell::with_icons` then reads it back out of the running process for the title bar and the taskbar |
+| `km-package-simple.icns` | `tools/dist/cmd.sh`, which puts it in `KM Simple Package.app/Contents/Resources`. Its name without the extension is what `tools/platform/macos/Info.package-simple.plist` holds in `CFBundleIconFile` |
 | `karaokemachine-stream-16.png` … `-256.png` | `hicolor` again, under the name the desktop entry's stream action gives: the Debian package installs them and `crates/machine/karaokemachine/src/register.rs` compiles them in for `--register`. `-32.png` is also what `src/tray.rs` hands `km-tray` for the **macOS menu bar**, and `-256.png` is what `km_display::icon`'s test samples |
 | `karaokemachine-stream.ico` | `crates/machine/karaokemachine/build.rs`, which puts it in the Windows executable **beside** `karaokemachine.ico` at the next ordinal — so the notification area of a `--stream` run and the Start Menu entry that passes `--stream` both find it without a second file being installed anywhere |
 | `karaokemachine-stream.icns` | `tools/platform/macos/app-bundle.sh`, which puts it in `KM Stream.app/Contents/Resources`. Its name without the extension is what `tools/platform/macos/Info.stream.plist` holds in `CFBundleIconFile` |

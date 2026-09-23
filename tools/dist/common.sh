@@ -721,11 +721,12 @@ HEAD
     windows)
       cat <<'BODY'
 This folder holds the programs you chose when you installed them. What is actually in it depends on
-what you ticked; there are five things the setup program can install, and running it again is how
+what you ticked; there are six things the setup program can install, and running it again is how
 you add one you left out:
 
     KaraokeMachine      plays the songs
     KM Package Builder  turns a folder of songs into a package
+    KM Simple Package   makes a package straight from a folder, in one step
     KM Remote           search and queue from this computer
     KM Admin            finds pictures and instrument banks for the machine
     Command-line tools  km-pack, km-lyrics, km-wallpaper-pack
@@ -773,20 +774,22 @@ BODY
     macos)
       cat <<'BODY'
 This folder, /usr/local/karaokemachine, holds the command-line tools and the uninstaller. The
-applications went to /Applications -- KaraokeMachine, KM Package Builder, KM Remote and KM Admin --
-and the commands here are on your PATH through /usr/local/bin, so they can be typed from anywhere.
+applications went to /Applications -- KaraokeMachine, KM Package Builder, KM Simple Package,
+KM Remote and KM Admin -- and the commands here are on your PATH through /usr/local/bin, so they can
+be typed from anywhere.
 
-What is actually here depends on what you ticked. There are five things the installer can place,
+What is actually here depends on what you ticked. There are six things the installer can place,
 and running it again is how you add one you left out:
 
     KaraokeMachine      plays the songs                         /Applications
     KM Package Builder  turns a folder of songs into a package  /Applications
+    KM Simple Package   makes a package from a folder, quickly  /Applications
     KM Remote           search and queue from this Mac          /Applications
     KM Admin            finds pictures and instrument banks     /Applications
-    Command-line tools  six names you can type                  here
+    Command-line tools  seven names you can type                here
 
-The six are km-pack, km-lyrics, km-wallpaper-pack, km-package-builder, km-remote and km-admin -- so
-the last three are each an application *and* a command, and the command comes with
+The seven are km-pack, km-lyrics, km-wallpaper-pack, km-package-builder, km-package-simple,
+km-remote and km-admin -- so the last four are each an application *and* a command, and the command comes with
 the tools tick rather than with the application's own. The machine has a command too,
 karaokemachine, and that one comes with the application.
 

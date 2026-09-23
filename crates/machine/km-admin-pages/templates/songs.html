@@ -28,7 +28,7 @@
     <tbody>
     {% for package in packages %}
       <tr>
-        <td>{{ package.title }}</td>
+        <td>{{ package.title }}{% for flag in package.flags %} <span class="badge badge-quiet">{{ flag }}</span>{% endfor %}</td>
         <td>{{ package.version }}</td>
         <td class="num">{{ package.songs }}</td>
         <td class="num">

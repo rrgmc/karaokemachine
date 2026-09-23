@@ -2,14 +2,14 @@
 #
 # Stages portable builds of the command-line tools.
 #
-#   tools/dist/cmd.sh                    # all six
+#   tools/dist/cmd.sh                    # all seven
 #   tools/dist/cmd.sh km-pack            # just one, or any subset
 #   tools/dist/cmd.sh --zip              # also produce a .zip beside each folder
 #   tools/dist/cmd.sh --no-video         # build the video-capable tools without the `video` feature
 #   tools/dist/cmd.sh -v                 # watch the builds; quiet is the default
 #
 # **Quiet by default**, and this is the script it matters most in: with no arguments it runs
-# `cargo build --release` six times. The phases, the per-tool reports and every warning are printed;
+# `cargo build --release` seven times. The phases, the per-tool reports and every warning are printed;
 # the compile streams are not. A step that fails replays everything it held back, so `-v` is for
 # watching a build rather than for diagnosing one afterwards.
 #
@@ -66,7 +66,7 @@ cd "$(dirname "$0")/../.."
 . tools/dist/common.sh
 DIST_SCRIPT=dist-tools
 
-ALL_TOOLS=(km-pack km-lyrics km-package-builder km-remote km-admin km-wallpaper-pack)
+ALL_TOOLS=(km-pack km-lyrics km-package-builder km-package-simple km-remote km-admin km-wallpaper-pack)
 
 # Which tools can be built with video, and which simply have no such feature. km-lyrics parses MIDI
 # text and never touches a container, so asking for `--features video` there is not a smaller build --
@@ -74,7 +74,7 @@ ALL_TOOLS=(km-pack km-lyrics km-package-builder km-remote km-admin km-wallpaper-
 # something the caller has to remember to apply per tool. It is also what keeps the ffmpeg
 # precondition off a run that cannot use one: `tools/dist/cmd.sh km-lyrics` stages on a machine
 # with no ffmpeg at all, because nothing it was asked for could have taken the feature.
-video_capable() { case "$1" in km-pack|km-package-builder) return 0 ;; *) return 1 ;; esac; }
+video_capable() { case "$1" in km-pack|km-package-builder|km-package-simple) return 0 ;; *) return 1 ;; esac; }
 
 # Which tools have a window to build, and on which platforms it is a good idea.
 #
@@ -94,7 +94,7 @@ video_capable() { case "$1" in km-pack|km-package-builder) return 0 ;; *) return
 # stays one file with no runtime dependency beyond libc.
 desktop_capable() {
   case "$1" in
-    km-package-builder|km-remote|km-admin) [ "$PLATFORM" != "linux" ] ;;
+    km-package-builder|km-package-simple|km-remote|km-admin) [ "$PLATFORM" != "linux" ] ;;
     *) return 1 ;;
   esac
 }
@@ -127,7 +127,7 @@ desktop_capable() {
 # See `bundle=` in the staging loop, which is where the two are actually combined.
 bundle_capable() {
   case "$1" in
-    km-package-builder|km-remote|km-admin) [ "$PLATFORM" = "macos" ] ;;
+    km-package-builder|km-package-simple|km-remote|km-admin) [ "$PLATFORM" = "macos" ] ;;
     *) return 1 ;;
   esac
 }
@@ -145,6 +145,7 @@ bundle_capable() {
 bundle_name()  {
   case "$1" in
     km-package-builder) printf 'KM Package Builder' ;;
+    km-package-simple)  printf 'KM Simple Package' ;;
     km-remote)          printf 'KM Remote' ;;
     km-admin)           printf 'KM Admin' ;;
     *) echo "dist-tools: no bundle name for $1" >&2; exit 1 ;;
@@ -153,6 +154,7 @@ bundle_name()  {
 bundle_plist() {
   case "$1" in
     km-package-builder) printf 'tools/platform/macos/Info.package-builder.plist' ;;
+    km-package-simple)  printf 'tools/platform/macos/Info.package-simple.plist' ;;
     km-remote)          printf 'tools/platform/macos/Info.remote.plist' ;;
     km-admin)           printf 'tools/platform/macos/Info.admin.plist' ;;
     *) echo "dist-tools: no bundle plist for $1" >&2; exit 1 ;;
@@ -161,6 +163,7 @@ bundle_plist() {
 bundle_icns()  {
   case "$1" in
     km-package-builder) printf 'icon/km-package-builder.icns' ;;
+    km-package-simple)  printf 'icon/km-package-simple.icns' ;;
     km-remote)          printf 'icon/km-remote.icns' ;;
     km-admin)           printf 'icon/km-admin.icns' ;;
     *) echo "dist-tools: no bundle icon for $1" >&2; exit 1 ;;
@@ -521,6 +524,91 @@ Licenses
 --------
 
 km-lyrics is MIT OR Apache-2.0, at your option; both texts are beside this file.
+README
+}
+
+readme_km_package_simple() { # <file> <video: 1 or 0> <console twin: 1 or 0> <macOS bundle: 1 or 0>
+  cat > "$1" <<'README'
+km-package-simple
+=================
+
+Make a karaoke package straight from a folder, without the curation tool.
+
+Choose a folder of karaoke files. Every MIDI file, video, MP3+G pair and UltraStar song in it becomes
+a song. Look down the list, rename a song or leave it out, give the package a name and a version, and
+build. A folder of more than 999 songs becomes several packages, one per 999.
+
+Every package it writes is marked uncurated, because nobody reviewed its songs. The machine's lists
+of packages -- the admin page, the remote and the API -- show the mark. The television does not.
+README
+  if [ "${3:-0}" -eq 1 ]; then
+    cat >> "$1" <<'README'
+
+If there is a km-package-simple-console.exe beside km-package-simple.exe, that is the same program
+with somewhere to print, for when you need to see why something did not start.
+README
+  fi
+  if [ "${4:-0}" -eq 1 ]; then
+    cat >> "$1" <<'README'
+
+The application beside this folder
+----------------------------------
+
+    KM Simple Package.app
+
+That bundle is this same program with a Dock icon and a window of its own. Double-click it; there is
+nothing to run first and nothing to register.
+README
+    if ! dist_signing; then
+      cat >> "$1" <<'README'
+
+It is signed only ad-hoc, so on any Mac other than the one that built it macOS will refuse to open
+it until you clear the quarantine flag:
+
+    xattr -dr com.apple.quarantine "KM Simple Package.app"
+
+The first launch is also slow while macOS assesses it, and immediate afterwards.
+README
+    fi
+    cat >> "$1" <<'README'
+
+The km-package-simple executable in this folder is the same program for a terminal, and every
+command below is typed against it.
+README
+  fi
+  cat >> "$1" <<'README'
+
+Running it
+----------
+
+    km-package-simple
+    km-package-simple <folder>
+
+A build with a window opens one. Otherwise, open the address it prints -- http://127.0.0.1:8181/,
+or another port when that one is taken -- in a browser. With a folder named, it reads that folder
+at once.
+
+    --browser       show the page in your own browser rather than in a window
+    --open          open the page in a browser once it is running
+    --port N        the port to ask for first
+    --log-file      also write this run's log to a file
+    -v, -vv         say more
+
+Packages land in the folder the form names, each with a .txt listing of its songs beside it. Put a
+package on a machine the way you put any package there.
+README
+  if [ "${2:-0}" -eq 0 ]; then
+    cat >> "$1" <<'README'
+
+This build has no video support, so a video song is left out of the package and listed as such.
+README
+  fi
+  cat >> "$1" <<'README'
+
+Licenses
+--------
+
+km-package-simple is MIT OR Apache-2.0, at your option; both texts are beside this file.
 README
 }
 
@@ -1465,6 +1553,19 @@ for d in "${staged[@]}"; do
         fi
       fi
       printf '    cd %s && ./%s%s%s\n' "$d" "$exe" "$EXT" "$open" ;;
+    km-package-simple)
+      # The remote's two decisions again: the console twin on Windows, and `--open` only where no
+      # window opens by itself.
+      exe="km-package-simple"
+      open=" --open"
+      if desktop_capable km-package-simple && [ "$DESKTOP" -eq 1 ]; then
+        if [ "$PLATFORM" = "windows" ]; then
+          exe="km-package-simple-console"
+        else
+          open=""
+        fi
+      fi
+      printf '    cd %s && ./%s%s <your karaoke folder>%s\n' "$d" "$exe" "$EXT" "$open" ;;
   esac
 done
 

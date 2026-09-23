@@ -2604,6 +2604,37 @@ dependencies = [
 ]
 
 [[package]]
+name = "km-package-simple"
+version = "1.18.0"
+dependencies = [
+ "anyhow",
+ "askama",
+ "axum",
+ "clap",
+ "directories",
+ "km-console",
+ "km-kmpkg",
+ "km-locale",
+ "km-logfile",
+ "km-osopen",
+ "km-pack",
+ "km-song",
+ "km-songcode",
+ "km-tray",
+ "km-webshell",
+ "serde",
+ "serde_json",
+ "serde_urlencoded",
+ "tao",
+ "tokio",
+ "tower",
+ "tracing",
+ "tracing-subscriber",
+ "winresource",
+ "wry",
+]
+
+[[package]]
 name = "km-passwords"
 version = "1.18.0"
 dependencies = [

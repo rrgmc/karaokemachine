@@ -198,6 +198,7 @@ impl Songs for ThisMachine {
                             why_not_removable: state.catalog().why_not_removable(&package),
                             // Not measured here. See `Listing::bytes`.
                             bytes: None,
+                            flag_names: package.flags.names().map(str::to_owned).collect(),
                             id: package.id,
                             name: package.name,
                             version: package.version,
@@ -228,6 +229,7 @@ impl Songs for ThisMachine {
                 why_not_removable: state.catalog().why_not_removable(&package),
                 // Measured here and nowhere else: this is the page asking whether to delete it.
                 bytes: state.catalog().package_bytes(&package),
+                flag_names: package.flags.names().map(str::to_owned).collect(),
                 id: package.id,
                 name: package.name,
                 version: package.version,

@@ -13,10 +13,10 @@ out of the doc comments on a `Cli` struct. That rule is
 and it reaches here directly rather than through a catalog header: a command line has no catalog to
 head.
 
-**Two programs here have a Fluent catalog**: `assets/km-admin` and `km-package-builder`, each in
-`i18n/` beside its own templates. **A new page string is a key.** The parity tests in that program's
-`words.rs` fail the build on three faults. The two locales disagree, the markup asks for something no
-catalog has, or a template prints a word of its own. `--help` in either program is a doc comment in
-English.
+**Three programs here have a Fluent catalog**: `assets/km-admin`, `km-package-builder` and
+`km-package-simple`, each in `i18n/` beside its own templates. **A new page string is a key.** The
+parity tests in that program's `words.rs` fail the build on three faults. The two locales disagree,
+the markup asks for something no catalog has, or a template prints a word of its own. `--help` in
+each program is a doc comment in English.
 
 Reasoning about a control goes in the `{# #}` or `//` beside it, never on the page.

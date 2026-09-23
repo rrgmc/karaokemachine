@@ -123,6 +123,7 @@ Name: "custom"; Description: "Choose what to install"; Flags: iscustom
 [Components]
 Name: "machine"; Description: "KaraokeMachine -- plays the songs"; Types: full machine; Flags: checkablealone
 Name: "builder"; Description: "KM Package Builder -- turns a folder of songs into a package"; Types: full
+Name: "simple"; Description: "KM Simple Package -- makes a package straight from a folder, in one step"; Types: full
 Name: "remote"; Description: "KM Remote -- search and queue from this computer"; Types: full
 Name: "assets"; Description: "KM Admin -- find pictures and instrument banks for the machine"; Types: full
 Name: "tools"; Description: "Command-line tools (km-pack, km-lyrics, km-wallpaper-pack)"; Types: full
@@ -156,6 +157,7 @@ Name: "soundfont"; Description: "Download the recommended instrument bank ({#Ban
 ; -- the programs. One per component; no console twins, see the header. ---------------------------
 Source: "{#Payload}\karaokemachine.exe";     DestDir: "{app}"; Components: machine; Flags: ignoreversion
 Source: "{#Payload}\km-package-builder.exe"; DestDir: "{app}"; Components: builder; Flags: ignoreversion
+Source: "{#Payload}\km-package-simple.exe"; DestDir: "{app}"; Components: simple;  Flags: ignoreversion
 Source: "{#Payload}\km-remote.exe";      DestDir: "{app}"; Components: remote;  Flags: ignoreversion
 Source: "{#Payload}\km-admin.exe";      DestDir: "{app}"; Components: assets;  Flags: ignoreversion
 Source: "{#Payload}\km-pack.exe";            DestDir: "{app}"; Components: tools;   Flags: ignoreversion
@@ -217,10 +219,10 @@ Source: "{#Generated}\settings.json"; DestDir: "{userappdata}\karaokemachine\con
 ; Beside the exes rather than in a lib/ subfolder, because the Windows loader searches the directory
 ; the executable was loaded from and nowhere else that would help. Named by three components at once
 ; (the machine, the builder and the CLI tools all link them); Inno installs such a file once.
-Source: "{#Payload}\avcodec-61.dll";    DestDir: "{app}"; Components: machine builder tools; Flags: ignoreversion
-Source: "{#Payload}\avformat-61.dll";   DestDir: "{app}"; Components: machine builder tools; Flags: ignoreversion
-Source: "{#Payload}\avutil-59.dll";     DestDir: "{app}"; Components: machine builder tools; Flags: ignoreversion
-Source: "{#Payload}\swresample-5.dll";  DestDir: "{app}"; Components: machine builder tools; Flags: ignoreversion
+Source: "{#Payload}\avcodec-61.dll";    DestDir: "{app}"; Components: machine builder simple tools; Flags: ignoreversion
+Source: "{#Payload}\avformat-61.dll";   DestDir: "{app}"; Components: machine builder simple tools; Flags: ignoreversion
+Source: "{#Payload}\avutil-59.dll";     DestDir: "{app}"; Components: machine builder simple tools; Flags: ignoreversion
+Source: "{#Payload}\swresample-5.dll";  DestDir: "{app}"; Components: machine builder simple tools; Flags: ignoreversion
 ; The LGPL obligation: the terms travel with the binaries. Unconditional, so that it cannot go
 ; missing from a build whose component selection happened to drop every DLL user.
 Source: "{#Payload}\ffmpeg-LICENSE.txt"; DestDir: "{app}"; Flags: ignoreversion
@@ -289,6 +291,7 @@ Name: "{group}\KM Stream";                      Filename: "{app}\karaokemachine.
 ; and opens the folder in Explorer so a .kmpkg can be dropped straight in.
 Name: "{group}\Karaoke songs folder";           Filename: "{userappdata}\karaokemachine\data\packages"; Components: machine
 Name: "{group}\KM Package Builder"; Filename: "{app}\km-package-builder.exe"; Components: builder
+Name: "{group}\KM Simple Package";  Filename: "{app}\km-package-simple.exe";  Components: simple
 Name: "{group}\KM Remote";          Filename: "{app}\km-remote.exe";      Components: remote
 Name: "{group}\KM Admin";          Filename: "{app}\km-admin.exe";      Components: assets
 Name: "{group}\Read me first";                  Filename: "{app}\README.txt"
@@ -368,15 +371,16 @@ const
 { Shared with the remote's own setup program, which puts the same runtime behind the same window.
   The two sentences that differ are defines; the apostrophe in each is doubled because the text lands
   inside a Pascal string literal. }
-#define WebView2Need "The Package Builder and the Remote need Microsoft''s WebView2 runtime, which is not on this computer."
-#define WebView2Fallback "The Package Builder and the Remote will open their pages in your normal web browser instead of in a window of their own."
+#define WebView2Need "The Package Builder, KM Simple Package and the Remote need Microsoft''s WebView2 runtime, which is not on this computer."
+#define WebView2Fallback "The Package Builder, KM Simple Package and the Remote will open their pages in your normal web browser instead of in a window of their own."
 #include "webview2.iss"
 
-{ Only the two programs that put a webview in a window care. The machine draws with SDL and the
+{ Only the programs that put a webview in a window care. The machine draws with SDL and the
   command-line tools have no window at all, so an install of those alone must not reach the network. }
 function NeedsWebView2: Boolean;
 begin
-  Result := (WizardIsComponentSelected('builder') or WizardIsComponentSelected('remote')) and not WebView2Installed;
+  Result := (WizardIsComponentSelected('builder') or WizardIsComponentSelected('simple') or
+             WizardIsComponentSelected('remote')) and not WebView2Installed;
 end;
 
 { ---- PATH ------------------------------------------------------------------------------------ }
@@ -501,6 +505,7 @@ begin
            'Your songs, settings and catalog have been left alone. They are under:' + #13#10#13#10 +
            ExpandConstant('{userappdata}\karaokemachine') + #13#10 +
            ExpandConstant('{userappdata}\km-package-builder') + #13#10 +
+           ExpandConstant('{userappdata}\km-package-simple') + #13#10 +
            ExpandConstant('{userappdata}\km-remote') + #13#10 +
            ExpandConstant('{userappdata}\km-admin') + #13#10#13#10 +
            'Any .kmbuild file in a folder of songs, and any .kmpkg package, has been left alone ' +

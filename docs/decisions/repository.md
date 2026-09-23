@@ -1373,7 +1373,7 @@ request to change that decision, and it names the entry.
 form requires both. An answer that reaches only the body cannot be filtered on. Then "what is broken
 on Android" or "what is wrong with the remote" means opening every issue to find out. The labels are
 `windows`, `macos`, `linux`, `android` and `ios`, and `machine`, `remote`, `package-builder`,
-`admin`, `tools` and `api`.
+`package-simple`, `admin`, `tools` and `api`.
 
 **The form's answer is the source of the label**, and
 [`.github/workflows/issue-labels.yml`](../../.github/workflows/issue-labels.yml) applies it when an

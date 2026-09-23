@@ -324,6 +324,7 @@ fn write_spec(options: &Options, built: &[Built]) -> Result<()> {
             // There is no video here and never will be, so nothing to re-encode.
             transcode: false,
             out: Some(format!("{}.kmpkg", selection::PACKAGE_ID)),
+            uncurated: false,
         },
         // No `root:`, deliberately. `out:` resolves against the description's base, and the base
         // is `root:` where there is one -- so a root of `songs` would put the built package inside

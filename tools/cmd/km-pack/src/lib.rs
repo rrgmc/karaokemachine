@@ -32,6 +32,7 @@ pub mod listing;
 pub mod lrc;
 pub mod spec;
 pub mod ultrastar;
+pub mod volumes;
 
 #[cfg(test)]
 mod cdg_tests;

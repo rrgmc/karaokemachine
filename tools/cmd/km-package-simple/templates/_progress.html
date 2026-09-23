@@ -1,0 +1,9 @@
+{# Polls once a second. When the job ends, the answer tells htmx to redraw the whole page. #}
+<div id="progress" hx-get="/progress" hx-trigger="every 1s" hx-swap="outerHTML">
+  <p>{{ said }}</p>
+  {% if let Some(percent) = percent %}
+  <progress max="100" value="{{ percent }}"></progress>
+  {% else %}
+  <progress></progress>
+  {% endif %}
+</div>

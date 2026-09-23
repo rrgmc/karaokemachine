@@ -86,6 +86,11 @@ pub struct InstalledPackage {
     pub installed_at: String,
     /// The block of a thousand its songs are dialled in.
     pub bank: u16,
+    /// The header's flags word, unknown bits included.
+    ///
+    /// **The television never draws it.** The API, the admin pages and the remote show it. See `An
+    /// uncurated package says so everywhere but the television` in `docs/decisions/packaging.md`.
+    pub flags: km_kmpkg::PackageFlags,
 }
 
 /// A song as the catalog knows it.
@@ -475,7 +480,7 @@ impl Library {
     /// Installed packages, most recent first.
     pub fn packages(&self) -> Result<Vec<InstalledPackage>, LibraryError> {
         let mut statement = self.conn.prepare(
-            "SELECT id, name, version, path, song_count, installed_at, bank
+            "SELECT id, name, version, path, song_count, installed_at, bank, flags
              FROM packages ORDER BY installed_at DESC, id",
         )?;
         let rows = statement.query_map([], |row| {
@@ -487,6 +492,9 @@ impl Library {
                 song_count: usize::try_from(row.get::<_, i64>(4)?).unwrap_or(0),
                 installed_at: row.get(5)?,
                 bank: row.get::<_, i64>(6)?.try_into().unwrap_or(0),
+                flags: km_kmpkg::PackageFlags::from_bits(
+                    row.get::<_, i64>(7)?.try_into().unwrap_or(0),
+                ),
             })
         })?;
         Ok(rows.collect::<Result<Vec<_>, _>>()?)
@@ -552,8 +560,8 @@ impl Library {
         // Cascades to the package's songs, and the FTS triggers keep the index in step.
         transaction.execute("DELETE FROM packages WHERE id = ?1", params![&package_id])?;
         transaction.execute(
-            "INSERT INTO packages (id, name, version, path, song_count, installed_at, bank)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            "INSERT INTO packages (id, name, version, path, song_count, installed_at, bank, flags)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
             params![
                 &package_id,
                 &manifest.package.name,
@@ -561,7 +569,8 @@ impl Library {
                 &path,
                 i64::try_from(manifest.songs.len()).unwrap_or(0),
                 now,
-                bank
+                bank,
+                i64::from(package.flags().bits())
             ],
         )?;
 
@@ -976,7 +985,9 @@ fn prepare_existing(conn: &Connection) -> Result<(), LibraryError> {
         return Ok(());
     }
 
-    let mut current = has_table(conn, "meta")? && has_column(conn, "packages", "bank")?;
+    let mut current = has_table(conn, "meta")?
+        && has_column(conn, "packages", "bank")?
+        && has_column(conn, "packages", "flags")?;
     for column in [
         "kind",
         "lyric_preview",

@@ -190,7 +190,7 @@ tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
 # deliverable -- a curation tool, the offline remote and the picture-and-bank tool -- so the metadata
 # sits on the largest of them and `name` says `karaokemachine-tools`. km-admin comes from the second
 # cargo workspace under `tools/cmd/assets/`; both builds share one CARGO_TARGET_DIR, which is what
-# lets the asset list below name all three.
+# lets the asset list below name every one.
 #
 # **It is a Recommends of `karaokemachine` rather than part of it**, which is the mechanism the X11
 # libraries use one package over: `apt-get install karaokemachine` on a desktop takes the tools, and
@@ -212,14 +212,16 @@ priority = "optional"
 # one release, and what this needs from it is a directory of libraries.
 depends = "karaokemachine, libc6 (>= 2.39), libgcc-s1 (>= 3.0)"
 extended-description = """\
-The three programs that prepare what a karaoke machine plays: km-package-builder \
-curates a folder of songs into packages, km-admin fetches wallpapers and instrument \
-banks, and km-remote is the singer's remote for a machine that is not running. Each \
-serves its own page and opens it in your browser; none has a window of its own here."""
+The four programs that prepare what a karaoke machine plays: km-package-builder \
+curates a folder of songs into packages, km-package-simple makes a package straight \
+from a folder in one step, km-admin fetches wallpapers and instrument banks, and \
+km-remote is the singer's remote for a machine that is not running. Each serves its \
+own page and opens it in your browser; none has a window of its own here."""
 assets = [
     # /opt rather than /usr/bin, so `$ORIGIN/../lib` reaches the machine's ffmpeg. postinst puts the
-    # three names on PATH the way the machine's does.
+    # names on PATH the way the machine's does.
     ["target/release/km-package-builder", "opt/karaokemachine/tools/km-package-builder", "755"],
+    ["target/release/km-package-simple", "opt/karaokemachine/tools/km-package-simple", "755"],
     ["target/release/km-remote", "opt/karaokemachine/tools/km-remote", "755"],
     ["target/release/km-admin", "opt/karaokemachine/tools/km-admin", "755"],
 ]

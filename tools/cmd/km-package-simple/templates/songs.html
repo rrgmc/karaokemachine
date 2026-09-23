@@ -1,0 +1,32 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="row">
+  <h1 class="grow">{{ folder }}</h1>
+  <button type="button" class="quiet" hx-post="/close" hx-swap="none">{{ "action-other-folder"|t }}</button>
+</div>
+
+{% if let Some(error) = error %}
+<p class="error">{{ "said-failed"|t }} {{ error }}</p>
+{% endif %}
+
+<form class="package" hx-post="/build" hx-swap="none">
+  <p class="hint">{{ "form-uncurated"|t }}</p>
+  <div class="fields">
+    <label>{{ "form-name"|t }} <input name="name" value="{{ form.name }}" required></label>
+    <label>{{ "form-version"|t }} <input name="version" value="{{ form.version }}" required></label>
+    <label>{{ "form-publisher"|t }} <input name="publisher" value="{{ form.publisher }}"></label>
+    <label>{{ "form-language"|t }}
+      <select name="language">
+        {% for language in form.languages %}
+        <option value="{{ language.code }}"{% if language.chosen %} selected{% endif %}>{{ language.name }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label class="wide">{{ "form-out"|t }} <input name="out_dir" value="{{ form.out_dir }}" required></label>
+  </div>
+  <p class="hint">{{ "form-language-hint"|t }}</p>
+  <button type="submit">{{ "action-build"|t }}</button>
+</form>
+
+{{ list|safe }}
+{% endblock %}

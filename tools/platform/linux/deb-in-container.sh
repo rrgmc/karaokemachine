@@ -137,11 +137,11 @@ if [ "$TOOLS" -eq 1 ]; then
   # CARGO_TARGET_DIR covers both, which is what lets the asset list in
   # tools/cmd/km-package-builder/Cargo.toml name all three under `target/release`.
   dist_run "cargo build (tools)" \
-    cargo build --release --locked -p km-package-builder -p km-remote "${FEATURES[@]+"${FEATURES[@]}"}"
+    cargo build --release --locked -p km-package-builder -p km-package-simple -p km-remote "${FEATURES[@]+"${FEATURES[@]}"}"
   dist_run "cargo build (km-admin)" \
     cargo build --release --locked --manifest-path tools/cmd/assets/Cargo.toml -p km-admin
 
-  for t in km-package-builder km-remote km-admin; do
+  for t in km-package-builder km-package-simple km-remote km-admin; do
     if [ ! -x "$T/release/$t" ]; then
       echo "deb-in-container: the build produced no $T/release/$t" >&2
       exit 1
@@ -155,10 +155,11 @@ if [ "$TOOLS" -eq 1 ]; then
     fi
   done
 
-  # km-package-builder is the one with `video`, so it is the one that links ffmpeg and the one whose
-  # rpath has to reach the machine's copy. The other two link nothing but libc and are left alone.
+  # The two package builders take `video`, so they link ffmpeg and their rpath has to reach the
+  # machine's copy. The other two link nothing but libc and are left alone.
   if [ "$VIDEO" -eq 1 ]; then
     patchelf --set-rpath '$ORIGIN/../lib' "$T/release/km-package-builder"
+    patchelf --set-rpath '$ORIGIN/../lib' "$T/release/km-package-simple"
   fi
 else
   # **cargo builds and cargo-deb packages what was built, for all three rather than for one.**
@@ -272,7 +273,7 @@ deb_depends_ffmpeg() { printf '%s\n' "$deb_depends" | grep -q libavcodec; }
 if [ "$TOOLS" -eq 1 ]; then
   # **What this package is, asserted rather than assumed.** Three binaries, no libraries of its own,
   # and a Depends on the machine -- which is what makes `$ORIGIN/../lib` resolve to anything.
-  for t in km-package-builder km-remote km-admin; do
+  for t in km-package-builder km-package-simple km-remote km-admin; do
     if ! printf '%s\n' "$deb_contents" | grep -qE "opt/karaokemachine/tools/$t\$"; then
       echo >&2
       echo "deb-in-container: the tools package carries no $t." >&2
@@ -357,7 +358,7 @@ fi
 # mean the `desktop` feature reached a Linux build -- the fault `tools/setup/features.sh` exists to
 # prevent, and one that shows up as a program that will not start rather than as a build error.
 if [ "$TOOLS" -eq 1 ]; then
-  CHECK=("$T/release/km-package-builder" "$T/release/km-remote" "$T/release/km-admin")
+  CHECK=("$T/release/km-package-builder" "$T/release/km-package-simple" "$T/release/km-remote" "$T/release/km-admin")
 else
   CHECK=("$EXE")
 fi

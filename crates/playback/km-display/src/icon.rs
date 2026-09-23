@@ -366,6 +366,62 @@ mod tests {
         }
     }
 
+    /// The simple package builder's mark: the package builder's, with a bolt.
+    ///
+    /// **Not in [`ALL_MARKS`]**, for the stream mark's reason. It leads with the builder's blue,
+    /// because the theme has no hue left, and the bolt is what tells the two apart.
+    const SIMPLE_MARK: &[u8] = include_bytes!("../../../../icon/km-package-simple-256.png");
+
+    /// On the bolt's middle stroke, which joins its two slanted ones.
+    const BOLT_MIDDLE: (u32, u32) = (179, 183);
+    /// Everything the bolt can reach, as (left, top, right, bottom) inclusive.
+    ///
+    /// The drawing's own numbers with a few pixels of margin: the bolt's corners run from
+    /// (0.775, 0.740) to (0.870, 0.945) of a plate covering 49 to 207 here, and each stroke is
+    /// `0.030` thick on either side.
+    const BOLT_BOX: (u32, u32, u32, u32) = (162, 157, 196, 207);
+
+    /// The simple mark is the builder's mark and a bolt, and the bolt is all of the difference.
+    ///
+    /// Somebody who sees both on one desktop has to read them as two package tools of one family,
+    /// so nothing but the bolt may move.
+    #[test]
+    fn the_simple_mark_is_the_builders_mark_and_a_bolt() {
+        let simple = decode(SIMPLE_MARK, "simple package builder");
+        let builder = decode(ALL_MARKS[1].1, "package builder");
+
+        let sample = at(&simple, BOLT_MIDDLE);
+        assert_eq!(sample[3], 255, "the bolt must be opaque");
+        assert!(
+            i32::from(sample[2]) > i32::from(sample[0]) + 60,
+            "the bolt should be the accent blue the M is, and it is {sample:?}"
+        );
+        assert_ne!(
+            sample,
+            at(&builder, BOLT_MIDDLE),
+            "the bolt is bare plate, exactly as it is on the builder's own mark"
+        );
+
+        let ratio = contrast(&sample, &at(&simple, PLATE));
+        assert!(
+            ratio >= 4.5,
+            "the bolt is only {ratio:.2}:1 against the plate under it; the floor is 4.5:1"
+        );
+
+        let (left, top, right, bottom) = BOLT_BOX;
+        for (x, y, pixel) in simple.enumerate_pixels() {
+            if (left..=right).contains(&x) && (top..=bottom).contains(&y) {
+                continue;
+            }
+            assert_eq!(
+                pixel,
+                builder.get_pixel(x, y),
+                "the simple mark differs from the builder's at ({x}, {y}), which the bolt does \
+                 not reach"
+            );
+        }
+    }
+
     /// WCAG relative luminance, from an RGBA pixel.
     ///
     /// The sRGB transfer function rather than the weighted-sum shortcut `theme.rs` uses for the

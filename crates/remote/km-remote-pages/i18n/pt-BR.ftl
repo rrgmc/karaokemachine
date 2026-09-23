@@ -266,6 +266,7 @@ machine-more-answered =
 
 singer-set = Suas músicas vão entrar na fila como { $name }.
 singer-cleared = Suas músicas vão entrar na fila sem nome.
+package-flag-uncurated = sem curadoria
 packages-shown = Pacotes na minha lista de músicas
 packages-shown-hint = Um pacote desmarcado fica fora das buscas, dos artistas e dos filtros neste celular. O número da música e os seus favoritos ainda encontram as músicas dele.
 packages-hidden-saved = Sua lista de músicas deixa de fora os pacotes desmarcados.

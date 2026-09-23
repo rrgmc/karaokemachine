@@ -847,6 +847,9 @@ CREATE TABLE IF NOT EXISTS packages (
     id             TEXT PRIMARY KEY,
     name           TEXT    NOT NULL,
     publisher      TEXT,
+    -- The header flags an imported package carried, whole, so a build writes them back. Kept as one
+    -- word so a new flag needs no column. See `Importing an uncurated package keeps the flag`.
+    flags          INTEGER NOT NULL DEFAULT 0,
     -- Files any song in this package that names no language of its own under this code, in the
     -- package and nowhere else -- the curation database is never written to by a build.
     --

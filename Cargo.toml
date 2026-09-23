@@ -50,6 +50,7 @@ members = [
     "tools/cmd/km-lyrics",
     "tools/cmd/km-carols",
     "tools/cmd/km-package-builder",
+    "tools/cmd/km-package-simple",
     # The working session's own, and `tools/dev/` for the reason above: the directory says what the
     # thing is for. This one is never staged and never shipped -- `ALL_APPS` in tools/dist/bin.sh is
     # an explicit list and does not name it -- but it is a member all the same, so `cargo km-lint`

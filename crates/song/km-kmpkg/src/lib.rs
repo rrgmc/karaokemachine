@@ -12,6 +12,7 @@
 //! than followed, and a manifest from a newer format version is refused rather than half-understood.
 
 mod container;
+mod flags;
 pub mod language;
 pub mod manifest;
 pub mod tag;
@@ -23,6 +24,7 @@ use sha2::{Digest, Sha256};
 
 use crate::container::{CappedRead, Container, ContainerError, Method, Writer};
 
+pub use crate::flags::PackageFlags;
 pub use crate::language::{Language, TABLE_REVISION as LANGUAGE_TABLE_REVISION};
 pub use crate::manifest::EditedField;
 pub use crate::manifest::{
@@ -276,6 +278,7 @@ fn format_problems(problems: &[ManifestProblem]) -> String {
 pub struct Package {
     path: PathBuf,
     manifest: Manifest,
+    flags: PackageFlags,
 }
 
 impl Package {
@@ -307,7 +310,18 @@ impl Package {
         Ok(Self {
             path: path.to_path_buf(),
             manifest,
+            flags: container.flags(),
         })
+    }
+
+    /// The header's flags word, unknown bits included.
+    pub fn flags(&self) -> PackageFlags {
+        self.flags
+    }
+
+    /// Whether the package was built straight from a folder. See [`PackageFlags::UNCURATED`].
+    pub fn is_uncurated(&self) -> bool {
+        self.flags.is_uncurated()
     }
 
     /// The archive's path.
@@ -1058,6 +1072,7 @@ pub fn is_seekable_entry(name: &str) -> bool {
 pub struct PackageBuilder {
     manifest: Manifest,
     files: Vec<Pending>,
+    flags: PackageFlags,
 }
 
 impl PackageBuilder {
@@ -1066,7 +1081,17 @@ impl PackageBuilder {
         Self {
             manifest: Manifest::new(package),
             files: Vec::new(),
+            flags: PackageFlags::NONE,
         }
+    }
+
+    /// Sets the flags word the header carries.
+    ///
+    /// **A rebuild does not inherit a source package's flags.** Entries copied from one keep their
+    /// bytes, but the header is written fresh, so whoever rebuilds passes the flags on here.
+    pub fn set_flags(&mut self, flags: PackageFlags) -> &mut Self {
+        self.flags = flags;
+        self
     }
 
     /// Adds a song, choosing its path inside the archive.
@@ -1304,7 +1329,7 @@ impl PackageBuilder {
         })?;
 
         let fault = |error: ContainerError| container_error(error, &display);
-        let mut writer = Writer::new(file).map_err(fault)?;
+        let mut writer = Writer::with_flags(file, self.flags).map_err(fault)?;
 
         // Opened once each and reused, though in practice a rebuild reads exactly one.
         let mut sources: std::collections::HashMap<PathBuf, Container<std::fs::File>> =
@@ -1426,6 +1451,16 @@ pub fn read_manifest_unchecked(path: impl AsRef<Path>) -> Result<Manifest, Packa
         source,
     })?;
     read_manifest_from(file, &display)
+}
+
+/// Reads a package's flags word without validating its manifest, for diagnosing a broken package.
+///
+/// The same reason as [`read_manifest_unchecked`]: `km-pack check` reports on a file that
+/// [`Package::open`] would refuse.
+pub fn read_flags(path: impl AsRef<Path>) -> Result<PackageFlags, PackageError> {
+    let path = path.as_ref();
+    let display = path.display().to_string();
+    Ok(open_container(path, &display)?.flags())
 }
 
 fn read_manifest_from<R: Read + Seek>(reader: R, display: &str) -> Result<Manifest, PackageError> {
@@ -2234,6 +2269,38 @@ mod tests {
         assert_eq!(package.manifest().package.name, "Volume 1");
         assert_eq!(package.read_song(101).expect("read"), b"first song bytes");
         assert_eq!(package.read_song(102).expect("read"), b"second song bytes");
+    }
+
+    #[test]
+    fn a_package_with_no_flag_reads_as_none() {
+        let dir = temp_dir("no-flags");
+        let path = dir.join("vol1.kmpkg");
+        let mut builder = PackageBuilder::new(meta());
+        builder.add(entry(101), b"song".to_vec()).expect("add");
+        builder.write(&path).expect("write");
+
+        // The bytes a build without flags wrote are the bytes this one writes.
+        let bytes = std::fs::read(&path).expect("read");
+        assert_eq!(&bytes[10..16], &[0; 6]);
+        let package = Package::open(&path).expect("open");
+        assert_eq!(package.flags(), PackageFlags::NONE);
+        assert!(!package.is_uncurated());
+    }
+
+    #[test]
+    fn the_flags_word_round_trips_with_an_unknown_bit_kept() {
+        let dir = temp_dir("flags");
+        let path = dir.join("vol1.kmpkg");
+        let flags = PackageFlags::UNCURATED.with(PackageFlags::from_bits(1 << 7));
+        let mut builder = PackageBuilder::new(meta());
+        builder.add(entry(101), b"song".to_vec()).expect("add");
+        builder.set_flags(flags);
+        builder.write(&path).expect("write");
+
+        let package = Package::open(&path).expect("open");
+        assert_eq!(package.flags(), flags);
+        assert!(package.is_uncurated());
+        assert_eq!(read_flags(&path).expect("flags"), flags);
     }
 
     #[test]

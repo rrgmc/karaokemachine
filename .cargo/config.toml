@@ -95,9 +95,9 @@ KM_NO_MDNS = "1"
 # and `The remote's window, and its portable core` in docs/decisions/). So the one flag meaning
 # "everything" asks Linux for the one thing the platform is designed not to provide. Neither
 # `desktop` appears below, and that omission is the mechanism rather than a rule to remember.
-km-build = "build --workspace --features km-song/testing,km-api/testing,km-video/ffmpeg,km-stream/ffmpeg,karaokemachine/video,km-pack/video,km-package-builder/video"
-km-test = "test --workspace --features km-song/testing,km-api/testing,km-video/ffmpeg,km-stream/ffmpeg,karaokemachine/video,km-pack/video,km-package-builder/video"
-km-lint = "clippy --workspace --all-targets --features km-song/testing,km-api/testing,km-video/ffmpeg,km-stream/ffmpeg,karaokemachine/video,km-pack/video,km-package-builder/video -- -D warnings"
+km-build = "build --workspace --features km-song/testing,km-api/testing,km-video/ffmpeg,km-stream/ffmpeg,karaokemachine/video,km-pack/video,km-package-builder/video,km-package-simple/video"
+km-test = "test --workspace --features km-song/testing,km-api/testing,km-video/ffmpeg,km-stream/ffmpeg,karaokemachine/video,km-pack/video,km-package-builder/video,km-package-simple/video"
+km-lint = "clippy --workspace --all-targets --features km-song/testing,km-api/testing,km-video/ffmpeg,km-stream/ffmpeg,karaokemachine/video,km-pack/video,km-package-builder/video,km-package-simple/video -- -D warnings"
 
 # ...and the same three with video declined, for the machine that has neither ffmpeg nor libclang: a
 # fresh clone, and the check that a `--no-video` release still compiles. **The cargo `video` feature
@@ -148,6 +148,9 @@ km-package-builder-video = "run -p km-package-builder --features video --"
 # name is the one that matches `-p`; this one exists only to save keystrokes.
 km-pkgbuild = "run -p km-package-builder --"
 km-pkgbuild-video = "run -p km-package-builder --features video --"
+# The folder packager, which reads no database and needs `video` only to build a video song.
+km-package-simple = "run -p km-package-simple --"
+km-package-simple-video = "run -p km-package-simple --features video --"
 km-pack = "run -p km-pack --"
 km-pack-video = "run -p km-pack --features video --"
 km-lyrics = "run -p km-lyrics --"
@@ -168,6 +171,7 @@ km-pick = "run -p km-pick --"
 # Do not add these to `tools/setup/features.sh`; they are not part of any whole-workspace run.
 km-remote-desktop = "run -p km-remote --features desktop --"
 km-pkgbuild-desktop = "run -p km-package-builder --features desktop --"
+km-package-simple-desktop = "run -p km-package-simple --features desktop --"
 
 # Generated assets, rebuilt from code rather than committed. All five of km-display's examples, not
 # the three that happened to get an alias first: `banner` and `screenshots` were reached by a bare

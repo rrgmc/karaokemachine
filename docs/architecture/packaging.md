@@ -12,11 +12,16 @@ through an `EntryWindow`: the package's own file handle with an offset and a len
 into the window and never extracts it.
 
 ```text
-0                header: magic `KMPKG\x1a\0\0`, container version
+0                header: magic `KMPKG\x1a\0\0`, container version (u16), flags (u32), two zero bytes
 16               the entries, back to back
                  the directory: name, method, offset, stored length, real length, crc32
                  footer: directory offset, directory length, `KMPKGEND`
 ```
+
+**The flags word is read with the header and kept whole.** `Container::open` reads it,
+`Package::flags` returns it, and `read_flags` reads it for a file whose manifest does not validate.
+A bit this build does not know passes through unchanged. `PackageFlags::names` is the one map from a
+bit to a word.
 
 **The directory is the only table**, so no second copy of a length can disagree with it, and there
 is nothing to cross-check. A stored entry is a contiguous byte range, and the directory says where it

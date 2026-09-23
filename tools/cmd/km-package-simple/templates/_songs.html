@@ -1,0 +1,51 @@
+{# Redrawn whole when a song is kept or left out, because every number after it moves. #}
+<section id="songs" data-page="{{ page }}">
+  <p class="summary">{{ summary }}</p>
+  <p class="hint">{{ "songs-shift-hint"|t }}</p>
+  <table>
+    <thead>
+      <tr>
+        <th class="num">{{ "column-number"|t }}</th>
+        <th>{{ "column-kind"|t }}</th>
+        <th>{{ "column-title"|t }}</th>
+        <th>{{ "column-artist"|t }}</th>
+        <th>{{ "column-language"|t }}</th>
+        <th class="num">{{ "column-suitability"|t }}</th>
+        <th>{{ "column-keep"|t }}</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for row in rows %}
+      {# A rename posts both boxes on change and redraws nothing: nothing else on the page moves. #}
+      <tr{% if !row.kept %} class="left-out"{% endif %} title="{{ row.file }}">
+        <td class="num">{{ row.slot }}</td>
+        <td>{{ row.kind }}</td>
+        <td><input name="title" value="{{ row.title }}" placeholder="{{ row.stem }}"
+                   hx-post="/songs/{{ row.index }}" hx-trigger="change" hx-include="closest tr" hx-swap="none"></td>
+        <td><input name="artist" value="{{ row.artist }}"
+                   hx-post="/songs/{{ row.index }}" hx-trigger="change" hx-include="closest tr" hx-swap="none"></td>
+        <td>{{ row.language }}</td>
+        <td class="num">{{ row.suitability }}</td>
+        {# `static/ui.js` posts it, because a shift-click sends a run of songs in one request. #}
+        <td><input type="checkbox" name="keep" value="on"{% if row.kept %} checked{% endif %}
+                   aria-label="{{ "column-keep"|t }}" data-index="{{ row.index }}"></td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  <nav class="pager">
+    {% if let Some(previous) = previous %}<a href="/?page={{ previous }}">{{ "page-previous"|t }}</a>{% endif %}
+    <span>{{ range }}</span>
+    {% if let Some(next) = next %}<a href="/?page={{ next }}">{{ "page-next"|t }}</a>{% endif %}
+  </nav>
+  {% if !left.is_empty() %}
+  <details class="left">
+    <summary>{{ left_heading }}</summary>
+    <ul>
+      {% for file in left %}
+      <li><span class="mono">{{ file.file }}</span> {{ file.why }}</li>
+      {% endfor %}
+    </ul>
+  </details>
+  {% endif %}
+</section>

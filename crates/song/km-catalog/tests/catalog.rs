@@ -815,6 +815,46 @@ fn installed_packages_are_listed_with_their_details() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
+/// The header's flags word reaches the listing whole, with a bit this build has no name for kept.
+#[test]
+fn an_installed_package_keeps_its_flags_word() {
+    let dir = temp_dir("flags");
+    let path = dir.join("flagged.kmpkg");
+    let flags = km_kmpkg::PackageFlags::UNCURATED.with(km_kmpkg::PackageFlags::from_bits(1 << 9));
+    let mut builder = PackageBuilder::new(meta(VOL1));
+    builder
+        .add(song(1, "A", None), b"midi bytes".to_vec())
+        .expect("add");
+    builder.set_flags(flags);
+    builder.write(&path).expect("write");
+    let package = Package::open(&path).expect("open");
+
+    let mut library = Library::open_in_memory().expect("open");
+    library.install(&package, 1, NOW).expect("install");
+    assert_eq!(library.packages().expect("packages")[0].flags, flags);
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// A catalog written before the flags column is rebuilt, so no installed package reads as unflagged.
+#[test]
+fn a_catalog_without_the_flags_column_is_dropped_and_rebuilt() {
+    let dir = temp_dir("migrate-flags");
+    let path = dir.join("library.sqlite");
+    let package = build_package(&dir, VOL1, vec![song(1, "A", None)]);
+    {
+        let mut library = Library::open(&path).expect("create");
+        library.install(&package, 1, NOW).expect("install");
+    }
+    rusqlite::Connection::open(&path)
+        .expect("reopen")
+        .execute_batch("ALTER TABLE packages DROP COLUMN flags;")
+        .expect("the older shape");
+
+    let library = Library::open(&path).expect("an older catalog still opens");
+    assert!(library.packages().expect("packages").is_empty());
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
 /// A catalog keyed by number alone is thrown away rather than converted.
 ///
 /// Safe only because this file is a **derived index**: every installed package is named in

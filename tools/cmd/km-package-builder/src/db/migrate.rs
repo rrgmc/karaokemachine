@@ -12,7 +12,7 @@ use super::*;
 /// The schema this build writes and understands, stamped into `PRAGMA user_version`.
 ///
 /// Bump this and add an arm to [`step_to`] in the same change. The number keeps counting.
-pub(super) const SCHEMA_VERSION: u32 = 19;
+pub(super) const SCHEMA_VERSION: u32 = 20;
 
 /// The oldest schema this build opens. Everything from here to [`SCHEMA_VERSION`] is an arm of
 /// [`step_to`].
@@ -134,6 +134,12 @@ fn step_to(conn: &Connection, version: u32) -> Result<(), DbError> {
         // so a database holding either earlier shape would keep it.
         19 => {
             conn.execute_batch("DROP INDEX IF EXISTS songs_countable")?;
+            Ok(())
+        }
+        // The header flags an imported package carried. `0` on every row, which is what a package
+        // this tool made from its own songs carries anyway.
+        20 => {
+            conn.execute_batch("ALTER TABLE packages ADD COLUMN flags INTEGER NOT NULL DEFAULT 0")?;
             Ok(())
         }
         _ => Err(DbError::Rejected(format!(

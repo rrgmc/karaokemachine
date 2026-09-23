@@ -9,7 +9,7 @@ set -e
 
 case "$1" in
   remove | purge)
-    for tool in km-package-builder km-remote km-admin; do
+    for tool in km-package-builder km-package-simple km-remote km-admin; do
       link="/usr/bin/$tool"
       if [ -L "$link" ] && [ "$(readlink "$link")" = "/opt/karaokemachine/tools/$tool" ]; then
         rm -f "$link"

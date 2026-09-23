@@ -4231,6 +4231,7 @@ fn a_database_at_schema_14_steps_to_the_current_schema() {
              DROP INDEX IF EXISTS songs_countable;
              DROP INDEX IF EXISTS songs_deleted;
              ALTER TABLE packages DROP COLUMN number_one_volume;
+             ALTER TABLE packages DROP COLUMN flags;
              ALTER TABLE songs DROP COLUMN det_language_guess;
              ALTER TABLE songs DROP COLUMN det_language_guess_confidence;
              ALTER TABLE songs DROP COLUMN lyrics_hidden;
@@ -4258,6 +4259,11 @@ fn a_database_at_schema_14_steps_to_the_current_schema() {
         .expect("the package survives the step");
     assert!(!volume.number_one_volume);
     assert_eq!(volume.volume_name(), "Brasil");
+    // The flags word is back, and empty, which is what a package nothing imported carries.
+    assert_eq!(
+        db.package_flags("1f4a9c8e2b7d0356").expect("flags"),
+        km_kmpkg::PackageFlags::NONE
+    );
     // The guessed-language columns are back, and empty, which is what a row nothing has read says.
     db.execute_for_test(
         "SELECT det_language_guess, det_language_guess_confidence FROM songs LIMIT 1",

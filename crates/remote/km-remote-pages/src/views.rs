@@ -962,6 +962,11 @@ pub struct PackageSetting {
     pub songs: String,
     /// Whether its songs are in this phone's song list.
     pub shown: bool,
+    /// Whether it was built straight from a folder, which the row marks with a badge.
+    ///
+    /// **One field per flag the page draws**, so each label is a key the template names and the
+    /// catalog parity tests can see.
+    pub uncurated: bool,
 }
 
 /// The `#machine` block: which machine, how it was found, and what can be done about it.

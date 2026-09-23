@@ -12,7 +12,7 @@ set -e
 
 case "$1" in
   configure)
-    for tool in km-package-builder km-remote km-admin; do
+    for tool in km-package-builder km-package-simple km-remote km-admin; do
       ln -sfn "/opt/karaokemachine/tools/$tool" "/usr/bin/$tool"
     done
     ;;

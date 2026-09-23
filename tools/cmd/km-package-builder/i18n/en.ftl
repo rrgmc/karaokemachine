@@ -1170,6 +1170,7 @@ said-spec-written = { $count ->
    *[other] Wrote { $file } describing { $count } songs. Edit it in any text editor and build it with km-pack, or go on building from this page. This page reads the same description without the file.
   }
 said-build-gone = { $file } is not there any more. Build it again.
+said-import-uncurated = The file is marked uncurated, and every build of this package keeps the mark.
 said-imported-all = { $count ->
     [one] Imported { $package } with { $count } song, matched to a file in this folder.
    *[other] Imported { $package } with { $count } songs, all matched to files in this folder.

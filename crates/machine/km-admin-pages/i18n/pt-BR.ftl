@@ -61,6 +61,7 @@ bank-playing = tocando
 bank-remove = Remover { $bank }
 column-file = Arquivo
 column-size = Tamanho
+package-flag-uncurated = sem curadoria
 column-version = Versão
 output-heading = Por onde o som sai
 output-hint = A máquina guarda esta escolha.

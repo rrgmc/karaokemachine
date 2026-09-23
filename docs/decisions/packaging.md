@@ -24,7 +24,8 @@ maintains. **A stored list can lie about itself and a comparison cannot.**
 **The selection flags live on `spec`**: `--min-suitability`, `--require-lyrics`, `--limit` and
 `--index`. They decide what is *in* the package, and a file they exclude simply has no row.
 `spec --from <existing.kmpkg>` seeds the hand-edited fields into a description rather than carrying
-them invisibly.
+them invisibly. A description `spec` writes also says `uncurated: true`, because nobody has reviewed
+a walk of a folder yet.
 
 **The curation tool builds through the same description**, in memory, so the two tools cannot produce
 different packages from the same songs.
@@ -546,6 +547,7 @@ the song that will not fit. A package of a thousand songs numbered 1 to 1000 tri
 The packagers refuse earlier, where somebody can still act. `km-pack spec` refuses to describe a
 folder that overflows. It names the count and points at `--min-suitability`, `--require-lyrics` and
 `--limit`. `km-package-builder` refuses a hand add past the cap and offers **Re-flow**.
+`km-package-simple` divides the folder into volumes instead, because it offers no way to narrow one.
 
 **A curated set larger than 999 songs is several packages, and the curation tool divides it.** A
 package there holds volumes, each a `.kmpkg` under this cap. A package sourced from favorites starts
@@ -565,6 +567,51 @@ the volume would arrive as an unrelated package.
 cannot open. Nothing about which set a file belongs to changes whether its songs can be played. It is
 optional, skipped when absent and read past by an older reader, so the format version does not move.
 `km-pack inspect` prints it, and a description names it under `package` as `volume:`.
+
+## A package's header carries flags, and an unknown one is kept
+
+**Bytes 10 to 14 of the container header are a flags word**: a little-endian `u32`, one bit per fact
+about the file as a whole. The container version fills bytes 8 and 9. A build that sets no flag
+writes zeros there, so a package with no flag is byte-identical to one from an older build. An older
+machine opens a flagged package without a version change.
+
+**A reader keeps a bit it does not know.** The container version already refuses a layout a build
+cannot read. A flag describes a package the build *can* read, so refusing an unknown one would make
+each new flag break every machine in use. `PackageFlags::names` names the known bits, in one place.
+
+**Every store keeps the whole word, and never a column per bit**: the catalog, the remote's mirror
+and the curation database. A new flag is then a new constant and a new label in each language, with
+no schema change and no catalog rebuild. A newer package on an older machine keeps its unknown bits
+through every store.
+
+**The API carries both forms.** `flags` is the word, and `flag_names` lists the bits this build
+knows. A page reads the names, and the number keeps what the names cannot say.
+
+**A rebuild writes a fresh header.** Copied entries keep their bytes, but whoever rebuilds passes
+the flags on through `PackageBuilder::set_flags`.
+
+## An uncurated package says so everywhere but the television
+
+**The first flag is `uncurated`: a package built straight from a folder, with nobody reviewing its
+titles, duplicates or numbers.** Both tools that walk a folder set it. `km-package-simple` sets it
+on every package it writes. `km-pack spec` writes `uncurated: true` into the description, and
+`km-pack build` sets the flag from that line. A person who reviews the description deletes the line.
+See
+[`A package can be built straight from a folder`](curation.md#a-package-can-be-built-straight-from-a-folder).
+
+**It shows on every list of packages that is not the television.** That is the HTTP API, the admin
+pages and the remote's list of packages. It is also `km-pack inspect`, `km-pack check` and the
+listing beside a package. The people who read those lists install, replace and choose packages. For
+them, "nobody reviewed this" is a fact worth a badge.
+
+**The television never draws it.** A singer who picks a song from the screen gains nothing from the
+word, and the television lists no packages. So the catalog carries the flag, and the display does
+not read it.
+
+**A flag is part of the file, so it changes only when the file does.** Nothing on the machine can
+set or clear one. A person who reviews the songs rebuilds the package, and
+[`Importing an uncurated package keeps the flag`](curation.md#importing-an-uncurated-package-keeps-the-flag)
+says what the curation tool does then.
 
 ## A package's id asks for a bank; the machine assigns one
 
