@@ -246,7 +246,8 @@ tools/                     # six folders and nothing loose -- see "How things he
     common.sh              # sourced by fourteen callers; asserts the caller reached the repo root
     bin.sh cmd.sh clean.sh check-assets.sh
   dev/                     # the working session
-    worktree.sh claude-worktree-hook.sh screenshots.sh check-no-local-refs.sh
+    worktree.sh claude-worktree-hook.sh screenshots.sh screen-animation.sh
+    check-no-local-refs.sh
     clean.sh               # the whole checkout, where dist/clean.sh is the releases in it
     soundfont.sh soundfont-debug.sh soundfont-measure.sh
     km-pick/               # the one crate under dev/: a checkbox list over `inquire`, so a shell

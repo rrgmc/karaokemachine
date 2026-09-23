@@ -14,6 +14,9 @@
 #   remote-offline.png                                                      the offline remote
 #   package-builder-songs.png                                               km-package-builder
 #
+# The ninth picture in docs/images, screen-singing.webp, is tools/dev/screen-animation.sh's. It shows
+# a released carol rather than the corpus, so it needs neither this script nor a corpus.
+#
 # Why a script and not a paragraph in the README: a screenshot is a build product with no build. Left
 # to hand-driven capture these drift from the code within one release and nobody can tell which ones,
 # because a stale picture looks exactly like a fresh one. This is the only thing that makes them

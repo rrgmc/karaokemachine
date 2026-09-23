@@ -465,6 +465,7 @@ it are the same entry. How the thing is built is [`ARCHITECTURE.md`](../ARCHITEC
 - [What the README may show of a catalog](repository.md#what-the-readme-may-show-of-a-catalog)
 - [What a published picture says about the build it was taken from](repository.md#what-a-published-picture-says-about-the-build-it-was-taken-from)
 - [Which wallpaper the published pictures are taken over](repository.md#which-wallpaper-the-published-pictures-are-taken-over)
+- [The animated picture is of a public-domain carol](repository.md#the-animated-picture-is-of-a-public-domain-carol)
 - [Who the README is for](repository.md#who-the-readme-is-for)
 - [How a document in this repository is written](repository.md#how-a-document-in-this-repository-is-written)
 - [Where a folder-scoped instruction lives](repository.md#where-a-folder-scoped-instruction-lives)

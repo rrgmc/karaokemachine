@@ -430,6 +430,7 @@ cargo km-icon              # four program marks, and the machine's again with th
 cargo km-banner            # the Android TV banner; needs icon-128.png first
 cargo km-preview           # every screen to target/preview
 tools/dev/screenshots.sh   # the eight pictures in docs/images that README.md shows
+tools/dev/screen-animation.sh  # the ninth, screen-singing.webp: a carol sung, animated
 ```
 
 ### The Christmas carol pack
@@ -2016,7 +2017,7 @@ tools/dist/site.sh --open         # ...and open it                    (task site
 tools/dist/site.sh -v             # ...naming every file it staged
 ```
 
-One hand-written page, `site/index.html` and `site/style.css`, staged with the eight screenshots out
+One hand-written page, `site/index.html` and `site/style.css`, staged with the nine pictures out
 of `docs/images/` and a favicon out of `icon/`. **`.github/workflows/pages.yml` runs this exact
 script** and uploads what it produces, so a local preview and the published page come out of one
 code path. It publishes to <https://rrgmc.github.io/karaokemachine/>, and only once the repository
