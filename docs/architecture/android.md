@@ -86,10 +86,12 @@ unpacked assets are staged into the main source set, so both flavours get them a
 `tools/port/machine/android/stage.sh` knows about neither.
 
 What the flavours differ in is small and all of it is in `app/build.gradle`. `headset` takes an
-`applicationIdSuffix` of `.quest`, a `minSdk` of 34 where the shared default is 26, and
-`arm64-v8a` alone. Its Spatial SDK dependencies are scoped `headsetImplementation`, so the flat APK
-carries no Kotlin runtime at all. Each flavour's manifest holds one thing: how the machine is
-launched. A home screen and a television's home row in one, an immersive scene in the other.
+`applicationIdSuffix` of `.quest`, a `minSdk` of 34 where the shared default is 26, and `arm64-v8a`
+alone. `flat` names its two ABIs itself, because the plugin joins a flavour's ABI filters to
+`defaultConfig`'s rather than replacing them. The headset's Spatial SDK dependencies are scoped
+`headsetImplementation`, so the flat APK carries no Kotlin runtime at all. Each flavour's manifest
+holds one thing: how the machine is launched. A home screen and a television's home row in one, an
+immersive scene in the other.
 
 **`checkNativeLibs` keeps matching, and that is worth knowing rather than rediscovering.** AGP names
 the merge task `merge<Flavour><BuildType>JniLibFolders`, and the `tasks.configureEach` predicate
