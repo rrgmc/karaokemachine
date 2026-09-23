@@ -152,6 +152,13 @@ android {
     }
 }
 
+// AGP creates a configuration for each flavour and each build type, and none for the pair. A
+// dependency scoped to one variant therefore names its configuration here first, or Gradle finds no
+// `headsetDebugImplementation` method to call below.
+configurations {
+    headsetDebugImplementation
+}
+
 // **Scoped to the flavour, so the phone and television APK carries none of it.** A plain
 // `implementation` would put the Spatial SDK in both, and the one that cannot use it is the one
 // people install.
