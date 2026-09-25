@@ -624,12 +624,15 @@ pub struct StreamSettings {
     pub encoder: String,
     /// Seconds of video in each segment.
     ///
-    /// **The latency dial.** A client is roughly this times the playlist length behind, which costs
-    /// nothing for singing — the stream is the only sound in the room it is watched in — and costs
-    /// the delay between pressing pause and the music stopping. Below about two seconds, older
-    /// clients begin to stall.
+    /// **The latency dial.** A client plays two or three segments behind the newest one. So this
+    /// sets the delay between pressing pause and the music stopping. One second is the shortest a
+    /// playlist can state. An older television whose own player stops to buffer plays smoothly at
+    /// two.
     pub segment_seconds: u32,
     /// How many segments the playlist names at once.
+    ///
+    /// **Twelve seconds of stream at the default segment length.** A client that falls behind still
+    /// finds the segment it wants next, rather than one the muxer has deleted.
     pub playlist_size: u32,
     /// Samples a second the machine renders at.
     ///
@@ -650,8 +653,8 @@ impl Default for StreamSettings {
             // The literal rather than `km_stream::encode::AUTO_ENCODER`, which lives behind the
             // `ffmpeg` feature: settings are read and written by a build with no video in it.
             encoder: "auto".to_owned(),
-            segment_seconds: 2,
-            playlist_size: 6,
+            segment_seconds: 1,
+            playlist_size: 12,
             sample_rate: 48_000,
             audio_bitrate: 192_000,
         }

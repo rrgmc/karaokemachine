@@ -38,10 +38,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         // Well above what this pattern needs, so nothing in the picture is the encoder's opinion.
         bitrate: 4_000_000,
         encoder,
-        segment_seconds: 2,
-        playlist_size: 6,
-        sample_rate: 48_000,
-        audio_bitrate: 192_000,
+        ..Config::default()
     };
 
     println!(

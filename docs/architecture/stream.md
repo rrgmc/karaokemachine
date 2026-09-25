@@ -76,6 +76,16 @@ Each of these produces a stream that looks right from the machine's side and pla
   inferring segment boundaries from the gap to the next packet, and cutting a frame late. One tick,
   the encoder's time base being one tick per frame.
 
+### A keyframe on every segment boundary, forced
+
+**An encoder's keyframe interval is a ceiling, not a grid.** `libx264` starts a keyframe where the
+picture changes sharply, and counts the next interval from there. So a segment after a new song runs
+long, and the playlist's target duration rounds up. A player sets its distance from the live edge
+from that number, so it plays later and nothing reports why.
+
+`Stream::push` therefore marks every frame on the segment grid as a keyframe. `libx264` honours the
+mark. ffmpeg hands it to `libopenh264` as a forced intra frame.
+
 ## What it costs, and the one thing that decided it
 
 Measured on the idle screen, **debug build**, by comparing the playlist's media sequence against the

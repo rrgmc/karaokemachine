@@ -28,10 +28,12 @@ plays a playlist through the television's own pipeline. A stream fed from JavaSc
 newer models. Files also make this ordinary request-and-response. The alternative is a body held open
 for the length of a song, on a machine whose other job is playing audio.
 
-**Being several seconds behind costs nothing that matters.** The stream is the only screen and the
-only sound in the room it is watched in. So it is in time with itself, and nobody is chasing a
-television. What it costs is control: pause, and the music runs on for the length of the buffer.
-Segment length is the dial.
+**Being behind costs nothing for singing, and it costs control.** The stream is the only screen and
+the only sound in the room it is watched in. So it is in time with itself, and nobody is chasing a
+television. What the delay costs is control: pause, and the music runs on for the length of the
+buffer. Segment length is the dial, and
+[`The stream runs as close to live as plain HLS allows`](#the-stream-runs-as-close-to-live-as-plain-hls-allows)
+sets it.
 
 **Every song kind is composited, and a video song is re-encoded with the rest.** Serving a video
 song's packaged bytes untouched would be better quality, and it was refused for two reasons. It
@@ -51,3 +53,30 @@ they are queueing it onto.
 **A machine that is not streaming has neither path**, rather than a page explaining itself. That is
 [`Power is a capability of the host`](api-and-network.md#power-is-a-capability-of-the-host-not-a-method-on-the-machine)
 applied again: a route that is not mounted spells absence.
+
+## The stream runs as close to live as plain HLS allows
+
+**Segments are one second long by default, because a shorter delay is better.** A client plays two
+or three segments behind the newest one. So a television runs about three seconds behind the machine.
+Pause, skip and a newly queued song reach its screen that much sooner.
+
+**One second is the floor.** A playlist states segment length in whole seconds. Anything shorter is
+Low-Latency HLS, which holds a playlist request open until the next part exists. The entry above
+refuses exactly that request.
+
+**The players this serves play one-second segments.** hls.js, Safari, iOS, Android, VLC and Kodi all
+do. The risk is an older television's own player, which may stop to buffer on a busy network.
+`stream.segment_seconds` set to `2` is the answer for that set, and that is why it stays a setting.
+
+**The playlist names twelve segments**, so it holds twelve seconds of stream. A television that falls
+behind still finds the segment it wants next, rather than one the muxer has deleted.
+
+**A keyframe starts every segment, and the machine forces it.** An encoder's keyframe interval is only
+a ceiling. `libx264` adds a keyframe where the picture changes sharply, and counts the next interval
+from there. Segments then run long and the playlist's target duration rounds up to two seconds. A
+player sets its distance from the live edge from that number.
+
+**A settings file that already names a segment length keeps it.** A changed default is not a new
+settings version, as
+[`What the machine does when nobody is singing`](interface.md#what-the-machine-does-when-nobody-is-singing)
+argues for the demo delay.
