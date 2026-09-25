@@ -168,6 +168,21 @@ fn find_encoder(name: &str) -> Result<ff::Codec, StreamError> {
         })
 }
 
+/// The options an encoder opens with, by the name it resolved to.
+///
+/// **A frame leaves the encoder in the order it arrived, with nothing held back.** A segment is
+/// published only once its last frame is out. So frames held back for lookahead delay every segment
+/// by that much. At its default preset `libx264` holds about forty frames and reorders for B-frames.
+/// `zerolatency` turns both off. `libopenh264` holds nothing back, and a hardware encoder takes
+/// whatever its own defaults are.
+fn encoder_options(codec_name: &str) -> Dictionary<'static> {
+    let mut options = Dictionary::new();
+    if codec_name == "libx264" {
+        options.set("tune", "zerolatency");
+    }
+    options
+}
+
 /// Attaches the stage to an ffmpeg failure.
 fn at(what: &'static str) -> impl FnOnce(ff::Error) -> StreamError {
     move |source| StreamError::Ffmpeg { what, source }
@@ -319,7 +334,7 @@ impl Stream {
             video.set_flags(codec::Flags::GLOBAL_HEADER);
         }
 
-        let encoder = video.open_with(Dictionary::new()).map_err(at(
+        let encoder = video.open_with(encoder_options(codec.name())).map_err(at(
             "opening the encoder; the settings asked for may be beyond what it supports",
         ))?;
 
@@ -625,6 +640,18 @@ mod tests {
             "auto resolved to {}, which is not one of the names it searches",
             codec.name()
         );
+    }
+
+    #[test]
+    fn only_libx264_is_told_to_hold_no_frames_back() {
+        assert_eq!(encoder_options("libx264").get("tune"), Some("zerolatency"));
+        for other in ["libopenh264", "h264_nvenc"] {
+            assert_eq!(
+                encoder_options(other).get("tune"),
+                None,
+                "{other} opens with its own defaults"
+            );
+        }
     }
 
     /// The search is the default's alone: `libx264` written down stays `libx264`.

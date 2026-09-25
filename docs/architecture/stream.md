@@ -229,6 +229,15 @@ The two are the same codec by two implementations, either simply present or abse
 this from the choice `Which H.264 encoder` refuses. Nothing here depends on hardware, so nothing here
 can fail in the middle of a batch for want of it.
 
+### `libx264` opens with `zerolatency`
+
+**A segment is published once its last frame leaves the encoder**, so a frame held back delays every
+segment. At its default preset `libx264` holds about forty frames for lookahead and reorders for
+B-frames. That is over a second at 30 fps, added to the delay the segment length already sets.
+`encoder_options` gives it `tune=zerolatency`, which turns both off. `libopenh264` holds nothing back
+and takes no options. A hardware encoder named in `Config::encoder` keeps its own defaults, because
+somebody measuring it wants to measure those.
+
 ## Drawing the screen
 
 `km_display::Offscreen` keeps a surface, a canvas, a text cache and the picture behind the frame
