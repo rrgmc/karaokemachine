@@ -86,6 +86,12 @@ Entries are written for somebody who has the machine. Why any of it is the way i
   songs too: a thirty-second video is a clip rather than a karaoke track, whoever made it. The first
   scan after upgrading reads the whole corpus again to work the new number out, and
   `Recalculate suitability` does the same for a package.
+- **A streamed television runs three or four seconds behind the machine.** Pause, skip and a newly
+  queued song reach it that much sooner. A `settings.json` that already sets
+  `stream.segment_seconds` keeps its number, so set it to `1` to get this. An older television that
+  stops to buffer plays smoothly at `2`.
+- **A browser that cannot decode the stream says so.** The `/watch/` page names the missing H.264
+  or AAC support and gives the address to open in VLC.
 
 ## [1.18.0] - 2026-09-18
 

@@ -333,6 +333,7 @@ it are the same entry. How the thing is built is [`ARCHITECTURE.md`](../ARCHITEC
 ## [Streaming](streaming.md)
 
 - [A television somewhere else is a stream, and the playlist is the interface](streaming.md#a-television-somewhere-else-is-a-stream-and-the-playlist-is-the-interface)
+- [The stream runs as close to live as plain HLS allows](streaming.md#the-stream-runs-as-close-to-live-as-plain-hls-allows)
 - [A streamed screen carries its own H.264 encoder](distribution.md#a-streamed-screen-carries-its-own-h264-encoder)
 - [An installed machine can be started streaming without a command line](distribution.md#an-installed-machine-can-be-started-streaming-without-a-command-line)
 - [A badge says how the machine was started](interface.md#a-badge-says-how-the-machine-was-started)

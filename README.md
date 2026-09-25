@@ -393,9 +393,12 @@ in the Linux desktop menu, and `KM Stream.app` on macOS. Its icon has a broadcas
 The icon names the address a phone can reach. Its *Remote*, *Watch* and *Setup* entries open the three
 pages the machine serves. It follows the address as the network changes.
 
-**The stream costs two things.** It runs several seconds behind, so a pause lets the music continue
-for the length of the buffer. It also carries only the backing track, because the microphones go to a
+**The stream costs two things.** It runs three or four seconds behind, so a pause lets the music
+continue that long. It also carries only the backing track, because the microphones go to a
 hardware mixer and never reach the machine.
+
+**An older television may stop to buffer.** Set `stream.segment_seconds` to `2` in `settings.json`,
+and it plays smoothly a few seconds further behind.
 
 ### Setting it up from a browser
 

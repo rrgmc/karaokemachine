@@ -92,8 +92,11 @@ impl Default for Config {
             // re-encoding away from anything a person can see.
             bitrate: 12_000_000,
             encoder: AUTO_ENCODER.to_owned(),
-            segment_seconds: 2,
-            playlist_size: 6,
+            // One second, the shortest segment a playlist can state. See
+            // `docs/decisions/streaming.md`.
+            segment_seconds: 1,
+            // Twelve seconds of stream, so a client that falls behind still finds its next segment.
+            playlist_size: 12,
             sample_rate: 48_000,
             // Transparent for a stereo mix, and a rounding error beside the picture beside it.
             audio_bitrate: 192_000,
@@ -168,6 +171,21 @@ fn find_encoder(name: &str) -> Result<ff::Codec, StreamError> {
         })
 }
 
+/// The options an encoder opens with, by the name it resolved to.
+///
+/// **A frame leaves the encoder in the order it arrived, with nothing held back.** A segment is
+/// published only once its last frame is out. So frames held back for lookahead delay every segment
+/// by that much. At its default preset `libx264` holds about forty frames and reorders for B-frames.
+/// `zerolatency` turns both off. `libopenh264` holds nothing back, and a hardware encoder takes
+/// whatever its own defaults are.
+fn encoder_options(codec_name: &str) -> Dictionary<'static> {
+    let mut options = Dictionary::new();
+    if codec_name == "libx264" {
+        options.set("tune", "zerolatency");
+    }
+    options
+}
+
 /// Attaches the stage to an ffmpeg failure.
 fn at(what: &'static str) -> impl FnOnce(ff::Error) -> StreamError {
     move |source| StreamError::Ffmpeg { what, source }
@@ -233,6 +251,8 @@ pub struct Stream {
     encoder_time_base: Rational,
     stream_time_base: Rational,
     next_pts: i64,
+    /// Frames in one segment. A frame numbered a multiple of this is forced to be a keyframe.
+    frames_per_segment: i64,
     width: u32,
     height: u32,
     /// Converted planes, kept so a running stream allocates none per frame. See [`Stream::push`].
@@ -302,8 +322,9 @@ impl Stream {
         video.set_bit_rate(config.bitrate);
         // A keyframe every segment, so the muxer can cut where it says it will. Without this the
         // segments run long and a client waiting for the next one waits past the duration the
-        // playlist promised.
-        video.set_gop(config.fps * config.segment_seconds);
+        // playlist promised. The interval is only a ceiling, and `push` forces the keyframe itself.
+        let frames_per_segment = config.fps * config.segment_seconds;
+        video.set_gop(frames_per_segment);
         // Said out loud so the picture and its tag agree. `pixels` converts with the Rec. 709
         // matrix at limited range, and a stream tagged as anything else is shown washed out or
         // crushed — which looks like a display problem rather than a conversion one.
@@ -319,7 +340,7 @@ impl Stream {
             video.set_flags(codec::Flags::GLOBAL_HEADER);
         }
 
-        let encoder = video.open_with(Dictionary::new()).map_err(at(
+        let encoder = video.open_with(encoder_options(codec.name())).map_err(at(
             "opening the encoder; the settings asked for may be beyond what it supports",
         ))?;
 
@@ -389,6 +410,7 @@ impl Stream {
             encoder_time_base,
             stream_time_base,
             next_pts: 0,
+            frames_per_segment: i64::from(frames_per_segment),
             width: config.width,
             height: config.height,
             luma: Vec::new(),
@@ -512,6 +534,14 @@ impl Stream {
         picture.data_mut(2)[..self.red.len()].copy_from_slice(&self.red);
 
         picture.set_pts(Some(self.next_pts));
+        // **Forced on the segment grid, because an encoder's keyframe interval is only a ceiling.**
+        // `libx264` also starts a keyframe where the picture changes sharply, and counts the next
+        // interval from there. Then every segment after a new song or a new wallpaper runs long.
+        // At one second that pushes the playlist's target duration to two, and a client sets its
+        // distance from the live edge from the target duration.
+        if self.next_pts % self.frames_per_segment == 0 {
+            picture.set_kind(util::picture::Type::I);
+        }
         self.next_pts += 1;
 
         self.encoder
@@ -624,6 +654,65 @@ mod tests {
             SOFTWARE_ENCODERS.contains(&codec.name()),
             "auto resolved to {}, which is not one of the names it searches",
             codec.name()
+        );
+    }
+
+    #[test]
+    fn only_libx264_is_told_to_hold_no_frames_back() {
+        assert_eq!(encoder_options("libx264").get("tune"), Some("zerolatency"));
+        for other in ["libopenh264", "h264_nvenc"] {
+            assert_eq!(
+                encoder_options(other).get("tune"),
+                None,
+                "{other} opens with its own defaults"
+            );
+        }
+    }
+
+    /// A sharp change halfway through a segment moves no boundary.
+    ///
+    /// `libx264` starts a keyframe at the change and counts its interval from there. Unless the grid
+    /// is forced, the segment holding the change runs long and the target duration rounds up to two.
+    #[test]
+    fn a_cut_mid_segment_leaves_every_segment_one_second_long() {
+        let dir = std::env::temp_dir().join(format!("km-stream-grid-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let config = Config {
+            width: 64,
+            height: 64,
+            fps: 10,
+            bitrate: 500_000,
+            ..Config::default()
+        };
+        let mut stream = Stream::open(&dir, &config).expect("the stream opens");
+        let silence = vec![0f32; (config.sample_rate / config.fps) as usize * CHANNELS];
+        let black = vec![0u8; 64 * 64 * 4];
+        let white = vec![255u8; 64 * 64 * 4];
+        for number in 0..45 {
+            let screen = if (14..30).contains(&number) {
+                &white
+            } else {
+                &black
+            };
+            stream.push(screen).expect("a frame encodes");
+            stream.push_audio(&silence).expect("its sound encodes");
+        }
+        stream.finish().expect("the playlist closes");
+
+        let playlist = std::fs::read_to_string(dir.join(PLAYLIST)).expect("the playlist exists");
+        let _ = std::fs::remove_dir_all(&dir);
+        assert!(
+            playlist.contains("#EXT-X-TARGETDURATION:1\n"),
+            "the target duration must stay one second:\n{playlist}"
+        );
+        let durations: Vec<&str> = playlist
+            .lines()
+            .filter_map(|line| line.strip_prefix("#EXTINF:"))
+            .collect();
+        let (_last, whole) = durations.split_last().expect("the playlist names segments");
+        assert!(
+            whole.iter().all(|duration| *duration == "1.000000,"),
+            "every segment but the last must be one second long:\n{playlist}"
         );
     }
 
