@@ -17,6 +17,7 @@ use std::path::{Path, PathBuf};
 use ff::{Dictionary, Rational, codec, encoder, format, frame, util};
 use ffmpeg_next as ff;
 
+use crate::fragments::{Sink, Splitter};
 use crate::pixels::{Plane, bgra_to_yuv420p};
 
 /// The playlist a client opens. Named once, because the server serves it by this name.
@@ -260,6 +261,28 @@ pub struct Stream {
     blue: Vec<u8>,
     red: Vec<u8>,
     audio: Audio,
+    /// The same packets as fragmented MP4, for the page's socket. `None` when nobody asked for it,
+    /// or once it has failed.
+    fragments: Option<Fragments>,
+}
+
+/// Which of the two streams a packet belongs to.
+#[derive(Debug, Clone, Copy)]
+enum Track {
+    Picture,
+    Sound,
+}
+
+/// A second muxer, writing every packet as a fragment of its own.
+///
+/// **The same encoded packets, not a second encode.** Encoding is the expensive half, so the page's
+/// faster path costs one copy of each packet and a few hundred bytes of boxes around it.
+struct Fragments {
+    output: format::context::Output,
+    video_time_base: Rational,
+    audio_time_base: Rational,
+    /// Pictures held back until the first sound is written. See [`Stream::fragment`].
+    waiting: Option<Vec<codec::packet::Packet>>,
 }
 
 /// The sound beside the picture.
@@ -287,6 +310,18 @@ impl Stream {
     /// run is left for the muxer to overwrite, because a playlist is rewritten from its first
     /// segment and a client that was watching has already been told the stream restarted.
     pub fn open(dir: &Path, config: &Config) -> Result<Self, StreamError> {
+        Self::open_with_fragments(dir, config, None)
+    }
+
+    /// Opens a stream that also hands every packet to `fragments` as fragmented MP4.
+    ///
+    /// **The playlist is written either way.** The fragments are the page's faster path beside it,
+    /// and a failure in them is logged and ends them without ending the stream.
+    pub fn open_with_fragments(
+        dir: &Path,
+        config: &Config,
+        fragments: Option<Sink>,
+    ) -> Result<Self, StreamError> {
         if !config.width.is_multiple_of(2) || !config.height.is_multiple_of(2) {
             return Err(StreamError::OddSize {
                 width: config.width,
@@ -305,6 +340,29 @@ impl Stream {
         let mut output = format::output_as(&for_ffmpeg(&dir.join(PLAYLIST)), "hls")
             .map_err(at("opening the playlist"))?;
         release_playlist_handle(&mut output);
+
+        // **Fragmented from the start and never seeked.** `empty_moov` puts no samples in the
+        // initialisation segment, which a stream with no end requires. `default_base_moof` makes
+        // each fragment's offsets relative to itself, so it can be appended on its own.
+        // `flush_packets` hands each fragment over as soon as it is whole.
+        let mut fragment_output = fragments
+            .map(|sink| {
+                let io = format::context::StreamIo::from_write(Splitter::new(sink))
+                    .map_err(at("preparing the fragment writer"))?;
+                format::output_to_stream(io, None, Some("mp4"))
+                    .map_err(at("opening the fragment muxer"))
+            })
+            .transpose()?;
+        let global_header = output
+            .format()
+            .flags()
+            .contains(format::Flags::GLOBAL_HEADER)
+            || fragment_output.as_ref().is_some_and(|fragments| {
+                fragments
+                    .format()
+                    .flags()
+                    .contains(format::Flags::GLOBAL_HEADER)
+            });
 
         // The time base is one tick per frame, so a frame's presentation time is its own number and
         // nothing has to be rescaled on the way in.
@@ -332,11 +390,7 @@ impl Stream {
         video.set_color_range(util::color::Range::MPEG);
         // fMP4 carries the codec's own header in the initialisation segment rather than in every
         // frame, and the muxer says so through this flag.
-        if output
-            .format()
-            .flags()
-            .contains(format::Flags::GLOBAL_HEADER)
-        {
+        if global_header {
             video.set_flags(codec::Flags::GLOBAL_HEADER);
         }
 
@@ -369,11 +423,7 @@ impl Stream {
         audio.set_format(format::Sample::F32(format::sample::Type::Planar));
         audio.set_bit_rate(config.audio_bitrate);
         audio.set_time_base(audio_time_base);
-        if output
-            .format()
-            .flags()
-            .contains(format::Flags::GLOBAL_HEADER)
-        {
+        if global_header {
             audio.set_flags(codec::Flags::GLOBAL_HEADER);
         }
         let audio_encoder = audio
@@ -403,6 +453,42 @@ impl Stream {
             .stream(audio_index)
             .map_or(audio_time_base, |s| s.time_base());
 
+        let fragments = fragment_output
+            .as_mut()
+            .map(|fragments| -> Result<_, StreamError> {
+                // Added in the same order as the playlist's, so a packet's stream index is right
+                // for both muxers.
+                let mut video_stream = fragments
+                    .add_stream(codec)
+                    .map_err(at("adding the video stream to the fragments"))?;
+                video_stream.set_parameters(&encoder);
+                video_stream.set_time_base(encoder_time_base);
+                let mut sound = fragments
+                    .add_stream(aac)
+                    .map_err(at("adding the audio stream to the fragments"))?;
+                sound.set_parameters(&audio_encoder);
+                sound.set_time_base(audio_time_base);
+                fragments
+                    .write_header_with(fragment_options())
+                    .map_err(at("writing the fragments' initialisation segment"))?;
+                Ok((
+                    fragments
+                        .stream(stream_index)
+                        .map_or(encoder_time_base, |s| s.time_base()),
+                    fragments
+                        .stream(audio_index)
+                        .map_or(audio_time_base, |s| s.time_base()),
+                ))
+            })
+            .transpose()?
+            .zip(fragment_output)
+            .map(|((video_time_base, audio_time_base), output)| Fragments {
+                output,
+                video_time_base,
+                audio_time_base,
+                waiting: Some(Vec::new()),
+            });
+
         Ok(Self {
             output,
             encoder,
@@ -425,6 +511,7 @@ impl Stream {
                 pending: Vec::new(),
                 next_pts: 0,
             },
+            fragments,
         })
     }
 
@@ -482,6 +569,7 @@ impl Stream {
         let mut packet = codec::packet::Packet::empty();
         while self.audio.encoder.receive_packet(&mut packet).is_ok() {
             packet.set_stream(self.audio.stream_index);
+            self.fragment(&packet, self.audio.time_base, Track::Sound);
             packet.rescale_ts(self.audio.time_base, self.audio.stream_time_base);
             packet
                 .write_interleaved(&mut self.output)
@@ -568,9 +656,63 @@ impl Stream {
             .send_eof()
             .map_err(at("telling the audio encoder there is no more"))?;
         self.drain_audio()?;
+        if let Some(mut fragments) = self.fragments.take() {
+            let held = fragments.waiting.take().unwrap_or_default();
+            let closed = held
+                .iter()
+                .try_for_each(|packet| packet.write(&mut fragments.output).map(drop))
+                .and_then(|()| fragments.output.write_trailer());
+            if let Err(error) = closed {
+                tracing::warn!(%error, "the fragments did not close cleanly");
+            }
+        }
         self.output
             .write_trailer()
             .map_err(at("closing the playlist"))
+    }
+
+    /// Writes a copy of `packet` into the fragments, if there are any.
+    ///
+    /// **Copied before the playlist's muxer sees it**, because an interleaved write takes the
+    /// packet's contents and leaves it empty. The copy is rescaled from `from` into whatever time
+    /// base the fragment muxer settled on.
+    ///
+    /// **The pictures wait for the first sound.** The AAC encoder's first packet is timed before
+    /// zero, by the samples it primes with. The muxer shifts every stream by the same amount to
+    /// make that zero, but it fixes the shift from the first packet it is given. Given a picture at
+    /// zero first, it shifts nothing and then clamps the sound onto a time already taken.
+    ///
+    /// A failure ends the fragments and not the stream. The page falls back to the playlist, which
+    /// is still being written.
+    fn fragment(&mut self, packet: &codec::packet::Packet, from: Rational, track: Track) {
+        let Some(fragments) = self.fragments.as_mut() else {
+            return;
+        };
+        let mut copy = packet.clone();
+        copy.rescale_ts(
+            from,
+            match track {
+                Track::Picture => fragments.video_time_base,
+                Track::Sound => fragments.audio_time_base,
+            },
+        );
+        let written = match (&mut fragments.waiting, track) {
+            (Some(waiting), Track::Picture) => {
+                waiting.push(copy);
+                Ok(())
+            }
+            (waiting, _) => {
+                let held = waiting.take().unwrap_or_default();
+                copy.write(&mut fragments.output).and_then(|_| {
+                    held.iter()
+                        .try_for_each(|packet| packet.write(&mut fragments.output).map(drop))
+                })
+            }
+        };
+        if let Err(error) = written {
+            tracing::warn!(%error, "the page's fragments stopped; the playlist carries on");
+            self.fragments = None;
+        }
     }
 
     /// Moves whatever the encoder has finished into the muxer.
@@ -583,6 +725,7 @@ impl Stream {
             // where a segment ends from the gap to the next packet — so it cuts a frame late and
             // says so on every packet it writes.
             packet.set_duration(1);
+            self.fragment(&packet, self.encoder_time_base, Track::Picture);
             packet.rescale_ts(self.encoder_time_base, self.stream_time_base);
             packet
                 .write_interleaved(&mut self.output)
@@ -605,6 +748,15 @@ pub const INIT_SEGMENT: &str = "init.mp4";
 /// segments are correct, and the stream simply does not play.
 fn for_ffmpeg(path: &Path) -> String {
     path.to_string_lossy().replace('\\', "/")
+}
+
+/// The muxer options that make the second output one fragment per packet.
+fn fragment_options() -> Dictionary<'static> {
+    let mut options = Dictionary::new();
+    options.set("movflags", "frag_every_frame+empty_moov+default_base_moof");
+    options.set("flush_packets", "1");
+    options.set("avoid_negative_ts", "make_zero");
+    options
 }
 
 /// The muxer options that make this a live HLS stream rather than a file.
@@ -713,6 +865,93 @@ mod tests {
         assert!(
             whole.iter().all(|duration| *duration == "1.000000,"),
             "every segment but the last must be one second long:\n{playlist}"
+        );
+    }
+
+    /// The fragments are a whole stream: an initialisation segment, then one fragment per packet,
+    /// with a place to start on every keyframe the segment grid forces.
+    #[test]
+    fn the_fragments_join_into_the_same_stream_with_a_start_on_every_segment() {
+        use crate::fragments::Piece;
+        use std::sync::{Arc, Mutex};
+
+        let dir = std::env::temp_dir().join(format!("km-stream-fragments-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let pieces = Arc::new(Mutex::new(Vec::new()));
+        let seen = Arc::clone(&pieces);
+        let config = Config {
+            width: 64,
+            height: 64,
+            fps: 10,
+            bitrate: 500_000,
+            ..Config::default()
+        };
+        let mut stream = Stream::open_with_fragments(
+            &dir,
+            &config,
+            Some(Box::new(move |piece| {
+                seen.lock().expect("unpoisoned").push(piece);
+            })),
+        )
+        .expect("the stream opens");
+        let silence = vec![0f32; (config.sample_rate / config.fps) as usize * CHANNELS];
+        for number in 0..45u8 {
+            stream
+                .push(&vec![number.wrapping_mul(5); 64 * 64 * 4])
+                .expect("a frame encodes");
+            stream.push_audio(&silence).expect("its sound encodes");
+        }
+        stream.finish().expect("the stream closes");
+
+        let pieces = pieces.lock().expect("unpoisoned").clone();
+        let Some((Piece::Init(init), rest)) = pieces.split_first() else {
+            panic!("the initialisation segment comes first");
+        };
+        assert_eq!(&init[4..8], b"ftyp");
+        let starts = rest
+            .iter()
+            .filter(|piece| matches!(piece, Piece::Fragment { key: true, .. }))
+            .count();
+        assert_eq!(starts, 5, "one place to start per second of ten frames");
+
+        let joined = dir.join("joined.mp4");
+        let mut bytes = init.clone();
+        for piece in rest {
+            let Piece::Fragment {
+                bytes: fragment, ..
+            } = piece
+            else {
+                panic!("one initialisation segment only");
+            };
+            bytes.extend_from_slice(fragment);
+        }
+        std::fs::write(&joined, bytes).expect("writing the joined fragments");
+        let mut input = format::input(&joined).expect("the joined fragments are an MP4");
+        let video = input
+            .streams()
+            .best(util::media::Type::Video)
+            .expect("a picture")
+            .index();
+        let sound = input
+            .streams()
+            .best(util::media::Type::Audio)
+            .expect("and sound beside it")
+            .index();
+        let (mut frames, mut sound_times) = (0, Vec::new());
+        for (stream, packet) in input.packets() {
+            if stream.index() == video {
+                frames += 1;
+            } else if stream.index() == sound {
+                sound_times.extend(packet.dts());
+            }
+        }
+        let _ = std::fs::remove_dir_all(&dir);
+        assert_eq!(frames, 45, "every frame pushed is in the fragments");
+        // The encoder's priming packet is timed before zero. Clamped rather than shifted, it lands
+        // on the next packet's time, and a browser drops one of the two.
+        assert!(
+            sound_times.windows(2).all(|pair| pair[0] < pair[1]),
+            "every sound packet has a time of its own: {sound_times:?}"
         );
     }
 
