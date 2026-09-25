@@ -86,6 +86,9 @@
       // root-relative URL keeps is the scheme, the host and the port.
       const PLAYLIST = "/stream/live.m3u8";
 
+      // The same stream as fragments, pushed as they are cut. Absolute for the playlist's reason.
+      const SOCKET = "/stream/live.ws";
+
       const screen = document.getElementById("screen");
       const message = document.getElementById("message");
       const why = document.getElementById("why");
@@ -139,56 +142,240 @@
         });
       }
 
-      // Native HLS where the platform has it, which is every television, Safari, iOS and Android.
-      // The library is for desktop Chrome and Firefox, which have none.
-      if (screen.canPlayType("application/vnd.apple.mpegurl")) {
-        screen.src = PLAYLIST;
-        screen.addEventListener("loadedmetadata", play);
-      } else if (!(window.Hls && window.Hls.isSupported())) {
-        elsewhere("This browser cannot play the stream.");
-      } else if (!(window.ManagedMediaSource || window.MediaSource).isTypeSupported(CODECS)) {
-        // **Asked here, because `Hls.isSupported` passes a browser that decodes any one of H.264,
-        // VP9, AV1, AAC or FLAC.** A Chromium built without proprietary codecs passes it on VP9.
-        // It then waits on a Play button over a black screen, and nothing says why.
-        elsewhere(NO_CODECS);
+      // The browser's own media source. iOS offers only the managed one.
+      const Source = window.ManagedMediaSource || window.MediaSource;
+
+      // **The socket first, because it puts the picture under a second behind.** A playlist puts a
+      // player three or four seconds behind: a segment is a second long, and a player keeps two or
+      // three. The socket hands each frame over as it is encoded, and this page keeps the buffer
+      // short itself. `?hls` skips it, for a television whose media source stutters.
+      if (
+        !new URLSearchParams(location.search).has("hls") &&
+        Source &&
+        window.WebSocket &&
+        Source.isTypeSupported(CODECS)
+      ) {
+        startSocket();
       } else {
-        const hls = new Hls({
-          // Join at the live edge rather than at the start of the window. A viewer arriving
-          // mid-song wants what is being sung now, not what was sung at the start of the window.
-          liveSyncDurationCount: 2,
-        });
-        hls.loadSource(PLAYLIST);
-        hls.attachMedia(screen);
-        hls.on(Hls.Events.MANIFEST_PARSED, play);
-        // **The stream outlives any one playlist.** Nothing is playing between songs either, so a
-        // client that gave up on the first error would go dark for the rest of the evening. A
-        // network error reloads and a media error recovers in place; anything else stops the
-        // picture, and the page says so rather than leaving a black screen.
-        //
-        // **A codec the browser refused is not recovered from.** The check above passes a browser
-        // that decodes Constrained Baseline and not the High profile `libx264` writes. Firefox with
-        // only the OpenH264 plugin is one. The refusal arrives with the init segment, once per
-        // track, and is not fatal while the other track plays. So sound would play over a black
-        // screen.
-        hls.on(Hls.Events.ERROR, (_event, data) => {
-          if (
-            data.details === Hls.ErrorDetails.BUFFER_ADD_CODEC_ERROR ||
-            data.details === Hls.ErrorDetails.BUFFER_INCOMPATIBLE_CODECS_ERROR ||
-            data.details === Hls.ErrorDetails.MANIFEST_INCOMPATIBLE_CODECS_ERROR
-          ) {
-            hls.destroy();
-            elsewhere(NO_CODECS);
-            return;
+        startHls();
+      }
+
+      // The H.264 profile the stream was encoded at, read from the `avcC` box in its first
+      // segment. The encoder decides it: `libopenh264` writes Constrained Baseline and `libx264`
+      // writes High, and a browser may decode one and not the other.
+      function videoCodec(init) {
+        const bytes = new Uint8Array(init);
+        for (let i = 0; i + 8 < bytes.length; i++) {
+          if (bytes[i] === 0x61 && bytes[i + 1] === 0x76 && bytes[i + 2] === 0x63 && bytes[i + 3] === 0x43) {
+            const hex = (byte) => byte.toString(16).padStart(2, "0");
+            return "avc1." + hex(bytes[i + 5]) + hex(bytes[i + 6]) + hex(bytes[i + 7]);
           }
-          if (!data.fatal) return;
-          if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
-            hls.startLoad();
-          } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
-            hls.recoverMediaError();
+        }
+        return null;
+      }
+
+      // **Every failure ends in a picture or in the playlist, never in a dead end.** What happened
+      // decides which:
+      //
+      // - A socket that never delivered a picture, or a codec the media source refuses, means this
+      //   browser cannot use it. The playlist takes over.
+      // - A viewer that falls behind is sent away by the machine to start again at a keyframe, with
+      //   close code 1013. That reconnects, and three in a row without half a minute of picture
+      //   means this device cannot keep up. The playlist takes over.
+      // - A socket that worked and then lost the machine is the machine restarting or the network
+      //   dropping. The playlist is gone as well, so the page waits and reconnects.
+      function startSocket() {
+        let stopped = false;
+        let everPictured = false;
+        let behind = 0;
+        let pictureSince = 0;
+        let lost = 0;
+
+        function toPlaylist() {
+          if (stopped) return;
+          stopped = true;
+          screen.removeAttribute("src");
+          screen.load();
+          startHls();
+        }
+
+        function connect() {
+          const source = new Source();
+          const url = URL.createObjectURL(source);
+          // Required by the managed source, which otherwise wants an AirPlay alternative.
+          if (Source === window.ManagedMediaSource) screen.disableRemotePlayback = true;
+          screen.src = url;
+          source.addEventListener("sourceopen", () => open(source, url), { once: true });
+        }
+
+        function after(outcome) {
+          if (stopped) return;
+          if (outcome === "unusable") {
+            toPlaylist();
+          } else if (outcome === "behind") {
+            if (Date.now() - pictureSince > 30000) behind = 0;
+            behind += 1;
+            if (behind >= 3) toPlaylist();
+            else setTimeout(connect, 1000);
           } else {
-            say("<p>The stream stopped.</p><p>Reload to try again.</p>");
+            lost += 1;
+            if (lost > 1) say("<p>Waiting for the machine to come back.</p>");
+            setTimeout(connect, Math.min(1000 * lost, 5000));
           }
-        });
+        }
+
+        function open(source, url) {
+          const address = new URL(SOCKET, location.href);
+          address.protocol = address.protocol === "https:" ? "wss:" : "ws:";
+          const socket = new WebSocket(address.href);
+          socket.binaryType = "arraybuffer";
+          const queue = [];
+          let buffer = null;
+          let pictured = false;
+          let closed = false;
+          // A first segment that never comes is a socket this browser cannot use, unless it has
+          // worked before, in which case it is the machine that is away.
+          const waiting = setTimeout(() => finish(everPictured ? "lost" : "unusable"), 3000);
+
+          // Keeps the picture at the live edge. A player that stalls for a moment comes back behind,
+          // and would stay there: nothing else ever asks it to catch up.
+          const edge = setInterval(() => {
+            if (!buffer || !buffer.buffered.length) return;
+            const end = buffer.buffered.end(buffer.buffered.length - 1);
+            const lag = end - screen.currentTime;
+            if (lag > 1) {
+              screen.currentTime = end - 0.1;
+            }
+            screen.playbackRate = lag > 0.3 ? 1.05 : 1;
+          }, 500);
+
+          function finish(outcome) {
+            if (closed) return;
+            closed = true;
+            clearTimeout(waiting);
+            clearInterval(edge);
+            socket.close();
+            URL.revokeObjectURL(url);
+            after(outcome);
+          }
+
+          // Media trouble after a picture is treated as falling behind; before one, as a browser
+          // that cannot play this.
+          const trouble = () => finish(pictured ? "behind" : "unusable");
+
+          function pump() {
+            if (!buffer || buffer.updating) return;
+            // Old media is let go of, so a long evening never fills the browser's quota.
+            const buffered = buffer.buffered;
+            if (buffered.length && screen.currentTime - buffered.start(0) > 15) {
+              buffer.remove(0, screen.currentTime - 10);
+              return;
+            }
+            const next = queue.shift();
+            if (!next) return;
+            try {
+              buffer.appendBuffer(next);
+            } catch (error) {
+              trouble();
+            }
+          }
+
+          socket.addEventListener("message", (event) => {
+            if (buffer) {
+              queue.push(event.data);
+              pump();
+              return;
+            }
+            clearTimeout(waiting);
+            const codec = videoCodec(event.data);
+            const type = 'video/mp4; codecs="' + codec + ',mp4a.40.2"';
+            if (!codec || !Source.isTypeSupported(type)) {
+              finish("unusable");
+              return;
+            }
+            try {
+              buffer = source.addSourceBuffer(type);
+            } catch (error) {
+              finish("unusable");
+              return;
+            }
+            buffer.addEventListener("updateend", () => {
+              if (!pictured && buffer.buffered.length) {
+                pictured = true;
+                everPictured = true;
+                lost = 0;
+                pictureSince = Date.now();
+                screen.currentTime = buffer.buffered.start(0);
+                play();
+              }
+              pump();
+            });
+            buffer.addEventListener("error", trouble);
+            queue.push(event.data);
+            pump();
+          });
+          socket.addEventListener("close", (event) => {
+            if (event.code === 1013) finish("behind");
+            else finish(everPictured ? "lost" : "unusable");
+          });
+          screen.addEventListener("error", trouble, { once: true });
+        }
+
+        connect();
+      }
+
+      // Native HLS where the platform has it, which is every television, Safari, iOS and Android.
+      // The library is for desktop Firefox and older desktop Chrome, which have none.
+      function startHls() {
+        if (screen.canPlayType("application/vnd.apple.mpegurl")) {
+          screen.src = PLAYLIST;
+          screen.addEventListener("loadedmetadata", play);
+        } else if (!(window.Hls && window.Hls.isSupported())) {
+          elsewhere("This browser cannot play the stream.");
+        } else if (!(window.ManagedMediaSource || window.MediaSource).isTypeSupported(CODECS)) {
+          // **Asked here, because `Hls.isSupported` passes a browser that decodes any one of H.264,
+          // VP9, AV1, AAC or FLAC.** A Chromium built without proprietary codecs passes it on VP9.
+          // It then waits on a Play button over a black screen, and nothing says why.
+          elsewhere(NO_CODECS);
+        } else {
+          const hls = new Hls({
+            // Join at the live edge rather than at the start of the window. A viewer arriving
+            // mid-song wants what is being sung now, not what was sung at the start of the window.
+            liveSyncDurationCount: 2,
+          });
+          hls.loadSource(PLAYLIST);
+          hls.attachMedia(screen);
+          hls.on(Hls.Events.MANIFEST_PARSED, play);
+          // **The stream outlives any one playlist.** Nothing is playing between songs either, so a
+          // client that gave up on the first error would go dark for the rest of the evening. A
+          // network error reloads and a media error recovers in place; anything else stops the
+          // picture, and the page says so rather than leaving a black screen.
+          //
+          // **A codec the browser refused is not recovered from.** The check above passes a browser
+          // that decodes Constrained Baseline and not the High profile `libx264` writes. Firefox with
+          // only the OpenH264 plugin is one. The refusal arrives with the init segment, once per
+          // track, and is not fatal while the other track plays. So sound would play over a black
+          // screen.
+          hls.on(Hls.Events.ERROR, (_event, data) => {
+            if (
+              data.details === Hls.ErrorDetails.BUFFER_ADD_CODEC_ERROR ||
+              data.details === Hls.ErrorDetails.BUFFER_INCOMPATIBLE_CODECS_ERROR ||
+              data.details === Hls.ErrorDetails.MANIFEST_INCOMPATIBLE_CODECS_ERROR
+            ) {
+              hls.destroy();
+              elsewhere(NO_CODECS);
+              return;
+            }
+            if (!data.fatal) return;
+            if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+              hls.startLoad();
+            } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+              hls.recoverMediaError();
+            } else {
+              say("<p>The stream stopped.</p><p>Reload to try again.</p>");
+            }
+          });
+        }
       }
     </script>
   </body>

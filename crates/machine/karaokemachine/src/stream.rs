@@ -69,6 +69,8 @@ pub(crate) struct StreamConfig {
     pub audio_bitrate: usize,
     /// Where the wallpapers come from and how they are shown.
     pub wallpaper: WallpaperConfig,
+    /// Where the same stream goes as fragments, for the watch page's socket.
+    pub live: km_api::watch::Live,
 }
 
 /// Draws and encodes until something asks the machine to stop.
@@ -104,7 +106,14 @@ pub(crate) fn run(
     let mut offscreen = Offscreen::new(config.width, config.height)
         .map_err(|error| anyhow::anyhow!("could not make a drawing surface: {error}"))?;
 
-    let mut encoder = km_stream::Stream::open(
+    // **The fragments are a copy of what the encoder already made**, handed to the API as they are
+    // cut. Publishing never waits, so the frame deadline below cannot be held up by a viewer.
+    let live = config.live.clone();
+    let fragments: km_stream::Sink = Box::new(move |piece| match piece {
+        km_stream::Piece::Init(bytes) => live.publish_init(bytes),
+        km_stream::Piece::Fragment { bytes, key } => live.publish_fragment(bytes, key),
+    });
+    let mut encoder = km_stream::Stream::open_with_fragments(
         &config.dir,
         &km_stream::Config {
             width: config.width,
@@ -117,6 +126,7 @@ pub(crate) fn run(
             sample_rate: config.sample_rate,
             audio_bitrate: config.audio_bitrate,
         },
+        Some(fragments),
     )?;
 
     let mut walls = Walls::start(&config.wallpaper, config.width, config.height);
