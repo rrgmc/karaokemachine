@@ -99,12 +99,36 @@
         message.classList.remove("shown");
       }
 
+      // Set once the page has sent the viewer to another player, so nothing draws over that message.
+      let sentElsewhere = false;
+
+      // **A player outside the browser is the answer to a browser that cannot play the stream.** The
+      // playlist is the interface, so VLC or Kodi on the same computer plays what this page cannot.
+      function elsewhere(reason) {
+        sentElsewhere = true;
+        say(
+          "<p>" +
+            reason +
+            "</p>" +
+            "<p>Open this address in a player such as VLC:</p>" +
+            "<p><code>" +
+            new URL(PLAYLIST, location.href).href +
+            "</code></p>"
+        );
+      }
+
+      const NO_CODECS = "This browser cannot decode the stream's H.264 picture and AAC sound.";
+
+      // What the stream is made of, at the lowest H.264 profile either software encoder writes.
+      const CODECS = 'video/mp4; codecs="avc1.42E01E,mp4a.40.2"';
+
       // **Autoplay with sound is refused until somebody has interacted with the page**, on every
       // browser worth naming, and a karaoke screen with no sound is not the stream. So a refusal
       // draws a button rather than being logged: one press is all the interaction that is wanted,
       // and on a television that press is the remote's OK.
       function play() {
         screen.play().then(clear, () => {
+          if (sentElsewhere) return;
           say(
             "<p>This browser will not start sound on its own.</p>" +
               '<p><button id="start" autofocus>Play</button></p>'
@@ -120,10 +144,17 @@
       if (screen.canPlayType("application/vnd.apple.mpegurl")) {
         screen.src = PLAYLIST;
         screen.addEventListener("loadedmetadata", play);
-      } else if (window.Hls && window.Hls.isSupported()) {
+      } else if (!(window.Hls && window.Hls.isSupported())) {
+        elsewhere("This browser cannot play the stream.");
+      } else if (!(window.ManagedMediaSource || window.MediaSource).isTypeSupported(CODECS)) {
+        // **Asked here, because `Hls.isSupported` passes a browser that decodes any one of H.264,
+        // VP9, AV1, AAC or FLAC.** A Chromium built without proprietary codecs passes it on VP9.
+        // It then waits on a Play button over a black screen, and nothing says why.
+        elsewhere(NO_CODECS);
+      } else {
         const hls = new Hls({
           // Join at the live edge rather than at the start of the window. A viewer arriving
-          // mid-song wants what is being sung now, not what was being sung six seconds ago.
+          // mid-song wants what is being sung now, not what was sung at the start of the window.
           liveSyncDurationCount: 2,
         });
         hls.loadSource(PLAYLIST);
@@ -133,7 +164,22 @@
         // client that gave up on the first error would go dark for the rest of the evening. A
         // network error reloads and a media error recovers in place; anything else stops the
         // picture, and the page says so rather than leaving a black screen.
+        //
+        // **A codec the browser refused is not recovered from.** The check above passes a browser
+        // that decodes Constrained Baseline and not the High profile `libx264` writes. Firefox with
+        // only the OpenH264 plugin is one. The refusal arrives with the init segment, once per
+        // track, and is not fatal while the other track plays. So sound would play over a black
+        // screen.
         hls.on(Hls.Events.ERROR, (_event, data) => {
+          if (
+            data.details === Hls.ErrorDetails.BUFFER_ADD_CODEC_ERROR ||
+            data.details === Hls.ErrorDetails.BUFFER_INCOMPATIBLE_CODECS_ERROR ||
+            data.details === Hls.ErrorDetails.MANIFEST_INCOMPATIBLE_CODECS_ERROR
+          ) {
+            hls.destroy();
+            elsewhere(NO_CODECS);
+            return;
+          }
           if (!data.fatal) return;
           if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
             hls.startLoad();
@@ -143,14 +189,6 @@
             say("<p>The stream stopped.</p><p>Reload to try again.</p>");
           }
         });
-      } else {
-        say(
-          "<p>This browser cannot play the stream.</p>" +
-            "<p>Open this address in a player such as VLC:</p>" +
-            "<p><code>" +
-            new URL(PLAYLIST, location.href).href +
-            "</code></p>"
-        );
       }
     </script>
   </body>

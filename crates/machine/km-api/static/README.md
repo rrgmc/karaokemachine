@@ -28,6 +28,12 @@ type, native where it is there, and the library only where it is not.
 audio tracks, subtitles and encrypted media. This stream is one video track and one audio track,
 unencrypted, and the encoder draws any words on screen into the picture first.
 
+**The page asks for H.264 and AAC itself, because `Hls.isSupported` asks for less.** It passes a
+browser that decodes any one of H.264, VP9, AV1, AAC or FLAC. A Chromium built without proprietary
+codecs passes on VP9 and then shows a black screen. So the page tests the stream's own codecs first.
+It also stops at the codec error hls.js raises for an init segment the browser refuses. Both send the
+viewer to VLC with the playlist's address.
+
 ## The one modification
 
 The `//# sourceMappingURL=` comment on the last line goes, and nothing else is touched. The map it
