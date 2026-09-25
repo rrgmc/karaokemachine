@@ -466,6 +466,9 @@ pub fn run(paths: Paths, config: Settings, options: Options) -> anyhow::Result<(
     let admin_router = admin::build(api.clone());
 
     let (stop_api, api_stopped) = tokio::sync::oneshot::channel::<()>();
+    // The stream as fragments, for the watch page's socket. Made whether or not this run streams,
+    // because it is two empty channels until the encoder feeds it.
+    let live = km_api::watch::Live::new();
     let extras = km_api::Extras {
         remote: remote_router,
         admin: Some(admin_router),
@@ -475,7 +478,7 @@ pub fn run(paths: Paths, config: Settings, options: Options) -> anyhow::Result<(
         // settles for anything a host may not be able to do.
         stream: options
             .stream
-            .then(|| km_api::watch::router(&machine.paths().stream_dir())),
+            .then(|| km_api::watch::router(&machine.paths().stream_dir(), Some(live.clone()))),
     };
     let listening = match runtime.block_on(km_api::bind_with(api.clone(), extras)) {
         Ok(listening) => {
@@ -666,7 +669,7 @@ pub fn run(paths: Paths, config: Settings, options: Options) -> anyhow::Result<(
         // nothing with no line saying why.
         match streamed_audio
             .ok_or_else(|| anyhow::anyhow!("a streaming run started with no renderer"))
-            .and_then(|audio| stream_run(&machine, &api, &settings, audio, &shutdown))
+            .and_then(|audio| stream_run(&machine, &api, &settings, audio, &shutdown, live))
         {
             Ok(()) => {}
             // A machine that cannot stream has no output at all, unlike one that cannot find a
@@ -812,6 +815,7 @@ fn stream_run(
     settings: &Settings,
     audio: crate::engine::StreamAudio,
     shutdown: &Arc<AtomicBool>,
+    live: km_api::watch::Live,
 ) -> anyhow::Result<()> {
     let stream = &settings.stream;
     let config = crate::stream::StreamConfig {
@@ -829,6 +833,7 @@ fn stream_run(
         sample_rate: stream.sample_rate,
         audio_bitrate: stream.audio_bitrate,
         wallpaper: settings.wallpaper_config(machine.paths()),
+        live,
     };
 
     // **The stream goes to a thread of its own, whether or not there is an icon to keep it
@@ -894,6 +899,7 @@ fn stream_run(
     // site passes, which is what keeps the `cfg` to two bodies rather than two call sites.
     _audio: (),
     _shutdown: &Arc<AtomicBool>,
+    _live: km_api::watch::Live,
 ) -> anyhow::Result<()> {
     Err(anyhow::anyhow!(
         "this build has no encoder, so it cannot stream. A build with the `video` feature can — \

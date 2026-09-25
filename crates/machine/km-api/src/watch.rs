@@ -12,6 +12,13 @@
 //! what makes "as many clients as possible" achievable rather than a pile of per-device work, and it
 //! is why the page must never become the only way in.
 //!
+//! # The page's faster path
+//!
+//! `/stream/live.ws` carries the same encoded stream as fragmented MP4 over a WebSocket, for the
+//! page to append straight into its `<video>`. A playlist puts a client three or four seconds
+//! behind, and this puts the page under one. It is mounted only when the machine hands over a
+//! [`Live`], and the playlist beside it is unchanged.
+//!
 //! # Public, on the same terms as the queue
 //!
 //! Outside `/api/v1/admin/`, so no token is asked for, which is the judgment `Network reach` already
@@ -19,11 +26,17 @@
 //! screen they are queueing it onto.
 
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use axum::Router;
+use axum::body::Bytes;
+use axum::extract::ws::{CloseFrame, Message, WebSocket, WebSocketUpgrade, close_code};
 use axum::http::header;
 use axum::response::{IntoResponse, Redirect, Response};
 use axum::routing::get;
+use futures_util::{SinkExt, StreamExt};
+use tokio::sync::broadcast::error::RecvError;
+use tokio::sync::{broadcast, watch};
 
 /// Where the page lives, and the prefix its relative links resolve against.
 pub const WATCH_PATH: &str = "/watch";
@@ -44,13 +57,29 @@ const HLS_JS: &str = include_str!("../static/hls.light.min.js");
 /// hls.js's license, because a vendored dependency's terms travel with it.
 const HLS_LICENSE: &str = include_str!("../static/hls-LICENSE.txt");
 
+/// Where the page's socket is, beside the playlist.
+pub const SOCKET: &str = "live.ws";
+
 /// Serves the page, its library, and the directory the encoder is writing into.
 ///
 /// **`dir` is where the segments are**, which is the machine's business rather than this crate's —
 /// the same division `play_file`'s allowed roots make. Nothing here creates it: a directory that is
 /// not there yet is a stream that has not started, and the playlist 404s until it has.
-pub fn router(dir: &Path) -> Router {
-    Router::new()
+///
+/// **`live` mounts the page's socket**, and a machine that hands none over has no such path. The
+/// page then finds nothing there and plays the playlist.
+pub fn router(dir: &Path, live: Option<Live>) -> Router {
+    let routes = Router::new();
+    let routes = match live {
+        Some(live) => routes.route(
+            &format!("{STREAM_PREFIX}/{SOCKET}"),
+            get(move |upgrade: WebSocketUpgrade| async move {
+                upgrade.on_upgrade(move |socket| pump_fragments(socket, live))
+            }),
+        ),
+        None => routes,
+    };
+    routes
         // **The trailing slash is the page's real address, and the other spelling redirects onto
         // it.** The library beside the page is named relatively — `hls.light.min.js` — and a
         // relative name resolves against the *directory* of the current URL, so on `/watch` it is
@@ -75,6 +104,155 @@ pub fn router(dir: &Path) -> Router {
         .route(&format!("{STREAM_PREFIX}/{PLAYLIST}"), get(playlist))
         .with_state(PathBuf::from(dir))
         .nest_service(STREAM_PREFIX, segments(dir))
+}
+
+/// How many fragments a viewer may fall behind before it is sent away to start again.
+///
+/// **About three seconds.** The muxer writes a fragment per packet, which at thirty frames a second
+/// and 48 kHz sound is under eighty a second. A viewer further behind than this is better restarted
+/// at a keyframe than fed a stream it can never catch up with.
+const FRAGMENTS_KEPT: usize = 256;
+
+/// The stream as fragments, for the page's socket.
+///
+/// **Handed in by the machine and fed from its stream thread.** [`Live::publish_init`] and
+/// [`Live::publish_fragment`] are synchronous and never wait, so a thread with a frame deadline can
+/// call them. What they take is a copy of what the encoder already produced, and this crate never
+/// links an encoder to get it.
+#[derive(Clone)]
+pub struct Live {
+    inner: Arc<Shared>,
+}
+
+struct Shared {
+    /// The initialisation segment. Every viewer is sent this first, and one arriving before the
+    /// stream has started waits for it.
+    init: watch::Sender<Option<Bytes>>,
+    fragments: broadcast::Sender<Fragment>,
+}
+
+/// One fragment, and whether a viewer may start on it.
+#[derive(Clone, Debug)]
+struct Fragment {
+    bytes: Bytes,
+    key: bool,
+}
+
+impl std::fmt::Debug for Live {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Live")
+            .field("viewers", &self.inner.fragments.receiver_count())
+            .finish_non_exhaustive()
+    }
+}
+
+impl Default for Live {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Live {
+    /// A stream with nothing in it yet.
+    pub fn new() -> Self {
+        Self {
+            inner: Arc::new(Shared {
+                init: watch::Sender::new(None),
+                fragments: broadcast::Sender::new(FRAGMENTS_KEPT),
+            }),
+        }
+    }
+
+    /// Sets the initialisation segment every viewer is sent first.
+    pub fn publish_init(&self, bytes: impl Into<Bytes>) {
+        self.inner.init.send_replace(Some(bytes.into()));
+    }
+
+    /// Sends one fragment to every viewer. `key` says a viewer may start on it.
+    ///
+    /// Nobody watching is not an error: the stream is written whether or not anybody is.
+    pub fn publish_fragment(&self, bytes: impl Into<Bytes>, key: bool) {
+        let _ = self.inner.fragments.send(Fragment {
+            bytes: bytes.into(),
+            key,
+        });
+    }
+}
+
+/// What a viewer's socket does with the next thing off the ring.
+#[derive(Debug, PartialEq, Eq)]
+enum Step {
+    Send(Bytes),
+    Skip,
+    Close,
+}
+
+/// **A viewer starts on a keyframe, and one that falls behind is sent away.** A decoder handed a
+/// fragment that depends on one it never saw shows nothing until the next keyframe. A viewer that
+/// missed fragments has a gap in its timeline, and a `<video>` stops at a gap and waits there.
+/// Closing is what the page reconnects from, and a fresh start is at a keyframe again.
+fn step(started: &mut bool, received: Result<Fragment, RecvError>) -> Step {
+    match received {
+        Ok(fragment) if *started || fragment.key => {
+            *started = true;
+            Step::Send(fragment.bytes)
+        }
+        Ok(_) => Step::Skip,
+        Err(RecvError::Lagged(_) | RecvError::Closed) => Step::Close,
+    }
+}
+
+/// Feeds one viewer until it goes away or falls behind.
+async fn pump_fragments(socket: WebSocket, live: Live) {
+    let (mut sink, mut incoming) = socket.split();
+    // Subscribed before the initialisation segment is awaited, so nothing published in between is
+    // lost. What arrives before the first keyframe is skipped anyway.
+    let mut fragments = live.inner.fragments.subscribe();
+    let mut ready = live.inner.init.subscribe();
+    let init = loop {
+        tokio::select! {
+            message = incoming.next() => match message {
+                None | Some(Err(_) | Ok(Message::Close(_))) => return,
+                Some(Ok(_)) => {}
+            },
+            init = ready.wait_for(Option::is_some) => match init {
+                Ok(init) => break init.clone(),
+                Err(_) => return,
+            },
+        }
+    };
+    let Some(init) = init else { return };
+    if sink.send(Message::Binary(init)).await.is_err() {
+        return;
+    }
+
+    let mut started = false;
+    loop {
+        tokio::select! {
+            // Read only to notice the viewer leaving. The page sends nothing.
+            message = incoming.next() => match message {
+                None | Some(Err(_) | Ok(Message::Close(_))) => break,
+                Some(Ok(_)) => {}
+            },
+            received = fragments.recv() => match step(&mut started, received) {
+                Step::Send(bytes) => {
+                    if sink.send(Message::Binary(bytes)).await.is_err() {
+                        break;
+                    }
+                }
+                Step::Skip => {}
+                Step::Close => {
+                    let _ = sink
+                        .send(Message::Close(Some(CloseFrame {
+                            code: close_code::AGAIN,
+                            reason: "fell behind; reconnect to start at a keyframe".into(),
+                        })))
+                        .await;
+                    break;
+                }
+            },
+        }
+    }
 }
 
 /// The name the muxer writes and a client asks for.
@@ -174,7 +352,7 @@ mod tests {
 
     /// Drives one request at a router over `dir` and hands back the parts worth asserting on.
     async fn get_path(dir: &Path, path: &str) -> (StatusCode, String, String) {
-        let response = router(dir)
+        let response = router(dir, None)
             .oneshot(
                 Request::builder()
                     .uri(path)
@@ -288,16 +466,80 @@ mod tests {
     /// Read rather than restated: a copy here would be a second spelling that can drift from the
     /// page exactly as the router's did.
     fn playlist_the_page_asks_for() -> String {
-        const NAMED: &str = "const PLAYLIST = \"";
+        named_in_page("PLAYLIST")
+    }
+
+    /// The string a `const` in the page's script holds.
+    fn named_in_page(constant: &str) -> String {
+        let named = format!("const {constant} = \"");
         let after = WATCH_HTML
-            .split_once(NAMED)
-            .expect("the page names a playlist in a `const PLAYLIST` it can be read out of")
+            .split_once(&named)
+            .unwrap_or_else(|| panic!("the page has a `const {constant}` it can be read out of"))
             .1;
         after
             .split_once('"')
             .expect("the name is a closed string literal")
             .0
             .to_owned()
+    }
+
+    /// A GET for `path` on a router that has, or has not, been handed the stream as fragments.
+    async fn status_of(path: &str, live: Option<Live>) -> StatusCode {
+        let dir = tempdir::Dir::new();
+        router(dir.path(), live)
+            .oneshot(
+                Request::builder()
+                    .uri(path)
+                    .body(Body::empty())
+                    .expect("a request with no body"),
+            )
+            .await
+            .expect("the router answers every request")
+            .status()
+    }
+
+    /// The page's socket is a path the router mounts, and only when it has a stream to put on it.
+    ///
+    /// A plain GET is refused for not being an upgrade, which is still an answer from the route.
+    /// A 404 is the file server beneath it, saying the route is not there.
+    #[tokio::test]
+    async fn the_page_asks_for_a_socket_mounted_only_with_a_stream_to_carry() {
+        let asked_for = named_in_page("SOCKET");
+        assert_eq!(asked_for, format!("{STREAM_PREFIX}/{SOCKET}"));
+        assert_ne!(
+            status_of(&asked_for, Some(Live::new())).await,
+            StatusCode::NOT_FOUND
+        );
+        assert_eq!(status_of(&asked_for, None).await, StatusCode::NOT_FOUND);
+    }
+
+    fn fragment(key: bool) -> Result<Fragment, RecvError> {
+        Ok(Fragment {
+            bytes: Bytes::from_static(if key { b"key" } else { b"delta" }),
+            key,
+        })
+    }
+
+    #[test]
+    fn a_viewer_starts_on_a_keyframe_and_then_takes_everything() {
+        let mut started = false;
+        assert_eq!(step(&mut started, fragment(false)), Step::Skip);
+        assert_eq!(
+            step(&mut started, fragment(true)),
+            Step::Send(Bytes::from_static(b"key"))
+        );
+        assert_eq!(
+            step(&mut started, fragment(false)),
+            Step::Send(Bytes::from_static(b"delta"))
+        );
+    }
+
+    /// A viewer that missed fragments would stop at the gap, so it is sent away to start again.
+    #[test]
+    fn a_viewer_that_falls_behind_is_closed_even_mid_stream() {
+        let mut started = true;
+        assert_eq!(step(&mut started, Err(RecvError::Lagged(3))), Step::Close);
+        assert_eq!(step(&mut started, Err(RecvError::Closed)), Step::Close);
     }
 
     /// A machine that is not streaming has no playlist, rather than an empty one.

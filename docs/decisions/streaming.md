@@ -23,10 +23,11 @@ on a set-top box. None of them needs a page, a browser or any knowledge that thi
 That makes "as many clients as possible" achievable instead of a pile of per-device work. It is also
 why the page at `/watch/` must never become the only way in.
 
-**HLS rather than anything lower-latency, because the clients are televisions.** A set's browser
-plays a playlist through the television's own pipeline. A stream fed from JavaScript reaches only the
-newer models. Files also make this ordinary request-and-response. The alternative is a body held open
-for the length of a song, on a machine whose other job is playing audio.
+**The playlist is HLS, because the clients are televisions.** A set's own player and its browser both
+play a playlist through the television's pipeline. Files make this ordinary request-and-response, and
+nothing holds a playlist request open. The page has a faster path beside it, which
+[`The page takes the stream over a WebSocket, and the playlist stays the interface`](#the-page-takes-the-stream-over-a-websocket-and-the-playlist-stays-the-interface)
+records.
 
 **Being behind costs nothing for singing, and it costs control.** The stream is the only screen and
 the only sound in the room it is watched in. So it is in time with itself, and nobody is chasing a
@@ -80,3 +81,40 @@ player sets its distance from the live edge from that number.
 settings version, as
 [`What the machine does when nobody is singing`](interface.md#what-the-machine-does-when-nobody-is-singing)
 argues for the demo delay.
+
+## The page takes the stream over a WebSocket, and the playlist stays the interface
+
+**The watch page plays the stream under half a second behind the machine.** A playlist puts a player
+two to four seconds behind, because a player keeps whole segments. The page instead appends each
+frame to its own `<video>` as the encoder cuts it. In Chrome on the machine's own network, the page
+ran a median of 0.37 s behind, and the playlist about 2.3 s further back.
+
+**The playlist stays the interface.** VLC, Kodi, a set-top box and a television's own player open
+`/stream/live.m3u8` as before. The socket at `/stream/live.ws` serves the page, and only a page can
+use it. So every streaming machine serves both, and the page is still never the only way in.
+
+**Both come from one encode.** A second muxer writes each encoded packet as a fragment of its own.
+Encoding is the expensive half, so a viewer on the socket costs a copy of each packet.
+
+**A socket per viewer is the shape the remotes already have.** The machine holds a WebSocket open to
+every remote. The encoder publishes into a shared ring and never waits for a viewer. So a slow
+viewer cannot hold up a frame, and nothing reaches the audio.
+
+**A viewer starts on a keyframe.** A decoder shows nothing until its first keyframe. So the machine
+skips what comes before one, and a new viewer waits up to a second.
+
+**A viewer that falls behind is sent away to start again.** The ring holds about three seconds of
+fragments. A viewer that misses some has a gap, and a `<video>` stops at a gap and waits there. The
+machine closes that socket with code 1013, and the page reconnects at a keyframe.
+
+**The page ends in a picture or in the playlist, never in a dead end.**
+- A browser that cannot use the socket plays the playlist instead.
+- A device that falls behind three times without half a minute of picture plays the playlist too.
+- A machine that restarts is waited for, because its playlist is gone as well.
+
+**`/watch/?hls` skips the socket.** A television's media source may stutter where its own player
+does not. The query gives that set the playlist on the same page.
+
+**Low-Latency HLS stays refused.** It would bring the native players closer, and it holds a playlist
+request open for every part. The socket brings the page closer, and the native players keep plain
+HLS.

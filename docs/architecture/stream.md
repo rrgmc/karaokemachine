@@ -41,19 +41,84 @@ rather than a conversion one.
 ```
 /stream/live.m3u8    the stream. This is the interface.
 /stream/seg-*.m4s    the segments it names, and init.mp4 before them
+/stream/live.ws      the same stream as fragments, pushed to the page
 /watch/              a page, for the sets where opening a URL is what is easiest
 ```
 
 **The playlist is the product and the page is a convenience**, which is
 [`A television somewhere else is a stream, and the playlist is the interface`](../decisions/streaming.md#a-television-somewhere-else-is-a-stream-and-the-playlist-is-the-interface).
 Anything that follows a URL plays the stream without knowing a page or a browser exists. That
-includes a television's own media pipeline, VLC, Kodi and a player on a set-top box. The page is
-where `hls.js` fills the one gap. HLS is native on smart televisions, Safari, iOS and Android, and
-absent from desktop Chrome and Firefox.
+includes a television's own media pipeline, VLC, Kodi and a player on a set-top box.
 
-Files also make this an ordinary request and response, rather than a body held open for the length
-of a song. `handlers.rs` already declines to hold one open on a machine whose other job is playing
-audio.
+**The page tries the socket first**, then the playlist through the browser's own HLS, then `hls.js`.
+HLS is native on smart televisions, Safari, iOS and Android, and absent from desktop Firefox. The
+socket is the section below.
+
+The playlist and its segments are files, so they are ordinary request and response. Nothing holds a
+playlist request open.
+
+## The page's socket
+
+**A second muxer writes the same packets as fragmented MP4**, and `/stream/live.ws` pushes each
+fragment to the page as it is cut. The page appends them to a `MediaSource`. It runs under half a
+second behind, where a playlist player keeps whole segments and runs two to four.
+[`The page takes the stream over a WebSocket`](../decisions/streaming.md#the-page-takes-the-stream-over-a-websocket-and-the-playlist-stays-the-interface)
+is the decision.
+
+### In `km-stream`
+
+- **`Stream::open_with_fragments` takes a `Sink`**, and `Stream::open` passes none. The fragment
+  muxer is ffmpeg's `mp4` with `frag_every_frame`, `empty_moov` and `default_base_moof`. It writes
+  through `StreamIo::from_write`, the safe custom output `km-video` uses for input. So it adds no
+  `unsafe`.
+- **Each packet is copied before the playlist's muxer takes it.** An interleaved write empties the
+  packet it is given. The copy is rescaled into the fragment muxer's own time base.
+- **`frag_every_frame` means one fragment per packet**, sound and picture alike. So a fragment of
+  sound sits between each two pictures.
+- **`fragments::Splitter` puts the boxes back together.** The muxer writes whatever its buffer holds,
+  and a `MediaSource` takes only whole boxes. `ftyp` and `moov` become the initialisation segment, and
+  each `moof` and its `mdat` become one fragment.
+- **A fragment says itself whether a viewer may start on it.** The splitter reads the video track's
+  first sample flags from the `trun`, the `tfhd` or the `trex`, in that order. So the answer is right
+  however the muxer groups packets. A fragment of sound alone is never a start.
+- **The pictures wait for the first sound.** AAC's first packet is timed before zero. The muxer
+  shifts every stream to make it zero, and it fixes the shift from the first packet it sees. A
+  picture first means no shift, and the sound's first two packets then share a time. A browser drops
+  one of the two.
+- **A failure in the fragments ends the fragments**, with a warning. The playlist carries on, and the
+  page falls back to it.
+
+### In `km-api`
+
+- **`watch::Live` is the relay**, made by the machine and fed from the stream thread. The
+  initialisation segment sits in a `tokio::sync::watch`, so a viewer who arrives first waits for it.
+  Fragments go into a `broadcast` ring of 256, about three seconds at thirty frames a second.
+- **Publishing never waits**, so the frame deadline cannot be held up by a viewer.
+- **`router(dir, Some(live))` mounts the socket**, and `None` mounts nothing there. The page then
+  finds a 404 and plays the playlist.
+- **A viewer gets the initialisation segment, then fragments from the next keyframe.** A viewer that
+  lags the ring is closed with code 1013, because a gap in a `SourceBuffer` stops the picture.
+
+### In the page
+
+- **The codec comes from the stream itself.** The page reads the profile out of the `avcC` box, so
+  `libopenh264`'s Constrained Baseline and `libx264`'s High are each asked for by name.
+- **The page holds the live edge.** Above 0.3 s behind it plays at 1.05×, and above 1 s it jumps.
+  Media older than ten seconds is removed, so a long evening never fills the quota.
+- **Every failure ends in a picture or the playlist.**
+  - A socket that never delivers, or a refused codec, goes to the playlist.
+  - A close with code 1013 reconnects, and three of those without half a minute of picture go to
+    the playlist.
+  - A machine that goes away is waited for, with the page saying so.
+
+### Measured
+
+Chrome 154 against a debug build at 1080p, on the same computer:
+- **The socket:** median 0.37 s behind the fragment's arrival, 0.23 s at the tenth percentile and
+  0.81 s at the ninetieth.
+- **The playlist:** each wallpaper crossfade reached it 2.2 to 2.4 s after the page.
+- **A machine restarted under an open page:** the page waited, reconnected, and resumed at about
+  0.2 s behind.
 
 ## Four things that are silent when they are wrong
 

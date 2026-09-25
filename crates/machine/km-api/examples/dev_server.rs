@@ -102,7 +102,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let listening = match &stream_dir {
         Some(dir) => {
             let extras = km_api::Extras {
-                stream: Some(km_api::watch::router(dir)),
+                stream: Some(km_api::watch::router(dir, None)),
                 ..Default::default()
             };
             bind_with(state, extras).await?

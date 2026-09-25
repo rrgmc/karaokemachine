@@ -90,6 +90,10 @@ Entries are written for somebody who has the machine. Why any of it is the way i
   queued song reach it that much sooner. A `settings.json` that already sets
   `stream.segment_seconds` keeps its number, so set it to `1` to get this. An older television that
   stops to buffer plays smoothly at `2`.
+- **The `/watch/` page runs under half a second behind the machine.** It takes the stream over a
+  WebSocket, so pause, skip and a newly queued song reach it almost at once. A player on the
+  playlist stays three or four seconds behind. A television whose page stutters plays the playlist
+  at `/watch/?hls`.
 - **A browser that cannot decode the stream says so.** The `/watch/` page names the missing H.264
   or AAC support and gives the address to open in VLC.
 

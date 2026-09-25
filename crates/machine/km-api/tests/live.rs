@@ -829,3 +829,43 @@ async fn next_log(socket: &mut EventSocket) -> Value {
     .await
     .expect("a frame arrives")
 }
+
+/// The page's socket sends the initialisation segment, then starts on a keyframe.
+///
+/// A fragment published before the viewer's first keyframe is one its decoder cannot use, so it
+/// never reaches the viewer.
+#[tokio::test]
+async fn the_stream_socket_sends_the_init_then_starts_on_a_keyframe() {
+    let dir = std::env::temp_dir().join(format!("km-api-live-ws-{}", std::process::id()));
+    let live = km_api::watch::Live::new();
+    live.publish_init(&b"init"[..]);
+    let server = Server::start_with(
+        ApiConfig::default().without_mdns(),
+        Extras {
+            stream: Some(km_api::watch::router(&dir, Some(live.clone()))),
+            ..Default::default()
+        },
+    )
+    .await;
+    let url = format!("ws://{}/stream/live.ws", server.addr);
+    let (mut socket, _) = tokio_tungstenite::connect_async(&url)
+        .await
+        .expect("the stream socket accepts a websocket");
+
+    let mut next = async || match tokio::time::timeout(Duration::from_secs(5), socket.next())
+        .await
+        .expect("a frame within five seconds")
+        .expect("the socket is open")
+        .expect("a frame, not an error")
+    {
+        Message::Binary(bytes) => bytes.to_vec(),
+        other => panic!("fragments are binary, got {other:?}"),
+    };
+    assert_eq!(next().await, b"init");
+
+    live.publish_fragment(&b"before the keyframe"[..], false);
+    live.publish_fragment(&b"keyframe"[..], true);
+    live.publish_fragment(&b"after it"[..], false);
+    assert_eq!(next().await, b"keyframe");
+    assert_eq!(next().await, b"after it");
+}
