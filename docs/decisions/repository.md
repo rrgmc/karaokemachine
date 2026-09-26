@@ -576,6 +576,34 @@ behind it, so the clip fabricates nothing.
 **The site's hero and its `og:image` stay `screen-playing.png`.** A link preview shows the first
 frame of an animation or nothing at all. The still is the better picture for that.
 
+## The promotional video is built from the carol and the published pictures
+
+**The promotional video is a build product, and `tools/dev/promo-video.sh` builds it.** It runs one
+minute at 1920x1080 and thirty frames a second, with sound. It lands in `dist/promo/` and is never
+committed. A video is tens of megabytes, and it changes whenever a published picture does.
+
+**The machine draws and plays its own part.** The music is *Angels From the Realms of Glory*, the
+carol of the animated picture, from its first note. The playing screen in the video is the display's
+own renderer, and the sound is the synthesizer's own offline render through the bundled SoundFont.
+Both read one song file and one tempo map, so the words keep time with the music. A mockup of the
+screen would show what the machine does not do.
+
+**The carol is the only song the video sings, for the reason the animated picture gives.** A video
+publishes whole verses of words and music. The carol pack is the only song whose words and
+arrangement this project may publish.
+
+**Every other picture in it is already published.** The idle, queue and remote screens are stills
+from `docs/images/`, the mark is `icon/icon-512.png`, and the palette is the site's. So the video
+shows nothing the README does not, and it fabricates nothing beyond what those stills fabricate.
+
+**Its words follow the rules for published prose.** Each claim on screen is one the README makes:
+the five song sources, the platforms, the remote and the license. It names no suitability number and
+no scoring, because the machine rates files and never singers.
+
+**The page is HTML, captured by Playwright, because the words need typesetting.** The display draws
+a television screen and cannot lay out a title card. `tools/dev/promo/promo.html` draws any moment
+of the video from its time alone, so two runs on one machine give the same frames.
+
 ## Who the README is for
 
 **The README is for somebody who has the machine; `BUILDING.md` for somebody who has the source.** The
