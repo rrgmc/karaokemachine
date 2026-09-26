@@ -738,24 +738,25 @@ pub fn explain_roots(path: &Path, curated_root: &Path, original: &str) -> String
     } else {
         parent
     };
-    let escaped = escape_for_json(&folder);
+    let quoted = json_string(&folder);
     format!(
         "{original}\n\nThe karaoke app only plays files inside the folders named in \
          {ROOTS_SETTING}, and that list is empty until somebody fills it in. Put the folder being \
          curated in the debug object of its settings.json — one entry covers every song here:\
-         \n\n    \"debug\": {{\n      \"play_file_roots\": [\"{escaped}\"]\n    }}\n\nRun \
+         \n\n    \"debug\": {{\n      \"play_file_roots\": [{quoted}]\n    }}\n\nRun \
          karaokemachine --show-paths to find that file, and restart the app afterwards."
     )
 }
 
-/// Doubles the backslashes in a path so it can go inside the JSON snippet.
+/// A path as a quoted JSON string, for the snippet somebody pastes into settings.json.
 ///
-/// JSON has no raw strings, so a Windows separator has to be doubled or the file somebody pastes it
-/// into is invalid. Its own function because it is *string* work with nothing platform-specific about
-/// it — which is what lets it be tested with a Windows path on a Linux runner, where `Path` would not
-/// read one as a path at all.
-fn escape_for_json(folder: &str) -> String {
-    folder.replace('\\', "\\\\")
+/// JSON has no raw strings, so a Windows separator has to be doubled, and a quote or a control
+/// character in a folder name has to be escaped too, or the file is invalid. `serde_json` writes the
+/// whole escape set. Its own function because it is *string* work with nothing platform-specific
+/// about it — which is what lets it be tested with a Windows path on a Linux runner, where `Path`
+/// would not read one as a path at all.
+fn json_string(folder: &str) -> String {
+    serde_json::to_string(folder).expect("a string always serializes to JSON")
 }
 
 /// Keeps an unexpected body short enough to put on a page.
@@ -921,14 +922,19 @@ mod tests {
     #[test]
     fn a_backslash_is_doubled_so_the_snippet_is_valid_json() {
         assert_eq!(
-            escape_for_json(r"D:\tunes\karaoke"),
-            r"D:\\tunes\\karaoke",
+            json_string(r"D:\tunes\karaoke"),
+            r#""D:\\tunes\\karaoke""#,
             "a settings.json carrying a single backslash will not parse"
         );
         assert_eq!(
-            escape_for_json("/tunes/karaoke"),
-            "/tunes/karaoke",
+            json_string("/tunes/karaoke"),
+            r#""/tunes/karaoke""#,
             "and a path with none is left exactly as it is"
+        );
+        assert_eq!(
+            json_string(r#"/tunes/"live" set"#),
+            r#""/tunes/\"live\" set""#,
+            "a quote in a folder name would end the string early"
         );
     }
 
@@ -964,7 +970,7 @@ mod tests {
     fn the_folder_offered_is_the_curated_root_not_the_songs_own_folder() {
         let explained = explain_roots(Path::new(DEEP), Path::new(ROOT), "refused");
         assert!(
-            explained.contains(&format!("[\"{}\"]", escape_for_json(ROOT))),
+            explained.contains(&format!("[{}]", json_string(ROOT))),
             "the root is the folder worth allowing: {explained}"
         );
         assert!(
