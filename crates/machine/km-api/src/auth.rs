@@ -37,6 +37,7 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use argon2::Argon2;
 use argon2::password_hash::phc::PasswordHash;
 use argon2::password_hash::{PasswordHasher, PasswordVerifier};
+use ctutils::CtEq;
 use hmac::{Hmac, KeyInit, Mac};
 use sha2::Sha256;
 
@@ -375,7 +376,7 @@ impl AdminAuth {
             return false;
         }
         let expected = sign(&stored, self.epoch(), expires_at, nonce);
-        constant_time_eq(expected.as_bytes(), presented.as_bytes())
+        expected.as_bytes().ct_eq(presented.as_bytes()).into()
     }
 
     /// Seconds the caller must wait, if either budget is spent.
@@ -517,20 +518,6 @@ fn hex(bytes: &[u8]) -> String {
         let _ = write!(out, "{byte:02x}");
     }
     out
-}
-
-/// Compares two byte strings without returning early.
-///
-/// Length is allowed to leak: a MAC's length is a fixed constant, so it carries no information.
-fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
-    if a.len() != b.len() {
-        return false;
-    }
-    let mut differences = 0_u8;
-    for (left, right) in a.iter().zip(b) {
-        differences |= left ^ right;
-    }
-    differences == 0
 }
 
 /// Pulls a bearer token out of an `Authorization` header value.
@@ -795,12 +782,19 @@ mod tests {
         );
     }
 
+    /// A token whose MAC is one character off, or cut short, is refused.
     #[test]
-    fn constant_time_eq_still_compares_correctly() {
-        assert!(constant_time_eq(b"abc", b"abc"));
-        assert!(!constant_time_eq(b"abc", b"abd"));
-        assert!(!constant_time_eq(b"abc", b"ab"));
-        assert!(constant_time_eq(b"", b""));
+    fn a_token_with_a_damaged_mac_never_verifies() {
+        let auth = configured("hunter2");
+        let token = auth.issue().expect("a password is set").token;
+        assert!(auth.verify(&token));
+
+        let (rest, mac) = token.rsplit_once('.').expect("a token has four parts");
+        let flipped = if mac.ends_with('0') { '1' } else { '0' };
+        let damaged = format!("{rest}.{}{flipped}", &mac[..mac.len() - 1]);
+        let shortened = format!("{rest}.{}", &mac[..mac.len() - 1]);
+        assert!(!auth.verify(&damaged));
+        assert!(!auth.verify(&shortened));
     }
 
     #[test]

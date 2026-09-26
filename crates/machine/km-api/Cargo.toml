@@ -59,6 +59,7 @@ argon2 = { workspace = true }
 # The bearer token is an HMAC keyed on the stored argon2 hash, so a restart keeps everybody logged
 # in without a token table on disk. See `auth.rs`.
 hmac = { workspace = true }
+ctutils = { workspace = true }
 sha2 = { workspace = true }
 getrandom = { workspace = true }
 mdns-sd = { workspace = true }

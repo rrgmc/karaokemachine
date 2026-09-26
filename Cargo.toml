@@ -490,6 +490,9 @@ sha2 = "0.11.0"
 # than a random string in a table -- that is what lets a session survive a restart with nothing
 # persisted. Paired with sha2 0.11 above; both are the same RustCrypto generation.
 hmac = "0.13.0"
+# The constant-time comparison the token check uses. It is the crate `hmac` already carries for its
+# own `verify`, so naming it here adds no crate to any build.
+ctutils = "0.4.2"
 
 # Curation tool
 # Templates are compiled into the binary and checked when it is built, so a typo in the markup is a
