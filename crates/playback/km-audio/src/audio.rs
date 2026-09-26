@@ -463,8 +463,9 @@ impl OutputStream {
             }
         };
 
-        // Only these three formats are handled. Anything else is reported rather than silently
-        // producing noise from a mismatched interpretation of the buffer.
+        // The mixer renders `f32`. A device that asks for anything else gets cpal's own conversion
+        // of it, so every integer and float format it names opens. The DSD formats carry a
+        // bitstream rather than samples and are reported rather than filled with noise.
         let stream = match sample_format {
             cpal::SampleFormat::F32 => device.build_output_stream(
                 config,
@@ -472,37 +473,17 @@ impl OutputStream {
                 on_error,
                 Some(ACTIVATION_TIMEOUT),
             ),
-            cpal::SampleFormat::I16 => {
-                let mut scratch: Vec<f32> = Vec::new();
-                device.build_output_stream(
-                    config,
-                    move |data: &mut [i16], info| {
-                        scratch.resize(data.len(), 0.0);
-                        process(&mut scratch, info);
-                        for (out, sample) in data.iter_mut().zip(scratch.iter()) {
-                            *out = (sample.clamp(-1.0, 1.0) * f32::from(i16::MAX)) as i16;
-                        }
-                    },
-                    on_error,
-                    Some(ACTIVATION_TIMEOUT),
-                )
-            }
-            cpal::SampleFormat::U16 => {
-                let mut scratch: Vec<f32> = Vec::new();
-                device.build_output_stream(
-                    config,
-                    move |data: &mut [u16], info| {
-                        scratch.resize(data.len(), 0.0);
-                        process(&mut scratch, info);
-                        for (out, sample) in data.iter_mut().zip(scratch.iter()) {
-                            let scaled = (sample.clamp(-1.0, 1.0) + 1.0) * 0.5;
-                            *out = (scaled * f32::from(u16::MAX)) as u16;
-                        }
-                    },
-                    on_error,
-                    Some(ACTIVATION_TIMEOUT),
-                )
-            }
+            cpal::SampleFormat::I8 => converting::<i8>(&device, config, process, on_error),
+            cpal::SampleFormat::I16 => converting::<i16>(&device, config, process, on_error),
+            cpal::SampleFormat::I24 => converting::<cpal::I24>(&device, config, process, on_error),
+            cpal::SampleFormat::I32 => converting::<i32>(&device, config, process, on_error),
+            cpal::SampleFormat::I64 => converting::<i64>(&device, config, process, on_error),
+            cpal::SampleFormat::U8 => converting::<u8>(&device, config, process, on_error),
+            cpal::SampleFormat::U16 => converting::<u16>(&device, config, process, on_error),
+            cpal::SampleFormat::U24 => converting::<cpal::U24>(&device, config, process, on_error),
+            cpal::SampleFormat::U32 => converting::<u32>(&device, config, process, on_error),
+            cpal::SampleFormat::U64 => converting::<u64>(&device, config, process, on_error),
+            cpal::SampleFormat::F64 => converting::<f64>(&device, config, process, on_error),
             other => return Err(AudioError::SampleFormat(other)),
         }
         .map_err(|e| AudioError::Stream(e.to_string()))?;
@@ -766,11 +747,48 @@ fn apply<S: AudioSource>(
     }
 }
 
+/// Frames of `f32` a converting stream holds before its first callback.
+///
+/// Larger than any block a desktop or phone backend hands over, so the scratch buffer is allocated
+/// here on the control thread and not in the callback. A backend that asks for more still plays: the
+/// buffer grows once on the audio thread and keeps that size.
+const SCRATCH_FRAMES: usize = 16_384;
+
+/// Opens a stream in a sample format other than `f32`, rendering into a scratch buffer and
+/// converting each sample with cpal's own `FromSample`.
+///
+/// The clamp stops just short of `+1.0`. cpal's conversion assumes `-1.0 <= s < 1.0`, and a 24-bit
+/// sample at exactly `+1.0` wraps to full negative scale instead of saturating.
+fn converting<T>(
+    device: &cpal::Device,
+    config: cpal::StreamConfig,
+    mut process: impl FnMut(&mut [f32], &cpal::OutputCallbackInfo) + Send + 'static,
+    on_error: impl FnMut(cpal::Error) + Send + 'static,
+) -> Result<cpal::Stream, cpal::Error>
+where
+    T: cpal::SizedSample + cpal::FromSample<f32>,
+{
+    let mut scratch: Vec<f32> =
+        Vec::with_capacity(SCRATCH_FRAMES * usize::from(config.channels.max(1)));
+    device.build_output_stream(
+        config,
+        move |data: &mut [T], info| {
+            scratch.resize(data.len(), 0.0);
+            process(&mut scratch, info);
+            for (out, sample) in data.iter_mut().zip(scratch.iter()) {
+                *out = T::from_sample(sample.clamp(-1.0, 1.0 - f32::EPSILON));
+            }
+        },
+        on_error,
+        Some(ACTIVATION_TIMEOUT),
+    )
+}
+
 /// Brings a block of samples into range before it is handed to the driver.
 ///
 /// **This is the only thing standing between a bad SoundFont and the loudest noise the hardware can
 /// make**, and until the second soundfont survey nothing did it on the path almost everybody takes.
-/// The `I16` and `U16` branches of [`OutputStream::open`] clamp on their way out because they have to
+/// The branches of [`OutputStream::open`] that convert to another sample format clamp on their way out because they have to
 /// scale anyway; `F32` passed the buffer to cpal exactly as the player left it — and `F32` is the
 /// native format on Windows, and on most current ALSA and CoreAudio configurations.
 ///
