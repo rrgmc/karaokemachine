@@ -25,7 +25,7 @@ pub mod openverse;
 pub mod pexels;
 pub mod pixabay;
 
-use std::time::Duration;
+use std::time::{Duration, SystemTime};
 
 use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
@@ -297,9 +297,10 @@ pub fn urlencode(text: &str) -> String {
 
 /// A GET that retries the failures worth retrying.
 ///
-/// Returns the body as text. `Retry-After` wins over the backoff schedule when the server sends one:
-/// it is the server saying exactly how long it needs, and guessing shorter is how a temporary 429
-/// becomes a permanent one.
+/// Returns the body as text. `Retry-After` replaces the backoff schedule for the next attempt when
+/// the server sends one: it is the server saying exactly how long it needs, and guessing shorter is
+/// how a temporary 429 becomes a permanent one. Both of its forms count, a number of seconds and an
+/// HTTP date.
 pub async fn get_with_retry(
     client: &reqwest::Client,
     provider: ProviderKind,
@@ -313,6 +314,7 @@ pub async fn get_with_retry(
 
     let name = provider.as_str();
     let mut last = String::from("no attempt was made");
+    let mut asked: Option<Duration> = None;
 
     for attempt in 0..ATTEMPTS {
         if attempt > 0 {
@@ -320,7 +322,8 @@ pub async fn get_with_retry(
             // run is reproducible. Two providers backing off in lockstep is not a problem worth
             // randomness here: the throttle already spaces them.
             let jitter = Duration::from_millis(u64::from(url.len() as u32 % 250));
-            tokio::time::sleep(BASE * 2u32.pow(attempt - 1) + jitter).await;
+            let backoff = BASE * 2u32.pow(attempt - 1) + jitter;
+            tokio::time::sleep(asked.take().unwrap_or(backoff)).await;
         }
 
         let mut request = client.get(url);
@@ -346,20 +349,18 @@ pub async fn get_with_retry(
                     });
                 }
 
-                let retry_after = response
-                    .headers()
-                    .get("retry-after")
-                    .and_then(|value| value.to_str().ok())
-                    .and_then(|value| value.parse::<u64>().ok());
                 last = format!("HTTP {status}");
-
                 let worth_retrying = status.as_u16() == 429 || status.is_server_error();
                 if !worth_retrying {
                     return Err(Error::provider(name, last));
                 }
-                if let Some(seconds) = retry_after {
-                    tracing::warn!(provider = name, seconds, "asked to wait");
-                    tokio::time::sleep(Duration::from_secs(seconds.min(120))).await;
+                asked = response
+                    .headers()
+                    .get("retry-after")
+                    .and_then(|value| value.to_str().ok())
+                    .and_then(|value| retry_after(value, SystemTime::now()));
+                if let Some(wait) = asked {
+                    tracing::warn!(provider = name, seconds = wait.as_secs(), "asked to wait");
                 }
             }
             Err(error) => last = error.to_string(),
@@ -372,9 +373,38 @@ pub async fn get_with_retry(
     ))
 }
 
+/// How long a `Retry-After` value asks for, capped at two minutes.
+///
+/// The header is either a number of seconds or an HTTP date. A date already past asks for no wait.
+/// The cap keeps one server's answer from stalling a whole run.
+fn retry_after(value: &str, now: SystemTime) -> Option<Duration> {
+    const CAP: Duration = Duration::from_secs(120);
+    let value = value.trim();
+    let wait = match value.parse::<u64>() {
+        Ok(seconds) => Duration::from_secs(seconds),
+        Err(_) => httpdate::parse_http_date(value)
+            .ok()?
+            .duration_since(now)
+            .unwrap_or(Duration::ZERO),
+    };
+    Some(wait.min(CAP))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn retry_after_reads_seconds_and_dates_and_caps_both() {
+        let now = SystemTime::UNIX_EPOCH + Duration::from_secs(1_000_000_000);
+        assert_eq!(retry_after("7", now), Some(Duration::from_secs(7)));
+        assert_eq!(retry_after("9999", now), Some(Duration::from_secs(120)));
+        let later = httpdate::fmt_http_date(now + Duration::from_secs(30));
+        assert_eq!(retry_after(&later, now), Some(Duration::from_secs(30)));
+        let earlier = httpdate::fmt_http_date(now - Duration::from_secs(30));
+        assert_eq!(retry_after(&earlier, now), Some(Duration::ZERO));
+        assert_eq!(retry_after("soon", now), None);
+    }
 
     #[test]
     fn a_missing_key_names_the_variable_and_where_to_get_one() {

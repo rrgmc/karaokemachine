@@ -2291,6 +2291,7 @@ dependencies = [
  "clap",
  "futures-util",
  "hex",
+ "httpdate",
  "image",
  "image_hasher",
  "rayon",
