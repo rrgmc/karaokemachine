@@ -1,14 +1,14 @@
 //! The router: every path, and what static files sit alongside.
 //!
-//! **The URL prefix is the permission.** Everything under `/api/v1/admin/` demands the admin
-//! password; everything outside it never does. One middleware over the whole service answers that
-//! from the request path, so there is no table of route ids to drift out of step with the routes
-//! themselves — which is exactly what the 46-entry ACL this replaced could do, and did.
+//! **The method and the path decide the level a request needs.** Everything under `/api/v1/admin/`
+//! needs the admin password. Outside it, a read needs [`Access::View`], adding a song or turning a
+//! singer's knob needs [`Access::Queue`], and every other write needs [`Access::Control`]. One
+//! middleware over the whole service answers that through [`required_access`], a `match` in code, so
+//! there is no table of route ids in settings to drift out of step with the routes themselves.
 //!
-//! The cost is real and is worth naming: a resource with a public read and an admin write now spans
-//! two prefixes, so `GET /api/v1/demo` and `PUT /api/v1/admin/demo` are the same thing filed in two
-//! places. That is the price of a permission a reader can see in the URL, and it is cheaper than a
-//! lookup table nobody can verify by eye.
+//! The cost is real and is worth naming: a resource with a public read and an admin write spans two
+//! prefixes, so `GET /api/v1/demo` and `PUT /api/v1/admin/demo` are the same thing filed in two
+//! places. That is the price of an admin permission a reader can see in the URL.
 //!
 //! **The same surface is mounted a second time at [`DEV_API_PREFIX`], where nothing demands a
 //! password**, and that follows from the rule rather than bending it: `/dev/api/v1/admin/...` is not
@@ -16,11 +16,12 @@
 
 use axum::Router;
 use axum::extract::{DefaultBodyLimit, Request};
-use axum::http::StatusCode;
+use axum::http::{Method, StatusCode};
 use axum::middleware::{Next, from_fn};
 use axum::response::{Html, IntoResponse, Response};
 use axum::routing::{delete, get, post, put};
 
+use crate::access::Access;
 use crate::error::ApiError;
 use crate::handlers;
 use crate::server::ApiState;
@@ -36,6 +37,12 @@ pub const ADMIN_PREFIX: &str = "/api/v1/admin";
 /// It is how a caller gets one, so gating it behind a token would make the password unusable. It is
 /// defended by the rate limiter in [`crate::auth`] instead.
 pub const ADMIN_LOGIN_PATH: &str = "/api/v1/admin/login";
+
+/// Where anybody exchanges a code or the admin password for a token of the level it opens.
+///
+/// Outside [`ADMIN_PREFIX`], because a queue code or a control code is not an admin credential. It
+/// needs no token, for [`ADMIN_LOGIN_PATH`]'s reason, and shares that route's rate limiter.
+pub const LOGIN_PATH: &str = "/api/v1/login";
 
 /// Where the owner's page is, for anything that has to send somebody to it.
 ///
@@ -82,6 +89,43 @@ pub fn needs_admin_token(path: &str) -> bool {
         return false;
     }
     path != ADMIN_LOGIN_PATH
+}
+
+/// The level a request needs, from its method and its path.
+///
+/// **A `match` in code, not a table in settings.** The rules, in order:
+///
+/// * Anything under [`ADMIN_PREFIX`] needs [`Access::Admin`], by [`needs_admin_token`].
+/// * Anything outside [`API_PREFIX`] needs only [`Access::View`]. That covers the pages, which carry
+///   their own check, and the dev mirror under [`DEV_API_PREFIX`], which is open by design.
+/// * A read needs [`Access::View`], and so do the two login routes.
+/// * The two debug play routes need [`Access::View`]. They exist only in debugging mode, and a
+///   curation tool drives them with no token. On means open; off means absent.
+/// * `POST /queue` and `PUT /settings` need [`Access::Queue`]. They add a song and turn a singer's
+///   knobs: key, tempo, volume, melody and lyric offset.
+/// * **Every other write needs [`Access::Control`], including one added tomorrow.** A new route is
+///   closed until somebody decides a queuer may use it, which is the direction to fail in.
+pub fn required_access(method: &Method, path: &str) -> Access {
+    if needs_admin_token(path) {
+        return Access::Admin;
+    }
+    if path == ADMIN_LOGIN_PATH || path == LOGIN_PATH {
+        return Access::View;
+    }
+    let Some(rest) = path.strip_prefix(API_PREFIX) else {
+        return Access::View;
+    };
+    if !rest.is_empty() && !rest.starts_with('/') {
+        return Access::View;
+    }
+    if matches!(*method, Method::GET | Method::HEAD | Method::OPTIONS) {
+        return Access::View;
+    }
+    match (method.as_str(), rest) {
+        ("POST", "/debug/play-file" | "/debug/play-upload") => Access::View,
+        ("POST", "/queue") | ("PUT", "/settings") => Access::Queue,
+        _ => Access::Control,
+    }
 }
 
 /// Whether the development console and its API are served at all.
@@ -142,11 +186,16 @@ pub const SURFACE: &[(&str, &str)] = &[
     ("GET", "/dev-remote"),
     ("GET", "/performance"),
     ("GET", "/events"),
+    ("POST", "/login"),
+    ("GET", "/access"),
     // Admin. Every one of these answers 401 without a token, which is what the sweep asserts.
     ("POST", "/admin/login"),
     ("POST", "/admin/logout"),
     ("POST", "/admin/password"),
     ("POST", "/admin/sessions/reset"),
+    ("PUT", "/admin/access"),
+    ("PUT", "/admin/access/queue-code"),
+    ("PUT", "/admin/access/control-code"),
     ("PUT", "/admin/audio/output"),
     ("PUT", "/admin/audio/soundfont"),
     ("POST", "/admin/audio/soundfont/fetch"),
@@ -363,7 +412,7 @@ pub fn router_with(state: ApiState, extras: Extras) -> Router {
         let state = state.clone();
         async move {
             let path = request.uri().path().to_owned();
-            if let Err(error) = state.authorize(&path, request.headers()) {
+            if let Err(error) = state.authorize(request.method(), &path, request.headers()) {
                 return error.into_response();
             }
             next.run(request).await
@@ -521,8 +570,8 @@ fn api_router(config: &crate::ApiConfig, capabilities: Capabilities) -> Router<A
         // `semitones` for what the patch calls `transpose`, `enabled` for `melody_enabled`. See
         // `One spelling per concept, across every surface` in docs/decisions/.
         //
-        // **A key change is public**, beside search and queueing: it is a performance knob a
-        // singer reaches for, not installation configuration.
+        // **A key change needs only the queue level**, beside queueing: it is a performance knob a
+        // singer reaches for, not installation configuration. See `required_access`.
         .route(
             "/settings",
             get(handlers::get_settings).put(handlers::put_settings),
@@ -535,8 +584,8 @@ fn api_router(config: &crate::ApiConfig, capabilities: Capabilities) -> Router<A
         .route("/audio/soundfont", get(handlers::get_audio_soundfont))
         .route("/audio/soundfonts", get(handlers::get_audio_soundfonts))
         .route("/wallpapers", get(handlers::get_wallpapers))
-        // Anybody in the room may reasonably change the picture; putting a new one into the
-        // rotation is the owner's business and lives under `/admin/`.
+        // Changing the picture needs the control level, like every write that is not a queue entry
+        // or a singer's knob. Putting a new one into the rotation lives under `/admin/`.
         .route("/wallpapers/next", post(handlers::next_wallpaper))
         // What language the television draws in. Reading it is public, on the footing `/demo` and
         // `/debug` below share; `PUT /admin/machine/locale` is where it is written.
@@ -544,7 +593,7 @@ fn api_router(config: &crate::ApiConfig, capabilities: Capabilities) -> Router<A
         .route("/demo", get(handlers::get_demo))
         // **A path of its own rather than a `POST /demo`.** That would read as creating demo mode,
         // which is what `PUT /admin/demo` already does; this starts one song and turns nothing on.
-        // Public, because asking for one demo song is a guest's business.
+        // It interrupts whatever is playing, so it needs the control level.
         .route("/demo/start", post(handlers::start_demo))
         .route("/packages", get(handlers::get_packages))
         // Reporting whether debugging is on is public; turning it on is not. Using the answer and
@@ -556,9 +605,14 @@ fn api_router(config: &crate::ApiConfig, capabilities: Capabilities) -> Router<A
         // What the frame meter is measuring, if it is drawing. Public read, admin write, the same
         // split as the two switches above -- and the only one of the three that needs no restart.
         .route("/performance", get(handlers::get_performance))
-        .route("/events", get(handlers::events));
+        .route("/events", get(handlers::events))
+        // Any code or the admin password, for a token of the level it opens. Open, like
+        // `/admin/login`, and behind the same rate limiter.
+        .route("/login", post(handlers::login_any))
+        // The caller's own level and the room's, so a remote knows which buttons to draw.
+        .route("/access", get(handlers::get_access));
 
-    // Every path here demands a token, by virtue of where it is. `login` is the documented
+    // Every path here demands an admin token, by virtue of where it is. `login` is the documented
     // exception and `needs_admin_token` is what implements it.
     let mut admin = Router::new()
         .route("/login", post(handlers::login))
@@ -567,6 +621,10 @@ fn api_router(config: &crate::ApiConfig, capabilities: Capabilities) -> Router<A
         // Sign out everywhere. Password-independent on purpose: an owner who wants every phone
         // logged out should not have to change the password and then tell the house the new one.
         .route("/sessions/reset", post(handlers::reset_sessions))
+        // What the room gets with no code, and the two codes that raise a phone above it.
+        .route("/access", put(handlers::put_room_access))
+        .route("/access/queue-code", put(handlers::put_queue_code))
+        .route("/access/control-code", put(handlers::put_control_code))
         .route("/audio/output", put(handlers::put_audio_output))
         .route("/audio/soundfont", put(handlers::put_audio_soundfont))
         // Fetching and uploading are the same act from a person's side — "have this bank" — and
@@ -860,6 +918,43 @@ mod tests {
             "/",
         ] {
             assert!(!needs_admin_token(path), "{path} must not demand a token");
+        }
+    }
+
+    /// The level every kind of route needs, written out. If this is wrong, everything is.
+    #[test]
+    fn the_method_and_the_path_decide_the_level() {
+        use axum::http::Method;
+        for (method, path, needed) in [
+            (Method::GET, "/api/v1/queue", Access::View),
+            (Method::GET, "/api/v1/events", Access::View),
+            (Method::GET, "/api/v1/access", Access::View),
+            (Method::POST, LOGIN_PATH, Access::View),
+            (Method::POST, ADMIN_LOGIN_PATH, Access::View),
+            (Method::POST, "/api/v1/queue", Access::Queue),
+            (Method::PUT, "/api/v1/settings", Access::Queue),
+            (Method::POST, "/api/v1/transport/skip", Access::Control),
+            (Method::POST, "/api/v1/transport/pause", Access::Control),
+            (Method::POST, "/api/v1/queue/7/move", Access::Control),
+            (Method::DELETE, "/api/v1/queue/7", Access::Control),
+            (Method::DELETE, "/api/v1/queue", Access::Control),
+            (Method::PUT, "/api/v1/mics/mic1", Access::Control),
+            (Method::POST, "/api/v1/demo/start", Access::Control),
+            (Method::POST, "/api/v1/wallpapers/next", Access::Control),
+            (Method::POST, "/api/v1/debug/play-file", Access::View),
+            (Method::POST, "/api/v1/debug/play-upload", Access::View),
+            (
+                Method::POST,
+                "/api/v1/a-route-added-tomorrow",
+                Access::Control,
+            ),
+            (Method::GET, "/api/v1/admin/logs", Access::Admin),
+            (Method::PUT, "/api/v1/admin/access", Access::Admin),
+            (Method::POST, "/dev/api/v1/transport/skip", Access::View),
+            (Method::POST, "/dev/api/v1/admin/password", Access::View),
+            (Method::POST, "/song/1001/now", Access::View),
+        ] {
+            assert_eq!(required_access(&method, path), needed, "{method} {path}");
         }
     }
 

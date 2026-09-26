@@ -11,9 +11,10 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, OnceLock, RwLock};
 use std::time::Duration;
 
-use axum::http::HeaderMap;
+use axum::http::{HeaderMap, Method};
 use axum::serve::ListenerExt as _;
 
+use crate::access::Access;
 use crate::auth::{AdminAuth, bearer_token};
 use crate::config::ApiConfig;
 use crate::connect::{ConnectInfo, resolve};
@@ -46,6 +47,8 @@ struct Inner {
     controller: Arc<dyn Controller>,
     events: Events,
     auth: AdminAuth,
+    /// What everybody on the network gets with no code. Live, because the owner can change it.
+    room_access: RwLock<Access>,
 
     connect: RwLock<ConnectInfo>,
     /// Whether the password in force is the one the machine generated for itself.
@@ -138,7 +141,14 @@ impl ApiState {
             None => AdminAuth::disabled(),
         }
         .with_ttl(config.token_ttl)
-        .with_epoch(config.session_epoch);
+        .with_epoch(config.session_epoch)
+        .with_codes(
+            config.queue_code_hash.clone(),
+            config.control_code_hash.clone(),
+        );
+        // A settings file that names the admin level for the room is read as the control level,
+        // the highest a room may hold.
+        let room_access = RwLock::new(config.room_access.min(Access::Control));
 
         // Resolved eagerly so `GET /discover` and the display have an answer from the first request,
         // rather than a hole until the refresh task's first tick.
@@ -151,6 +161,7 @@ impl ApiState {
                 controller,
                 events,
                 auth,
+                room_access,
 
                 connect,
                 factory_password,
@@ -426,35 +437,96 @@ impl ApiState {
             .unwrap_or(false)
     }
 
-    /// Decides whether a request may proceed.
+    /// What everybody on the network gets with no code.
+    pub fn room_access(&self) -> Access {
+        *self
+            .inner
+            .room_access
+            .read()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
+
+    /// Sets what the room gets with no code, for this run.
     ///
-    /// **The path is the whole input, and the caller's address is deliberately not one.** A path
-    /// under `/api/v1/admin/` wants a token; every other path is public. There is no map to consult
-    /// and nothing an owner can have configured, which is the point: the permission is visible in
-    /// the URL and cannot drift away from the router. See [`crate::routes::needs_admin_token`].
+    /// **Only the running value**, for [`Self::set_admin_password`]'s reason. The admin level is
+    /// never a room level, so it is read as [`Access::Control`].
+    pub fn set_room_access(&self, room: Access) {
+        *self
+            .inner
+            .room_access
+            .write()
+            .unwrap_or_else(|poisoned| poisoned.into_inner()) = room.min(Access::Control);
+    }
+
+    /// The level a caller holding this token has: the higher of the room's and the token's.
     ///
-    /// **A machine with no password refuses rather than opens.** That is the inversion this replaced
-    /// — the old rule made an `admin` route public when no password was set, on the reasoning that
-    /// an owner who had not asked for a door should not have one. Every machine has a password now,
-    /// so the state cannot arise in normal running; if it somehow does, refusing is the safe answer.
-    pub fn authorize(&self, path: &str, headers: &HeaderMap) -> ApiResult<()> {
-        if !crate::routes::needs_admin_token(path) {
-            return Ok(());
-        }
-        let token = headers
-            .get(axum::http::header::AUTHORIZATION)
-            .and_then(|value| value.to_str().ok())
-            .and_then(bearer_token);
-        match token {
-            Some(token) if self.inner.auth.verify(token) => Ok(()),
-            Some(_) => Err(ApiError::Unauthorized(
-                "that token is not valid; log in again".to_owned(),
-            )),
-            None => Err(ApiError::Unauthorized(format!(
-                "'{path}' needs the admin password; send an admin token"
-            ))),
+    /// A token that does not verify counts as no token. The singer's remote asks this directly,
+    /// because its pages call the machine in-process and never pass through [`Self::authorize`].
+    pub fn access_for(&self, token: Option<&str>) -> Access {
+        let granted = token
+            .and_then(|token| self.inner.auth.access_of(token))
+            .unwrap_or(Access::View);
+        granted.max(self.room_access())
+    }
+
+    /// The level of the caller who sent these headers. See [`Self::access_for`].
+    pub fn caller_access(&self, headers: &HeaderMap) -> Access {
+        self.access_for(bearer_of(headers))
+    }
+
+    /// What `GET /access` answers, for a caller at this level.
+    pub fn access_dto(&self, caller: Access) -> crate::dto::AccessDto {
+        crate::dto::AccessDto {
+            access: caller,
+            room: self.room_access(),
+            queue_code: self.inner.auth.code_set(Access::Queue),
+            control_code: self.inner.auth.code_set(Access::Control),
         }
     }
+
+    /// Decides whether a request may proceed.
+    ///
+    /// **The method and the path decide the level needed, and the caller's address is deliberately
+    /// not an input.** [`crate::routes::required_access`] answers the first half with a `match` in
+    /// code, so there is no map in settings to drift away from the router. The caller's level is the
+    /// higher of the room's and the token's.
+    ///
+    /// **401 when a token would help, 403 when the token held is too low.** No token, or one that
+    /// does not verify, is a 401. A valid token of a lower level is a 403, because logging in again
+    /// with the same code would not change the answer.
+    ///
+    /// **A machine with no password refuses rather than opens.** No token verifies without one, so
+    /// only what the room level allows gets through.
+    pub fn authorize(&self, method: &Method, path: &str, headers: &HeaderMap) -> ApiResult<()> {
+        let needed = crate::routes::required_access(method, path);
+        if needed <= self.room_access() {
+            return Ok(());
+        }
+        let Some(token) = bearer_of(headers) else {
+            return Err(ApiError::Unauthorized(if needed == Access::Admin {
+                format!("'{path}' needs the admin password; send an admin token")
+            } else {
+                format!("'{path}' needs the {needed} level; exchange a code at /api/v1/login")
+            }));
+        };
+        match self.inner.auth.access_of(token) {
+            Some(held) if held >= needed => Ok(()),
+            Some(held) => Err(ApiError::Forbidden(format!(
+                "'{path}' needs the {needed} level, and this token opens {held}"
+            ))),
+            None => Err(ApiError::Unauthorized(
+                "that token is not valid; log in again".to_owned(),
+            )),
+        }
+    }
+}
+
+/// The bearer token in a request's `Authorization` header, if it carries one.
+fn bearer_of(headers: &HeaderMap) -> Option<&str> {
+    headers
+        .get(axum::http::header::AUTHORIZATION)
+        .and_then(|value| value.to_str().ok())
+        .and_then(bearer_token)
 }
 
 /// A bound but not yet serving API.
@@ -815,13 +887,123 @@ mod tests {
             .token
     }
 
+    fn with_codes(room: Access) -> ApiState {
+        state_with(
+            ApiConfig::default()
+                .with_password("hunter2")
+                .expect("hashing works")
+                .with_codes("sing", "boss")
+                .expect("hashing works")
+                .with_room_access(room),
+        )
+    }
+
+    fn token_for(state: &ApiState, level: Access) -> String {
+        state.auth().issue_for(level).expect("a code is set").token
+    }
+
+    const SKIP: &str = "/api/v1/transport/skip";
+
+    #[test]
+    fn a_queue_route_needs_nothing_while_the_room_can_queue() {
+        let state = passworded();
+        assert!(
+            state
+                .authorize(&Method::POST, PUBLIC_ROUTE, &HeaderMap::new())
+                .is_ok()
+        );
+        let error = state
+            .authorize(&Method::POST, SKIP, &HeaderMap::new())
+            .expect_err("skip needs the control level");
+        assert!(matches!(error, ApiError::Unauthorized(_)));
+    }
+
+    #[test]
+    fn a_viewing_room_can_read_and_nothing_else() {
+        let state = with_codes(Access::View);
+        assert!(
+            state
+                .authorize(&Method::GET, PUBLIC_ROUTE, &HeaderMap::new())
+                .is_ok()
+        );
+        let error = state
+            .authorize(&Method::POST, PUBLIC_ROUTE, &HeaderMap::new())
+            .expect_err("queueing needs the queue level");
+        assert!(matches!(error, ApiError::Unauthorized(_)));
+        let queue = token_for(&state, Access::Queue);
+        assert!(
+            state
+                .authorize(&Method::POST, PUBLIC_ROUTE, &bearer(&queue))
+                .is_ok()
+        );
+    }
+
+    #[test]
+    fn a_token_too_low_for_the_route_is_a_403() {
+        let state = with_codes(Access::View);
+        let queue = token_for(&state, Access::Queue);
+        let error = state
+            .authorize(&Method::POST, SKIP, &bearer(&queue))
+            .expect_err("a queue token cannot skip");
+        assert!(matches!(error, ApiError::Forbidden(_)));
+
+        let control = token_for(&state, Access::Control);
+        assert!(
+            state
+                .authorize(&Method::POST, SKIP, &bearer(&control))
+                .is_ok()
+        );
+        let error = state
+            .authorize(&Method::PUT, ADMIN_ROUTE, &bearer(&control))
+            .expect_err("a control token is not an admin token");
+        assert!(matches!(error, ApiError::Forbidden(_)));
+    }
+
+    #[test]
+    fn a_controlling_room_skips_with_no_code_and_still_cannot_administer() {
+        let state = with_codes(Access::Control);
+        assert!(
+            state
+                .authorize(&Method::POST, SKIP, &HeaderMap::new())
+                .is_ok()
+        );
+        assert!(
+            state
+                .authorize(&Method::PUT, ADMIN_ROUTE, &HeaderMap::new())
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn a_room_is_never_raised_to_admin() {
+        let state = with_codes(Access::Admin);
+        assert_eq!(state.room_access(), Access::Control);
+        state.set_room_access(Access::Admin);
+        assert_eq!(state.room_access(), Access::Control);
+    }
+
+    #[test]
+    fn a_stale_token_falls_back_to_the_room_level() {
+        let state = with_codes(Access::Queue);
+        assert_eq!(state.access_for(Some("v2.control.1.aa.bb")), Access::Queue);
+        assert!(
+            state
+                .authorize(&Method::POST, PUBLIC_ROUTE, &bearer("v2.control.1.aa.bb"))
+                .is_ok()
+        );
+    }
+
     #[test]
     fn a_public_route_needs_nothing() {
         let state = passworded();
-        assert!(state.authorize(PUBLIC_ROUTE, &HeaderMap::new()).is_ok());
         assert!(
             state
-                .authorize("/api/v1/settings", &HeaderMap::new())
+                .authorize(&Method::POST, PUBLIC_ROUTE, &HeaderMap::new())
+                .is_ok()
+        );
+        assert!(
+            state
+                .authorize(&Method::PUT, "/api/v1/settings", &HeaderMap::new())
                 .is_ok()
         );
     }
@@ -830,7 +1012,7 @@ mod tests {
     fn an_admin_route_without_a_token_is_a_401() {
         let state = passworded();
         let error = state
-            .authorize(ADMIN_ROUTE, &HeaderMap::new())
+            .authorize(&Method::POST, ADMIN_ROUTE, &HeaderMap::new())
             .expect_err("an admin route must refuse");
         assert!(matches!(error, ApiError::Unauthorized(_)));
         assert!(error.to_string().contains(ADMIN_ROUTE));
@@ -840,14 +1022,18 @@ mod tests {
     fn a_valid_token_opens_an_admin_route() {
         let state = passworded();
         let token = log_in(&state);
-        assert!(state.authorize(ADMIN_ROUTE, &bearer(&token)).is_ok());
+        assert!(
+            state
+                .authorize(&Method::POST, ADMIN_ROUTE, &bearer(&token))
+                .is_ok()
+        );
     }
 
     #[test]
     fn a_made_up_token_does_not() {
         let state = passworded();
         let error = state
-            .authorize(ADMIN_ROUTE, &bearer(&"0".repeat(64)))
+            .authorize(&Method::POST, ADMIN_ROUTE, &bearer(&"0".repeat(64)))
             .expect_err("a forged token must refuse");
         assert!(error.to_string().contains("log in again"));
     }
@@ -858,27 +1044,43 @@ mod tests {
     fn with_no_password_an_admin_route_is_shut_rather_than_open() {
         let state = state_with(ApiConfig::default());
         assert!(!state.admin_configured());
-        assert!(state.authorize(ADMIN_ROUTE, &HeaderMap::new()).is_err());
         assert!(
             state
-                .authorize("/api/v1/admin/packages", &HeaderMap::new())
+                .authorize(&Method::POST, ADMIN_ROUTE, &HeaderMap::new())
+                .is_err()
+        );
+        assert!(
+            state
+                .authorize(&Method::POST, "/api/v1/admin/packages", &HeaderMap::new())
                 .is_err()
         );
         // ...and the public half is unaffected, which is what keeps a phone working.
-        assert!(state.authorize(PUBLIC_ROUTE, &HeaderMap::new()).is_ok());
+        assert!(
+            state
+                .authorize(&Method::POST, PUBLIC_ROUTE, &HeaderMap::new())
+                .is_ok()
+        );
     }
 
     #[test]
     fn login_stays_reachable_because_it_is_the_way_in() {
         let state = passworded();
-        assert!(state.authorize(ADMIN_LOGIN_PATH, &HeaderMap::new()).is_ok());
+        assert!(
+            state
+                .authorize(&Method::POST, ADMIN_LOGIN_PATH, &HeaderMap::new())
+                .is_ok()
+        );
     }
 
     #[test]
     fn discover_is_reachable_from_anywhere() {
         let state = passworded();
         let path = format!("{API_PREFIX}/discover");
-        assert!(state.authorize(&path, &HeaderMap::new()).is_ok());
+        assert!(
+            state
+                .authorize(&Method::GET, &path, &HeaderMap::new())
+                .is_ok()
+        );
     }
 
     /// Sign-out-everywhere, driven through the state the way a handler drives it.
@@ -886,23 +1088,39 @@ mod tests {
     fn bumping_the_session_epoch_shuts_every_token_out() {
         let state = passworded();
         let token = log_in(&state);
-        assert!(state.authorize(ADMIN_ROUTE, &bearer(&token)).is_ok());
+        assert!(
+            state
+                .authorize(&Method::POST, ADMIN_ROUTE, &bearer(&token))
+                .is_ok()
+        );
 
         state.set_session_epoch(state.session_epoch() + 1);
-        assert!(state.authorize(ADMIN_ROUTE, &bearer(&token)).is_err());
+        assert!(
+            state
+                .authorize(&Method::POST, ADMIN_ROUTE, &bearer(&token))
+                .is_err()
+        );
     }
 
     #[test]
     fn changing_the_password_shuts_every_token_out() {
         let state = passworded();
         let token = log_in(&state);
-        assert!(state.authorize(ADMIN_ROUTE, &bearer(&token)).is_ok());
+        assert!(
+            state
+                .authorize(&Method::POST, ADMIN_ROUTE, &bearer(&token))
+                .is_ok()
+        );
 
         state.set_admin_password(
             Some(crate::auth::AdminAuth::hash_password("something else").expect("hashing works")),
             false,
         );
-        assert!(state.authorize(ADMIN_ROUTE, &bearer(&token)).is_err());
+        assert!(
+            state
+                .authorize(&Method::POST, ADMIN_ROUTE, &bearer(&token))
+                .is_err()
+        );
     }
 
     /// A token minted before a restart has to keep working, and the only thing that carries across
@@ -918,7 +1136,11 @@ mod tests {
             log_in(&before)
         };
         let after = state_with(config);
-        assert!(after.authorize(ADMIN_ROUTE, &bearer(&token)).is_ok());
+        assert!(
+            after
+                .authorize(&Method::POST, ADMIN_ROUTE, &bearer(&token))
+                .is_ok()
+        );
     }
 
     /// Setting a password of the owner's own stops `factory_password` being true, *at once*.

@@ -775,6 +775,8 @@ pub struct MachinePage {
     pub version: String,
     /// The languages the television can speak, with the one it does marked.
     pub locales: Vec<LocaleChoice>,
+    /// Who may do what on this machine, where the host can say.
+    pub access: Option<km_api::dto::AccessDto>,
     /// Whether the machine is performing for itself when nobody is singing.
     pub demo_enabled: bool,
     /// Whether the settings file says so, and so whether it survives a restart.

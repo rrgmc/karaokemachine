@@ -76,6 +76,15 @@ pub struct ApiSettings {
     /// without changing the password. It has to be here rather than in memory: an epoch that did not
     /// survive a restart would quietly un-revoke every session an owner had just ended.
     pub session_epoch: u64,
+    /// What everybody on the network gets with no code: `view`, `queue` or `control`.
+    ///
+    /// `queue` unless the owner says otherwise, so anybody in the room can queue a song. `admin` is
+    /// never a room level, and the API reads it as `control`.
+    pub room_access: km_api::Access,
+    /// `argon2` hash of the code that opens the queue level. `None` means there is no such code.
+    pub queue_code_hash: Option<String>,
+    /// `argon2` hash of the code that opens the control level. `None` means there is no such code.
+    pub control_code_hash: Option<String>,
     /// Whether to advertise over mDNS.
     ///
     /// **Defaults off on iOS, and that is the platform rather than a preference.** `mdns-sd` opens a
@@ -116,6 +125,9 @@ impl Default for ApiSettings {
             admin_factory_pin: None,
             token_ttl_secs: km_api::auth::DEFAULT_TOKEN_TTL.as_secs(),
             session_epoch: 0,
+            room_access: km_api::Access::default(),
+            queue_code_hash: None,
+            control_code_hash: None,
             advertise_mdns: !cfg!(target_os = "ios"),
             serve_dev_remote: None,
             serve_remote: None,
@@ -1417,6 +1429,9 @@ impl Settings {
             admin_password_hash: self.api.admin_password_hash.clone(),
             factory_password: self.api.admin_factory_pin.is_some(),
             session_epoch: self.api.session_epoch,
+            room_access: self.api.room_access,
+            queue_code_hash: self.api.queue_code_hash.clone(),
+            control_code_hash: self.api.control_code_hash.clone(),
             token_ttl: Duration::from_secs(self.api.token_ttl_secs.max(60)),
             debug_enabled: self.debug_enabled(),
             machine_name: self.machine.name.clone(),

@@ -356,7 +356,13 @@ struct StubMachine {
     /// An `Arc` because `Harness::with` takes the stub by value: the counter is cloned out before
     /// the machine goes in, which is the only handle a test has on it afterwards.
     wakes: Arc<AtomicUsize>,
+    /// What a phone with no code may do. Control by default, so every button works.
+    room: km_api::Access,
 }
+
+/// The one code the stub knows, and the token it hands back for it.
+const STUB_CODE: &str = "boss";
+const STUB_TOKEN: &str = "stub-control-token";
 
 impl StubMachine {
     fn new() -> Self {
@@ -369,6 +375,7 @@ impl StubMachine {
             refuse_move: None,
             refuse_demo: None,
             demo_starts: Arc::new(Mutex::new(0)),
+            room: km_api::Access::Control,
             quiet: false,
             online: true,
             wakes: Arc::new(AtomicUsize::new(0)),
@@ -390,6 +397,12 @@ impl StubMachine {
     /// The counter behind [`Machine::wake`], to be taken before this is handed to a `Harness`.
     fn wakes(&self) -> Arc<AtomicUsize> {
         Arc::clone(&self.wakes)
+    }
+
+    /// A machine whose room holds this level.
+    fn room(mut self, room: km_api::Access) -> Self {
+        self.room = room;
+        self
     }
 
     fn refusing(mut self, error: RemoteError) -> Self {
@@ -441,6 +454,36 @@ impl StubMachine {
 
 #[async_trait::async_trait]
 impl Machine for StubMachine {
+    async fn access(&self, token: Option<&str>) -> Result<km_api::dto::AccessDto, RemoteError> {
+        let held = if token == Some(STUB_TOKEN) {
+            km_api::Access::Control
+        } else {
+            km_api::Access::View
+        };
+        Ok(km_api::dto::AccessDto {
+            access: held.max(self.room),
+            room: self.room,
+            queue_code: false,
+            control_code: true,
+        })
+    }
+
+    async fn log_in(
+        &self,
+        code: &str,
+        _from: Option<std::net::IpAddr>,
+    ) -> Result<km_api::dto::AccessGrantDto, RemoteError> {
+        if code == STUB_CODE {
+            Ok(km_api::dto::AccessGrantDto {
+                token: STUB_TOKEN.to_owned(),
+                expires_in_secs: 3600,
+                access: km_api::Access::Control,
+            })
+        } else {
+            Err(RemoteError::Unauthorized)
+        }
+    }
+
     async fn state(&self) -> Result<StateDto, RemoteError> {
         self.check()?;
         if self.quiet {
@@ -1510,7 +1553,7 @@ async fn the_controls_toggle_holds_its_state_outside_the_fragment_the_pump_repla
         "but the checkbox itself is not in the swapped fragment: {republished}"
     );
     assert!(
-        republished.contains(r#"class="transport""#),
+        republished.contains(r#"class="transport needs-control""#),
         "so do the buttons"
     );
 }
@@ -1838,7 +1881,7 @@ async fn the_extra_row_actions_are_revealed_by_a_checkbox_the_stylesheet_reads()
     );
     assert!(plain.contains("/song/1001/now"), "always rendered");
     assert!(
-        plain.contains(r#"class="icon-btn extra-action""#),
+        plain.contains(r#"class="icon-btn extra-action needs-control""#),
         "{plain}"
     );
     assert!(
@@ -2516,12 +2559,12 @@ async fn a_field_row_lets_its_field_shrink_so_the_button_is_not_pushed_off() {
         "and the button has somewhere to go: {css}"
     );
 
-    // The singer's name and the language picker, which is where it was seen. Both on the Setup tab
-    // now; the Queue tab carries neither.
+    // The singer's name, the access code and the language picker. All three are on the Setup tab;
+    // the Queue tab carries none.
     let setup = harness.get("/setup").await;
     assert_eq!(
         setup.matches(r#"class="pref-row field-row""#).count(),
-        2,
+        3,
         "both rows on the Setup tab: {setup}"
     );
     let queue = harness.get("/queue").await;
@@ -2823,7 +2866,7 @@ async fn a_malformed_anchor_is_ignored_rather_than_refused() {
 /// The one cookie the server reads and never writes.
 ///
 /// Pins the rule rather than the behavior: a Rust setter for this would have to be the first
-/// non-`HttpOnly` cookie the remote emits, and `km_token` is why that default is worth keeping
+/// non-`HttpOnly` cookie the remote emits, and `km_access` is why that default is worth keeping
 /// absolute.
 #[tokio::test]
 async fn nothing_on_the_server_ever_writes_the_anchor_cookie() {
@@ -5286,4 +5329,95 @@ async fn saving_the_list_keeps_a_hidden_package_the_form_did_not_show() {
         written.contains("km_hidden=;") && written.contains("Max-Age=0"),
         "{written}"
     );
+}
+
+// -- access levels -------------------------------------------------------------------------------
+
+/// A phone in a viewing room is drawn at its level, and the stylesheet hides what it cannot use.
+#[tokio::test]
+async fn a_page_carries_the_phones_level_on_its_body() {
+    let harness = Harness::with(
+        StubMachine::new().room(km_api::Access::View),
+        Capabilities::online(),
+    );
+    let page = harness.get("/").await;
+    assert!(page.contains(r#"<body class="access-view""#), "{page}");
+
+    let harness = Harness::with(StubMachine::new(), Capabilities::online());
+    let page = harness.get("/").await;
+    assert!(page.contains(r#"<body class="access-control""#), "{page}");
+}
+
+/// Every button above the lowest level says which level it needs.
+#[tokio::test]
+async fn the_buttons_name_the_level_they_need() {
+    let harness = Harness::with(StubMachine::new(), Capabilities::online());
+    let page = harness.get("/?q=Tempo").await;
+    assert!(page.contains("needs-queue"), "{page}");
+    assert!(page.contains("needs-control"), "{page}");
+}
+
+/// The level is checked where the press lands, not only where the button is drawn.
+#[tokio::test]
+async fn a_press_above_the_phones_level_changes_nothing() {
+    let harness = Harness::with(
+        StubMachine::new().room(km_api::Access::Queue),
+        Capabilities::online(),
+    );
+    let (_, _, body) = harness.post("/control/skip?fragment=nowbar").await;
+    assert!(body.contains("needs a code"), "{body}");
+
+    let (_, _, body) = harness.post("/song/1001/now").await;
+    assert!(body.contains("needs a code"), "{body}");
+
+    let (_, _, body) = harness.post("/song/1001/queue").await;
+    assert!(
+        !body.contains("needs a code"),
+        "a room that queues can queue: {body}"
+    );
+}
+
+/// A viewer cannot queue, and a key change is a queuer's.
+#[tokio::test]
+async fn a_viewer_cannot_queue_or_turn_a_knob() {
+    let harness = Harness::with(
+        StubMachine::new().room(km_api::Access::View),
+        Capabilities::online(),
+    );
+    let (_, _, body) = harness.post("/song/1001/queue").await;
+    assert!(body.contains("needs a code"), "{body}");
+    let (_, _, body) = harness.post("/control/transpose-up").await;
+    assert!(body.contains("needs a code"), "{body}");
+}
+
+/// A code typed on the Setup tab becomes a cookie, and the page reloads at the new level.
+#[tokio::test]
+async fn a_code_is_kept_in_a_cookie_and_a_wrong_one_is_refused() {
+    let harness = Harness::with(
+        StubMachine::new().room(km_api::Access::Queue),
+        Capabilities::online(),
+    );
+    let request = Request::builder()
+        .method(Method::POST)
+        .uri("/access")
+        .header("HX-Request", "true")
+        .body(Body::from("code=boss"))
+        .expect("build");
+    let (status, headers, _) = harness.send(request).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(
+        headers.get("hx-refresh").and_then(|v| v.to_str().ok()),
+        Some("true")
+    );
+    let cookie = set_cookie(&headers);
+    assert!(cookie.contains("km_access=stub-control-token"), "{cookie}");
+    assert!(cookie.contains("HttpOnly"), "{cookie}");
+
+    let (_, _, page) = harness
+        .get_full("/", Some("km_access=stub-control-token"))
+        .await;
+    assert!(page.contains(r#"<body class="access-control""#), "{page}");
+
+    let (_, body) = harness.post_form("/access", "code=nope").await;
+    assert!(body.contains("not right"), "{body}");
 }

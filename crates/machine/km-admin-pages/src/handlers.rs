@@ -938,7 +938,11 @@ pub async fn machine_page(
     // two questions with no dependency between them, and over HTTP a page that waits out the first
     // before starting the second cannot say *the machine is not answering* until it has waited
     // twice.
-    let (identity, switches) = tokio::join!(state.machine.identity(), state.switches.read());
+    let (identity, switches, access) = tokio::join!(
+        state.machine.identity(),
+        state.switches.read(),
+        state.machine.access()
+    );
     let identity = identity.unwrap_or_default();
     let switches = switches.unwrap_or_default();
     // **The pane asked for, and Debugging otherwise**, which is the pane that is never empty. A
@@ -964,6 +968,7 @@ pub async fn machine_page(
             songs: identity.songs,
             version: identity.version,
             locales: views::LocaleChoice::all(identity.locale),
+            access: access.ok(),
             demo_enabled: switches.demo_enabled,
             demo_stored: switches.demo_stored,
             demo_delay_secs: switches.demo_delay_secs,
@@ -2090,6 +2095,84 @@ pub async fn set_password(
         "good",
         "The password is changed. Sign in again to carry on.",
     )
+}
+
+/// `POST /admin/machine/access` — what the room may do with no code.
+pub async fn set_room_access(
+    State(state): State<Admin>,
+    headers: HeaderMap,
+    Form(form): Form<RoomAccessForm>,
+) -> Response {
+    let Some(room) =
+        km_api::Access::from_word(form.room.trim()).filter(|room| room.is_room_level())
+    else {
+        return back_to_pane(
+            Pane::Password,
+            "bad",
+            "That is not a level a room can have.",
+        );
+    };
+    if let Err(error) = state.machine.set_room_access(room).await {
+        return refusal_on(&state, Pane::Password, &error, state.locale(&headers));
+    }
+    back_to_pane(
+        Pane::Password,
+        "good",
+        "Saved. Anybody with no code can now do what the room level allows.",
+    )
+}
+
+/// The room level, from the Access card.
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct RoomAccessForm {
+    /// `view`, `queue` or `control`.
+    pub room: String,
+}
+
+/// `POST /admin/machine/access-code` — set or clear the queue code or the control code.
+///
+/// **Clearing is a separate field and not an empty box**, for [`set_password`]'s reason: a form
+/// submitted by accident with nothing typed must not take a code away.
+pub async fn set_access_code(
+    State(state): State<Admin>,
+    headers: HeaderMap,
+    Form(form): Form<AccessCodeForm>,
+) -> Response {
+    let Some(level) = km_api::Access::from_word(form.level.trim()).filter(|level| level.has_code())
+    else {
+        return back_to_pane(Pane::Password, "bad", "That level has no code.");
+    };
+    let code = form.code.trim();
+    let (code, said) = if form.clear.is_some() {
+        (
+            None,
+            "The code is cleared. Phones that used it are back at the room level.",
+        )
+    } else if code.is_empty() {
+        return back_to_pane(Pane::Password, "bad", "Type a code first.");
+    } else {
+        (
+            Some(code),
+            "The code is saved. Phones that used the old one must type the new one.",
+        )
+    };
+    if let Err(error) = state.machine.set_access_code(level, code).await {
+        return refusal_on(&state, Pane::Password, &error, state.locale(&headers));
+    }
+    back_to_pane(Pane::Password, "good", said)
+}
+
+/// A code for one level, from the Access card.
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct AccessCodeForm {
+    /// `queue` or `control`.
+    pub level: String,
+    /// The typed code. Empty when a Clear button was pressed.
+    #[serde(default)]
+    pub code: String,
+    /// Present only from a Clear button.
+    #[serde(default)]
+    pub clear: Option<String>,
 }
 
 /// A new password, or an instruction to remove the one there is.

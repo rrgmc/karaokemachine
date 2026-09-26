@@ -58,9 +58,15 @@ impl Guard for AdminAclGuard {
         // asking it about the real page path would mean mapping page routes to API routes again,
         // which is the table this change deleted.
         self.0
-            .authorize(PROBE_PATH, &Self::headers_of(caller))
+            .authorize(
+                &axum::http::Method::POST,
+                PROBE_PATH,
+                &Self::headers_of(caller),
+            )
             .map_err(|error| match error {
-                km_api::ApiError::Unauthorized(message) => Refusal::NeedsPassword(message),
+                km_api::ApiError::Unauthorized(message) | km_api::ApiError::Forbidden(message) => {
+                    Refusal::NeedsPassword(message)
+                }
                 other => Refusal::Failed(other.to_string()),
             })
     }

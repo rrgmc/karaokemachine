@@ -518,17 +518,25 @@ functions the JSON endpoints call.** The half that would have diverged is not th
 open page about it* is two, of which the second is invisible when forgotten. That is why `ops` exists
 as a module rather than as a handler body.
 
-**There is no guard on this page, and its absence is the same claim a guard would make.** A guard
-mapping every route the remote serves to the API route id it would exercise, and asking
-`ApiState::authorize` about it, would establish that nothing the remote can do is anything the API
-would not already allow the same caller. Every one of those routes is outside `/api/v1/admin/` and
-always will be, so that is true by construction and there is nothing to refuse. The `/login` page
-and the token cookie went with it: a login that can never be needed implies the person has forgotten
-something.
+**The level check is in the handler, because the online pages never reach the API's.** Every write
+handler asks `Machine::access` for the phone's level before it acts, and a phone below the level gets
+`RemoteError::Unauthorized` as a toast. `OnlineMachine` answers from `ApiState::access_for`, and
+`MachineClient` asks `GET /api/v1/access`. Song actions: `queue` needs the queue level, and `next`
+and `now` need control. Queue rows need control. Of the player controls, key, tempo, volume and
+melody need the queue level, and the transport and the demo need control.
 
-**The cookie's reasoning moved one crate over rather than being lost.** A browser cannot be told to
-put an `Authorization` header on a link, so the owner's page at `/admin/` — where every control *is*
-an admin action — keeps the token in an `HttpOnly` cookie and rebuilds the header before the check.
+**The token rides in the `km_access` cookie**, set by `POST /access` from the code box on the Setup
+tab. `Prefs::token` reads it, and falls back to the owner's `km_token`. The answer is a full refresh,
+because a new level changes buttons on every part of the page. The offline client also keeps the
+token it bought and sends it on every request, because the machine checks again over HTTP.
+
+**`<body>` carries `access-<level>`, and each button above `view` carries `needs-queue` or
+`needs-control`.** Three rules in `app.css` hide what the level does not reach. The event stream
+pushes one fragment to every open page, so a class read per page is the one mechanism that holds.
+
+**The owner's page keeps its own token the same way.** A browser cannot be told to put an
+`Authorization` header on a link, so `/admin/` keeps the token in an `HttpOnly` cookie and rebuilds
+the header before the check.
 
 Two faults found by running the guard while it existed, both still true of the page that has one.
 **`ConnectInfo<SocketAddr>` rejects when the connect info is absent**, so a login handler taking it

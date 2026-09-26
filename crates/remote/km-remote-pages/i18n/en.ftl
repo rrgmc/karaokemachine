@@ -15,7 +15,7 @@
 
 error-unavailable = The machine cannot do that right now.
 error-queue-full = The queue is full.
-error-unauthorized = This machine requires a password.
+error-unauthorized = This needs a code. Type one on the Setup tab.
 browse-back = Back to songs
 error-not-found = Not found.
 error-not-acknowledged = Sent, but the machine did not confirm it.
@@ -109,6 +109,15 @@ queue-empty-hint = No song queued. Tap
 singing-as = Singing as
 singer-name = Name your songs are queued under
 singer-placeholder = your name
+access-level = This phone can:
+access-view = Watch only
+access-queue = Queue songs
+access-control = Queue, skip and play now
+access-admin = Everything
+access-code = A code from the owner
+access-code-placeholder = code
+access-code-use = Use
+access-code-wrong = That code is not right.
 
 ## Now playing
 

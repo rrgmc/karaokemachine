@@ -4439,6 +4439,39 @@ impl Controller for Machine {
         Ok(())
     }
 
+    fn set_room_access(&self, room: km_api::Access) -> Result<(), ControlError> {
+        // Straight to disk, for `set_session_epoch`'s reason: a room lowered to `view` must not
+        // come back as `queue` after a power cut.
+        self.lock_settings().api.room_access = room;
+        self.save_settings();
+        tracing::info!(%room, "the room access level was written down");
+        Ok(())
+    }
+
+    fn set_access_code(
+        &self,
+        level: km_api::Access,
+        hash: Option<String>,
+    ) -> Result<(), ControlError> {
+        // Straight to disk, for the same reason: a code changed to shut somebody out must stay
+        // changed.
+        {
+            let mut settings = self.lock_settings();
+            match level {
+                km_api::Access::Queue => settings.api.queue_code_hash = hash,
+                km_api::Access::Control => settings.api.control_code_hash = hash,
+                km_api::Access::View | km_api::Access::Admin => {
+                    return Err(ControlError::Unavailable(
+                        format!("the {level} level has no code").into(),
+                    ));
+                }
+            }
+        }
+        self.save_settings();
+        tracing::info!(%level, "an access code was written down");
+        Ok(())
+    }
+
     fn set_debug_enabled(&self, enabled: bool) -> Result<(), ControlError> {
         // Straight to disk for the same reason, and one more: this one opens a route that plays any
         // file the machine can read, so a machine that forgot it had been turned *off* would be

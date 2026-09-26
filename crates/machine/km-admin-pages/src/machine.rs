@@ -427,6 +427,28 @@ pub trait Machine: Send + Sync + 'static {
     /// End every outstanding session, including the caller's own.
     async fn reset_sessions(&self) -> Result<(), AdminError>;
 
+    /// What the room may do with no code, and whether each code is set.
+    ///
+    /// **Defaulted to a refusal**, so a host that cannot answer draws no Access card rather than a
+    /// wrong one. The machine's own page answers from its state.
+    async fn access(&self) -> Result<km_api::dto::AccessDto, AdminError> {
+        Err(AdminError::NotFound)
+    }
+
+    /// Set what the room may do with no code.
+    async fn set_room_access(&self, _room: km_api::Access) -> Result<(), AdminError> {
+        Err(AdminError::NotFound)
+    }
+
+    /// Set the code for the queue or the control level, or with `None` clear it.
+    async fn set_access_code(
+        &self,
+        _level: km_api::Access,
+        _code: Option<&str>,
+    ) -> Result<(), AdminError> {
+        Err(AdminError::NotFound)
+    }
+
     /// Switch the machine off.
     ///
     /// **Refused rather than absent where the host has no power controls**, which is the one place

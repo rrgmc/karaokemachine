@@ -438,6 +438,13 @@ mod tests {
         "search-placeholder-favorites",
         "now-nothing-playing",
         "now-up-next",
+        // Returned by `Chrome::access_key` and rendered with `|t`.
+        "access-view",
+        "access-queue",
+        "access-control",
+        "access-admin",
+        // Composed in `handlers::set_access`.
+        "access-code-wrong",
         // Composed in `handlers.rs`, because each puts a value or a count into a sentence.
         "list-count-shown",
         "list-count-of",

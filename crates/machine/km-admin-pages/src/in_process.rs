@@ -155,6 +155,22 @@ impl Machine for ThisMachine {
         Ok(())
     }
 
+    async fn access(&self) -> Result<km_api::dto::AccessDto, AdminError> {
+        Ok(self.0.access_dto(km_api::Access::Admin))
+    }
+
+    async fn set_room_access(&self, room: km_api::Access) -> Result<(), AdminError> {
+        km_api::ops::set_room_access(&self.0, room).map_err(from_api)
+    }
+
+    async fn set_access_code(
+        &self,
+        level: km_api::Access,
+        code: Option<&str>,
+    ) -> Result<(), AdminError> {
+        km_api::ops::set_access_code(&self.0, level, code).map_err(from_api)
+    }
+
     async fn shut_down(&self) -> Result<(), AdminError> {
         let Some(power) = self.0.power() else {
             return Err(AdminError::Refused(

@@ -21,13 +21,13 @@
 
   {{ position|safe }}
 
-  <div class="control-row">
+  <div class="control-row needs-control">
     <span class="label">{{ "nobody-singing"|t }}</span>
     <button class="quiet" hx-post="/control/demo" hx-target="#player" hx-swap="outerHTML"
             {% if !view.can_start_demo() %}disabled{% endif %}>{{ "play-something"|t }}</button>
   </div>
 
-  <div class="control-row">
+  <div class="control-row needs-queue">
     <span class="label">{{ "control-key"|t }}</span>
     <button class="icon-btn" aria-label="{{ "control-key-down"|t }}"
             hx-post="/control/transpose-down" hx-target="#player" hx-swap="outerHTML"
@@ -40,7 +40,7 @@
             {% if !view.can_transpose() %}disabled{% endif %}>{{ "reset"|t }}</button>
   </div>
 
-  <div class="control-row">
+  <div class="control-row needs-queue">
     <span class="label">{{ "control-tempo"|t }}</span>
     <button class="icon-btn" aria-label="{{ "control-slower"|t }}"
             hx-post="/control/tempo-down" hx-target="#player" hx-swap="outerHTML"
@@ -53,7 +53,7 @@
             {% if !view.can_tempo() %}disabled{% endif %}>{{ "reset"|t }}</button>
   </div>
 
-  <div class="control-row">
+  <div class="control-row needs-queue">
     <span class="label">{{ "control-music"|t }}</span>
     <input type="range" name="value" min="0" max="100" step="5" value="{{ view.volume_percent() }}"
            aria-label="{{ "control-volume"|t }}"
@@ -61,7 +61,7 @@
     <span class="value">{{ view.volume_percent() }}%</span>
   </div>
 
-  <div class="control-row">
+  <div class="control-row needs-queue">
     <span class="label">{{ "control-melody"|t }}</span>
     <button class="icon-btn {% if view.melody_on() %}starred{% endif %}"
             aria-pressed="{% if view.melody_on() %}true{% else %}false{% endif %}"

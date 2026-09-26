@@ -116,6 +116,10 @@ pub enum Recorded {
     /// all is what stops the persisting half being deleted with every test still green, exactly as
     /// for the two rows below.
     AdminPasswordSet(Option<String>, Option<String>),
+    /// The room access level was written down.
+    RoomAccessSet(crate::access::Access),
+    /// A code's hash was written down, or cleared.
+    AccessCodeSet(crate::access::Access, Option<String>),
     /// An owner upload was accepted: what kind, and the file it landed as.
     UploadAccepted(crate::machine::Upload, String),
     /// The machine was renamed, and the name it was asked to write down.
@@ -1352,6 +1356,22 @@ impl Controller for TestMachine {
         // Kept rather than dropped: a test controller that silently swallows this lets a
         // persistence gap through with no test noticing.
         self.lock().recorded.push(Recorded::SessionEpochSet(epoch));
+        Ok(())
+    }
+
+    fn set_room_access(&self, room: crate::access::Access) -> Result<(), ControlError> {
+        self.lock().recorded.push(Recorded::RoomAccessSet(room));
+        Ok(())
+    }
+
+    fn set_access_code(
+        &self,
+        level: crate::access::Access,
+        hash: Option<String>,
+    ) -> Result<(), ControlError> {
+        self.lock()
+            .recorded
+            .push(Recorded::AccessCodeSet(level, hash));
         Ok(())
     }
 

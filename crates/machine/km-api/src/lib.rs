@@ -32,6 +32,7 @@
 /// than spelled twice.
 pub const LOG_TARGET: &str = env!("CARGO_CRATE_NAME");
 
+pub mod access;
 pub mod auth;
 pub mod book;
 pub mod config;
@@ -52,6 +53,7 @@ pub mod watch;
 #[cfg(any(test, feature = "testing"))]
 pub mod testing;
 
+pub use crate::access::Access;
 pub use crate::auth::{AdminAuth, Grant, LoginError, MIN_PASSWORD_CHARS};
 pub use crate::config::ApiConfig;
 pub use crate::connect::{ConnectInfo, ConnectProblem, DEFAULT_PORT};

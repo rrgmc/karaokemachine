@@ -518,6 +518,8 @@ pub fn router(state: Admin) -> Router {
         .route("/machine/demo-delay", post(handlers::set_demo_delay))
         .route("/machine/password", post(handlers::set_password))
         .route("/machine/sessions", post(handlers::reset_sessions))
+        .route("/machine/access", post(handlers::set_room_access))
+        .route("/machine/access-code", post(handlers::set_access_code))
         // Beside the password pane's own route and not under it: `POST /machine/password` sets one on
         // the machine, and this forgets one on this computer. Two different acts on two different
         // disks, which is why the path says `forget` rather than the verb carrying the difference.

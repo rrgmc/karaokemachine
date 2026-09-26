@@ -228,3 +228,67 @@ pub fn delete_soundfont(state: &ApiState, id: &str) -> ApiResult<crate::dto::Sou
         &state.controller().soundfonts(false),
     ))
 }
+
+/// Sets what the room gets with no code, written down first and applied second.
+///
+/// Here rather than in the handler because the owner's page at `/admin/` sets it too. A room is
+/// never given [`crate::Access::Admin`].
+pub fn set_room_access(state: &ApiState, room: crate::Access) -> ApiResult<()> {
+    if !room.is_room_level() {
+        return Err(ApiError::BadRequest(
+            "a room is never given the admin level".to_owned(),
+        ));
+    }
+    state.controller().set_room_access(room)?;
+    state.set_room_access(room);
+    tracing::info!(%room, "the room access level was changed");
+    Ok(())
+}
+
+/// Sets or clears the code for one level, written down first and applied second.
+///
+/// **A code may not be the admin password or the other code.** The login tries the admin password
+/// first, so a code equal to it would hand out the admin level. A code equal to the other code would
+/// open only the higher of the two, and the owner would not be told.
+pub fn set_access_code(
+    state: &ApiState,
+    level: crate::Access,
+    code: Option<&str>,
+) -> ApiResult<()> {
+    if !level.has_code() {
+        return Err(ApiError::BadRequest(format!(
+            "the {level} level has no code"
+        )));
+    }
+    let hash = match code.map(str::trim) {
+        None => None,
+        Some(code) => {
+            let min = crate::MIN_PASSWORD_CHARS;
+            if code.chars().count() < min {
+                return Err(ApiError::BadRequest(format!(
+                    "a code wants at least {min} characters"
+                )));
+            }
+            match state.auth().level_of(code)? {
+                Some(crate::Access::Admin) => {
+                    return Err(ApiError::BadRequest(
+                        "that is the admin password; choose a different code".to_owned(),
+                    ));
+                }
+                Some(other) if other != level => {
+                    return Err(ApiError::BadRequest(format!(
+                        "that is already the {other} code; choose a different one"
+                    )));
+                }
+                _ => {}
+            }
+            Some(crate::AdminAuth::hash_password(code).map_err(|error| {
+                ApiError::Internal(format!("the code could not be stored: {error}"))
+            })?)
+        }
+    };
+    state.controller().set_access_code(level, hash.clone())?;
+    state.auth().set_code(level, hash);
+    tracing::info!(%level, set = state.auth().code_set(level), "an access code was changed");
+    Ok(())
+}

@@ -193,7 +193,7 @@ tab bar would keep the scroll for nothing, and it is refused: two decisions depe
   check, because that same swap rewrites it.
 
 **This is the one cookie the browser writes and the server never does.** That is why `prefs::set` can
-keep `HttpOnly` unconditional, and `km_token` is why that matters. As with everything else in this
+keep `HttpOnly` unconditional, and `km_access` is why that matters. As with everything else in this
 file, no test here has a browser in it. The guard is that the listeners and the two `data-`
 attributes stay where the other half expects them.
 `the_live_script_remembers_which_row_was_on_screen` and
