@@ -25,6 +25,7 @@
 //!   load, keyed by provider and id.
 
 use std::collections::BTreeMap;
+use std::io::Write as _;
 use std::path::{Path, PathBuf};
 
 use sha2::{Digest, Sha256};
@@ -295,7 +296,9 @@ pub struct Measurement {
 /// Writes a file by writing `<path>.part` and renaming it.
 ///
 /// The rename is what makes it atomic on every platform this runs on. Without it, a kill mid-write
-/// leaves a file that exists, is the wrong length, and will be trusted by the next run.
+/// leaves a file that exists, is the wrong length, and will be trusted by the next run. The bytes
+/// reach the disk before the rename, because a file system may otherwise commit the rename first,
+/// and a power cut then leaves the new name on an empty file.
 pub fn write_atomically(path: &Path, bytes: &[u8]) -> Result<()> {
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent).map_err(|source| Error::Io {
@@ -307,7 +310,11 @@ pub fn write_atomically(path: &Path, bytes: &[u8]) -> Result<()> {
         "{}.part",
         path.extension().and_then(|e| e.to_str()).unwrap_or("tmp")
     ));
-    std::fs::write(&part, bytes).map_err(|source| Error::Io {
+    let written = std::fs::File::create(&part).and_then(|mut file| {
+        file.write_all(bytes)?;
+        file.sync_all()
+    });
+    written.map_err(|source| Error::Io {
         path: part.display().to_string(),
         source,
     })?;

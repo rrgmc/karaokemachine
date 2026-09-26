@@ -246,7 +246,13 @@ async fn stream_to_file(
         .flush()
         .await
         .map_err(|error| format!("could not finish writing {}: {error}", part.display()))?;
-    drop(writer);
+    // On the disk before `fetch` renames it into place, or a power cut can leave the bank's own
+    // name on an empty file.
+    writer
+        .into_inner()
+        .sync_all()
+        .await
+        .map_err(|error| format!("could not finish writing {}: {error}", part.display()))?;
     job.progress(crate::job::phase::DOWNLOADING, done, total.max(done));
 
     if !pinned.is_empty() {
