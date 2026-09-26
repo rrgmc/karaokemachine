@@ -384,26 +384,9 @@ pub enum Refused {
 /// Turns a typed address into a URL.
 ///
 /// A bare host or IP gets the machine's own default port, which is what somebody who has changed
-/// nothing wants. **The same rule `km-remote` uses**, and the port comes from `km-api` rather than
-/// being typed here, so there is one definition of what 8177 means.
-pub fn normalize(raw: &str) -> String {
-    let trimmed = raw.trim().trim_end_matches('/');
-    let with_scheme = if trimmed.contains("://") {
-        trimmed.to_owned()
-    } else {
-        format!("http://{trimmed}")
-    };
-    // Look for a port after the host, not after the scheme's own colon.
-    let host = with_scheme
-        .split_once("://")
-        .map(|(_, rest)| rest)
-        .unwrap_or_default();
-    if host.contains(':') {
-        with_scheme
-    } else {
-        format!("{with_scheme}:{MACHINE_DEFAULT_PORT}")
-    }
-}
+/// nothing wants. **It is `km-remote`'s function and not a copy of it**, so the two tools cannot
+/// disagree about where a port goes.
+pub use km_api::discover::known::normalize;
 
 /// A machine, and whatever token this program holds for it.
 #[derive(Clone)]

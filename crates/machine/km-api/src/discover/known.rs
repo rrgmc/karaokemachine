@@ -217,12 +217,25 @@ pub fn normalize(raw: &str) -> String {
     } else {
         format!("http://{trimmed}")
     };
-    // Look for a port after the host, not after the scheme's own colon.
-    let host = with_scheme.split_once("://").map_or("", |(_, rest)| rest);
-    if host.contains(':') {
+    // The port belongs after the host and before any path, and an IPv6 host has colons of its own.
+    // `url::Url` cannot answer this: it drops an explicit `:80` from an `http` URL, and this
+    // function would then add 8177 in its place.
+    let Some(scheme_end) = with_scheme.find("://").map(|at| at + 3) else {
+        return with_scheme;
+    };
+    let rest = &with_scheme[scheme_end..];
+    let host_end = scheme_end + rest.find(['/', '?', '#']).unwrap_or(rest.len());
+    let host = &with_scheme[scheme_end..host_end];
+    let after_brackets = host.rfind(']').map_or(host, |close| &host[close..]);
+    if after_brackets.contains(':') {
         with_scheme
     } else {
-        format!("{with_scheme}:{}", crate::connect::DEFAULT_PORT)
+        format!(
+            "{}:{}{}",
+            &with_scheme[..host_end],
+            crate::connect::DEFAULT_PORT,
+            &with_scheme[host_end..]
+        )
     }
 }
 
@@ -974,5 +987,17 @@ mod tests {
             normalize("http://192.168.1.5:8177"),
             "http://192.168.1.5:8177"
         );
+    }
+
+    #[test]
+    fn the_port_goes_after_the_host_and_not_after_the_path() {
+        assert_eq!(
+            normalize("karaoke.local/remote"),
+            "http://karaoke.local:8177/remote"
+        );
+        assert_eq!(normalize("http://h/a:b"), "http://h:8177/a:b");
+        assert_eq!(normalize("[fe80::1]"), "http://[fe80::1]:8177");
+        assert_eq!(normalize("[fe80::1]:9000"), "http://[fe80::1]:9000");
+        assert_eq!(normalize("http://h:80"), "http://h:80");
     }
 }
