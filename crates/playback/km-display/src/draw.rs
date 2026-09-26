@@ -14,6 +14,8 @@ use km_song::{KaraokeFlavor, LyricTimeline};
 use sdl3::pixels::Color;
 use sdl3::render::{BlendMode, Canvas, FRect, RenderTarget, Texture};
 use sdl3::ttf::Font;
+use unicode_segmentation::UnicodeSegmentation;
+use unicode_width::UnicodeWidthStr;
 
 use crate::catalog::CatalogSummary;
 use crate::connect::{ConnectInfo, ConnectPanel, QrMatrix};
@@ -1223,8 +1225,7 @@ fn draw_performance<T: RenderTarget, C>(
     // Every value is cut to whatever the column actually holds, which is what lets the panel's width
     // be a constant with words in it: a translation longer than the English cannot push a row out of
     // the box. Two characters for the gap between the columns.
-    let room =
-        |label: &str| fit_chars(right - left, small_px).saturating_sub(label.chars().count() + 2);
+    let room = |label: &str| fit_chars(right - left, small_px).saturating_sub(label.width() + 2);
 
     let kind = match song.kind {
         SongMedia::Midi => words.msg_with(
@@ -1582,17 +1583,27 @@ fn draw_queue_overlay<T: RenderTarget, C>(
     }
 }
 
-/// Shortens `text` to `max_chars`, ending in an ellipsis when it had to cut.
+/// Shortens `text` to `max_columns`, ending in an ellipsis when it had to cut.
 ///
-/// Counts characters rather than bytes: song titles in this corpus are full of accented Latin text,
-/// and slicing one of those by byte would panic on a character boundary.
-fn ellipsize(text: &str, max_chars: usize) -> String {
-    if text.chars().count() <= max_chars {
+/// Measured in columns, where a CJK character takes two, because the budget from [`fit_chars`] is
+/// in half-em columns. Cut only between graphemes, so an accent stays on its letter and an emoji
+/// stays whole.
+fn ellipsize(text: &str, max_columns: usize) -> String {
+    if text.width() <= max_columns {
         return text.to_owned();
     }
-    // One character of the budget goes to the ellipsis, so the result is never *longer* than asked.
-    let keep = max_chars.saturating_sub(1);
-    text.chars().take(keep).collect::<String>() + "…"
+    // One column of the budget goes to the ellipsis, so the result is never *wider* than asked.
+    let budget = max_columns.saturating_sub(1);
+    let mut used = 0;
+    let mut kept = String::new();
+    for grapheme in text.graphemes(true) {
+        used += grapheme.width();
+        if used > budget {
+            break;
+        }
+        kept.push_str(grapheme);
+    }
+    kept + "…"
 }
 
 /// Draws the on-screen touch targets.
@@ -2360,10 +2371,12 @@ const PREVIEW_TITLE_TOP: f32 = 0.52;
 /// Where the performer sits, under the title.
 const PREVIEW_ARTIST_TOP: f32 = 0.575;
 
-/// How many characters of a given point size fit in a width.
+/// How many columns of a given point size fit in a width.
 ///
 /// The same estimate the connect panel and the queue overlay make — half the point size per
-/// character — rather than measuring, because measuring means building the texture to find out.
+/// column — rather than measuring, because measuring means building the texture to find out. A
+/// Latin letter takes one column and a CJK character two, which is what [`ellipsize`] and [`wrap`]
+/// count.
 fn fit_chars(width: f32, point_size: f32) -> usize {
     (width / (point_size * 0.5)).max(8.0) as usize
 }
@@ -3448,26 +3461,63 @@ fn draw_qr<T: RenderTarget>(canvas: &mut Canvas<T>, url: &str, x: f32, y: f32, s
     }
 }
 
-/// Greedy word wrap.
-fn wrap(text: &str, max_chars: usize) -> Vec<String> {
-    let max = max_chars.max(8);
+/// Greedy word wrap, in columns.
+///
+/// A word wider than a whole line is broken between graphemes. That is every run of CJK text, which
+/// has no spaces to break at, and a long path in a fault message.
+fn wrap(text: &str, max_columns: usize) -> Vec<String> {
+    let max = max_columns.max(8);
     let mut lines = Vec::new();
     let mut current = String::new();
+    let mut used = 0;
     for word in text.split_whitespace() {
+        let mut word = word;
+        if word.width() > max {
+            if !current.is_empty() {
+                lines.push(std::mem::take(&mut current));
+            }
+            let (whole, rest) = break_word(word, max);
+            lines.extend(whole);
+            word = rest;
+            used = 0;
+        }
+        let width = word.width();
         if current.is_empty() {
             current.push_str(word);
-        } else if current.chars().count() + 1 + word.chars().count() <= max {
+            used = width;
+        } else if used + 1 + width <= max {
             current.push(' ');
             current.push_str(word);
+            used += 1 + width;
         } else {
             lines.push(std::mem::take(&mut current));
             current.push_str(word);
+            used = width;
         }
     }
     if !current.is_empty() {
         lines.push(current);
     }
     lines
+}
+
+/// Cuts a word into full lines of at most `max` columns, and returns the part left over.
+///
+/// A grapheme wider than `max` on its own still gets a line, so the cut always makes progress.
+fn break_word(word: &str, max: usize) -> (Vec<String>, &str) {
+    let mut lines = Vec::new();
+    let mut start = 0;
+    let mut used = 0;
+    for (at, grapheme) in word.grapheme_indices(true) {
+        let width = grapheme.width();
+        if used + width > max && at > start {
+            lines.push(word[start..at].to_owned());
+            start = at;
+            used = 0;
+        }
+        used += width;
+    }
+    (lines, &word[start..])
 }
 
 #[cfg(test)]
@@ -3611,8 +3661,8 @@ mod tests {
             );
             for line in &lines {
                 assert!(
-                    line.chars().count() <= per_line,
-                    "{w}x{h}: {line:?} is past {per_line} characters"
+                    line.width() <= per_line,
+                    "{w}x{h}: {line:?} is past {per_line} columns"
                 );
             }
         }
@@ -4894,7 +4944,7 @@ mod tests {
             "the cut is unmarked: {lines:?}"
         );
         for line in &lines {
-            assert!(line.chars().count() <= 12, "too long: {line:?}");
+            assert!(line.width() <= 12, "too long: {line:?}");
         }
 
         // And a block that fits is untouched — no ellipsis on a complete sentence.
@@ -4907,7 +4957,7 @@ mod tests {
         let lines = wrap("the quick brown fox jumps over the lazy dog", 12);
         assert!(lines.len() > 1);
         for line in &lines {
-            assert!(line.chars().count() <= 12, "too long: {line:?}");
+            assert!(line.width() <= 12, "too long: {line:?}");
         }
         assert_eq!(
             lines.join(" "),
@@ -4918,8 +4968,47 @@ mod tests {
     #[test]
     fn wrapping_handles_a_word_longer_than_the_limit() {
         let lines = wrap("short verylongwordthatcannotbebroken", 10);
-        // The long word gets its own line rather than being lost or looping forever.
-        assert!(lines.iter().any(|l| l.contains("verylongword")));
+        // The long word is broken across lines rather than being lost, overflowing or looping.
+        assert_eq!(lines.first().map(String::as_str), Some("short"));
+        assert_eq!(lines[1..].concat(), "verylongwordthatcannotbebroken");
+        for line in &lines {
+            assert!(line.width() <= 10, "too long: {line:?}");
+        }
+    }
+
+    /// CJK text has no spaces and each character is two columns wide.
+    ///
+    /// Counting characters put twice the room on the screen that the budget allowed, and a run with
+    /// no spaces never wrapped at all.
+    #[test]
+    fn cjk_text_wraps_and_cuts_by_its_width() {
+        let title = "東京ラブストーリー愛は勝つ君がいるだけで";
+        let lines = wrap(title, 12);
+        assert!(
+            lines.len() > 1,
+            "one line of {} columns: {lines:?}",
+            title.width()
+        );
+        for line in &lines {
+            assert!(line.width() <= 12, "too wide: {line:?}");
+        }
+        assert_eq!(lines.concat(), title);
+
+        let cut = ellipsize(title, 12);
+        assert!(cut.width() <= 12, "too wide: {cut:?}");
+        assert!(cut.ends_with('…'));
+    }
+
+    /// A cut falls between graphemes, so an accent is never left without its letter.
+    #[test]
+    fn a_cut_keeps_a_letter_with_its_accent_and_an_emoji_whole() {
+        let decomposed = "Cafe\u{301} Cafe\u{301} Cafe\u{301}";
+        let cut = ellipsize(decomposed, 5);
+        assert_eq!(cut, "Cafe\u{301}…");
+
+        let family = "\u{1F468}\u{200D}\u{1F469}\u{200D}\u{1F467}";
+        let cut = ellipsize(&format!("ab {family}{family}"), 6);
+        assert_eq!(cut, format!("ab {family}…"));
     }
 
     #[test]

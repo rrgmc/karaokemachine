@@ -2423,6 +2423,8 @@ dependencies = [
  "serde",
  "thiserror 2.0.20",
  "tracing",
+ "unicode-segmentation",
+ "unicode-width",
  "zip",
 ]
 
