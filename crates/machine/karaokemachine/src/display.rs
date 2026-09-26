@@ -173,9 +173,9 @@ const POSITION_WINDOW_PICTURE_MS: u32 = 6_000;
 
 /// Whether the window is allowed to leave fullscreen.
 ///
-/// Android is a fixed-function appliance: the activity is fullscreen by theme (`styles.xml`), there
-/// is no desktop to return to, and a remote that dropped the television out of fullscreen would
-/// leave nobody a way back. "The appliance is always fullscreen" is a decision rather than an
+/// Android is a fixed-function appliance. The activity is fullscreen by theme (`styles.xml`), and
+/// `run` starts it fullscreen whatever `display.fullscreen` says. There is no desktop to return to,
+/// and a remote that dropped the television out of fullscreen would leave nobody a way back. "The appliance is always fullscreen" is a decision rather than an
 /// accident of the keycode table, so it is compiled out rather than merely unreachable.
 ///
 /// **iOS answers the same way for the nearer half of that reason.** An application owns the screen
@@ -1607,6 +1607,11 @@ fn run_with(
         }
     };
 
+    // **Where fullscreen is fixed, the machine starts fullscreen whatever the settings say.** The
+    // theme alone does not hold it. SDL answers `set_fullscreen(false)` by clearing the theme's flag
+    // and showing the status and navigation bars, and `display.fullscreen` defaults to off.
+    let fullscreen = FULLSCREEN_IS_FIXED || config.fullscreen;
+
     // A window that is about to go fullscreen is created at the *display's* size, not at
     // `config.window` -- that describes the windowed rect and nothing else.
     //
@@ -1620,7 +1625,7 @@ fn run_with(
     // `Display::get_mode` is SDL_GetDesktopDisplayMode, which on kmsdrm reports the connector's
     // preferred mode. Falling back to the configured size keeps a headless or odd video backend
     // working rather than refusing to open at all.
-    let (window_width, window_height) = if config.fullscreen {
+    let (window_width, window_height) = if fullscreen {
         match video.get_primary_display().and_then(|d| d.get_mode()) {
             Ok(mode) if mode.w > 0 && mode.h > 0 => {
                 let (w, h) = (mode.w as u32, mode.h as u32);
@@ -1657,7 +1662,7 @@ fn run_with(
     // Where it was left, when that is still on a screen. A fullscreen start is centered whatever
     // was saved: the display's mode is the size, and the saved corner belongs to the smaller rect.
     match windowed.position {
-        Some((x, y)) if !config.fullscreen => builder.position(x, y),
+        Some((x, y)) if !fullscreen => builder.position(x, y),
         _ => builder.position_centered(),
     };
     let mut window = builder
@@ -1690,7 +1695,7 @@ fn run_with(
     // into the GPU, not the glyph rasterising. It lives out here because a cache inside the frame
     // would be a cache of nothing.
     let mut text_cache = km_display::text::TextCache::new(canvas.texture_creator());
-    apply_fullscreen(&mut canvas, &sdl.mouse(), config.fullscreen, windowed);
+    apply_fullscreen(&mut canvas, &sdl.mouse(), fullscreen, windowed);
     // After the window exists rather than as a creation flag, so that starting in front and being
     // put there by `T` are one code path. Skipped where it would mean nothing, so a platform with
     // no window stack does not log a refusal every start.
