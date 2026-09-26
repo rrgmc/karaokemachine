@@ -2423,10 +2423,9 @@ pub async fn download(
         header::CONTENT_TYPE,
         "audio/midi".parse().expect("a valid header value"),
     );
-    // The filename is quoted and its quotes stripped: a corpus filename can contain almost anything,
-    // and a stray quote here would let it break out of the header value.
-    let safe = name.replace(['"', '\\', '\r', '\n'], "_");
-    if let Ok(value) = format!("attachment; filename=\"{safe}\"").parse() {
+    // A corpus file name can contain almost anything, and `Águas de Março.kar` is not a header
+    // value. `content_disposition` writes an ASCII `filename` and the real name as `filename*`.
+    if let Ok(value) = km_api::handlers::content_disposition(&name).parse() {
         headers.insert(header::CONTENT_DISPOSITION, value);
     }
     (headers, bytes).into_response()

@@ -455,7 +455,10 @@ fn book_filename(filter: &BookFilter, machine: &str, locale: km_locale::Locale) 
 /// only that, and `filename*` carries the real one, percent-encoded UTF-8 per RFC 8187. Every
 /// browser this machine is driven from prefers `filename*`; the fallback is what a script with a
 /// naive parser gets, and `Salao` is a better answer for it than a 500.
-fn content_disposition(filename: &str) -> String {
+///
+/// Public because the package builder serves song files under their own names, and a corpus file
+/// name is no more ASCII than a machine name.
+pub fn content_disposition(filename: &str) -> String {
     format!(
         "attachment; filename=\"{}\"; filename*=UTF-8''{}",
         ascii_fallback(filename),
