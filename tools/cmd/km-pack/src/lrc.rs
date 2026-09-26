@@ -109,14 +109,8 @@ pub fn collect_lrc(
     songs: &mut Vec<LrcSource>,
     refused: &mut Vec<(PathBuf, LrcRefusal)>,
 ) {
-    let Ok(entries) = std::fs::read_dir(dir) else {
-        return;
-    };
-    for entry in entries.flatten() {
-        let path = entry.path();
-        if path.is_dir() {
-            collect_lrc(&path, songs, refused);
-        } else if is_lrc_candidate(&path) {
+    for path in crate::files_under(dir) {
+        if is_lrc_candidate(&path) {
             match read_lrc(&path) {
                 Ok(source) => songs.push(source),
                 Err(refusal) => refused.push((path, refusal)),

@@ -483,6 +483,10 @@ zip = "8.6.0"
 flate2 = "1.1.9"
 crc32fast = "1.5.1"
 csv = "1.4.0"
+# Walking a corpus folder. A symlinked folder is followed on purpose, and walkdir notices a link back
+# to a folder above it, which a hand-written recursion does not. It is already in the graph through
+# `jni` on Android.
+walkdir = "2.5.0"
 # Content hashing, for detecting the same recording filed under two song numbers. Not a security
 # boundary -- any decent digest would do -- but a real need: the local corpus is full of duplicates.
 sha2 = "0.11.0"

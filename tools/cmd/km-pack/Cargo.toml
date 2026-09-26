@@ -33,6 +33,7 @@ km-video = { workspace = true, optional = true }
 anyhow = { workspace = true }
 clap = { workspace = true }
 csv = { workspace = true }
+walkdir = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 # The package description. This is the only crate in the workspace that reads or writes YAML — see

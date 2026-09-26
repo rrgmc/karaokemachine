@@ -2524,6 +2524,7 @@ dependencies = [
  "km-suitability",
  "serde",
  "serde_json",
+ "walkdir",
 ]
 
 [[package]]
@@ -2557,6 +2558,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_norway",
+ "walkdir",
 ]
 
 [[package]]

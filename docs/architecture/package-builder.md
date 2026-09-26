@@ -879,10 +879,10 @@ and the run skips them when it is false.
 `Ladder::say` closes the running step and starts the next. `skip` names the steps this run will not
 take, and `end` settles whatever is left. `timings()` reads off the finished steps.
 
-The walk goes through `km_pack::collect_songs_observed`. It reports the count after each folder into
-`found`, and breaks off when somebody asks the run to stop. A broken walk ends the run before reading,
-because its list is part of the folder. **The time left comes from a 30-second window** of settled
-counts. `snapshot` samples them at most once a second while the reading step runs. The page shows the
+The walk goes through `km_pack::collect_songs_observed`, which `walkdir` drives. It reports the count
+after each folder into `found`, and breaks off when somebody asks the run to stop. A broken walk ends
+the run before reading, because its list is part of the folder. **The time left comes from a
+30-second window** of settled counts. `snapshot` samples them at most once a second while the reading step runs. The page shows the
 time left only once the window spans ten seconds.
 
 **Ctrl-C stops the scan rather than killing it, and so does the page's Stop button.** `Progress`
