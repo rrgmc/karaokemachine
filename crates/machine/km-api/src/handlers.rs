@@ -484,21 +484,26 @@ fn ascii_fallback(filename: &str) -> String {
 
 /// The `filename*` half: RFC 8187 percent-encoded UTF-8.
 ///
-/// Hand-rolled rather than a dependency, for the reason `km-songbook` takes none: it is one table
-/// and a loop, and the set is small and fixed. Everything outside RFC 8187's `attr-char` is escaped,
-/// which is stricter than it has to be and cannot be wrong.
+/// Everything outside RFC 8187's `attr-char` is escaped, which is stricter than it has to be and
+/// cannot be wrong.
 fn rfc8187(filename: &str) -> String {
-    const ATTR_CHAR: &str = "!#$&+-.^_`|~";
-    let mut out = String::with_capacity(filename.len());
-    for byte in filename.bytes() {
-        if byte.is_ascii_alphanumeric() || ATTR_CHAR.contains(byte as char) {
-            out.push(byte as char);
-        } else {
-            out.push_str(&format!("%{byte:02X}"));
-        }
-    }
-    out
+    percent_encoding::utf8_percent_encode(filename, NOT_ATTR_CHAR).to_string()
 }
+
+/// Everything outside RFC 8187's `attr-char`: letters, digits and ``!#$&+-.^_`|~``.
+const NOT_ATTR_CHAR: &percent_encoding::AsciiSet = &percent_encoding::NON_ALPHANUMERIC
+    .remove(b'!')
+    .remove(b'#')
+    .remove(b'$')
+    .remove(b'&')
+    .remove(b'+')
+    .remove(b'-')
+    .remove(b'.')
+    .remove(b'^')
+    .remove(b'_')
+    .remove(b'`')
+    .remove(b'|')
+    .remove(b'~');
 
 /// `GET /api/v1/songs/{number}`
 pub async fn get_song(

@@ -163,8 +163,9 @@ Three API decisions that are easy to get wrong:
   **A machine name is the first free text an owner types that reaches a header.** A `HeaderValue` is
   visible ASCII, so `Salão` would have been a 500 with nothing in the log to explain it. The header is
   therefore RFC 6266's two-parameter form. `filename` carries an underscored ASCII rendering, and
-  `filename*` carries the real one percent-encoded per RFC 8187. The encoder is fourteen lines in
-  `handlers.rs` rather than a dependency, for the reason `km-songbook` takes none.
+  `filename*` carries the real one percent-encoded per RFC 8187. `percent-encoding` writes it, with
+  an `AsciiSet` of everything outside `attr-char`. The package builder serves song files through the
+  same function.
 
 ## Two adapters, one ordering
 

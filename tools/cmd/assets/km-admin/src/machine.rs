@@ -165,16 +165,15 @@ pub enum Call<'a> {
 /// [`km_api::routes::SURFACE`]'s own sample ids identical to themselves, which is what lets the
 /// sweep compare a built path against a declared one.
 fn one_segment(id: &str) -> String {
-    let mut out = String::with_capacity(id.len());
-    for byte in id.bytes() {
-        if byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'.' | b'_' | b'~') {
-            out.push(char::from(byte));
-        } else {
-            out.push_str(&format!("%{byte:02X}"));
-        }
-    }
-    out
+    percent_encoding::utf8_percent_encode(id, NOT_UNRESERVED).to_string()
 }
+
+/// Everything outside RFC 3986's unreserved set: letters, digits, `-`, `.`, `_` and `~`.
+const NOT_UNRESERVED: &percent_encoding::AsciiSet = &percent_encoding::NON_ALPHANUMERIC
+    .remove(b'-')
+    .remove(b'.')
+    .remove(b'_')
+    .remove(b'~');
 
 /// The ids [`Call::ALL`] uses, which are [`km_api::routes::SURFACE`]'s own samples.
 ///

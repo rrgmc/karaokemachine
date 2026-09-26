@@ -4762,18 +4762,9 @@ mod tests {
         );
     }
 
-    /// The little of percent-encoding a form body needs, for a Windows path full of backslashes.
+    /// Form encoding for a test body, for a Windows path full of backslashes.
     fn urlencode(value: &str) -> String {
-        value
-            .bytes()
-            .map(|byte| match byte {
-                b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' | b'/' => {
-                    (byte as char).to_string()
-                }
-                b' ' => "+".to_owned(),
-                other => format!("%{other:02X}"),
-            })
-            .collect()
+        form_urlencoded::byte_serialize(value.as_bytes()).collect()
     }
 
     /// A filter lives as long as the folder it names is open.

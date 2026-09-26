@@ -282,17 +282,7 @@ pub fn client() -> Result<reqwest::Client> {
 /// Terms are English words and spaces; this exists so that "coastal cliffs" is one query rather than
 /// two, and so that a stray `&` in a config cannot forge a parameter.
 pub fn urlencode(text: &str) -> String {
-    let mut out = String::with_capacity(text.len());
-    for byte in text.as_bytes() {
-        match byte {
-            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
-                out.push(*byte as char);
-            }
-            b' ' => out.push('+'),
-            other => out.push_str(&format!("%{other:02X}")),
-        }
-    }
-    out
+    form_urlencoded::byte_serialize(text.as_bytes()).collect()
 }
 
 /// A GET that retries the failures worth retrying.

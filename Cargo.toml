@@ -580,6 +580,9 @@ serde_urlencoded = "0.7.1"
 # Already in the tree — `serde_urlencoded` depends on it — so naming it compiles nothing new, and it
 # replaced a hand-rolled `%XX` codec in `km-package-builder`. See `form::Fields`.
 form_urlencoded = "1.2.2"
+# Percent-encoding outside a form: a cookie value, a query parameter that must keep `+` as a plus sign,
+# and RFC 8187's `filename*`. Each caller names its own `AsciiSet`. Already in the tree through axum.
+percent-encoding = "2.3.2"
 directories = "6.0.0"
 clap = { version = "4.6.6", features = ["derive"] }
 thiserror = "2.0.20"

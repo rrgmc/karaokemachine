@@ -445,22 +445,9 @@ fn back_to_pane(pane: Pane, kind: &str, said: &str) -> Response {
     .into_response()
 }
 
-/// Percent-encodes what goes in the query string.
-///
-/// Only what has to be: this text is a sentence the machine wrote, not arbitrary input, so the set
-/// is small and writing it out avoids a dependency for one call site.
+/// Percent-encodes what goes in the query string, in form encoding: a space is `+`.
 fn urlencode(text: &str) -> String {
-    let mut out = String::with_capacity(text.len());
-    for byte in text.bytes() {
-        match byte {
-            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
-                out.push(byte as char);
-            }
-            b' ' => out.push('+'),
-            other => out.push_str(&format!("%{other:02X}")),
-        }
-    }
-    out
+    form_urlencoded::byte_serialize(text.as_bytes()).collect()
 }
 
 // -- the pages --------------------------------------------------------------------------------------
