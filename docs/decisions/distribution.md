@@ -1384,10 +1384,22 @@ a thirteenth carrier and the tag builds it beside the rest. It stays a word of i
 folding into `android`. The two files install side by side, so somebody choosing a download is
 choosing between them.
 
-**One headset holds this and the flat panel at once.** The application id takes a `.quest` suffix, so
-the two install side by side. Each keeps a packages folder of its own, so songs pushed to one are
-absent from the other. Somebody comparing the two screens wants both installed, and the cost is
-copying a package twice.
+**One application shows both screens, and a headset needs nothing else.** The `.quest` APK opens
+the machine in the room or in a system window, and a button in each moves to the other. The library
+tile opens whichever was used last, and the first launch opens the room. The ordinary Android APK
+still installs on a headset, but nothing here sends a headset owner to it. Its application id
+differs, so it would keep a second packages folder, and songs pushed to one would be absent from
+the other.
+
+**A switch waits for an idle machine, because a switch restarts it.** SDL starts the machine once
+per process, so each screen runs the machine in a process of its own. The queue lives in memory, and
+ending the process loses it. So the switch works only with no song loaded and nobody waiting.
+Otherwise it says why and changes nothing. Carrying a queue across would mean persisting it, which
+is a change to the machine rather than to the headset shell.
+
+**A `.kmpkg` opened on a headset goes to the machine already running.** Two machines at once would
+fight over one port and one catalog. So the file finds whichever screen holds the machine, and with
+none running it starts the last one used.
 
 **The room shows behind the screen.** Passthrough is on, so the wearer sees the furniture, the
 microphone stand and whoever else is there. A headset that blacks out the room is a headset somebody
@@ -1397,6 +1409,25 @@ takes off between songs.
 property of where somebody is standing, the way a window's position is a property of a desktop. The
 Kotlin shell remembers the choice, and `settings.json` never learns it. This keeps a second screen
 shape out of every platform that has one screen.
+
+**The wearer places the screen, and the room remembers it.** It starts on the main wall of the
+room the headset scanned. A hand or a controller moves it, and a corner resizes it. The headset's
+floor-relative space recentres each session, so a bare position would land wherever the wearer
+faced. The screen is therefore saved relative to the nearest wall of the scanned room, which does
+not move. That record is the headset's, like the shape, and `settings.json` never learns it.
+
+**Reading the room is asked for, and refusing it costs only the wall.** Horizon OS guards the
+scanned room behind `com.oculus.permission.USE_SCENE`. Without it, or in a room never scanned, the
+screen opens straight ahead and still moves by hand. It opens there again on the next launch. No
+error is shown, because nothing has failed that the wearer needs to fix.
+
+**The queue hangs beside the screen, and it is the machine's own remote.** A wearer holds no phone,
+so the scene shows the page every phone in the room gets. It reaches it over loopback in the same
+process. It is not a second remote to keep in step. An owner who turns the remote off gets no panel.
+
+**Resizing scales the screen and never re-lays it.** The machine draws at 1600x900 dp whatever size
+the wearer makes the screen. A resize that reached SDL would rebuild its surface under a playing
+song, and the machine pauses when its surface goes.
 
 **The Meta Horizon Store stays reachable, and one thing has to be settled now to keep it so.** A
 listing keys the entitlement and every buyer's install to the application id, which is why

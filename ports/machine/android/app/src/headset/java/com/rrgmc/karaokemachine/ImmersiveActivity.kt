@@ -1,24 +1,35 @@
 package com.rrgmc.karaokemachine
 
 import android.content.Context
-import android.graphics.Color
-import android.view.Gravity
-import android.view.View
-import android.widget.Button
-import android.widget.LinearLayout
-import android.widget.TextView
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Bundle
+import androidx.compose.ui.platform.ComposeView
+import com.meta.spatial.compose.ComposeFeature
+import com.meta.spatial.compose.composePanel
 import com.meta.spatial.core.Entity
 import com.meta.spatial.core.Pose
 import com.meta.spatial.core.SpatialFeature
+import com.meta.spatial.core.Vector2
 import com.meta.spatial.core.Vector3
 import com.meta.spatial.isdk.IsdkFeature
+import com.meta.spatial.isdk.IsdkGrabState
+import com.meta.spatial.isdk.IsdkGrabbable
+import com.meta.spatial.isdk.IsdkPanelResize
+import com.meta.spatial.isdk.ResizeCornerState
+import com.meta.spatial.isdk.ResizeMode
+import com.meta.spatial.mruk.MRUKFeature
+import com.meta.spatial.mruk.MRUKLoadDeviceResult
+import com.meta.spatial.mruk.MRUKRoom
 import com.meta.spatial.runtime.LayerConfig
 import com.meta.spatial.runtime.PanelSceneObject
 import com.meta.spatial.runtime.PanelShapeType
 import com.meta.spatial.runtime.ReferenceSpace
 import com.meta.spatial.toolkit.AppSystemActivity
 import com.meta.spatial.toolkit.PanelRegistration
+import com.meta.spatial.toolkit.Scale
 import com.meta.spatial.toolkit.Transform
+import com.meta.spatial.toolkit.Visible
 import com.meta.spatial.toolkit.createPanelEntity
 import com.meta.spatial.vr.VRFeature
 
@@ -28,36 +39,81 @@ import com.meta.spatial.vr.VRFeature
  * The machine itself is [MainActivity], unchanged and shared with the phone and the television.
  * Spatial SDK hosts it as a panel, so the renderer stays OpenGL ES and no Rust knows a headset is
  * involved. See `What the machine *is*, on a headset` in docs/decisions/distribution.md.
+ *
+ * The wearer places the screen. It starts on the main wall of the scanned room, moves and resizes
+ * by hand, and comes back where it was left. The singer's remote hangs beside it. A button under it
+ * takes the machine into a system window, which is [FlatActivity].
  */
 class ImmersiveActivity : AppSystemActivity() {
 
-    /**
-     * The screen's shape, remembered in the headset rather than in `settings.json`.
-     *
-     * Flat or curved is a property of where somebody stands, the way a window's position is a
-     * property of a desktop. A machine that drives a television has one screen shape and no use for
-     * a second one in its settings file.
-     */
-    private enum class Shape {
-        FLAT,
-        CURVED,
+    private fun prefs() = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+
+    private val placement by lazy { Placement(prefs()) }
+
+    private val controls by lazy {
+        ControlsState(
+            curved = prefs().getBoolean(CURVED, false),
+            queueShown = prefs().getBoolean(QUEUE_SHOWN, true),
+        )
     }
 
-    private fun shape(): Shape =
-        if (prefs().getBoolean(CURVED, false)) Shape.CURVED else Shape.FLAT
+    private val mruk by lazy { MRUKFeature(this, systemManager) }
 
-    private fun prefs() = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+    /** The machine's panel, once the scene has built it, for bending it in place. */
+    private var screen: PanelSceneObject? = null
+
+    private var screenEntity: Entity? = null
+    private var controlsEntity: Entity? = null
+    private var queueEntity: Entity? = null
+
+    /** The scanned room, once the headset has handed it over. Null without the permission. */
+    private var room: MRUKRoom? = null
+
+    private var sceneReady = false
+
+    /** Whether the wearer held the screen on the last frame, so letting go is seen once. */
+    private var handling = false
+
+    /** The remote's address, or null when the owner has turned the remote off. */
+    private val queueAddress by lazy { QueuePanel.address(this) }
 
     /**
      * Controllers and hands both, because a karaoke machine is pointed at rather than typed on.
      *
      * `VRFeature` alone gives a ray from a controller and nothing from a hand, so a headset whose
      * controllers are flat has no way to reach the keypad. `IsdkFeature` is what draws the hand's
-     * own ray. The manifest declares `oculus.software.handtracking` beside it, which is also what
-     * lets Horizon OS start this at all when no controller is awake.
+     * own ray, and it is also what grabs and resizes a panel. The manifest declares
+     * `oculus.software.handtracking` beside it, which is also what lets Horizon OS start this at
+     * all when no controller is awake.
+     *
+     * `MRUKFeature` reads the room the headset scanned, and `ComposeFeature` draws the controls.
+     * [debugFeatures] adds the metrics overlay to a debug build and nothing to a release one.
      */
     override fun registerFeatures(): List<SpatialFeature> =
-        listOf(VRFeature(this), IsdkFeature(this, spatial, systemManager))
+        listOf(
+            VRFeature(this),
+            IsdkFeature(this, spatial, systemManager),
+            ComposeFeature(),
+            mruk,
+        ) + debugFeatures(this)
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        Mode.started(this, Mode.IMMERSIVE)
+        super.onCreate(savedInstanceState)
+        controls.queueAvailable = queueAddress != null
+        if (!sceneAllowed()) {
+            requestPermissions(arrayOf(USE_SCENE), SCENE_REQUEST)
+        }
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray,
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == SCENE_REQUEST && sceneAllowed() && sceneReady) loadRoom()
+    }
 
     override fun onSceneReady() {
         super.onSceneReady()
@@ -73,23 +129,129 @@ class ImmersiveActivity : AppSystemActivity() {
         scene.enablePassthrough(true)
         scene.enableHolePunching(true)
 
-        Entity.createPanelEntity(
+        // Straight ahead until the room says otherwise. Without the permission, or in a room that
+        // was never scanned, this is where the screen stays until the wearer moves it.
+        val ahead = Vector3(0.0f, Placement.EYE_HEIGHT, SCREEN_DISTANCE)
+        screenEntity = Entity.createPanelEntity(
             R.id.machine_panel,
-            Transform(Pose(Vector3(0.0f, EYE_HEIGHT, SCREEN_DISTANCE))),
+            Transform(Pose(ahead)),
+            IsdkGrabbable(),
+            // `Simple` scales the quad and leaves the 1600x900 dp layout alone. SDL is therefore
+            // never resized under a playing song, and the lyrics only grow.
+            IsdkPanelResize(
+                true,
+                ResizeMode.Simple,
+                Vector2(Placement.NARROWEST, Placement.NARROWEST * 9.0f / 16.0f),
+                Vector2(WIDEST, WIDEST * 9.0f / 16.0f),
+                true,
+            ),
         )
-        Entity.createPanelEntity(
-            R.id.shape_panel,
-            Transform(Pose(Vector3(0.0f, EYE_HEIGHT - 0.75f, SCREEN_DISTANCE - 0.4f))),
+        controlsEntity = Entity.createPanelEntity(
+            R.id.controls_panel,
+            Transform(Pose(ahead)),
+            IsdkGrabbable(),
         )
+        if (queueAddress != null) {
+            queueEntity = Entity.createPanelEntity(
+                R.id.queue_panel,
+                Transform(Pose(ahead)),
+                IsdkGrabbable(),
+                Visible(controls.queueShown),
+            )
+        }
+        put(ScreenPlace(Pose(ahead), SCREEN_WIDTH))
+
+        sceneReady = true
+        if (sceneAllowed()) loadRoom()
+    }
+
+    /**
+     * Notices the wearer letting go of the screen, and remembers where it went.
+     *
+     * A grab and a resize both end here. Saving once at the release, rather than every frame, keeps
+     * the preferences file out of the frame loop.
+     */
+    override fun onSceneTick() {
+        super.onSceneTick()
+        val entity = screenEntity ?: return
+        val grabbed = entity.tryGetComponent<IsdkGrabbable>()?.grabState == IsdkGrabState.Grabbed
+        val corner = entity.tryGetComponent<IsdkPanelResize>()?.activeResizeCorner
+        val now = grabbed || (corner != null && corner != ResizeCornerState.NONE)
+        if (handling && !now) remember()
+        handling = now
+    }
+
+    override fun onPause() {
+        remember()
+        super.onPause()
     }
 
     override fun registerPanels(): List<PanelRegistration> =
-        listOf(machinePanel(), shapePanel())
+        listOfNotNull(machinePanel(), controlsPanel(), queueAddress?.let(::queuePanel))
 
-    /** The machine, on the screen the wearer chose. */
+    private fun sceneAllowed() =
+        checkSelfPermission(USE_SCENE) == PackageManager.PERMISSION_GRANTED
+
+    /**
+     * Asks the headset for the scanned room, then puts the screen back or on the wall.
+     *
+     * Every failure leaves the screen where it is, and none of them is shown. A room never scanned
+     * and a refused permission both mean the wearer places the screen by hand, which always works.
+     */
+    private fun loadRoom() {
+        mruk.loadSceneFromDevice().thenAccept { result ->
+            runOnUiThread {
+                if (result != MRUKLoadDeviceResult.SUCCESS) return@runOnUiThread
+                val found = mruk.getCurrentRoom() ?: mruk.rooms.firstOrNull() ?: return@runOnUiThread
+                room = found
+                controls.roomKnown = true
+                val place = placement.restore(found) ?: placement.onWall(found, scene.getViewerPose(), SCREEN_WIDTH)
+                if (place != null) put(place)
+            }
+        }
+    }
+
+    /**
+     * The screen at [place] and at its width, with the controls under it and the queue beside it.
+     *
+     * The two small panels come out towards the wearer by [NEARER], so a screen on a wall never
+     * swallows them. Each stays grabbable, and neither follows the screen once the wearer moves it.
+     */
+    private fun put(place: ScreenPlace) {
+        screenEntity?.setComponent(Transform(place.pose))
+        screenEntity?.setComponent(Scale(Vector3(place.width / SCREEN_WIDTH)))
+        val height = place.width * 9.0f / 16.0f
+        // A panel's local negative Z points out of its face, towards whoever is looking at it.
+        val under = Vector3(0.0f, -(height / 2.0f + CONTROLS_GAP), -NEARER)
+        val beside = Vector3(-(place.width / 2.0f + QUEUE_GAP), 0.0f, -NEARER)
+        controlsEntity?.setComponent(Transform(place.pose.times(Pose(under))))
+        queueEntity?.setComponent(Transform(place.pose.times(Pose(beside))))
+    }
+
+    /** Saves where the screen is, against the room. Without a room there is nothing to save to. */
+    private fun remember() {
+        val found = room ?: return
+        val entity = screenEntity ?: return
+        val pose = entity.tryGetComponent<Transform>()?.transform ?: return
+        val scale = entity.tryGetComponent<Scale>()?.scale?.x ?: 1.0f
+        placement.save(found, ScreenPlace(pose, SCREEN_WIDTH * scale))
+    }
+
+    /**
+     * The machine, on the screen the wearer chose.
+     *
+     * A `.kmpkg` that started the scene rides on to the machine in the panel's intent, so the
+     * machine opens it as it would on a phone. Spatial SDK takes either an activity class or an
+     * intent, and never both.
+     */
     private fun machinePanel() =
         PanelRegistration(R.id.machine_panel) {
-            activityClass = MainActivity::class.java
+            val opened = intent
+            if (opened?.action == Intent.ACTION_VIEW) {
+                panelIntent = Intent(opened).setClass(this@ImmersiveActivity, MainActivity::class.java)
+            } else {
+                activityClass = MainActivity::class.java
+            }
             config {
                 width = SCREEN_WIDTH
                 height = SCREEN_WIDTH * 9.0f / 16.0f
@@ -100,7 +262,7 @@ class ImmersiveActivity : AppSystemActivity() {
                 layerConfig = LayerConfig()
                 enableTransparent = false
                 includeGlass = false
-                if (shape() == Shape.CURVED) {
+                if (controls.curved) {
                     panelShapeType = PanelShapeType.CYLINDER
                     radiusForCylinderOrSphere = SCREEN_DISTANCE
                 }
@@ -119,60 +281,90 @@ class ImmersiveActivity : AppSystemActivity() {
         panel.reshape(config)
     }
 
-    /** Two buttons under the screen, because the shape is the wearer's to pick. */
-    private fun shapePanel() =
-        PanelRegistration(R.id.shape_panel) {
-            view { context -> shapeControls(context) }
+    private val actions = object : ControlsActions {
+        override fun shape(curved: Boolean) {
+            prefs().edit().putBoolean(CURVED, curved).apply()
+            controls.curved = curved
+            reshape(curved)
+        }
+
+        override fun toWall() {
+            val found = room ?: return
+            val place = placement.onWall(found, scene.getViewerPose(), SCREEN_WIDTH) ?: return
+            put(place)
+            placement.save(found, place)
+        }
+
+        override fun toWindow() {
+            controls.refused = false
+            Switch.toFlat(this@ImmersiveActivity) { controls.refused = true }
+        }
+
+        override fun toggleQueue() {
+            val shown = !controls.queueShown
+            prefs().edit().putBoolean(QUEUE_SHOWN, shown).apply()
+            controls.queueShown = shown
+            queueEntity?.setComponent(Visible(shown))
+        }
+    }
+
+    /** One row of buttons under the screen: its shape, the wall, and the queue. */
+    private fun controlsPanel(): PanelRegistration {
+        val content: (ComposeView) -> Unit = { view ->
+            view.setContent { Controls(controls, actions) }
+        }
+        return PanelRegistration(R.id.controls_panel) {
+            composePanel(content)
             config {
-                width = 0.6f
+                width = 1.6f
                 height = 0.16f
-                layoutWidthInDp = 600f
+                layoutWidthInDp = 1600f
                 layoutHeightInDp = 160f
                 layerConfig = LayerConfig()
                 enableTransparent = false
                 includeGlass = false
             }
         }
-
-    private fun shapeControls(context: Context): View {
-        val row = LinearLayout(context)
-        row.orientation = LinearLayout.HORIZONTAL
-        row.gravity = Gravity.CENTER
-        row.setBackgroundColor(Color.parseColor("#101418"))
-
-        val label = TextView(context)
-        label.text = getString(R.string.headset_screen_shape)
-        label.setTextColor(Color.WHITE)
-        label.textSize = 18f
-        label.setPadding(24, 0, 24, 0)
-        row.addView(label)
-
-        row.addView(shapeButton(context, R.string.headset_screen_flat, false))
-        row.addView(shapeButton(context, R.string.headset_screen_curved, true))
-        return row
     }
 
-    private fun shapeButton(context: Context, label: Int, curved: Boolean): Button {
-        val button = Button(context)
-        button.text = getString(label)
-        button.textSize = 18f
-        button.setOnClickListener {
-            prefs().edit().putBoolean(CURVED, curved).apply()
-            reshape(curved)
+    /** The singer's remote, beside the screen, so a wearer needs no phone to queue a song. */
+    private fun queuePanel(address: String) =
+        PanelRegistration(R.id.queue_panel) {
+            view { context -> QueuePanel.view(context, address) }
+            config {
+                width = 0.9f
+                height = 1.2f
+                layoutWidthInDp = 540f
+                layoutHeightInDp = 720f
+                layerConfig = LayerConfig()
+                enableTransparent = false
+                includeGlass = false
+            }
         }
-        return button
-    }
-
-    /** The machine's own panel, once the scene has built it. */
-    private var screen: PanelSceneObject? = null
 
     private companion object {
         const val PREFS = "headset"
         const val CURVED = "screen_curved"
+        const val QUEUE_SHOWN = "queue_shown"
+
+        /** Horizon OS's permission for the room the headset scanned. */
+        const val USE_SCENE = "com.oculus.permission.USE_SCENE"
+        const val SCENE_REQUEST = 1
 
         /** Metres. A television's distance, at a television's size. */
         const val SCREEN_DISTANCE = 2.0f
         const val SCREEN_WIDTH = 2.0f
-        const val EYE_HEIGHT = 1.4f
+
+        /** Metres. The widest a hand may stretch the screen. */
+        const val WIDEST = 4.0f
+
+        /** Metres. How far the controls and the queue stand out in front of the screen. */
+        const val NEARER = 0.4f
+
+        /** Metres between the screen's lower edge and the controls. */
+        const val CONTROLS_GAP = 0.2f
+
+        /** Metres from the screen's left edge to the queue's centre, for a queue 0.9 m wide. */
+        const val QUEUE_GAP = 0.55f
     }
 }

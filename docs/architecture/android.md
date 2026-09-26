@@ -86,10 +86,12 @@ unpacked assets are staged into the main source set, so both flavours get them a
 `tools/port/machine/android/stage.sh` knows about neither.
 
 What the flavours differ in is small and all of it is in `app/build.gradle`. `headset` takes an
-`applicationIdSuffix` of `.quest`, a `minSdk` of 34 where the shared default is 26, and
-`arm64-v8a` alone. Its Spatial SDK dependencies are scoped `headsetImplementation`, so the flat APK
-carries no Kotlin runtime at all. Each flavour's manifest holds one thing: how the machine is
-launched. A home screen and a television's home row in one, an immersive scene in the other.
+`applicationIdSuffix` of `.quest`, a `minSdk` of 34 where the shared default is 26, and `arm64-v8a`
+alone. `flat` names its two ABIs itself, because the plugin joins a flavour's ABI filters to
+`defaultConfig`'s rather than replacing them. The headset's Spatial SDK dependencies are scoped
+`headsetImplementation`, so the flat APK carries no Kotlin runtime at all. Each flavour's manifest
+holds one thing: how the machine is launched. A home screen and a television's home row in one, an
+immersive scene in the other.
 
 **`checkNativeLibs` keeps matching, and that is worth knowing rather than rediscovering.** AGP names
 the merge task `merge<Flavour><BuildType>JniLibFolders`, and the `tasks.configureEach` predicate
@@ -114,7 +116,72 @@ frames a second with no stale frames, the same as a flat one.
 
 **`VRFeature` draws a controller's ray and no hand's.** `IsdkFeature`, from Meta's Interaction SDK,
 is what a hand points with. A headset whose controllers are flat has no other way to reach the
-keypad, so both features are registered.
+keypad, so both features are registered. Spatial SDK 0.14.0 marks `IsdkFeature` deprecated and says
+`VRFeature` registers it. The explicit registration stays until a headset shows hands working
+without it.
+
+**The screen's place is saved against a wall of the scanned room.** Spatial SDK 0.14.0 has no public
+persistent spatial anchor: `Scene.createUserAnchor` is internal. `MRUKFeature` does hand over the
+scanned room, and its wall anchors are stable across sessions. So `Placement.kt` stores the
+screen's pose relative to the nearest wall, by that wall's UUID, in the `headset` preferences. A
+restore multiplies the wall's current pose by the saved one.
+
+**`IsdkGrabbable` moves a panel and `IsdkPanelResize` resizes it.** The resize runs in
+`ResizeMode.Simple`, which writes the entity's `Scale` and leaves the panel's dp layout alone.
+`ResizeMode.Relayout` would resize SDL's surface instead. `onSceneTick` watches the grab state and
+the active resize corner, and saves once when both let go.
+
+**The wall's facing is flipped towards the wearer rather than trusted.** The sign of a plane
+anchor's forward axis is not measured here, so `Placement.onWall` points the normal at the viewer.
+A panel shows its face along its own negative Z, so the screen's forward points into the wall.
+
+**The queue panel is a WebView on `http://127.0.0.1:<port>/`.** The port comes from `api.bind` in
+the machine's own `settings.json`, which lives in `Context.getFilesDir()`. A missing file means 8177,
+and the panel retries every two seconds while the machine starts. Android blocks cleartext to
+loopback as well, so the headset manifest names `res/xml/network_security_config.xml`. That file
+permits `127.0.0.1` and `localhost` and nothing else, as the remote's application does.
+
+**The controls are Compose, in Horizon OS's UI Set.** `meta-spatial-sdk-compose` gives a panel a
+`ComposeView`, and `meta-spatial-sdk-uiset` gives the buttons. The Compose compiler plugin reaches
+only Kotlin, and the `flat` flavour has none. Compose is pinned at the version the UI Set declares.
+
+**Each headset mode runs the machine in a process of its own.** A second SDL activity in one
+process makes `SDLActivity.onCreate` call `System.exit(0)`, because
+`SDL_HINT_ANDROID_ALLOW_RECREATE_ACTIVITY` is off. Turning it on would re-run the Rust `main` in a
+live process. So `ImmersiveActivity` and its panel keep the main process, and `FlatActivity`, a
+subclass of `MainActivity`, declares `android:process=":flat"`. `Switch` in `Modes.kt` starts the
+other mode, finishes the task and kills its own process. The new process binds the port and opens
+the catalog alone.
+
+**The switch asks `GET /api/v1/state` whether anything would be lost.** The route is public and
+loopback needs no password. A null `now_playing` and a `queue_len` of 0 mean idle. A machine that
+does not answer counts as idle, because it holds nothing.
+
+**The two directions follow Meta's `HybridSample`.** Into the room is a plain `startActivity` of the
+VR-category activity with `FLAG_ACTIVITY_NEW_TASK`. Out of it is a `CATEGORY_HOME` intent carrying
+a `PendingIntent` for the window in `extra_launch_in_home_pending_intent`. The launcher entry
+carries `com.oculus.intent.category.2D`, as the sample's does.
+
+**`EntryActivity` owns the launcher and both `.kmpkg` filters on a headset.** The headset manifest
+removes `MainActivity`'s filters with `tools:node="removeAll"`, so only the scene and
+`EntryActivity` start it. The last mode is a file in `getFilesDir()` rather than a preference,
+because each process caches its preferences.
+
+A `.kmpkg` with a machine running goes to that mode's
+activity, which is `singleInstance` and takes it in `onNewIntent`. With none running, the file
+starts the last mode. `ImmersiveActivity` passes it on as the panel's `panelIntent`, because Spatial
+SDK takes a class or an intent and never both. The USB attach filter goes with the rest, and a
+headset has no use for it.
+
+**The metrics overlay is in a debug build only.** `src/headsetDebug/` and `src/headsetRelease/` each
+hold a `debugFeatures()`. The debug one returns `OVRMetricsFeature` with the scene's tick and object
+counts, and the release one returns nothing. The dependency is `headsetDebugImplementation`, so a
+release APK carries none of it. The overlay draws only while the OVR Metrics Tool runs.
+
+**A variant's own configuration is declared before it is used.** The Android plugin makes a
+configuration for each flavour and each build type, and none for a pair of them. So
+`app/build.gradle` declares `headsetDebugImplementation` in a `configurations` block before using
+it, or Gradle cannot evaluate the project at all.
 
 **`singleInstance` survives embedding, and `MainActivity` keeps it.** A panel hosts an activity on a
 virtual display, which looks like it should want the ordinary launch mode, and it does not. What
@@ -467,9 +534,8 @@ The asymmetry is the point. A package reaches tens of gigabytes and internal sto
 volume. Meanwhile nothing dropped onto shared storage may displace what is already installed.
 
 **The application id keys both folders, so the headset flavour has a pair of its own.** A Quest
-holding both APKs holds two libraries, and a package pushed to one is absent from the other. That is
-the cost of the `.quest` suffix, and it is what lets somebody compare the two screens with one
-headset.
+holding both APKs holds two libraries, and a package pushed to one is absent from the other. The
+headset APK shows a system window itself, so nothing needs both installed.
 
 **The one case where that combination surprises is an upgraded machine.** It is worth knowing before
 somebody diagnoses it as an upload that did nothing. A build older than this wrote handed-in packages

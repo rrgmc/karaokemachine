@@ -1,6 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="headset_screen_shape">Screen</string>
     <string name="headset_screen_flat">Flat</string>
     <string name="headset_screen_curved">Curved</string>
+    <string name="headset_screen_wall">On the wall</string>
+    <string name="headset_queue">Queue</string>
+    <string name="headset_to_window">Window</string>
+    <string name="headset_to_immersive">In the room</string>
+    <string name="headset_switch_refused">Finish the song and empty the queue first. Switching restarts the machine.</string>
 </resources>
