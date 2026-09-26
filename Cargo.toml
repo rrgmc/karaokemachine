@@ -483,6 +483,10 @@ zip = "8.6.0"
 flate2 = "1.1.9"
 crc32fast = "1.5.1"
 csv = "1.4.0"
+# Walking a corpus folder. A symlinked folder is followed on purpose, and walkdir notices a link back
+# to a folder above it, which a hand-written recursion does not. It is already in the graph through
+# `jni` on Android.
+walkdir = "2.5.0"
 # Content hashing, for detecting the same recording filed under two song numbers. Not a security
 # boundary -- any decent digest would do -- but a real need: the local corpus is full of duplicates.
 sha2 = "0.11.0"
@@ -490,6 +494,9 @@ sha2 = "0.11.0"
 # than a random string in a table -- that is what lets a session survive a restart with nothing
 # persisted. Paired with sha2 0.11 above; both are the same RustCrypto generation.
 hmac = "0.13.0"
+# The constant-time comparison the token check uses. It is the crate `hmac` already carries for its
+# own `verify`, so naming it here adds no crate to any build.
+ctutils = "0.4.2"
 
 # Curation tool
 # Templates are compiled into the binary and checked when it is built, so a typo in the markup is a
@@ -573,6 +580,18 @@ serde_urlencoded = "0.7.1"
 # Already in the tree — `serde_urlencoded` depends on it — so naming it compiles nothing new, and it
 # replaced a hand-rolled `%XX` codec in `km-package-builder`. See `form::Fields`.
 form_urlencoded = "1.2.2"
+# Percent-encoding outside a form: a cookie value, a query parameter that must keep `+` as a plus sign,
+# and RFC 8187's `filename*`. Each caller names its own `AsciiSet`. Already in the tree through axum.
+percent-encoding = "2.3.2"
+# Test-only: `km-catalog`'s fold test decomposes every Latin letter, the way a file name written on
+# macOS spells it, and holds `km_song::text::fold` to the search index on the result.
+unicode-normalization = "0.1.24"
+# How wide a line of text is on screen, and where it may be cut. `km-display` budgets a line in
+# columns of half an em, and a CJK character takes two of them. Cutting at a grapheme boundary keeps
+# an accent on its letter and an emoji whole. Both already in the lockfile, through `inquire` and
+# `tao`.
+unicode-width = "0.2.2"
+unicode-segmentation = "1.13.3"
 directories = "6.0.0"
 clap = { version = "4.6.6", features = ["derive"] }
 thiserror = "2.0.20"

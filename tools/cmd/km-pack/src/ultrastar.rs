@@ -198,14 +198,8 @@ pub fn collect_ultrastar(
     songs: &mut Vec<UltraStarSource>,
     refused: &mut Vec<(PathBuf, UltraStarRefusal)>,
 ) {
-    let Ok(entries) = std::fs::read_dir(dir) else {
-        return;
-    };
-    for entry in entries.flatten() {
-        let path = entry.path();
-        if path.is_dir() {
-            collect_ultrastar(&path, songs, refused);
-        } else if is_ultrastar_candidate(&path) {
+    for path in crate::files_under(dir) {
+        if is_ultrastar_candidate(&path) {
             match read_ultrastar(&path) {
                 Ok(source) => songs.push(source),
                 Err(UltraStarRefusal::NotUltraStar) => {}

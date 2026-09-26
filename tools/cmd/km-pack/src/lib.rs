@@ -367,14 +367,8 @@ impl CdgOrphan {
 /// Pairing is by [`pair_for`], which is deliberately tolerant: the same corpus has extensions in
 /// both cases inside one folder and one pair whose stems differ only by a trailing space.
 pub fn collect_cdg(dir: &Path, pairs: &mut Vec<CdgPair>, orphans: &mut Vec<(PathBuf, CdgOrphan)>) {
-    let Ok(entries) = std::fs::read_dir(dir) else {
-        return;
-    };
-    for entry in entries.flatten() {
-        let path = entry.path();
-        if path.is_dir() {
-            collect_cdg(&path, pairs, orphans);
-        } else if is_audio(&path) {
+    for path in files_under(dir) {
+        if is_audio(&path) {
             // Walked from the audio side, so each pair is seen once: the `.cdg` is found from the
             // MP3 and never the other way round. A `.cdg` is only looked at on its own account when
             // nothing claimed it — see below.
@@ -397,17 +391,7 @@ pub fn collect_cdg(dir: &Path, pairs: &mut Vec<CdgPair>, orphans: &mut Vec<(Path
 /// songs — the curation tool's scan — needs a row for each, so that what is in the folder and what
 /// is in the tool can be reconciled. Pairing them into songs is then that caller's business.
 pub fn collect_cdg_paths(dir: &Path, out: &mut Vec<PathBuf>) {
-    let Ok(entries) = std::fs::read_dir(dir) else {
-        return;
-    };
-    for entry in entries.flatten() {
-        let path = entry.path();
-        if path.is_dir() {
-            collect_cdg_paths(&path, out);
-        } else if is_audio(&path) || is_graphics(&path) {
-            out.push(path);
-        }
-    }
+    out.extend(files_under(dir).filter(|path| is_audio(path) || is_graphics(path)));
 }
 
 /// The fields a manifest entry for an MP3+G song is built from.
@@ -487,17 +471,7 @@ pub fn entry_from_cdg(fields: CdgFields) -> SongEntry {
 /// The counterpart of [`collect_midi`], kept separate because the two are packaged completely
 /// differently: one goes inside the archive, the other beside it.
 pub fn collect_videos(dir: &Path, out: &mut Vec<PathBuf>) {
-    let Ok(entries) = std::fs::read_dir(dir) else {
-        return;
-    };
-    for entry in entries.flatten() {
-        let path = entry.path();
-        if path.is_dir() {
-            collect_videos(&path, out);
-        } else if is_video(&path) {
-            out.push(path);
-        }
-    }
+    out.extend(files_under(dir).filter(|path| is_video(path)));
 }
 
 /// What a caller wants done with one video file.
@@ -1564,22 +1538,30 @@ pub fn normalize_key(path: &str) -> String {
     path.replace('\\', "/").to_lowercase()
 }
 
-/// Collects every MIDI file under a folder, recursively.
+/// Every file under a folder, recursively, for the `collect_` walks to filter.
+///
+/// **A symlinked folder is followed**, because a corpus that spans two drives through a linked
+/// folder is an ordinary way to keep one. `walkdir` notices a link back to a folder above it and
+/// reports that as an error, so such a link ends one branch of the walk and not the process.
 ///
 /// An unreadable directory is skipped rather than fatal: a corpus of hundreds of thousands of files
-/// on a shared drive will contain some, and abandoning the walk over one is the wrong trade.
+/// on a shared drive will contain some, and abandoning the walk over one is the wrong trade. A
+/// broken link is skipped for the same reason.
+pub fn files_under(dir: &Path) -> impl Iterator<Item = PathBuf> {
+    walkdir::WalkDir::new(dir)
+        .min_depth(1)
+        .follow_links(true)
+        .into_iter()
+        .filter_map(Result::ok)
+        .filter(|entry| !entry.file_type().is_dir())
+        .map(walkdir::DirEntry::into_path)
+}
+
+/// Collects every MIDI file under a folder, recursively.
+///
+/// See [`files_under`] for what the walk follows and what it skips.
 pub fn collect_midi(dir: &Path, out: &mut Vec<PathBuf>) {
-    let Ok(entries) = std::fs::read_dir(dir) else {
-        return;
-    };
-    for entry in entries.flatten() {
-        let path = entry.path();
-        if path.is_dir() {
-            collect_midi(&path, out);
-        } else if is_midi(&path) {
-            out.push(path);
-        }
-    }
+    out.extend(files_under(dir).filter(|path| is_midi(path)));
 }
 
 /// Collects every file that could be a song source — MIDI, video, or either half of MP3+G.
@@ -1596,7 +1578,7 @@ pub fn collect_midi(dir: &Path, out: &mut Vec<PathBuf>) {
 /// halves of an MP3+G pair are collected, matching [`collect_cdg_paths`] and not [`collect_cdg`]:
 /// the caller indexes files, and a `.cdg` nothing claimed has to be able to say so.
 ///
-/// An unreadable directory is skipped rather than fatal, for the reason [`collect_midi`] gives.
+/// The walk follows and skips what [`files_under`] does.
 pub fn collect_songs(dir: &Path, out: &mut Vec<PathBuf>) {
     let _ = collect_songs_observed(dir, out, &mut |_| ControlFlow::Continue(()));
 }
@@ -1613,33 +1595,30 @@ pub fn collect_songs_observed(
     out: &mut Vec<PathBuf>,
     observe: &mut dyn FnMut(usize) -> ControlFlow<()>,
 ) -> ControlFlow<()> {
-    let Ok(entries) = std::fs::read_dir(dir) else {
-        return observe(out.len());
-    };
-    for entry in entries.flatten() {
+    // `contents_first` yields a folder after everything in it, which is the moment `observe` is
+    // promised. The root comes last of all, so the final count is always reported. `walkdir` takes
+    // an entry's kind from the directory listing and stats only a symlink, which keeps the walk's
+    // dominant cost on a corpus this size at one listing per folder.
+    let walk = walkdir::WalkDir::new(dir)
+        .follow_links(true)
+        .contents_first(true);
+    for entry in walk.into_iter().filter_map(Result::ok) {
+        if entry.file_type().is_dir() {
+            observe(out.len())?;
+            continue;
+        }
         let path = entry.path();
-        // `entry.file_type()` comes back with the directory listing on every platform this runs on,
-        // where `path.is_dir()` is a fresh stat per entry — the walk's dominant cost on a corpus
-        // this size. A symlink is the one case it cannot answer, because it describes the link
-        // rather than the target, so that one falls through to the stat and keeps the old
-        // behavior of following it.
-        let is_dir = match entry.file_type() {
-            Ok(kind) if !kind.is_symlink() => kind.is_dir(),
-            _ => path.is_dir(),
-        };
-        if is_dir {
-            collect_songs_observed(&path, out, observe)?;
-        } else if is_midi(&path)
-            || is_video(&path)
-            || is_audio(&path)
-            || is_graphics(&path)
-            || is_ultrastar_candidate(&path)
-            || is_lrc_candidate(&path)
+        if is_midi(path)
+            || is_video(path)
+            || is_audio(path)
+            || is_graphics(path)
+            || is_ultrastar_candidate(path)
+            || is_lrc_candidate(path)
         {
-            out.push(path);
+            out.push(entry.into_path());
         }
     }
-    observe(out.len())
+    ControlFlow::Continue(())
 }
 
 /// Whether a path names a file this project treats as a song source.
@@ -1796,6 +1775,40 @@ mod tests {
         assert_eq!(part.len(), 1, "the walk went on past the stop: {part:?}");
 
         std::fs::remove_dir_all(&dir).expect("clean up");
+    }
+
+    /// A linked folder is walked, and a link back to a folder above it ends there.
+    ///
+    /// The second link is what a recursion that follows links cannot survive: it walks
+    /// `loop/loop/loop/…` until the stack runs out.
+    #[cfg(unix)]
+    #[test]
+    fn a_link_back_up_the_tree_ends_the_walk_and_a_linked_folder_is_walked() {
+        let dir = std::env::temp_dir().join("km-pack-collect-links");
+        let elsewhere = std::env::temp_dir().join("km-pack-collect-links-elsewhere");
+        let _ = std::fs::remove_dir_all(&dir);
+        let _ = std::fs::remove_dir_all(&elsewhere);
+        std::fs::create_dir_all(dir.join("inner")).expect("scratch");
+        std::fs::create_dir_all(&elsewhere).expect("scratch");
+        std::fs::write(dir.join("inner/a.kar"), b"x").expect("write");
+        std::fs::write(elsewhere.join("b.kar"), b"x").expect("write");
+        std::os::unix::fs::symlink(&dir, dir.join("inner/loop")).expect("link");
+        std::os::unix::fs::symlink(&elsewhere, dir.join("linked")).expect("link");
+
+        let mut midi = Vec::new();
+        collect_midi(&dir, &mut midi);
+        midi.sort();
+        assert_eq!(
+            midi,
+            vec![dir.join("inner/a.kar"), dir.join("linked/b.kar")]
+        );
+
+        let mut songs = Vec::new();
+        collect_songs(&dir, &mut songs);
+        assert_eq!(songs.len(), 2, "{songs:?}");
+
+        std::fs::remove_dir_all(&dir).expect("clean up");
+        std::fs::remove_dir_all(&elsewhere).expect("clean up");
     }
 
     #[test]

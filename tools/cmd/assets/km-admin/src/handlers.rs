@@ -1296,22 +1296,9 @@ fn say_not_ready(why: crate::pictures::NotReady, locale: km_locale::Locale) -> S
     }
 }
 
-/// Percent-encodes what goes in the query string.
-///
-/// The same small set `km-admin-pages` encodes, and written out here for its reason: what goes
-/// through is a sentence from this program's own catalog rather than arbitrary input.
+/// Percent-encodes what goes in the query string, in form encoding as `km-admin-pages` does.
 fn urlencoding(text: &str) -> String {
-    let mut out = String::with_capacity(text.len());
-    for byte in text.bytes() {
-        match byte {
-            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
-                out.push(byte as char);
-            }
-            b' ' => out.push('+'),
-            other => out.push_str(&format!("%{other:02X}")),
-        }
-    }
-    out
+    form_urlencoded::byte_serialize(text.as_bytes()).collect()
 }
 
 #[cfg(test)]

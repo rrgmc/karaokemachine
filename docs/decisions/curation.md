@@ -556,6 +556,10 @@ nothing.
 every lookup, and a corpus kept across two drives through a linked folder is an ordinary way to keep
 one. The rule is about what the *document* may say; a link is something the corpus's owner made.
 
+**The scan follows a linked folder too, and a link back to a folder above it ends that branch.**
+`walkdir` does the walking and notices the loop. A walk that followed the link would recurse until the
+stack ran out. The scan would then die with nothing to say which folder did it.
+
 **A package member's path is dropped rather than refused.** It is the one reader where that is
 right. A member with no usable path is already the *its source file is gone* case a build reports per
 song. So an unfollowable path lands in a report somebody reads instead of failing the build.

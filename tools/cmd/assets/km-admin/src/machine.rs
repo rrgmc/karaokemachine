@@ -165,16 +165,15 @@ pub enum Call<'a> {
 /// [`km_api::routes::SURFACE`]'s own sample ids identical to themselves, which is what lets the
 /// sweep compare a built path against a declared one.
 fn one_segment(id: &str) -> String {
-    let mut out = String::with_capacity(id.len());
-    for byte in id.bytes() {
-        if byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'.' | b'_' | b'~') {
-            out.push(char::from(byte));
-        } else {
-            out.push_str(&format!("%{byte:02X}"));
-        }
-    }
-    out
+    percent_encoding::utf8_percent_encode(id, NOT_UNRESERVED).to_string()
 }
+
+/// Everything outside RFC 3986's unreserved set: letters, digits, `-`, `.`, `_` and `~`.
+const NOT_UNRESERVED: &percent_encoding::AsciiSet = &percent_encoding::NON_ALPHANUMERIC
+    .remove(b'-')
+    .remove(b'.')
+    .remove(b'_')
+    .remove(b'~');
 
 /// The ids [`Call::ALL`] uses, which are [`km_api::routes::SURFACE`]'s own samples.
 ///
@@ -384,26 +383,9 @@ pub enum Refused {
 /// Turns a typed address into a URL.
 ///
 /// A bare host or IP gets the machine's own default port, which is what somebody who has changed
-/// nothing wants. **The same rule `km-remote` uses**, and the port comes from `km-api` rather than
-/// being typed here, so there is one definition of what 8177 means.
-pub fn normalize(raw: &str) -> String {
-    let trimmed = raw.trim().trim_end_matches('/');
-    let with_scheme = if trimmed.contains("://") {
-        trimmed.to_owned()
-    } else {
-        format!("http://{trimmed}")
-    };
-    // Look for a port after the host, not after the scheme's own colon.
-    let host = with_scheme
-        .split_once("://")
-        .map(|(_, rest)| rest)
-        .unwrap_or_default();
-    if host.contains(':') {
-        with_scheme
-    } else {
-        format!("{with_scheme}:{MACHINE_DEFAULT_PORT}")
-    }
-}
+/// nothing wants. **It is `km-remote`'s function and not a copy of it**, so the two tools cannot
+/// disagree about where a port goes.
+pub use km_api::discover::known::normalize;
 
 /// A machine, and whatever token this program holds for it.
 #[derive(Clone)]

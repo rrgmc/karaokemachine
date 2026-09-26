@@ -309,8 +309,8 @@ ended one of those runs.
 `audio.rs`'s `limit` brings every block into range before cpal sees it. It is there because the
 second SoundFont survey found the failure it prevents, rather than because anyone reasoned about it.
 
-**The path almost everybody takes was the one with no limiter.** The `I16` and `U16` branches of
-`Output::open` clamp on their way out because they have to scale anyway. `F32` handed the buffer to
+**The path almost everybody takes was the one with no limiter.** The branches of `Output::open` that
+convert to another sample format clamp on their way out because they have to scale anyway. `F32` handed the buffer to
 the driver exactly as `Player::fill` left it. And `F32` is the native format on Windows, and on most
 current ALSA and CoreAudio configurations.
 

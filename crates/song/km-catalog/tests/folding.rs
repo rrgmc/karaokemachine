@@ -17,23 +17,23 @@ use rusqlite::Connection;
 /// lives in this range — those five being what the corpus scan actually found beyond CP1252.
 const RANGE: std::ops::RangeInclusive<u32> = 0x00C0..=0x024F;
 
-/// What the search index makes of each character, one row per character.
-fn tokenize_each(chars: &[char]) -> Vec<Option<String>> {
+/// What the search index makes of each piece of text, one row per piece.
+fn tokenize_each(texts: &[String]) -> Vec<Option<String>> {
     let db = Connection::open_in_memory().expect("open");
     db.execute_batch(
         "CREATE VIRTUAL TABLE t USING fts5(x, tokenize='unicode61 remove_diacritics 2');
          CREATE VIRTUAL TABLE v USING fts5vocab(t, 'instance');",
     )
     .expect("schema");
-    for (index, ch) in chars.iter().enumerate() {
+    for (index, text) in texts.iter().enumerate() {
         db.execute(
             "INSERT INTO t(rowid, x) VALUES (?1, ?2)",
-            rusqlite::params![index as i64, ch.to_string()],
+            rusqlite::params![index as i64, text],
         )
         .expect("insert");
     }
 
-    let mut out = vec![None; chars.len()];
+    let mut out = vec![None; texts.len()];
     let mut stmt = db.prepare("SELECT doc, term FROM v").expect("prepare");
     let rows = stmt
         .query_map([], |row| {
@@ -50,28 +50,62 @@ fn tokenize_each(chars: &[char]) -> Vec<Option<String>> {
 #[test]
 fn fold_and_the_search_index_agree() {
     let chars: Vec<char> = RANGE.filter_map(char::from_u32).collect();
-    let tokens = tokenize_each(&chars);
-
-    let mut disagreements = Vec::new();
-    for (ch, token) in chars.iter().zip(tokens) {
-        // A character the tokenizer treats as a separator produces no token; `fold` drops it to the
-        // empty string for the same reason, since it is not alphanumeric.
-        let indexed = token.unwrap_or_default();
-        let sorted = fold(&ch.to_string());
-        if sorted != indexed {
-            disagreements.push(format!(
-                "U+{:04X} {ch}: fold gave {sorted:?}, the index gave {indexed:?}",
-                *ch as u32
-            ));
-        }
-    }
-
+    let disagreements = disagreements(chars.iter().map(char::to_string).collect());
     assert!(
         disagreements.is_empty(),
         "{} character(s) sort under one letter and search under another:\n{}",
         disagreements.len(),
         disagreements.join("\n")
     );
+}
+
+/// The same range decomposed, as a file name written on macOS spells it.
+///
+/// `A` and U+0301 is one letter to the search index, which strips the combining accent. `fold` has
+/// to compose the pair first, or it reads the accent as punctuation and splits the word in two.
+#[test]
+fn fold_and_the_search_index_agree_on_decomposed_text() {
+    use unicode_normalization::UnicodeNormalization;
+    let decomposed: Vec<String> = RANGE
+        .filter_map(char::from_u32)
+        .map(|ch| ch.to_string().nfd().collect::<String>())
+        .filter(|text| text.chars().count() > 1)
+        .collect();
+    assert!(
+        !decomposed.is_empty(),
+        "the range holds letters that decompose"
+    );
+    let disagreements = disagreements(decomposed);
+
+    assert!(
+        disagreements.is_empty(),
+        "{} decomposed letter(s) sort under one letter and search under another:\n{}",
+        disagreements.len(),
+        disagreements.join("\n")
+    );
+}
+
+/// Every piece of text on which `fold` and the search index give different answers.
+fn disagreements(texts: Vec<String>) -> Vec<String> {
+    let tokens = tokenize_each(&texts);
+    let mut out = Vec::new();
+    for (text, token) in texts.iter().zip(tokens) {
+        // A character the tokenizer treats as a separator produces no token; `fold` drops it to the
+        // empty string for the same reason, since it is not alphanumeric.
+        let indexed = token.unwrap_or_default();
+        let sorted = fold(text);
+        if sorted != indexed {
+            let points: Vec<String> = text
+                .chars()
+                .map(|ch| format!("U+{:04X}", ch as u32))
+                .collect();
+            out.push(format!(
+                "{} {text}: fold gave {sorted:?}, the index gave {indexed:?}",
+                points.join(" ")
+            ));
+        }
+    }
+    out
 }
 
 /// The letters `remove_diacritics` deliberately leaves alone, and so does `fold`.

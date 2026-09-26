@@ -379,46 +379,28 @@ pub fn browse_state(
 /// other half of the callers.
 ///
 /// The same reason rules out `form_urlencoded::byte_serialize` here, which is what the builder's now
-/// uses: it is the form convention, `+` and all.
+/// uses: it is the form convention, `+` and all. `percent-encoding` with RFC 3986's unreserved set is
+/// the codec that writes `%20`.
 pub fn encode(value: &str) -> String {
-    let mut out = String::with_capacity(value.len());
-    for byte in value.as_bytes() {
-        match byte {
-            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'.' | b'_' | b'~' => {
-                out.push(*byte as char);
-            }
-            other => out.push_str(&format!("%{other:02X}")),
-        }
-    }
-    out
+    percent_encoding::utf8_percent_encode(value, NOT_UNRESERVED).to_string()
 }
+
+/// Everything outside RFC 3986's unreserved set: letters, digits, `-`, `.`, `_` and `~`.
+const NOT_UNRESERVED: &percent_encoding::AsciiSet = &percent_encoding::NON_ALPHANUMERIC
+    .remove(b'-')
+    .remove(b'.')
+    .remove(b'_')
+    .remove(b'~');
 
 /// Undoes [`encode`], and leaves anything malformed alone rather than failing.
 ///
 /// A cookie is attacker-controlled in the sense that anybody can edit one; the right response to a
-/// stray `%` is to render it, not to refuse the page.
+/// stray `%` is to render it, not to refuse the page. A `+` reads as a space, which is harmless for a
+/// cookie because [`encode`] never writes one.
 pub fn decode(value: &str) -> String {
-    let bytes = value.as_bytes();
-    let mut out: Vec<u8> = Vec::with_capacity(bytes.len());
-    let mut index = 0;
-    while index < bytes.len() {
-        if bytes[index] == b'%' && index + 2 < bytes.len() {
-            let hex = std::str::from_utf8(&bytes[index + 1..index + 3]).ok();
-            if let Some(byte) = hex.and_then(|hex| u8::from_str_radix(hex, 16).ok()) {
-                out.push(byte);
-                index += 3;
-                continue;
-            }
-        }
-        if bytes[index] == b'+' {
-            out.push(b' ');
-            index += 1;
-            continue;
-        }
-        out.push(bytes[index]);
-        index += 1;
-    }
-    String::from_utf8_lossy(&out).into_owned()
+    percent_encoding::percent_decode_str(&value.replace('+', " "))
+        .decode_utf8_lossy()
+        .into_owned()
 }
 
 #[cfg(test)]

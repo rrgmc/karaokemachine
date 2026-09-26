@@ -35,6 +35,8 @@ tracing = { workspace = true }
 # A wallpaper folder may hold zip files of images as well as loose images, so the wallpaper scanner
 # reads archive directories and pulls single entries out of them.
 zip = { workspace = true }
+unicode-width = { workspace = true }
+unicode-segmentation = { workspace = true }
 
 # SDL is linked differently on Android than everywhere else, and the difference is not cosmetic.
 #

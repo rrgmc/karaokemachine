@@ -50,6 +50,8 @@ futures-util = { workspace = true }
 async-trait = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+form_urlencoded = { workspace = true }
+percent-encoding = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
 

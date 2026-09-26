@@ -42,6 +42,8 @@ rayon = { workspace = true }
 # which JSON has not got.
 toml = { workspace = true }
 hex = { workspace = true }
+httpdate = { workspace = true }
+form_urlencoded = { workspace = true }
 
 # `fs` for streaming a download to disk without blocking the reactor, `time` for the throttle and the
 # backoff sleeps.

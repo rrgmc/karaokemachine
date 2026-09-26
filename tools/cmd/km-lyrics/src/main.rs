@@ -1091,25 +1091,24 @@ fn collect(
     if limit.is_some_and(|l| out.len() >= l) {
         return Ok(());
     }
-    let entries = match std::fs::read_dir(dir) {
-        Ok(entries) => entries,
-        // An unreadable directory in a huge corpus is not a reason to abandon the scan.
-        Err(error) => {
-            eprintln!("warning: skipping {}: {error}", dir.display());
-            return Ok(());
-        }
-    };
-    for entry in entries.flatten() {
-        let path = entry.path();
-        if path.is_dir() {
-            collect(&path, extensions, limit, out)?;
-            if limit.is_some_and(|l| out.len() >= l) {
-                return Ok(());
+    // A symlinked folder is followed, and `walkdir` reports a link back to a folder above it
+    // rather than walking it for ever.
+    for entry in walkdir::WalkDir::new(dir).min_depth(1).follow_links(true) {
+        let entry = match entry {
+            Ok(entry) => entry,
+            // An unreadable directory in a huge corpus is not a reason to abandon the scan.
+            Err(error) => {
+                eprintln!("warning: skipping: {error}");
+                continue;
             }
-        } else if let Some(ext) = path.extension().and_then(|e| e.to_str())
+        };
+        if entry.file_type().is_dir() {
+            continue;
+        }
+        if let Some(ext) = entry.path().extension().and_then(|e| e.to_str())
             && extensions.iter().any(|want| want.eq_ignore_ascii_case(ext))
         {
-            out.push(path);
+            out.push(entry.into_path());
             if limit.is_some_and(|l| out.len() >= l) {
                 return Ok(());
             }

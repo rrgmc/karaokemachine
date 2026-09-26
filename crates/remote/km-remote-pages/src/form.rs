@@ -15,35 +15,26 @@
 //! `tools/cmd/km-package-builder` takes its bodies as strings too, for a different reason — repeated
 //! keys, which `serde_urlencoded` cannot represent. Two tools, two reasons, one conclusion.
 
-use crate::prefs::decode;
-
 /// The first value of a field, or `None` when it is absent or empty.
 ///
 /// Empty and absent are folded together on purpose. A text input somebody cleared posts `name=`,
 /// and every caller here means the same thing by that as by not sending it at all.
+///
+/// `?multi` with no `=` is a field that is present and empty, which is still not a value.
 pub fn field(body: &str, key: &str) -> Option<String> {
-    for pair in body.split('&') {
-        let (name, value) = match pair.split_once('=') {
-            Some(split) => split,
-            // `?multi` with no `=` is a field that is present and empty, which is still not a value.
-            None => (pair, ""),
-        };
-        if decode(name) == key {
-            let value = decode(value);
-            return if value.is_empty() { None } else { Some(value) };
-        }
-    }
-    None
+    form_urlencoded::parse(body.as_bytes())
+        .find(|(name, _)| name == key)
+        .map(|(_, value)| value.into_owned())
+        .filter(|value| !value.is_empty())
 }
 
 /// Every non-empty value of a field, in the order posted.
 ///
 /// For a group of checkboxes sharing one name, which post one pair per box that is ticked.
 pub fn values(body: &str, key: &str) -> Vec<String> {
-    body.split('&')
-        .filter_map(|pair| pair.split_once('='))
-        .filter(|(name, _)| decode(name) == key)
-        .map(|(_, value)| decode(value))
+    form_urlencoded::parse(body.as_bytes())
+        .filter(|(name, _)| name == key)
+        .map(|(_, value)| value.into_owned())
         .filter(|value| !value.is_empty())
         .collect()
 }

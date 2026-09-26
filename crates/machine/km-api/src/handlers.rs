@@ -455,7 +455,10 @@ fn book_filename(filter: &BookFilter, machine: &str, locale: km_locale::Locale) 
 /// only that, and `filename*` carries the real one, percent-encoded UTF-8 per RFC 8187. Every
 /// browser this machine is driven from prefers `filename*`; the fallback is what a script with a
 /// naive parser gets, and `Salao` is a better answer for it than a 500.
-fn content_disposition(filename: &str) -> String {
+///
+/// Public because the package builder serves song files under their own names, and a corpus file
+/// name is no more ASCII than a machine name.
+pub fn content_disposition(filename: &str) -> String {
     format!(
         "attachment; filename=\"{}\"; filename*=UTF-8''{}",
         ascii_fallback(filename),
@@ -481,21 +484,26 @@ fn ascii_fallback(filename: &str) -> String {
 
 /// The `filename*` half: RFC 8187 percent-encoded UTF-8.
 ///
-/// Hand-rolled rather than a dependency, for the reason `km-songbook` takes none: it is one table
-/// and a loop, and the set is small and fixed. Everything outside RFC 8187's `attr-char` is escaped,
-/// which is stricter than it has to be and cannot be wrong.
+/// Everything outside RFC 8187's `attr-char` is escaped, which is stricter than it has to be and
+/// cannot be wrong.
 fn rfc8187(filename: &str) -> String {
-    const ATTR_CHAR: &str = "!#$&+-.^_`|~";
-    let mut out = String::with_capacity(filename.len());
-    for byte in filename.bytes() {
-        if byte.is_ascii_alphanumeric() || ATTR_CHAR.contains(byte as char) {
-            out.push(byte as char);
-        } else {
-            out.push_str(&format!("%{byte:02X}"));
-        }
-    }
-    out
+    percent_encoding::utf8_percent_encode(filename, NOT_ATTR_CHAR).to_string()
 }
+
+/// Everything outside RFC 8187's `attr-char`: letters, digits and ``!#$&+-.^_`|~``.
+const NOT_ATTR_CHAR: &percent_encoding::AsciiSet = &percent_encoding::NON_ALPHANUMERIC
+    .remove(b'!')
+    .remove(b'#')
+    .remove(b'$')
+    .remove(b'&')
+    .remove(b'+')
+    .remove(b'-')
+    .remove(b'.')
+    .remove(b'^')
+    .remove(b'_')
+    .remove(b'`')
+    .remove(b'|')
+    .remove(b'~');
 
 /// `GET /api/v1/songs/{number}`
 pub async fn get_song(

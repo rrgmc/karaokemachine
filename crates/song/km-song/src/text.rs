@@ -23,6 +23,12 @@
 //! answers grouped. `fold_and_the_search_index_agree` in `km-catalog` walks the same range and fails
 //! if the two ever part company, which is what makes this a checked claim rather than a comment.
 //!
+//! **A combining accent the index drops, `fold` drops too.** A file name written on macOS spells `Á`
+//! as `A` followed by U+0301. `remove_diacritics 2` deletes 25 combining accents wherever they stand,
+//! and treats every other combining mark as a separator. [`INDEX_DROPS`] is that list, measured.
+//! Composing the text to NFC instead would disagree with the index: it keeps a precomposed `Ǡ` but
+//! strips the accents off a decomposed one.
+//!
 //! **A stroke is not an accent, and neither is a ligature.** `remove_diacritics` takes combining
 //! marks off; it leaves `ł ø æ đ ß ı` exactly as they are, because they are letters in their own
 //! right rather than a decorated `l o a d s i`. So this leaves them alone too. A Polish title
@@ -38,10 +44,11 @@
 /// for anything else, because each bump costs every catalog in the field one pass over its songs.
 ///
 /// `1` was Latin-1 accents only, which left Czech, Polish, Hungarian and the Baltic languages
-/// sorting after `Z`. `2` is the table derived from `unicode61 remove_diacritics 2`.
+/// sorting after `Z`. `2` is the table derived from `unicode61 remove_diacritics 2`. `3` drops the
+/// combining accents the index drops, so a decomposed accent folds away as a precomposed one does.
 ///
 /// The same shape as `km_kmpkg::LANGUAGE_TABLE_REVISION`, and for the same reason.
-pub const FOLD_REVISION: u32 = 2;
+pub const FOLD_REVISION: u32 = 3;
 
 /// Folds text to a comparison key: lower case, no accents, punctuation as a single space.
 ///
@@ -50,7 +57,11 @@ pub const FOLD_REVISION: u32 = 2;
 pub fn fold(value: &str) -> String {
     let mut out = String::with_capacity(value.len());
     let mut last_was_space = true;
-    for ch in value.chars().flat_map(fold_char) {
+    for ch in value
+        .chars()
+        .flat_map(fold_char)
+        .filter(|ch| !INDEX_DROPS.contains(ch))
+    {
         if ch.is_alphanumeric() {
             out.push(ch);
             last_was_space = false;
@@ -75,6 +86,17 @@ pub fn initial(value: &str) -> Option<char> {
         first.to_uppercase().next()
     }
 }
+
+/// The combining accents `unicode61 remove_diacritics 2` deletes rather than treats as a separator.
+///
+/// Measured by putting every nonspacing mark between two letters and reading the token back. A mark
+/// on this list joins the two letters into one token; every other one splits them.
+const INDEX_DROPS: [char; 25] = [
+    '\u{300}', '\u{301}', '\u{302}', '\u{303}', '\u{304}', '\u{306}', '\u{307}', '\u{308}',
+    '\u{309}', '\u{30A}', '\u{30B}', '\u{30C}', '\u{30F}', '\u{311}', '\u{31B}', '\u{323}',
+    '\u{324}', '\u{325}', '\u{326}', '\u{327}', '\u{328}', '\u{32D}', '\u{32E}', '\u{330}',
+    '\u{331}',
+];
 
 /// Folds one character to its unaccented, lower-case form.
 ///
@@ -126,6 +148,13 @@ mod tests {
         assert_eq!(fold("Águas de  Março!"), "aguas de marco");
         assert_eq!(fold("AC/DC"), "ac dc");
         assert_eq!(fold("rock 'n' roll"), "rock n roll");
+    }
+
+    /// `A` and U+0301 is how macOS writes `Á` in a file name.
+    #[test]
+    fn a_decomposed_accent_folds_like_a_precomposed_one() {
+        assert_eq!(fold("A\u{301}guas de Marc\u{327}o"), "aguas de marco");
+        assert_eq!(initial("A\u{301}guas"), Some('A'));
     }
 
     #[test]

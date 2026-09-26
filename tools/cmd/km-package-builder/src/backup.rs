@@ -42,6 +42,7 @@
 //! statement; `crate::build::import` hit exactly this and its comment says so.
 
 use std::collections::{BTreeMap, BTreeSet};
+use std::io::Write as _;
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
@@ -365,7 +366,9 @@ impl Backup {
     /// is what somebody has *when the database is gone*, and a half-written one that overwrote last
     /// week's good one is the single failure that would make this feature worth less than not having
     /// it. So the bytes land beside the target and `std::fs::rename` puts them in place, which
-    /// replaces an existing file on every platform this ships to.
+    /// replaces an existing file on every platform this ships to. They reach the disk before the
+    /// rename, because a file system may otherwise commit the rename first, and a power cut then
+    /// leaves the backup's name on an empty file.
     ///
     /// Pretty-printed, like `recent.rs` and for the same reason: a person opens it.
     pub fn write(&self, path: &Path) -> Result<(), DbError> {
@@ -382,7 +385,11 @@ impl Backup {
         let mut temporary = path.as_os_str().to_owned();
         temporary.push(".writing");
         let temporary = PathBuf::from(temporary);
-        std::fs::write(&temporary, text).map_err(|error| {
+        let written = std::fs::File::create(&temporary).and_then(|mut file| {
+            file.write_all(text.as_bytes())?;
+            file.sync_all()
+        });
+        written.map_err(|error| {
             DbError::Rejected(format!("writing {}: {error}", temporary.display()))
         })?;
         std::fs::rename(&temporary, path).map_err(|error| {

@@ -395,6 +395,7 @@ it are the same entry. How the thing is built is [`ARCHITECTURE.md`](../ARCHITEC
 - [The connect panel's box is the size of what is in it](interface.md#the-connect-panels-box-is-the-size-of-what-is-in-it)
 - [The song book](interface.md#the-song-book)
 - [A lyric line that will not fit](interface.md#a-lyric-line-that-will-not-fit)
+- [Text that is cut or wrapped is measured in columns](interface.md#text-that-is-cut-or-wrapped-is-measured-in-columns)
 - [A line-timed song lights a line at a time](interface.md#a-line-timed-song-lights-a-line-at-a-time)
 - [A song whose words are turned off draws none, and says so in the corner](interface.md#a-song-whose-words-are-turned-off-draws-none-and-says-so-in-the-corner)
 - [What the machine does when nobody is singing](interface.md#what-the-machine-does-when-nobody-is-singing)

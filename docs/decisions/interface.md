@@ -2067,6 +2067,21 @@ step and the line stays a lyric.
 **When even the narrowest will not fit, it is used and SDL clips it.** There is no legible rendering of
 a 1,667-character line, and every alternative is only a different way of being unreadable.
 
+## Text that is cut or wrapped is measured in columns
+
+**A title, a notice or a fault is budgeted in columns of half an em, and a CJK character takes
+two.** `fit_chars` turns a width into columns, and `ellipsize` and `wrap` count with
+`unicode-width`. Counting characters instead gave a Japanese title twice the room its budget allowed.
+It then ran into the number pad or the connect panel.
+
+**A run with no spaces wraps between graphemes.** CJK text has no spaces, and neither does a long path
+in a fault message. `wrap` breaks such a word wherever a line fills, and never inside a grapheme. So
+an accent stays on its letter and an emoji stays whole. `unicode-segmentation` finds the boundaries.
+
+**This is an estimate, and a lyric line is not governed by it.** A lyric is measured with the font,
+as `A lyric line that will not fit` says. The estimate is for the text around it, where building a
+texture only to learn its width costs more than the error.
+
 ## A line-timed song lights a line at a time
 
 **A line whose file times only its start lights whole at that start, and is never wiped.** A wipe

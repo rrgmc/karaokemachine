@@ -156,6 +156,13 @@ index it has to agree with. `fold_and_the_search_index_agree` walks the same ran
 ever does. That is a stronger guarantee than a Unicode normalization dependency would give, and a
 smaller one. The question is never "what is the right fold" but "what does the index already do".
 
+**A combining accent the index drops, `fold` drops too.** A file name written on macOS spells `Á`
+as `A` and a combining accent. `remove_diacritics 2` deletes 25 such accents wherever they stand,
+and treats every other combining mark as a separator. `fold` carries that list, measured from the
+tokenizer. It does not compose to NFC: the index keeps a precomposed `Ǡ` and strips a decomposed
+one, so composing would disagree with it. `fold_and_the_search_index_agree_on_decomposed_text`
+walks the same range decomposed.
+
 **Czech, Polish, Hungarian and the Baltic languages file under their own letters.** The fonts are
 not the obstacle. Measured 2026-09-08, Segoe UI draws `Příliš žluťoučký kůň Łódź Tükörfúrógép` with
 every glyph present and no fallback consulted. DejaVu Sans, the tarball's font, covers the same range.

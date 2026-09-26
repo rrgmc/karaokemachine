@@ -39,3 +39,5 @@ km-fixes = { workspace = true }
 # For building a catalog with the *old* schema by hand, so the migration has something real to
 # migrate. Nothing else in the tests touches SQL directly.
 rusqlite = { workspace = true }
+# Decomposing the fold test's range, the way a file name written on macOS spells it.
+unicode-normalization = { workspace = true }
