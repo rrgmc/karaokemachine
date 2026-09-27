@@ -272,29 +272,26 @@ mod tests {
         assert!(!stats.gain_is_steep());
     }
 
+    /// `gain_db` reads a gain as decibels, and always as a finite number.
     #[test]
-    fn unity_gain_is_zero_decibels() {
-        assert!(midi().gain_db().abs() < 0.001);
-    }
-
-    #[test]
-    fn half_the_amplitude_is_six_decibels_down() {
-        let stats = SongStats {
-            gain: 0.5,
-            ..midi()
-        };
-        assert!((stats.gain_db() + 6.02).abs() < 0.01);
-    }
-
-    #[test]
-    fn a_gain_of_zero_draws_a_number_rather_than_an_infinity() {
-        // Unreachable through the machine, which clamps, and guarded because a screen is the worst
-        // place to discover a logarithm of zero.
-        let stats = SongStats {
-            gain: 0.0,
-            ..midi()
-        };
-        assert!(stats.gain_db().is_finite());
+    fn a_gain_reads_as_decibels() {
+        // (name, gain, decibels, tolerance)
+        let cases: [(&str, f32, f32, f32); 3] = [
+            ("unity gain is zero decibels", 1.0, 0.0, 0.001),
+            ("half the amplitude is six decibels down", 0.5, -6.02, 0.01),
+            // The machine clamps well above zero, and a screen is the worst place to discover a
+            // logarithm of zero.
+            (
+                "a gain of zero draws a number rather than an infinity",
+                0.0,
+                0.0,
+                0.001,
+            ),
+        ];
+        for (name, gain, want, tolerance) in cases {
+            let got = SongStats { gain, ..midi() }.gain_db();
+            assert!((got - want).abs() < tolerance, "{name}: {got} dB");
+        }
     }
 
     #[test]

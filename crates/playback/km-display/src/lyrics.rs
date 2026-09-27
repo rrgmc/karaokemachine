@@ -620,34 +620,60 @@ mod tests {
         }
     }
 
+    /// `shift_ticks` on a steady 120 BPM map, stated as numbers so a change to the conversion has
+    /// to be deliberate.
+    ///
+    /// 100 ms of a 500 ms quarter note is 96 of its 480 ticks.
     #[test]
-    fn a_positive_offset_advances_and_a_negative_one_retreats() {
+    fn an_offset_moves_the_tick_by_its_song_time() {
         let map = steady();
         let tick = 4 * u32::from(testing::TPQN);
-        assert!(shift_ticks(&map, tick, 100, 1.0) > tick);
-        assert!(shift_ticks(&map, tick, -100, 1.0) < tick);
-    }
-
-    #[test]
-    fn a_hundred_milliseconds_is_ninety_six_ticks_at_120_bpm() {
-        // 100 ms of a 500 ms quarter note is 96 of its 480 ticks. Stated as a number rather than a
-        // comparison so a change to the conversion has to be deliberate.
-        let map = steady();
-        let tick = 4 * u32::from(testing::TPQN);
-        assert_eq!(shift_ticks(&map, tick, 100, 1.0), tick + 96);
-        assert_eq!(shift_ticks(&map, tick, -100, 1.0), tick - 96);
-    }
-
-    #[test]
-    fn the_offset_is_scaled_by_the_tempo_ratio() {
-        // Faster playback covers more song time per second, so a fixed real latency is more song
-        // time. Without this the correction drifts the moment the speed control is touched. The two
-        // ratios are the ends of the range the engine allows: 100 ms is 125 ms of song time at
-        // 1.25x and 75 ms at 0.75x, which at 1041.67 us a tick is 120 and 72 ticks.
-        let map = steady();
-        let tick = 4 * u32::from(testing::TPQN);
-        assert_eq!(shift_ticks(&map, tick, 100, 1.25), tick + 120);
-        assert_eq!(shift_ticks(&map, tick, 100, 0.75), tick + 72);
+        let cases: [(&str, u32, i16, f32, u32); 7] = [
+            ("a positive offset advances", tick, 100, 1.0, tick + 96),
+            ("a negative offset retreats", tick, -100, 1.0, tick - 96),
+            // Faster playback covers more song time per second, so a fixed real latency is more
+            // song time. 1.25x and 0.75x are the ends of the range the engine allows.
+            (
+                "a faster tempo scales the offset up",
+                tick,
+                100,
+                1.25,
+                tick + 120,
+            ),
+            (
+                "a slower tempo scales the offset down",
+                tick,
+                100,
+                0.75,
+                tick + 72,
+            ),
+            // Song time is not advancing, so no amount of real latency is any amount of song time.
+            (
+                "a zero tempo ratio leaves the tick where it is",
+                tick,
+                100,
+                0.0,
+                tick,
+            ),
+            // A u32 must not wrap and land at the end of the song.
+            (
+                "a negative offset at tick zero stays at zero",
+                0,
+                -500,
+                1.0,
+                0,
+            ),
+            (
+                "a negative offset near the start stops at zero",
+                10,
+                -500,
+                1.0,
+                0,
+            ),
+        ];
+        for (name, tick, offset_ms, ratio, want) in cases {
+            assert_eq!(shift_ticks(&map, tick, offset_ms, ratio), want, "{name}");
+        }
     }
 
     #[test]
@@ -661,14 +687,6 @@ mod tests {
         assert_eq!(shift_ticks(&map, tick, 100, f32::MAX), ceiling);
         // Negative is not "backwards"; it is nonsense, and it stops at no shift at all.
         assert_eq!(shift_ticks(&map, tick, 100, -5.0), tick);
-    }
-
-    #[test]
-    fn a_negative_offset_at_the_start_stops_at_tick_zero() {
-        // Rather than wrapping through a u32 and landing at the end of the song.
-        let map = steady();
-        assert_eq!(shift_ticks(&map, 0, -500, 1.0), 0);
-        assert_eq!(shift_ticks(&map, 10, -500, 1.0), 0);
     }
 
     #[test]
@@ -702,14 +720,6 @@ mod tests {
                 let _ = shift_ticks(&map, u32::MAX, offset, ratio);
             }
         }
-    }
-
-    #[test]
-    fn a_zero_tempo_ratio_leaves_the_tick_where_it_is() {
-        // Song time is not advancing, so no amount of real latency is any amount of song time.
-        let map = steady();
-        let tick = 4 * u32::from(testing::TPQN);
-        assert_eq!(shift_ticks(&map, tick, 100, 0.0), tick);
     }
 
     /// **The invariant the wipe stands on.** `draw` measures the line from its syllables and renders
