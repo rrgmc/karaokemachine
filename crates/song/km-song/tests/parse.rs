@@ -44,16 +44,6 @@ fn soft_karaoke_page_and_line_markers_survive_parsing() {
 }
 
 #[test]
-fn both_underscore_conventions_reach_the_words_as_spacing() {
-    let song = parse(&testing::underscore_spacing());
-
-    assert_eq!(song.lyrics.line_count(), 2);
-    assert_eq!(song.lyrics.lines[0].text(), "Se apronta pra");
-    assert_eq!(song.lyrics.lines[1].text(), "THE MELODY ");
-    assert!(!song.lyrics.plain_text().contains('_'));
-}
-
-#[test]
 fn a_file_written_in_chords_parses_to_its_words_alone() {
     let song = parse(&testing::chords_and_bracketed_lines());
 

@@ -344,6 +344,11 @@ pub struct State {
     /// middleware runs before every route and is the only place a request's headers are in reach —
     /// which is what keeps `Accept-Language` out of eighty render call sites.
     negotiated: Arc<RwLock<km_locale::Locale>>,
+    /// How long a page request waits for the connection it is drawn through.
+    ///
+    /// [`READ_WAIT`], and shorter only in a test that proves the wait ends. Five real seconds per
+    /// run buys that test nothing.
+    read_wait: Duration,
 }
 
 impl State {
@@ -373,7 +378,15 @@ impl State {
             words_narrowing: Arc::new(RwLock::new(SimilarNarrowing::for_words())),
             watcher: Arc::new(RwLock::new(None)),
             negotiated: Arc::new(RwLock::new(km_locale::Locale::default())),
+            read_wait: READ_WAIT,
         }
+    }
+
+    /// The same state, with page requests that give up on a held connection after `wait`.
+    #[cfg(test)]
+    fn with_read_wait(mut self, wait: Duration) -> Self {
+        self.read_wait = wait;
+        self
     }
 
     /// Starts listening for machines. Called once, from [`crate::start`], after the socket is bound.
@@ -756,8 +769,9 @@ impl State {
     {
         let workspace = self.workspace().ok_or(DbError::NoWorkspace)?;
         let db = Arc::clone(workspace.reader());
+        let wait = self.read_wait;
         tokio::task::spawn_blocking(move || {
-            let guard = db.lock_within(READ_WAIT).ok_or(DbError::Busy)?;
+            let guard = db.lock_within(wait).ok_or(DbError::Busy)?;
             work(&guard)
         })
         .await
@@ -2396,23 +2410,31 @@ mod tests {
         assert_eq!(db.package_members(&id, 1).expect("members").len(), 1);
     }
 
-    /// The language set also writes the counted set, not whatever the bar says by the time it lands.
+    /// The bulk language set reads the bar, and writes the set that was counted.
     ///
-    /// **The test the `BulkAction` extractor made cheap, and the reason it exists.** This invariant
-    /// was restated by hand in all three bulk handlers and asserted for exactly one of them, so the
-    /// other two held it only because somebody had copied the lines correctly. Now they hold it
-    /// because there is one copy — and this is what says so for a second handler.
+    /// `#filters` has a `language` select and this form sets a language, so the two would be one key
+    /// arriving twice. Serde answers that with `duplicate_field` and a 400, which is a button that
+    /// does nothing. Hence `set_language`: named `language`, this test goes red.
+    ///
+    /// `scope=matching` is what asks for the filter-wide write. Without it the action is over the
+    /// ticked rows, which is the default and the smaller act.
+    ///
+    /// **The confirmation writes the counted set, not whatever the bar says by the time it lands.**
+    /// The `BulkAction` extractor holds that for every bulk handler, and this says so for a second.
     #[tokio::test]
-    async fn the_language_set_also_writes_the_set_that_was_counted() {
+    async fn the_bulk_language_set_reads_the_bar_and_writes_the_set_that_was_counted() {
         let (_corpus, state) = two_folders("language-confirm");
 
-        let (_, offered) = post(
+        let (status, offered) = post(
             &state,
             "/songs/language-bulk",
             &format!("set_language=pt&scope=matching&{}", bar("bossa")),
         )
         .await;
+        assert_eq!(status, axum::http::StatusCode::OK);
         assert!(offered.contains("<strong>2 songs</strong>"), "{offered}");
+        assert!(offered.contains("Portuguese"), "{offered}");
+        assert!(!offered.contains("the whole corpus"), "{offered}");
 
         // The bar has since been cleared, which would widen the write to the whole corpus if the
         // confirmation read it rather than the query string it was handed.
@@ -2596,38 +2618,6 @@ mod tests {
             "a scan still running after the press was not asked to stop"
         );
         state.workspace().expect("a folder is open").stop_scan();
-    }
-
-    /// The bulk language set reads the bar, and its own select is not one of the bar's.
-    ///
-    /// `#filters` has a `language` select and this form sets a language, so the two would be one key
-    /// arriving twice — which serde answers with `duplicate_field` and a 400, i.e. a button that
-    /// does nothing. Hence `set_language`. Rename it back and this test goes red.
-    ///
-    /// `scope=matching` is what asks for the filter-wide write; without it the action is over the
-    /// ticked rows, which is the default and the smaller act.
-    #[tokio::test]
-    async fn the_bulk_language_set_reads_the_bar_beside_its_own_select() {
-        let (_corpus, state) = two_folders("bulk-language");
-
-        let (status, offered) = post(
-            &state,
-            "/songs/language-bulk",
-            &format!("set_language=pt&scope=matching&{}", bar("bossa")),
-        )
-        .await;
-        assert_eq!(status, axum::http::StatusCode::OK);
-        assert!(offered.contains("<strong>2 songs</strong>"), "{offered}");
-        assert!(offered.contains("Portuguese"), "{offered}");
-        assert!(!offered.contains("the whole corpus"), "{offered}");
-
-        let (_, done) = post(
-            &state,
-            &confirm_url(&offered),
-            "set_language=pt&scope=matching",
-        )
-        .await;
-        assert!(done.contains("2 songs"), "{done}");
     }
 
     /// The bulk tag write reads the bar beside its own box, and the field is `set_tag`.
@@ -5795,14 +5785,19 @@ mod tests {
     fn a_shouting_corpus(name: &str, songs: u32) -> (Scratch, State) {
         let corpus = Scratch::new(name);
         let mut db = Db::open_in_memory(corpus.path()).expect("open");
-        for number in 0..songs {
-            crate::db::tests::add(
-                &mut db,
-                &format!("song-{number:04}"),
-                Some(&format!("CANCAO NUMERO {number:04}")),
-                &format!("folder/SONG{number:04}.kar"),
-            );
-        }
+        crate::db::tests::add_all(
+            &mut db,
+            (0..songs)
+                .map(|number| {
+                    crate::db::tests::scanned_file(
+                        &format!("song-{number:04}"),
+                        Some(&format!("CANCAO NUMERO {number:04}")),
+                        &format!("folder/SONG{number:04}.kar"),
+                        |_| {},
+                    )
+                })
+                .collect(),
+        );
         crate::db::tests::add(&mut db, "decided", Some("Tom Jobim"), "folder/tj.kar");
         (corpus, State::new(db))
     }
@@ -6021,14 +6016,19 @@ mod tests {
     fn a_corpus_with_seams(name: &str, songs: u32) -> (Scratch, State) {
         let corpus = Scratch::new(name);
         let mut db = Db::open_in_memory(corpus.path()).expect("open");
-        for number in 0..songs {
-            crate::db::tests::add(
-                &mut db,
-                &format!("song-{number:04}"),
-                Some(&format!("Bob Seger-Cancao numero {number:04}")),
-                &format!("folder/song{number:04}.kar"),
-            );
-        }
+        crate::db::tests::add_all(
+            &mut db,
+            (0..songs)
+                .map(|number| {
+                    crate::db::tests::scanned_file(
+                        &format!("song-{number:04}"),
+                        Some(&format!("Bob Seger-Cancao numero {number:04}")),
+                        &format!("folder/song{number:04}.kar"),
+                        |_| {},
+                    )
+                })
+                .collect(),
+        );
         crate::db::tests::add_with_artist(
             &mut db,
             "credited",
@@ -6077,14 +6077,19 @@ mod tests {
     fn a_corpus_of(name: &str, songs: u32) -> (Scratch, State) {
         let corpus = Scratch::new(name);
         let mut db = Db::open_in_memory(corpus.path()).expect("open");
-        for number in 0..songs {
-            crate::db::tests::add(
-                &mut db,
-                &format!("song-{number:04}"),
-                Some(&format!("Song {number:04}")),
-                &format!("folder/SONG{number:04}.kar"),
-            );
-        }
+        crate::db::tests::add_all(
+            &mut db,
+            (0..songs)
+                .map(|number| {
+                    crate::db::tests::scanned_file(
+                        &format!("song-{number:04}"),
+                        Some(&format!("Song {number:04}")),
+                        &format!("folder/SONG{number:04}.kar"),
+                        |_| {},
+                    )
+                })
+                .collect(),
+        );
         (corpus, State::new(db))
     }
 
@@ -6272,15 +6277,16 @@ mod tests {
     /// `Workspace::new` falls back to the writing one where it did not. On that fallback every page
     /// queues behind the scan's batch, which is the state the fault was reported from.
     ///
-    /// **The navigation and the fragment are asked at once**, which is the contrast this change is
-    /// about and costs one `READ_WAIT` rather than two: `/songs` is a page somebody went to, and
-    /// `/songs/rows` is the same refusal arriving at a page that is still on the screen.
+    /// **The navigation and the fragment are asked at once**, so the test waits once rather than
+    /// twice. `/songs` is a page somebody went to, and `/songs/rows` is the same refusal arriving at
+    /// a page that is still on the screen.
     ///
-    /// The holder is a thread, so no lock is held across an `await`. It sits through `READ_WAIT`,
-    /// which is what the person reporting this sat through.
+    /// The holder is a thread, so no lock is held across an `await`. The wait is a tenth of a
+    /// second rather than [`READ_WAIT`], which changes when the refusal comes and nothing about it.
     #[tokio::test]
     async fn a_navigation_while_the_corpus_is_written_to_offers_the_way_out() {
         let (_corpus, state) = a_corpus_of("busy-navigation", 1);
+        let state = state.with_read_wait(Duration::from_millis(100));
 
         let workspace = state.workspace().expect("a folder is open");
         assert!(

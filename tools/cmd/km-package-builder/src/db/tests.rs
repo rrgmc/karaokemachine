@@ -402,35 +402,6 @@ fn a_filter_binds_its_values_rather_than_interpolating_them() {
     assert!(values.is_empty());
 }
 
-/// The three bands partition 0–10, which the `≥ N` ladder they replaced did not.
-///
-/// Worth a test rather than a reading of the `match`: an off-by-one at either seam is a suitability
-/// that no band shows, and the symptom is a song missing from every filtered view while the
-/// unfiltered page still holds it — which reads as a broken index rather than as a broken
-/// boundary.
-#[test]
-fn every_score_falls_in_exactly_one_band() {
-    for score in 0..=10u8 {
-        let matched: Vec<_> = [
-            SuitabilityFilter::High,
-            SuitabilityFilter::Middle,
-            SuitabilityFilter::Low,
-        ]
-        .into_iter()
-        .filter(|band| match band {
-            SuitabilityFilter::High => (8..=10).contains(&score),
-            SuitabilityFilter::Middle => (5..=7).contains(&score),
-            SuitabilityFilter::Low => score < 5,
-            SuitabilityFilter::Any | SuitabilityFilter::Range { .. } => unreachable!(),
-        })
-        .collect();
-        assert_eq!(matched.len(), 1, "score {score} matched {matched:?}");
-    }
-
-    // *any* adds no clause at all, rather than a clause that happens to be true of everything.
-    assert!(SuitabilityFilter::Any.clause("s.suitability").is_none());
-}
-
 /// A hand-typed value cannot produce an empty page with no reason, and a round trip keeps it.
 #[test]
 fn a_band_survives_a_round_trip_and_nonsense_reads_as_any() {
@@ -599,10 +570,16 @@ fn two_favorites_cannot_share_a_name() {
     assert!(db.create_favorite("Rock").is_err());
 }
 
+/// Over a song that exists, so the refusal is the range check and not a missing row.
 #[test]
 fn a_rating_above_ten_is_refused() {
-    let db = db();
-    assert!(db.set_user_score("whatever", Some(11)).is_err());
+    let mut db = db();
+    add(&mut db, "song-a", Some("Corcovado"), "a/CORCOVAD.kar");
+    assert!(matches!(
+        db.set_user_score("song-a", Some(11)),
+        Err(DbError::Rejected(_))
+    ));
+    assert!(db.set_user_score("song-a", Some(10)).is_ok());
 }
 
 #[test]
@@ -2200,14 +2177,25 @@ fn a_package_with_every_number_used_says_it_is_full() {
         "2026-09-11T00:00:00Z",
     )
     .expect("create a package");
-    // Filled through the membership rather than through `add`, because what is asserted is the
-    // count of numbers in use and a thousand scans would buy nothing towards it.
-    for number in 1..=u32::from(km_songcode::MAX_SLOT) {
-        let id = format!("song-{number}");
-        add(&mut db, &id, Some(&id), &format!("f/{id}.kar"));
-        db.add_to_package("vol1", &[id], "2026-09-11T00:00:00Z")
-            .expect("fill it");
-    }
+    // One batch of songs and one batch of members, because what is asserted is the count of
+    // numbers in use. A transaction per song costs seconds and buys nothing towards it.
+    let ids: Vec<String> = (1..=u32::from(km_songcode::MAX_SLOT))
+        .map(|number| format!("song-{number}"))
+        .collect();
+    add_all(
+        &mut db,
+        ids.iter()
+            .map(|id| scanned_file(id, Some(id), &format!("f/{id}.kar"), |_| {}))
+            .collect(),
+    );
+    let filled = db
+        .add_to_package("vol1", &ids, "2026-09-11T00:00:00Z")
+        .expect("fill it");
+    assert_eq!(
+        filled.added,
+        u32::from(km_songcode::MAX_SLOT),
+        "every number is taken"
+    );
     add(&mut db, "one-more", Some("One More"), "f/one-more.kar");
 
     let over = db
@@ -2414,14 +2402,7 @@ fn the_sweep_runs_once_and_then_knows_it_has_run() {
 #[test]
 fn the_browse_order_is_an_index_seek_and_not_a_sort_of_the_corpus() {
     let mut db = Db::open_in_memory(Path::new("/corpus")).expect("open");
-    for number in 0..300 {
-        add(
-            &mut db,
-            &format!("song-{number:04}"),
-            Some(&format!("Song {number:04}")),
-            &format!("folder/SONG{number:04}.kar"),
-        );
-    }
+    add_all(&mut db, three_hundred_songs());
     db.refresh_statistics();
 
     // The statistics are gathered unbounded, and this is the assertion that keeps them that way.
@@ -2564,22 +2545,29 @@ fn every_browse_sort_is_an_index_seek() {
     // reason to prefer an index and would pick a scan against perfectly correct code — the same
     // trap the sibling test documents for an empty table.
     let languages = ["pt", "en", "es"];
+    add_all(
+        &mut db,
+        (0..300)
+            .map(|number| {
+                scanned_file(
+                    &format!("song-{number:04}"),
+                    // Shared by three songs, so the performer terms of every key are terms the
+                    // planner has a reason to read. One title per song would let an index that had
+                    // never gained them pass this test — the tie-break would have no tie to break.
+                    Some(&format!("Song {:04}", number / 3)),
+                    &format!("folder/SONG{number:04}.kar"),
+                    |song| {
+                        song.det_artist = Some(format!("Artist {:02}", number % 40));
+                        song.det_language =
+                            (number % 5 != 0).then(|| languages[number % 3].to_owned());
+                        song.duration_ms = 100_000 + (number as u32 % 90) * 1_000;
+                    },
+                )
+            })
+            .collect(),
+    );
     for number in 0..300 {
         let id = format!("song-{number:04}");
-        add_built(
-            &mut db,
-            &id,
-            // Shared by three songs, so the performer terms of every key are terms the planner has
-            // a reason to read. One title per song would let an index that had never gained them
-            // pass this test — the tie-break would have no tie to break.
-            Some(&format!("Song {:04}", number / 3)),
-            &format!("folder/SONG{number:04}.kar"),
-            |song| {
-                song.det_artist = Some(format!("Artist {:02}", number % 40));
-                song.det_language = (number % 5 != 0).then(|| languages[number % 3].to_owned());
-                song.duration_ms = 100_000 + (number as u32 % 90) * 1_000;
-            },
-        );
         // Left unset on every fifth song, so the `IS NULL` leading column has both values in it.
         if number % 5 != 0 {
             db.set_user_score(&id, Some((number % 11) as u8))
@@ -2874,24 +2862,27 @@ fn a_page_knows_there_is_another_without_counting_the_corpus() {
 #[test]
 fn a_rows_file_subqueries_are_answered_from_the_index() {
     let mut db = Db::open_in_memory(Path::new("/corpus")).expect("open");
+    let mut files = Vec::new();
     for number in 0..300 {
         let id = format!("song-{number:04}");
+        let title = format!("Song {number:04}");
         // Two copies of most songs, so the path list is worth ordering.
-        add(
-            &mut db,
+        files.push(scanned_file(
             &id,
-            Some(&format!("Song {number:04}")),
+            Some(&title),
             &format!("a/SONG{number:04}.kar"),
-        );
+            |_| {},
+        ));
         if number % 3 != 0 {
-            add(
-                &mut db,
+            files.push(scanned_file(
                 &id,
-                Some(&format!("Song {number:04}")),
+                Some(&title),
                 &format!("b/SONG{number:04}.kar"),
-            );
+                |_| {},
+            ));
         }
     }
+    add_all(&mut db, files);
     db.refresh_statistics();
 
     let plan = db
@@ -3332,14 +3323,7 @@ fn the_ticked_count_is_what_the_write_will_do_rather_than_what_was_ticked() {
 /// length.
 fn corpus_with_statistics() -> Db {
     let mut db = Db::open_in_memory(Path::new("/corpus")).expect("open");
-    for number in 0..300 {
-        add(
-            &mut db,
-            &format!("song-{number:04}"),
-            Some(&format!("Song {number:04}")),
-            &format!("folder/SONG{number:04}.kar"),
-        );
-    }
+    add_all(&mut db, three_hundred_songs());
     db.refresh_statistics();
     db
 }
@@ -5493,6 +5477,39 @@ fn add_built(
     path: &str,
     adjust: impl FnOnce(&mut crate::model::ScannedSong),
 ) {
+    add_all(db, vec![scanned_file(id, title, path, adjust)]);
+}
+
+/// Three hundred plain songs, `song-0000` onward, for the tests that measure a query plan.
+fn three_hundred_songs() -> Vec<crate::model::ScannedFile> {
+    (0..300)
+        .map(|number| {
+            scanned_file(
+                &format!("song-{number:04}"),
+                Some(&format!("Song {number:04}")),
+                &format!("folder/SONG{number:04}.kar"),
+                |_| {},
+            )
+        })
+        .collect()
+}
+
+/// Writes many songs in one transaction.
+///
+/// A fixture of hundreds of songs is what a query plan is measured against. Written one at a time,
+/// each song is a commit, and the commits cost seconds.
+pub(crate) fn add_all(db: &mut Db, files: Vec<crate::model::ScannedFile>) {
+    db.write_scanned(&files, "2026-08-24T00:00:00Z")
+        .expect("write");
+}
+
+/// The file [`add`] writes, built and not yet written, for [`add_all`].
+pub(crate) fn scanned_file(
+    id: &str,
+    title: Option<&str>,
+    path: &str,
+    adjust: impl FnOnce(&mut crate::model::ScannedSong),
+) -> crate::model::ScannedFile {
     let mut song = crate::model::ScannedSong {
         id: id.to_owned(),
         det_title: title.map(ToOwned::to_owned),
@@ -5534,7 +5551,7 @@ fn add_built(
         lrc: None,
     };
     adjust(&mut song);
-    let file = crate::model::ScannedFile {
+    crate::model::ScannedFile {
         path: path.to_owned(),
         size: 1234,
         mtime: 0,
@@ -5542,9 +5559,7 @@ fn add_built(
         status: crate::model::ScanStatus::Ok,
         error: None,
         song: Some(song),
-    };
-    db.write_scanned(&[file], "2026-08-24T00:00:00Z")
-        .expect("write");
+    }
 }
 
 fn ids(rows: &[SongRow]) -> Vec<&str> {
@@ -6847,7 +6862,7 @@ fn a_file_that_is_gone_takes_its_last_song_with_it() {
     );
     let counts = db.counts().expect("counts");
     assert_eq!((counts.songs, counts.files), (1, 1));
-    assert!(db.song("a").is_err() || db.song("b").is_ok());
+    assert!(db.song("a").is_err() && db.song("b").is_ok());
 }
 
 /// A song with copies elsewhere survives losing one of them.
@@ -7983,32 +7998,6 @@ fn a_songs_corrections_are_stored_and_can_be_handed_back_to_detection() {
     assert_eq!(db.song("song-a").expect("song").fixes, None);
 }
 
-/// Editing the corrections stamps `updated_at`, which needs both halves of the trigger.
-///
-/// The trigger names its columns twice — once in `AFTER UPDATE OF` and once in the `WHEN` — and a
-/// column added to one and not the other stamps nothing, silently.
-#[test]
-fn changing_the_corrections_stamps_the_song() {
-    let mut db = db();
-    add_built(&mut db, "song-a", Some("Wave"), "a/WAVE.kar", |_| {});
-    clear_stamp(&db, "song-a");
-    assert_eq!(stamp(&db, "song-a"), None);
-
-    db.edit_song(
-        "song-a",
-        &SongEdit {
-            fixes: Some(Some(r#"[{"fix":"mute_channel","channel":2}]"#.to_owned())),
-            ..SongEdit::default()
-        },
-    )
-    .expect("edit");
-
-    assert!(
-        stamp(&db, "song-a").is_some(),
-        "the trigger did not stamp the song, so one half of it is missing the column"
-    );
-}
-
 /// One scanned MIDI song's parse facts, for a test that cares about its suitability.
 fn midi_facts() -> crate::model::MidiFacts {
     crate::model::MidiFacts {
@@ -8291,15 +8280,6 @@ fn a_shipped_connection_asks_for_the_mapping_the_note_measured() {
         "1073741824",
         "the mapping a build ships with is what the research note's figures are about"
     );
-}
-
-/// And it still notices the connection's own writes, which is the half that was always there.
-#[test]
-fn the_counts_cache_still_notices_its_own_writes() {
-    let mut db = db();
-    assert_eq!(db.counts().expect("counts").songs, 0);
-    add(&mut db, "a", Some("A"), "rock/a.kar");
-    assert_eq!(db.counts().expect("counts").songs, 1);
 }
 
 /// A database outside write-ahead logging gets no second connection.

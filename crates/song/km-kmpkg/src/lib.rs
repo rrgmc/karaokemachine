@@ -2197,7 +2197,15 @@ mod tests {
         builder.add(entry(1), b"midi bytes".to_vec()).expect("add");
         let manifest = builder.write(&path).expect("write");
 
-        assert_eq!(manifest.format, FORMAT_VERSION_MIDI_ONLY);
+        assert_eq!(
+            manifest.format, FORMAT_VERSION_MIDI_ONLY,
+            "adopting video must not make every package unreadable to an older build"
+        );
+        let json = read_manifest_json(&path);
+        assert!(
+            !json.contains("\"kind\""),
+            "a MIDI-only manifest should not mention kind at all: {json}"
+        );
         let package = Package::open(&path).expect("a MIDI package must go on opening");
         assert_eq!(package.len(), 1);
     }
@@ -2300,6 +2308,12 @@ mod tests {
             .expect("add");
 
         let result = builder.write(dir.join("dup.kmpkg"));
+        // The message names the file and says what is wrong with it.
+        if let Err(error) = &result {
+            let message = error.to_string();
+            assert!(message.contains("dup.kmpkg"), "got {message}");
+            assert!(message.contains("byte-identical"), "got {message}");
+        }
         match result {
             Err(PackageError::Invalid { problems, .. }) => assert!(
                 problems
@@ -2392,18 +2406,6 @@ mod tests {
         }
     }
 
-    /// The other half: an ordinary manifest is nowhere near the ceiling and still opens.
-    #[test]
-    fn an_ordinary_package_is_far_inside_the_manifest_ceiling() {
-        let dir = temp_dir("manifest-ordinary");
-        let path = dir.join("vol.kmpkg");
-        let mut builder = PackageBuilder::new(meta());
-        builder.add(entry(1), b"midi".to_vec()).expect("add");
-        builder.write(&path).expect("write");
-
-        assert!(Package::open(&path).is_ok());
-    }
-
     #[test]
     fn reading_an_absent_song_number_is_an_error() {
         let dir = temp_dir("absent-song");
@@ -2481,43 +2483,6 @@ mod tests {
         assert!(
             raw.problems()
                 .contains(&ManifestProblem::DuplicateNumber(3))
-        );
-    }
-
-    #[test]
-    fn error_messages_name_the_file_and_the_problem() {
-        let dir = temp_dir("messages");
-        let mut builder = PackageBuilder::new(meta());
-        builder.add(entry(1), b"a".to_vec()).expect("add");
-        builder.add(entry(2), b"a".to_vec()).expect("add");
-        let error = builder
-            .write(dir.join("dup.kmpkg"))
-            .expect_err("should refuse");
-        let message = error.to_string();
-        assert!(message.contains("dup.kmpkg"), "got {message}");
-        assert!(
-            message.contains("byte-identical"),
-            "the message should say what is wrong: {message}"
-        );
-    }
-
-    #[test]
-    fn an_all_midi_package_is_still_written_as_format_one() {
-        let dir = temp_dir("midi-format");
-        let path = dir.join("vol1.kmpkg");
-
-        let mut builder = PackageBuilder::new(meta());
-        builder.add(entry(1), b"midi".to_vec()).expect("add");
-        let manifest = builder.write(&path).expect("write");
-
-        assert_eq!(
-            manifest.format, FORMAT_VERSION_MIDI_ONLY,
-            "adopting video must not make every package unreadable to an older build"
-        );
-        let json = read_manifest_json(&path);
-        assert!(
-            !json.contains("\"kind\""),
-            "a MIDI-only manifest should not mention kind at all: {json}"
         );
     }
 

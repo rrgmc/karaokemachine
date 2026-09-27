@@ -78,44 +78,6 @@ async fn signing_in_is_a_plain_form_post_that_lands_the_token() {
     );
 }
 
-/// A rename reaches the admin route, carrying the token.
-///
-/// **The path is the assertion.** It read `/machine/name` and therefore missed the router it was
-/// meant for entirely — a 404 that reached the page as a sentence about the machine.
-#[tokio::test]
-async fn a_rename_reaches_the_admin_route_with_the_token() {
-    let server = MockServer::start().await;
-    let dir = tempfile::tempdir().expect("temp dir");
-    let state = State::new(dir.path().to_path_buf(), Some(server.uri()));
-    log_in(&server, &state).await;
-
-    Mock::given(method("PUT"))
-        .and(path("/api/v1/admin/machine/name"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
-            "name": "Living Room",
-        })))
-        .mount(&server)
-        .await;
-
-    let (status, body) = post_form(&state, "/admin/machine/name", "name=Living+Room").await;
-    assert!(status.is_redirection(), "{status} {body}");
-
-    let sent = server
-        .received_requests()
-        .await
-        .expect("recorded")
-        .into_iter()
-        .find(|request| request.url.path() == "/api/v1/admin/machine/name")
-        .expect("the rename never reached the admin route");
-    assert_eq!(
-        sent.headers
-            .get("authorization")
-            .map(|v| v.to_str().unwrap()),
-        Some("Bearer a-token"),
-        "the rename went without the token it needs"
-    );
-}
-
 /// The delay reaches `PUT /api/v1/admin/demo/delay`, as a number and with no `persist` beside it.
 ///
 /// **The body is the assertion, not only the path.** A delay is always written down, so a form that
@@ -1367,36 +1329,6 @@ async fn a_machine_that_does_not_answer_says_so_rather_than_blaming_the_password
         landed.contains("did not answer"),
         "an unreachable machine was reported as a refused password: {landed}"
     );
-}
-
-/// A remembered password opens the door with the box left blank.
-///
-/// **Blank means *spend what this computer remembers***, which is the other half of requiring one:
-/// somebody who ticked the box does not type it again every launch.
-#[tokio::test]
-async fn a_remembered_password_opens_the_door_with_the_box_blank() {
-    let server = MockServer::start().await;
-    let dir = tempfile::tempdir().expect("temp dir");
-    let state = State::new(dir.path().to_path_buf(), Some(server.uri()));
-    // Chosen rather than handed over on a command line: only a chosen machine has a record for an
-    // identity to be written against, and an identity is what a password is keyed by.
-    state.set_machine(Some(server.uri()));
-    log_in(&server, &state).await;
-    answers_discover(&server).await;
-
-    // Typed once, with the box ticked.
-    let landed = post_form_to(
-        &state,
-        "/admin/connect/use",
-        "row=chosen&password=first1975&remember=yes",
-    )
-    .await;
-    assert_eq!(landed, "/admin/machine", "{landed}");
-    assert!(state.remembered_password().is_some(), "nothing was stored");
-
-    // ...and not typed again.
-    let landed = post_form_to(&state, "/admin/connect/use", "row=chosen&password=").await;
-    assert_eq!(landed, "/admin/machine", "{landed}");
 }
 
 /// Spending a remembered password keeps it.

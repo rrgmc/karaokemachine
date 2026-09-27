@@ -1503,12 +1503,24 @@ mod tests {
 
         // The first load writes a complete file: defaults, a fresh instance id and the PIN this
         // machine gives itself. That is the file a second run has to leave alone.
-        let (first, _) = Settings::load(&paths);
+        let (first, wrote) = Settings::load(&paths);
+        assert!(wrote, "a first run writes its file");
+        assert!(!first.machine.instance_id.is_empty());
         let written = std::fs::read_to_string(paths.settings_file()).expect("the settings file");
 
         // A second load must find nothing to change — no migration, no password to mint — and
-        // saving what it read must produce the same bytes.
-        let (second, _) = Settings::load(&paths);
+        // saving what it read must produce the same bytes. A file rewritten at every start is the
+        // fault: the instance id and `ensure_password` are what decide, and neither may keep
+        // finding work.
+        let (second, wrote) = Settings::load(&paths);
+        assert!(
+            !wrote,
+            "a settled settings file must not be rewritten at every start"
+        );
+        assert_eq!(
+            first.machine.instance_id, second.machine.instance_id,
+            "a remote recognizes the machine it talked to yesterday"
+        );
         let after = std::fs::read_to_string(paths.settings_file()).expect("the settings file");
         assert_eq!(
             written, after,
@@ -2015,25 +2027,6 @@ mod tests {
         assert!(reloaded.debug.enabled.is_none());
     }
 
-    #[test]
-    fn a_first_run_writes_a_file_and_mints_an_instance_id() {
-        let scratch = Scratch::new("first-run");
-        let (settings, written) = Settings::load(&scratch.paths());
-        assert!(written);
-        assert!(!settings.machine.instance_id.is_empty());
-        assert!(scratch.paths().settings_file().is_file());
-    }
-
-    #[test]
-    fn the_instance_id_survives_a_restart() {
-        let scratch = Scratch::new("stable-id");
-        let (first, _) = Settings::load(&scratch.paths());
-        let (second, written) = Settings::load(&scratch.paths());
-        // A remote should recognize the machine it talked to yesterday, so this must not change.
-        assert_eq!(first.machine.instance_id, second.machine.instance_id);
-        assert!(!written, "a second load should not need to rewrite");
-    }
-
     /// The guide melody starts on, and a machine that has said otherwise is still obeyed.
     ///
     /// Both halves matter. The default is what an install with no settings file gets, and it changed:
@@ -2351,27 +2344,6 @@ mod tests {
                 .with_extension("json.bad")
                 .is_file(),
             "the unreadable file should be kept for the owner to look at"
-        );
-    }
-
-    /// A file with nothing to change is not rewritten on every start.
-    ///
-    /// **The failure this guards is a settings file rewritten for ever.** What decides whether
-    /// `load` writes is the instance id and `ensure_password`, and neither must keep finding work.
-    #[test]
-    fn a_settings_file_with_nothing_to_do_is_left_alone() {
-        let scratch = Scratch::new("settled");
-        scratch.paths().create().expect("directories");
-
-        // First load writes: it mints an instance id and a password.
-        let (_, written) = Settings::load(&scratch.paths());
-        assert!(written);
-
-        // Second load has nothing left to do.
-        let (_, written) = Settings::load(&scratch.paths());
-        assert!(
-            !written,
-            "a settled settings file must not be rewritten at every start"
         );
     }
 

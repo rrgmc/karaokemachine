@@ -555,6 +555,10 @@ mod tests {
 
     use crate::testing::{Scratch, StubLocator, sighting};
 
+    // **Every machine address here is a closed port on loopback.** Pointing a link at one starts a
+    // refresh, and a closed port refuses it at once. An invented LAN address waits out the whole
+    // command timeout instead, and a real one on the tester's own network could answer.
+
     /// A link over a directory of this test's own.
     ///
     /// **The directory comes first so that it goes last.** Destructured into two locals, these drop
@@ -596,13 +600,13 @@ mod tests {
         let (_dir, link) = linked("typed", Arc::new(find::NoLocator), false);
         assert!(!link.pinned());
 
-        link.connect_to("192.168.1.5").await.expect("accepted");
+        link.connect_to("127.0.0.1:5").await.expect("accepted");
 
         assert!(link.pinned(), "a typed address pins the machine");
         assert_eq!(
             link.machine().api().map(|api| api.base().to_owned()),
-            Some("http://192.168.1.5:8177".to_owned()),
-            "the port and the scheme are filled in by `find::normalize`"
+            Some("http://127.0.0.1:5".to_owned()),
+            "the scheme is filled in by `find::normalize`"
         );
         assert_eq!(link.how().as_deref(), Some("asked-for"));
     }
@@ -611,7 +615,7 @@ mod tests {
     #[tokio::test]
     async fn a_typed_address_is_not_remembered_until_it_answers() {
         let (dir, link) = linked("unremembered", Arc::new(find::NoLocator), false);
-        link.connect_to("10.0.0.9").await.expect("accepted");
+        link.connect_to("127.0.0.1:9").await.expect("accepted");
         assert_eq!(
             find::known(dir.path()),
             None,
@@ -624,7 +628,7 @@ mod tests {
     async fn a_rescan_clears_the_pin() {
         let (_dir, link) = linked(
             "unpin",
-            Arc::new(StubLocator::new(Some("http://10.0.0.2:8177"))),
+            Arc::new(StubLocator::new(Some("http://127.0.0.1:2"))),
             true,
         );
 
@@ -632,7 +636,7 @@ mod tests {
 
         assert_eq!(
             found.outcome,
-            Scanned::Using("http://10.0.0.2:8177".to_owned())
+            Scanned::Using("http://127.0.0.1:2".to_owned())
         );
         assert!(found.others.is_empty(), "one machine answered");
         assert!(
@@ -661,10 +665,10 @@ mod tests {
     async fn a_rescan_on_a_connected_remote_offers_and_still_unpins() {
         let (_dir, link) = linked(
             "offered",
-            Arc::new(StubLocator::new(Some("http://10.0.0.2:8177"))),
+            Arc::new(StubLocator::new(Some("http://127.0.0.1:2"))),
             true,
         );
-        answering(&link, "http://10.0.0.1:8177");
+        answering(&link, "http://127.0.0.1:1");
 
         let found = link.rescan().await.expect("a browse is never an error");
 
@@ -677,12 +681,12 @@ mod tests {
                 .iter()
                 .map(|o| o.url.as_str())
                 .collect::<Vec<_>>(),
-            ["http://10.0.0.2:8177"]
+            ["http://127.0.0.1:2"]
         );
         assert!(!link.pinned(), "the pin comes off whether or not it moved");
         assert_eq!(
             link.machine().api().map(|api| api.base().to_owned()),
-            Some("http://10.0.0.1:8177".to_owned()),
+            Some("http://127.0.0.1:1".to_owned()),
             "a look at the network does not take the machine somebody is using"
         );
         assert_eq!(
@@ -701,7 +705,7 @@ mod tests {
     /// one case an id exists to catch became the one case it could not.
     #[tokio::test]
     async fn a_stranger_at_a_remembered_address_does_not_become_the_machine() {
-        let record = Known::at("http://10.0.0.1:8177", Why::Remembered).answered(
+        let record = Known::at("http://127.0.0.1:1", Why::Remembered).answered(
             "ours",
             Some("Living Room".to_owned()),
             std::time::SystemTime::now(),
@@ -712,7 +716,7 @@ mod tests {
             false,
             Some(record),
         );
-        link.point_at("http://10.0.0.1:8177", Why::Remembered);
+        link.point_at("http://127.0.0.1:1", Why::Remembered);
 
         link.answered("stranger", Some("Spare Box".to_owned()));
 
@@ -732,7 +736,7 @@ mod tests {
     /// which machine this is. Only `remembered` is a guess.
     #[tokio::test]
     async fn a_machine_at_an_address_somebody_named_is_the_machine() {
-        let record = Known::at("http://10.0.0.1:8177", Why::Remembered).answered(
+        let record = Known::at("http://127.0.0.1:1", Why::Remembered).answered(
             "ours",
             None,
             std::time::SystemTime::now(),
@@ -744,7 +748,7 @@ mod tests {
             Some(record),
         );
 
-        link.point_at("http://10.0.0.2:8177", Why::AskedFor);
+        link.point_at("http://127.0.0.1:2", Why::AskedFor);
         link.answered("another", Some("Spare Box".to_owned()));
 
         assert_eq!(
@@ -762,9 +766,9 @@ mod tests {
             "unanchored",
             Arc::new(StubLocator::new(None)),
             false,
-            Some(Known::at("http://10.0.0.1:8177", Why::Remembered)),
+            Some(Known::at("http://127.0.0.1:1", Why::Remembered)),
         );
-        link.point_at("http://10.0.0.1:8177", Why::Remembered);
+        link.point_at("http://127.0.0.1:1", Why::Remembered);
 
         link.answered("first", None);
 
@@ -787,7 +791,7 @@ mod tests {
     /// machine A and was never told about B is the reported fault in its second location.
     #[tokio::test]
     async fn a_rescan_prefers_the_machine_this_device_already_knows() {
-        let record = Known::at("http://10.0.0.1:8177", Why::Remembered).answered(
+        let record = Known::at("http://127.0.0.1:1", Why::Remembered).answered(
             "ours",
             None,
             std::time::SystemTime::now(),
@@ -795,8 +799,8 @@ mod tests {
         let (_dir, link) = linked_knowing(
             "prefers",
             Arc::new(StubLocator::seeing(vec![
-                sighting(Some("stranger"), "http://10.0.0.9:8177"),
-                sighting(Some("ours"), "http://10.0.0.2:8177"),
+                sighting(Some("stranger"), "http://127.0.0.1:9"),
+                sighting(Some("ours"), "http://127.0.0.1:2"),
             ])),
             false,
             Some(record),
@@ -805,7 +809,7 @@ mod tests {
         let found = link.rescan().await.expect("not an error");
         assert_eq!(
             found.outcome,
-            Scanned::Using("http://10.0.0.2:8177".to_owned()),
+            Scanned::Using("http://127.0.0.1:2".to_owned()),
             "the machine it knows, at its new address — not the first one on the wire"
         );
         assert_eq!(
@@ -814,12 +818,12 @@ mod tests {
                 .iter()
                 .map(|o| o.url.as_str())
                 .collect::<Vec<_>>(),
-            ["http://10.0.0.9:8177"],
+            ["http://127.0.0.1:9"],
             "and the one it did not take is offered"
         );
         assert_eq!(
             link.machine().api().map(|api| api.base().to_owned()),
-            Some("http://10.0.0.2:8177".to_owned())
+            Some("http://127.0.0.1:2".to_owned())
         );
     }
 
@@ -830,7 +834,7 @@ mod tests {
     /// pressing one of them is how somebody says otherwise.
     #[tokio::test]
     async fn a_rescan_that_cannot_find_the_machine_this_device_knows_offers_rather_than_moves() {
-        let record = Known::at("http://10.0.0.1:8177", Why::Remembered).answered(
+        let record = Known::at("http://127.0.0.1:1", Why::Remembered).answered(
             "ours",
             None,
             std::time::SystemTime::now(),
@@ -838,13 +842,13 @@ mod tests {
         let (_dir, link) = linked_knowing(
             "unfound",
             Arc::new(StubLocator::seeing(vec![
-                sighting(Some("stranger"), "http://10.0.0.9:8177"),
-                sighting(Some("another"), "http://10.0.0.8:8177"),
+                sighting(Some("stranger"), "http://127.0.0.1:9"),
+                sighting(Some("another"), "http://127.0.0.1:8"),
             ])),
             false,
             Some(record),
         );
-        link.point_at("http://10.0.0.1:8177", Why::Remembered);
+        link.point_at("http://127.0.0.1:1", Why::Remembered);
 
         let found = link.rescan().await.expect("not an error");
         assert_eq!(found.outcome, Scanned::Kept);
@@ -854,12 +858,12 @@ mod tests {
                 .iter()
                 .map(|offer| offer.url.as_str())
                 .collect::<Vec<_>>(),
-            ["http://10.0.0.8:8177", "http://10.0.0.9:8177"],
+            ["http://127.0.0.1:8", "http://127.0.0.1:9"],
             "everything that answered is offered, since none of it was taken"
         );
         assert_eq!(
             link.machine().api().map(|api| api.base().to_owned()),
-            Some("http://10.0.0.1:8177".to_owned()),
+            Some("http://127.0.0.1:1".to_owned()),
             "and the machine in hand is where it was"
         );
         assert!(!link.pinned(), "the pin still comes off in every branch");
@@ -873,7 +877,7 @@ mod tests {
             "cold",
             Arc::new(StubLocator::seeing(vec![sighting(
                 Some("stranger"),
-                "http://10.0.0.9:8177",
+                "http://127.0.0.1:9",
             )])),
             false,
         );
@@ -881,7 +885,7 @@ mod tests {
         let found = link.rescan().await.expect("not an error");
         assert_eq!(
             found.outcome,
-            Scanned::Using("http://10.0.0.9:8177".to_owned())
+            Scanned::Using("http://127.0.0.1:9".to_owned())
         );
     }
 
@@ -890,15 +894,15 @@ mod tests {
     async fn a_rescan_that_finds_the_machine_in_hand_says_so() {
         let (_dir, link) = linked(
             "already",
-            Arc::new(StubLocator::new(Some("http://10.0.0.1:8177"))),
+            Arc::new(StubLocator::new(Some("http://127.0.0.1:1"))),
             false,
         );
-        answering(&link, "http://10.0.0.1:8177");
+        answering(&link, "http://127.0.0.1:1");
 
         let found = link.rescan().await.expect("not an error");
         assert_eq!(
             found.outcome,
-            Scanned::Already("http://10.0.0.1:8177".to_owned())
+            Scanned::Already("http://127.0.0.1:1".to_owned())
         );
         assert!(found.others.is_empty(), "there was nothing else out there");
     }
@@ -913,18 +917,18 @@ mod tests {
         let (_dir, link) = linked(
             "both",
             Arc::new(StubLocator::seeing(vec![
-                sighting(Some("ours"), "http://10.0.0.1:8177"),
-                sighting(Some("stranger"), "http://10.0.0.9:8177"),
+                sighting(Some("ours"), "http://127.0.0.1:1"),
+                sighting(Some("stranger"), "http://127.0.0.1:9"),
             ])),
             false,
         );
-        answering(&link, "http://10.0.0.1:8177");
+        answering(&link, "http://127.0.0.1:1");
         link.answered("ours", Some("Living Room".to_owned()));
 
         let found = link.rescan().await.expect("not an error");
         assert_eq!(
             found.outcome,
-            Scanned::Already("http://10.0.0.1:8177".to_owned())
+            Scanned::Already("http://127.0.0.1:1".to_owned())
         );
         assert_eq!(
             found
@@ -932,12 +936,12 @@ mod tests {
                 .iter()
                 .map(|o| o.url.as_str())
                 .collect::<Vec<_>>(),
-            ["http://10.0.0.9:8177"],
+            ["http://127.0.0.1:9"],
             "the other machine has to be reachable from the page"
         );
         assert_eq!(
             link.machine().api().map(|api| api.base().to_owned()),
-            Some("http://10.0.0.1:8177".to_owned()),
+            Some("http://127.0.0.1:1".to_owned()),
             "and nothing moved"
         );
     }
@@ -952,18 +956,18 @@ mod tests {
         let (_dir, link) = linked(
             "moved",
             Arc::new(StubLocator::seeing(vec![
-                sighting(Some("ours"), "http://10.0.0.2:8177"),
-                sighting(Some("stranger"), "http://10.0.0.9:8177"),
+                sighting(Some("ours"), "http://127.0.0.1:2"),
+                sighting(Some("stranger"), "http://127.0.0.1:9"),
             ])),
             false,
         );
-        answering(&link, "http://10.0.0.1:8177");
+        answering(&link, "http://127.0.0.1:1");
         link.answered("ours", None);
 
         let found = link.rescan().await.expect("not an error");
         assert_eq!(
             found.outcome,
-            Scanned::Already("http://10.0.0.1:8177".to_owned())
+            Scanned::Already("http://127.0.0.1:1".to_owned())
         );
         assert_eq!(
             found
@@ -971,7 +975,7 @@ mod tests {
                 .iter()
                 .map(|o| o.url.as_str())
                 .collect::<Vec<_>>(),
-            ["http://10.0.0.9:8177"],
+            ["http://127.0.0.1:9"],
             "our own machine at its new address is not a stranger"
         );
     }
@@ -983,21 +987,21 @@ mod tests {
     /// its mind. The name leads the sort because it is what the card shows.
     #[tokio::test]
     async fn every_machine_that_answered_is_offered_once() {
-        let mut twice = sighting(Some("stranger"), "http://10.0.0.9:8177");
+        let mut twice = sighting(Some("stranger"), "http://127.0.0.1:9");
         twice.name = "Kitchen".to_owned();
-        let mut named = sighting(Some("attic"), "http://10.0.0.5:8177");
+        let mut named = sighting(Some("attic"), "http://127.0.0.1:5");
         named.name = "Attic".to_owned();
         let (_dir, link) = linked(
             "sorted",
             Arc::new(StubLocator::seeing(vec![
                 twice.clone(),
-                sighting(Some("ours"), "http://10.0.0.1:8177"),
+                sighting(Some("ours"), "http://127.0.0.1:1"),
                 named,
                 twice,
             ])),
             false,
         );
-        answering(&link, "http://10.0.0.1:8177");
+        answering(&link, "http://127.0.0.1:1");
         link.answered("ours", None);
 
         let found = link.rescan().await.expect("not an error");
@@ -1008,8 +1012,8 @@ mod tests {
                 .map(|o| (o.name.as_deref(), o.url.as_str()))
                 .collect::<Vec<_>>(),
             [
-                (Some("Attic"), "http://10.0.0.5:8177"),
-                (Some("Kitchen"), "http://10.0.0.9:8177"),
+                (Some("Attic"), "http://127.0.0.1:5"),
+                (Some("Kitchen"), "http://127.0.0.1:9"),
             ]
         );
     }
@@ -1024,13 +1028,13 @@ mod tests {
     async fn accepting_an_offer_moves_without_pinning() {
         let (_dir, link) = linked("accepted", Arc::new(find::NoLocator), false);
 
-        link.use_found("http://10.0.0.2:8177")
+        link.use_found("http://127.0.0.1:2")
             .await
             .expect("never an error for a machine that is merely switched off");
 
         assert_eq!(
             link.machine().api().map(|api| api.base().to_owned()),
-            Some("http://10.0.0.2:8177".to_owned())
+            Some("http://127.0.0.1:2".to_owned())
         );
         assert!(!link.pinned(), "the network's answer is not somebody's");
         assert_eq!(link.how().as_deref(), Some("chosen"));
@@ -1040,14 +1044,14 @@ mod tests {
     #[tokio::test]
     async fn a_rescan_that_finds_nothing_keeps_the_address_it_had() {
         let (_dir, link) = linked("fruitless", Arc::new(StubLocator::new(None)), false);
-        link.connect_to("10.0.0.1").await.expect("accepted");
+        link.connect_to("127.0.0.1:1").await.expect("accepted");
 
         let found = link.rescan().await.expect("not an error");
         assert_eq!(found.outcome, Scanned::Nothing);
         assert!(found.others.is_empty());
         assert_eq!(
             link.machine().api().map(|api| api.base().to_owned()),
-            Some("http://10.0.0.1:8177".to_owned()),
+            Some("http://127.0.0.1:1".to_owned()),
             "a fruitless browse leaves the remote where it was"
         );
     }

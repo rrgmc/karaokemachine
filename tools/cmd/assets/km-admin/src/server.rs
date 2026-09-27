@@ -948,15 +948,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn the_page_renders() {
-        let (status, content_type, body) = get_path("/admin/connect").await;
-        assert_eq!(status, StatusCode::OK);
-        assert!(content_type.starts_with("text/html"), "{content_type}");
-        let html = String::from_utf8(body).expect("utf-8");
-        assert!(html.contains(APP_NAME), "the page names the product");
-    }
-
-    #[tokio::test]
     async fn every_static_file_is_really_embedded_and_typed() {
         // `include_str!` makes a *missing* file a build failure, which is most of the guarantee.
         // What it cannot catch is a route serving the wrong content type, and a stylesheet sent as

@@ -1372,25 +1372,16 @@ mod tests {
     /// This is the whole of what moving media into the `.kmpkg` asks of this crate: the packaged
     /// route supplies a window into an archive instead of a file, and everything downstream has to
     /// be unable to tell.
+    ///
+    /// With custom I/O the name is all ffmpeg has to probe by, so an entry is called
+    /// `media/<number>.mp4`. A name with no extension leaves probing to sniff the bytes, which can
+    /// decide wrong on a fragmented MP4 or a short read.
     #[test]
     fn a_reader_probes_to_the_same_shape_as_a_path() {
         let by_path = probe(&fixture()).expect("path");
         let file = std::fs::File::open(fixture()).expect("open");
         let by_reader = probe_from(file, "media/0007.mp4").expect("reader");
         assert_eq!(by_path, by_reader);
-    }
-
-    /// With custom I/O there is no filename for ffmpeg to look at, so the name is doing real work.
-    ///
-    /// The failure this guards against is quiet: a name with no extension leaves probing to sniff
-    /// the bytes, which for a fragmented MP4 or a short read can decide wrong. An entry is called
-    /// `media/<number>.mp4` precisely so this keeps working.
-    #[test]
-    fn the_name_is_what_a_reader_is_probed_as() {
-        let file = std::fs::File::open(fixture()).expect("open");
-        let info = probe_from(file, "media/0007.mp4").expect("probe");
-        assert_eq!(info.video_codec, "h264");
-        assert!(info.duration_ms > 0);
     }
 
     /// And a video **decodes** from a reader, not merely probes.

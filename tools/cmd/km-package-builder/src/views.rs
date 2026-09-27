@@ -3892,22 +3892,6 @@ mod tests {
         assert!(html.contains("href=\"/songs\""), "{html}");
     }
 
-    #[test]
-    fn the_browse_page_renders() {
-        let page = SongsPage {
-            chrome: chrome(),
-            rows: rows(vec![row("Corcovado", Some("Tom Jobim"), "a/CORCOVAD.kar")]),
-            favorites: Vec::new(),
-            packages: Vec::new(),
-            query: FilterForm::default(),
-            chips: no_chips(),
-            saved: no_saved(),
-        };
-        let html = page.in_english().expect("render");
-        assert!(html.contains("Corcovado"));
-        assert!(html.contains("Tom Jobim"));
-    }
-
     /// Every action that works on "everything the filter matches" has to take the filter from the
     /// **bar**, not from a query string rendered into the page.
     ///

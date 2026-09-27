@@ -9141,6 +9141,13 @@ mod tests {
             "the window has to reach past the page being shown: {numbers:?}"
         );
         assert!(links.last.is_empty(), "the end is inside the window");
+
+        // Far past the end the total claims: page 101 against a total that ends at page 20.
+        let links = browse_links(5_000, 1_000, true);
+        let numbers: Vec<u32> = links.pages.iter().map(|page| page.number).collect();
+        assert!(numbers.contains(&101), "{numbers:?}");
+        assert_eq!(numbers.last(), Some(&102), "{numbers:?}");
+        assert!(links.next.contains("offset=5050"), "{}", links.next);
     }
 
     /// Whether there is a next page is the database's answer, not the carried total's.
@@ -9192,22 +9199,6 @@ mod tests {
             "{}",
             query.without("folder")
         );
-    }
-
-    /// The numbers never stop behind the page being shown, against a total that lags a scan.
-    ///
-    /// The last page is computed from a total that may be a reading rather than a fact, and clamping
-    /// to that alone would draw a window ending before the page somebody is on — a pager offering
-    /// only ways backwards from a page it says does not exist.
-    #[test]
-    fn the_window_never_ends_behind_the_page_it_is_drawn_for() {
-        // The reader is at offset 5000 — page 101 — but the total carried in says the corpus ends at
-        // 1000, which is page 20.
-        let links = browse_links(5_000, 1_000, true);
-        let numbers: Vec<u32> = links.pages.iter().map(|page| page.number).collect();
-        assert!(numbers.contains(&101), "{numbers:?}");
-        assert_eq!(numbers.last(), Some(&102), "{numbers:?}");
-        assert!(links.next.contains("offset=5050"), "{}", links.next);
     }
 
     /// Clearing the folder leaves every other filter alone, and puts the reader back on page one.

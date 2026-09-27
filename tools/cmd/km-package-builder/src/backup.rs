@@ -894,49 +894,12 @@ mod tests {
     /// have produced — every `det_*` filled, the file beside it, and the triggers fired. A restore
     /// writing onto a row no scan could have made would prove nothing about the corpus this runs on.
     fn add_song(db: &mut Db, id: &str, stem: &str) {
-        let song = crate::model::ScannedSong {
-            id: id.to_owned(),
-            det_title: None,
-            det_artist: None,
-            det_language: None,
-            stem: stem.to_owned(),
-            duration_ms: 200_000,
-            lyrics: None,
-            fingerprint: String::new(),
-            suitability: crate::model::SuitabilityFacts {
-                value: 7,
-                breakdown: (3, 2, 2, 0),
-                warnings: "[]".to_owned(),
-            },
-            midi: Some(crate::model::MidiFacts {
-                flavor: "soft".to_owned(),
-                granularity: "syllablelevel".to_owned(),
-                note_count: 500,
-                channel_count: 6,
-                line_count: 20,
-                syllable_count: 100,
-                det_encoding: "windows-1252".to_owned(),
-                det_encoding_source: "fallback".to_owned(),
-                melody_channel: Some(3),
-                melody_confidence: Some(0.9),
-                melody_abstained: None,
-            }),
-            video: None,
-            cdg: None,
-            ultrastar: None,
-            lrc: None,
-        };
-        let file = crate::model::ScannedFile {
-            path: format!("folder/{stem}.kar"),
-            size: 1234,
-            mtime: 0,
-            content_hash: Some(id.to_owned()),
-            status: crate::model::ScanStatus::Ok,
-            error: None,
-            song: Some(song),
-        };
-        db.write_scanned(&[file], "2026-09-02T00:00:00Z")
-            .expect("write a scanned song");
+        let file =
+            crate::db::tests::scanned_file(id, None, &format!("folder/{stem}.kar"), |song| {
+                song.lyrics = None;
+                song.fingerprint = String::new();
+            });
+        crate::db::tests::add_all(db, vec![file]);
     }
 
     impl SongBackup {

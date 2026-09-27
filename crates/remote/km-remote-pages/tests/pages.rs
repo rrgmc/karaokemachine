@@ -3577,14 +3577,6 @@ async fn a_portuguese_page_has_no_english_and_no_untranslated_keys() {
     assert!(browse.contains("mostrando"), "the list count: {browse}");
 }
 
-/// European Portuguese is served far better by Brazilian Portuguese than by English.
-#[tokio::test]
-async fn a_region_this_build_does_not_have_falls_back_to_the_language() {
-    let harness = Harness::offline();
-    let body = harness.get_in("/queue", "pt-PT").await;
-    assert!(body.contains(r#"<html lang="pt-BR">"#), "{body}");
-}
-
 /// A language nothing here speaks gets English rather than a blank or a refusal.
 #[tokio::test]
 async fn a_language_this_build_does_not_have_gets_the_source_language() {

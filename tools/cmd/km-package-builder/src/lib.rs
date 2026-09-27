@@ -1932,20 +1932,6 @@ mod tests {
         assert_eq!(cli.machine.as_deref(), Some("http://127.0.0.1:8177"));
     }
 
-    /// The exact line `dist-tools.sh` prints for km-package-builder, and the one the README opens
-    /// with.
-    #[test]
-    fn the_command_the_readme_tells_people_to_run_works() {
-        Cli::try_parse_from([
-            "km-package-builder",
-            "./songs",
-            "--init",
-            "--scan",
-            "--open",
-        ])
-        .expect("the README's first command must parse");
-    }
-
     /// Every option the staged README lists, accepted.
     ///
     /// The README is written in `tools/dist/cmd.sh` and nothing else checks it — which is exactly

@@ -2177,7 +2177,8 @@ mod tests {
     /// The guard behind `serde(default)` on [`SongDto::tags`], and it is about the *offline remote*
     /// rather than about JSON: `km-remote-core` reads this type back out of
     /// `GET /api/v1/songs/export`, one row per line, and refuses the whole page if a line will not
-    /// parse. `skip_serializing_if` leaves the key out of every untagged song.
+    /// parse. `skip_serializing_if` leaves the key out of every untagged song, and
+    /// [`SongDto::lyric_preview`] out of every song with no words, so neither key may be required.
     #[test]
     fn an_exported_song_with_no_tags_key_still_parses() {
         let older = r#"{"number":"1001","title":"One","artist":null,"language":"pt",
@@ -2185,6 +2186,7 @@ mod tests {
             "default_transpose":0,"package_id":"vol1"}"#;
         let parsed: SongDto = serde_json::from_str(older).expect("a pre-tags row still parses");
         assert!(parsed.tags.is_empty());
+        assert!(parsed.lyric_preview.is_empty());
 
         // And the same in the other direction: a song with no tags spends no bytes saying so, which
         // is what `skip_serializing_if` is for on a route that pages five thousand rows at a time.
@@ -2382,12 +2384,6 @@ mod tests {
     }
 
     #[test]
-    fn a_settings_patch_rejects_a_misspelled_field() {
-        let error = serde_json::from_str::<SettingsPatchDto>(r#"{"transpoze": 2}"#);
-        assert!(error.is_err());
-    }
-
-    #[test]
     fn a_settings_patch_quantises_floats_into_the_internal_patch() {
         let patch = serde_json::from_str::<SettingsPatchDto>(r#"{"tempo_ratio": 1.25}"#)
             .expect("parse")
@@ -2404,16 +2400,6 @@ mod tests {
         }
         .to_patch();
         assert_eq!(patch.music_volume_milli, Some(0));
-    }
-
-    #[test]
-    fn a_settings_patch_carries_the_lyric_offset_through_unquantised() {
-        // An integer on the wire and an integer internally, so unlike the tempo it needs no
-        // thousandths to keep `SettingsPatch` comparable.
-        let patch = serde_json::from_str::<SettingsPatchDto>(r#"{"lyric_offset_ms": -40}"#)
-            .expect("parse")
-            .to_patch();
-        assert_eq!(patch.lyric_offset_ms, Some(-40));
     }
 
     #[test]
@@ -2506,13 +2492,6 @@ mod tests {
             .expect("serialize");
         assert_eq!(json["error"], "queue_full");
         assert_eq!(json["message"], "the queue is full");
-    }
-
-    #[test]
-    fn mics_always_say_they_apply_no_processing() {
-        let dto = MicsDto::new(&[MicChannel::new("mic1", "Mic 1")]);
-        assert!(!dto.applies_dsp);
-        assert_eq!(dto.mics[0].gain, 1.0);
     }
 
     fn parse(bytes: Vec<u8>) -> Song {

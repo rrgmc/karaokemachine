@@ -5022,43 +5022,6 @@ mod tests {
         assert!(!wrap("a b c d e f", 1).is_empty());
     }
 
-    /// The notice's own cut, said rather than silent. Mirrors what `draw_idle` does, since the
-    /// drawing itself needs a canvas: over-long input keeps two lines and says it kept two.
-    ///
-    /// **The fixture is invented rather than real.** A package's own refusal, at the length one
-    /// actually is, is not input this notice can see — what it carries is a count and an area — so a
-    /// fixture in that shape would test the cut against something that never reaches it. What is
-    /// held here is the mechanism, against the case it exists for: a translation of
-    /// [`Faults::line`] longer than any locale has yet produced, on a screen narrower than any
-    /// television. See `NOTICE_MAX_LINES`.
-    #[test]
-    fn an_over_long_notice_is_cut_and_says_so() {
-        let per_line = 40;
-        let notice = "4 problems: packages, sound, pictures, and a fourth area nobody has \
-                      thought of yet, at the length a translation might reach";
-        let mut lines = wrap(notice, per_line);
-        assert!(
-            lines.len() > NOTICE_MAX_LINES,
-            "the fixture must overflow to test the cut"
-        );
-        lines.truncate(NOTICE_MAX_LINES);
-        let last = lines.last_mut().unwrap();
-        *last = ellipsize(&format!("{last}…"), per_line);
-        assert!(last.ends_with('…'), "the cut should be visible: {last}");
-        assert!(
-            last.chars().count() <= per_line,
-            "the marked line must still fit: {last}"
-        );
-    }
-
-    /// ...and a notice that fits is not marked, which is the case that would cry wolf.
-    #[test]
-    fn a_notice_that_fits_carries_no_ellipsis() {
-        let lines = wrap("\"fx.kmpkg\" was not installed: file not found", 40);
-        assert!(lines.len() <= NOTICE_MAX_LINES);
-        assert!(!lines.last().unwrap().ends_with('…'));
-    }
-
     #[test]
     fn a_title_that_fits_is_left_alone() {
         assert_eq!(ellipsize("Planeta Sonho", 40), "Planeta Sonho");

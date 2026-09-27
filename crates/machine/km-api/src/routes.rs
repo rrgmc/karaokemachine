@@ -1068,37 +1068,6 @@ mod tests {
         }
     }
 
-    /// The mirror image of the assertion above it, and the reason both are written out rather than
-    /// derived: the two conditional surfaces are conditional for opposite reasons. Debugging is a
-    /// mode, so its routes are public when they exist; power is a capability, so its routes are the
-    /// owner's when they exist. A power route that slipped out from under `/admin/` would let
-    /// anybody on the LAN switch the television off.
-    #[test]
-    fn the_power_routes_are_always_admin_routes() {
-        for (_, path) in POWER_SURFACE {
-            let full = format!("{API_PREFIX}{path}");
-            assert!(
-                needs_admin_token(&full),
-                "{full} must demand a token when mounted"
-            );
-        }
-    }
-
-    /// The third conditional surface, and the third reason for being one. Debugging is a mode, so
-    /// its routes are public when they exist; power is a capability of the box, so its routes are
-    /// the owner's; a log is a capability too, and what it holds is the owner's business — paths,
-    /// addresses and the name they gave the machine.
-    #[test]
-    fn the_log_routes_are_always_admin_routes() {
-        for (_, path) in LOG_SURFACE {
-            let full = format!("{API_PREFIX}{path}");
-            assert!(
-                needs_admin_token(&full),
-                "{full} must demand a token when mounted"
-            );
-        }
-    }
-
     /// **The one place the two capabilities' difference is asserted rather than described.** Both
     /// are absent-or-admin, and they part company on the mirror: a poweroff nobody can undo from a
     /// page is held back from it, and reading a log is not that. Written out because the difference

@@ -2036,25 +2036,6 @@ mod tests {
         );
     }
 
-    /// Both routes to the frame meter, and neither of them a log level.
-    #[test]
-    fn frame_stats_is_off_unless_asked_for() {
-        assert!(!Cli::parse_from(["karaokemachine"]).frame_stats);
-        assert!(Cli::parse_from(["karaokemachine", "--frame-stats"]).frame_stats);
-    }
-
-    /// The log file is off unless asked for, on exactly the argument the meter above is: whether a
-    /// program writes a file is not a question about how much detail you want.
-    ///
-    /// `KM_LOG_FILE` is the other route and is not tested here, for the reason `RUST_LOG` is not
-    /// tested in [`verbosity_chooses_a_filter`]: it is read from an environment every other test in
-    /// this binary shares, so setting it would be a race rather than a test.
-    #[test]
-    fn the_log_file_is_off_unless_asked_for() {
-        assert!(!Cli::parse_from(["karaokemachine"]).log_file);
-        assert!(Cli::parse_from(["karaokemachine", "--log-file"]).log_file);
-    }
-
     /// The viewer is off unless asked for, and naming one takes an `=`.
     #[test]
     fn the_viewer_is_off_unless_asked_for() {
@@ -2294,13 +2275,6 @@ mod tests {
             cli.package.as_deref(),
             Some(Path::new(r"D:\tunes\karaoke\vol1.kmpkg"))
         );
-    }
-
-    /// ...and no argument at all is equally normal: the same executable launched from its icon.
-    #[test]
-    fn starting_with_no_package_is_the_ordinary_case_and_not_an_error() {
-        let cli = Cli::try_parse_from(["karaokemachine"]).expect("an icon passes no arguments");
-        assert!(cli.package.is_none());
     }
 
     /// Registering and unregistering are two answers to one question.

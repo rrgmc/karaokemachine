@@ -182,20 +182,6 @@ fn a_file_that_is_not_audio_is_refused_with_the_reason() {
 }
 
 #[test]
-fn a_real_decode_produces_the_tone() {
-    let samples = render(&fixture("tone.mp3"), 48_000);
-    let frames = samples.len() / 2;
-    assert!(
-        (frames as f64 / 48_000.0 - 2.0).abs() < 0.1,
-        "rendered {:.3}s",
-        frames as f64 / 48_000.0
-    );
-    // A full-scale sine through an MP3 at 128 kbps comes back near enough to full scale. The point
-    // is that it is signal and not silence, which is what a wrong sample format looks like.
-    assert!(peak(&samples) > 0.5, "peak {}", peak(&samples));
-}
-
-#[test]
 fn a_mono_file_is_duplicated_into_both_channels() {
     let samples = render(&fixture("mono.mp3"), 48_000);
     assert!(peak(&samples) > 0.5, "peak {}", peak(&samples));
@@ -213,10 +199,20 @@ fn a_mono_file_is_duplicated_into_both_channels() {
 }
 
 #[test]
-fn the_device_rate_never_reaches_the_decoder() {
+fn a_real_decode_produces_the_tone_whatever_the_device_rate() {
+    let samples = render(&fixture("tone.mp3"), 48_000);
+    // A full-scale sine through an MP3 at 128 kbps comes back near enough to full scale. The point
+    // is that it is signal and not silence, which is what a wrong sample format looks like.
+    assert!(peak(&samples) > 0.5, "peak {}", peak(&samples));
+
     // The feed carries the file's rate and `TrackPlayer` resamples, so asking for an unusual output
     // rate changes the length of the render and nothing about the decode.
-    let at_48 = render(&fixture("tone.mp3"), 48_000).len() / 2;
+    let at_48 = samples.len() / 2;
+    assert!(
+        (at_48 as f64 / 48_000.0 - 2.0).abs() < 0.1,
+        "rendered {:.3}s",
+        at_48 as f64 / 48_000.0
+    );
     let at_32 = render(&fixture("tone.mp3"), 32_000).len() / 2;
     let seconds_48 = at_48 as f64 / 48_000.0;
     let seconds_32 = at_32 as f64 / 32_000.0;

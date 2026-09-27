@@ -2043,24 +2043,6 @@ mod tests {
         }
     }
 
-    /// A package whose id is already a name keeps the name it has always installed under.
-    #[test]
-    fn a_safe_id_reaches_the_stem_exactly_as_it_stands() {
-        let named = PackageMeta {
-            id: "1f4a9c8e2b7d0356".to_owned(),
-            name: "Brasil Volume 1".to_owned(),
-            ..meta()
-        };
-        assert_eq!(named.file_stem(), "brasil-volume-1-1f4a9c8e2b7d0356");
-
-        let unnamed = PackageMeta {
-            id: "1f4a9c8e2b7d0356".to_owned(),
-            name: "🎤".to_owned(),
-            ..meta()
-        };
-        assert_eq!(unnamed.file_stem(), "1f4a9c8e2b7d0356");
-    }
-
     #[test]
     fn an_unsafe_path_in_a_manifest_is_reported() {
         let mut manifest = Manifest::new(meta());
@@ -2096,11 +2078,15 @@ mod tests {
                 message: "only 3 instrument channels".to_owned(),
             }],
         });
+        entry.title = "Fixed By Hand".to_owned();
+        entry.mark_edited(EditedField::Title);
+        entry.lyric_preview = vec!["Tempo perdido".to_owned(), "E que tudo mais".to_owned()];
         manifest.songs.push(entry);
 
         let json = serde_json::to_string_pretty(&manifest).expect("serializes");
         let parsed: Manifest = serde_json::from_str(&json).expect("deserializes");
         assert_eq!(parsed, manifest);
+        assert!(parsed.songs[0].is_edited(EditedField::Title));
     }
 
     #[test]
@@ -2451,19 +2437,6 @@ mod tests {
     }
 
     #[test]
-    fn edits_round_trip_through_json() {
-        let mut manifest = Manifest::new(meta());
-        let mut entry = song(1);
-        entry.title = "Fixed By Hand".to_owned();
-        entry.mark_edited(EditedField::Title);
-        manifest.songs.push(entry);
-
-        let json = serde_json::to_string(&manifest).expect("serializes");
-        let parsed: Manifest = serde_json::from_str(&json).expect("deserializes");
-        assert!(parsed.songs[0].is_edited(EditedField::Title));
-    }
-
-    #[test]
     fn a_song_with_no_words_writes_no_preview_key_at_all() {
         // The point of `skip_serializing_if`: a video song, an MP3+G song and a wordless MIDI file
         // must produce the same bytes they always did.
@@ -2471,19 +2444,6 @@ mod tests {
         manifest.songs.push(song(1));
         let json = serde_json::to_string(&manifest).expect("serializes");
         assert!(!json.contains("lyric_preview"), "{json}");
-    }
-
-    #[test]
-    fn a_preview_survives_a_round_trip() {
-        let mut manifest = Manifest::new(meta());
-        let mut entry = song(1);
-        entry.lyric_preview = vec!["Tempo perdido".to_owned(), "E que tudo mais".to_owned()];
-        manifest.songs.push(entry);
-
-        let json = serde_json::to_string(&manifest).expect("serializes");
-        let parsed: Manifest = serde_json::from_str(&json).expect("deserializes");
-        assert_eq!(parsed.songs[0].lyric_preview.len(), 2);
-        assert_eq!(parsed.songs[0].lyric_preview[0], "Tempo perdido");
     }
 
     /// The reason the format version did not move. A build that predates this field sees an unknown

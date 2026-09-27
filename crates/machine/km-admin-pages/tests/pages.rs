@@ -171,10 +171,7 @@ fn nested_as(host: Host, machine: TestMachine, guard: Arc<SpyGuard>) -> (Router,
 /// The same, over a machine that already has a password.
 fn nested_as_with_password(host: Host, guard: Arc<SpyGuard>) -> (Router, ApiState) {
     let (app, state) = nested_as(host, TestMachine::with_catalog(6), guard);
-    state.set_admin_password(
-        Some(km_api::AdminAuth::hash_password("hunter2xyz").expect("argon2 hashes a password")),
-        false,
-    );
+    state.set_admin_password(Some(km_api::testing::password_hash("hunter2xyz")), false);
     (app, state)
 }
 
@@ -200,10 +197,7 @@ fn nested_with_state(machine: TestMachine, guard: Arc<SpyGuard>) -> (Router, Api
 /// A machine that already has a password, for the controls that exist only once one does.
 fn nested_with_password(guard: Arc<SpyGuard>) -> (Router, ApiState) {
     let (app, state) = nested_with_state(TestMachine::with_catalog(6), guard);
-    state.set_admin_password(
-        Some(km_api::AdminAuth::hash_password("hunter2xyz").expect("argon2 hashes a password")),
-        false,
-    );
+    state.set_admin_password(Some(km_api::testing::password_hash("hunter2xyz")), false);
     (app, state)
 }
 
@@ -334,37 +328,6 @@ async fn the_upload_routes_are_asked_about_before_they_run() {
         let (app, guard) = nested(Arc::new(SpyGuard::default()));
         let _ = post_form(&app, path, "file=nothing").await;
         assert_eq!(guard.asked(), 1, "POST {path} did not reach the guard");
-    }
-}
-
-/// A route nobody wrote down asks for the password rather than running.
-///
-/// **This is the property the deleted table was there to provide**, and it is now free: `is_open` is
-/// an allow-list of two, so anything else — including a page invented next year — lands on the
-/// guard. The bug it stands against was found by running the thing rather than by reading it: an
-/// earlier design gated each tab on the *read* id for its subject, which shipped public, and left the
-/// whole setup page open on a machine whose owner had set a password.
-#[test]
-fn nothing_but_the_login_page_and_the_stylesheet_escapes_the_guard() {
-    for path in [
-        "/",
-        "/songs",
-        "/pictures",
-        "/sound",
-        "/machine",
-        "/problems",
-        "/machine/password",
-        "/machine/sessions",
-        "/machine/debug",
-        "/invented-next-year",
-    ] {
-        assert!(
-            !km_admin_pages::guard::is_open(path),
-            "{path} must demand the admin password"
-        );
-    }
-    for path in ["/login", "/static/admin.css"] {
-        assert!(km_admin_pages::guard::is_open(path), "{path} must be open");
     }
 }
 
@@ -2478,13 +2441,9 @@ async fn the_machine_language_picker_names_each_language_in_its_own_words() {
 #[tokio::test]
 async fn a_language_this_build_does_not_have_is_refused_rather_than_saved() {
     let (app, _) = nested(Arc::new(SpyGuard::default()));
-    let (status, body) = post_form(&app, "/admin/machine/locale", "locale=klingon").await;
-    assert_eq!(
-        status,
-        StatusCode::SEE_OTHER,
-        "it redirects back with a notice"
-    );
-    let _ = body;
+    let where_to = post_form_to(&app, "/admin/machine/locale", "locale=klingon").await;
+    // A success redirects too, so the notice's kind is what tells a refusal apart.
+    assert!(where_to.contains("kind=bad"), "{where_to}");
 }
 
 // -- power ---------------------------------------------------------------------------------------

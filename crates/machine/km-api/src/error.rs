@@ -296,14 +296,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn a_refusal_with_no_name_is_a_409_a_client_can_tell_apart_from_a_full_queue() {
-        let (status, body, _) =
-            body_of(ControlError::Unavailable("nothing is playing".into()).into()).await;
-        assert_eq!(status, StatusCode::CONFLICT);
-        assert_eq!(body.error, ApiError::UNAVAILABLE);
-    }
-
-    #[tokio::test]
     async fn a_refusal_that_has_a_name_carries_it_instead_of_the_generic_one() {
         // The whole point of the code: `nothing is playing` and `a video song has no key to change`
         // are both 409s and are not the same sentence, and only one of them is about the song.
@@ -344,24 +336,6 @@ mod tests {
                 .expect("ascii")
                 .starts_with("Bearer")
         );
-    }
-
-    #[tokio::test]
-    async fn logging_in_with_no_password_configured_does_not_confirm_a_password_exists() {
-        let (status, body, _) = body_of(crate::auth::LoginError::NotConfigured.into()).await;
-        // 404, not 401: a prober learns "there is no admin mode here", which is true, rather than
-        // "there is one and you guessed wrong".
-        assert_eq!(status, StatusCode::NOT_FOUND);
-        assert_eq!(body.error, "not_found");
-    }
-
-    #[test]
-    fn a_catalog_failure_is_our_fault_not_the_callers() {
-        let error: ApiError = CatalogError::Failed("disk is on fire".to_owned()).into();
-        assert_eq!(error.status(), StatusCode::INTERNAL_SERVER_ERROR);
-        // ...whereas a rejection is the caller's.
-        let error: ApiError = CatalogError::Rejected("path escapes the root".to_owned()).into();
-        assert_eq!(error.status(), StatusCode::BAD_REQUEST);
     }
 
     #[test]

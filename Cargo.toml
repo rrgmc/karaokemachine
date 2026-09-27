@@ -639,7 +639,7 @@ todo = "warn"
 lto = "thin"
 codegen-units = 1
 
-# Three dependencies get optimized even in a dev build, because each is unusably slow without it and
+# Some dependencies get optimized even in a dev build, because each is unusably slow without it and
 # none is code anybody steps through: `image` decodes and resamples wallpapers, `rustysynth` renders
 # every audio callback, and `argon2` is a hash whose whole purpose is to cost something.
 #
@@ -669,4 +669,19 @@ opt-level = 2
 opt-level = 2
 
 [profile.dev.package.argon2]
+opt-level = 2
+
+# ...and three more whose cost lands on every test run, as `argon2`'s does. `whatlang` guesses the
+# language of every song a scan writes, and unoptimized it is seven eighths of writing one.
+# `libsqlite3-sys` compiles the bundled SQLite, which every catalog and curation test runs through.
+# **Measured on `km-package-builder`'s tests**: 8.5s with neither, 6.1s with `whatlang` alone, 6.8s
+# with SQLite alone and 4.4s with both. `ebur128` meters a song's loudness, and `km-loudness`'s tests
+# take 0.9s unoptimized and 0.04s optimized.
+[profile.dev.package.whatlang]
+opt-level = 2
+
+[profile.dev.package.libsqlite3-sys]
+opt-level = 2
+
+[profile.dev.package.ebur128]
 opt-level = 2
