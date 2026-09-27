@@ -1,6 +1,9 @@
-// Captures promo.html frame by frame, and encodes the frames with the carol's audio into one MP4.
+// Captures promo.html frame by frame, and encodes the frames with the song's audio into one MP4.
 //
 //   node capture.cjs <stage/promo.html> <song.wav> <out.mp4> [fps]
+//
+// The page reads its frames from `frames/` beside it, and this reads the bar times from
+// `frames/bars.json` and hands them to the page. The `promo` example in km-display writes both.
 //
 // `tools/dev/promo-video.sh` stages the page and runs this. It needs Playwright, which it finds
 // through NODE_PATH, and ffmpeg with libx264. KM_CHROME names a browser to use instead of
@@ -12,6 +15,7 @@
 "use strict";
 
 const { spawn } = require("node:child_process");
+const fs = require("node:fs");
 const path = require("node:path");
 const { pathToFileURL } = require("node:url");
 const { chromium } = require("playwright");
@@ -33,19 +37,21 @@ async function main() {
   url.search = `?fps=${fps}`;
   await page.goto(url.href, { waitUntil: "load" });
   await page.evaluate(() => document.fonts.ready);
+  const bars = JSON.parse(fs.readFileSync(path.join(path.dirname(page_path), "frames", "bars.json"), "utf8"));
+  await page.evaluate((seconds) => window.setBars(seconds), bars);
   const duration = await page.evaluate(() => window.DURATION);
   const frames = Math.round(duration * fps);
 
-  // The music is brought to -16 LUFS, the level a video site plays at. It fades out over the last
-  // three seconds and stops with the last frame.
-  const fade = Math.max(0, duration - 3).toFixed(3);
+  // ffmpeg's loudnorm levels the music toward -16 LUFS, the level a video site plays at. The music
+  // fades out over the last second and a half, and stops with the last frame.
+  const fade = Math.max(0, duration - 1.5).toFixed(3);
   const ffmpeg = spawn(
     "ffmpeg",
     [
       "-hide_banner", "-loglevel", "error", "-y",
       "-f", "image2pipe", "-framerate", String(fps), "-c:v", "png", "-i", "-",
       "-i", wav,
-      "-filter_complex", `[1:a]atrim=0:${duration},loudnorm=I=-16:TP=-1.5:LRA=11,aresample=48000,afade=t=out:st=${fade}:d=3[a]`,
+      "-filter_complex", `[1:a]atrim=0:${duration},loudnorm=I=-16:TP=-1.5:LRA=11,aresample=48000,afade=t=out:st=${fade}:d=1.5[a]`,
       "-map", "0:v", "-map", "[a]",
       "-c:v", "libx264", "-preset", "slow", "-crf", "18", "-pix_fmt", "yuv420p",
       "-c:a", "aac", "-b:a", "192k",

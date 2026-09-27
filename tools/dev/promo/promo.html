@@ -6,9 +6,10 @@
   `capture.cjs` calls it once per frame and hands each screenshot to ffmpeg. Nothing here moves on its
   own: there is no CSS animation and no timer, so a frame depends on `t` alone.
 
-  The music is the carol the playing screen sings, from its first note. So second `t` of the video is
+  The music is the song the playing screen sings, from its first note. So second `t` of the video is
   millisecond `1000 t` of the song, and frame `n` of `frames/` is the playing screen at `n / FPS`
-  seconds. The scenes change on the carol's line boundaries, which fall every 4.8 seconds.
+  seconds. `setBars` takes the second each bar starts at, and every scene cuts on a bar line. The
+  quiet verse takes the first four bars, and the rest is the chorus, one or two bars to a scene.
 
   The palette is the site's, which `site/style.css` copies from `Theme::default()`.
 -->
@@ -174,6 +175,11 @@
     color: var(--muted);
   }
 
+  #flash {
+    inset: 0;
+    background: radial-gradient(1200px 800px at 50% 50%, #fff6d6, rgba(255, 193, 7, 0.6) 60%, rgba(196, 58, 142, 0.4));
+  }
+
   /* -- the song files and the platforms ------------------------------------------------------- */
 
   .tiles {
@@ -229,7 +235,7 @@
 <body>
 <div id="stage">
 
-  <!-- The playing screen, drawn by the machine itself from the carol. -->
+  <!-- The playing screen, drawn by the machine itself from the song. -->
   <div class="layer screen" id="live"><img id="live-img" alt=""></div>
 
   <!-- The published stills from docs/images. -->
@@ -255,12 +261,10 @@
   </div>
   <div class="layer headline" id="head-queue">
     <h2>The queue says <span>who sings next.</span></h2>
-    <p>Everybody sees it, and anybody can change it.</p>
   </div>
 
   <div class="layer headline" id="head-files">
     <h2>Five kinds of <span>song file.</span></h2>
-    <p>Songs arrive in packages, and a package goes in without a restart.</p>
   </div>
   <div class="layer tiles" id="files">
     <div class="tile"><b>MIDI</b><code>.kar .mid</code></div>
@@ -272,7 +276,6 @@
 
   <div class="layer headline" id="head-platforms">
     <h2>On the television, <span>and in your pocket.</span></h2>
-    <p>It runs on computers, televisions, headsets, phones and tablets.</p>
   </div>
   <div class="layer chips" id="platforms">
     <div class="row">
@@ -293,6 +296,9 @@
     <p class="url">rrgmc.github.io/karaokemachine</p>
   </div>
 
+  <!-- A flash of light where the chorus comes in and where the end card lands. -->
+  <div class="layer" id="flash"></div>
+
 </div>
 <script>
   "use strict";
@@ -300,94 +306,110 @@
   // The frame rate `frames/` was rendered at. `capture.cjs` sets it from the query string.
   const FPS = Number(new URLSearchParams(location.search).get("fps") || 30);
 
-  // One line of the carol, in seconds. Every scene starts and ends on a multiple of it.
-  const LINE = 4.8;
+  // The second each bar of the song starts at, from `bars.json`. `setBars` replaces this stand-in.
+  let bars = Array.from({ length: 15 }, (_, bar) => (bar < 4 ? bar * 3.333 : 13.333 + (bar - 4) * 1.818));
 
-  // How long the whole video runs. The music fades out over its last three seconds.
-  const DURATION = 12 * LINE + 5.4;
+  // The bar holding the song's last chord, and how long the end card stays after it lands.
+  const LAST = 12;
+  const HOLD = 3.3;
 
   const clamp = (x, lo = 0, hi = 1) => Math.min(hi, Math.max(lo, x));
   const ease = (x) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
+  const out = (x) => 1 - Math.pow(1 - clamp(x), 3);
 
   // 0 before `a`, 1 after `b`, and an eased step between.
   const ramp = (t, a, b) => ease(clamp((t - a) / (b - a)));
 
   // Up over `fade` seconds from `a`, and down over `fade` seconds to `b`.
-  const window_ = (t, a, b, fade = 0.4) => Math.min(ramp(t, a, a + fade), 1 - ramp(t, b - fade, b));
+  const span = (t, a, b, fade = 0.2) => Math.min(ramp(t, a, a + fade), 1 - ramp(t, b - fade, b));
+
+  // A cut that lands hard: a little large at `at`, settling over a quarter of a second.
+  const punch = (t, at, size = 0.08) => (t < at ? 1 + size : 1 + size * (1 - out((t - at) / 0.28)));
 
   const el = (id) => document.getElementById(id);
+  const B = (n) => bars[n];
 
   function place(node, { opacity = 1, x = 0, y = 0, scale = 1 }) {
     node.style.opacity = String(opacity);
     node.style.transform = `translate(${x}px, ${y}px) scale(${scale})`;
   }
 
-  // The steps of a list, one after another from `start`, each taking `each` seconds to arrive.
-  function stagger(nodes, t, start, each, end) {
+  // The items of a list arrive one to an eighth note from `start`, each with a small jump.
+  function onBeats(nodes, t, start, step, end) {
     nodes.forEach((node, i) => {
-      const k = ramp(t, start + i * each, start + i * each + 0.45);
-      const out = end === undefined ? 0 : ramp(t, end - 0.4, end);
-      node.style.opacity = String(k * (1 - out));
-      node.style.transform = `translateY(${(1 - k) * 40}px)`;
+      const at = start + i * step;
+      const k = out((t - at) / 0.18);
+      const gone = ramp(t, end - 0.15, end);
+      node.style.opacity = String(t < at ? 0 : k * (1 - gone));
+      node.style.transform = `translateY(${(1 - k) * 36}px) scale(${0.9 + 0.1 * k})`;
     });
   }
 
-  const L = (n) => n * LINE;
-
   function draw(t) {
-    // Title, over the carol's first line.
-    const title = window_(t, 0, L(1), 0.6);
-    place(el("title"), { opacity: title, scale: 0.96 + 0.04 * ramp(t, 0, 1.2) });
+    const eighth = (B(5) - B(4)) / 8;
+
+    // Title, over the piano alone.
+    place(el("title"), { opacity: span(t, 0, B(1), 0.5), scale: 0.95 + 0.05 * ramp(t, 0, 1.4) });
     el("title").querySelector(".fill").style.clipPath =
-      `inset(0 ${100 - 100 * clamp((t - 1.2) / 3.0)}% 0 0)`;
+      `inset(0 ${100 - 100 * clamp((t - 1.0) / (B(1) - 1.6))}% 0 0)`;
 
-    // The idle screen, with a slow push in.
-    const idle = Math.min(ramp(t, L(1) - 0.4, L(1) + 0.2), 1 - ramp(t, L(2) - 0.3, L(2) + 0.3));
-    place(el("idle"), { opacity: idle, scale: 1 + 0.05 * clamp((t - L(1)) / LINE), x: -24 * clamp((t - L(1)) / LINE), y: -14 * clamp((t - L(1)) / LINE) });
-    place(el("cap-idle"), { opacity: window_(t, L(1) + 0.5, L(2) - 0.2), y: 20 * (1 - ramp(t, L(1) + 0.5, L(1) + 1)) });
+    // The idle screen, as the verse starts.
+    const intoVerse = clamp((t - B(1)) / (B(2) - B(1)));
+    place(el("idle"), { opacity: span(t, B(1) - 0.3, B(2) + 0.2, 0.35), scale: 1 + 0.04 * intoVerse, x: -20 * intoVerse, y: -12 * intoVerse });
+    place(el("cap-idle"), { opacity: span(t, B(1) + 0.3, B(2) - 0.1, 0.3), y: 20 * (1 - ramp(t, B(1) + 0.3, B(1) + 0.7)) });
 
-    // The playing screen. Full size, then drawn back beside the phones, then full size again.
-    const liveIn = Math.min(ramp(t, L(2) - 0.3, L(2) + 0.3), 1 - ramp(t, L(7) - 0.4, L(7)));
-    const liveBack = ramp(t, L(10) - 0.3, L(10) + 0.3);
-    const shrink = ramp(t, L(5), L(5) + 0.9);
-    const scale = 1 - shrink * 0.5;
-    place(el("live"), {
-      opacity: Math.max(liveIn, liveBack),
-      scale: t < L(9) ? scale : 1,
-      x: t < L(9) ? shrink * 864 : 0,
-      y: t < L(9) ? shrink * 400 : 0,
-    });
-    el("live").classList.toggle("framed", t < L(9) && shrink > 0);
-    place(el("cap-live"), { opacity: window_(t, L(2) + 0.8, L(4) + 2.0), y: 20 * (1 - ramp(t, L(2) + 0.8, L(2) + 1.3)) });
+    // The playing screen: a slow push through the verse, then the chorus lands on it.
+    const verse = clamp((t - B(2)) / (B(4) - B(2)));
+    const shrink = ramp(t, B(6), B(6) + 0.3);
+    let live = { opacity: 0 };
+    if (t >= B(2) - 0.2 && t < B(4)) {
+      live = { opacity: ramp(t, B(2) - 0.2, B(2) + 0.2), scale: 1 + 0.07 * verse, x: -67 * verse, y: -38 * verse };
+    } else if (t >= B(4) && t < B(6)) {
+      const k = punch(t, B(4), 0.12);
+      live = { scale: k, x: -960 * (k - 1), y: -540 * (k - 1) };
+    } else if (t >= B(6) && t < B(8)) {
+      live = { scale: 1 - 0.5 * shrink, x: 864 * shrink, y: 400 * shrink };
+    } else if (t >= B(11)) {
+      const k = punch(t, B(11), 0.1);
+      live = { scale: k, x: -960 * (k - 1), y: -540 * (k - 1) };
+    }
+    place(el("live"), live);
+    el("live").classList.toggle("framed", t >= B(6) && t < B(8));
+    place(el("cap-live"), { opacity: span(t, B(2) + 0.4, B(4) - 0.2, 0.3), y: 20 * (1 - ramp(t, B(2) + 0.4, B(2) + 0.8)) });
 
-    // The remote.
-    place(el("head-remote"), { opacity: window_(t, L(5) + 0.4, L(7)), y: 24 * (1 - ramp(t, L(5) + 0.4, L(5) + 1.0)) });
-    const phones = window_(t, L(5) + 0.7, L(7), 0.5);
-    place(el("phone-browse"), { opacity: phones, x: 80, y: 320 + 500 * (1 - ramp(t, L(5) + 0.7, L(5) + 1.5)) });
-    const now = window_(t, L(5) + 1.3, L(7), 0.5);
-    place(el("phone-now"), { opacity: now, x: 420, y: 390 + 500 * (1 - ramp(t, L(5) + 1.3, L(5) + 2.1)) });
+    // The remote, for the chorus's second line.
+    place(el("head-remote"), { opacity: span(t, B(6) + 0.1, B(8)), y: 24 * (1 - out((t - B(6) - 0.1) / 0.3)) });
+    const browse = t < B(6) + 2 * eighth ? 0 : out((t - B(6) - 2 * eighth) / 0.3);
+    place(el("phone-browse"), { opacity: Math.min(browse, 1 - ramp(t, B(8) - 0.2, B(8))), x: 80, y: 320 + 420 * (1 - browse) });
+    const now = t < B(6) + 6 * eighth ? 0 : out((t - B(6) - 6 * eighth) / 0.3);
+    place(el("phone-now"), { opacity: Math.min(now, 1 - ramp(t, B(8) - 0.2, B(8))), x: 420, y: 390 + 420 * (1 - now) });
 
-    // The queue, in the frame the playing screen had.
-    const queue = window_(t, L(7) - 0.4, L(8), 0.4);
-    place(el("queue"), { opacity: queue, scale: 0.5, x: 864, y: 400 });
-    place(el("head-queue"), { opacity: window_(t, L(7), L(8)), y: 24 * (1 - ramp(t, L(7), L(7) + 0.6)) });
-    place(el("phone-queue"), { opacity: window_(t, L(7) - 0.2, L(8), 0.5), x: 220, y: 330 + 40 * (1 - ramp(t, L(7) - 0.2, L(7) + 0.4)) });
+    // The queue, one bar, in the frame the playing screen had.
+    const queue = t >= B(8) && t < B(9) ? 1 : 0;
+    place(el("queue"), { opacity: queue, scale: 0.5 * punch(t, B(8), 0.06), x: 864, y: 400 });
+    place(el("head-queue"), { opacity: queue, y: 24 * (1 - out((t - B(8)) / 0.3)) });
+    place(el("phone-queue"), { opacity: queue, x: 220, y: 330 + 60 * (1 - out((t - B(8)) / 0.3)) });
 
-    // The song files.
-    place(el("head-files"), { opacity: window_(t, L(8) + 0.2, L(9)), y: 24 * (1 - ramp(t, L(8) + 0.2, L(8) + 0.8)) });
-    place(el("files"), { opacity: t > L(8) && t < L(9) ? 1 : 0 });
-    stagger([...el("files").children], t, L(8) + 0.6, 0.35, L(9));
+    // The song files, one bar, a tile to an eighth.
+    const files = t >= B(9) && t < B(10) ? 1 : 0;
+    place(el("head-files"), { opacity: files, y: 24 * (1 - out((t - B(9)) / 0.3)) });
+    place(el("files"), { opacity: files });
+    onBeats([...el("files").children], t, B(9) + eighth, eighth, B(10));
 
-    // The platforms.
-    place(el("head-platforms"), { opacity: window_(t, L(9) + 0.2, L(10)), y: 24 * (1 - ramp(t, L(9) + 0.2, L(9) + 0.8)) });
-    place(el("platforms"), { opacity: t > L(9) && t < L(10) ? 1 : 0 });
-    stagger([...el("platforms").querySelectorAll(".chip")], t, L(9) + 0.6, 0.18, L(10));
+    // The platforms, one bar, a chip to a sixteenth.
+    const platforms = t >= B(10) && t < B(11) ? 1 : 0;
+    place(el("head-platforms"), { opacity: platforms, y: 24 * (1 - out((t - B(10)) / 0.3)) });
+    place(el("platforms"), { opacity: platforms });
+    onBeats([...el("platforms").querySelectorAll(".chip")], t, B(10) + eighth, eighth / 2, B(11));
 
-    // The end card, over the last words of the chorus.
-    const end = ramp(t, L(12) - 0.2, L(12) + 0.8);
-    place(el("end"), { opacity: end, scale: 0.97 + 0.03 * end });
-    el("stage").style.setProperty("--end", String(end));
-    el("live").style.filter = end > 0 ? `blur(${end * 18}px) brightness(${1 - end * 0.75})` : "";
+    // The end card lands on the last chord.
+    const end = t >= B(LAST) ? 1 : 0;
+    place(el("end"), { opacity: end, scale: punch(t, B(LAST), 0.1) });
+    if (end) el("live").style.opacity = "0";
+
+    // A flash where the chorus comes in and where the last chord lands.
+    const flash = (at, size) => (t < at ? 0 : size * Math.exp(-(t - at) / 0.12));
+    place(el("flash"), { opacity: Math.max(flash(B(4), 0.85), flash(B(LAST), 0.7), flash(B(11), 0.35)) });
 
     // The playing screen at this moment of the song.
     const n = Math.round(t * FPS);
@@ -396,7 +418,11 @@
     if (Number(el("live").style.opacity) > 0 && !img.src.endsWith(src)) img.src = src;
   }
 
-  window.DURATION = DURATION;
+  window.setBars = (seconds) => {
+    bars = seconds;
+    window.DURATION = bars[LAST] + HOLD;
+  };
+  window.setBars(bars);
   window.seek = async (t) => {
     draw(t);
     await Promise.all([...document.images].map((img) => (img.src ? img.decode().catch(() => {}) : null)));

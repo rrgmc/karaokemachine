@@ -250,7 +250,7 @@ tools/                     # six folders and nothing loose -- see "How things he
     bin.sh cmd.sh clean.sh check-assets.sh
   dev/                     # the working session
     worktree.sh claude-worktree-hook.sh screenshots.sh screen-animation.sh
-    promo-video.sh promo/  # the promotional video: the carol, and a page captured frame by frame
+    promo-video.sh promo/  # the promotional video: its song, and a page captured frame by frame
     check-no-local-refs.sh
     clean.sh               # the whole checkout, where dist/clean.sh is the releases in it
     soundfont.sh soundfont-debug.sh soundfont-measure.sh
@@ -260,7 +260,6 @@ tools/                     # six folders and nothing loose -- see "How things he
                            # as `remote-dev/` beside an executable -- see the note on that name.
   setup/                   # what a build here needs, and where it comes from
     fetch-assets.sh fetch-ffmpeg.sh ffmpeg-pin.sh features.sh
-    carols-pin.sh          # the released carol pack the moving pictures are made from
     asset-cache.sh         # where the fetched things live -- one definition, four readers
 ports/                     # the native application shells: machine/android, remote/android, remote/ios.
                            # Gradle and Xcode projects only -- the Rust is in crates/.

@@ -1,26 +1,25 @@
 #!/usr/bin/env bash
 #
-# Builds the promotional video, dist/promo/karaokemachine-promo.mp4: one minute at 1920x1080 and
-# thirty frames a second, with sound.
+# Builds the promotional video, dist/promo/karaokemachine-promo.mp4: half a minute at 1920x1080
+# and thirty frames a second, with sound.
 #
 #   tools/dev/promo-video.sh
 #
-# **The machine draws and plays its own part.** A carol from the released pack is the music from
-# the first frame to the last. `examples/promo.rs` in km-display renders the playing screen from it,
-# and `examples/render_wav.rs` in km-audio renders its sound through the bundled SoundFont. Both read
-# one song file and one tempo map, so the words keep time with the music.
+# **The machine sings a song written for the video, and draws and plays it itself.** The song is
+# *Sing It Out Loud*, a power ballad that turns into rock, and `examples/promo/song.rs` in
+# km-display writes it as a karaoke MIDI file. The same example renders the playing screen from it,
+# and `examples/render_wav.rs` in km-audio renders its sound through the bundled SoundFont. Both
+# read one song file and one tempo map, so the words keep time with the music.
 #
 # **Everything else is published already.** The stills come from docs/images, the icon from icon/,
-# and the palette from site/style.css. `tools/dev/promo/promo.html` lays them out over time, and
-# `tools/dev/promo/capture.cjs` captures it frame by frame into ffmpeg.
+# and the palette from site/style.css. `tools/dev/promo/promo.html` lays them out over time and cuts
+# on the song's bars. `tools/dev/promo/capture.cjs` captures it frame by frame into ffmpeg.
 #
 # It needs:
 #
-#   * the network once, for the carol pack. tools/setup/carols-pin.sh pins it by digest.
 #   * the SoundFont, which tools/setup/fetch-assets.sh installs.
 #   * ffmpeg with libx264, and Node with Playwright (`npm install -g playwright`).
 #
-#   KM_CAROLS   a carol pack to read instead of the pinned download
 #   KM_CHROME   a browser to capture with, instead of Playwright's own
 #
 # The video is a build product, so it lands in dist/ and is never committed. It depends on the
@@ -33,19 +32,12 @@ cd "$(dirname "$0")/../.."
 . tools/dist/common.sh
 DIST_SCRIPT=promo-video
 dist_assert_root
-. tools/setup/asset-cache.sh
-. tools/setup/carols-pin.sh
-
-# The carol, by its number in the pack: "Angels From the Realms of Glory", as in the README's
-# animated picture. `The animated picture is of a public-domain carol` gives the reason.
-CAROL=2
 
 FPS=30
 
 # The span the playing screen is rendered over, in milliseconds. It covers the video's full length,
-# which `DURATION` in promo.html sets, and the audio runs a little past it for the fade.
-FRAMES_MS=64000
-AUDIO_MS=66000
+# which `DURATION` in promo.html sets from the song's bars.
+FRAMES_MS=32000
 
 SOUNDFONT="assets/soundfont/GeneralUser-GS.sf2"
 OUT_DIR="dist/promo"
@@ -75,8 +67,6 @@ node -e 'require("playwright")' 2>/dev/null || {
   exit 1
 }
 
-PACK="$(carols_pack)"
-
 WORK="$(dist_target_dir)/promo"
 dist_clear "$WORK"
 mkdir -p "$WORK/stage/images" "$OUT_DIR"
@@ -84,10 +74,9 @@ mkdir -p "$WORK/stage/images" "$OUT_DIR"
 dist_step "rendering the playing screen and the music"
 cargo build $(dist_cargo_quiet) --release -p km-display --example promo -p km-audio --example render_wav
 cargo run $(dist_cargo_quiet) --release -p km-display --example promo -- \
-  "$PACK" "$CAROL" "$WORK/stage/frames" 0 "$FRAMES_MS" "$FPS"
+  "$WORK/stage/frames" "$FRAMES_MS" "$FPS"
 cargo run $(dist_cargo_quiet) --release -p km-audio --example render_wav -- \
-  "$WORK/stage/frames/song.kar" "$WORK/song.wav" "$SOUNDFONT" --melody on --max-ms "$AUDIO_MS" \
-  >/dev/null
+  "$WORK/stage/frames/song.kar" "$WORK/song.wav" "$SOUNDFONT" --melody on >/dev/null
 
 dist_step "staging the page"
 cp tools/dev/promo/promo.html "$WORK/stage/"
