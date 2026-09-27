@@ -1990,6 +1990,9 @@ mod tests {
     /// Absent follows the build rather than reading as the *closed* answer: a file written before
     /// the field existed carries no opinion, which is correct — it was never asked. A file carrying
     /// an explicit `false` means `false`.
+    ///
+    /// The same file predates the bank switcher, and parsing it is what makes that field need no
+    /// `settings_version` migration either.
     #[test]
     fn a_settings_file_written_before_the_switch_existed_carries_no_opinion() {
         let settings: Settings =
@@ -1997,6 +2000,8 @@ mod tests {
                 .expect("parse");
         assert_eq!(settings.debug.play_file_roots.len(), 1);
         assert!(settings.debug.enabled.is_none());
+        assert!(settings.debug.soundfonts.is_empty());
+        assert!(!settings.soundfont_switcher_on());
 
         let refused: Settings =
             serde_json::from_str(r#"{"debug":{"enabled":false}}"#).expect("parse");
@@ -2603,17 +2608,6 @@ mod tests {
             !json.contains("soundfont_slot"),
             "a default machine should not advertise a slot it is not on: {json}"
         );
-    }
-
-    /// The added field has to parse against every settings file that predates it, which is what
-    /// makes this need no `settings_version` migration.
-    #[test]
-    fn a_settings_file_written_before_the_switcher_existed_still_reads() {
-        let json = r#"{ "debug": { "play_file_roots": ["/tunes/karaoke"] } }"#;
-        let settings: Settings = serde_json::from_str(json).expect("it should still parse");
-        assert_eq!(settings.debug.play_file_roots.len(), 1);
-        assert!(settings.debug.soundfonts.is_empty());
-        assert!(!settings.soundfont_switcher_on());
     }
 
     /// A bank with no measured level round-trips without inventing one.

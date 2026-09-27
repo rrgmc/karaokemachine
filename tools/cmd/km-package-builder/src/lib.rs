@@ -1621,6 +1621,9 @@ mod tests {
         let cli = Cli::try_parse_from(["km-package-builder"]).expect("parse");
         assert_eq!(cli.root, None);
         assert!(!cli.init);
+        // Most people curate one corpus, so reopening the last folder is the default and the list
+        // is what `--pick` asks for.
+        assert!(!cli.pick, "reopening the last folder is the default");
     }
 
     /// A double-clicked `.kmbuild` arrives as a file path, and the folder is its parent.
@@ -1863,15 +1866,9 @@ mod tests {
         assert_eq!(shape(Shell::Windowed, &["--browser"], true), (false, true));
     }
 
-    /// `--pick` is what asks for the list when there is a folder to reopen.
-    ///
-    /// The default is to reopen, because most people curate one corpus and choosing it from a list
-    /// every start is the friction this milestone removes rather than relocates.
+    /// `--pick` is what asks for the list when there is a folder to reopen, and it names no folder.
     #[test]
-    fn pick_is_accepted_and_is_not_the_default() {
-        let plain = Cli::try_parse_from(["km-package-builder"]).expect("parse");
-        assert!(!plain.pick, "reopening the last folder is the default");
-
+    fn pick_asks_for_the_list_and_names_no_folder() {
         let asked = Cli::try_parse_from(["km-package-builder", "--pick"]).expect("parse");
         assert!(asked.pick);
         assert_eq!(asked.root, None);
