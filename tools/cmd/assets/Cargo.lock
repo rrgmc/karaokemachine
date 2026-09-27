@@ -2054,6 +2054,7 @@ dependencies = [
  "km-logsettings",
  "km-osopen",
  "km-passwords",
+ "km-testkit",
  "km-tray",
  "km-wallpaper-pack",
  "km-webshell",
@@ -2275,6 +2276,14 @@ version = "1.18.0"
 dependencies = [
  "serde",
  "thiserror 2.0.20",
+]
+
+[[package]]
+name = "km-testkit"
+version = "1.18.0"
+dependencies = [
+ "axum",
+ "tower",
 ]
 
 [[package]]

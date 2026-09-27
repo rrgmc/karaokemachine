@@ -447,6 +447,7 @@ fn check_tags(tags: &[String]) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use km_testkit::Scratch;
 
     /// A description with everything filled in.
     fn full() -> Spec {
@@ -695,8 +696,7 @@ mod tests {
     /// Written to disk and read back, header and all.
     #[test]
     fn a_written_description_reads_back_and_says_how_to_build_it() {
-        let dir = std::env::temp_dir().join(format!("km-pack-spec-{}", std::process::id()));
-        std::fs::create_dir_all(&dir).expect("temp dir");
+        let dir = Scratch::new("spec-written");
         let path = dir.join("vol1.kmspec.yaml");
 
         full().write(&path).expect("write");
@@ -705,22 +705,17 @@ mod tests {
         assert!(text.contains("km-pack build"), "it says how to build it");
         assert!(text.contains("Norwegian"), "and warns about `no`");
         assert_eq!(Spec::read(&path).expect("read back"), full());
-
-        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// Writing refuses to record something that could not be built.
     #[test]
     fn an_invalid_description_is_never_written() {
-        let dir = std::env::temp_dir().join(format!("km-pack-spec-bad-{}", std::process::id()));
-        std::fs::create_dir_all(&dir).expect("temp dir");
+        let dir = Scratch::new("spec-bad");
         let path = dir.join("bad.kmspec.yaml");
 
         let mut spec = full();
         spec.package.default_language = Some("English".to_owned());
         assert!(spec.write(&path).is_err());
         assert!(!path.exists(), "nothing was left behind");
-
-        let _ = std::fs::remove_dir_all(&dir);
     }
 }

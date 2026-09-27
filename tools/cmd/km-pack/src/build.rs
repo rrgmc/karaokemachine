@@ -896,32 +896,7 @@ mod tests {
     use super::*;
 
     use crate::spec::{SpecPackage, SpecSong};
-
-    /// A scratch folder that removes itself.
-    struct Scratch(PathBuf);
-
-    impl Scratch {
-        fn new(name: &str) -> Self {
-            let dir = std::env::temp_dir().join(format!(
-                "km-pack-build-{}-{name}-{:?}",
-                std::process::id(),
-                std::thread::current().id()
-            ));
-            let _ = std::fs::remove_dir_all(&dir);
-            std::fs::create_dir_all(&dir).expect("scratch");
-            Self(dir)
-        }
-
-        fn write(&self, name: &str, bytes: Vec<u8>) {
-            std::fs::write(self.0.join(name), bytes).expect("fixture");
-        }
-    }
-
-    impl Drop for Scratch {
-        fn drop(&mut self) {
-            let _ = std::fs::remove_dir_all(&self.0);
-        }
-    }
+    use km_testkit::Scratch;
 
     fn spec_for(songs: Vec<SpecSong>) -> Spec {
         Spec {
@@ -974,7 +949,7 @@ mod tests {
     fn a_description_marks_only_what_it_disagrees_with() {
         let scratch = Scratch::new("provenance");
         scratch.write("a.kar", km_song::testing::soft_karaoke());
-        let out = scratch.0.join("vol1.kmpkg");
+        let out = scratch.join("vol1.kmpkg");
 
         // What the fixture itself says, so the description can agree with it exactly.
         let bytes = km_song::testing::soft_karaoke();
@@ -987,7 +962,7 @@ mod tests {
             title: Some(said),
             ..SpecSong::default()
         }]);
-        run(&agreeing, &scratch.0, &out);
+        run(&agreeing, scratch.path(), &out);
         let package = km_kmpkg::Package::open(&out).expect("open");
         assert!(
             package.manifest().songs[0].edited.is_empty(),
@@ -1001,7 +976,7 @@ mod tests {
             title: Some("Something Else".to_owned()),
             ..SpecSong::default()
         }]);
-        run(&correcting, &scratch.0, &out);
+        run(&correcting, scratch.path(), &out);
         let package = km_kmpkg::Package::open(&out).expect("open");
         let entry = &package.manifest().songs[0];
         assert_eq!(entry.title, "Something Else");
@@ -1025,21 +1000,21 @@ mod tests {
     fn a_song_with_no_language_stops_the_build_unless_the_package_names_a_default() {
         let scratch = Scratch::new("language");
         scratch.write("plain.mid", km_song::testing::lyric_events());
-        let out = scratch.0.join("vol1.kmpkg");
+        let out = scratch.join("vol1.kmpkg");
 
         let bare = spec_for(vec![SpecSong {
             file: "plain.mid".to_owned(),
             number: Some(1),
             ..SpecSong::default()
         }]);
-        let outcome = run(&bare, &scratch.0, &out);
+        let outcome = run(&bare, scratch.path(), &out);
         assert_eq!(outcome.unlanguaged.len(), 1, "{:?}", outcome.unlanguaged);
         assert!(!outcome.wrote());
         assert!(!out.exists(), "and nothing was written");
 
         let mut defaulted = bare.clone();
         defaulted.package.default_language = Some("en".to_owned());
-        let outcome = run(&defaulted, &scratch.0, &out);
+        let outcome = run(&defaulted, scratch.path(), &out);
         assert!(outcome.unlanguaged.is_empty());
         assert!(outcome.wrote());
 
@@ -1054,7 +1029,7 @@ mod tests {
         // And a description that says so *is* a correction, because the file said nothing.
         let mut said = bare.clone();
         said.songs[0].language = Some("pt".to_owned());
-        run(&said, &scratch.0, &out);
+        run(&said, scratch.path(), &out);
         let package = km_kmpkg::Package::open(&out).expect("open");
         let entry = &package.manifest().songs[0];
         assert_eq!(entry.language.as_deref(), Some("pt"));
@@ -1068,7 +1043,7 @@ mod tests {
         let scratch = Scratch::new("dupes");
         scratch.write("a.kar", km_song::testing::soft_karaoke());
         scratch.write("copy.kar", km_song::testing::soft_karaoke());
-        let out = scratch.0.join("vol1.kmpkg");
+        let out = scratch.join("vol1.kmpkg");
 
         let spec = spec_for(vec![
             SpecSong {
@@ -1082,7 +1057,7 @@ mod tests {
                 ..SpecSong::default()
             },
         ]);
-        let outcome = run(&spec, &scratch.0, &out);
+        let outcome = run(&spec, scratch.path(), &out);
         assert_eq!(outcome.written, 1);
         assert_eq!(outcome.skipped.len(), 1);
         assert!(
@@ -1098,7 +1073,7 @@ mod tests {
         let scratch = Scratch::new("numbers");
         scratch.write("a.kar", km_song::testing::soft_karaoke());
         scratch.write("b.mid", km_song::testing::lyric_events());
-        let out = scratch.0.join("vol1.kmpkg");
+        let out = scratch.join("vol1.kmpkg");
 
         let mut spec = spec_for(vec![
             SpecSong {
@@ -1114,7 +1089,7 @@ mod tests {
         spec.package.start_number = 100;
         spec.package.default_language = Some("en".to_owned());
 
-        let outcome = run(&spec, &scratch.0, &out);
+        let outcome = run(&spec, scratch.path(), &out);
         assert_eq!(outcome.written, 2, "{:?}", outcome.skipped);
         let package = km_kmpkg::Package::open(&out).expect("open");
         let mut numbers: Vec<u32> = package.manifest().songs.iter().map(|s| s.number).collect();
@@ -1126,14 +1101,14 @@ mod tests {
     #[test]
     fn a_file_that_is_not_a_song_is_reported() {
         let scratch = Scratch::new("stranger");
-        scratch.write("notes.docx", b"not a song".to_vec());
-        let out = scratch.0.join("vol1.kmpkg");
+        scratch.write("notes.docx", b"not a song");
+        let out = scratch.join("vol1.kmpkg");
 
         let spec = spec_for(vec![SpecSong {
             file: "notes.docx".to_owned(),
             ..SpecSong::default()
         }]);
-        let outcome = run(&spec, &scratch.0, &out);
+        let outcome = run(&spec, scratch.path(), &out);
         assert_eq!(outcome.written, 0);
         assert_eq!(outcome.skipped.len(), 1);
         assert!(outcome.skipped[0].why.contains("not a MIDI file"));
@@ -1153,22 +1128,22 @@ mod tests {
     fn a_build_leaves_nothing_beside_the_package() {
         let scratch = Scratch::new("nothing-beside");
         scratch.write("a.kar", km_song::testing::soft_karaoke());
-        let out = scratch.0.join("vol1.kmpkg");
+        let out = scratch.join("vol1.kmpkg");
 
         let spec = spec_for(vec![SpecSong {
             file: "a.kar".to_owned(),
             ..SpecSong::default()
         }]);
-        let outcome = run(&spec, &scratch.0, &out);
+        let outcome = run(&spec, scratch.path(), &out);
         assert_eq!(outcome.written, 1, "{:?}", outcome.skipped);
         assert!(out.is_file());
 
-        assert!(!scratch.0.join("vol1.media").exists(), "no media folder");
-        assert!(!scratch.0.join("vol1.kmpkg.build").exists(), "no scratch");
-        assert!(!scratch.0.join("vol1.kmpkg.part").exists(), "no partial");
+        assert!(!scratch.join("vol1.media").exists(), "no media folder");
+        assert!(!scratch.join("vol1.kmpkg.build").exists(), "no scratch");
+        assert!(!scratch.join("vol1.kmpkg.part").exists(), "no partial");
         // The listing is asked for and is not written otherwise, which is what keeps a folder of
         // repeated builds to one file per package.
-        assert!(!scratch.0.join("vol1.kmpkg.txt").exists(), "no listing");
+        assert!(!scratch.join("vol1.kmpkg.txt").exists(), "no listing");
     }
 
     /// Asked for, the listing is the one thing that appears beside the package.
@@ -1185,16 +1160,16 @@ mod tests {
             ..SpecSong::default()
         }]);
 
-        let plain = scratch.0.join("plain.kmpkg");
-        run(&spec, &scratch.0, &plain);
+        let plain = scratch.join("plain.kmpkg");
+        run(&spec, scratch.path(), &plain);
         let opened = km_kmpkg::Package::open(&plain).expect("open");
         assert_eq!(opened.flags(), km_kmpkg::PackageFlags::NONE);
 
-        let flagged = scratch.0.join("flagged.kmpkg");
+        let flagged = scratch.join("flagged.kmpkg");
         build(
             &spec,
             &BuildOptions {
-                base: &scratch.0,
+                base: scratch.path(),
                 out: Some(&flagged),
                 dry_run: false,
                 measure_loudness: false,
@@ -1215,8 +1190,8 @@ mod tests {
         // A description written from a folder says so itself, and needs no option to carry it.
         let mut described = spec.clone();
         described.package.uncurated = true;
-        let from_folder = scratch.0.join("from-folder.kmpkg");
-        run(&described, &scratch.0, &from_folder);
+        let from_folder = scratch.join("from-folder.kmpkg");
+        run(&described, scratch.path(), &from_folder);
         assert!(
             km_kmpkg::Package::open(&from_folder)
                 .expect("open")
@@ -1228,16 +1203,16 @@ mod tests {
     fn a_listing_is_written_beside_the_package_when_it_is_asked_for() {
         let scratch = Scratch::new("listing-beside");
         scratch.write("a.kar", km_song::testing::soft_karaoke());
-        let out = scratch.0.join("vol1.kmpkg");
+        let out = scratch.join("vol1.kmpkg");
 
         let spec = spec_for(vec![SpecSong {
             file: "a.kar".to_owned(),
             ..SpecSong::default()
         }]);
-        let outcome = run_with(&spec, &scratch.0, &out, true);
+        let outcome = run_with(&spec, scratch.path(), &out, true);
         assert_eq!(outcome.written, 1, "{:?}", outcome.skipped);
 
-        let listing = scratch.0.join("vol1.kmpkg.txt");
+        let listing = scratch.join("vol1.kmpkg.txt");
         assert!(listing.is_file(), "the listing is beside the package");
         assert_eq!(
             outcome.listing_path.as_deref(),
@@ -1246,16 +1221,16 @@ mod tests {
         );
         // `.kmpkg.txt` and not `.txt`: the two sort together and the name says which package the
         // text belongs to.
-        assert!(!scratch.0.join("vol1.txt").exists());
+        assert!(!scratch.join("vol1.txt").exists());
 
         let text = std::fs::read_to_string(&listing).expect("read");
         assert!(text.contains(&spec.package.name), "{text}");
         // What went in, read off the manifest rather than off the description.
         assert!(text.contains("Songs:     1"), "{text}");
 
-        assert!(!scratch.0.join("vol1.media").exists(), "no media folder");
-        assert!(!scratch.0.join("vol1.kmpkg.build").exists(), "no scratch");
-        assert!(!scratch.0.join("vol1.kmpkg.part").exists(), "no partial");
+        assert!(!scratch.join("vol1.media").exists(), "no media folder");
+        assert!(!scratch.join("vol1.kmpkg.build").exists(), "no scratch");
+        assert!(!scratch.join("vol1.kmpkg.part").exists(), "no partial");
     }
 
     /// A dry run writes no listing, because it writes no package for one to describe.
@@ -1263,7 +1238,7 @@ mod tests {
     fn a_dry_run_writes_no_listing_either() {
         let scratch = Scratch::new("listing-dry");
         scratch.write("a.kar", km_song::testing::soft_karaoke());
-        let out = scratch.0.join("vol1.kmpkg");
+        let out = scratch.join("vol1.kmpkg");
 
         let spec = spec_for(vec![SpecSong {
             file: "a.kar".to_owned(),
@@ -1272,7 +1247,7 @@ mod tests {
         let outcome = build(
             &spec,
             &BuildOptions {
-                base: &scratch.0,
+                base: scratch.path(),
                 out: Some(&out),
                 dry_run: true,
                 measure_loudness: true,
@@ -1284,7 +1259,7 @@ mod tests {
         .expect("build");
 
         assert!(!out.exists(), "a dry run writes no package");
-        assert!(!scratch.0.join("vol1.kmpkg.txt").exists(), "nor a listing");
+        assert!(!scratch.join("vol1.kmpkg.txt").exists(), "nor a listing");
         assert!(outcome.listing_path.is_none());
     }
 
@@ -1293,7 +1268,7 @@ mod tests {
     fn a_dry_run_writes_nothing() {
         let scratch = Scratch::new("dry");
         scratch.write("a.kar", km_song::testing::soft_karaoke());
-        let out = scratch.0.join("vol1.kmpkg");
+        let out = scratch.join("vol1.kmpkg");
 
         let spec = spec_for(vec![SpecSong {
             file: "a.kar".to_owned(),
@@ -1302,7 +1277,7 @@ mod tests {
         let outcome = build(
             &spec,
             &BuildOptions {
-                base: &scratch.0,
+                base: scratch.path(),
                 out: Some(&out),
                 dry_run: true,
                 measure_loudness: true,
@@ -1322,7 +1297,7 @@ mod tests {
         let scratch = Scratch::new("cancel");
         scratch.write("a.kar", km_song::testing::soft_karaoke());
         scratch.write("b.mid", km_song::testing::lyric_events());
-        let out = scratch.0.join("vol1.kmpkg");
+        let out = scratch.join("vol1.kmpkg");
 
         let spec = spec_for(vec![
             SpecSong {
@@ -1339,7 +1314,7 @@ mod tests {
         let outcome = build(
             &spec,
             &BuildOptions {
-                base: &scratch.0,
+                base: scratch.path(),
                 out: Some(&out),
                 dry_run: false,
                 measure_loudness: true,
@@ -1367,7 +1342,7 @@ mod tests {
     fn the_write_is_announced_before_it_starts() {
         let scratch = Scratch::new("writing");
         scratch.write("a.kar", km_song::testing::soft_karaoke());
-        let out = scratch.0.join("vol1.kmpkg");
+        let out = scratch.join("vol1.kmpkg");
 
         let spec = spec_for(vec![SpecSong {
             file: "a.kar".to_owned(),
@@ -1377,7 +1352,7 @@ mod tests {
         build(
             &spec,
             &BuildOptions {
-                base: &scratch.0,
+                base: scratch.path(),
                 out: Some(&out),
                 dry_run: false,
                 measure_loudness: true,

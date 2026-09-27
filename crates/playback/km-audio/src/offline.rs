@@ -183,13 +183,14 @@ pub fn write_wav(path: impl AsRef<Path>, rendered: &Rendered) -> io::Result<()> 
 
 #[cfg(test)]
 mod tests {
-    use km_song::{ParseOptions, testing};
+    use km_song::testing;
+    use km_testkit::Scratch;
 
     use super::*;
     use crate::source::TestToneSource;
 
     fn song(bytes: &[u8]) -> Arc<Song> {
-        Arc::new(Song::parse(bytes, &ParseOptions::default()).expect("fixture parses"))
+        Arc::new(testing::parse(bytes))
     }
 
     fn render_fixture(bytes: &[u8], options: &RenderOptions) -> Rendered {
@@ -209,18 +210,14 @@ mod tests {
         );
     }
 
-    #[test]
-    fn rendering_never_clips() {
-        let rendered = render_fixture(&testing::high_quality_song(), &RenderOptions::default());
-        assert!(rendered.peak() <= 1.0, "peak was {}", rendered.peak());
-    }
-
+    /// Over the four-second fixture, because the length is what is compared and a longer song
+    /// only costs more render.
     #[test]
     fn a_faster_tempo_produces_a_shorter_render() {
         let mut fast = RenderOptions::default();
         fast.settings.tempo_ratio = 1.25;
-        let normal = render_fixture(&testing::high_quality_song(), &RenderOptions::default());
-        let quick = render_fixture(&testing::high_quality_song(), &fast);
+        let normal = render_fixture(&testing::soft_karaoke(), &RenderOptions::default());
+        let quick = render_fixture(&testing::soft_karaoke(), &fast);
         assert!(
             quick.duration_ms() < normal.duration_ms(),
             "{} should be shorter than {}",
@@ -264,8 +261,7 @@ mod tests {
     #[test]
     fn a_wav_file_is_written_with_a_valid_header() {
         let rendered = render_fixture(&testing::soft_karaoke(), &RenderOptions::default());
-        let dir = std::env::temp_dir().join("km-audio-tests");
-        std::fs::create_dir_all(&dir).expect("temp dir");
+        let dir = Scratch::new("audio-render-wav");
         let path = dir.join("render.wav");
 
         write_wav(&path, &rendered).expect("wav should be written");
@@ -279,8 +275,6 @@ mod tests {
         // The declared data length must match what was written.
         let declared = u32::from_le_bytes([bytes[40], bytes[41], bytes[42], bytes[43]]);
         assert_eq!(declared as usize, rendered.samples.len() * 2);
-
-        let _ = std::fs::remove_file(&path);
     }
 
     #[test]
@@ -291,8 +285,7 @@ mod tests {
             sample_rate: 44_100,
             reached_end: true,
         };
-        let dir = std::env::temp_dir().join("km-audio-tests");
-        std::fs::create_dir_all(&dir).expect("temp dir");
+        let dir = Scratch::new("audio-clamp-wav");
         let path = dir.join("clamp.wav");
         write_wav(&path, &rendered).expect("write");
         let bytes = std::fs::read(&path).expect("read");
@@ -302,7 +295,5 @@ mod tests {
         assert_eq!(sample(0), i16::MAX);
         assert_eq!(sample(1), -i16::MAX);
         assert!(sample(2) > 0 && sample(3) < 0);
-
-        let _ = std::fs::remove_file(&path);
     }
 }

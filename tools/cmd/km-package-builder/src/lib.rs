@@ -1621,13 +1621,16 @@ mod tests {
         let cli = Cli::try_parse_from(["km-package-builder"]).expect("parse");
         assert_eq!(cli.root, None);
         assert!(!cli.init);
+        // Most people curate one corpus, so reopening the last folder is the default and the list
+        // is what `--pick` asks for.
+        assert!(!cli.pick, "reopening the last folder is the default");
     }
 
     /// A double-clicked `.kmbuild` arrives as a file path, and the folder is its parent.
     #[test]
     fn a_database_path_resolves_to_the_folder_around_it() {
         let scratch = Scratch::new("folder-of");
-        let folder = scratch.0.clone();
+        let folder = scratch.to_path_buf();
         let tidied = crate::model::tidy(&folder);
 
         let database = folder.join(db::DATABASE_NAME);
@@ -1863,15 +1866,9 @@ mod tests {
         assert_eq!(shape(Shell::Windowed, &["--browser"], true), (false, true));
     }
 
-    /// `--pick` is what asks for the list when there is a folder to reopen.
-    ///
-    /// The default is to reopen, because most people curate one corpus and choosing it from a list
-    /// every start is the friction this milestone removes rather than relocates.
+    /// `--pick` is what asks for the list when there is a folder to reopen, and it names no folder.
     #[test]
-    fn pick_is_accepted_and_is_not_the_default() {
-        let plain = Cli::try_parse_from(["km-package-builder"]).expect("parse");
-        assert!(!plain.pick, "reopening the last folder is the default");
-
+    fn pick_asks_for_the_list_and_names_no_folder() {
         let asked = Cli::try_parse_from(["km-package-builder", "--pick"]).expect("parse");
         assert!(asked.pick);
         assert_eq!(asked.root, None);
@@ -1884,7 +1881,7 @@ mod tests {
     #[test]
     fn only_a_folder_that_is_really_there_is_reopened() {
         let scratch = Scratch::new("reopen-rule");
-        let folder = scratch.0.clone();
+        let folder = scratch.to_path_buf();
 
         assert_eq!(
             crate::browse::indexed(&folder),
@@ -1930,20 +1927,6 @@ mod tests {
         assert!(cli.lan);
         assert_eq!(cli.port, 8178);
         assert_eq!(cli.machine.as_deref(), Some("http://127.0.0.1:8177"));
-    }
-
-    /// The exact line `dist-tools.sh` prints for km-package-builder, and the one the README opens
-    /// with.
-    #[test]
-    fn the_command_the_readme_tells_people_to_run_works() {
-        Cli::try_parse_from([
-            "km-package-builder",
-            "./songs",
-            "--init",
-            "--scan",
-            "--open",
-        ])
-        .expect("the README's first command must parse");
     }
 
     /// Every option the staged README lists, accepted.

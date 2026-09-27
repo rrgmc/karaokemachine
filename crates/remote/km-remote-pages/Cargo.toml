@@ -56,5 +56,6 @@ thiserror = { workspace = true }
 tracing = { workspace = true }
 
 [dev-dependencies]
+km-testkit = { workspace = true, features = ["http"] }
 # Driving the real router as a service, the way `km-api` and `km-package-builder` both test theirs.
 tower = { workspace = true, features = ["util"] }

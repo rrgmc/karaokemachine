@@ -492,6 +492,8 @@ pub fn choose(situation: &Situation<'_>) -> Choice {
 mod tests {
     use std::time::Instant;
 
+    use km_testkit::Scratch;
+
     use super::*;
     use crate::discover::Sighting;
 
@@ -531,167 +533,278 @@ mod tests {
             answering_id: None,
             stale: false,
             // **The remote's answer, so every rule below is asserted unchanged by the flag.** The
-            // three tests that pass `false` say so themselves; everything else here is about the
+            // cases that pass `false` say so themselves; everything else here is about the
             // policy the offline remote follows, and this helper existing before `adopts` did is
             // what makes it the right default for them.
             adopts: true,
         }
     }
 
-    /// Somebody saying *that one* is an instruction, and following an id away from it would be
-    /// disobeying rather than recovering.
+    /// Each policy case is one situation and the choice `choose` makes in it.
+    ///
+    /// A row names what is remembered and what the network is saying, and `given` sets the rest of
+    /// the situation. A case that takes more than one call to `choose` is a test of its own below.
     #[test]
-    fn a_pin_beats_a_machine_that_moved() {
-        let record = known(Some("abc123"), "http://192.168.1.9:8177");
-        let network = [seen(Some("abc123"), "http://192.168.1.42:8177", true)];
-        let situation = Situation {
-            pinned: true,
-            current: Some("http://192.168.1.9:8177"),
-            ..situation(Some(&record), &network)
-        };
-        assert_eq!(choose(&situation), Choice::Stay);
-    }
+    fn choose_answers_each_situation_with_its_rule() {
+        /// The address in hand, and where the remembered machine is remembered.
+        const HERE: &str = "http://192.168.1.9:8177";
+        /// Where a machine is announcing itself instead.
+        const THERE: &str = "http://192.168.1.42:8177";
 
-    /// The plain case: the machine we know is somewhere else and this address is dead.
-    #[test]
-    fn the_remembered_id_at_a_new_address_wins_when_nothing_answers() {
-        let record = known(Some("abc123"), "http://192.168.1.9:8177");
-        let network = [seen(Some("abc123"), "http://192.168.1.42:8177", true)];
-        let situation = Situation {
-            current: Some("http://192.168.1.9:8177"),
-            ..situation(Some(&record), &network)
+        struct Case {
+            name: &'static str,
+            known: Option<Known>,
+            seen: Vec<Observed>,
+            given: fn(Situation<'_>) -> Situation<'_>,
+            want: Choice,
+        }
+        let moved = || Choice::Use {
+            url: THERE.to_owned(),
+            why: Why::MachineMoved,
         };
-        assert_eq!(
-            choose(&situation),
-            Choice::Use {
-                url: "http://192.168.1.42:8177".to_owned(),
-                why: Why::MachineMoved,
-            }
-        );
-    }
+        let adopted = || Choice::Use {
+            url: THERE.to_owned(),
+            why: Why::Adopted,
+        };
 
-    /// The overnight DHCP shuffle, and the one case no amount of address-watching could reach:
-    /// something *is* answering at the remembered address, and it is not our machine.
-    #[test]
-    fn a_different_id_answering_at_the_remembered_address_means_the_address_is_wrong() {
-        let record = known(Some("abc123"), "http://192.168.1.9:8177");
-        let network = [seen(Some("abc123"), "http://192.168.1.42:8177", true)];
-        let situation = Situation {
-            online: true,
-            current: Some("http://192.168.1.9:8177"),
-            answering_id: Some("someone-else"),
-            ..situation(Some(&record), &network)
-        };
-        assert_eq!(
-            choose(&situation),
-            Choice::Use {
-                url: "http://192.168.1.42:8177".to_owned(),
-                why: Why::MachineMoved,
-            }
-        );
-    }
-
-    /// One machine reachable two ways is not a machine that moved.
-    #[test]
-    fn the_same_id_answering_here_is_a_reason_to_stay() {
-        let record = known(Some("abc123"), "http://192.168.1.9:8177");
-        let network = [seen(Some("abc123"), "http://192.168.1.42:8177", true)];
-        let situation = Situation {
-            online: true,
-            current: Some("http://192.168.1.9:8177"),
-            answering_id: Some("abc123"),
-            ..situation(Some(&record), &network)
-        };
-        assert_eq!(choose(&situation), Choice::Stay);
-    }
-
-    /// A working evening is not interrupted on a suspicion.
-    #[test]
-    fn a_fresh_record_is_left_alone_while_something_answers() {
-        let record = known(Some("abc123"), "http://192.168.1.9:8177");
-        let network = [seen(Some("abc123"), "http://192.168.1.42:8177", true)];
-        let situation = Situation {
-            online: true,
-            current: Some("http://192.168.1.9:8177"),
-            stale: false,
-            ..situation(Some(&record), &network)
-        };
-        assert_eq!(choose(&situation), Choice::Stay);
-    }
-
-    /// ...and the whole of what age changes: the same situation, one night older.
-    #[test]
-    fn a_stale_record_follows_its_id_even_though_the_old_address_answers() {
-        let record = known(Some("abc123"), "http://192.168.1.9:8177");
-        let network = [seen(Some("abc123"), "http://192.168.1.42:8177", true)];
-        let situation = Situation {
-            online: true,
-            current: Some("http://192.168.1.9:8177"),
-            stale: true,
-            ..situation(Some(&record), &network)
-        };
-        assert_eq!(
-            choose(&situation),
-            Choice::Use {
-                url: "http://192.168.1.42:8177".to_owned(),
-                why: Why::MachineMoved,
-            }
-        );
-    }
-
-    /// **The Android-in-a-pocket case.** The registry keeps a machine it has stopped hearing from,
-    /// because on a phone that has been backgrounded silence means the multicast lock was released
-    /// and not that anything moved. An absent row is a cache and may never cause a move.
-    #[test]
-    fn an_absent_sighting_never_moves_the_connection() {
-        let record = known(Some("abc123"), "http://192.168.1.9:8177");
-        let network = [seen(Some("abc123"), "http://192.168.1.42:8177", false)];
-        let situation = Situation {
-            current: Some("http://192.168.1.9:8177"),
-            ..situation(Some(&record), &network)
-        };
-        assert_eq!(choose(&situation), Choice::Stay);
+        let cases = [
+            // Somebody saying *that one* is an instruction, and following an id away from it would
+            // be disobeying rather than recovering.
+            Case {
+                name: "a pin beats a machine that moved",
+                known: Some(known(Some("abc123"), HERE)),
+                seen: vec![seen(Some("abc123"), THERE, true)],
+                given: |s| Situation {
+                    pinned: true,
+                    current: Some(HERE),
+                    ..s
+                },
+                want: Choice::Stay,
+            },
+            // The plain case: the machine we know is somewhere else and this address is dead.
+            Case {
+                name: "the remembered id at a new address wins when nothing answers",
+                known: Some(known(Some("abc123"), HERE)),
+                seen: vec![seen(Some("abc123"), THERE, true)],
+                given: |s| Situation {
+                    current: Some(HERE),
+                    ..s
+                },
+                want: moved(),
+            },
+            // The overnight DHCP shuffle. Something *is* answering at the remembered address, and
+            // it is not our machine, so only an id can see it.
+            Case {
+                name: "a different id answering here means the address is wrong",
+                known: Some(known(Some("abc123"), HERE)),
+                seen: vec![seen(Some("abc123"), THERE, true)],
+                given: |s| Situation {
+                    online: true,
+                    current: Some(HERE),
+                    answering_id: Some("someone-else"),
+                    ..s
+                },
+                want: moved(),
+            },
+            // One machine reachable two ways is not a machine that moved.
+            Case {
+                name: "the same id answering here is a reason to stay",
+                known: Some(known(Some("abc123"), HERE)),
+                seen: vec![seen(Some("abc123"), THERE, true)],
+                given: |s| Situation {
+                    online: true,
+                    current: Some(HERE),
+                    answering_id: Some("abc123"),
+                    ..s
+                },
+                want: Choice::Stay,
+            },
+            // A working evening is not interrupted on a suspicion.
+            Case {
+                name: "a fresh record is left alone while something answers",
+                known: Some(known(Some("abc123"), HERE)),
+                seen: vec![seen(Some("abc123"), THERE, true)],
+                given: |s| Situation {
+                    online: true,
+                    current: Some(HERE),
+                    stale: false,
+                    ..s
+                },
+                want: Choice::Stay,
+            },
+            // The whole of what age changes: the row above, one night older.
+            Case {
+                name: "a stale record follows its id even though the old address answers",
+                known: Some(known(Some("abc123"), HERE)),
+                seen: vec![seen(Some("abc123"), THERE, true)],
+                given: |s| Situation {
+                    online: true,
+                    current: Some(HERE),
+                    stale: true,
+                    ..s
+                },
+                want: moved(),
+            },
+            // The Android-in-a-pocket case. A backgrounded phone releases the multicast lock, so
+            // an absent row is a cache and may never cause a move.
+            Case {
+                name: "an absent sighting never moves the connection",
+                known: Some(known(Some("abc123"), HERE)),
+                seen: vec![seen(Some("abc123"), THERE, false)],
+                given: |s| Situation {
+                    current: Some(HERE),
+                    ..s
+                },
+                want: Choice::Stay,
+            },
+            // `find::recovery`'s five cases are among the rows from here on. A record with no id is
+            // one this module did not write, and nothing about how it behaves may move.
+            //
+            // A machine that is answering is never swapped out from under whoever is using it.
+            Case {
+                name: "a working connection is never switched away from",
+                known: None,
+                seen: vec![seen(None, "http://10.0.0.2:8177", true)],
+                given: |s| Situation {
+                    online: true,
+                    current: Some("http://10.0.0.1:8177"),
+                    ..s
+                },
+                want: Choice::Stay,
+            },
+            // The remembered machine is switched off and another is on the network. The record
+            // names no machine, so nothing is walked away from.
+            // `an_anchored_device_does_not_take_a_stranger_while_its_own_machine_is_away` is the
+            // same evening once one is known.
+            Case {
+                name: "an unreachable machine is replaced by one found on the network",
+                known: Some(known(None, HERE)),
+                seen: vec![seen(None, THERE, true)],
+                given: |s| Situation {
+                    current: Some(HERE),
+                    ..s
+                },
+                want: adopted(),
+            },
+            // The half that must survive the stranger rule: an anchored device still follows its
+            // own machine.
+            Case {
+                name: "an anchored device still follows its own machine past a stranger",
+                known: Some(known(Some("ours"), HERE)),
+                seen: vec![
+                    seen(Some("stranger"), THERE, true),
+                    seen(Some("ours"), "http://192.168.1.43:8177", true),
+                ],
+                given: |s| Situation {
+                    current: Some(HERE),
+                    ..s
+                },
+                want: Choice::Use {
+                    url: "http://192.168.1.43:8177".to_owned(),
+                    why: Why::MachineMoved,
+                },
+            },
+            // The browse answers a full URL and the remembered form may be bare, but it is one
+            // address. Re-pointing at the address that is already failing would be churn.
+            Case {
+                name: "the same address found again changes nothing",
+                known: None,
+                seen: vec![seen(None, "192.168.1.9", true)],
+                given: |s| Situation {
+                    current: Some(HERE),
+                    ..s
+                },
+                want: Choice::Stay,
+            },
+            Case {
+                name: "a remote with no machine at all takes what it finds",
+                known: None,
+                seen: vec![seen(None, THERE, true)],
+                given: |s| s,
+                want: adopted(),
+            },
+            // Nothing on the network is the ordinary case for a remote in a pocket.
+            Case {
+                name: "finding nothing leaves the address alone",
+                known: None,
+                seen: vec![],
+                given: |s| Situation {
+                    current: Some(HERE),
+                    ..s
+                },
+                want: Choice::Stay,
+            },
+            // With nothing in hand, the record is where to start, with no waiting for the network.
+            Case {
+                name: "a remembered machine is used when there is nothing in hand",
+                known: Some(known(None, HERE)),
+                seen: vec![],
+                given: |s| s,
+                want: Choice::Use {
+                    url: HERE.to_owned(),
+                    why: Why::Remembered,
+                },
+            },
+            // Two machines and nothing remembered is a person's choice.
+            Case {
+                name: "two machines and nothing remembered is not a policy's choice",
+                known: None,
+                seen: vec![
+                    seen(Some("aaa"), "http://192.168.1.8:8177", true),
+                    seen(Some("zzz"), "http://192.168.1.9:8177", true),
+                ],
+                given: |s| s,
+                want: Choice::Stay,
+            },
+            // Following an id is not adopting, so `adopts` does not touch it. Refusing would leave
+            // the tool installing into nothing while its chosen machine announced itself nearby.
+            Case {
+                name: "a tool that may not adopt still follows the machine it was told about",
+                known: Some(known(Some("abc123"), HERE)),
+                seen: vec![seen(Some("abc123"), THERE, true)],
+                given: |s| Situation {
+                    adopts: false,
+                    current: Some(HERE),
+                    ..s
+                },
+                want: moved(),
+            },
+            // Nor is remembering. An address this device wrote down is one something answered at.
+            Case {
+                name: "nothing in hand and no permission to adopt still uses what was remembered",
+                known: Some(known(Some("abc123"), HERE)),
+                seen: vec![],
+                given: |s| Situation { adopts: false, ..s },
+                want: Choice::Use {
+                    url: HERE.to_owned(),
+                    why: Why::Remembered,
+                },
+            },
+        ];
+        for Case {
+            name,
+            known,
+            seen,
+            given,
+            want,
+        } in cases
+        {
+            assert_eq!(
+                choose(&given(situation(known.as_ref(), &seen))),
+                want,
+                "{name}"
+            );
+        }
     }
 
     // ---------------------------------------------------------------------------------------
-    // `find::recovery`'s five cases, unchanged. A record with no id is a record from before this
-    // module, and nothing about how it behaves may move.
+    // Anchoring: a device that knows which machine is its own takes no stranger.
     // ---------------------------------------------------------------------------------------
 
-    /// A machine that is answering is never swapped out from under whoever is using it.
-    #[test]
-    fn a_working_connection_is_never_switched_away_from() {
-        let network = [seen(None, "http://10.0.0.2:8177", true)];
-        let situation = Situation {
-            online: true,
-            current: Some("http://10.0.0.1:8177"),
-            ..situation(None, &network)
-        };
-        assert_eq!(choose(&situation), Choice::Stay);
-    }
-
-    /// A remembered address for a machine that is switched off, and the machine that is actually on
-    /// the network at a different one. **The record names no machine**, so nothing is being walked
-    /// away from — the test below is the same evening once one is known.
-    #[test]
-    fn an_unreachable_machine_is_replaced_by_one_found_on_the_network() {
-        let record = known(None, "http://192.168.1.9:8177");
-        let network = [seen(None, "http://192.168.1.42:8177", true)];
-        let situation = Situation {
-            current: Some("http://192.168.1.9:8177"),
-            ..situation(Some(&record), &network)
-        };
-        assert_eq!(
-            choose(&situation),
-            Choice::Use {
-                url: "http://192.168.1.42:8177".to_owned(),
-                why: Why::Adopted,
-            }
-        );
-    }
-
-    /// ...and the same evening on a device that knows which machine is its own. Its machine is not
-    /// announcing itself, and a stranger being there instead is not a reason to go and live on it.
+    /// A device that knows its own machine keeps its address while that machine is away. A
+    /// stranger on the network instead is not a reason to go and live on it.
+    ///
+    /// It is the table's unreachable-machine row, on a device whose record names a machine.
     #[test]
     fn an_anchored_device_does_not_take_a_stranger_while_its_own_machine_is_away() {
         let record = known(Some("ours"), "http://192.168.1.9:8177");
@@ -711,27 +824,6 @@ mod tests {
         );
     }
 
-    /// The half that must survive the rule above: an anchored device still follows its own machine.
-    #[test]
-    fn an_anchored_device_still_follows_its_own_machine_past_a_stranger() {
-        let record = known(Some("ours"), "http://192.168.1.9:8177");
-        let network = [
-            seen(Some("stranger"), "http://192.168.1.42:8177", true),
-            seen(Some("ours"), "http://192.168.1.43:8177", true),
-        ];
-        let situation = Situation {
-            current: Some("http://192.168.1.9:8177"),
-            ..situation(Some(&record), &network)
-        };
-        assert_eq!(
-            choose(&situation),
-            Choice::Use {
-                url: "http://192.168.1.43:8177".to_owned(),
-                why: Why::MachineMoved,
-            }
-        );
-    }
-
     /// What anchors a device is the id, so a record with none is still a bare address and still
     /// takes what it finds.
     #[test]
@@ -742,67 +834,6 @@ mod tests {
             Some("ours"),
             "http://192.168.1.9:8177"
         ))));
-    }
-
-    /// Re-pointing at the address that is already failing would be churn, not recovery.
-    #[test]
-    fn the_same_address_found_again_changes_nothing() {
-        let network = [seen(None, "192.168.1.9", true)];
-        let situation = Situation {
-            current: Some("http://192.168.1.9:8177"),
-            ..situation(None, &network)
-        };
-        assert_eq!(
-            choose(&situation),
-            Choice::Stay,
-            "the browse answers a full URL and the remembered form may be bare; one address"
-        );
-    }
-
-    /// A remote that has never found anything takes whatever turns up.
-    #[test]
-    fn a_remote_with_no_machine_at_all_takes_what_it_finds() {
-        let network = [seen(None, "http://192.168.1.42:8177", true)];
-        assert_eq!(
-            choose(&situation(None, &network)),
-            Choice::Use {
-                url: "http://192.168.1.42:8177".to_owned(),
-                why: Why::Adopted,
-            }
-        );
-    }
-
-    /// Nothing on the network is the ordinary case for a remote in a pocket, and changes nothing.
-    #[test]
-    fn finding_nothing_leaves_the_address_alone() {
-        let situation = Situation {
-            current: Some("http://192.168.1.9:8177"),
-            ..situation(None, &[])
-        };
-        assert_eq!(choose(&situation), Choice::Stay);
-    }
-
-    /// With nothing in hand, the record is where to start — no waiting for the network.
-    #[test]
-    fn a_remembered_machine_is_used_when_there_is_nothing_in_hand() {
-        let record = known(None, "http://192.168.1.9:8177");
-        assert_eq!(
-            choose(&situation(Some(&record), &[])),
-            Choice::Use {
-                url: "http://192.168.1.9:8177".to_owned(),
-                why: Why::Remembered,
-            }
-        );
-    }
-
-    /// Two machines and nothing remembered is a person's choice, not a policy's.
-    #[test]
-    fn two_machines_and_nothing_remembered_is_not_a_policys_choice() {
-        let network = [
-            seen(Some("aaa"), "http://192.168.1.8:8177", true),
-            seen(Some("zzz"), "http://192.168.1.9:8177", true),
-        ];
-        assert_eq!(choose(&situation(None, &network)), Choice::Stay);
     }
 
     // ---------------------------------------------------------------------------------------
@@ -859,58 +890,13 @@ mod tests {
         );
     }
 
-    /// **Following an id is not adopting**, so the flag does not touch it.
-    ///
-    /// This is the exception the curation decision grants in as many words: the machine somebody
-    /// chose, at a new address. Refusing to follow it would leave the tool installing into nothing
-    /// while that machine sat two meters away announcing itself.
-    #[test]
-    fn a_tool_that_may_not_adopt_still_follows_the_machine_it_was_told_about() {
-        let record = known(Some("abc123"), "http://192.168.1.9:8177");
-        let network = [seen(Some("abc123"), "http://192.168.1.42:8177", true)];
-        let moved = Situation {
-            adopts: false,
-            current: Some("http://192.168.1.9:8177"),
-            ..situation(Some(&record), &network)
-        };
-        assert_eq!(
-            choose(&moved),
-            Choice::Use {
-                url: "http://192.168.1.42:8177".to_owned(),
-                why: Why::MachineMoved,
-            }
-        );
-    }
-
-    /// Nor is remembering. An address this device wrote down is one something answered at.
-    #[test]
-    fn nothing_in_hand_and_no_permission_to_adopt_still_uses_what_was_remembered() {
-        let record = known(Some("abc123"), "http://192.168.1.9:8177");
-        assert_eq!(
-            choose(&Situation {
-                adopts: false,
-                ..situation(Some(&record), &[])
-            }),
-            Choice::Use {
-                url: "http://192.168.1.9:8177".to_owned(),
-                why: Why::Remembered,
-            }
-        );
-    }
-
     // ---------------------------------------------------------------------------------------
     // The record itself.
     // ---------------------------------------------------------------------------------------
 
-    fn scratch(name: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!("km-known-{name}-{}", std::process::id()));
-        std::fs::create_dir_all(&dir).expect("temp dir");
-        dir
-    }
-
     #[test]
     fn a_record_survives_a_restart() {
-        let dir = scratch("roundtrip");
+        let dir = Scratch::new("known-roundtrip");
         let path = path_in(&dir, "machine.json");
         let record = Known::at("http://192.168.1.42:8177", Why::Adopted).answered(
             "abc123",
@@ -922,13 +908,12 @@ mod tests {
         assert_eq!(read(&path).as_ref(), Some(&record));
         forget(&path);
         assert!(read(&path).is_none());
-        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// A record this build cannot read is no record rather than a crash, and never an empty one.
     #[test]
     fn a_record_this_build_cannot_read_is_no_record() {
-        let dir = scratch("unreadable");
+        let dir = Scratch::new("known-unreadable");
         let path = path_in(&dir, "machine.json");
 
         for bad in [
@@ -941,13 +926,12 @@ mod tests {
             std::fs::write(&path, bad).expect("write");
             assert!(read(&path).is_none(), "{bad:?} should read as nothing");
         }
-        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// A write leaves the record and nothing else.
     #[test]
     fn a_write_leaves_no_temporary_file_behind() {
-        let dir = scratch("tidy");
+        let dir = Scratch::new("known-tidy");
         let path = path_in(&dir, "machine.json");
         write(&path, &Known::at("http://192.168.1.9:8177", Why::Chosen));
 
@@ -957,7 +941,6 @@ mod tests {
             .map(|entry| entry.file_name().to_string_lossy().into_owned())
             .collect();
         assert_eq!(left, vec!["machine.json".to_owned()]);
-        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

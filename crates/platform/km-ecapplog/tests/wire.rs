@@ -45,9 +45,10 @@ fn collect(app_name: &str, emit: impl FnOnce()) -> (String, Vec<serde_json::Valu
     let accepted = std::thread::spawn(move || listener.accept().map(|(stream, _)| stream));
 
     tracing::subscriber::with_default(subscriber, emit);
-    // Drains what was queued, which is what makes the read below terminate at a known point rather
-    // than at a timeout.
+    // Drains what was queued, then drops the last clone of the client. That closes the connection,
+    // so the read below ends at the end of the stream rather than at its timeout.
     viewer.flush();
+    drop(viewer);
 
     let stream = accepted
         .join()
@@ -58,7 +59,7 @@ fn collect(app_name: &str, emit: impl FnOnce()) -> (String, Vec<serde_json::Valu
 
 /// Reads frames until the client stops talking, returning the banner's app name and the records.
 fn read_frames(mut stream: TcpStream) -> (String, Vec<serde_json::Value>) {
-    // The client has already been flushed, so everything it means to say is in the socket. The
+    // The client has been flushed and closed, so everything it means to say is in the socket. The
     // timeout is the backstop for a fault rather than the ordinary path.
     stream
         .set_read_timeout(Some(Duration::from_secs(5)))

@@ -2055,21 +2055,48 @@ mod tests {
         }
     }
 
+    /// `is_only_a_legal_notice` answers true only for a line that is the notice and nothing else.
+    ///
+    /// A false positive throws a verse away, so every song line here carries a word the notice list
+    /// touches.
     #[test]
-    fn a_line_that_is_only_a_publishers_notice_is_one() {
-        for line in [
-            "ALL rights reserved. Not for broadcast or",
-            "transmission of any kind.",
-            "DO NOT DUPLICATE. NOT FOR RENTAL.",
-            "International rights secured. All rights reserved.",
-            "Copyright 1994",
-            "(c) 1998",
-            "Todos os direitos reservados",
-        ] {
-            assert!(
-                is_only_a_legal_notice(line),
-                "{line:?} is a notice and nothing else"
-            );
+    fn only_a_notice_and_nothing_else_is_only_a_notice() {
+        let cases: [(&str, &[&str], bool); 3] = [
+            (
+                "a line that is only a publisher's notice is one",
+                &[
+                    "ALL rights reserved. Not for broadcast or",
+                    "transmission of any kind.",
+                    "DO NOT DUPLICATE. NOT FOR RENTAL.",
+                    "International rights secured. All rights reserved.",
+                    "Copyright 1994",
+                    "(c) 1998",
+                    "Todos os direitos reservados",
+                ],
+                true,
+            ),
+            (
+                "a line of a song is never only a notice",
+                &[
+                    "100% PURE LOVE",
+                    "and I have no reserved seat for you",
+                    "All the rights and wrongs of loving you",
+                    "Do not duplicate my heart tonight and leave",
+                    "copyright my soul, she said, and laughed",
+                    "or",
+                    "and",
+                    "no",
+                ],
+                false,
+            ),
+            // `looks_like_a_banner` answers true for an empty line because a preview may skip one.
+            // Dropping every blank line from a timeline would close up the gaps a song has.
+            ("nothing at all is not a notice", &["", "   ", "\t"], false),
+        ];
+        for (name, lines, want) in cases {
+            for line in lines {
+                assert_eq!(is_only_a_legal_notice(line), want, "{name}: {line:?}");
+            }
         }
     }
 
@@ -2085,36 +2112,6 @@ mod tests {
         ] {
             assert!(!is_only_a_legal_notice(line), "{line:?} names somebody");
             assert!(looks_like_a_banner(line), "{line:?} is still a banner");
-        }
-    }
-
-    #[test]
-    fn a_line_of_a_song_is_never_only_a_notice() {
-        // The direction that costs a verse. Every one of these carries a word the notice list
-        // touches, and none of them is a notice.
-        for line in [
-            "100% PURE LOVE",
-            "and I have no reserved seat for you",
-            "All the rights and wrongs of loving you",
-            "Do not duplicate my heart tonight and leave",
-            "copyright my soul, she said, and laughed",
-            "or",
-            "and",
-            "no",
-        ] {
-            assert!(
-                !is_only_a_legal_notice(line),
-                "{line:?} is a line of a song"
-            );
-        }
-    }
-
-    #[test]
-    fn nothing_at_all_is_not_a_notice() {
-        // Unlike `looks_like_a_banner`, which answers true for an empty line because a preview may
-        // skip one. Dropping every blank line from a timeline would close up the gaps a song has.
-        for line in ["", "   ", "\t"] {
-            assert!(!is_only_a_legal_notice(line));
         }
     }
 

@@ -2240,6 +2240,7 @@ dependencies = [
  "km-songcode",
  "km-stream",
  "km-suitability",
+ "km-testkit",
  "km-tray",
  "km-video",
  "ndk-context",
@@ -2281,6 +2282,7 @@ dependencies = [
  "km-kmpkg",
  "km-locale",
  "km-songcode",
+ "km-testkit",
  "serde",
  "serde_json",
  "thiserror 2.0.20",
@@ -2317,6 +2319,7 @@ dependencies = [
  "km-song",
  "km-songbook",
  "km-songcode",
+ "km-testkit",
  "mdns-sd",
  "percent-encoding",
  "serde",
@@ -2342,6 +2345,7 @@ dependencies = [
  "km-queue",
  "km-song",
  "km-suitability",
+ "km-testkit",
  "objc2-core-audio",
  "objc2-core-audio-types",
  "objc2-core-foundation",
@@ -2380,6 +2384,7 @@ dependencies = [
  "km-kmpkg",
  "km-song",
  "km-songcode",
+ "km-testkit",
  "rusqlite",
  "serde_json",
  "thiserror 2.0.20",
@@ -2417,6 +2422,7 @@ dependencies = [
  "km-queue",
  "km-song",
  "km-songcode",
+ "km-testkit",
  "midly",
  "qrcode",
  "sdl3",
@@ -2460,6 +2466,7 @@ dependencies = [
  "km-fixes",
  "km-song",
  "km-songcode",
+ "km-testkit",
  "serde",
  "serde_json",
  "sha2 0.11.0",
@@ -2488,6 +2495,7 @@ dependencies = [
 name = "km-logfile"
 version = "1.18.0"
 dependencies = [
+ "km-testkit",
  "tracing",
  "tracing-subscriber",
 ]
@@ -2560,6 +2568,7 @@ dependencies = [
  "km-songbook",
  "km-songcode",
  "km-suitability",
+ "km-testkit",
  "km-video",
  "serde",
  "serde_json",
@@ -2593,6 +2602,7 @@ dependencies = [
  "km-song",
  "km-songcode",
  "km-suitability",
+ "km-testkit",
  "km-tray",
  "km-video",
  "km-webshell",
@@ -2629,6 +2639,7 @@ dependencies = [
  "km-pack",
  "km-song",
  "km-songcode",
+ "km-testkit",
  "km-tray",
  "km-webshell",
  "serde",
@@ -2719,6 +2730,7 @@ dependencies = [
  "km-remote-pages",
  "km-song",
  "km-songcode",
+ "km-testkit",
  "mdns-sd",
  "reqwest",
  "rusqlite",
@@ -2735,6 +2747,7 @@ name = "km-remote-host"
 version = "1.18.0"
 dependencies = [
  "km-remote-core",
+ "km-testkit",
  "tokio",
  "tracing",
 ]
@@ -2764,6 +2777,7 @@ dependencies = [
  "km-locale",
  "km-song",
  "km-songcode",
+ "km-testkit",
  "percent-encoding",
  "qrcode",
  "serde",
@@ -2821,6 +2835,14 @@ dependencies = [
  "km-song",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "km-testkit"
+version = "1.18.0"
+dependencies = [
+ "axum",
+ "tower",
 ]
 
 [[package]]

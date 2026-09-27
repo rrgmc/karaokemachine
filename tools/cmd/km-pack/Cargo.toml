@@ -44,4 +44,5 @@ serde_norway = { workspace = true }
 # entries from real parsed songs. The synthetic fixtures live behind km-song's `testing` feature,
 # which is off by default so it never reaches a release binary.
 [dev-dependencies]
+km-testkit = { workspace = true }
 km-song = { workspace = true, features = ["testing"] }

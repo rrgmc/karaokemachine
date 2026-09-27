@@ -463,6 +463,8 @@ impl std::fmt::Debug for SoundFontSource {
 mod tests {
     use super::*;
 
+    use km_testkit::Scratch;
+
     #[test]
     fn a_silent_source_renders_silence() {
         let mut source = TestToneSource::new(44_100);
@@ -541,8 +543,7 @@ mod tests {
 
     #[test]
     fn a_file_that_is_not_a_soundfont_is_rejected() {
-        let dir = std::env::temp_dir().join("km-audio-tests");
-        std::fs::create_dir_all(&dir).expect("temp dir");
+        let dir = Scratch::new("audio-not-a-soundfont");
         let path = dir.join("not-a-soundfont.sf2");
         std::fs::write(&path, b"this is not a SoundFont").expect("write");
         let result = SoundFontSource::from_path(&path, 44_100);
@@ -550,7 +551,6 @@ mod tests {
             matches!(result, Err(SourceError::SoundFont(_))),
             "got {result:?}"
         );
-        let _ = std::fs::remove_file(&path);
     }
 
     /// The ordinary case, and the one that must not produce a message anybody reads.

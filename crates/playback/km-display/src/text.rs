@@ -1336,40 +1336,47 @@ mod tests {
         assert_eq!(drawable("não  é\tsó"), "não  é\tsó");
     }
 
+    /// `first_fitting` takes the first face in the ladder that fits, and never panics.
     #[test]
-    fn the_full_size_is_taken_whenever_the_line_fits_it() {
-        assert_eq!(first_fitting(&LADDER, 1920.0), 0);
-        assert_eq!(
-            first_fitting(&LADDER, 1200.0),
-            0,
-            "exactly filling the width fits"
-        );
-    }
-
-    #[test]
-    fn the_first_face_that_fits_wins_rather_than_the_smallest() {
-        assert_eq!(first_fitting(&LADDER, 1000.0), 1);
-        assert_eq!(first_fitting(&LADDER, 800.0), 2);
-        assert_eq!(first_fitting(&LADDER, 700.0), 3);
-    }
-
-    /// A 1,667-character line exists in the corpus and has no legible rendering at any size. The
-    /// narrowest face is used and SDL clips it, which is a deliberate choice and not a fallthrough.
-    #[test]
-    fn a_line_that_fits_nowhere_takes_the_narrowest_face() {
-        assert_eq!(first_fitting(&LADDER, 10.0), 3);
-        assert_eq!(first_fitting(&LADDER, 0.0), 3);
-    }
-
-    #[test]
-    fn a_ladder_of_one_is_still_answerable() {
-        assert_eq!(first_fitting(&[500.0], 1000.0), 0);
-        assert_eq!(first_fitting(&[500.0], 100.0), 0);
-        assert_eq!(
-            first_fitting(&[], 100.0),
-            0,
-            "and an empty one cannot panic"
-        );
+    fn the_first_face_that_fits_is_taken() {
+        let cases: [(&str, &[f32], f32, usize); 10] = [
+            (
+                "the full size is taken whenever the line fits it",
+                &LADDER,
+                1920.0,
+                0,
+            ),
+            ("exactly filling the width fits", &LADDER, 1200.0, 0),
+            // The first face that fits wins, rather than the smallest.
+            ("the second face is the first that fits", &LADDER, 1000.0, 1),
+            ("the third face is the first that fits", &LADDER, 800.0, 2),
+            ("the last face is the first that fits", &LADDER, 700.0, 3),
+            // A 1,667-character line exists in the corpus and has no legible rendering at any size.
+            // The narrowest face is used and SDL clips it, which is a deliberate choice.
+            (
+                "a line that fits nowhere takes the narrowest face",
+                &LADDER,
+                10.0,
+                3,
+            ),
+            ("no width at all takes the narrowest face", &LADDER, 0.0, 3),
+            (
+                "a ladder of one answers when the line fits",
+                &[500.0],
+                1000.0,
+                0,
+            ),
+            (
+                "a ladder of one answers when the line does not fit",
+                &[500.0],
+                100.0,
+                0,
+            ),
+            ("an empty ladder cannot panic", &[], 100.0, 0),
+        ];
+        for (name, widths, available, want) in cases {
+            assert_eq!(first_fitting(widths, available), want, "{name}");
+        }
     }
 
     #[test]

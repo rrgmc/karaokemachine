@@ -1154,6 +1154,31 @@ would illustrate is tested directly: the manifest's `lyric_encoding` override ha
 risk stands, because lyric-format surprises come from real files. What answers it is the owner's own
 corpus through `km-lyrics scan` and `km-package-builder` over tens of thousands of files.
 
+## Test scaffolding two crates share lives in one crate
+
+**`tools/dev/km-testkit` holds what the tests of more than one crate need.** That is a scratch folder
+that removes itself, and an axum router driven as a service with no socket. A crate takes it as a
+dev-dependency, so nothing that ships links it.
+
+**A copied helper drifts, and here the drift is a fault.** Every run on the computer shares a scratch
+name that carries no process id. Two checkouts that build at once then delete each other's files in
+the middle of a test. A helper that never removes its folder fills the temp folder instead. One
+definition answers both for every crate.
+
+**It depends on no `km-*` crate, and that is a requirement.** Cargo refuses a dev-dependency that
+depends back on the crate under test. So every crate can take it only while it takes none of them.
+
+**A double stays in its own crate's `testing` module when it reaches that crate's private items, or
+implements that crate's trait.** `km_api::testing::TestMachine` stays in `km-api` for a second
+reason: the `testing` feature builds it into the dev server as well as the tests.
+
+**The router half is behind the `http` feature.** A crate that wants only a folder compiles none of
+axum for its tests. `tools/cmd/assets` reaches the crate by path, on the rule the root manifest gives
+for that boundary: it carries no HTTP client.
+
+**`km-passwords` keeps its own scratch folder.** Its manifest keeps its tree to four crates with no
+dev-dependencies, and its one copy is small.
+
 ## A downloadable song pack
 
 **This project publishes songs, and they are never bundled with the machine.** Sixteen Christmas

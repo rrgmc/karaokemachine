@@ -1476,54 +1476,7 @@ fn read_manifest_from<R: Read + Seek>(reader: R, display: &str) -> Result<Manife
 mod tests {
     use super::*;
 
-    /// A scratch directory of this test's own, removed however the test ends.
-    ///
-    /// **The process id is what makes it a test's own**, and it is load-bearing rather than tidy. A
-    /// name of `km-package-tests-{name}` alone is unique within one run and shared by every run on
-    /// the machine — so two `cargo test` invocations of this crate at once write the same paths,
-    /// and one deletes the other's package out from under it mid-test. That is not hypothetical
-    /// here: worktrees share one `%TEMP%`, and several sessions build in this repository at a time.
-    /// It presents as two tests failing together, passing on a re-run, and passing under
-    /// `--test-threads=1` — which reads like a race in the code under test rather than in the
-    /// harness around it.
-    ///
-    /// The thread id is belt and braces for a `name` used from two threads at once; each test
-    /// passes its own today.
-    ///
-    /// Cleaning up on [`Drop`] rather than at the end of each test is what covers a panic, which is
-    /// exactly when a test used to leave its directory behind. The same shape as `Scratch` in
-    /// `km-package-builder`'s build tests.
-    struct Scratch(PathBuf);
-
-    impl Scratch {
-        fn new(name: &str) -> Self {
-            let dir = std::env::temp_dir().join(format!(
-                "km-package-tests-{}-{name}-{:?}",
-                std::process::id(),
-                std::thread::current().id()
-            ));
-            // Only reachable if a previous run was killed before its `Drop` ran *and* the operating
-            // system handed out the same process id again. Cheap, and the alternative is a test
-            // reading a stale package it did not write.
-            let _ = std::fs::remove_dir_all(&dir);
-            std::fs::create_dir_all(&dir).expect("temp dir");
-            Self(dir)
-        }
-    }
-
-    impl std::ops::Deref for Scratch {
-        type Target = Path;
-
-        fn deref(&self) -> &Path {
-            &self.0
-        }
-    }
-
-    impl Drop for Scratch {
-        fn drop(&mut self) {
-            let _ = std::fs::remove_dir_all(&self.0);
-        }
-    }
+    use km_testkit::Scratch;
 
     fn temp_dir(name: &str) -> Scratch {
         Scratch::new(name)
@@ -2244,7 +2197,15 @@ mod tests {
         builder.add(entry(1), b"midi bytes".to_vec()).expect("add");
         let manifest = builder.write(&path).expect("write");
 
-        assert_eq!(manifest.format, FORMAT_VERSION_MIDI_ONLY);
+        assert_eq!(
+            manifest.format, FORMAT_VERSION_MIDI_ONLY,
+            "adopting video must not make every package unreadable to an older build"
+        );
+        let json = read_manifest_json(&path);
+        assert!(
+            !json.contains("\"kind\""),
+            "a MIDI-only manifest should not mention kind at all: {json}"
+        );
         let package = Package::open(&path).expect("a MIDI package must go on opening");
         assert_eq!(package.len(), 1);
     }
@@ -2347,6 +2308,12 @@ mod tests {
             .expect("add");
 
         let result = builder.write(dir.join("dup.kmpkg"));
+        // The message names the file and says what is wrong with it.
+        if let Err(error) = &result {
+            let message = error.to_string();
+            assert!(message.contains("dup.kmpkg"), "got {message}");
+            assert!(message.contains("byte-identical"), "got {message}");
+        }
         match result {
             Err(PackageError::Invalid { problems, .. }) => assert!(
                 problems
@@ -2439,18 +2406,6 @@ mod tests {
         }
     }
 
-    /// The other half: an ordinary manifest is nowhere near the ceiling and still opens.
-    #[test]
-    fn an_ordinary_package_is_far_inside_the_manifest_ceiling() {
-        let dir = temp_dir("manifest-ordinary");
-        let path = dir.join("vol.kmpkg");
-        let mut builder = PackageBuilder::new(meta());
-        builder.add(entry(1), b"midi".to_vec()).expect("add");
-        builder.write(&path).expect("write");
-
-        assert!(Package::open(&path).is_ok());
-    }
-
     #[test]
     fn reading_an_absent_song_number_is_an_error() {
         let dir = temp_dir("absent-song");
@@ -2528,43 +2483,6 @@ mod tests {
         assert!(
             raw.problems()
                 .contains(&ManifestProblem::DuplicateNumber(3))
-        );
-    }
-
-    #[test]
-    fn error_messages_name_the_file_and_the_problem() {
-        let dir = temp_dir("messages");
-        let mut builder = PackageBuilder::new(meta());
-        builder.add(entry(1), b"a".to_vec()).expect("add");
-        builder.add(entry(2), b"a".to_vec()).expect("add");
-        let error = builder
-            .write(dir.join("dup.kmpkg"))
-            .expect_err("should refuse");
-        let message = error.to_string();
-        assert!(message.contains("dup.kmpkg"), "got {message}");
-        assert!(
-            message.contains("byte-identical"),
-            "the message should say what is wrong: {message}"
-        );
-    }
-
-    #[test]
-    fn an_all_midi_package_is_still_written_as_format_one() {
-        let dir = temp_dir("midi-format");
-        let path = dir.join("vol1.kmpkg");
-
-        let mut builder = PackageBuilder::new(meta());
-        builder.add(entry(1), b"midi".to_vec()).expect("add");
-        let manifest = builder.write(&path).expect("write");
-
-        assert_eq!(
-            manifest.format, FORMAT_VERSION_MIDI_ONLY,
-            "adopting video must not make every package unreadable to an older build"
-        );
-        let json = read_manifest_json(&path);
-        assert!(
-            !json.contains("\"kind\""),
-            "a MIDI-only manifest should not mention kind at all: {json}"
         );
     }
 

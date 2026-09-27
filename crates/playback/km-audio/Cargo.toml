@@ -72,6 +72,7 @@ objc2-core-foundation = { workspace = true, features = [
 ] }
 
 [dev-dependencies]
+km-testkit = { workspace = true }
 km-song = { workspace = true, features = ["testing"] }
 km-suitability = { workspace = true }
 # The R128 meter, so the census example can put a number on what it renders. A dev-dependency

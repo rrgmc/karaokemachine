@@ -423,14 +423,13 @@ pub fn add_ultrastar_song(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use km_testkit::Scratch;
 
     /// A folder holding `files`, each with the given contents.
-    fn folder(tag: &str, files: &[(&str, &[u8])]) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!("km-pack-ultrastar-{tag}"));
-        let _ = std::fs::remove_dir_all(&dir);
-        std::fs::create_dir_all(&dir).expect("temp dir");
+    fn folder(tag: &str, files: &[(&str, &[u8])]) -> Scratch {
+        let dir = Scratch::new(&format!("ultrastar-{tag}"));
         for (name, contents) in files {
-            std::fs::write(dir.join(name), contents).expect("write");
+            dir.write(name, contents);
         }
         dir
     }
@@ -455,7 +454,6 @@ mod tests {
             Some(dir.join("notes.txt"))
         );
         assert_eq!(ultrastar_naming(&dir.join("notes.mp3")), None);
-        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
@@ -468,7 +466,6 @@ mod tests {
                 .file_name()
                 .is_some_and(|name| name.eq_ignore_ascii_case("someone - song.mp3"))
         );
-        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
@@ -499,7 +496,6 @@ mod tests {
             })
             .collect();
         assert_eq!(reasons, ["missing", "not mp3", "video"]);
-        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// An UltraStar song with enough of it sung, which is the ordinary case.

@@ -148,7 +148,7 @@ mod tests {
 
     fn db(name: &str) -> (Scratch, Db) {
         let scratch = Scratch::new(name);
-        let db = Db::create(&scratch.0).expect("create");
+        let db = Db::create(scratch.path()).expect("create");
         (scratch, db)
     }
 

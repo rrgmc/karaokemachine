@@ -270,6 +270,43 @@ pub struct Catalog {
     keys: BTreeSet<String>,
 }
 
+/// Checks that every locale's catalog parses to exactly the keys the English one holds.
+///
+/// **This is the test every crate with catalogs owes**, and each one calls this rather than writing
+/// its own. Fluent resolves a key at run time, so no compiler catches a missing one. A key only
+/// English has reaches a screen as `⟦key⟧`. A key only a translation has is a leftover that nothing
+/// looks up.
+///
+/// English is the reference, because a key is added there first. A translation falling behind is
+/// the ordinary fault, and this names it.
+///
+/// # Errors
+///
+/// One line for each locale that disagrees, naming the keys it lacks and the keys only it has.
+pub fn check_catalogs(messages: impl Fn(Locale) -> &'static Catalog) -> Result<(), String> {
+    let english = messages(Locale::English);
+    let mut faults = Vec::new();
+    for locale in Locale::ALL {
+        let catalog = messages(*locale);
+        if catalog.keys().is_empty() {
+            faults.push(format!("{locale} parsed to nothing at all"));
+            continue;
+        }
+        let missing = catalog.missing_from(english);
+        let extra = english.missing_from(catalog);
+        if !missing.is_empty() || !extra.is_empty() {
+            faults.push(format!(
+                "{locale} lacks {missing:?} and has {extra:?}, which English does not"
+            ));
+        }
+    }
+    if faults.is_empty() {
+        Ok(())
+    } else {
+        Err(faults.join("\n"))
+    }
+}
+
 impl Catalog {
     /// Parses a `.ftl` source into a catalog.
     ///
@@ -353,11 +390,7 @@ impl Catalog {
 
     /// The keys `other` has that this one does not.
     ///
-    /// **This is the test every crate with catalogs owes.** Fluent resolves a missing key at run
-    /// time and there is no compiler to catch one, so the guarantee askama was chosen for —
-    /// "a field renamed and not updated in the markup is a build failure rather than a blank card
-    /// discovered by somebody holding a microphone" — is bought back here, one step later, by
-    /// asserting this is empty against the English catalog.
+    /// [`check_catalogs`] asserts this is empty in both directions against the English catalog.
     #[must_use]
     pub fn missing_from(&self, other: &Catalog) -> BTreeSet<String> {
         other.keys.difference(&self.keys).cloned().collect()
@@ -393,6 +426,30 @@ impl fmt::Debug for Catalog {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The parity check names a locale that lacks a key and a key only a translation has.
+    #[test]
+    fn a_catalog_out_of_step_with_english_is_named() {
+        fn leaked(locale: Locale, source: &str) -> &'static Catalog {
+            Box::leak(Box::new(Catalog::new(locale, source).expect("parses")))
+        }
+        let english = leaked(Locale::English, "kept = Kept\nadded = Added\n");
+        let behind = leaked(
+            Locale::BrazilianPortuguese,
+            "kept = Mantido\nleftover = Sobra\n",
+        );
+        let fault = check_catalogs(|locale| {
+            if locale == Locale::English {
+                english
+            } else {
+                behind
+            }
+        })
+        .expect_err("a translation out of step is a fault");
+        assert!(fault.contains("\"added\""), "{fault}");
+        assert!(fault.contains("\"leftover\""), "{fault}");
+        assert!(check_catalogs(|_| english).is_ok());
+    }
 
     #[test]
     fn a_tag_reads_back_as_the_locale_that_wrote_it() {

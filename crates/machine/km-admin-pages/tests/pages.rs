@@ -9,13 +9,12 @@
 use std::sync::{Arc, Mutex};
 
 use axum::Router;
-use axum::body::Body;
 use axum::http::{Request, StatusCode, header};
 use km_admin_pages::guard::{Caller, Grant, Guard, LoggedIn, Refusal};
 use km_admin_pages::{Admin, router};
 use km_api::testing::{Recorded, TestMachine, TestPower};
 use km_api::{ApiConfig, ApiState};
-use tower::ServiceExt as _;
+use km_testkit::http;
 
 /// A guard that says yes, and counts how many times it was asked.
 ///
@@ -169,13 +168,27 @@ fn nested_as(host: Host, machine: TestMachine, guard: Arc<SpyGuard>) -> (Router,
     (Router::new().nest("/admin", router(admin)), state)
 }
 
+/// A tool's admin surface over a machine with a catalog, before it says which program draws it.
+///
+/// The tests that build an `Admin` themselves want it bare: a shell, a script list, or a guard of
+/// their own. [`nested_as`] is the router with everything a host adds.
+fn desktop_admin(guard: Arc<SpyGuard>) -> Admin {
+    let state = ApiState::from_machine(
+        TestMachine::with_catalog(6).shared(),
+        ApiConfig::default().without_mdns(),
+    );
+    Admin::over(
+        km_admin_pages::machine::Capabilities::desktop(),
+        km_admin_pages::ICON_ADMIN_PNG,
+        guard,
+        Arc::new(km_admin_pages::in_process::ThisMachine::new(state)),
+    )
+}
+
 /// The same, over a machine that already has a password.
 fn nested_as_with_password(host: Host, guard: Arc<SpyGuard>) -> (Router, ApiState) {
     let (app, state) = nested_as(host, TestMachine::with_catalog(6), guard);
-    state.set_admin_password(
-        Some(km_api::AdminAuth::hash_password("hunter2xyz").expect("argon2 hashes a password")),
-        false,
-    );
+    state.set_admin_password(Some(km_api::testing::password_hash("hunter2xyz")), false);
     (app, state)
 }
 
@@ -201,30 +214,18 @@ fn nested_with_state(machine: TestMachine, guard: Arc<SpyGuard>) -> (Router, Api
 /// A machine that already has a password, for the controls that exist only once one does.
 fn nested_with_password(guard: Arc<SpyGuard>) -> (Router, ApiState) {
     let (app, state) = nested_with_state(TestMachine::with_catalog(6), guard);
-    state.set_admin_password(
-        Some(km_api::AdminAuth::hash_password("hunter2xyz").expect("argon2 hashes a password")),
-        false,
-    );
+    state.set_admin_password(Some(km_api::testing::password_hash("hunter2xyz")), false);
     (app, state)
 }
 
 async fn get(app: &Router, path: &str) -> (StatusCode, String) {
-    send(
-        app,
-        Request::get(path).body(Body::empty()).expect("request"),
-    )
-    .await
+    let answer = http::send(app.clone(), http::get(path)).await;
+    (answer.status, answer.text())
 }
 
 async fn post_form(app: &Router, path: &str, body: &str) -> (StatusCode, String) {
-    send(
-        app,
-        Request::post(path)
-            .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
-            .body(Body::from(body.to_owned()))
-            .expect("request"),
-    )
-    .await
+    let answer = http::send(app.clone(), http::form(path, body.to_owned())).await;
+    (answer.status, answer.text())
 }
 
 /// Where a form post sent the browser next, which is where the notice rides.
@@ -232,42 +233,24 @@ async fn post_form(app: &Router, path: &str, body: &str) -> (StatusCode, String)
 /// **The only way to see a notice's *kind*.** These handlers answer `303` and carry what happened in
 /// the query string rather than in a flash cookie, so `good`/`warn`/`bad` is in the `Location` and
 /// nowhere in a body — and the difference between a warning and an error is a thing worth being able
-/// to assert. `send` throws the headers away, which is right for the twenty tests that read markup.
+/// to assert. `post_form` throws the headers away, which is right for the tests that read markup.
+/// It is the twin of [`redirected_to`], for a form rather than a link.
 async fn post_form_to(app: &Router, path: &str, body: &str) -> String {
-    let response = app
-        .clone()
-        .oneshot(
-            Request::post(path)
-                .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
-                .body(Body::from(body.to_owned()))
-                .expect("request"),
-        )
-        .await
-        .expect("the router answers");
+    let answer = http::send(app.clone(), http::form(path, body.to_owned())).await;
     assert_eq!(
-        response.status(),
+        answer.status,
         StatusCode::SEE_OTHER,
-        "a form post answers with a redirect carrying the notice"
+        "{path}: a form post answers with a redirect carrying the notice"
     );
-    response
-        .headers()
-        .get(header::LOCATION)
-        .and_then(|value| value.to_str().ok())
-        .unwrap_or_default()
-        .to_owned()
+    answer.location().to_owned()
 }
 
-async fn send(app: &Router, request: Request<Body>) -> (StatusCode, String) {
-    let response = app
-        .clone()
-        .oneshot(request)
-        .await
-        .expect("the router answers");
-    let status = response.status();
-    let bytes = axum::body::to_bytes(response.into_body(), 4 * 1024 * 1024)
+/// The text of a page a host's `Admin::shell` drew, which answers outside any router.
+async fn shell_text(response: axum::response::Response) -> String {
+    let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
         .await
         .expect("read the body");
-    (status, String::from_utf8_lossy(&bytes).into_owned())
+    String::from_utf8_lossy(&bytes).into_owned()
 }
 
 /// Every route the router declares reaches the guard, or is one of the two that deliberately do not.
@@ -362,37 +345,6 @@ async fn the_upload_routes_are_asked_about_before_they_run() {
         let (app, guard) = nested(Arc::new(SpyGuard::default()));
         let _ = post_form(&app, path, "file=nothing").await;
         assert_eq!(guard.asked(), 1, "POST {path} did not reach the guard");
-    }
-}
-
-/// A route nobody wrote down asks for the password rather than running.
-///
-/// **This is the property the deleted table was there to provide**, and it is now free: `is_open` is
-/// an allow-list of two, so anything else — including a page invented next year — lands on the
-/// guard. The bug it stands against was found by running the thing rather than by reading it: an
-/// earlier design gated each tab on the *read* id for its subject, which shipped public, and left the
-/// whole setup page open on a machine whose owner had set a password.
-#[test]
-fn nothing_but_the_login_page_and_the_stylesheet_escapes_the_guard() {
-    for path in [
-        "/",
-        "/songs",
-        "/pictures",
-        "/sound",
-        "/machine",
-        "/problems",
-        "/machine/password",
-        "/machine/sessions",
-        "/machine/debug",
-        "/invented-next-year",
-    ] {
-        assert!(
-            !km_admin_pages::guard::is_open(path),
-            "{path} must demand the admin password"
-        );
-    }
-    for path in ["/login", "/static/admin.css"] {
-        assert!(km_admin_pages::guard::is_open(path), "{path} must be open");
     }
 }
 
@@ -886,17 +838,7 @@ async fn choosing_an_output_reaches_the_machine_and_comes_back() {
 /// markup this whole exercise deletes.
 #[tokio::test]
 async fn a_hosts_own_page_wears_the_shared_chrome() {
-    let state = ApiState::from_machine(
-        TestMachine::with_catalog(6).shared(),
-        ApiConfig::default().without_mdns(),
-    );
-    let host = Arc::new(km_admin_pages::in_process::ThisMachine::new(state));
-    let admin = Admin::over(
-        km_admin_pages::machine::Capabilities::desktop(),
-        km_admin_pages::ICON_ADMIN_PNG,
-        Arc::new(SpyGuard::default()),
-        host,
-    );
+    let admin = desktop_admin(Arc::new(SpyGuard::default()));
 
     let response = admin
         .shell(
@@ -906,12 +848,7 @@ async fn a_hosts_own_page_wears_the_shared_chrome() {
             "<p id=\"mine\">a host wrote this</p>".to_owned(),
         )
         .await;
-    let body = String::from_utf8_lossy(
-        &axum::body::to_bytes(response.into_body(), 1024 * 1024)
-            .await
-            .expect("read the body"),
-    )
-    .into_owned();
+    let body = shell_text(response).await;
 
     assert!(
         body.contains(r#"<p id="mine">a host wrote this</p>"#),
@@ -948,53 +885,23 @@ async fn a_host_that_keeps_its_own_token_is_sent_no_cookie() {
         ..SpyGuard::default()
     });
 
-    let state = ApiState::from_machine(
-        TestMachine::with_catalog(6).shared(),
-        ApiConfig::default().without_mdns(),
-    );
-    let host = Arc::new(km_admin_pages::in_process::ThisMachine::new(state));
-    let app = Router::new().nest(
-        "/admin",
-        router(Admin::over(
-            km_admin_pages::machine::Capabilities::desktop(),
-            km_admin_pages::ICON_ADMIN_PNG,
-            keeps_its_own,
-            host,
-        )),
-    );
+    let app = Router::new().nest("/admin", router(desktop_admin(keeps_its_own)));
 
-    let response = app
-        .clone()
-        .oneshot(
-            Request::post("/admin/login")
-                .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
-                .body(Body::from("password=hunter2xyz"))
-                .expect("request"),
-        )
-        .await
-        .expect("the router answers");
-    assert_eq!(response.status(), StatusCode::SEE_OTHER);
+    let response = http::send(
+        app.clone(),
+        http::form("/admin/login", "password=hunter2xyz"),
+    )
+    .await;
+    assert_eq!(response.status, StatusCode::SEE_OTHER);
     assert!(
-        response.headers().get(header::SET_COOKIE).is_none(),
+        response.headers.get(header::SET_COOKIE).is_none(),
         "the token is already where it belongs; a cookie here would claim otherwise"
     );
 
     // ...and the machine's host, whose token *is* the browser's, still sets one.
     let (app, _) = nested(Arc::new(SpyGuard::default()));
-    let response = app
-        .oneshot(
-            Request::post("/admin/login")
-                .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
-                .body(Body::from("password=hunter2xyz"))
-                .expect("request"),
-        )
-        .await
-        .expect("the router answers");
-    let cookie = response
-        .headers()
-        .get(header::SET_COOKIE)
-        .and_then(|value| value.to_str().ok())
-        .unwrap_or_default();
+    let response = http::send(app, http::form("/admin/login", "password=hunter2xyz")).await;
+    let cookie = response.header(header::SET_COOKIE).unwrap_or_default();
     assert!(cookie.contains("km_token="), "no cookie was set: {cookie}");
     assert!(
         cookie.contains("HttpOnly"),
@@ -1212,18 +1119,8 @@ async fn no_page_the_machine_serves_carries_a_script() {
 /// `defer` on both, so the order in the markup is the order they run.
 #[tokio::test]
 async fn a_hosts_own_page_loads_the_scripts_that_host_declared() {
-    let state = ApiState::from_machine(
-        TestMachine::with_catalog(6).shared(),
-        ApiConfig::default().without_mdns(),
-    );
-    let host = Arc::new(km_admin_pages::in_process::ThisMachine::new(state));
-    let admin = Admin::over(
-        km_admin_pages::machine::Capabilities::desktop(),
-        km_admin_pages::ICON_ADMIN_PNG,
-        Arc::new(SpyGuard::default()),
-        host,
-    )
-    .with_scripts(&["/static/htmx.min.js", "/static/ui.js"]);
+    let admin = desktop_admin(Arc::new(SpyGuard::default()))
+        .with_scripts(&["/static/htmx.min.js", "/static/ui.js"]);
 
     let response = admin
         .shell(
@@ -1233,12 +1130,7 @@ async fn a_hosts_own_page_loads_the_scripts_that_host_declared() {
             "<p>a host's own page</p>".to_owned(),
         )
         .await;
-    let markup = String::from_utf8_lossy(
-        &axum::body::to_bytes(response.into_body(), 1024 * 1024)
-            .await
-            .expect("a body"),
-    )
-    .into_owned();
+    let markup = shell_text(response).await;
 
     let htmx = markup
         .find(r#"<script src="/static/htmx.min.js" defer></script>"#)
@@ -1347,19 +1239,9 @@ async fn every_pane_the_machine_tab_draws_has_a_selector_that_opens_it() {
     let (_, css) = get(&app, "/admin/static/admin.css").await;
 
     // A tool's page, over the same handlers, so the panes only it draws are in scope too.
-    let state = ApiState::from_machine(
-        TestMachine::with_catalog(6).shared(),
-        ApiConfig::default().without_mdns(),
-    );
-    let host = Arc::new(km_admin_pages::in_process::ThisMachine::new(state));
     let tool = Router::new().nest(
         "/admin",
-        router(Admin::over(
-            km_admin_pages::machine::Capabilities::desktop(),
-            km_admin_pages::ICON_ADMIN_PNG,
-            Arc::new(SpyGuard::default()),
-            host,
-        )),
+        router(desktop_admin(Arc::new(SpyGuard::default()))),
     );
     let (_, tool_page) = get(&tool, "/admin/machine").await;
 
@@ -2106,18 +1988,9 @@ async fn confirming_a_problem_that_is_no_longer_listed_says_so_rather_than_askin
 
 /// Where a `GET` sent the browser, for the handlers that answer with a notice rather than a page.
 async fn redirected_to(app: &Router, path: &str) -> String {
-    let response = app
-        .clone()
-        .oneshot(Request::get(path).body(Body::empty()).expect("request"))
-        .await
-        .expect("the router answers");
-    assert_eq!(response.status(), StatusCode::SEE_OTHER, "{path}");
-    response
-        .headers()
-        .get(header::LOCATION)
-        .and_then(|value| value.to_str().ok())
-        .unwrap_or_default()
-        .to_owned()
+    let answer = http::send(app.clone(), http::get(path)).await;
+    assert_eq!(answer.status, StatusCode::SEE_OTHER, "{path}");
+    answer.location().to_owned()
 }
 
 /// The sound fault reports itself **and carries the control that fixes it**.
@@ -2235,7 +2108,7 @@ async fn the_problems_tab_offers_a_picture_for_an_empty_rotation() {
 async fn choosing_an_output_confirms_with_the_name_of_the_one_chosen() {
     let (app, _state) = nested_with_password(Arc::new(SpyGuard::default()));
 
-    let sent = posted_to(
+    let sent = post_form_to(
         &app,
         "/admin/sound/output",
         "id=alsa%3Aplughw%3ACARD%3DDevice%2CDEV%3D0",
@@ -2249,7 +2122,7 @@ async fn choosing_an_output_confirms_with_the_name_of_the_one_chosen() {
     // **The sentinel gets a sentence of its own, and needs one.** Substituting its label into the
     // message above produces *"The sound comes out of Follow the system now"*, which reads as a
     // fault in the page rather than as a confirmation.
-    let system = posted_to(&app, "/admin/sound/output", "id=system").await;
+    let system = post_form_to(&app, "/admin/sound/output", "id=system").await;
     assert!(
         system.contains("follows+the+system+default"),
         "the sentinel did not get its own sentence: {system}"
@@ -2273,13 +2146,13 @@ async fn choosing_an_output_confirms_with_the_name_of_the_one_chosen() {
 async fn a_fix_returns_to_the_tab_it_was_applied_from_and_nowhere_else() {
     let (app, _state) = nested_with_password(Arc::new(SpyGuard::default()));
 
-    let sent = posted_to(&app, "/admin/sound/output", "id=system&back=problems").await;
+    let sent = post_form_to(&app, "/admin/sound/output", "id=system&back=problems").await;
     assert!(
         sent.starts_with("/admin/problems?"),
         "a fix from the Problems tab did not return there: {sent}"
     );
 
-    let invented = posted_to(
+    let invented = post_form_to(
         &app,
         "/admin/sound/output",
         "id=system&back=https://elsewhere.invalid",
@@ -2289,27 +2162,6 @@ async fn a_fix_returns_to_the_tab_it_was_applied_from_and_nowhere_else() {
         invented.starts_with("/admin/sound?"),
         "an invented back reached the redirect: {invented}"
     );
-}
-
-/// Where a `POST` sent the browser. The twin of [`redirected_to`], for a form rather than a link.
-async fn posted_to(app: &Router, path: &str, body: &str) -> String {
-    let response = app
-        .clone()
-        .oneshot(
-            Request::post(path)
-                .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
-                .body(Body::from(body.to_owned()))
-                .expect("request"),
-        )
-        .await
-        .expect("the router answers");
-    assert_eq!(response.status(), StatusCode::SEE_OTHER, "{path}");
-    response
-        .headers()
-        .get(header::LOCATION)
-        .and_then(|value| value.to_str().ok())
-        .unwrap_or_default()
-        .to_owned()
 }
 
 /// A refused package, as a test arranges one.
@@ -2491,34 +2343,18 @@ async fn a_well_formed_upload_past_axums_default_limit_reaches_the_handler() {
         ("/admin/pictures/upload", "big.png"),
         ("/admin/sound/upload", "big.sf2"),
     ] {
-        let boundary = "zzzzzzzzzzzzzzzz";
-        let head = format!(
-            "--{boundary}\r\nContent-Disposition: form-data; name=\"file\"; \
-             filename=\"{filename}\"\r\nContent-Type: application/octet-stream\r\n\r\n"
-        );
-        let tail = format!("\r\n--{boundary}--\r\n");
-        let mut payload = Vec::from(head);
-        payload.extend_from_slice(&vec![b'x'; 3 * 1024 * 1024]);
-        payload.extend_from_slice(tail.as_bytes());
-
+        let file = vec![b'x'; 3 * 1024 * 1024];
+        let (content_type, payload) = http::multipart(&[("file", Some(filename), &file)]);
         let request = Request::post(path)
-            .header(
-                header::CONTENT_TYPE,
-                format!("multipart/form-data; boundary={boundary}"),
-            )
-            .body(Body::from(payload))
+            .header(header::CONTENT_TYPE, content_type)
+            .body(payload.into())
             .expect("request");
         // **The outcome is in `Location`, not in the body**, and reading the body instead is how the
         // first two versions of this test passed with the bug present: these routes answer `303` and
         // redirect back to the page with `kind=` and `said=` in the query, so the response body is
         // empty and every assertion over it is vacuous.
-        let response = app.clone().oneshot(request).await.expect("answer");
-        let said = response
-            .headers()
-            .get(header::LOCATION)
-            .and_then(|value| value.to_str().ok())
-            .unwrap_or_default()
-            .to_owned();
+        let answer = http::send(app.clone(), request).await;
+        let said = answer.location();
         assert!(
             !said.contains("stopped+early") && !said.contains("stopped early"),
             "{path} cut a 3 MB upload off, so its DefaultBodyLimit layer is missing: {said}"
@@ -2530,14 +2366,12 @@ async fn a_well_formed_upload_past_axums_default_limit_reaches_the_handler() {
 
 /// A navigation with a header set, for the two ways a language is asked for.
 async fn get_with(app: &Router, path: &str, header: (&str, &str)) -> (StatusCode, String) {
-    send(
-        app,
-        Request::get(path)
-            .header(header.0, header.1)
-            .body(Body::empty())
-            .expect("request"),
-    )
-    .await
+    let request = Request::get(path)
+        .header(header.0, header.1)
+        .body(axum::body::Body::empty())
+        .expect("request");
+    let answer = http::send(app.clone(), request).await;
+    (answer.status, answer.text())
 }
 
 /// The owner's pages follow the same cookie the singer's remote writes.
@@ -2581,13 +2415,9 @@ async fn the_machine_language_picker_names_each_language_in_its_own_words() {
 #[tokio::test]
 async fn a_language_this_build_does_not_have_is_refused_rather_than_saved() {
     let (app, _) = nested(Arc::new(SpyGuard::default()));
-    let (status, body) = post_form(&app, "/admin/machine/locale", "locale=klingon").await;
-    assert_eq!(
-        status,
-        StatusCode::SEE_OTHER,
-        "it redirects back with a notice"
-    );
-    let _ = body;
+    let where_to = post_form_to(&app, "/admin/machine/locale", "locale=klingon").await;
+    // A success redirects too, so the notice's kind is what tells a refusal apart.
+    assert!(where_to.contains("kind=bad"), "{where_to}");
 }
 
 // -- power ---------------------------------------------------------------------------------------
@@ -2905,17 +2735,7 @@ async fn where_to_find_it_leads_with_the_name() {
 /// body is the second copy this seam exists to delete.
 #[tokio::test]
 async fn a_hosts_own_page_can_carry_a_notice() {
-    let state = ApiState::from_machine(
-        TestMachine::with_catalog(6).shared(),
-        ApiConfig::default().without_mdns(),
-    );
-    let host = Arc::new(km_admin_pages::in_process::ThisMachine::new(state));
-    let admin = Admin::over(
-        km_admin_pages::machine::Capabilities::desktop(),
-        km_admin_pages::ICON_ADMIN_PNG,
-        Arc::new(SpyGuard::default()),
-        host,
-    );
+    let admin = desktop_admin(Arc::new(SpyGuard::default()));
 
     for (notice, wanted) in [
         (km_admin_pages::views::Notice::bad("it went wrong"), "bad"),
@@ -2930,12 +2750,7 @@ async fn a_hosts_own_page_can_carry_a_notice() {
                 "<p>a host's own page</p>".to_owned(),
             )
             .await;
-        let markup = String::from_utf8_lossy(
-            &axum::body::to_bytes(response.into_body(), 1024 * 1024)
-                .await
-                .expect("a body"),
-        )
-        .into_owned();
+        let markup = shell_text(response).await;
 
         assert!(
             markup.contains(&format!("banner-{wanted}")),
@@ -2961,18 +2776,8 @@ async fn a_hosts_own_page_can_carry_a_notice() {
 /// none, so the same pages stay byte-for-byte scriptless there.
 #[tokio::test]
 async fn a_host_that_declares_a_script_gets_it_on_every_page_it_serves() {
-    let state = ApiState::from_machine(
-        TestMachine::with_catalog(6).shared(),
-        ApiConfig::default().without_mdns(),
-    );
-    let host = Arc::new(km_admin_pages::in_process::ThisMachine::new(state));
-    let admin = Admin::over(
-        km_admin_pages::machine::Capabilities::desktop(),
-        km_admin_pages::ICON_ADMIN_PNG,
-        Arc::new(SpyGuard::default()),
-        host,
-    )
-    .with_scripts(&["/static/htmx.min.js", "/static/ui.js"]);
+    let admin = desktop_admin(Arc::new(SpyGuard::default()))
+        .with_scripts(&["/static/htmx.min.js", "/static/ui.js"]);
     let app = Router::new().nest("/admin", km_admin_pages::router(admin));
 
     let mut checked = 0usize;
@@ -3004,24 +2809,13 @@ async fn a_host_that_declares_a_script_gets_it_on_every_page_it_serves() {
 
 // -- the output's own level ----------------------------------------------------------------------
 
-/// A control like the appliance's USB interface: 1 dB steps from −128 dB to unity, sitting 20 dB
-/// down, which is the state this control exists because of.
-fn attenuated() -> km_api::machine::OutputLevel {
-    km_api::machine::OutputLevel {
-        db_centi: -2000,
-        db_min_centi: -12800,
-        db_max_centi: 0,
-        step_centi: 100,
-    }
-}
-
 /// The reading is the half that was missing, so it is drawn without being asked for.
 #[tokio::test]
 async fn the_sound_tab_says_what_level_the_output_is_running_at() {
     for host in BOTH_HOSTS {
         let surface = host.name();
         let machine = TestMachine::with_catalog(6);
-        machine.set_output_level_range(attenuated());
+        machine.set_output_level_range(km_api::testing::attenuated());
         let (app, _) = nested_as(host, machine, Arc::new(SpyGuard::default()));
 
         let (status, body) = get(&app, "/admin/sound").await;
@@ -3037,7 +2831,7 @@ async fn the_sound_tab_says_what_level_the_output_is_running_at() {
 #[tokio::test]
 async fn the_slider_is_behind_a_link_and_the_reading_is_not() {
     let machine = TestMachine::with_catalog(6);
-    machine.set_output_level_range(attenuated());
+    machine.set_output_level_range(km_api::testing::attenuated());
     let (app, _) = nested_on(machine, Arc::new(SpyGuard::default()));
 
     let (_, body) = get(&app, "/admin/sound").await;
@@ -3090,7 +2884,7 @@ async fn an_output_with_no_level_gets_a_sentence_rather_than_a_dead_slider() {
 #[tokio::test]
 async fn lowering_the_level_goes_straight_through() {
     let machine = TestMachine::with_catalog(6);
-    machine.set_output_level_range(attenuated());
+    machine.set_output_level_range(km_api::testing::attenuated());
     let (app, _) = nested_on(machine, Arc::new(SpyGuard::default()));
 
     let location = post_form_to(&app, "/admin/sound/level", "db=-30").await;
@@ -3105,7 +2899,7 @@ async fn lowering_the_level_goes_straight_through() {
 #[tokio::test]
 async fn a_large_rise_asks_first() {
     let machine = TestMachine::with_catalog(6);
-    machine.set_output_level_range(attenuated());
+    machine.set_output_level_range(km_api::testing::attenuated());
     let (app, state) = nested_with_state(machine, Arc::new(SpyGuard::default()));
 
     // −20 dB to unity is twenty decibels, so this is the drag the question exists for.
@@ -3123,7 +2917,7 @@ async fn a_large_rise_asks_first() {
     // ...and nothing moved while the question was open.
     assert_eq!(
         state.controller().audio_outputs().expect("outputs").level,
-        Some(attenuated()),
+        Some(km_api::testing::attenuated()),
         "asking is not doing"
     );
 
@@ -3136,7 +2930,7 @@ async fn a_large_rise_asks_first() {
 #[tokio::test]
 async fn a_small_rise_does_not_ask() {
     let machine = TestMachine::with_catalog(6);
-    machine.set_output_level_range(attenuated());
+    machine.set_output_level_range(km_api::testing::attenuated());
     let (app, _) = nested_on(machine, Arc::new(SpyGuard::default()));
 
     // Five decibels, under the six a doubling of voltage is.

@@ -818,20 +818,14 @@ fn read_archive_entry(archive: &Path, entry: &str) -> Result<Vec<u8>, String> {
 mod tests {
     use super::*;
 
+    use km_testkit::Scratch;
+
     fn paths(names: &[&str]) -> Vec<PathBuf> {
         names.iter().map(PathBuf::from).collect()
     }
 
     fn file(name: &str) -> ImageSource {
         ImageSource::File(PathBuf::from(name))
-    }
-
-    /// A scratch folder of its own per test, so tests that write files do not collide.
-    fn scratch(name: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!("km-display-{name}"));
-        let _ = std::fs::remove_dir_all(&dir);
-        std::fs::create_dir_all(&dir).expect("temp dir");
-        dir
     }
 
     /// A tiny real PNG, as bytes, so archives in tests hold images that actually decode.
@@ -999,7 +993,7 @@ mod tests {
     /// A shuffled pass survives the rescan that happens on every change.
     #[test]
     fn refreshing_does_not_sort_a_shuffled_pass_back_into_name_order() {
-        let dir = scratch("wallpaper-shuffle-refresh");
+        let dir = Scratch::new("wallpaper-shuffle-refresh");
         packs_of(&dir, &["a.png", "b.png", "c.png", "d.png", "e.png"]);
 
         let mut playlist = Playlist::scan(&dir, &[]).shuffled(Shuffle::seeded(5));
@@ -1015,7 +1009,7 @@ mod tests {
     /// A picture dropped in is reached during this pass rather than after every other one.
     #[test]
     fn a_picture_added_mid_pass_lands_in_what_is_left_of_it() {
-        let dir = scratch("wallpaper-shuffle-newcomer");
+        let dir = Scratch::new("wallpaper-shuffle-newcomer");
         packs_of(
             &dir,
             &["a.png", "b.png", "c.png", "d.png", "e.png", "f.png"],
@@ -1049,7 +1043,7 @@ mod tests {
     /// What has gone is dropped, and everything else keeps the place it had.
     #[test]
     fn a_picture_removed_costs_only_its_own_place_in_the_pass() {
-        let dir = scratch("wallpaper-shuffle-removed");
+        let dir = Scratch::new("wallpaper-shuffle-removed");
         packs_of(&dir, &["a.png", "b.png", "c.png", "d.png", "e.png"]);
 
         let mut playlist = Playlist::scan(&dir, &[]).shuffled(Shuffle::seeded(13));
@@ -1070,7 +1064,7 @@ mod tests {
     /// An unshuffled playlist is still the folder in name order, every time it is asked.
     #[test]
     fn an_unshuffled_playlist_is_still_the_folder_by_name() {
-        let dir = scratch("wallpaper-unshuffled");
+        let dir = Scratch::new("wallpaper-unshuffled");
         packs_of(&dir, &["c.png", "a.png", "b.png"]);
 
         let mut playlist = Playlist::scan(&dir, &[]);
@@ -1115,7 +1109,7 @@ mod tests {
 
     #[test]
     fn a_zips_images_count_as_images_in_the_folder() {
-        let dir = scratch("wallpaper-zip-scan");
+        let dir = Scratch::new("wallpaper-zip-scan");
         // A loose picture in the folder, which is passed over: the folder takes packs.
         std::fs::write(dir.join("loose.png"), png_bytes(4, 4)).expect("write");
         write_zip(
@@ -1153,7 +1147,7 @@ mod tests {
 
     #[test]
     fn any_number_of_zips_contribute_together() {
-        let dir = scratch("wallpaper-many-zips");
+        let dir = Scratch::new("wallpaper-many-zips");
         for archive in ["a.zip", "b.zip", "c.zip"] {
             write_zip(
                 &dir.join(archive),
@@ -1184,7 +1178,7 @@ mod tests {
 
     #[test]
     fn a_zip_that_cannot_be_read_costs_only_itself() {
-        let dir = scratch("wallpaper-broken-zip");
+        let dir = Scratch::new("wallpaper-broken-zip");
         std::fs::write(dir.join("truncated.zip"), b"PK\x03\x04 and then nothing").expect("write");
         std::fs::write(dir.join("empty.zip"), b"").expect("write");
         packs_of(&dir, &["real.png"]);
@@ -1205,7 +1199,7 @@ mod tests {
 
     #[test]
     fn a_zip_of_nothing_but_junk_adds_no_images() {
-        let dir = scratch("wallpaper-junk-zip");
+        let dir = Scratch::new("wallpaper-junk-zip");
         write_zip(
             &dir.join("junk.zip"),
             &[("notes.txt", b"x".to_vec()), ("song.kar", b"x".to_vec())],
@@ -1380,7 +1374,7 @@ mod tests {
 
     #[test]
     fn refreshing_keeps_the_current_image_showing_when_it_survives() {
-        let dir = scratch("wallpaper-tests");
+        let dir = Scratch::new("wallpaper-tests");
         packs_of(&dir, &["a.png", "b.png"]);
 
         let mut playlist = Playlist::scan(&dir, &[]);
@@ -1404,7 +1398,7 @@ mod tests {
 
     #[test]
     fn refreshing_falls_back_to_the_start_when_the_current_image_is_gone() {
-        let dir = scratch("wallpaper-removed");
+        let dir = Scratch::new("wallpaper-removed");
         packs_of(&dir, &["a.png", "b.png"]);
 
         let mut playlist = Playlist::scan(&dir, &[]);
@@ -1421,7 +1415,7 @@ mod tests {
 
     #[test]
     fn refreshing_holds_a_zipped_image_on_screen_and_notices_a_new_archive() {
-        let dir = scratch("wallpaper-zip-refresh");
+        let dir = Scratch::new("wallpaper-zip-refresh");
         write_zip(
             &dir.join("b.zip"),
             &[("1.png", png_bytes(4, 4)), ("2.png", png_bytes(4, 4))],
@@ -1467,7 +1461,7 @@ mod tests {
 
     #[test]
     fn the_loader_reports_a_missing_archive_entry_rather_than_dying() {
-        let dir = scratch("wallpaper-zip-missing-entry");
+        let dir = Scratch::new("wallpaper-zip-missing-entry");
         let archive = dir.join("pack.zip");
         write_zip(&archive, &[("1.png", png_bytes(4, 4))]);
 
@@ -1489,7 +1483,7 @@ mod tests {
 
     #[test]
     fn the_loader_decodes_and_downscales() {
-        let dir = scratch("loader-tests");
+        let dir = Scratch::new("loader-tests");
         let path = dir.join("big.png");
 
         // A deliberately oversized image, to prove it comes back at the requested size.
@@ -1511,7 +1505,7 @@ mod tests {
 
     #[test]
     fn the_loader_decodes_an_image_out_of_a_zip_exactly_as_it_does_a_file() {
-        let dir = scratch("loader-zip-tests");
+        let dir = Scratch::new("loader-zip-tests");
         let archive = dir.join("pack.zip");
         write_zip(&archive, &[("nested/big.png", png_bytes(800, 600))]);
 
@@ -1548,7 +1542,7 @@ mod tests {
     /// An extra file is shown **as well as** the folder's contents, never instead of them.
     #[test]
     fn extra_files_are_added_to_the_folder_rather_than_replacing_it() {
-        let dir = scratch("wallpaper-extra");
+        let dir = Scratch::new("wallpaper-extra");
         packs_of(&dir, &["in-folder.png"]);
         let outside = dir.join("elsewhere");
         std::fs::create_dir_all(&outside).expect("mkdir");
@@ -1573,7 +1567,7 @@ mod tests {
     /// one a plain concatenation shows twice — once every cycle, for ever.
     #[test]
     fn a_file_both_named_and_in_the_folder_appears_once() {
-        let dir = scratch("wallpaper-extra-dup");
+        let dir = Scratch::new("wallpaper-extra-dup");
         let both = dir.join("both.png");
         std::fs::write(&both, b"x").expect("write");
 
@@ -1593,7 +1587,7 @@ mod tests {
     /// appears rather than as anything a singer should have to read.
     #[test]
     fn an_extra_that_is_not_there_is_ignored() {
-        let dir = scratch("wallpaper-extra-missing");
+        let dir = Scratch::new("wallpaper-extra-missing");
         packs_of(&dir, &["real.png"]);
 
         let playlist = Playlist::scan(&dir, &[dir.join("nope.png")]);
@@ -1605,7 +1599,7 @@ mod tests {
     /// A zip named as an extra is a folder of wallpapers, exactly as one in the folder is.
     #[test]
     fn a_zip_named_as_an_extra_contributes_its_images() {
-        let dir = scratch("wallpaper-extra-zip");
+        let dir = Scratch::new("wallpaper-extra-zip");
         let outside = dir.join("elsewhere");
         std::fs::create_dir_all(&outside).expect("mkdir");
         let archive = outside.join("pack.zip");

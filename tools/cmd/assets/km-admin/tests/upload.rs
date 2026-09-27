@@ -24,30 +24,13 @@
 
 mod common;
 
-use axum::body::Body;
 use axum::http::{Request, StatusCode, header};
 use common::{TOKEN, log_in, upload_path};
 use km_admin::server::{State, router};
 use km_api::machine::Upload;
-use tower::ServiceExt as _;
+use km_testkit::http;
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
-
-/// A multipart body with one file part, built by hand.
-///
-/// There is no multipart *builder* on this side of the wire — `reqwest`'s is for what this program
-/// sends, not for what it receives — and four hand-written bodies are clearer than a helper.
-fn multipart(file_name: &str, bytes: &[u8]) -> (String, Vec<u8>) {
-    const BOUNDARY: &str = "----km-admin-upload-test";
-    let mut body = format!(
-        "--{BOUNDARY}\r\nContent-Disposition: form-data; name=\"{}\"; filename=\"{file_name}\"\r\n\r\n",
-        km_api::uploads::FILE_FIELD
-    )
-    .into_bytes();
-    body.extend_from_slice(bytes);
-    body.extend_from_slice(format!("\r\n--{BOUNDARY}--\r\n").as_bytes());
-    (format!("multipart/form-data; boundary={BOUNDARY}"), body)
-}
 
 /// Sends one file, and gives back the status and where the browser was sent next.
 ///
@@ -62,26 +45,14 @@ fn multipart(file_name: &str, bytes: &[u8]) -> (String, Vec<u8>) {
 /// archive.org serves banks at about 30 KB/s, against an upload to a machine on the same network. It
 /// also makes these assertions simpler: the machine has been called by the time the post returns.
 async fn send(state: &State, route: &str, file_name: &str, bytes: &[u8]) -> (StatusCode, String) {
-    let (content_type, body) = multipart(file_name, bytes);
-    let response = router(state.clone())
-        .oneshot(
-            Request::builder()
-                .method("POST")
-                .uri(route)
-                .header(header::CONTENT_TYPE, content_type)
-                .body(Body::from(body))
-                .expect("request"),
-        )
-        .await
-        .expect("response");
-    let status = response.status();
-    let said = response
-        .headers()
-        .get(header::LOCATION)
-        .and_then(|value| value.to_str().ok())
-        .unwrap_or_default()
-        .replace('+', " ");
-    (status, said)
+    let (content_type, body) =
+        http::multipart(&[(km_api::uploads::FILE_FIELD, Some(file_name), bytes)]);
+    let request = Request::post(route)
+        .header(header::CONTENT_TYPE, content_type)
+        .body(body.into())
+        .expect("request");
+    let answer = http::send(router(state.clone()), request).await;
+    (answer.status, answer.location().replace('+', " "))
 }
 
 // **`settled` went with the job it waited on.** It polled the Songs job for five seconds because a
@@ -112,10 +83,7 @@ fn left_behind(dir: &std::path::Path) -> usize {
 /// and this header is the only thing that would ever notice.
 #[tokio::test]
 async fn the_machine_is_sent_the_name_the_browser_chose_and_a_length() {
-    let server = MockServer::start().await;
-    let dir = tempfile::tempdir().expect("temp dir");
-    let state = State::new(dir.path().to_path_buf(), Some(server.uri()));
-    log_in(&server, &state).await;
+    let (server, state, dir) = common::signed_in().await;
 
     Mock::given(method("POST"))
         .and(path(upload_path(Upload::Package)))
@@ -209,10 +177,7 @@ async fn nothing_is_kept_whichever_way_it_goes() {
             false,
         ),
     ] {
-        let server = MockServer::start().await;
-        let dir = tempfile::tempdir().expect("temp dir");
-        let state = State::new(dir.path().to_path_buf(), Some(server.uri()));
-        log_in(&server, &state).await;
+        let (server, state, dir) = common::signed_in().await;
 
         Mock::given(method("POST"))
             .and(path(upload_path(Upload::Package)))
@@ -250,9 +215,7 @@ async fn nothing_is_kept_whichever_way_it_goes() {
 /// there refuses everything too. What this asserts is that nothing was *sent*.
 #[tokio::test]
 async fn a_wrong_kind_never_reaches_the_machine() {
-    let server = MockServer::start().await;
-    let dir = tempfile::tempdir().expect("temp dir");
-    let state = State::new(dir.path().to_path_buf(), Some(server.uri()));
+    let (server, state, dir) = common::machine().await;
     // **Signed in on purpose**, or this would be testing the wrong gate: the password check is step
     // 2 and the extension check step 3, so a program holding no token refuses a `.txt` with a 401
     // for a reason that has nothing to do with its being a `.txt`.
@@ -342,10 +305,7 @@ async fn each_section_sends_to_its_own_route() {
         ("/admin/sound/upload", "piano.sf2", Upload::SoundFont),
     ] {
         let expected = upload_path(kind);
-        let server = MockServer::start().await;
-        let dir = tempfile::tempdir().expect("temp dir");
-        let state = State::new(dir.path().to_path_buf(), Some(server.uri()));
-        log_in(&server, &state).await;
+        let (server, state, _dir) = common::signed_in().await;
 
         Mock::given(method("POST"))
             .and(path(expected.clone()))

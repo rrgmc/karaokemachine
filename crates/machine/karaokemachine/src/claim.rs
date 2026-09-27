@@ -116,25 +116,18 @@ impl Claim {
 mod tests {
     use super::*;
 
-    /// A directory that lasts as long as the test.
-    fn scratch(name: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!("km-claim-{}-{name}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&dir);
-        std::fs::create_dir_all(&dir).expect("a scratch directory");
-        dir
-    }
+    use km_testkit::Scratch;
 
     /// The second claim on one directory is refused, and says which directory.
     #[test]
     fn a_second_claim_on_one_directory_is_refused() {
-        let dir = scratch("second");
+        let dir = Scratch::new("second");
         let first = Claim::take_in(&dir).expect("the first claim");
         match Claim::take_in(&dir) {
-            Err(ClaimError::Taken { dir: named }) => assert_eq!(named, dir),
+            Err(ClaimError::Taken { dir: named }) => assert_eq!(named, dir.path()),
             other => panic!("a second claim should be refused, got {other:?}"),
         }
         drop(first);
-        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// ...and letting the first go hands the directory to the next machine.
@@ -144,23 +137,20 @@ mod tests {
     /// that stopped — however it stopped — leaves nothing behind for the next one to clear.
     #[test]
     fn releasing_a_claim_frees_the_directory() {
-        let dir = scratch("release");
+        let dir = Scratch::new("release");
         let first = Claim::take_in(&dir).expect("the first claim");
         drop(first);
         let second = Claim::take_in(&dir).expect("the directory should be free again");
         drop(second);
-        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// Two directories are two machines, which is the arrangement the port table assumes.
     #[test]
     fn two_directories_are_two_machines() {
-        let one = scratch("one");
-        let two = scratch("two");
+        let one = Scratch::new("one");
+        let two = Scratch::new("two");
         let first = Claim::take_in(&one).expect("the first");
         let second = Claim::take_in(&two).expect("the second, elsewhere");
         drop((first, second));
-        let _ = std::fs::remove_dir_all(&one);
-        let _ = std::fs::remove_dir_all(&two);
     }
 }

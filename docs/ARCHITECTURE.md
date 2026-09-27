@@ -254,8 +254,10 @@ tools/                     # six folders and nothing loose -- see "How things he
     check-no-local-refs.sh
     clean.sh               # the whole checkout, where dist/clean.sh is the releases in it
     soundfont.sh soundfont-debug.sh soundfont-measure.sh
-    km-pick/               # the one crate under dev/: a checkbox list over `inquire`, so a shell
-                           # script can ask for a choice. Knows nothing of what it is listing.
+    km-pick/               # a checkbox list over `inquire`, so a shell script can ask for a
+                           # choice. Knows nothing of what it is listing.
+    km-testkit/            # what more than one crate's tests need: a scratch folder that removes
+                           # itself, and a router driven with no socket. A dev-dependency only.
     remote/                # dev web remote: one static HTML page + curl/websocat scripts. Staged
                            # as `remote-dev/` beside an executable -- see the note on that name.
   setup/                   # what a build here needs, and where it comes from

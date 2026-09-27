@@ -1647,6 +1647,7 @@ pub fn file_stem(path: &Path) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use km_testkit::Scratch;
 
     /// A named language reaches the entry for the two kinds that cannot detect one.
     ///
@@ -1703,8 +1704,7 @@ mod tests {
     /// at all rather than merely desirable.
     #[test]
     fn one_walk_finds_exactly_what_three_walks_found() {
-        let dir = std::env::temp_dir().join("km-pack-collect-songs");
-        let _ = std::fs::remove_dir_all(&dir);
+        let dir = Scratch::new("collect-songs");
         std::fs::create_dir_all(dir.join("deep/deeper")).expect("scratch");
 
         // Every kind, at three depths, with the case and extension variants the corpus actually
@@ -1738,15 +1738,12 @@ mod tests {
 
         assert_eq!(one, three);
         assert_eq!(one.len(), 9, "the non-song is in neither: {one:?}");
-
-        std::fs::remove_dir_all(&dir).expect("clean up");
     }
 
     /// A walk says how far it has got while it runs, and stops where it is told to.
     #[test]
     fn a_walk_reports_its_count_and_stops_when_told() {
-        let dir = std::env::temp_dir().join("km-pack-collect-observed");
-        let _ = std::fs::remove_dir_all(&dir);
+        let dir = Scratch::new("collect-observed");
         for folder in ["one", "two", "three"] {
             std::fs::create_dir_all(dir.join(folder)).expect("scratch");
             std::fs::write(dir.join(folder).join("a.kar"), b"x").expect("write");
@@ -1773,8 +1770,6 @@ mod tests {
         });
         assert_eq!(stopped, ControlFlow::Break(()));
         assert_eq!(part.len(), 1, "the walk went on past the stop: {part:?}");
-
-        std::fs::remove_dir_all(&dir).expect("clean up");
     }
 
     /// A linked folder is walked, and a link back to a folder above it ends there.
@@ -1784,12 +1779,9 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn a_link_back_up_the_tree_ends_the_walk_and_a_linked_folder_is_walked() {
-        let dir = std::env::temp_dir().join("km-pack-collect-links");
-        let elsewhere = std::env::temp_dir().join("km-pack-collect-links-elsewhere");
-        let _ = std::fs::remove_dir_all(&dir);
-        let _ = std::fs::remove_dir_all(&elsewhere);
+        let dir = Scratch::new("collect-links");
+        let elsewhere = Scratch::new("collect-links-elsewhere");
         std::fs::create_dir_all(dir.join("inner")).expect("scratch");
-        std::fs::create_dir_all(&elsewhere).expect("scratch");
         std::fs::write(dir.join("inner/a.kar"), b"x").expect("write");
         std::fs::write(elsewhere.join("b.kar"), b"x").expect("write");
         std::os::unix::fs::symlink(&dir, dir.join("inner/loop")).expect("link");
@@ -1806,9 +1798,6 @@ mod tests {
         let mut songs = Vec::new();
         collect_songs(&dir, &mut songs);
         assert_eq!(songs.len(), 2, "{songs:?}");
-
-        std::fs::remove_dir_all(&dir).expect("clean up");
-        std::fs::remove_dir_all(&elsewhere).expect("clean up");
     }
 
     #[test]
@@ -1827,8 +1816,7 @@ mod tests {
     /// An index is written by hand, so a number it cannot honor has to stop rather than be dropped.
     #[test]
     fn an_index_number_out_of_range_names_its_row_instead_of_being_ignored() {
-        let dir = std::env::temp_dir().join("km-pack-index-range");
-        std::fs::create_dir_all(&dir).expect("scratch");
+        let dir = Scratch::new("index-range");
         let path = dir.join("index.csv");
 
         std::fs::write(&path, "file,number\na.kar,1000000\n").expect("write");
@@ -1851,8 +1839,6 @@ mod tests {
             overrides["a.kar"].number,
             Some(u32::from(km_songcode::MAX_SLOT))
         );
-
-        std::fs::remove_dir_all(&dir).ok();
     }
 
     #[test]
@@ -2072,117 +2058,189 @@ mod tests {
         assert!(!entry.is_edited(EditedField::Fixes));
     }
 
-    #[test]
-    fn an_empty_list_is_how_a_detected_fix_is_turned_off() {
-        // The case the `Option<Vec<_>>` exists for. Silence means "detect"; an empty list is a
-        // decision, and it is the only way to refuse a fix that would otherwise apply itself.
-        let mut entry = entry_with_a_detected_fix();
-        let detected = entry.clone();
-
-        let edits = Edits {
-            fixes: Some(Vec::new()),
-            ..Edits::default()
-        };
-        assert_eq!(apply_edits(&mut entry, &edits, &detected), 1);
-        assert!(entry.fixes.is_empty());
-        assert!(entry.is_edited(EditedField::Fixes));
-    }
-
-    #[test]
-    fn a_hand_added_mute_is_recorded_as_an_edit() {
-        let mut entry = entry_with_a_detected_fix();
-        let detected = entry.clone();
-
-        let mut wanted = detected.fixes.clone();
-        wanted.push(km_fixes::Fix::MuteChannel { channel: 2 });
-        let edits = Edits {
-            fixes: Some(wanted.clone()),
-            ..Edits::default()
-        };
-        assert_eq!(apply_edits(&mut entry, &edits, &detected), 1);
-        assert_eq!(entry.fixes, wanted);
-        assert!(entry.is_edited(EditedField::Fixes));
-    }
-
-    #[test]
-    fn restating_what_was_detected_is_not_an_edit() {
-        // Re-applying an unchanged export must not mark the catalog as hand-edited, or the flag
-        // stops meaning anything.
-        let mut entry = entry_with_a_detected_fix();
-        let detected = entry.clone();
-
-        let edits = Edits {
-            fixes: Some(detected.fixes.clone()),
-            ..Edits::default()
-        };
-        assert_eq!(apply_edits(&mut entry, &edits, &detected), 0);
-        assert!(!entry.is_edited(EditedField::Fixes));
-    }
-
-    /// A named melody channel reaches the package, and marks the field so a rebuild keeps it.
+    /// An edit that differs from detection changes its field and marks it, and one that restates
+    /// detection marks nothing.
     ///
-    /// The machine offers its guide-melody toggle only on a song that has a melody channel, so both
-    /// directions of this change what a singer is offered: naming one where detection abstained
-    /// turns the toggle on, and saying there is none turns it off.
+    /// Each row compares the whole entry, so an edit cannot reach a field it does not name.
+    /// `detected` sets up what detection recorded, and `want` turns that into the entry the edit
+    /// leaves.
     #[test]
-    fn a_named_melody_channel_is_recorded_as_an_edit() {
-        let mut entry = entry_with_a_detected_fix();
-        let detected = entry.clone();
-
-        let edits = Edits {
-            melody: Some(Some(4)),
-            ..Edits::default()
-        };
-        assert_eq!(apply_edits(&mut entry, &edits, &detected), 1);
-        assert_eq!(entry.melody.as_ref().map(|record| record.channel), Some(4));
-        assert!(entry.is_edited(EditedField::Melody));
-        // The confidence beside it is the detector's unit and a judgement has none, so the signal is
-        // what says where the answer came from.
-        assert_eq!(
-            entry
-                .melody
-                .as_ref()
-                .map(|record| record.signals.as_slice()),
-            Some([MELODY_CHOSEN_SIGNAL.to_owned()].as_slice())
-        );
-    }
-
-    /// Silencing a song's words is an edit, and so is drawing them on one measurement silenced.
-    ///
-    /// The second direction is the one that needs saying: the value it writes is the value a song
-    /// nobody has touched already carries, so only the marker distinguishes them.
-    #[test]
-    fn an_answer_about_the_words_is_recorded_in_both_directions() {
-        // The measured answer is set explicitly rather than taken from the fixture, whose synthetic
-        // lyric track is short enough to measure as unfollowable in its own right.
-        let mut entry = entry_with_a_detected_fix();
-        entry.lyrics_hidden = false;
-        entry.lyric_preview = vec!["first line".to_owned()];
-        let detected = entry.clone();
-
-        let edits = Edits {
-            lyrics_hidden: Some(true),
-            ..Edits::default()
-        };
-        assert_eq!(apply_edits(&mut entry, &edits, &detected), 1);
-        assert!(entry.lyrics_hidden);
-        assert!(entry.is_edited(EditedField::LyricsHidden));
-        assert!(
-            entry.lyric_preview.is_empty(),
-            "the preview is the words on every other surface, so it goes with them"
-        );
-
-        // A measurement that silenced the words, overruled.
-        let mut measured = entry_with_a_detected_fix();
-        measured.lyrics_hidden = true;
-        let before = measured.clone();
-        let edits = Edits {
-            lyrics_hidden: Some(false),
-            ..Edits::default()
-        };
-        assert_eq!(apply_edits(&mut measured, &edits, &before), 1);
-        assert!(!measured.lyrics_hidden);
-        assert!(measured.is_edited(EditedField::LyricsHidden));
+    fn apply_edits_changes_and_marks_only_what_differs_from_detection() {
+        struct Case {
+            name: &'static str,
+            detected: fn(&mut SongEntry),
+            edits: Edits,
+            changed: usize,
+            want: fn(&mut SongEntry),
+        }
+        let cases = [
+            // Silence means "detect". An empty list is the only way to refuse a fix that would
+            // otherwise apply itself.
+            Case {
+                name: "an empty list is how a detected fix is turned off",
+                detected: |_| {},
+                edits: Edits {
+                    fixes: Some(Vec::new()),
+                    ..Edits::default()
+                },
+                changed: 1,
+                want: |entry| {
+                    entry.fixes.clear();
+                    entry.mark_edited(EditedField::Fixes);
+                },
+            },
+            Case {
+                name: "a hand-added mute is recorded as an edit",
+                detected: |_| {},
+                edits: Edits {
+                    fixes: Some(vec![
+                        km_fixes::Fix::IgnoreBankSelect { channel: 4 },
+                        km_fixes::Fix::MuteChannel { channel: 2 },
+                    ]),
+                    ..Edits::default()
+                },
+                changed: 1,
+                want: |entry| {
+                    entry.fixes.push(km_fixes::Fix::MuteChannel { channel: 2 });
+                    entry.mark_edited(EditedField::Fixes);
+                },
+            },
+            // Re-applying an unchanged export must not mark the catalog as hand-edited, or the
+            // flag stops meaning anything.
+            Case {
+                name: "restating what was detected is not an edit",
+                detected: |_| {},
+                edits: Edits {
+                    fixes: Some(vec![km_fixes::Fix::IgnoreBankSelect { channel: 4 }]),
+                    ..Edits::default()
+                },
+                changed: 0,
+                want: |_| {},
+            },
+            // The guide-melody toggle needs a melody channel, so naming one turns it on. A
+            // judgement has no confidence, so the signal says where the answer came from.
+            Case {
+                name: "a named melody channel is recorded as an edit",
+                detected: |_| {},
+                edits: Edits {
+                    melody: Some(Some(4)),
+                    ..Edits::default()
+                },
+                changed: 1,
+                want: |entry| {
+                    entry.melody = Some(km_kmpkg::MelodyRecord {
+                        channel: 4,
+                        confidence: 1.0,
+                        signals: vec![MELODY_CHOSEN_SIGNAL.to_owned()],
+                    });
+                    entry.mark_edited(EditedField::Melody);
+                },
+            },
+            // A person's answer is not the detector giving up, so the abstention reason goes too.
+            Case {
+                name: "saying a song has no melody clears the record and the reason",
+                detected: |entry| {
+                    entry.melody = Some(km_kmpkg::MelodyRecord {
+                        channel: 2,
+                        confidence: 0.7,
+                        signals: vec!["range".to_owned()],
+                    });
+                    entry.melody_abstained = Some("ambiguous".to_owned());
+                },
+                edits: Edits {
+                    melody: Some(None),
+                    ..Edits::default()
+                },
+                changed: 1,
+                want: |entry| {
+                    entry.melody = None;
+                    entry.melody_abstained = None;
+                    entry.mark_edited(EditedField::Melody);
+                },
+            },
+            // The detector's own confidence and signals stay, rather than a judgement that agreed.
+            Case {
+                name: "confirming the detected melody channel is not an edit",
+                detected: |entry| {
+                    entry.melody = Some(km_kmpkg::MelodyRecord {
+                        channel: 2,
+                        confidence: 0.7,
+                        signals: vec!["range".to_owned()],
+                    });
+                },
+                edits: Edits {
+                    melody: Some(Some(2)),
+                    ..Edits::default()
+                },
+                changed: 0,
+                want: |_| {},
+            },
+            // The preview is the words on every other surface, so it goes with them. The measured
+            // answer is set explicitly, because the fixture's short lyric track measures as
+            // unfollowable.
+            Case {
+                name: "silencing the words is recorded as an edit",
+                detected: |entry| {
+                    entry.lyrics_hidden = false;
+                    entry.lyric_preview = vec!["first line".to_owned()];
+                },
+                edits: Edits {
+                    lyrics_hidden: Some(true),
+                    ..Edits::default()
+                },
+                changed: 1,
+                want: |entry| {
+                    entry.lyrics_hidden = true;
+                    entry.lyric_preview.clear();
+                    entry.mark_edited(EditedField::LyricsHidden);
+                },
+            },
+            // The value it writes is the value an untouched song carries, so only the marker
+            // distinguishes the two.
+            Case {
+                name: "drawing the words a measurement silenced is recorded as an edit",
+                detected: |entry| entry.lyrics_hidden = true,
+                edits: Edits {
+                    lyrics_hidden: Some(false),
+                    ..Edits::default()
+                },
+                changed: 1,
+                want: |entry| {
+                    entry.lyrics_hidden = false;
+                    entry.mark_edited(EditedField::LyricsHidden);
+                },
+            },
+            Case {
+                name: "agreeing about the words marks nothing",
+                detected: |entry| entry.lyrics_hidden = false,
+                edits: Edits {
+                    lyrics_hidden: Some(false),
+                    ..Edits::default()
+                },
+                changed: 0,
+                want: |_| {},
+            },
+        ];
+        for Case {
+            name,
+            detected,
+            edits,
+            changed,
+            want,
+        } in cases
+        {
+            let mut original = entry_with_a_detected_fix();
+            detected(&mut original);
+            let mut entry = original.clone();
+            assert_eq!(
+                apply_edits(&mut entry, &edits, &original),
+                changed,
+                "{name}"
+            );
+            let mut expected = original.clone();
+            want(&mut expected);
+            assert_eq!(entry, expected, "{name}");
+        }
     }
 
     /// The measured half, and the preview going with it before anybody has said anything.
@@ -2217,70 +2275,6 @@ mod tests {
             "a measurement is not somebody's decision, and a rebuild has to be free to change it"
         );
         assert!(entry.lyric_preview.is_empty());
-    }
-
-    /// Agreeing with the measurement records nothing, exactly as confirming a melody channel does.
-    #[test]
-    fn agreeing_about_the_words_marks_nothing() {
-        let mut entry = entry_with_a_detected_fix();
-        entry.lyrics_hidden = false;
-        let detected = entry.clone();
-
-        let edits = Edits {
-            lyrics_hidden: Some(false),
-            ..Edits::default()
-        };
-        assert_eq!(apply_edits(&mut entry, &edits, &detected), 0);
-        assert!(!entry.is_edited(EditedField::LyricsHidden));
-    }
-
-    /// *No melody* is a decision, and the reason detection gave up stops being the explanation.
-    #[test]
-    fn saying_a_song_has_no_melody_clears_the_record_and_the_reason() {
-        let mut entry = entry_with_a_detected_fix();
-        entry.melody = Some(km_kmpkg::MelodyRecord {
-            channel: 2,
-            confidence: 0.7,
-            signals: vec!["range".to_owned()],
-        });
-        entry.melody_abstained = Some("ambiguous".to_owned());
-        let detected = entry.clone();
-
-        let edits = Edits {
-            melody: Some(None),
-            ..Edits::default()
-        };
-        assert_eq!(apply_edits(&mut entry, &edits, &detected), 1);
-        assert!(entry.melody.is_none());
-        assert!(
-            entry.melody_abstained.is_none(),
-            "a person's answer is not the detector giving up"
-        );
-        assert!(entry.is_edited(EditedField::Melody));
-    }
-
-    /// Confirming what detection found is not an edit, and keeps the evidence it gathered.
-    #[test]
-    fn confirming_the_detected_melody_channel_is_not_an_edit() {
-        let mut entry = entry_with_a_detected_fix();
-        entry.melody = Some(km_kmpkg::MelodyRecord {
-            channel: 2,
-            confidence: 0.7,
-            signals: vec!["range".to_owned()],
-        });
-        let detected = entry.clone();
-
-        let edits = Edits {
-            melody: Some(Some(2)),
-            ..Edits::default()
-        };
-        assert_eq!(apply_edits(&mut entry, &edits, &detected), 0);
-        assert!(!entry.is_edited(EditedField::Melody));
-        // The detector's own numbers, kept rather than replaced by a judgement that agreed with it.
-        assert_eq!(
-            entry.melody.as_ref().map(|record| record.confidence),
-            Some(0.7)
-        );
     }
 
     /// A rebuild from source keeps the answer, including the one that is an absence.

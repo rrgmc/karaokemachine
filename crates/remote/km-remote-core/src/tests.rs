@@ -42,7 +42,7 @@ fn the_data_directory_is_the_only_thing_without_a_default() {
 #[tokio::test]
 async fn binding_reports_the_port_the_socket_really_got() {
     let scratch = Scratch::new("bind");
-    let bound = Bound::bind(&offline(&scratch.0)).await.expect("bind");
+    let bound = Bound::bind(&offline(&scratch)).await.expect("bind");
 
     assert_ne!(bound.address().port(), 0, "the socket kept a placeholder");
     assert_eq!(
@@ -70,7 +70,7 @@ async fn binding_reports_the_port_the_socket_really_got() {
 #[tokio::test]
 async fn the_url_is_not_the_socket_address_formatted() {
     let scratch = Scratch::new("not-the-address");
-    let config = offline(&scratch.0).with_bind(SocketAddr::from((Ipv6Addr::LOCALHOST, 0)));
+    let config = offline(&scratch).with_bind(SocketAddr::from((Ipv6Addr::LOCALHOST, 0)));
     let bound = Bound::bind(&config).await.expect("bind");
 
     assert!(bound.address().is_ipv6(), "the socket did not take ::1");
@@ -94,21 +94,21 @@ async fn the_url_is_not_the_socket_address_formatted() {
 #[tokio::test]
 async fn a_run_with_no_machine_and_no_mirror_still_opens() {
     let scratch = Scratch::new("cold");
-    let config = offline(&scratch.0);
+    let config = offline(&scratch);
     let bound = Bound::bind(&config).await.expect("bind");
     let server = Server::open(bound, config).await.expect("open");
 
     let ready = server.ready();
     assert!(ready.machine.is_none(), "found a machine that cannot exist");
     assert_eq!(ready.songs, Ok(0));
-    assert_eq!(ready.data_dir, scratch.0);
+    assert_eq!(ready.data_dir, scratch.to_path_buf());
 }
 
 /// The data directory is created rather than required to exist.
 #[tokio::test]
 async fn the_data_directory_is_made_if_it_is_not_there() {
     let scratch = Scratch::new("mkdir");
-    let nested = scratch.0.join("not").join("yet");
+    let nested = scratch.join("not").join("yet");
     let config = offline(&nested);
     let bound = Bound::bind(&config).await.expect("bind");
     let _server = Server::open(bound, config).await.expect("open");
@@ -123,7 +123,7 @@ async fn the_data_directory_is_made_if_it_is_not_there() {
 #[tokio::test]
 async fn an_injected_shutdown_stops_the_server() {
     let scratch = Scratch::new("stop");
-    let config = offline(&scratch.0);
+    let config = offline(&scratch);
     let bound = Bound::bind(&config).await.expect("bind");
     let address = bound.address();
     let server = Server::open(bound, config).await.expect("open");
@@ -153,7 +153,7 @@ async fn an_injected_shutdown_stops_the_server() {
 #[tokio::test]
 async fn a_stop_asked_for_too_early_is_not_lost() {
     let scratch = Scratch::new("early-stop");
-    let config = offline(&scratch.0);
+    let config = offline(&scratch);
     let bound = Bound::bind(&config).await.expect("bind");
     let server = Server::open(bound, config).await.expect("open");
 
@@ -173,7 +173,7 @@ async fn a_stop_asked_for_too_early_is_not_lost() {
 #[tokio::test]
 async fn warming_up_without_a_machine_does_nothing_and_says_nothing() {
     let scratch = Scratch::new("warm");
-    let config = offline(&scratch.0);
+    let config = offline(&scratch);
     let bound = Bound::bind(&config).await.expect("bind");
     let server = Server::open(bound, config).await.expect("open");
 

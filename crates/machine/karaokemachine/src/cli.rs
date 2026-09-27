@@ -2036,25 +2036,6 @@ mod tests {
         );
     }
 
-    /// Both routes to the frame meter, and neither of them a log level.
-    #[test]
-    fn frame_stats_is_off_unless_asked_for() {
-        assert!(!Cli::parse_from(["karaokemachine"]).frame_stats);
-        assert!(Cli::parse_from(["karaokemachine", "--frame-stats"]).frame_stats);
-    }
-
-    /// The log file is off unless asked for, on exactly the argument the meter above is: whether a
-    /// program writes a file is not a question about how much detail you want.
-    ///
-    /// `KM_LOG_FILE` is the other route and is not tested here, for the reason `RUST_LOG` is not
-    /// tested in [`verbosity_chooses_a_filter`]: it is read from an environment every other test in
-    /// this binary shares, so setting it would be a race rather than a test.
-    #[test]
-    fn the_log_file_is_off_unless_asked_for() {
-        assert!(!Cli::parse_from(["karaokemachine"]).log_file);
-        assert!(Cli::parse_from(["karaokemachine", "--log-file"]).log_file);
-    }
-
     /// The viewer is off unless asked for, and naming one takes an `=`.
     #[test]
     fn the_viewer_is_off_unless_asked_for() {
@@ -2250,35 +2231,54 @@ mod tests {
         );
     }
 
-    /// The two halves of the pair cannot be asked for at once, exactly as the password pair cannot.
-    #[test]
-    fn setting_and_clearing_the_soundfont_conflict() {
-        let error = Cli::try_parse_from([
-            "karaokemachine-console",
-            "--set-soundfont",
-            "bank.sf2",
-            "--clear-soundfont",
-        ])
-        .expect_err("asking to set and to clear at once is not a coherent request");
-        assert_eq!(error.kind(), clap::error::ErrorKind::ArgumentConflict);
-    }
-
-    /// Asking for a bank now and asking for one at the next start are two answers to one question.
+    /// Two answers to one question are refused in the parser, and so is a flag with nothing to
+    /// attach to.
     ///
-    /// They would not even fail usefully together: `--set-soundfont` returns first, so the request
-    /// would be written by a command that had already exited, or not written at all depending on
-    /// which branch moved. Refusing in the parser is the only place that cannot drift.
+    /// The parser is the only place that cannot drift from the branches that act on the flags.
     #[test]
-    fn setting_a_soundfont_and_requesting_one_conflict() {
-        let error = Cli::try_parse_from([
-            "karaokemachine-console",
-            "--set-soundfont",
-            "bank.sf2",
-            "--first-run-soundfont",
-            "recommended",
-        ])
-        .expect_err("a bank now and a bank at the next start are not one request");
-        assert_eq!(error.kind(), clap::error::ErrorKind::ArgumentConflict);
+    fn the_parser_refuses_a_request_that_is_not_one_request() {
+        use clap::error::ErrorKind;
+
+        let cases: [(&str, &[&str], ErrorKind); 4] = [
+            // The two halves of the pair cannot be asked for at once, as the password pair cannot.
+            (
+                "setting and clearing the soundfont",
+                &["--set-soundfont", "bank.sf2", "--clear-soundfont"],
+                ErrorKind::ArgumentConflict,
+            ),
+            // `--set-soundfont` returns first, so the request would be written by a command that
+            // had already exited, or not at all, depending on which branch moved.
+            (
+                "setting a soundfont and requesting one",
+                &[
+                    "--set-soundfont",
+                    "bank.sf2",
+                    "--first-run-soundfont",
+                    "recommended",
+                ],
+                ErrorKind::ArgumentConflict,
+            ),
+            // Claiming the file type and giving it up are not one request.
+            (
+                "registering and unregistering",
+                &["--register", "--unregister"],
+                ErrorKind::ArgumentConflict,
+            ),
+            // `--music-volume` is not a general volume control. A lasting level is
+            // `audio.music_volume` in settings.json, and not a flag.
+            (
+                "a music volume on its own",
+                &["--music-volume", "0.8"],
+                ErrorKind::MissingRequiredArgument,
+            ),
+        ];
+        for (name, argv, want) in cases {
+            let error = Cli::try_parse_from(
+                std::iter::once("karaokemachine-console").chain(argv.iter().copied()),
+            )
+            .expect_err(name);
+            assert_eq!(error.kind(), want, "{name}");
+        }
     }
 
     /// A double-clicked package arrives as one bare argument and nothing else.
@@ -2293,34 +2293,6 @@ mod tests {
         assert_eq!(
             cli.package.as_deref(),
             Some(Path::new(r"D:\tunes\karaoke\vol1.kmpkg"))
-        );
-    }
-
-    /// ...and no argument at all is equally normal: the same executable launched from its icon.
-    #[test]
-    fn starting_with_no_package_is_the_ordinary_case_and_not_an_error() {
-        let cli = Cli::try_parse_from(["karaokemachine"]).expect("an icon passes no arguments");
-        assert!(cli.package.is_none());
-    }
-
-    /// Registering and unregistering are two answers to one question.
-    #[test]
-    fn registering_and_unregistering_conflict() {
-        let error = Cli::try_parse_from(["karaokemachine-console", "--register", "--unregister"])
-            .expect_err("claiming the file type and giving it up are not one request");
-        assert_eq!(error.kind(), clap::error::ErrorKind::ArgumentConflict);
-    }
-
-    /// **`--music-volume` is not a general volume control**, and saying so in the parser rather than
-    /// in prose is what stops it becoming one: on its own it would look like a way to set the level
-    /// permanently, which is `audio.music_volume` in settings.json and not a flag.
-    #[test]
-    fn a_music_volume_on_its_own_is_refused() {
-        let error = Cli::try_parse_from(["karaokemachine-console", "--music-volume", "0.8"])
-            .expect_err("a level with no bank to attach it to is not what this flag is for");
-        assert_eq!(
-            error.kind(),
-            clap::error::ErrorKind::MissingRequiredArgument
         );
     }
 

@@ -194,3 +194,6 @@ km-tray = { path = "../../../crates/platform/km-tray" }
 # for the reason the root `Cargo.toml` gives about the four platform crates: it takes no HTTP client,
 # so nothing it carries can unify with the `reqwest` over here.
 km-webshell = { path = "../../../crates/platform/km-webshell" }
+# What more than one crate's tests need, and a dev-dependency only. Safe to take from here on the
+# rule the crates above keep: it declares axum and tower, and **no HTTP client**.
+km-testkit = { path = "../../dev/km-testkit" }

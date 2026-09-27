@@ -65,5 +65,6 @@ km-tray = { workspace = true, optional = true }
 winresource = { workspace = true }
 
 [dev-dependencies]
+km-testkit = { workspace = true, features = ["http"] }
 km-song = { workspace = true, features = ["testing"] }
 tower = { workspace = true }

@@ -506,7 +506,7 @@ mod tests {
     const SAMPLE_RATE: u32 = 44_100;
 
     fn song(bytes: &[u8]) -> Arc<Song> {
-        Arc::new(Song::parse(bytes, &ParseOptions::default()).expect("fixture parses"))
+        Arc::new(testing::parse(bytes))
     }
 
     fn player() -> Player<TestToneSource> {
