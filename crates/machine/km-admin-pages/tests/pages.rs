@@ -168,6 +168,23 @@ fn nested_as(host: Host, machine: TestMachine, guard: Arc<SpyGuard>) -> (Router,
     (Router::new().nest("/admin", router(admin)), state)
 }
 
+/// A tool's admin surface over a machine with a catalog, before it says which program draws it.
+///
+/// The tests that build an `Admin` themselves want it bare: a shell, a script list, or a guard of
+/// their own. [`nested_as`] is the router with everything a host adds.
+fn desktop_admin(guard: Arc<SpyGuard>) -> Admin {
+    let state = ApiState::from_machine(
+        TestMachine::with_catalog(6).shared(),
+        ApiConfig::default().without_mdns(),
+    );
+    Admin::over(
+        km_admin_pages::machine::Capabilities::desktop(),
+        km_admin_pages::ICON_ADMIN_PNG,
+        guard,
+        Arc::new(km_admin_pages::in_process::ThisMachine::new(state)),
+    )
+}
+
 /// The same, over a machine that already has a password.
 fn nested_as_with_password(host: Host, guard: Arc<SpyGuard>) -> (Router, ApiState) {
     let (app, state) = nested_as(host, TestMachine::with_catalog(6), guard);
@@ -821,17 +838,7 @@ async fn choosing_an_output_reaches_the_machine_and_comes_back() {
 /// markup this whole exercise deletes.
 #[tokio::test]
 async fn a_hosts_own_page_wears_the_shared_chrome() {
-    let state = ApiState::from_machine(
-        TestMachine::with_catalog(6).shared(),
-        ApiConfig::default().without_mdns(),
-    );
-    let host = Arc::new(km_admin_pages::in_process::ThisMachine::new(state));
-    let admin = Admin::over(
-        km_admin_pages::machine::Capabilities::desktop(),
-        km_admin_pages::ICON_ADMIN_PNG,
-        Arc::new(SpyGuard::default()),
-        host,
-    );
+    let admin = desktop_admin(Arc::new(SpyGuard::default()));
 
     let response = admin
         .shell(
@@ -878,20 +885,7 @@ async fn a_host_that_keeps_its_own_token_is_sent_no_cookie() {
         ..SpyGuard::default()
     });
 
-    let state = ApiState::from_machine(
-        TestMachine::with_catalog(6).shared(),
-        ApiConfig::default().without_mdns(),
-    );
-    let host = Arc::new(km_admin_pages::in_process::ThisMachine::new(state));
-    let app = Router::new().nest(
-        "/admin",
-        router(Admin::over(
-            km_admin_pages::machine::Capabilities::desktop(),
-            km_admin_pages::ICON_ADMIN_PNG,
-            keeps_its_own,
-            host,
-        )),
-    );
+    let app = Router::new().nest("/admin", router(desktop_admin(keeps_its_own)));
 
     let response = http::send(
         app.clone(),
@@ -1125,18 +1119,8 @@ async fn no_page_the_machine_serves_carries_a_script() {
 /// `defer` on both, so the order in the markup is the order they run.
 #[tokio::test]
 async fn a_hosts_own_page_loads_the_scripts_that_host_declared() {
-    let state = ApiState::from_machine(
-        TestMachine::with_catalog(6).shared(),
-        ApiConfig::default().without_mdns(),
-    );
-    let host = Arc::new(km_admin_pages::in_process::ThisMachine::new(state));
-    let admin = Admin::over(
-        km_admin_pages::machine::Capabilities::desktop(),
-        km_admin_pages::ICON_ADMIN_PNG,
-        Arc::new(SpyGuard::default()),
-        host,
-    )
-    .with_scripts(&["/static/htmx.min.js", "/static/ui.js"]);
+    let admin = desktop_admin(Arc::new(SpyGuard::default()))
+        .with_scripts(&["/static/htmx.min.js", "/static/ui.js"]);
 
     let response = admin
         .shell(
@@ -1255,19 +1239,9 @@ async fn every_pane_the_machine_tab_draws_has_a_selector_that_opens_it() {
     let (_, css) = get(&app, "/admin/static/admin.css").await;
 
     // A tool's page, over the same handlers, so the panes only it draws are in scope too.
-    let state = ApiState::from_machine(
-        TestMachine::with_catalog(6).shared(),
-        ApiConfig::default().without_mdns(),
-    );
-    let host = Arc::new(km_admin_pages::in_process::ThisMachine::new(state));
     let tool = Router::new().nest(
         "/admin",
-        router(Admin::over(
-            km_admin_pages::machine::Capabilities::desktop(),
-            km_admin_pages::ICON_ADMIN_PNG,
-            Arc::new(SpyGuard::default()),
-            host,
-        )),
+        router(desktop_admin(Arc::new(SpyGuard::default()))),
     );
     let (_, tool_page) = get(&tool, "/admin/machine").await;
 
@@ -2761,17 +2735,7 @@ async fn where_to_find_it_leads_with_the_name() {
 /// body is the second copy this seam exists to delete.
 #[tokio::test]
 async fn a_hosts_own_page_can_carry_a_notice() {
-    let state = ApiState::from_machine(
-        TestMachine::with_catalog(6).shared(),
-        ApiConfig::default().without_mdns(),
-    );
-    let host = Arc::new(km_admin_pages::in_process::ThisMachine::new(state));
-    let admin = Admin::over(
-        km_admin_pages::machine::Capabilities::desktop(),
-        km_admin_pages::ICON_ADMIN_PNG,
-        Arc::new(SpyGuard::default()),
-        host,
-    );
+    let admin = desktop_admin(Arc::new(SpyGuard::default()));
 
     for (notice, wanted) in [
         (km_admin_pages::views::Notice::bad("it went wrong"), "bad"),
@@ -2812,18 +2776,8 @@ async fn a_hosts_own_page_can_carry_a_notice() {
 /// none, so the same pages stay byte-for-byte scriptless there.
 #[tokio::test]
 async fn a_host_that_declares_a_script_gets_it_on_every_page_it_serves() {
-    let state = ApiState::from_machine(
-        TestMachine::with_catalog(6).shared(),
-        ApiConfig::default().without_mdns(),
-    );
-    let host = Arc::new(km_admin_pages::in_process::ThisMachine::new(state));
-    let admin = Admin::over(
-        km_admin_pages::machine::Capabilities::desktop(),
-        km_admin_pages::ICON_ADMIN_PNG,
-        Arc::new(SpyGuard::default()),
-        host,
-    )
-    .with_scripts(&["/static/htmx.min.js", "/static/ui.js"]);
+    let admin = desktop_admin(Arc::new(SpyGuard::default()))
+        .with_scripts(&["/static/htmx.min.js", "/static/ui.js"]);
     let app = Router::new().nest("/admin", km_admin_pages::router(admin));
 
     let mut checked = 0usize;

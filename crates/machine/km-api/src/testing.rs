@@ -623,6 +623,30 @@ impl TestMachine {
         self.lock().faults = faults;
     }
 
+    /// The name every audition was played under, in the order they arrived.
+    #[must_use]
+    pub fn auditions(&self) -> Vec<String> {
+        self.recorded()
+            .into_iter()
+            .filter_map(|entry| match entry {
+                Recorded::PlayAudition(name) => Some(name),
+                _ => None,
+            })
+            .collect()
+    }
+
+    /// What a curation tool had settled, one entry per audition, in the order they arrived.
+    #[must_use]
+    pub fn decided(&self) -> Vec<Decided> {
+        self.recorded()
+            .into_iter()
+            .filter_map(|entry| match entry {
+                Recorded::Decided(decided) => Some(decided),
+                _ => None,
+            })
+            .collect()
+    }
+
     /// What the machine was asked to do, in order.
     pub fn recorded(&self) -> Vec<Recorded> {
         self.lock().recorded.clone()

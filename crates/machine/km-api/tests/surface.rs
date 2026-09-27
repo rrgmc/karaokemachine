@@ -2619,6 +2619,15 @@ async fn playing_a_file_directly_bypasses_the_catalog() {
         entry,
         Recorded::PlayFile(path) if path.ends_with("lyric_events.mid")
     )));
+
+    // A file with nothing decided about it carries no decision, so detection answers for it.
+    let decided = harness.machine.decided();
+    assert_eq!(decided.len(), 1, "{decided:?}");
+    assert!(decided[0].fixes.is_none(), "no corrections were sent");
+    assert!(
+        decided[0].transpose.is_none(),
+        "a song nobody has transposed plays in the key its file is written in"
+    );
 }
 
 #[tokio::test]
@@ -2659,10 +2668,11 @@ async fn an_uploaded_song_is_staged_and_played_under_the_name_it_was_sent_with()
     assert_eq!(state["transport"], "playing");
     // Named from the `stem` field and the part's *extension*, never from its filename.
     assert!(
-        harness.machine.recorded().iter().any(|entry| matches!(
-            entry,
-            Recorded::PlayAudition(name) if name == "Sultans of Swing.kar"
-        )),
+        harness
+            .machine
+            .auditions()
+            .iter()
+            .any(|name| name == "Sultans of Swing.kar"),
         "{:?}",
         harness.machine.recorded()
     );
@@ -2688,15 +2698,7 @@ async fn both_halves_of_an_mp3_g_song_are_staged_under_one_stem() {
         .await;
 
     assert_eq!(status, StatusCode::OK);
-    let names: Vec<String> = harness
-        .machine
-        .recorded()
-        .iter()
-        .filter_map(|entry| match entry {
-            Recorded::PlayAudition(name) => Some(name.clone()),
-            _ => None,
-        })
-        .collect();
+    let names = harness.machine.auditions();
     // One call, naming the half sent first — the machine finds the other beside it.
     assert_eq!(names, vec!["Perfidia.mp3".to_owned()]);
 }
@@ -2728,17 +2730,19 @@ async fn an_uploaded_ultrastar_song_is_its_mp3_with_the_words_beside_it() {
     assert_eq!(status, StatusCode::OK, "{body}");
     let recorded = harness.machine.recorded();
     assert!(
-        recorded.iter().any(|entry| matches!(
-            entry,
-            Recorded::PlayAudition(name) if name == "Ace Of Spades.mp3"
-        )),
+        harness
+            .machine
+            .auditions()
+            .iter()
+            .any(|name| name == "Ace Of Spades.mp3"),
         "{recorded:?}"
     );
     assert!(
-        recorded.iter().any(|entry| matches!(
-            entry,
-            Recorded::Decided(decided) if decided.lyrics.as_ref() == Some(&words)
-        )),
+        harness
+            .machine
+            .decided()
+            .iter()
+            .any(|decided| decided.lyrics.as_ref() == Some(&words)),
         "{recorded:?}"
     );
 }
@@ -2766,12 +2770,10 @@ async fn an_uploaded_lrc_song_names_its_kind_beside_the_words() {
     assert_eq!(status, StatusCode::OK, "{body}");
     let recorded = harness.machine.recorded();
     assert!(
-        recorded.iter().any(|entry| matches!(
-            entry,
-            Recorded::Decided(decided)
-                if decided.lyrics.as_ref() == Some(&words)
-                    && decided.lyrics_kind == Some(km_catalog::SongKind::Lrc)
-        )),
+        harness.machine.decided().iter().any(|decided| {
+            decided.lyrics.as_ref() == Some(&words)
+                && decided.lyrics_kind == Some(km_catalog::SongKind::Lrc)
+        }),
         "{recorded:?}"
     );
 }
@@ -2836,9 +2838,13 @@ async fn an_ultrastar_songs_words_travel_with_a_path() {
             })),
         )
         .await;
-    assert!(harness.machine.recorded().iter().any(
-        |entry| matches!(entry, Recorded::Decided(decided) if decided.lyrics.as_ref() == Some(&words))
-    ));
+    assert!(
+        harness
+            .machine
+            .decided()
+            .iter()
+            .any(|decided| decided.lyrics.as_ref() == Some(&words))
+    );
 }
 
 #[tokio::test]
@@ -2864,12 +2870,9 @@ async fn an_uploaded_stem_cannot_climb_out_of_the_staging_folder() {
         if status == StatusCode::OK {
             let played = harness
                 .machine
-                .recorded()
-                .iter()
-                .find_map(|entry| match entry {
-                    Recorded::PlayAudition(name) => Some(name.clone()),
-                    _ => None,
-                })
+                .auditions()
+                .into_iter()
+                .next()
                 .expect("something was played");
             assert_eq!(
                 std::path::Path::new(&played).file_name(),
@@ -2900,11 +2903,7 @@ async fn an_upload_that_is_not_a_kind_of_song_is_refused_before_anything_is_writ
         "{body}"
     );
     assert!(
-        !harness
-            .machine
-            .recorded()
-            .iter()
-            .any(|entry| matches!(entry, Recorded::PlayAudition(_))),
+        harness.machine.auditions().is_empty(),
         "nothing should have been played"
     );
 }
@@ -4587,14 +4586,18 @@ async fn a_files_corrections_travel_with_its_path() {
             })),
         )
         .await;
-    assert!(harness.machine.recorded().iter().any(|entry| matches!(
-        entry,
-        Recorded::Decided(decided)
-            if decided.fixes.as_deref() == Some(&[
-                km_fixes::Fix::MuteChannel { channel: 2 },
-                km_fixes::Fix::ForceProgram { channel: 4, program: 52 },
-            ][..])
-    )));
+    assert!(harness.machine.decided().iter().any(|decided| {
+        decided.fixes.as_deref()
+            == Some(
+                &[
+                    km_fixes::Fix::MuteChannel { channel: 2 },
+                    km_fixes::Fix::ForceProgram {
+                        channel: 4,
+                        program: 52,
+                    },
+                ][..],
+            )
+    }));
 }
 
 /// A correction this build knows the shape of and cannot honour is a bad request, not a fix to
@@ -4615,25 +4618,6 @@ async fn an_instrument_no_program_change_could_carry_is_refused() {
     assert_eq!(status, StatusCode::BAD_REQUEST);
 }
 
-#[tokio::test]
-async fn a_file_with_nothing_decided_about_it_is_left_to_detection() {
-    let harness = Harness::debugging();
-    harness
-        .ok(
-            Method::POST,
-            "/debug/play-file",
-            Some(json!({ "path": "fixtures/generated/lyric_events.mid" })),
-        )
-        .await;
-    assert!(
-        harness
-            .machine
-            .recorded()
-            .iter()
-            .any(|entry| matches!(entry, Recorded::Decided(decided) if decided.fixes.is_none()))
-    );
-}
-
 /// An empty list is a decision the wire has to carry as one.
 #[tokio::test]
 async fn deciding_on_no_corrections_is_not_the_same_as_deciding_nothing() {
@@ -4645,10 +4629,13 @@ async fn deciding_on_no_corrections_is_not_the_same_as_deciding_nothing() {
             Some(json!({ "path": "fixtures/generated/lyric_events.mid", "fixes": [] })),
         )
         .await;
-    assert!(harness.machine.recorded().iter().any(|entry| matches!(
-        entry,
-        Recorded::Decided(decided) if decided.fixes.as_deref() == Some(&[][..])
-    )));
+    assert!(
+        harness
+            .machine
+            .decided()
+            .iter()
+            .any(|decided| decided.fixes.as_deref() == Some(&[][..]))
+    );
 }
 
 /// The key a curator chose crosses with the song, and lands where a package's own would.
@@ -4670,27 +4657,11 @@ async fn a_curators_key_travels_with_the_song() {
         )
         .await;
     assert!(
-        harness.machine.recorded().iter().any(
-            |entry| matches!(entry, Recorded::Decided(decided) if decided.transpose == Some(-2))
-        )
-    );
-}
-
-/// A song nobody has transposed sends nothing, and plays in the key its file is written in.
-#[tokio::test]
-async fn a_song_nobody_has_transposed_sends_no_key() {
-    let harness = Harness::debugging();
-    harness
-        .ok(
-            Method::POST,
-            "/debug/play-file",
-            Some(json!({ "path": "fixtures/generated/lyric_events.mid" })),
-        )
-        .await;
-    assert!(
-        harness.machine.recorded().iter().any(
-            |entry| matches!(entry, Recorded::Decided(decided) if decided.transpose.is_none())
-        )
+        harness
+            .machine
+            .decided()
+            .iter()
+            .any(|decided| decided.transpose == Some(-2))
     );
 }
 
@@ -4719,9 +4690,11 @@ async fn a_curators_melody_channel_travels_in_all_three_states() {
             .ok(Method::POST, "/debug/play-file", Some(body.clone()))
             .await;
         assert!(
-            harness.machine.recorded().iter().any(
-                |entry| matches!(entry, Recorded::Decided(decided) if decided.melody == expected)
-            ),
+            harness
+                .machine
+                .decided()
+                .iter()
+                .any(|decided| decided.melody == expected),
             "{body}"
         );
     }

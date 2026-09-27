@@ -87,26 +87,12 @@ impl Machine {
     }
 
     fn played(&self) -> Vec<String> {
-        self.machine
-            .recorded()
-            .iter()
-            .filter_map(|entry| match entry {
-                Recorded::PlayAudition(name) => Some(name.clone()),
-                _ => None,
-            })
-            .collect()
+        self.machine.auditions()
     }
 
     /// Everything the machine was told a curator had already settled, one entry per audition.
     fn played_with(&self) -> Vec<Decided> {
-        self.machine
-            .recorded()
-            .iter()
-            .filter_map(|entry| match entry {
-                Recorded::Decided(decided) => Some(decided.clone()),
-                _ => None,
-            })
-            .collect()
+        self.machine.decided()
     }
 }
 
