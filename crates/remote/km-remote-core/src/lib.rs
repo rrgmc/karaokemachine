@@ -648,7 +648,7 @@ pub async fn run(
     server.serve(shutdown).await
 }
 
-/// What the tests need and the remote does not — the scratch directory, in one copy.
+/// What the tests need and the remote does not: a scratch folder and a stand-in for the network.
 #[cfg(test)]
 mod testing;
 

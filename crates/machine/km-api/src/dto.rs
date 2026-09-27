@@ -2123,8 +2123,8 @@ fn to_milli(value: f32) -> u32 {
 #[cfg(test)]
 mod tests {
     use km_queue::queue::QueueEntry;
+    use km_song::Song;
     use km_song::testing;
-    use km_song::{ParseOptions, Song};
 
     use super::*;
 
@@ -2516,7 +2516,7 @@ mod tests {
     }
 
     fn parse(bytes: Vec<u8>) -> Song {
-        Song::parse(&bytes, &ParseOptions::default()).expect("fixture parses")
+        km_song::testing::parse(&bytes)
     }
 
     fn song_row(number: SongCode) -> CatalogSong {

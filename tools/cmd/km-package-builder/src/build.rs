@@ -1020,9 +1020,11 @@ mod tests {
 
     /// Scans a one-song corpus and returns its database and the song's id.
     fn corpus(scratch: &Scratch) -> (Arc<Shared>, String) {
-        std::fs::write(scratch.0.join("song.kar"), km_song::testing::soft_karaoke())
+        std::fs::write(scratch.join("song.kar"), km_song::testing::soft_karaoke())
             .expect("write a fixture");
-        let db = Arc::new(Shared::new(Db::open_in_memory(&scratch.0).expect("open")));
+        let db = Arc::new(Shared::new(
+            Db::open_in_memory(scratch.path()).expect("open"),
+        ));
         run(
             &db,
             ScanOptions::default(),
@@ -1093,7 +1095,7 @@ mod tests {
     fn a_built_package_carries_what_was_detected_and_never_what_was_judged() {
         let scratch = Scratch::new("suitability");
         let (db, id) = corpus(&scratch);
-        let out = scratch.0.join("vol1.kmpkg");
+        let out = scratch.join("vol1.kmpkg");
 
         {
             let mut guard = db.lock();
@@ -1152,7 +1154,7 @@ mod tests {
     fn an_uncurated_package_imports_and_builds_back_uncurated() {
         let scratch = Scratch::new("uncurated-source");
         let (db, id) = corpus(&scratch);
-        let out = scratch.0.join("vol1.kmpkg");
+        let out = scratch.join("vol1.kmpkg");
         package_with(&mut db.lock(), std::slice::from_ref(&id));
         build_now(&db, km_kmpkg::EXAMPLE_ID, &out);
         assert!(!km_kmpkg::Package::open(&out).expect("open").is_uncurated());
@@ -1160,7 +1162,7 @@ mod tests {
         // The flag as `km-package-simple` writes it: the header word at bytes 10..14.
         let mut bytes = std::fs::read(&out).expect("read");
         bytes[10] = 1;
-        let flagged = scratch.0.join("flagged.kmpkg");
+        let flagged = scratch.join("flagged.kmpkg");
         std::fs::write(&flagged, bytes).expect("write");
 
         let second = Scratch::new("uncurated-import");
@@ -1175,7 +1177,7 @@ mod tests {
                 .is_uncurated()
         );
 
-        let rebuilt = second.0.join("rebuilt.kmpkg");
+        let rebuilt = second.join("rebuilt.kmpkg");
         build_now(&fresh, km_kmpkg::EXAMPLE_ID, &rebuilt);
         assert!(
             km_kmpkg::Package::open(&rebuilt)
@@ -1191,7 +1193,7 @@ mod tests {
     fn a_second_volume_builds_as_its_own_file_and_imports_back_into_its_package() {
         let scratch = Scratch::new("second-volume");
         let (db, id) = corpus(&scratch);
-        let out = scratch.0.join("vol2.kmpkg");
+        let out = scratch.join("vol2.kmpkg");
         let second = km_kmpkg::PackageMeta::new_id();
         {
             let mut guard = db.lock();
@@ -1277,7 +1279,7 @@ mod tests {
         build_all(
             &db,
             km_kmpkg::EXAMPLE_ID,
-            Some(&scratch.0),
+            Some(scratch.path()),
             false,
             &progress,
         )
@@ -1291,7 +1293,7 @@ mod tests {
         );
         assert_eq!(built[0].1.written, 1, "{:?}", built[0].1.skipped);
         assert!(
-            scratch.0.join("volume-one-vol2-1.0.0.kmpkg").is_file(),
+            scratch.join("volume-one-vol2-1.0.0.kmpkg").is_file(),
             "written under the second volume's default name"
         );
     }
@@ -1305,7 +1307,7 @@ mod tests {
     fn a_package_needs_a_language_but_a_detected_one_counts() {
         let scratch = Scratch::new("language-gate");
         let (db, id) = corpus(&scratch);
-        let out = scratch.0.join("vol1.kmpkg");
+        let out = scratch.join("vol1.kmpkg");
 
         {
             let mut guard = db.lock();
@@ -1327,11 +1329,8 @@ mod tests {
         // And now a file with no header at all and nothing in its encoding to go on -- the shape
         // most of a real corpus has, where the gate actually bites. The build re-reads and
         // re-analyzes the file, so it has to be the *file* that says nothing, not the database.
-        std::fs::write(
-            scratch.0.join("plain.mid"),
-            km_song::testing::lyric_events(),
-        )
-        .expect("write a fixture with no @L header");
+        std::fs::write(scratch.join("plain.mid"), km_song::testing::lyric_events())
+            .expect("write a fixture with no @L header");
         run(
             &db,
             ScanOptions::default(),
@@ -1405,15 +1404,12 @@ mod tests {
     fn a_packages_default_language_fills_the_package_and_never_the_corpus() {
         let scratch = Scratch::new("default-language");
         let (db, _) = corpus(&scratch);
-        let out = scratch.0.join("vol1.kmpkg");
+        let out = scratch.join("vol1.kmpkg");
 
         // A file with no `@L` header and nothing in its encoding to go on: the shape most of a real
         // corpus has, and the population the gate actually catches.
-        std::fs::write(
-            scratch.0.join("plain.mid"),
-            km_song::testing::lyric_events(),
-        )
-        .expect("write a fixture with no @L header");
+        std::fs::write(scratch.join("plain.mid"), km_song::testing::lyric_events())
+            .expect("write a fixture with no @L header");
         run(
             &db,
             ScanOptions::default(),
@@ -1479,7 +1475,7 @@ mod tests {
     fn the_written_description_records_no_correction_nobody_made() {
         let scratch = Scratch::new("provenance");
         let (db, id) = corpus(&scratch);
-        let out = scratch.0.join("vol1.kmpkg");
+        let out = scratch.join("vol1.kmpkg");
 
         {
             let mut guard = db.lock();
@@ -1548,7 +1544,7 @@ mod tests {
     fn a_tag_reaches_a_package_only_because_a_song_carries_it() {
         let scratch = Scratch::new("tags-into-package");
         let (db, id) = corpus(&scratch);
-        let out = scratch.0.join("vol1.kmpkg");
+        let out = scratch.join("vol1.kmpkg");
 
         {
             let mut guard = db.lock();
@@ -1616,7 +1612,7 @@ mod tests {
         package_with(&mut guard, std::slice::from_ref(&id));
 
         // The row survives the file, which is the state a scan leaves behind after a delete.
-        std::fs::remove_file(scratch.0.join("song.kar")).expect("delete the source");
+        std::fs::remove_file(scratch.join("song.kar")).expect("delete the source");
         drop(guard);
         run(
             &db,
@@ -1643,7 +1639,7 @@ mod tests {
         let scratch = Scratch::new("round-trip");
         let (db, id) = corpus(&scratch);
 
-        let spec_path = scratch.0.join("vol1.kmspec.yaml");
+        let spec_path = scratch.join("vol1.kmspec.yaml");
         {
             let mut guard = db.lock();
             package_with(&mut guard, std::slice::from_ref(&id));
@@ -1661,13 +1657,13 @@ mod tests {
         }
 
         // What this page builds.
-        let here = scratch.0.join("here.kmpkg");
+        let here = scratch.join("here.kmpkg");
         let report = build_now(&db, km_kmpkg::EXAMPLE_ID, &here);
         assert_eq!(report.written, 1, "{:?}", report.skipped);
 
         // And what the description it wrote builds, through km-pack's own reader.
         let spec = km_pack::Spec::read(&spec_path).expect("read it back");
-        let there = scratch.0.join("there.kmpkg");
+        let there = scratch.join("there.kmpkg");
         km_pack::build::build(
             &spec,
             &km_pack::BuildOptions {
@@ -1822,7 +1818,7 @@ mod tests {
     fn the_first_build_keeps_the_version_and_every_build_after_it_raises_the_patch() {
         let scratch = Scratch::new("raise-version");
         let (db, id) = corpus(&scratch);
-        let out = scratch.0.join("vol1.kmpkg");
+        let out = scratch.join("vol1.kmpkg");
 
         {
             let mut guard = db.lock();
@@ -1865,7 +1861,7 @@ mod tests {
     fn a_build_that_wrote_nothing_raises_nothing() {
         let scratch = Scratch::new("raise-refused");
         let (db, id) = corpus(&scratch);
-        let out = scratch.0.join("vol1.kmpkg");
+        let out = scratch.join("vol1.kmpkg");
 
         {
             let mut guard = db.lock();
@@ -1876,11 +1872,8 @@ mod tests {
 
         // A song nothing can classify stops the build, the way the language gate's own test sets
         // up. The package on disk stays at 1.0.0, so the row has to as well.
-        std::fs::write(
-            scratch.0.join("plain.mid"),
-            km_song::testing::lyric_events(),
-        )
-        .expect("write a fixture with no @L header");
+        std::fs::write(scratch.join("plain.mid"), km_song::testing::lyric_events())
+            .expect("write a fixture with no @L header");
         run(
             &db,
             ScanOptions::default(),
@@ -1924,7 +1917,7 @@ mod tests {
     fn an_unticked_box_leaves_the_version_alone() {
         let scratch = Scratch::new("raise-off");
         let (db, id) = corpus(&scratch);
-        let out = scratch.0.join("vol1.kmpkg");
+        let out = scratch.join("vol1.kmpkg");
 
         {
             let mut guard = db.lock();
@@ -1950,7 +1943,7 @@ mod tests {
     fn a_version_this_tool_would_not_accept_builds_and_is_left_alone() {
         let scratch = Scratch::new("raise-odd");
         let (db, id) = corpus(&scratch);
-        let out = scratch.0.join("vol1.kmpkg");
+        let out = scratch.join("vol1.kmpkg");
 
         {
             let mut guard = db.lock();
@@ -1976,8 +1969,8 @@ mod tests {
     fn writing_a_description_raises_no_version() {
         let scratch = Scratch::new("raise-spec");
         let (db, id) = corpus(&scratch);
-        let out = scratch.0.join("vol1.kmpkg");
-        let spec_path = scratch.0.join("vol1.kmspec.yaml");
+        let out = scratch.join("vol1.kmpkg");
+        let spec_path = scratch.join("vol1.kmspec.yaml");
 
         {
             let mut guard = db.lock();

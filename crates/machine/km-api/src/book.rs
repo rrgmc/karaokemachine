@@ -49,8 +49,9 @@ pub fn messages(locale: Locale) -> &'static Messages {
             .iter()
             .map(|(locale, source)| {
                 let catalog = Messages::new(*locale, source)
-                    // Compiled in, so this is a build fault rather than anything a caller can cause
-                    // — and `every_catalog_parses` is what turns it into one before a release.
+                    // Compiled in, so this is a build fault rather than anything a caller can
+                    // cause. `every_catalog_holds_exactly_the_english_keys` catches it before a
+                    // release.
                     .unwrap_or_else(|errors| {
                         panic!("{locale} book catalog: {}", errors.join("; "))
                     });
@@ -788,46 +789,15 @@ mod tests {
 
     // -- The catalogs --------------------------------------------------------------------------
 
+    /// Every locale holds exactly the keys English holds, so nothing draws a bracketed key.
+    ///
+    /// The `language-` family is held to this as well, because every catalog writes it in full.
+    /// Its completeness against the ISO table is a different claim, and
+    /// `a_language_without_a_translated_name_falls_back_to_its_english_one` makes it.
     #[test]
-    fn every_catalog_parses() {
-        // `messages` panics on a bad catalog, which is right — it is compiled in, so nobody can
-        // cause it at run time. This is what turns that into a build failure instead of a book.
-        for locale in Locale::ALL {
-            assert!(!messages(*locale).keys().is_empty(), "{locale}");
-        }
-    }
-
-    #[test]
-    fn every_message_is_translated() {
-        // The guarantee Fluent cannot give at compile time, bought back one step later. Without it
-        // an untranslated key reaches a printed page as `⟦book-title⟧`, which is a book somebody
-        // has to throw away.
-        let english = messages(Locale::English);
-        for locale in Locale::ALL {
-            let missing = messages(*locale).missing_from(english);
-            assert!(
-                missing.is_empty(),
-                "{locale} has not caught up: {missing:?}"
-            );
-        }
-    }
-
-    #[test]
-    fn no_locale_invents_a_message_english_does_not_have() {
-        // The same test read backwards. A key only a translation has is one nothing looks up — a
-        // leftover from a rename, which would otherwise sit there looking like work.
-        //
-        // The `language-` family is the one deliberate exception and is *not* exempted here,
-        // because it is written in full in every catalog; it is exempt from being *complete*
-        // against the ISO table, which is a different claim and is `a_language_without_a_translated
-        // _name_falls_back_to_its_english_one`'s business.
-        let english = messages(Locale::English);
-        for locale in Locale::ALL {
-            let extra = english.missing_from(messages(*locale));
-            assert!(
-                extra.is_empty(),
-                "{locale} has keys nothing asks for: {extra:?}"
-            );
+    fn every_catalog_holds_exactly_the_english_keys() {
+        if let Err(fault) = km_locale::check_catalogs(messages) {
+            panic!("{fault}");
         }
     }
 

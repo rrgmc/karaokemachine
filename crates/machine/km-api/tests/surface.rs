@@ -8,7 +8,7 @@
 use std::net::SocketAddr;
 
 use axum::Router;
-use axum::body::{Body, to_bytes};
+use axum::body::Body;
 use axum::http::{Method, Request, StatusCode};
 use km_api::machine::{
     AudioOutput, SoundFontBank, SoundFontBanks, SoundFontChoice, SoundFontStatus, SoundKind,
@@ -16,9 +16,9 @@ use km_api::machine::{
 use km_api::routes::{API_PREFIX, LOG_SURFACE, POWER_SURFACE, SURFACE, router};
 use km_api::testing::{Faults, Recorded, TestMachine, TestPower};
 use km_api::{ApiConfig, ApiState, PowerError};
+use km_testkit::http;
 use serde_json::{Value, json};
 use std::sync::Arc;
-use tower::ServiceExt;
 
 /// A machine, its router, and the peer address requests appear to come from.
 struct Harness {
@@ -247,15 +247,8 @@ impl Harness {
         request
             .extensions_mut()
             .insert(axum::extract::ConnectInfo(self.peer));
-        let response = self
-            .router()
-            .oneshot(request)
-            .await
-            .expect("the router answers");
-        let status = response.status();
-        let bytes = to_bytes(response.into_body(), 4 * 1024 * 1024)
-            .await
-            .expect("read the body");
+        let answer = http::send(self.router(), request).await;
+        let (status, bytes) = (answer.status, answer.body);
         let value = if bytes.is_empty() {
             Value::Null
         } else {
@@ -289,44 +282,20 @@ impl Harness {
         self.request(Method::POST, path, Some(body)).await
     }
 
-    /// A multipart POST, built by hand.
+    /// A multipart POST.
     ///
     /// `parts` is `(field name, optional file name, bytes)`; a `None` file name is an ordinary text
-    /// field. Written out rather than reached for through a crate because this is the only multipart
-    /// request in the project and a body is eight lines of it — and because a test that assembles
-    /// the bytes itself is a test of what the route really parses.
+    /// field.
     async fn post_multipart(
         &self,
         path: &str,
         parts: &[(&str, Option<&str>, &[u8])],
     ) -> (StatusCode, Value) {
-        const BOUNDARY: &str = "----kmtestboundary";
-        let mut body: Vec<u8> = Vec::new();
-        for (name, file_name, bytes) in parts {
-            body.extend_from_slice(format!("--{BOUNDARY}\r\n").as_bytes());
-            match file_name {
-                Some(file_name) => body.extend_from_slice(
-                    format!(
-                        "content-disposition: form-data; name=\"{name}\"; filename=\"{file_name}\"\r\n\r\n"
-                    )
-                    .as_bytes(),
-                ),
-                None => body.extend_from_slice(
-                    format!("content-disposition: form-data; name=\"{name}\"\r\n\r\n").as_bytes(),
-                ),
-            }
-            body.extend_from_slice(bytes);
-            body.extend_from_slice(b"\r\n");
-        }
-        body.extend_from_slice(format!("--{BOUNDARY}--\r\n").as_bytes());
-
+        let (content_type, body) = http::multipart(parts);
         let mut builder = Request::builder()
             .method(Method::POST)
             .uri(format!("{API_PREFIX}{path}"))
-            .header(
-                "content-type",
-                format!("multipart/form-data; boundary={BOUNDARY}"),
-            );
+            .header("content-type", content_type);
         if let Some(token) = &self.token {
             builder = builder.header("authorization", format!("Bearer {token}"));
         }
@@ -372,17 +341,8 @@ impl Harness {
         request
             .extensions_mut()
             .insert(axum::extract::ConnectInfo(self.peer));
-        let response = self
-            .router()
-            .oneshot(request)
-            .await
-            .expect("the router answers");
-        let status = response.status();
-        let headers = response.headers().clone();
-        let bytes = to_bytes(response.into_body(), 8 * 1024 * 1024)
-            .await
-            .expect("read the body");
-        (status, headers, bytes.to_vec())
+        let answer = http::send(self.router(), request).await;
+        (answer.status, answer.headers, answer.body.to_vec())
     }
 
     /// Reads the value a successful call returned, failing loudly otherwise.
@@ -1477,17 +1437,6 @@ async fn choosing_an_output_device_is_open_while_no_password_is_set() {
 
 // -- the output's own level ----------------------------------------------------------------------
 
-/// A control like the appliance's USB interface: 1 dB steps from −128 dB to unity, sitting 20 dB
-/// down, which is the state this whole surface exists because of.
-fn attenuated() -> km_api::machine::OutputLevel {
-    km_api::machine::OutputLevel {
-        db_centi: -2000,
-        db_min_centi: -12800,
-        db_max_centi: 0,
-        step_centi: 100,
-    }
-}
-
 #[tokio::test]
 async fn an_output_with_no_level_reports_none_rather_than_zero() {
     let harness = Harness::new();
@@ -1501,7 +1450,9 @@ async fn an_output_with_no_level_reports_none_rather_than_zero() {
 #[tokio::test]
 async fn the_level_is_reported_in_decibels() {
     let harness = Harness::new();
-    harness.machine.set_output_level_range(attenuated());
+    harness
+        .machine
+        .set_output_level_range(km_api::testing::attenuated());
     let (status, body) = harness.get("/audio/outputs").await;
     assert_eq!(status, StatusCode::OK);
     // Decibels on the wire, so the number beside the slider is the number `amixer` prints.
@@ -1514,7 +1465,9 @@ async fn the_level_is_reported_in_decibels() {
 #[tokio::test]
 async fn moving_the_level_reaches_the_machine() {
     let harness = Harness::new();
-    harness.machine.set_output_level_range(attenuated());
+    harness
+        .machine
+        .set_output_level_range(km_api::testing::attenuated());
     let (status, body) = harness
         .put("/admin/audio/level", json!({ "db": 0.0 }))
         .await;
@@ -1530,7 +1483,9 @@ async fn moving_the_level_reaches_the_machine() {
 #[tokio::test]
 async fn a_level_past_either_end_is_clamped_rather_than_refused() {
     let harness = Harness::new();
-    harness.machine.set_output_level_range(attenuated());
+    harness
+        .machine
+        .set_output_level_range(km_api::testing::attenuated());
 
     // A client drawing a slider from an earlier reading can be a step out of date without being
     // wrong, so the answer is the nearest legal level and not a 400.
@@ -1562,7 +1517,9 @@ async fn an_output_with_no_level_refuses_the_change() {
 #[tokio::test]
 async fn the_level_is_not_refused_while_a_song_is_playing() {
     let harness = Harness::new().at_the_machine();
-    harness.machine.set_output_level_range(attenuated());
+    harness
+        .machine
+        .set_output_level_range(km_api::testing::attenuated());
     harness.post("/queue", json!({ "number": "1001" })).await;
     harness.post("/transport/play", json!({})).await;
 

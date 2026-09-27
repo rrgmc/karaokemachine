@@ -37,12 +37,10 @@ use wiremock::{Mock, MockServer, ResponseTemplate};
 /// still works and still lands the token.
 #[tokio::test]
 async fn signing_in_is_a_plain_form_post_that_lands_the_token() {
-    let server = MockServer::start().await;
-    let dir = tempfile::tempdir().expect("temp dir");
-    let state = State::new(dir.path().to_path_buf(), Some(server.uri()));
+    let (server, state, _dir) = common::machine().await;
 
     Mock::given(method("POST"))
-        .and(path("/api/v1/admin/login"))
+        .and(path(common::wire_path(km_admin::machine::Call::Login)))
         .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
             "token": "a-token",
             "expires_in_secs": 43200,
@@ -125,10 +123,7 @@ async fn a_rename_reaches_the_admin_route_with_the_token() {
 /// `deny_unknown_fields` would answer 400 to something the page believed had worked.
 #[tokio::test]
 async fn the_demo_delay_reaches_its_own_route_and_sends_no_persist() {
-    let server = MockServer::start().await;
-    let dir = tempfile::tempdir().expect("temp dir");
-    let state = State::new(dir.path().to_path_buf(), Some(server.uri()));
-    log_in(&server, &state).await;
+    let (server, state, _dir) = common::signed_in().await;
 
     Mock::given(method("PUT"))
         .and(path("/api/v1/admin/demo/delay"))
@@ -186,10 +181,7 @@ async fn the_demo_delay_reaches_its_own_route_and_sends_no_persist() {
 /// beside the screen that would show the new one.
 #[tokio::test]
 async fn a_changed_password_reaches_the_admin_route_and_is_never_a_reset() {
-    let server = MockServer::start().await;
-    let dir = tempfile::tempdir().expect("temp dir");
-    let state = State::new(dir.path().to_path_buf(), Some(server.uri()));
-    log_in(&server, &state).await;
+    let (server, state, _dir) = common::signed_in().await;
 
     Mock::given(method("POST"))
         .and(path("/api/v1/admin/password"))
@@ -232,10 +224,7 @@ async fn a_changed_password_reaches_the_admin_route_and_is_never_a_reset() {
 /// 401, which is the state the login form exists to prevent.
 #[tokio::test]
 async fn changing_the_password_signs_this_program_out() {
-    let server = MockServer::start().await;
-    let dir = tempfile::tempdir().expect("temp dir");
-    let state = State::new(dir.path().to_path_buf(), Some(server.uri()));
-    log_in(&server, &state).await;
+    let (server, state, _dir) = common::signed_in().await;
     assert!(
         state.client().expect("a client").has_token(),
         "the login did not take"
@@ -265,10 +254,7 @@ async fn changing_the_password_signs_this_program_out() {
 /// that still sent the request would be a rate-limit budget spent on a typo.
 #[tokio::test]
 async fn a_password_under_the_floor_never_leaves_this_program() {
-    let server = MockServer::start().await;
-    let dir = tempfile::tempdir().expect("temp dir");
-    let state = State::new(dir.path().to_path_buf(), Some(server.uri()));
-    log_in(&server, &state).await;
+    let (server, state, _dir) = common::signed_in().await;
 
     // The refusal is a notice on the page now rather than a status with a body — see
     // `common::post_form_to`. The floor is still named, and it is still `km_api`'s: this page and
@@ -309,10 +295,7 @@ async fn a_password_under_the_floor_never_leaves_this_program() {
 /// * the **pane only this host has**: *Different machine* is drawn here and nowhere else.
 #[tokio::test]
 async fn the_owners_page_is_served_from_the_shared_crate() {
-    let server = MockServer::start().await;
-    let dir = tempfile::tempdir().expect("temp dir");
-    let state = State::new(dir.path().to_path_buf(), Some(server.uri()));
-    log_in(&server, &state).await;
+    let (_server, state, _dir) = common::signed_in().await;
 
     let (status, body) = get(&state, "/admin/machine").await;
     assert_eq!(status, StatusCode::OK, "{body}");
@@ -368,10 +351,7 @@ async fn the_owners_page_is_served_from_the_shared_crate() {
 async fn the_machines_own_contents_are_managed_from_here() {
     use km_admin::machine::Call;
 
-    let server = MockServer::start().await;
-    let dir = tempfile::tempdir().expect("temp dir");
-    let state = State::new(dir.path().to_path_buf(), Some(server.uri()));
-    log_in(&server, &state).await;
+    let (server, state, _dir) = common::signed_in().await;
 
     // Removing a package answers how many songs went with it, which is what the page says out loud.
     Mock::given(method("DELETE"))
@@ -484,9 +464,7 @@ async fn the_machines_own_contents_are_managed_from_here() {
 /// would be a slow way to ask that badly.
 #[tokio::test]
 async fn one_page_load_asks_discover_once() {
-    let server = MockServer::start().await;
-    let dir = tempfile::tempdir().expect("temp dir");
-    let state = State::new(dir.path().to_path_buf(), Some(server.uri()));
+    let (server, state, _dir) = common::machine().await;
 
     let discover = format!(
         "{}{}",
@@ -546,9 +524,7 @@ async fn one_page_load_asks_discover_once() {
 /// one asks what a person asks: is the box on the page.
 #[tokio::test]
 async fn the_front_door_carries_the_box_this_program_logs_in_with() {
-    let server = MockServer::start().await;
-    let dir = tempfile::tempdir().expect("temp dir");
-    let state = State::new(dir.path().to_path_buf(), Some(server.uri()));
+    let (_server, state, _dir) = common::machine().await;
 
     let (status, body) = get(&state, "/admin/connect").await;
     assert_eq!(status, StatusCode::OK);
@@ -573,9 +549,7 @@ async fn the_front_door_carries_the_box_this_program_logs_in_with() {
 /// nothing — were a sentence away from the control they were about, or nowhere.
 #[tokio::test]
 async fn the_door_says_it_already_has_the_password_and_which_machine_for() {
-    let server = MockServer::start().await;
-    let dir = tempfile::tempdir().expect("temp dir");
-    let state = State::new(dir.path().to_path_buf(), Some(server.uri()));
+    let (server, state, _dir) = common::machine().await;
     // Chosen rather than handed over on a command line, an identity being what a password is keyed
     // by and a chosen machine being the only kind that has a record to record one against.
     state.set_machine(Some(server.uri()));
@@ -622,10 +596,7 @@ async fn the_door_says_it_already_has_the_password_and_which_machine_for() {
 /// pointing at a closed box would be the page asking for a press before the press it wants.
 #[tokio::test]
 async fn a_refusal_opens_the_box_rather_than_pointing_at_it() {
-    let server = MockServer::start().await;
-    let dir = tempfile::tempdir().expect("temp dir");
-    let state = State::new(dir.path().to_path_buf(), Some(server.uri()));
-    log_in(&server, &state).await;
+    let (_server, state, _dir) = common::signed_in().await;
 
     let (status, body) = get(&state, "/admin/connect").await;
     assert_eq!(status, StatusCode::OK);
@@ -653,9 +624,7 @@ async fn a_refusal_opens_the_box_rather_than_pointing_at_it() {
 /// password they had already given.
 #[tokio::test]
 async fn a_token_already_held_opens_the_door_with_the_box_blank() {
-    let server = MockServer::start().await;
-    let dir = tempfile::tempdir().expect("temp dir");
-    let state = State::new(dir.path().to_path_buf(), Some(server.uri()));
+    let (server, state, _dir) = common::machine().await;
     // Logged in and nothing written down, which is what leaving the tick clear leaves behind.
     log_in(&server, &state).await;
     assert_eq!(state.remembered_password(), None);
@@ -681,10 +650,7 @@ async fn a_token_already_held_opens_the_door_with_the_box_blank() {
 /// Once the token is held, the Machine tab says so.
 #[tokio::test]
 async fn the_machine_tab_says_so_once_this_program_is_logged_in() {
-    let server = MockServer::start().await;
-    let dir = tempfile::tempdir().expect("temp dir");
-    let state = State::new(dir.path().to_path_buf(), Some(server.uri()));
-    log_in(&server, &state).await;
+    let (_server, state, _dir) = common::signed_in().await;
 
     let (status, body) = get(&state, "/admin/machine").await;
     assert_eq!(status, StatusCode::OK);
@@ -713,9 +679,7 @@ async fn the_machine_tab_says_so_once_this_program_is_logged_in() {
 /// the tab somebody came to use.
 #[tokio::test]
 async fn logging_in_from_the_door_enters_the_machine() {
-    let server = MockServer::start().await;
-    let dir = tempfile::tempdir().expect("temp dir");
-    let state = State::new(dir.path().to_path_buf(), Some(server.uri()));
+    let (server, state, _dir) = common::machine().await;
     Mock::given(method("POST"))
         .and(path(common::wire_path(km_admin::machine::Call::Login)))
         .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
@@ -737,9 +701,7 @@ async fn logging_in_from_the_door_enters_the_machine() {
 /// A password the machine refuses comes back to the door and is not written down.
 #[tokio::test]
 async fn a_password_the_machine_refuses_comes_back_to_the_door() {
-    let server = MockServer::start().await;
-    let dir = tempfile::tempdir().expect("temp dir");
-    let state = State::new(dir.path().to_path_buf(), Some(server.uri()));
+    let (server, state, _dir) = common::machine().await;
     Mock::given(method("POST"))
         .and(path(common::wire_path(km_admin::machine::Call::Login)))
         .respond_with(ResponseTemplate::new(401).set_body_json(
@@ -770,9 +732,7 @@ async fn a_password_the_machine_refuses_comes_back_to_the_door() {
 /// about a password with nowhere to type one.
 #[tokio::test]
 async fn a_write_refused_for_want_of_a_password_lands_on_the_door() {
-    let server = MockServer::start().await;
-    let dir = tempfile::tempdir().expect("temp dir");
-    let state = State::new(dir.path().to_path_buf(), Some(server.uri()));
+    let (server, state, _dir) = common::machine().await;
 
     Mock::given(method("PUT"))
         .and(path(common::wire_path(km_admin::machine::Call::SetDemo)))
@@ -801,10 +761,7 @@ async fn a_write_refused_for_want_of_a_password_lands_on_the_door() {
 /// so a notice read underneath a debug switch is a notice about a page somebody left.
 #[tokio::test]
 async fn saving_the_demo_switch_stays_on_the_demo_pane() {
-    let server = MockServer::start().await;
-    let dir = tempfile::tempdir().expect("temp dir");
-    let state = State::new(dir.path().to_path_buf(), Some(server.uri()));
-    log_in(&server, &state).await;
+    let (server, state, _dir) = common::signed_in().await;
 
     Mock::given(method("PUT"))
         .and(path(common::wire_path(km_admin::machine::Call::SetDemo)))
@@ -858,9 +815,7 @@ async fn answers_discover(server: &MockServer) {
 /// stranger, and nothing could be remembered against a machine with no identity.
 #[tokio::test]
 async fn a_machine_that_answers_is_recorded_by_its_id() {
-    let server = MockServer::start().await;
-    let dir = tempfile::tempdir().expect("temp dir");
-    let state = State::new(dir.path().to_path_buf(), Some(server.uri()));
+    let (server, state, _dir) = common::machine().await;
     answers_discover(&server).await;
     // Chosen rather than handed over with `--machine`, which is deliberately not written down -- so
     // there would be no record for an identity to be recorded against. See `State::remembering`.
@@ -965,9 +920,7 @@ async fn a_password_is_remembered_only_under_a_machine_that_named_itself() {
 /// machine forgetting its own on restart.
 #[tokio::test]
 async fn a_remembered_password_is_spent_when_a_token_is_wanted() {
-    let server = MockServer::start().await;
-    let dir = tempfile::tempdir().expect("temp dir");
-    let state = State::new(dir.path().to_path_buf(), Some(server.uri()));
+    let (server, state, dir) = common::machine().await;
     answers_discover(&server).await;
     // Chosen rather than handed over with `--machine`, which is deliberately not written down -- so
     // there would be no record for an identity to be recorded against. See `State::remembering`.
@@ -1025,9 +978,7 @@ async fn a_remembered_password_is_spent_when_a_token_is_wanted() {
 /// A password the machine refused is never written down.
 #[tokio::test]
 async fn a_refused_password_is_not_remembered() {
-    let server = MockServer::start().await;
-    let dir = tempfile::tempdir().expect("temp dir");
-    let state = State::new(dir.path().to_path_buf(), Some(server.uri()));
+    let (server, state, _dir) = common::machine().await;
     answers_discover(&server).await;
     // Chosen rather than handed over with `--machine`, which is deliberately not written down -- so
     // there would be no record for an identity to be recorded against. See `State::remembering`.
@@ -1062,9 +1013,7 @@ async fn a_refused_password_is_not_remembered() {
 /// not run through logging in, which is the state somebody trying to stop is already in.
 #[tokio::test]
 async fn an_unticked_box_forgets_and_so_does_the_button() {
-    let server = MockServer::start().await;
-    let dir = tempfile::tempdir().expect("temp dir");
-    let state = State::new(dir.path().to_path_buf(), Some(server.uri()));
+    let (server, state, _dir) = common::machine().await;
     answers_discover(&server).await;
     // Chosen rather than handed over with `--machine`, which is deliberately not written down -- so
     // there would be no record for an identity to be recorded against. See `State::remembering`.
@@ -1119,9 +1068,7 @@ async fn an_unticked_box_forgets_and_so_does_the_button() {
 /// `crate::keys` already had for provider keys.
 #[tokio::test]
 async fn a_remembered_password_lands_in_the_folder_this_run_was_given() {
-    let server = MockServer::start().await;
-    let dir = tempfile::tempdir().expect("temp dir");
-    let state = State::new(dir.path().to_path_buf(), Some(server.uri()));
+    let (server, state, dir) = common::machine().await;
     answers_discover(&server).await;
     state.set_machine(Some(server.uri()));
 
@@ -1171,9 +1118,7 @@ async fn a_remembered_password_lands_in_the_folder_this_run_was_given() {
 /// door, and the door drawing a box to type a password into.
 #[tokio::test]
 async fn a_send_with_no_password_lands_on_the_door_that_holds_one() {
-    let server = MockServer::start().await;
-    let dir = tempfile::tempdir().expect("temp dir");
-    let state = State::new(dir.path().to_path_buf(), Some(server.uri()));
+    let (server, state, dir) = common::machine().await;
 
     // A pack on this computer, so the send gets past the "there is no such pack" floor and reaches
     // the token check, which is the one under test.
@@ -1220,9 +1165,7 @@ async fn a_send_with_no_password_lands_on_the_door_that_holds_one() {
 /// destination of a refusal.
 #[tokio::test]
 async fn a_notice_meant_for_this_programs_own_page_is_drawn_on_it() {
-    let server = MockServer::start().await;
-    let dir = tempfile::tempdir().expect("temp dir");
-    let state = State::new(dir.path().to_path_buf(), Some(server.uri()));
+    let (_server, state, _dir) = common::machine().await;
 
     for page in [
         "/admin/pictures/find",
@@ -1252,9 +1195,7 @@ async fn a_notice_meant_for_this_programs_own_page_is_drawn_on_it() {
 /// section, carrying a notice.
 #[tokio::test]
 async fn a_refused_control_lands_on_its_own_page_with_a_notice() {
-    let server = MockServer::start().await;
-    let dir = tempfile::tempdir().expect("temp dir");
-    let state = State::new(dir.path().to_path_buf(), Some(server.uri()));
+    let (_server, state, _dir) = common::machine().await;
 
     let cases = [
         ("/admin/sound/fetch/nosuchbank/get", "/admin/sound/fetch"),
@@ -1288,9 +1229,7 @@ async fn a_refused_control_lands_on_its_own_page_with_a_notice() {
 /// to the sweep above, so that "everything redirects" is not read into it.
 #[tokio::test]
 async fn a_thumbnail_that_is_missing_stays_a_status() {
-    let server = MockServer::start().await;
-    let dir = tempfile::tempdir().expect("temp dir");
-    let state = State::new(dir.path().to_path_buf(), Some(server.uri()));
+    let (_server, state, _dir) = common::machine().await;
 
     let (status, _) = get(&state, "/admin/pictures/thumb/openverse/nosuchpicture").await;
     assert!(
@@ -1317,9 +1256,7 @@ async fn a_thumbnail_that_is_missing_stays_a_status() {
 /// network: what was broken was the trip from the box to the settings.
 #[tokio::test]
 async fn the_name_typed_beside_the_search_button_reaches_the_run() {
-    let server = MockServer::start().await;
-    let dir = tempfile::tempdir().expect("temp dir");
-    let state = State::new(dir.path().to_path_buf(), Some(server.uri()));
+    let (_server, state, _dir) = common::machine().await;
 
     let form = "name=Praias+do+Sul&provider=openverse&terms=beach&pages=2&target_count=40\
                 &target_contrast=4.5&min_source_width=1920&min_decoded_width=1280";
@@ -1341,9 +1278,7 @@ async fn the_name_typed_beside_the_search_button_reaches_the_run() {
 /// The `required` attribute is a courtesy a stale page can post around, so the rule is the server's.
 #[tokio::test]
 async fn a_search_with_no_name_is_refused_and_starts_no_job() {
-    let server = MockServer::start().await;
-    let dir = tempfile::tempdir().expect("temp dir");
-    let state = State::new(dir.path().to_path_buf(), Some(server.uri()));
+    let (_server, state, _dir) = common::machine().await;
 
     let form = "provider=openverse&terms=beach&pages=2&target_count=40\
                 &target_contrast=4.5&min_source_width=1920&min_decoded_width=1280";
@@ -1362,9 +1297,7 @@ async fn a_search_with_no_name_is_refused_and_starts_no_job() {
 /// to the settings form with `form=` because the *Forget the keys* form sits between them.
 #[tokio::test]
 async fn both_buttons_post_one_form_and_no_name_is_suggested() {
-    let server = MockServer::start().await;
-    let dir = tempfile::tempdir().expect("temp dir");
-    let state = State::new(dir.path().to_path_buf(), Some(server.uri()));
+    let (_server, state, _dir) = common::machine().await;
 
     let (status, body) = get(&state, "/admin/pictures/find").await;
     assert_eq!(status, StatusCode::OK, "{body}");
@@ -1394,9 +1327,7 @@ async fn both_buttons_post_one_form_and_no_name_is_suggested() {
 /// answered.
 #[tokio::test]
 async fn the_door_does_not_open_without_a_password() {
-    let server = MockServer::start().await;
-    let dir = tempfile::tempdir().expect("temp dir");
-    let state = State::new(dir.path().to_path_buf(), Some(server.uri()));
+    let (server, state, _dir) = common::machine().await;
 
     let landed = post_form_to(&state, "/admin/connect/use", "row=chosen&password=").await;
     assert!(landed.starts_with("/admin/connect?"), "{landed}");
@@ -1481,9 +1412,7 @@ async fn a_remembered_password_opens_the_door_with_the_box_blank() {
 /// and `an_unticked_box_forgets_and_so_does_the_button` is where both of those are pinned.
 #[tokio::test]
 async fn spending_a_remembered_password_keeps_it() {
-    let server = MockServer::start().await;
-    let dir = tempfile::tempdir().expect("temp dir");
-    let state = State::new(dir.path().to_path_buf(), Some(server.uri()));
+    let (server, state, _dir) = common::machine().await;
     // Chosen rather than handed over on a command line: only a chosen machine has a record for an
     // identity to be written against, and an identity is what a password is keyed by.
     state.set_machine(Some(server.uri()));

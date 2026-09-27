@@ -12,6 +12,7 @@
 //! It also records what it was told to do, so a test can assert that a request reached the machine
 //! and not merely that it returned 200.
 
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, atomic};
 
@@ -299,6 +300,43 @@ impl Inner {
             level: self.output_level,
         }
     }
+}
+
+/// An output level like an appliance's USB interface: 1 dB steps from −128 dB to unity, sitting
+/// 20 dB down. That is the state the output-level control exists for.
+#[must_use]
+pub fn attenuated() -> OutputLevel {
+    OutputLevel {
+        db_centi: -2000,
+        db_min_centi: -12800,
+        db_max_centi: 0,
+        step_centi: 100,
+    }
+}
+
+/// The argon2 hash of `password`, made once per process for each password asked for.
+///
+/// **Argon2 costs something on purpose**, and a suite that builds a machine for every test would
+/// pay that cost for every test. A test about the hash itself calls [`AdminAuth::hash_password`]
+/// instead, because it needs a salt of its own.
+///
+/// # Panics
+///
+/// When argon2 refuses to hash, which it does only for parameters this crate never sets.
+///
+/// [`AdminAuth::hash_password`]: crate::auth::AdminAuth::hash_password
+#[must_use]
+pub fn password_hash(password: &str) -> String {
+    static HASHES: Mutex<BTreeMap<String, String>> = Mutex::new(BTreeMap::new());
+    let mut hashes = HASHES
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    hashes
+        .entry(password.to_owned())
+        .or_insert_with(|| {
+            crate::auth::AdminAuth::hash_password(password).expect("argon2 hashes a password")
+        })
+        .clone()
 }
 
 /// A karaoke machine that exists only in memory.

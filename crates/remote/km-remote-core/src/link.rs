@@ -550,48 +550,10 @@ fn offers<'a>(sightings: impl Iterator<Item = &'a km_api::discover::Sighting>) -
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::atomic::AtomicUsize;
 
     use crate::find::Locator;
 
-    /// A locator that answers with whatever it was told to, and counts how often it was asked.
-    struct Stub {
-        machines: Vec<km_api::discover::Sighting>,
-        asked: AtomicUsize,
-    }
-
-    impl Stub {
-        /// One machine with an address and no identity — a build from before ids, which is the
-        /// shape most of these tests want because they are about the pin and the offer.
-        fn at(url: Option<&str>) -> Self {
-            Self::seeing(url.into_iter().map(|url| machine(None, url)).collect())
-        }
-
-        /// Whatever is on the network, identities and all.
-        fn seeing(machines: Vec<km_api::discover::Sighting>) -> Self {
-            Self {
-                machines,
-                asked: AtomicUsize::new(0),
-            }
-        }
-    }
-
-    fn machine(id: Option<&str>, url: &str) -> km_api::discover::Sighting {
-        km_api::discover::Sighting {
-            name: "Living Room".to_owned(),
-            id: id.map(str::to_owned),
-            url: url.to_owned(),
-        }
-    }
-
-    impl Locator for Stub {
-        fn look(&self) -> Vec<km_api::discover::Sighting> {
-            self.asked.fetch_add(1, Ordering::Relaxed);
-            self.machines.clone()
-        }
-    }
-
-    use crate::testing::Scratch;
+    use crate::testing::{Scratch, StubLocator, sighting};
 
     /// A link over a directory of this test's own.
     ///
@@ -612,11 +574,11 @@ mod tests {
         known: Option<Known>,
     ) -> (Scratch, Link) {
         let dir = Scratch::new(name);
-        let mirror = Mirror::open(&dir.0).expect("open the mirror");
+        let mirror = Mirror::open(dir.path()).expect("open the mirror");
         let link = Link::new(
             MachineClient::new(),
             Arc::new(find::Radar::new(locator)),
-            dir.0.clone(),
+            dir.to_path_buf(),
             Arc::new(Mutex::new(mirror)),
             false,
             Origin {
@@ -651,7 +613,7 @@ mod tests {
         let (dir, link) = linked("unremembered", Arc::new(find::NoLocator), false);
         link.connect_to("10.0.0.9").await.expect("accepted");
         assert_eq!(
-            find::known(&dir.0),
+            find::known(dir.path()),
             None,
             "an address nothing has answered at must not survive a restart"
         );
@@ -662,7 +624,7 @@ mod tests {
     async fn a_rescan_clears_the_pin() {
         let (_dir, link) = linked(
             "unpin",
-            Arc::new(Stub::at(Some("http://10.0.0.2:8177"))),
+            Arc::new(StubLocator::new(Some("http://10.0.0.2:8177"))),
             true,
         );
 
@@ -699,7 +661,7 @@ mod tests {
     async fn a_rescan_on_a_connected_remote_offers_and_still_unpins() {
         let (_dir, link) = linked(
             "offered",
-            Arc::new(Stub::at(Some("http://10.0.0.2:8177"))),
+            Arc::new(StubLocator::new(Some("http://10.0.0.2:8177"))),
             true,
         );
         answering(&link, "http://10.0.0.1:8177");
@@ -744,8 +706,12 @@ mod tests {
             Some("Living Room".to_owned()),
             std::time::SystemTime::now(),
         );
-        let (_dir, link) =
-            linked_knowing("stranger", Arc::new(Stub::at(None)), false, Some(record));
+        let (_dir, link) = linked_knowing(
+            "stranger",
+            Arc::new(StubLocator::new(None)),
+            false,
+            Some(record),
+        );
         link.point_at("http://10.0.0.1:8177", Why::Remembered);
 
         link.answered("stranger", Some("Spare Box".to_owned()));
@@ -771,7 +737,12 @@ mod tests {
             None,
             std::time::SystemTime::now(),
         );
-        let (_dir, link) = linked_knowing("named", Arc::new(Stub::at(None)), false, Some(record));
+        let (_dir, link) = linked_knowing(
+            "named",
+            Arc::new(StubLocator::new(None)),
+            false,
+            Some(record),
+        );
 
         link.point_at("http://10.0.0.2:8177", Why::AskedFor);
         link.answered("another", Some("Spare Box".to_owned()));
@@ -789,7 +760,7 @@ mod tests {
     async fn a_record_with_no_identity_takes_the_one_that_answers() {
         let (_dir, link) = linked_knowing(
             "unanchored",
-            Arc::new(Stub::at(None)),
+            Arc::new(StubLocator::new(None)),
             false,
             Some(Known::at("http://10.0.0.1:8177", Why::Remembered)),
         );
@@ -823,9 +794,9 @@ mod tests {
         );
         let (_dir, link) = linked_knowing(
             "prefers",
-            Arc::new(Stub::seeing(vec![
-                machine(Some("stranger"), "http://10.0.0.9:8177"),
-                machine(Some("ours"), "http://10.0.0.2:8177"),
+            Arc::new(StubLocator::seeing(vec![
+                sighting(Some("stranger"), "http://10.0.0.9:8177"),
+                sighting(Some("ours"), "http://10.0.0.2:8177"),
             ])),
             false,
             Some(record),
@@ -866,9 +837,9 @@ mod tests {
         );
         let (_dir, link) = linked_knowing(
             "unfound",
-            Arc::new(Stub::seeing(vec![
-                machine(Some("stranger"), "http://10.0.0.9:8177"),
-                machine(Some("another"), "http://10.0.0.8:8177"),
+            Arc::new(StubLocator::seeing(vec![
+                sighting(Some("stranger"), "http://10.0.0.9:8177"),
+                sighting(Some("another"), "http://10.0.0.8:8177"),
             ])),
             false,
             Some(record),
@@ -900,7 +871,7 @@ mod tests {
     async fn a_rescan_on_a_remote_that_knows_no_machine_still_takes_what_it_finds() {
         let (_dir, link) = linked(
             "cold",
-            Arc::new(Stub::seeing(vec![machine(
+            Arc::new(StubLocator::seeing(vec![sighting(
                 Some("stranger"),
                 "http://10.0.0.9:8177",
             )])),
@@ -919,7 +890,7 @@ mod tests {
     async fn a_rescan_that_finds_the_machine_in_hand_says_so() {
         let (_dir, link) = linked(
             "already",
-            Arc::new(Stub::at(Some("http://10.0.0.1:8177"))),
+            Arc::new(StubLocator::new(Some("http://10.0.0.1:8177"))),
             false,
         );
         answering(&link, "http://10.0.0.1:8177");
@@ -941,9 +912,9 @@ mod tests {
     async fn a_rescan_names_the_machine_in_hand_and_offers_the_others() {
         let (_dir, link) = linked(
             "both",
-            Arc::new(Stub::seeing(vec![
-                machine(Some("ours"), "http://10.0.0.1:8177"),
-                machine(Some("stranger"), "http://10.0.0.9:8177"),
+            Arc::new(StubLocator::seeing(vec![
+                sighting(Some("ours"), "http://10.0.0.1:8177"),
+                sighting(Some("stranger"), "http://10.0.0.9:8177"),
             ])),
             false,
         );
@@ -980,9 +951,9 @@ mod tests {
     async fn the_machine_in_hand_is_not_offered_back_to_itself_at_a_new_address() {
         let (_dir, link) = linked(
             "moved",
-            Arc::new(Stub::seeing(vec![
-                machine(Some("ours"), "http://10.0.0.2:8177"),
-                machine(Some("stranger"), "http://10.0.0.9:8177"),
+            Arc::new(StubLocator::seeing(vec![
+                sighting(Some("ours"), "http://10.0.0.2:8177"),
+                sighting(Some("stranger"), "http://10.0.0.9:8177"),
             ])),
             false,
         );
@@ -1012,15 +983,15 @@ mod tests {
     /// its mind. The name leads the sort because it is what the card shows.
     #[tokio::test]
     async fn every_machine_that_answered_is_offered_once() {
-        let mut twice = machine(Some("stranger"), "http://10.0.0.9:8177");
+        let mut twice = sighting(Some("stranger"), "http://10.0.0.9:8177");
         twice.name = "Kitchen".to_owned();
-        let mut named = machine(Some("attic"), "http://10.0.0.5:8177");
+        let mut named = sighting(Some("attic"), "http://10.0.0.5:8177");
         named.name = "Attic".to_owned();
         let (_dir, link) = linked(
             "sorted",
-            Arc::new(Stub::seeing(vec![
+            Arc::new(StubLocator::seeing(vec![
                 twice.clone(),
-                machine(Some("ours"), "http://10.0.0.1:8177"),
+                sighting(Some("ours"), "http://10.0.0.1:8177"),
                 named,
                 twice,
             ])),
@@ -1068,7 +1039,7 @@ mod tests {
     /// Nothing on the network is an answer, not a failure — and it must not lose the machine in hand.
     #[tokio::test]
     async fn a_rescan_that_finds_nothing_keeps_the_address_it_had() {
-        let (_dir, link) = linked("fruitless", Arc::new(Stub::at(None)), false);
+        let (_dir, link) = linked("fruitless", Arc::new(StubLocator::new(None)), false);
         link.connect_to("10.0.0.1").await.expect("accepted");
 
         let found = link.rescan().await.expect("not an error");
@@ -1087,7 +1058,7 @@ mod tests {
         let (_dir, blind) = linked("blind", Arc::new(find::NoLocator), false);
         assert!(!blind.status().await.can_browse);
 
-        let (_dir, real) = linked("real", Arc::new(Stub::at(None)), false);
+        let (_dir, real) = linked("real", Arc::new(StubLocator::new(None)), false);
         assert!(
             real.status().await.can_browse,
             "a real locator that happened to find nothing can still be asked again"

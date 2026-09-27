@@ -217,34 +217,11 @@ mod tests {
     use super::*;
     use crate::handlers::NO_CHOICE;
 
+    /// Every locale holds exactly the keys English holds, so nothing draws a bracketed key.
     #[test]
-    fn every_catalog_parses() {
-        for locale in Locale::ALL {
-            assert!(!messages(*locale).keys().is_empty(), "{locale}");
-        }
-    }
-
-    #[test]
-    fn every_message_is_translated() {
-        let english = messages(Locale::English);
-        for locale in Locale::ALL {
-            let missing = messages(*locale).missing_from(english);
-            assert!(
-                missing.is_empty(),
-                "{locale} has not caught up: {missing:?}"
-            );
-        }
-    }
-
-    #[test]
-    fn no_locale_invents_a_message_english_does_not_have() {
-        let english = messages(Locale::English);
-        for locale in Locale::ALL {
-            let extra = english.missing_from(messages(*locale));
-            assert!(
-                extra.is_empty(),
-                "{locale} has keys nothing asks for: {extra:?}"
-            );
+    fn every_catalog_holds_exactly_the_english_keys() {
+        if let Err(fault) = km_locale::check_catalogs(messages) {
+            panic!("{fault}");
         }
     }
 

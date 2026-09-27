@@ -1,0 +1,23 @@
+[package]
+name = "km-testkit"
+description = "What more than one crate's tests need: a scratch folder that removes itself, and a router driven without a socket"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+# **No `km-*` crate, and that is what lets every one of them take this.** A dev-dependency on a crate
+# that depends back on the one under test is a cycle cargo refuses, so anything here that wanted a
+# type of this repository's own would shut out the crate that owns it.
+[dependencies]
+axum = { workspace = true, optional = true }
+tower = { workspace = true, features = ["util"], optional = true }
+
+[features]
+# The router half. A crate that only wants a folder builds none of axum for its tests.
+http = ["dep:axum", "dep:tower"]

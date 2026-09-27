@@ -456,35 +456,7 @@ fn relative(dir: &Path, path: &Path) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    struct Scratch(PathBuf);
-
-    impl Scratch {
-        fn new(name: &str) -> Self {
-            let dir = std::env::temp_dir().join(format!(
-                "km-pack-describe-{}-{name}-{:?}",
-                std::process::id(),
-                std::thread::current().id()
-            ));
-            let _ = std::fs::remove_dir_all(&dir);
-            std::fs::create_dir_all(&dir).expect("scratch");
-            Self(dir)
-        }
-
-        fn write(&self, name: &str, bytes: Vec<u8>) {
-            let path = self.0.join(name);
-            if let Some(parent) = path.parent() {
-                std::fs::create_dir_all(parent).expect("parent");
-            }
-            std::fs::write(path, bytes).expect("fixture");
-        }
-    }
-
-    impl Drop for Scratch {
-        fn drop(&mut self) {
-            let _ = std::fs::remove_dir_all(&self.0);
-        }
-    }
+    use km_testkit::Scratch;
 
     fn describe_it(dir: &Path, options: &DescribeOptions) -> Description {
         describe(dir, options, |_, _| {}).expect("describe")
@@ -496,7 +468,7 @@ mod tests {
         let scratch = Scratch::new("detected");
         scratch.write("sub/a.kar", km_song::testing::soft_karaoke());
 
-        let found = describe_it(&scratch.0, &DescribeOptions::default());
+        let found = describe_it(scratch.path(), &DescribeOptions::default());
         assert_eq!(found.spec.songs.len(), 1);
         let song = &found.spec.songs[0];
         assert_eq!(song.file, "sub/a.kar", "forward slashes, on every platform");
@@ -520,7 +492,7 @@ mod tests {
         scratch.write("a.kar", km_song::testing::soft_karaoke());
         scratch.write("b.kar", km_song::testing::soft_karaoke());
 
-        let found = describe_it(&scratch.0, &DescribeOptions::default());
+        let found = describe_it(scratch.path(), &DescribeOptions::default());
         assert_eq!(found.spec.songs.len(), 1);
         assert_eq!(found.rejected.len(), 1);
         assert!(matches!(found.rejected[0].1, Rejection::DuplicateOf(1)));
@@ -530,9 +502,9 @@ mod tests {
     #[test]
     fn a_file_that_will_not_parse_is_reported() {
         let scratch = Scratch::new("garbage");
-        scratch.write("broken.mid", b"not a midi file at all".to_vec());
+        scratch.write("broken.mid", b"not a midi file at all");
 
-        let found = describe_it(&scratch.0, &DescribeOptions::default());
+        let found = describe_it(scratch.path(), &DescribeOptions::default());
         assert!(found.spec.songs.is_empty());
         assert!(matches!(found.rejected[0].1, Rejection::NotMidi));
     }
@@ -545,7 +517,7 @@ mod tests {
         scratch.write("silent.mid", km_song::testing::instrumental());
 
         let found = describe_it(
-            &scratch.0,
+            scratch.path(),
             &DescribeOptions {
                 require_lyrics: true,
                 ..DescribeOptions::default()
@@ -555,7 +527,7 @@ mod tests {
         assert!(matches!(found.rejected[0].1, Rejection::NoLyrics));
 
         let found = describe_it(
-            &scratch.0,
+            scratch.path(),
             &DescribeOptions {
                 min_suitability: Some(11),
                 ..DescribeOptions::default()
@@ -580,7 +552,7 @@ mod tests {
             },
         );
         let found = describe_it(
-            &scratch.0,
+            scratch.path(),
             &DescribeOptions {
                 start_number: 900,
                 index,
@@ -611,7 +583,7 @@ mod tests {
         scratch.write("b.mid", km_song::testing::lyric_events());
 
         let found = describe_it(
-            &scratch.0,
+            scratch.path(),
             &DescribeOptions {
                 start_number: u32::from(km_songcode::MAX_SLOT),
                 ..DescribeOptions::default()
@@ -643,7 +615,7 @@ mod tests {
             },
         );
         let found = describe_it(
-            &scratch.0,
+            scratch.path(),
             &DescribeOptions {
                 index,
                 ..DescribeOptions::default()
@@ -659,7 +631,7 @@ mod tests {
     fn the_package_block_comes_from_the_options() {
         let scratch = Scratch::new("package");
         let found = describe_it(
-            &scratch.0,
+            scratch.path(),
             &DescribeOptions {
                 id: km_kmpkg::EXAMPLE_ID.to_owned(),
                 name: "Volume One".to_owned(),

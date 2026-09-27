@@ -490,6 +490,7 @@ it are the same entry. How the thing is built is [`ARCHITECTURE.md`](../ARCHITEC
 - [A tracked file states what is true and argues no legal position](repository.md#a-tracked-file-states-what-is-true-and-argues-no-legal-position)
 - [What a committed file may say about the machine it was written on](repository.md#what-a-committed-file-may-say-about-the-machine-it-was-written-on)
 - [Every fixture in the tree is synthetic](repository.md#every-fixture-in-the-tree-is-synthetic)
+- [Test scaffolding two crates share lives in one crate](repository.md#test-scaffolding-two-crates-share-lives-in-one-crate)
 - [A downloadable song pack](repository.md#a-downloadable-song-pack)
 - [The website is one page per language, and it links one download](repository.md#the-website-is-one-page-per-language-and-it-links-one-download)
 - [The Rust toolchain is pinned exactly](repository.md#the-rust-toolchain-is-pinned-exactly)

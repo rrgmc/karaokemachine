@@ -18,3 +18,6 @@ tracing = { workspace = true }
 # from here rather than each caller wiring an adapter of its own. All three callers already depend
 # on it, so this costs nothing to compile.
 tracing-subscriber = { workspace = true }
+
+[dev-dependencies]
+km-testkit = { workspace = true }

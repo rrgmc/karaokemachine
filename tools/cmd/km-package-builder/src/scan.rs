@@ -1751,7 +1751,7 @@ mod tests {
             "duet.txt",
             b"#TITLE:Duet\n#MP3:Someone - Song.mp3\n#BPM:300\nP1\n: 0 4 0 me\nP2\n: 4 4 0 you\nE\n",
         );
-        let scan = |name: &str| scan_one(&scratch.0.join(name), name.to_owned(), 1, 0);
+        let scan = |name: &str| scan_one(&scratch.join(name), name.to_owned(), 1, 0);
 
         let audio = scan("Someone - Song.mp3");
         assert_eq!((audio.status, audio.song.is_none()), (ScanStatus::Ok, true));
@@ -1795,7 +1795,7 @@ mod tests {
         scratch.write("clip-0001.mp4", &bytes);
 
         let scanned = scan_one(
-            &scratch.0.join("clip-0001.mp4"),
+            &scratch.join("clip-0001.mp4"),
             "clip-0001.mp4".to_owned(),
             bytes.len() as u64,
             0,
@@ -1825,12 +1825,12 @@ mod tests {
     #[test]
     fn removing_a_reason_accepts_the_files_failing_that_way_now() {
         let scratch = Scratch::new("dismiss-failures");
-        scratch.write("a.kar", &km_song::testing::soft_karaoke());
+        scratch.write("a.kar", km_song::testing::soft_karaoke());
         scratch.write("junk.kar", b"this is not a MIDI file at all");
         scratch.write("junk2.kar", b"nor is this one");
 
         let db = Arc::new(Shared::new(
-            crate::db::Db::open_in_memory(&scratch.0).expect("open"),
+            crate::db::Db::open_in_memory(scratch.path()).expect("open"),
         ));
         let rescan =
             || run(&db, ScanOptions::default(), &Arc::new(Progress::default())).expect("scan");
@@ -1904,7 +1904,7 @@ mod tests {
         let scratch = Scratch::new("dismiss-restatus");
         scratch.write("junk.kar", b"this is not a MIDI file at all");
 
-        let db = crate::db::Db::open_in_memory(&scratch.0).expect("open");
+        let db = crate::db::Db::open_in_memory(scratch.path()).expect("open");
         let shared = Arc::new(Shared::new(db));
         run(
             &shared,
@@ -1943,14 +1943,14 @@ mod tests {
     #[test]
     fn a_scan_writes_songs_files_and_the_search_index() {
         let scratch = Scratch::new("scan");
-        scratch.write("a.kar", &km_song::testing::soft_karaoke());
-        scratch.write("nested/b.mid", &km_song::testing::lyric_events());
+        scratch.write("a.kar", km_song::testing::soft_karaoke());
+        scratch.write("nested/b.mid", km_song::testing::lyric_events());
         // The same bytes under a second name: one song, two files, with no grouping pass involved.
-        scratch.write("nested/a-copy.kar", &km_song::testing::soft_karaoke());
+        scratch.write("nested/a-copy.kar", km_song::testing::soft_karaoke());
         scratch.write("junk.kar", b"this is not a MIDI file at all");
 
         let db = Arc::new(Shared::new(
-            crate::db::Db::open_in_memory(&scratch.0).expect("open"),
+            crate::db::Db::open_in_memory(scratch.path()).expect("open"),
         ));
         let progress = Arc::new(Progress::default());
         run(&db, ScanOptions::default(), &progress).expect("the scan must succeed");
@@ -2027,12 +2027,12 @@ mod tests {
         let scratch = Scratch::new("lyric-search");
         // Sings "Mary had a little lamb / Its fleece was white as snow" and is called nothing of the
         // sort, so a hit can only have come from the words.
-        scratch.write("nested/UNTITLED1.mid", &km_song::testing::lyric_events());
-        scratch.write("twinkle.kar", &km_song::testing::soft_karaoke());
-        scratch.write("silent.mid", &km_song::testing::untitled_instrumental());
+        scratch.write("nested/UNTITLED1.mid", km_song::testing::lyric_events());
+        scratch.write("twinkle.kar", km_song::testing::soft_karaoke());
+        scratch.write("silent.mid", km_song::testing::untitled_instrumental());
 
         let db = Arc::new(Shared::new(
-            crate::db::Db::open_in_memory(&scratch.0).expect("open"),
+            crate::db::Db::open_in_memory(scratch.path()).expect("open"),
         ));
         run(&db, ScanOptions::default(), &Arc::new(Progress::default())).expect("scan");
 
@@ -2100,10 +2100,10 @@ mod tests {
     #[test]
     fn removing_a_song_removes_its_words() {
         let scratch = Scratch::new("lyric-drop");
-        scratch.write("gone.mid", &km_song::testing::lyric_events());
+        scratch.write("gone.mid", km_song::testing::lyric_events());
 
         let db = Arc::new(Shared::new(
-            crate::db::Db::open_in_memory(&scratch.0).expect("open"),
+            crate::db::Db::open_in_memory(scratch.path()).expect("open"),
         ));
         run(&db, ScanOptions::default(), &Arc::new(Progress::default())).expect("scan");
 
@@ -2117,7 +2117,7 @@ mod tests {
             );
         }
 
-        std::fs::remove_file(scratch.0.join("gone.mid")).expect("delete the file");
+        std::fs::remove_file(scratch.join("gone.mid")).expect("delete the file");
         run(&db, ScanOptions::default(), &Arc::new(Progress::default())).expect("re-scan");
 
         let guard = db.lock();
@@ -2143,12 +2143,12 @@ mod tests {
         let scratch = Scratch::new("stem");
         scratch.write(
             "nested/CORCOVAD.mid",
-            &km_song::testing::untitled_instrumental(),
+            km_song::testing::untitled_instrumental(),
         );
-        scratch.write("titled.kar", &km_song::testing::soft_karaoke());
+        scratch.write("titled.kar", km_song::testing::soft_karaoke());
 
         let db = Arc::new(Shared::new(
-            crate::db::Db::open_in_memory(&scratch.0).expect("open"),
+            crate::db::Db::open_in_memory(scratch.path()).expect("open"),
         ));
         run(&db, ScanOptions::default(), &Arc::new(Progress::default())).expect("scan");
 
@@ -2267,10 +2267,10 @@ mod tests {
     #[test]
     fn a_finished_scan_settles_every_step_and_skips_what_nothing_needed() {
         let scratch = Scratch::new("steps");
-        scratch.write("a.kar", &km_song::testing::soft_karaoke());
+        scratch.write("a.kar", km_song::testing::soft_karaoke());
 
         let db = Arc::new(Shared::new(
-            crate::db::Db::open_in_memory(&scratch.0).expect("open"),
+            crate::db::Db::open_in_memory(scratch.path()).expect("open"),
         ));
         let first = Arc::new(Progress::default());
         run(&db, ScanOptions::default(), &first).expect("first scan");
@@ -2441,11 +2441,11 @@ mod tests {
     fn a_scan_asked_to_stop_before_it_starts_reads_nothing_and_claims_nothing() {
         let scratch = Scratch::new("stop-early");
         for i in 0..20 {
-            scratch.write(&format!("{i}.kar"), &km_song::testing::soft_karaoke());
+            scratch.write(format!("{i}.kar"), km_song::testing::soft_karaoke());
         }
 
         let db = Arc::new(Shared::new(
-            crate::db::Db::open_in_memory(&scratch.0).expect("open"),
+            crate::db::Db::open_in_memory(scratch.path()).expect("open"),
         ));
         let progress = Arc::new(Progress::default());
         progress.ask_to_stop();
@@ -2472,9 +2472,9 @@ mod tests {
     #[test]
     fn a_stop_after_the_reading_skips_the_closing_passes_and_keeps_the_scan() {
         let scratch = Scratch::new("stop-tail");
-        scratch.write("a.kar", &km_song::testing::soft_karaoke());
+        scratch.write("a.kar", km_song::testing::soft_karaoke());
         let db = Arc::new(Shared::new(
-            crate::db::Db::open_in_memory(&scratch.0).expect("open"),
+            crate::db::Db::open_in_memory(scratch.path()).expect("open"),
         ));
         run(&db, ScanOptions::default(), &Arc::new(Progress::default())).expect("scan");
 
@@ -2501,12 +2501,12 @@ mod tests {
     fn a_stopped_scan_keeps_what_it_wrote_and_the_next_one_carries_on() {
         let scratch = Scratch::new("stop-resume");
         for i in 0..8 {
-            scratch.write(&format!("{i}.kar"), &km_song::testing::soft_karaoke());
-            scratch.write(&format!("m{i}.mid"), &km_song::testing::lyric_events());
+            scratch.write(format!("{i}.kar"), km_song::testing::soft_karaoke());
+            scratch.write(format!("m{i}.mid"), km_song::testing::lyric_events());
         }
 
         let db = Arc::new(Shared::new(
-            crate::db::Db::open_in_memory(&scratch.0).expect("open"),
+            crate::db::Db::open_in_memory(scratch.path()).expect("open"),
         ));
 
         // Stop it the moment it has begun. How far it gets is a race and is not asserted on — what
@@ -2552,11 +2552,11 @@ mod tests {
     #[test]
     fn a_second_scan_skips_everything_unchanged() {
         let scratch = Scratch::new("rescan");
-        scratch.write("a.kar", &km_song::testing::soft_karaoke());
-        scratch.write("b.mid", &km_song::testing::lyric_events());
+        scratch.write("a.kar", km_song::testing::soft_karaoke());
+        scratch.write("b.mid", km_song::testing::lyric_events());
 
         let db = Arc::new(Shared::new(
-            crate::db::Db::open_in_memory(&scratch.0).expect("open"),
+            crate::db::Db::open_in_memory(scratch.path()).expect("open"),
         ));
         let first = Arc::new(Progress::default());
         run(&db, ScanOptions::default(), &first).expect("first scan");
@@ -2597,11 +2597,11 @@ mod tests {
     #[test]
     fn a_song_thrown_away_is_not_read_again_even_when_the_scan_is_forced() {
         let scratch = Scratch::new("deleted-skip");
-        scratch.write("a.kar", &km_song::testing::soft_karaoke());
-        scratch.write("b.mid", &km_song::testing::lyric_events());
+        scratch.write("a.kar", km_song::testing::soft_karaoke());
+        scratch.write("b.mid", km_song::testing::lyric_events());
 
         let db = Arc::new(Shared::new(
-            crate::db::Db::open_in_memory(&scratch.0).expect("open"),
+            crate::db::Db::open_in_memory(scratch.path()).expect("open"),
         ));
         let first = Arc::new(Progress::default());
         run(&db, ScanOptions::default(), &first).expect("first scan");
@@ -2661,12 +2661,12 @@ mod tests {
     #[test]
     fn a_scoped_run_reads_what_it_was_given_and_forgets_nothing() {
         let scratch = Scratch::new("scoped");
-        scratch.write("a.kar", &km_song::testing::soft_karaoke());
-        scratch.write("b.mid", &km_song::testing::lyric_events());
-        scratch.write("c.kar", &km_song::testing::high_quality_song());
+        scratch.write("a.kar", km_song::testing::soft_karaoke());
+        scratch.write("b.mid", km_song::testing::lyric_events());
+        scratch.write("c.kar", km_song::testing::high_quality_song());
 
         let db = Arc::new(Shared::new(
-            crate::db::Db::open_in_memory(&scratch.0).expect("open"),
+            crate::db::Db::open_in_memory(scratch.path()).expect("open"),
         ));
         run(&db, ScanOptions::default(), &Arc::new(Progress::default())).expect("first scan");
         let stamped = {
@@ -2714,11 +2714,11 @@ mod tests {
     #[test]
     fn a_song_an_older_analysis_decided_is_read_again_though_its_file_has_not_moved() {
         let scratch = Scratch::new("stale-analysis");
-        scratch.write("a.kar", &km_song::testing::soft_karaoke());
-        scratch.write("b.mid", &km_song::testing::lyric_events());
+        scratch.write("a.kar", km_song::testing::soft_karaoke());
+        scratch.write("b.mid", km_song::testing::lyric_events());
 
         let db = Arc::new(Shared::new(
-            crate::db::Db::open_in_memory(&scratch.0).expect("open"),
+            crate::db::Db::open_in_memory(scratch.path()).expect("open"),
         ));
         run(&db, ScanOptions::default(), &Arc::new(Progress::default())).expect("first scan");
 
@@ -2762,11 +2762,11 @@ mod tests {
     #[test]
     fn a_scan_stores_what_a_song_is_worth_and_a_short_one_falls_below_the_band() {
         let scratch = Scratch::new("stored-suitability");
-        scratch.write("long.kar", &km_song::testing::high_quality_song());
-        scratch.write("short.kar", &km_song::testing::a_complete_short_song());
+        scratch.write("long.kar", km_song::testing::high_quality_song());
+        scratch.write("short.kar", km_song::testing::a_complete_short_song());
 
         let db = Arc::new(Shared::new(
-            crate::db::Db::open_in_memory(&scratch.0).expect("open"),
+            crate::db::Db::open_in_memory(scratch.path()).expect("open"),
         ));
         run(&db, ScanOptions::default(), &Arc::new(Progress::default())).expect("scan");
 
@@ -2810,13 +2810,13 @@ mod tests {
     #[test]
     fn a_song_climbs_to_the_first_revision_that_can_change_it() {
         let scratch = Scratch::new("revision-reach");
-        scratch.write("a.kar", &km_song::testing::soft_karaoke());
-        scratch.write("b.mid", &km_song::testing::lyric_events());
-        scratch.write("c.kar", &km_song::testing::high_quality_song());
-        scratch.write("d.kar", &km_song::testing::chord_names_as_lyrics());
+        scratch.write("a.kar", km_song::testing::soft_karaoke());
+        scratch.write("b.mid", km_song::testing::lyric_events());
+        scratch.write("c.kar", km_song::testing::high_quality_song());
+        scratch.write("d.kar", km_song::testing::chord_names_as_lyrics());
 
         let db = Arc::new(Shared::new(
-            crate::db::Db::open_in_memory(&scratch.0).expect("open"),
+            crate::db::Db::open_in_memory(scratch.path()).expect("open"),
         ));
         run(&db, ScanOptions::default(), &Arc::new(Progress::default())).expect("first scan");
 
@@ -2883,10 +2883,10 @@ mod tests {
     #[test]
     fn a_song_with_no_revision_is_not_promoted() {
         let scratch = Scratch::new("revision-reach-null");
-        scratch.write("a.kar", &km_song::testing::soft_karaoke());
+        scratch.write("a.kar", km_song::testing::soft_karaoke());
 
         let db = Arc::new(Shared::new(
-            crate::db::Db::open_in_memory(&scratch.0).expect("open"),
+            crate::db::Db::open_in_memory(scratch.path()).expect("open"),
         ));
         run(&db, ScanOptions::default(), &Arc::new(Progress::default())).expect("first scan");
 
@@ -2906,13 +2906,13 @@ mod tests {
     #[test]
     fn a_file_with_no_song_is_not_read_again() {
         let scratch = Scratch::new("songless-skip");
-        scratch.write("a.kar", &km_song::testing::soft_karaoke());
+        scratch.write("a.kar", km_song::testing::soft_karaoke());
         scratch.write("broken.mid", b"not a midi file");
         scratch.write("readme.txt", b"These songs came from a friend.");
-        scratch.write("orphan.cdg", &[0u8; 96]);
+        scratch.write("orphan.cdg", [0u8; 96]);
 
         let db = Arc::new(Shared::new(
-            crate::db::Db::open_in_memory(&scratch.0).expect("open"),
+            crate::db::Db::open_in_memory(scratch.path()).expect("open"),
         ));
         run(&db, ScanOptions::default(), &Arc::new(Progress::default())).expect("first scan");
 
@@ -2973,7 +2973,7 @@ mod tests {
         scratch.write("b.kar", &second);
 
         let db = Arc::new(Shared::new(
-            crate::db::Db::open_in_memory(&scratch.0).expect("open"),
+            crate::db::Db::open_in_memory(scratch.path()).expect("open"),
         ));
         run(&db, ScanOptions::default(), &Arc::new(Progress::default())).expect("first scan");
         {
@@ -3039,7 +3039,7 @@ mod tests {
         scratch.write("b.kar", &second);
 
         let db = Arc::new(Shared::new(
-            crate::db::Db::open_in_memory(&scratch.0).expect("open"),
+            crate::db::Db::open_in_memory(scratch.path()).expect("open"),
         ));
         // Forced, because clustering is the tail of a forced scan and a cluster is the whole point.
         run(
@@ -3081,11 +3081,11 @@ mod tests {
     #[test]
     fn a_deleted_file_is_forgotten_unless_a_package_names_it() {
         let scratch = Scratch::new("forget");
-        scratch.write("keep.kar", &km_song::testing::soft_karaoke());
-        scratch.write("drop.mid", &km_song::testing::lyric_events());
+        scratch.write("keep.kar", km_song::testing::soft_karaoke());
+        scratch.write("drop.mid", km_song::testing::lyric_events());
 
         let db = Arc::new(Shared::new(
-            crate::db::Db::open_in_memory(&scratch.0).expect("open"),
+            crate::db::Db::open_in_memory(scratch.path()).expect("open"),
         ));
         run(&db, ScanOptions::default(), &Arc::new(Progress::default())).expect("first scan");
 
@@ -3124,7 +3124,7 @@ mod tests {
             doomed
         };
 
-        std::fs::remove_file(scratch.0.join("drop.mid")).expect("delete");
+        std::fs::remove_file(scratch.join("drop.mid")).expect("delete");
         run(&db, ScanOptions::default(), &Arc::new(Progress::default())).expect("second scan");
 
         let guard = db.lock();

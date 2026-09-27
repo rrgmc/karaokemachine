@@ -1044,7 +1044,7 @@ mod tests {
     #[test]
     fn a_backup_reads_back_exactly_what_was_written() {
         let scratch = Scratch::new("round-trip");
-        let path = scratch.0.join("backup.json");
+        let path = scratch.join("backup.json");
 
         let written = Backup {
             note: note(),
@@ -1076,7 +1076,7 @@ mod tests {
             ),
             ("one.json", r#"{"format":1,"songs":[]}"#),
         ] {
-            let path = scratch.0.join(name);
+            let path = scratch.join(name);
             std::fs::write(&path, text).expect("write");
             let said = Backup::read(&path)
                 .expect_err("an older format must not be read as this one")
@@ -1112,7 +1112,7 @@ mod tests {
     #[test]
     fn a_backup_restored_into_a_rebuilt_database_returns_every_hand_set_field() {
         let scratch = Scratch::new("rebuilt");
-        let path = scratch.0.join("backup.json");
+        let path = scratch.join("backup.json");
 
         {
             let mut db = db();
@@ -1429,7 +1429,7 @@ mod tests {
     #[test]
     fn a_favorite_whose_name_contains_a_slash_survives_the_round_trip() {
         let scratch = Scratch::new("slash");
-        let path = scratch.0.join("backup.json");
+        let path = scratch.join("backup.json");
 
         {
             let mut db = db();
@@ -1653,10 +1653,10 @@ mod tests {
     #[test]
     fn the_newest_backup_is_the_one_the_restore_box_suggests() {
         let scratch = Scratch::new("newest-backup");
-        let data = crate::db::data_dir(&scratch.0);
+        let data = crate::db::data_dir(scratch.path());
         std::fs::create_dir_all(&data).expect("the data folder");
 
-        assert_eq!(newest(&scratch.0), None, "nothing taken yet");
+        assert_eq!(newest(scratch.path()), None, "nothing taken yet");
 
         for stamp in ["20260910T090000Z", "20260909T140233Z", "20260909T235959Z"] {
             std::fs::write(
@@ -1670,7 +1670,7 @@ mod tests {
         std::fs::write(data.join("kept.kmbackup.json"), b"{}").expect("a hand-named backup");
 
         assert_eq!(
-            newest(&scratch.0).as_deref(),
+            newest(scratch.path()).as_deref(),
             Some("km-package-builder-20260910T090000Z.kmbackup.json")
         );
     }
@@ -1679,13 +1679,13 @@ mod tests {
     #[test]
     fn a_corpus_with_no_data_folder_suggests_no_backup() {
         let scratch = Scratch::new("newest-backup-absent");
-        assert_eq!(newest(&scratch.0), None);
+        assert_eq!(newest(scratch.path()), None);
     }
 
     #[test]
     fn a_backup_leaves_no_half_written_file_behind() {
         let scratch = Scratch::new("atomic");
-        let path = scratch.0.join("backup.json");
+        let path = scratch.join("backup.json");
 
         Backup {
             format: FORMAT,
@@ -1702,7 +1702,7 @@ mod tests {
 
         assert_eq!(Backup::read(&path).expect("read"), bigger);
         assert!(
-            !scratch.0.join("backup.json.writing").exists(),
+            !scratch.join("backup.json.writing").exists(),
             "the scratch file is renamed away, never left beside the real one"
         );
     }

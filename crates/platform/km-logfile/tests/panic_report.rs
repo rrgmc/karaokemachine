@@ -11,10 +11,13 @@
 
 use std::path::PathBuf;
 
+use km_testkit::Scratch;
+
 #[test]
 fn a_panic_leaves_a_report_without_anybody_having_asked_for_one() {
-    let dir = std::env::temp_dir().join("km-logfile-tests").join("hooked");
-    let _ = std::fs::remove_dir_all(&dir);
+    // A folder not yet made, because making it is the hook's job.
+    let scratch = Scratch::new("logfile-hooked");
+    let dir = scratch.join("hooked");
 
     // No log file, no flag, no environment variable: the point is that this needs none of them.
     km_logfile::report_panics(&dir, "karaokemachine", km_logfile::KEEP_ALL);

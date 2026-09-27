@@ -8569,7 +8569,7 @@ mod tests {
     #[test]
     fn a_relative_path_is_read_from_the_data_folder() {
         let corpus = crate::testing::Scratch::new("relative-read-path");
-        let root = &corpus.0;
+        let root = corpus.path();
         std::fs::create_dir_all(crate::db::data_dir(root)).expect("the data folder");
 
         // A file of the same name in the root is not consulted.

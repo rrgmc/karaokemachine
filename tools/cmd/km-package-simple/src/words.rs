@@ -55,18 +55,11 @@ pub fn messages(locale: Locale) -> &'static Catalog {
 mod tests {
     use super::*;
 
+    /// Every locale holds exactly the keys English holds, so nothing draws a bracketed key.
     #[test]
-    fn every_message_is_translated_and_none_is_invented() {
-        let english = messages(Locale::English);
-        for locale in Locale::ALL {
-            let catalog = messages(*locale);
-            let missing = catalog.missing_from(english);
-            assert!(missing.is_empty(), "{locale} is missing {missing:?}");
-            let extra = english.missing_from(catalog);
-            assert!(
-                extra.is_empty(),
-                "{locale} has {extra:?}, which English does not"
-            );
+    fn every_catalog_holds_exactly_the_english_keys() {
+        if let Err(fault) = km_locale::check_catalogs(messages) {
+            panic!("{fault}");
         }
     }
 

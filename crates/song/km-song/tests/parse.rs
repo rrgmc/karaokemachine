@@ -4,11 +4,8 @@
 //! through [`Song::parse`], which is what the rest of the system actually calls.
 
 use km_song::testing;
+use km_song::testing::parse;
 use km_song::{EventKind, KaraokeFlavor, LyricGranularity, ParseOptions, Song, Timebase};
-
-fn parse(bytes: &[u8]) -> Song {
-    Song::parse(bytes, &ParseOptions::default()).expect("fixture should parse")
-}
 
 #[test]
 fn soft_karaoke_file_parses_completely() {

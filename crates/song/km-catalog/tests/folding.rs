@@ -9,6 +9,7 @@
 //! holds the two to each other.
 
 use km_song::text::fold;
+use km_testkit::Scratch;
 use rusqlite::Connection;
 
 /// Latin-1 Supplement, Latin Extended-A and Latin Extended-B.
@@ -146,9 +147,7 @@ fn the_accents_the_corpus_is_full_of_still_fold() {
 /// did not notice would keep the old order until every package happened to be reinstalled.
 #[test]
 fn a_catalog_folded_by_an_older_table_refolds_itself() {
-    let dir = std::env::temp_dir().join("km-catalog-tests-refold");
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).expect("temp dir");
+    let dir = Scratch::new("catalog-refold");
     let path = dir.join("library.sqlite");
 
     {
@@ -202,6 +201,4 @@ fn a_catalog_folded_by_an_older_table_refolds_itself() {
         after,
         "the refold happens once, not at every open"
     );
-
-    let _ = std::fs::remove_dir_all(&dir);
 }

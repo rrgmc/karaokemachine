@@ -310,26 +310,7 @@ impl Settings {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    struct Scratch(PathBuf);
-
-    impl Scratch {
-        fn new(name: &str) -> Self {
-            let dir = std::env::temp_dir().join(format!(
-                "km-package-builder-settings-{}-{name}",
-                std::process::id()
-            ));
-            let _ = std::fs::remove_dir_all(&dir);
-            std::fs::create_dir_all(&dir).expect("scratch dir");
-            Self(dir)
-        }
-    }
-
-    impl Drop for Scratch {
-        fn drop(&mut self) {
-            let _ = std::fs::remove_dir_all(&self.0);
-        }
-    }
+    use crate::testing::Scratch;
 
     /// A test run writes nowhere. The guard that keeps a suite out of the builder's config
     /// directory, and the reason it matters more here than in `recent`: this file is *created*.
@@ -348,7 +329,7 @@ mod tests {
     #[test]
     fn a_missing_file_is_seeded_with_the_defaults() {
         let scratch = Scratch::new("seed");
-        let file = scratch.0.join("settings.json");
+        let file = scratch.join("settings.json");
         assert!(!file.exists());
 
         let settings = Settings::at(Some(file.clone()));
@@ -365,7 +346,7 @@ mod tests {
     #[test]
     fn a_hand_edited_list_is_read_and_folded() {
         let scratch = Scratch::new("edited");
-        let file = scratch.0.join("settings.json");
+        let file = scratch.join("settings.json");
         std::fs::write(
             &file,
             r#"{"default_tags": ["Sertanejo", "Classic Rock", "Forró"]}"#,
@@ -384,7 +365,7 @@ mod tests {
     #[test]
     fn an_unreadable_file_is_left_alone() {
         let scratch = Scratch::new("corrupt");
-        let file = scratch.0.join("settings.json");
+        let file = scratch.join("settings.json");
         std::fs::write(&file, "{ this is not json").expect("write");
 
         assert_eq!(Settings::at(Some(file.clone())).default_tags, DEFAULT_TAGS);
@@ -427,7 +408,7 @@ mod tests {
     #[test]
     fn a_logging_section_survives_a_write_of_the_whole_file() {
         let scratch = Scratch::new("logging");
-        let file = scratch.0.join("settings.json");
+        let file = scratch.join("settings.json");
         std::fs::write(
             &file,
             r#"{"default_tags":["pop"],"logging":{"level":"debug","file":true,"keep":"all"}}"#,

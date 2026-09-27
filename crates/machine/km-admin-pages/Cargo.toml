@@ -39,6 +39,7 @@ form_urlencoded = { workspace = true }
 tracing = { workspace = true }
 
 [dev-dependencies]
+km-testkit = { workspace = true, features = ["http"] }
 # Driving the real router as a service, the way `km-api`, `km-remote-pages` and the package builder
 # all test theirs. It matters more here than in any of them: this crate's guard denies by default and
 # is mounted under `nest`, so what has to be tested is the *nested* router answering, not a table.

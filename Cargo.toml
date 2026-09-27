@@ -57,6 +57,9 @@ members = [
     # and `cargo km-test` cover it. The exclusion below is for a feature-unification hazard, which
     # this crate does not have.
     "tools/dev/km-pick",
+    # What more than one crate's tests need. A dev-dependency only, and it depends on no `km-*`
+    # crate, so every crate here can take it without a cycle.
+    "tools/dev/km-testkit",
 ]
 
 # `tools/cmd/assets` is a **second workspace** and deliberately not part of this one. Cargo unifies
@@ -286,6 +289,8 @@ km-machine-ios = { path = "crates/machine/km-machine-ios" }
 # builds the same manifests from the same files. Two tools disagreeing about what a manifest holds
 # is a defect nobody would notice until a package behaved oddly on the machine.
 km-pack = { path = "tools/cmd/km-pack" }
+# What more than one crate's tests need. Taken as a dev-dependency only; nothing that ships links it.
+km-testkit = { path = "tools/dev/km-testkit" }
 
 # MIDI + audio
 midly = "0.5.3"

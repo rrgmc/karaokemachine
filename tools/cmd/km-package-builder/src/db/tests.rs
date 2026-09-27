@@ -2920,7 +2920,7 @@ fn a_rows_file_subqueries_are_answered_from_the_index() {
 #[test]
 fn the_connection_is_tuned_for_a_database_this_size() {
     let scratch = Scratch::new("tuning");
-    let dir = scratch.0.clone();
+    let dir = scratch.to_path_buf();
     let db = Db::create(&dir).expect("create");
 
     assert_eq!(
@@ -3024,7 +3024,7 @@ fn the_language_backfill_fills_rows_indexed_by_an_earlier_version() {
 #[test]
 fn a_curation_database_carrying_a_bank_column_still_opens() {
     let scratch = Scratch::new("prefix");
-    let dir = scratch.0.clone();
+    let dir = scratch.to_path_buf();
 
     {
         let db = Db::create(&dir).expect("create");
@@ -4053,7 +4053,7 @@ fn scanned(
 #[test]
 fn every_scanned_column_comes_back_holding_what_was_put_in_it() {
     let scratch = Scratch::new("scanned-columns");
-    let mut db = Db::create(&scratch.0).expect("create");
+    let mut db = Db::create(scratch.path()).expect("create");
 
     let midi_facts = crate::model::MidiFacts {
         flavor: "the-flavor".to_owned(),
@@ -4181,7 +4181,7 @@ fn every_scanned_column_comes_back_holding_what_was_put_in_it() {
 #[test]
 fn a_database_this_build_made_carries_its_schema_version() {
     let scratch = Scratch::new("stamped");
-    let db = Db::create(&scratch.0).expect("create");
+    let db = Db::create(scratch.path()).expect("create");
     assert_eq!(
         db.pragma_for_test("user_version").expect("pragma"),
         SCHEMA_VERSION.to_string(),
@@ -4199,7 +4199,7 @@ fn a_database_this_build_made_carries_its_schema_version() {
 fn a_database_at_schema_14_steps_to_the_current_schema() {
     let scratch = Scratch::new("schema-14");
     {
-        let db = Db::create(&scratch.0).expect("create");
+        let db = Db::create(scratch.path()).expect("create");
         db.create_package(
             &PackageRow::new("1f4a9c8e2b7d0356", "Brasil"),
             "2026-09-18T00:00:00Z",
@@ -4249,7 +4249,7 @@ fn a_database_at_schema_14_steps_to_the_current_schema() {
         .expect("put it back at schema 14");
     }
 
-    let db = Db::open(&scratch.0).expect("a schema-14 database opens");
+    let db = Db::open(scratch.path()).expect("a schema-14 database opens");
     assert_eq!(
         db.pragma_for_test("user_version").expect("pragma"),
         SCHEMA_VERSION.to_string()
@@ -4312,14 +4312,14 @@ fn a_database_at_schema_14_steps_to_the_current_schema() {
 fn a_database_from_a_newer_build_is_refused_rather_than_half_understood() {
     let scratch = Scratch::new("from-the-future");
     {
-        let db = Db::create(&scratch.0).expect("create");
+        let db = Db::create(scratch.path()).expect("create");
         db.execute_for_test(&format!("PRAGMA user_version = {};", SCHEMA_VERSION + 1))
             .expect("stamp it from the future");
     }
 
     // `expect_err` would want `Db: Debug`, which it deliberately is not — it holds a
     // `Connection`. The match says the same thing without asking for one.
-    let said = match Db::open(&scratch.0) {
+    let said = match Db::open(scratch.path()) {
         Ok(_) => panic!("a database from a newer build must not open"),
         Err(error) => error.to_string(),
     };
@@ -4344,12 +4344,12 @@ fn a_database_below_the_oldest_schema_is_refused_by_its_number() {
     for (name, stamp) in [("older", OLDEST_SCHEMA_VERSION - 1), ("unstamped", 0)] {
         let scratch = Scratch::new(name);
         {
-            let db = Db::create(&scratch.0).expect("create");
+            let db = Db::create(scratch.path()).expect("create");
             db.execute_for_test(&format!("PRAGMA user_version = {stamp};"))
                 .expect("stamp it older");
         }
 
-        let said = match Db::open(&scratch.0) {
+        let said = match Db::open(scratch.path()) {
             Ok(_) => panic!("{name}: a database below the oldest schema must not open"),
             Err(error) => error.to_string(),
         };
@@ -6233,7 +6233,7 @@ fn a_write_path_that_forgets_to_refold_is_left_visible_rather_than_wrong() {
 #[test]
 fn an_index_under_a_retired_name_is_dropped_on_open() {
     let scratch = Scratch::new("retired-index");
-    let dir = scratch.0.clone();
+    let dir = scratch.to_path_buf();
 
     {
         let db = Db::create(&dir).expect("create");
@@ -6268,7 +6268,7 @@ fn an_index_under_a_retired_name_is_dropped_on_open() {
 #[test]
 fn a_database_folded_by_an_older_table_refolds_itself_on_open() {
     let scratch = Scratch::new("fold-revision");
-    let dir = scratch.0.clone();
+    let dir = scratch.to_path_buf();
 
     {
         let mut db = Db::create(&dir).expect("create");
@@ -7195,7 +7195,7 @@ fn a_prefix_range_covers_exactly_what_is_under_it() {
 #[test]
 fn the_slow_part_of_an_open_says_so_to_whoever_asked() {
     let scratch = Scratch::new("indexing-phase");
-    let dir = scratch.0.clone();
+    let dir = scratch.to_path_buf();
 
     {
         let db = Db::create(&dir).expect("create");
@@ -7244,7 +7244,7 @@ fn the_slow_part_of_an_open_says_so_to_whoever_asked() {
 #[test]
 fn a_quick_open_claims_nothing_slow() {
     let scratch = Scratch::new("quick-open");
-    let dir = scratch.0.clone();
+    let dir = scratch.to_path_buf();
     drop(Db::create(&dir).expect("create"));
 
     let said = std::sync::Mutex::new(Vec::new());
@@ -7283,7 +7283,7 @@ fn a_quick_open_claims_nothing_slow() {
 #[test]
 fn every_stretch_of_an_open_says_which_one_it_is() {
     let scratch = Scratch::new("open-phases");
-    let dir = scratch.0.clone();
+    let dir = scratch.to_path_buf();
 
     {
         let mut db = Db::create(&dir).expect("create");
@@ -8043,7 +8043,7 @@ fn suitability_of(value: u8, breakdown: (u8, u8, u8, u8)) -> crate::model::Suita
 #[test]
 fn a_quality_hint_leaves_out_what_is_not_a_midi_file() {
     let scratch = Scratch::new("hint-midi-only");
-    let mut db = Db::create(&scratch.0).expect("create");
+    let mut db = Db::create(scratch.path()).expect("create");
 
     let video = crate::model::VideoFacts {
         width: 1_920,
@@ -8110,7 +8110,7 @@ fn a_quality_hint_leaves_out_what_is_not_a_midi_file() {
 #[test]
 fn two_songs_tied_on_suitability_are_separated_by_their_components() {
     let scratch = Scratch::new("hint-components");
-    let mut db = Db::create(&scratch.0).expect("create");
+    let mut db = Db::create(scratch.path()).expect("create");
 
     db.write_scanned(
         &[
@@ -8151,7 +8151,7 @@ fn two_songs_tied_on_suitability_are_separated_by_their_components() {
 #[test]
 fn a_rating_somebody_typed_decides_nothing_about_which_to_play_first() {
     let scratch = Scratch::new("hint-user-score");
-    let mut db = Db::create(&scratch.0).expect("create");
+    let mut db = Db::create(scratch.path()).expect("create");
 
     db.write_scanned(
         &[
@@ -8193,8 +8193,8 @@ fn a_rating_somebody_typed_decides_nothing_about_which_to_play_first() {
 #[test]
 fn a_reading_connection_refuses_a_write() {
     let scratch = Scratch::new("reader-refuses-write");
-    let _writer = Db::create(&scratch.0).expect("create");
-    let reader = Db::open_reading(&scratch.0).expect("open for reading");
+    let _writer = Db::create(scratch.path()).expect("create");
+    let reader = Db::open_reading(scratch.path()).expect("open for reading");
 
     let refused =
         reader.execute_for_test("INSERT INTO settings(key, value) VALUES ('reader', 'not here')");
@@ -8212,8 +8212,8 @@ fn a_reading_connection_refuses_a_write() {
 #[test]
 fn a_reading_connection_sees_what_the_writer_committed() {
     let scratch = Scratch::new("reader-sees-commits");
-    let writer = Db::create(&scratch.0).expect("create");
-    let reader = Db::open_reading(&scratch.0).expect("open for reading");
+    let writer = Db::create(scratch.path()).expect("create");
+    let reader = Db::open_reading(scratch.path()).expect("open for reading");
 
     assert!(reader.favorites().expect("favorites").is_empty());
     writer.create_favorite("Sunday").expect("favorite");
@@ -8238,8 +8238,8 @@ fn a_reading_connection_sees_what_the_writer_committed() {
 #[test]
 fn the_counts_cache_notices_the_other_connections_commit() {
     let scratch = Scratch::new("counts-across-connections");
-    let mut writer = Db::create(&scratch.0).expect("create");
-    let reader = Db::open_reading(&scratch.0).expect("open for reading");
+    let mut writer = Db::create(scratch.path()).expect("create");
+    let reader = Db::open_reading(scratch.path()).expect("open for reading");
 
     assert_eq!(reader.counts().expect("counts").songs, 0);
     add(&mut writer, "a", Some("A"), "rock/a.kar");
@@ -8285,7 +8285,7 @@ fn each_aggregate_answers_the_field_it_fills() {
 #[test]
 fn a_shipped_connection_asks_for_the_mapping_the_note_measured() {
     let scratch = Scratch::new("shipped-mapping");
-    let db = Db::create(&scratch.0).expect("create");
+    let db = Db::create(scratch.path()).expect("create");
     assert_eq!(
         db.pragma_for_test("mmap_size").expect("mmap_size"),
         "1073741824",
@@ -8316,7 +8316,7 @@ fn a_database_outside_wal_is_read_through_the_writing_connection() {
     );
 
     let scratch = Scratch::new("wal-took");
-    let on_disk = Db::create(&scratch.0).expect("create");
+    let on_disk = Db::create(scratch.path()).expect("create");
     assert!(on_disk.in_wal(), "a file database takes WAL");
 }
 

@@ -390,14 +390,12 @@ pub fn shift_ticks(tempo_map: &TempoMap, tick: u32, offset_ms: i16, tempo_ratio:
 
 #[cfg(test)]
 mod tests {
-    use km_song::{ParseOptions, Song, testing};
+    use km_song::testing;
 
     use super::*;
 
     fn timeline(bytes: &[u8]) -> LyricTimeline {
-        Song::parse(bytes, &ParseOptions::default())
-            .expect("fixture parses")
-            .lyrics
+        testing::parse(bytes).lyrics
     }
 
     fn view() -> LyricView {
@@ -405,9 +403,7 @@ mod tests {
     }
 
     fn tempo_map(bytes: &[u8]) -> TempoMap {
-        Song::parse(bytes, &ParseOptions::default())
-            .expect("fixture parses")
-            .tempo_map
+        testing::parse(bytes).tempo_map
     }
 
     /// A plain 120 BPM map: one quarter note is 500 ms, so at `TPQN` 480 a tick is 1041.67 us.

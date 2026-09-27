@@ -514,6 +514,8 @@ fn civil_from_days(days: u64) -> (u64, u64, u64) {
 mod tests {
     use super::*;
 
+    use km_testkit::Scratch;
+
     /// The stamp is what stops two runs sharing a file and what makes the pruning order right, so
     /// the arithmetic behind it is worth pinning at the awkward dates rather than only at one.
     #[test]
@@ -545,7 +547,7 @@ mod tests {
 
     #[test]
     fn a_run_gets_its_own_file_and_the_directory_is_made() {
-        let dir = scratch("own-file");
+        let (_scratch, dir) = scratch("own-file");
         let log = LogFile::open(dir.join("logs"), "karaokemachine").expect("open");
         assert!(log.path().exists());
         assert!(
@@ -559,7 +561,7 @@ mod tests {
     /// Two runs in the same second must not share a file — see [`LogFile::open`].
     #[test]
     fn two_runs_in_one_second_get_two_files() {
-        let dir = scratch("same-second");
+        let (_scratch, dir) = scratch("same-second");
         let first = LogFile::open(&dir, "km-remote").expect("first");
         let second = LogFile::open(&dir, "km-remote").expect("second");
         assert_ne!(first.path(), second.path());
@@ -573,7 +575,7 @@ mod tests {
     /// This asserts the property rather than the fix, so it goes on holding if the spelling changes.
     #[test]
     fn the_newest_survive_a_same_second_batch() {
-        let dir = scratch("batch");
+        let (_scratch, dir) = scratch("batch");
         let made: Vec<PathBuf> = (0..13)
             .map(|_| {
                 LogFile::open(&dir, "karaokemachine")
@@ -605,7 +607,7 @@ mod tests {
     /// not interleaved with another thread's.
     #[test]
     fn what_is_written_reaches_the_file() {
-        let dir = scratch("written");
+        let (_scratch, dir) = scratch("written");
         let log = LogFile::open(&dir, "km-package-builder").expect("open");
         {
             let mut writer = log.make_writer();
@@ -619,7 +621,7 @@ mod tests {
     /// The retention policy, which is the thing three copies of this would have disagreed about.
     #[test]
     fn only_the_newest_are_kept() {
-        let dir = scratch("pruned");
+        let (_scratch, dir) = scratch("pruned");
         std::fs::create_dir_all(&dir).expect("dir");
         for second in 0..12 {
             std::fs::write(
@@ -669,7 +671,7 @@ mod tests {
     /// Keeping everything is a number `prune` never reaches, so a full directory stays full.
     #[test]
     fn keeping_all_of_them_deletes_none() {
-        let dir = scratch("kept");
+        let (_scratch, dir) = scratch("kept");
         std::fs::create_dir_all(&dir).expect("dir");
         for second in 0..12 {
             std::fs::write(
@@ -692,7 +694,7 @@ mod tests {
     /// and holds enough to act on.
     #[test]
     fn a_panic_leaves_a_file_naming_where_and_what() {
-        let dir = scratch("crashed");
+        let (_scratch, dir) = scratch("crashed");
 
         let path = write_crash(
             &dir,
@@ -718,7 +720,7 @@ mod tests {
     /// A crash report is not a run's log, and an evening of runs must not push one out.
     #[test]
     fn runs_and_crashes_retire_on_separate_clocks() {
-        let dir = scratch("both");
+        let (_scratch, dir) = scratch("both");
         std::fs::create_dir_all(&dir).expect("dir");
         std::fs::write(dir.join("karaokemachine-20260101T000000Z.crash"), b"x").expect("write");
         for second in 0..12 {
@@ -740,7 +742,7 @@ mod tests {
     /// A report is best effort: a directory that cannot be made costs the file, not the process.
     #[test]
     fn a_report_that_cannot_be_written_is_not_a_second_panic() {
-        let blocked = scratch("blocked");
+        let (_scratch, blocked) = scratch("blocked");
         std::fs::create_dir_all(blocked.parent().expect("parent")).expect("dir");
         // A file where the directory would have to go, so `create_dir_all` cannot succeed.
         std::fs::write(&blocked, b"x").expect("write");
@@ -751,10 +753,12 @@ mod tests {
         );
     }
 
-    /// A directory of this test's own, removed first so a rerun starts empty.
-    fn scratch(name: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join("km-logfile-tests").join(name);
-        let _ = std::fs::remove_dir_all(&dir);
-        dir
+    /// A directory of this test's own, not yet made, inside a scratch folder the caller holds.
+    ///
+    /// It does not exist, because making the directory is part of what these tests check.
+    fn scratch(name: &str) -> (Scratch, PathBuf) {
+        let scratch = Scratch::new(&format!("logfile-{name}"));
+        let dir = scratch.join(name);
+        (scratch, dir)
     }
 }

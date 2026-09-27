@@ -348,7 +348,7 @@ mod tests {
     fn folders(name: &str, count: usize) -> Scratch {
         let scratch = Scratch::new(name);
         for number in 0..count {
-            std::fs::create_dir_all(scratch.0.join(format!("folder-{number:04}")))
+            std::fs::create_dir_all(scratch.join(format!("folder-{number:04}")))
                 .expect("making a test folder");
         }
         scratch
@@ -366,7 +366,7 @@ mod tests {
     #[test]
     fn listing_sorts_case_insensitively_and_skips_dotted_names() {
         let scratch = Scratch::new("browse-test");
-        let temp = scratch.0.clone();
+        let temp = scratch.to_path_buf();
         for name in ["beta", "Alpha", ".hidden"] {
             std::fs::create_dir_all(temp.join(name)).expect("making a test folder");
         }
@@ -383,7 +383,7 @@ mod tests {
     #[test]
     fn a_folder_with_no_database_says_so() {
         let scratch = Scratch::new("browse-unindexed");
-        assert_eq!(indexed(&scratch.0), Indexed::No);
+        assert_eq!(indexed(scratch.path()), Indexed::No);
     }
 
     /// A folder of more than a page draws a page, and says how many there are.
@@ -391,7 +391,7 @@ mod tests {
     fn a_big_folder_draws_a_page_and_counts_the_rest() {
         let scratch = folders("browse-paged", PAGE + 30);
 
-        let first = all_of(&scratch.0);
+        let first = all_of(scratch.path());
         assert_eq!(first.rows.len(), PAGE);
         assert_eq!(
             first.total,
@@ -409,7 +409,7 @@ mod tests {
         assert!(!first.next.is_empty());
 
         let second = list(&Ask {
-            here: Some(scratch.0.clone()),
+            here: Some(scratch.to_path_buf()),
             offset: PAGE,
             ..Ask::default()
         });
@@ -426,7 +426,7 @@ mod tests {
         let scratch = folders("browse-past-the-end", PAGE + 5);
 
         let listing = list(&Ask {
-            here: Some(scratch.0.clone()),
+            here: Some(scratch.to_path_buf()),
             offset: PAGE * 40,
             ..Ask::default()
         });
@@ -441,11 +441,11 @@ mod tests {
     fn the_filter_narrows_by_name_ignoring_case() {
         let scratch = Scratch::new("browse-filtered");
         for name in ["Brasil", "brasileiras", "Ingles", "Rock"] {
-            std::fs::create_dir_all(scratch.0.join(name)).expect("making a test folder");
+            std::fs::create_dir_all(scratch.join(name)).expect("making a test folder");
         }
 
         let listing = list(&Ask {
-            here: Some(scratch.0.clone()),
+            here: Some(scratch.to_path_buf()),
             filter: "BRAS".to_owned(),
             ..Ask::default()
         });
@@ -462,7 +462,7 @@ mod tests {
         let scratch = folders("browse-turn-keeps", PAGE + 1);
 
         let listing = list(&Ask {
-            here: Some(scratch.0.clone()),
+            here: Some(scratch.to_path_buf()),
             filter: "folder".to_owned(),
             ..Ask::default()
         });
@@ -483,11 +483,11 @@ mod tests {
     #[test]
     fn only_the_folders_on_the_page_are_asked_whether_they_are_indexed() {
         let scratch = folders("browse-probe", PAGE + 1);
-        let corpus = scratch.0.join(format!("folder-{PAGE:04}"));
+        let corpus = scratch.join(format!("folder-{PAGE:04}"));
         std::fs::write(corpus.join("corpus.kmbuild"), b"not really a database")
             .expect("writing a database");
 
-        let first = all_of(&scratch.0);
+        let first = all_of(scratch.path());
         assert!(
             first.rows.iter().all(|row| row.indexed == Indexed::No),
             "a row off the page was probed"
@@ -495,7 +495,7 @@ mod tests {
 
         // ...and it is found on the page it is actually on, so the probe still happens.
         let second = list(&Ask {
-            here: Some(scratch.0.clone()),
+            here: Some(scratch.to_path_buf()),
             offset: PAGE,
             ..Ask::default()
         });

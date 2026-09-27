@@ -1820,6 +1820,8 @@ pub fn router(state: State) -> Router {
 mod tests {
     use super::*;
 
+    use km_testkit::http;
+
     use crate::testing::Scratch;
 
     /// The page's script and stylesheet are really in the binary, and are really the right files.
@@ -1884,21 +1886,8 @@ mod tests {
 
     /// Fetches one page through the real router, as a browser would.
     async fn get(state: &State, uri: &str) -> (axum::http::StatusCode, String) {
-        use tower::ServiceExt;
-
-        let request = axum::http::Request::builder()
-            .uri(uri)
-            .body(axum::body::Body::empty())
-            .expect("request");
-        let response = router(state.clone())
-            .oneshot(request)
-            .await
-            .expect("the router answers");
-        let status = response.status();
-        let bytes = axum::body::to_bytes(response.into_body(), 4 * 1024 * 1024)
-            .await
-            .expect("read the body");
-        (status, String::from_utf8_lossy(&bytes).into_owned())
+        let answer = http::send(router(state.clone()), http::get(uri)).await;
+        (answer.status, answer.text())
     }
 
     /// Fetches one page for its status, keeping only as much of the body as an assertion can print.
@@ -1908,7 +1897,8 @@ mod tests {
     /// topmost of which is the system temp folder. That folder belongs to every program on the
     /// computer — a suite of another crate leaving scratch directories behind is enough — so a test
     /// that reads the whole listing is a test that fails on how full a folder it does not own
-    /// happens to be. [`get`]'s cap is right for a page this crate decides the size of.
+    /// happens to be. [`get`] reads the whole body, which is right for a page this crate decides the
+    /// size of.
     async fn answered(state: &State, uri: &str) -> (axum::http::StatusCode, String) {
         use tower::ServiceExt;
 
@@ -1933,22 +1923,9 @@ mod tests {
     /// [`get`] reads the body and drops the headers, which is the wrong half for a route whose whole
     /// answer is a `Location`.
     async fn sent_to(state: &State, uri: &str) -> (axum::http::StatusCode, Option<String>) {
-        use tower::ServiceExt;
-
-        let request = axum::http::Request::builder()
-            .uri(uri)
-            .body(axum::body::Body::empty())
-            .expect("request");
-        let response = router(state.clone())
-            .oneshot(request)
-            .await
-            .expect("the router answers");
-        let location = response
-            .headers()
-            .get(axum::http::header::LOCATION)
-            .and_then(|value| value.to_str().ok())
-            .map(str::to_owned);
-        (response.status(), location)
+        let answer = http::send(router(state.clone()), http::get(uri)).await;
+        let location = answer.header(header::LOCATION).map(str::to_owned);
+        (answer.status, location)
     }
 
     /// Posts a form body carrying the fetch-metadata header a browser would send.
@@ -1959,27 +1936,14 @@ mod tests {
         uri: &str,
         site: Option<&str>,
     ) -> (axum::http::StatusCode, String) {
-        use tower::ServiceExt;
-
-        let mut builder = axum::http::Request::builder()
-            .method(axum::http::Method::POST)
-            .uri(uri)
-            .header(
-                axum::http::header::CONTENT_TYPE,
-                "application/x-www-form-urlencoded",
-            );
+        let mut request = http::form(uri, axum::body::Body::empty());
         if let Some(site) = site {
-            builder = builder.header("sec-fetch-site", site);
+            request
+                .headers_mut()
+                .insert("sec-fetch-site", site.parse().expect("a header value"));
         }
-        let response = router(state.clone())
-            .oneshot(builder.body(axum::body::Body::empty()).expect("request"))
-            .await
-            .expect("the router answers");
-        let status = response.status();
-        let bytes = axum::body::to_bytes(response.into_body(), 4 * 1024 * 1024)
-            .await
-            .expect("read the body");
-        (status, String::from_utf8_lossy(&bytes).into_owned())
+        let answer = http::send(router(state.clone()), request).await;
+        (answer.status, answer.text())
     }
 
     /// Another site cannot press this tool's buttons.
@@ -2022,18 +1986,13 @@ mod tests {
     /// A GET is not gated, or an ordinary link into the tool would be refused.
     #[tokio::test]
     async fn a_cross_site_get_is_not_refused() {
-        use tower::ServiceExt;
-
         let request = axum::http::Request::builder()
             .uri("/static/style.css")
             .header("sec-fetch-site", "cross-site")
             .body(axum::body::Body::empty())
             .expect("request");
-        let response = router(State::empty())
-            .oneshot(request)
-            .await
-            .expect("the router answers");
-        assert_eq!(response.status(), axum::http::StatusCode::OK);
+        let answer = http::send(router(State::empty()), request).await;
+        assert_eq!(answer.status, axum::http::StatusCode::OK);
     }
 
     /// Posts a form body through the real router, the way htmx does.
@@ -2042,26 +2001,8 @@ mod tests {
     /// `axum::Form` would answer 415 to a request without one — a button that does nothing, with no
     /// message anywhere.
     async fn post(state: &State, uri: &str, body: &str) -> (axum::http::StatusCode, String) {
-        use tower::ServiceExt;
-
-        let request = axum::http::Request::builder()
-            .method(axum::http::Method::POST)
-            .uri(uri)
-            .header(
-                axum::http::header::CONTENT_TYPE,
-                "application/x-www-form-urlencoded",
-            )
-            .body(axum::body::Body::from(body.to_owned()))
-            .expect("request");
-        let response = router(state.clone())
-            .oneshot(request)
-            .await
-            .expect("the router answers");
-        let status = response.status();
-        let bytes = axum::body::to_bytes(response.into_body(), 4 * 1024 * 1024)
-            .await
-            .expect("read the body");
-        (status, String::from_utf8_lossy(&bytes).into_owned())
+        let answer = http::send(router(state.clone()), http::form(uri, body.to_owned())).await;
+        (answer.status, answer.text())
     }
 
     /// Three distinct songs, the two under `brasil/` tagged `bossa`, for the tests that narrow the
@@ -2071,16 +2012,16 @@ mod tests {
     /// correct behavior and would quietly make a test that counts songs count something else.
     fn two_folders(name: &str) -> (Scratch, State) {
         let corpus = Scratch::new(name);
-        std::fs::create_dir_all(corpus.0.join("brasil")).expect("make a folder");
-        std::fs::create_dir_all(corpus.0.join("ingles")).expect("make a folder");
+        std::fs::create_dir_all(corpus.join("brasil")).expect("make a folder");
+        std::fs::create_dir_all(corpus.join("ingles")).expect("make a folder");
         for (path, bytes) in [
             ("brasil/A.kar", km_song::testing::soft_karaoke()),
             ("brasil/B.kar", km_song::testing::lyric_events()),
             ("ingles/C.kar", km_song::testing::named_text_track()),
         ] {
-            std::fs::write(corpus.0.join(path), bytes).expect("write a fixture");
+            std::fs::write(corpus.join(path), bytes).expect("write a fixture");
         }
-        let state = State::new(Db::open_in_memory(&corpus.0).expect("open"));
+        let state = State::new(Db::open_in_memory(corpus.path()).expect("open"));
         crate::scan::run(
             &state.workspace().expect("a folder is open").db,
             crate::scan::ScanOptions::default(),
@@ -3284,23 +3225,13 @@ mod tests {
     /// landed back on all of them.
     #[tokio::test]
     async fn a_filter_change_is_pushed_into_the_address_bar() {
-        use tower::ServiceExt;
-
         let (_corpus, state) = two_folders("push-url");
-        let response = router(state.clone())
-            .oneshot(
-                axum::http::Request::builder()
-                    .uri("/songs/rows?tags=bossa&filename=1")
-                    .body(axum::body::Body::empty())
-                    .expect("request"),
-            )
-            .await
-            .expect("the router answers");
-        let pushed = response
-            .headers()
-            .get("HX-Push-Url")
-            .and_then(|value| value.to_str().ok())
-            .expect("a url to push");
+        let answer = http::send(
+            router(state.clone()),
+            http::get("/songs/rows?tags=bossa&filename=1"),
+        )
+        .await;
+        let pushed = answer.header("HX-Push-Url").expect("a url to push");
         // `/songs`, not `/songs/rows`: what goes in the address bar has to be a page somebody can
         // reload into, not the fragment route that answered.
         assert!(pushed.starts_with("/songs?"), "{pushed}");
@@ -3325,9 +3256,9 @@ mod tests {
             ("B.kar", km_song::testing::lyric_events()),
             ("C.kar", km_song::testing::named_text_track()),
         ] {
-            std::fs::write(corpus.0.join(path), bytes).expect("write a fixture");
+            std::fs::write(corpus.join(path), bytes).expect("write a fixture");
         }
-        let state = State::new(Db::open_in_memory(&corpus.0).expect("open"));
+        let state = State::new(Db::open_in_memory(corpus.path()).expect("open"));
         crate::scan::run(
             &state.workspace().expect("a folder is open").db,
             crate::scan::ScanOptions::default(),
@@ -3398,12 +3329,12 @@ mod tests {
     async fn a_song_can_be_found_by_a_line_of_its_lyrics() {
         let corpus = Scratch::new("lyric-page");
         // Sings "Mary had a little lamb"; its name says none of that.
-        std::fs::write(corpus.0.join("X1.mid"), km_song::testing::lyric_events())
+        std::fs::write(corpus.join("X1.mid"), km_song::testing::lyric_events())
             .expect("write a fixture");
-        std::fs::write(corpus.0.join("X2.kar"), km_song::testing::soft_karaoke())
+        std::fs::write(corpus.join("X2.kar"), km_song::testing::soft_karaoke())
             .expect("write a fixture");
 
-        let state = State::new(Db::open_in_memory(&corpus.0).expect("open"));
+        let state = State::new(Db::open_in_memory(corpus.path()).expect("open"));
         let workspace = state.workspace().expect("a folder is open");
         crate::scan::run(
             &workspace.db,
@@ -3603,12 +3534,12 @@ mod tests {
         let corpus = Scratch::new("stop-scan");
         for i in 0..30 {
             std::fs::write(
-                corpus.0.join(format!("{i}.kar")),
+                corpus.join(format!("{i}.kar")),
                 km_song::testing::soft_karaoke(),
             )
             .expect("write a fixture");
         }
-        let db = Db::open_in_memory(&corpus.0).expect("open");
+        let db = Db::open_in_memory(corpus.path()).expect("open");
         let state = State::new(db);
 
         let workspace = state.workspace().expect("a folder is open");
@@ -3641,32 +3572,16 @@ mod tests {
     /// worth a test that drives the real router rather than trusting the middleware by inspection.
     #[tokio::test]
     async fn with_nothing_open_the_pages_redirect_and_the_picker_does_not() {
-        use tower::ServiceExt;
-
         let state = State::empty();
 
         for path in ["/", "/songs", "/packages", "/scan", "/settings", "/lyrics"] {
-            let response = router(state.clone())
-                .oneshot(
-                    axum::http::Request::builder()
-                        .uri(path)
-                        .body(axum::body::Body::empty())
-                        .expect("request"),
-                )
-                .await
-                .expect("response");
+            let answer = http::send(router(state.clone()), http::get(path)).await;
             assert_eq!(
-                response.status(),
+                answer.status,
                 axum::http::StatusCode::SEE_OTHER,
                 "{path} should go to the picker"
             );
-            assert_eq!(
-                response
-                    .headers()
-                    .get(axum::http::header::LOCATION)
-                    .and_then(|value| value.to_str().ok()),
-                Some(OPEN_PATH)
-            );
+            assert_eq!(answer.header(header::LOCATION), Some(OPEN_PATH));
         }
 
         // The picker itself, and the assets every page needs to render at all. Without the second of
@@ -3678,17 +3593,9 @@ mod tests {
             "/static/htmx.min.js",
             "/static/ui.js",
         ] {
-            let response = router(state.clone())
-                .oneshot(
-                    axum::http::Request::builder()
-                        .uri(path)
-                        .body(axum::body::Body::empty())
-                        .expect("request"),
-                )
-                .await
-                .expect("response");
+            let answer = http::send(router(state.clone()), http::get(path)).await;
             assert_eq!(
-                response.status(),
+                answer.status,
                 axum::http::StatusCode::OK,
                 "{path} must answer without a folder"
             );
@@ -3712,7 +3619,7 @@ mod tests {
     async fn every_link_the_picker_draws_is_one_the_picker_answers() {
         let (corpus, state) = two_folders("picker-links");
 
-        let root = urlencode(&corpus.0.display().to_string());
+        let root = urlencode(&corpus.display().to_string());
         let (status, html) = get(&state, &format!("/open/list?at={root}")).await;
         assert_eq!(status, axum::http::StatusCode::OK, "{html}");
 
@@ -3752,34 +3659,22 @@ mod tests {
     /// would paint the whole picker inside a table cell with no error anywhere.
     #[tokio::test]
     async fn an_htmx_request_with_nothing_open_is_told_to_navigate() {
-        use tower::ServiceExt;
-
         let state = State::empty();
-        let response = router(state)
-            .oneshot(
-                axum::http::Request::builder()
-                    .uri("/songs/rows")
-                    .header("hx-request", "true")
-                    .body(axum::body::Body::empty())
-                    .expect("request"),
-            )
-            .await
-            .expect("response");
+        let request = axum::http::Request::builder()
+            .uri("/songs/rows")
+            .header("hx-request", "true")
+            .body(axum::body::Body::empty())
+            .expect("request");
+        let answer = http::send(router(state), request).await;
 
-        assert_eq!(response.status(), axum::http::StatusCode::NO_CONTENT);
+        assert_eq!(answer.status, axum::http::StatusCode::NO_CONTENT);
         assert_eq!(
-            response
-                .headers()
-                .get("hx-redirect")
-                .and_then(|value| value.to_str().ok()),
+            answer.header("hx-redirect"),
             Some(OPEN_PATH),
             "htmx must be told to navigate rather than handed a page to swap"
         );
         assert!(
-            response
-                .headers()
-                .get(axum::http::header::LOCATION)
-                .is_none(),
+            answer.headers.get(axum::http::header::LOCATION).is_none(),
             "a Location header would make htmx follow it and swap the picker"
         );
     }
@@ -3797,8 +3692,6 @@ mod tests {
     /// either would show up here as seconds.
     #[tokio::test]
     async fn every_page_draws_with_no_machine_and_nothing_on_the_network() {
-        use tower::ServiceExt;
-
         let (_corpus, state) = two_folders("no-machine");
         // Nothing has been told to this workspace, and `State::new` opened no watcher, so the
         // network is empty by construction — which is what a `cargo test` build always is.
@@ -3817,19 +3710,11 @@ mod tests {
             "/scan",
         ] {
             let started = std::time::Instant::now();
-            let response = router(state.clone())
-                .oneshot(
-                    axum::http::Request::builder()
-                        .uri(path)
-                        .body(axum::body::Body::empty())
-                        .expect("request"),
-                )
-                .await
-                .expect("response");
+            let answer = http::send(router(state.clone()), http::get(path)).await;
             assert!(
-                response.status().is_success() || response.status().is_redirection(),
+                answer.status.is_success() || answer.status.is_redirection(),
                 "{path} answered {} with no machine",
-                response.status()
+                answer.status
             );
             // Generous against the five-second timeout a probe would cost, so this cannot fail for
             // being run on a busy machine — and tight enough that a probe cannot hide in it.
@@ -3842,16 +3727,8 @@ mod tests {
 
         // And Settings still answers rather than failing, which is the other half of *no machine is
         // a normal state*.
-        let response = router(state.clone())
-            .oneshot(
-                axum::http::Request::builder()
-                    .uri("/settings")
-                    .body(axum::body::Body::empty())
-                    .expect("request"),
-            )
-            .await
-            .expect("response");
-        assert!(response.status().is_success(), "{}", response.status());
+        let answer = http::send(router(state.clone()), http::get("/settings")).await;
+        assert!(answer.status.is_success(), "{}", answer.status);
     }
 
     /// **Quit works on the picker, which is the one page it is the only way out of.**
@@ -3865,30 +3742,24 @@ mod tests {
     /// the windowed build's picker offers it in Quit's place.
     #[tokio::test]
     async fn quitting_works_with_nothing_open() {
-        use tower::ServiceExt;
-
         for path in ["/quit", "/browser"] {
             let state = State::empty();
-            let response = router(state)
-                .oneshot(
-                    axum::http::Request::builder()
-                        .method("POST")
-                        .uri(path)
-                        .header("hx-request", "true")
-                        .body(axum::body::Body::empty())
-                        .expect("request"),
-                )
-                .await
-                .expect("response");
+            let request = axum::http::Request::builder()
+                .method("POST")
+                .uri(path)
+                .header("hx-request", "true")
+                .body(axum::body::Body::empty())
+                .expect("request");
+            let answer = http::send(router(state), request).await;
 
             assert_eq!(
-                response.status(),
+                answer.status,
                 axum::http::StatusCode::OK,
                 "{path} answered {} with nothing open",
-                response.status()
+                answer.status
             );
             assert!(
-                response.headers().get("hx-redirect").is_none(),
+                answer.headers.get("hx-redirect").is_none(),
                 "{path} was redirected to the picker instead of being run"
             );
         }
@@ -3909,7 +3780,7 @@ mod tests {
         let corpus = Scratch::new("already-opening");
         let other = Scratch::new("already-opening-other");
         for folder in [&corpus, &other] {
-            std::fs::write(folder.0.join(crate::db::DATABASE_NAME), b"")
+            std::fs::write(folder.join(crate::db::DATABASE_NAME), b"")
                 .expect("a database for `require_database` to find");
         }
 
@@ -3917,18 +3788,19 @@ mod tests {
         *state
             .opening
             .lock()
-            .unwrap_or_else(|error| error.into_inner()) = Some(Arc::new(Opening::new(&corpus.0)));
+            .unwrap_or_else(|error| error.into_inner()) =
+            Some(Arc::new(Opening::new(corpus.path())));
 
         state
-            .begin_open(corpus.0.clone(), false)
+            .begin_open(corpus.to_path_buf(), false)
             .expect("the folder already being opened is answered with its progress");
 
-        let Err(error) = state.begin_open(other.0.clone(), false) else {
+        let Err(error) = state.begin_open(other.to_path_buf(), false) else {
             panic!("a second folder must not be opened while the first is still loading");
         };
         let said = error.to_string();
         assert!(
-            said.contains("already opening") && said.contains(&corpus.0.display().to_string()),
+            said.contains("already opening") && said.contains(&corpus.display().to_string()),
             "the refusal does not name the folder that is holding it up: {said}"
         );
 
@@ -3942,7 +3814,7 @@ mod tests {
             .expect("a job is in the slot")
             .finish(Some("stopped".to_owned()));
         state
-            .begin_open(other.0.clone(), false)
+            .begin_open(other.to_path_buf(), false)
             .expect("a finished job holds nothing up");
 
         // **That last call is the only one here that really starts a job**, and it opens a database
@@ -3969,10 +3841,10 @@ mod tests {
     fn opening_a_folder_closes_the_one_that_was_open() {
         let corpus = Scratch::new("close-before-open");
         let broken = Scratch::new("close-before-open-broken");
-        std::fs::write(broken.0.join(crate::db::DATABASE_NAME), b"not a database")
+        std::fs::write(broken.join(crate::db::DATABASE_NAME), b"not a database")
             .expect("a file for `require_database` to find");
 
-        let state = State::new(Db::open_in_memory(&corpus.0).expect("open"));
+        let state = State::new(Db::open_in_memory(corpus.path()).expect("open"));
         assert!(
             state.workspace().is_some(),
             "a folder is open to begin with"
@@ -3981,7 +3853,7 @@ mod tests {
         // Refused before the thread is spawned, so nothing is closed: what can be answered cheaply
         // still is, and it costs the folder somebody is looking at nothing.
         assert!(
-            state.begin_open(corpus.0.join("nowhere"), false).is_err(),
+            state.begin_open(corpus.join("nowhere"), false).is_err(),
             "a folder that is not there is refused outright"
         );
         assert!(
@@ -3990,7 +3862,7 @@ mod tests {
         );
 
         state
-            .begin_open(broken.0.clone(), false)
+            .begin_open(broken.to_path_buf(), false)
             .expect("a database that is there is a job, and its unreadability is the job's answer");
         wait_for_the_open(&state);
 
@@ -4018,7 +3890,7 @@ mod tests {
     #[test]
     fn closing_empties_the_slot_before_it_pays_for_the_close() {
         let corpus = Scratch::new("close-outside-the-lock");
-        let state = State::new(Db::open_in_memory(&corpus.0).expect("open"));
+        let state = State::new(Db::open_in_memory(corpus.path()).expect("open"));
 
         // Held from outside, so the drop cannot happen inside `close_folder` at all and what is left
         // is only the question this test asks: is the slot empty when it returns?
@@ -4071,13 +3943,13 @@ mod tests {
     fn a_corpus_from_a_newer_build_says_so_on_the_open_page() {
         let corpus = Scratch::new("from-a-newer-build");
         {
-            let db = Db::create(&corpus.0).expect("make a current database");
+            let db = Db::create(corpus.path()).expect("make a current database");
             db.as_if_from_a_newer_build();
         }
 
         let state = State::empty();
         state
-            .begin_open(corpus.0.clone(), false)
+            .begin_open(corpus.to_path_buf(), false)
             .expect("the database is there, so its version is the job's answer and not the call's");
         wait_for_the_open(&state);
 
@@ -4103,19 +3975,19 @@ mod tests {
     #[test]
     fn a_refusal_with_no_request_to_answer_is_left_on_the_page() {
         let corpus = Scratch::new("two-databases");
-        std::fs::write(corpus.0.join("one.kmbuild"), b"x").expect("write");
-        std::fs::write(corpus.0.join("two.kmbuild"), b"x").expect("write");
+        std::fs::write(corpus.join("one.kmbuild"), b"x").expect("write");
+        std::fs::write(corpus.join("two.kmbuild"), b"x").expect("write");
 
         let state = State::empty();
         let error = state
-            .begin_open(corpus.0.clone(), false)
+            .begin_open(corpus.to_path_buf(), false)
             .expect_err("two databases in one folder is refused without starting a job");
         assert!(
             state.opening().is_none(),
             "nothing started, so nothing is in the slot yet"
         );
 
-        state.report_failed_open(&corpus.0, &error.to_string());
+        state.report_failed_open(corpus.path(), &error.to_string());
         let job = state.opening().expect("the reason is in the slot now");
         assert!(job.finished, "a report is a job that is already over");
         assert!(
@@ -4133,10 +4005,10 @@ mod tests {
         let corpus = Scratch::new("report-waits-its-turn");
         let state = State::empty();
         state
-            .begin_open(corpus.0.clone(), true)
+            .begin_open(corpus.to_path_buf(), true)
             .expect("creating a database is a job");
 
-        state.report_failed_open(&corpus.0, "a reason from somewhere else");
+        state.report_failed_open(corpus.path(), "a reason from somewhere else");
         wait_for_the_open(&state);
 
         let job = state.opening().expect("the job is in the slot");
@@ -4283,7 +4155,8 @@ mod tests {
         *state
             .opening
             .lock()
-            .unwrap_or_else(|error| error.into_inner()) = Some(Arc::new(Opening::new(&corpus.0)));
+            .unwrap_or_else(|error| error.into_inner()) =
+            Some(Arc::new(Opening::new(corpus.path())));
 
         let (status, busy) = get(&state, OPEN_PATH).await;
         assert_eq!(status, axum::http::StatusCode::OK);
@@ -4319,31 +4192,18 @@ mod tests {
     /// reached, comes back in the language just chosen.
     #[tokio::test]
     async fn choosing_a_language_redraws_the_whole_page_in_it() {
-        use tower::ServiceExt;
-
         let (_corpus, state) = two_folders("locale-chosen");
         assert_eq!(state.locale(), km_locale::Locale::English);
 
-        let request = axum::http::Request::builder()
-            .method(axum::http::Method::POST)
-            .uri("/settings/locale")
-            .header(
-                axum::http::header::CONTENT_TYPE,
-                "application/x-www-form-urlencoded",
-            )
-            .body(axum::body::Body::from("locale=pt-BR"))
-            .expect("request");
-        let response = router(state.clone())
-            .oneshot(request)
-            .await
-            .expect("the router answers");
+        let answer = http::send(
+            router(state.clone()),
+            http::form("/settings/locale", "locale=pt-BR"),
+        )
+        .await;
 
-        assert_eq!(response.status(), axum::http::StatusCode::OK);
+        assert_eq!(answer.status, axum::http::StatusCode::OK);
         assert_eq!(
-            response
-                .headers()
-                .get("hx-refresh")
-                .map(|v| v.to_str().ok()),
+            answer.headers.get("hx-refresh").map(|v| v.to_str().ok()),
             Some(Some("true")),
             "nothing asked the browser for the page back"
         );
@@ -4722,7 +4582,7 @@ mod tests {
             id
         };
 
-        let out = crate::db::data_dir(&corpus.0).join("kept.kmbackup.json");
+        let out = crate::db::data_dir(corpus.path()).join("kept.kmbackup.json");
         let (status, html) = post(
             &state,
             "/settings/backup",
@@ -4775,15 +4635,15 @@ mod tests {
     #[test]
     fn a_filter_does_not_outlive_the_folder_it_names() {
         let corpus = Scratch::new("filter-not-outliving");
-        let state = State::new(Db::open_in_memory(&corpus.0).expect("open"));
-        state.remember(&corpus.0, 0, 0);
+        let state = State::new(Db::open_in_memory(corpus.path()).expect("open"));
+        state.remember(corpus.path(), 0, 0);
         state.remember_songs_filter("language=pt&sort=updated".to_owned());
 
         state.close_folder();
         assert_eq!(state.songs_filter(), "");
 
         state.publish(Arc::new(Workspace::new(
-            Db::open_in_memory(&corpus.0).expect("reopen"),
+            Db::open_in_memory(corpus.path()).expect("reopen"),
         )));
         assert_eq!(state.songs_filter(), "");
     }
@@ -4797,12 +4657,12 @@ mod tests {
     fn another_corpus_does_not_inherit_a_filter() {
         let corpus = Scratch::new("filter-not-inherited");
         let other = Scratch::new("filter-not-inherited-other");
-        let state = State::new(Db::open_in_memory(&corpus.0).expect("open"));
-        state.remember(&corpus.0, 0, 0);
+        let state = State::new(Db::open_in_memory(corpus.path()).expect("open"));
+        state.remember(corpus.path(), 0, 0);
         state.remember_songs_filter("language=pt".to_owned());
 
         state.publish(Arc::new(Workspace::new(
-            Db::open_in_memory(&other.0).expect("open the other one"),
+            Db::open_in_memory(other.path()).expect("open the other one"),
         )));
         assert_eq!(state.songs_filter(), "");
     }
@@ -5934,7 +5794,7 @@ mod tests {
     /// therefore leaves alone — so a test about this button needs names with the defect in them.
     fn a_shouting_corpus(name: &str, songs: u32) -> (Scratch, State) {
         let corpus = Scratch::new(name);
-        let mut db = Db::open_in_memory(&corpus.0).expect("open");
+        let mut db = Db::open_in_memory(corpus.path()).expect("open");
         for number in 0..songs {
             crate::db::tests::add(
                 &mut db,
@@ -5953,7 +5813,7 @@ mod tests {
     /// the opposite of what this one does.
     fn a_singing_corpus(name: &str) -> (Scratch, State) {
         let corpus = Scratch::new(name);
-        let mut db = Db::open_in_memory(&corpus.0).expect("open");
+        let mut db = Db::open_in_memory(corpus.path()).expect("open");
         for (id, title, lyrics) in [
             (
                 "song-0000",
@@ -6160,7 +6020,7 @@ mod tests {
     /// button leaves alone — so a test about it needs names with the defect in them.
     fn a_corpus_with_seams(name: &str, songs: u32) -> (Scratch, State) {
         let corpus = Scratch::new(name);
-        let mut db = Db::open_in_memory(&corpus.0).expect("open");
+        let mut db = Db::open_in_memory(corpus.path()).expect("open");
         for number in 0..songs {
             crate::db::tests::add(
                 &mut db,
@@ -6216,7 +6076,7 @@ mod tests {
     /// from a MIDI file or from `write_scanned`.
     fn a_corpus_of(name: &str, songs: u32) -> (Scratch, State) {
         let corpus = Scratch::new(name);
-        let mut db = Db::open_in_memory(&corpus.0).expect("open");
+        let mut db = Db::open_in_memory(corpus.path()).expect("open");
         for number in 0..songs {
             crate::db::tests::add(
                 &mut db,
@@ -6283,7 +6143,7 @@ mod tests {
     #[tokio::test]
     async fn a_page_is_drawn_while_the_writing_connection_is_held() {
         let corpus = Scratch::new("page-while-writing");
-        let mut db = Db::create(&corpus.0).expect("create");
+        let mut db = Db::create(corpus.path()).expect("create");
         crate::db::tests::add(&mut db, "song-0000", Some("Cabeça"), "folder/SONG.kar");
         let state = State::new(db);
 

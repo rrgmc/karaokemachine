@@ -113,6 +113,7 @@ km-tray = { workspace = true, optional = true }
 km-webshell = { workspace = true, optional = true }
 
 [dev-dependencies]
+km-testkit = { workspace = true, features = ["http"] }
 # Driving the real router as a service, without a listening socket. The pattern `km-api`'s and
 # `km-package-builder`'s page tests both use.
 tower = { workspace = true }

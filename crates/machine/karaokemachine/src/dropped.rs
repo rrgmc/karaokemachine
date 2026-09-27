@@ -512,34 +512,7 @@ fn file_name(path: &Path) -> String {
 mod tests {
     use super::*;
 
-    /// A scratch directory that removes itself, as in `crate::settings`'s tests.
-    ///
-    /// Named for the process and the thread, because the whole suite runs in parallel against one
-    /// system temporary directory.
-    struct Scratch(PathBuf);
-
-    impl Scratch {
-        fn new(name: &str) -> Self {
-            let dir = std::env::temp_dir().join(format!(
-                "km-dropped-{}-{name}-{:?}",
-                std::process::id(),
-                std::thread::current().id()
-            ));
-            let _ = fs::remove_dir_all(&dir);
-            fs::create_dir_all(&dir).expect("make the scratch directory");
-            Self(dir)
-        }
-
-        fn path(&self) -> &Path {
-            &self.0
-        }
-    }
-
-    impl Drop for Scratch {
-        fn drop(&mut self) {
-            let _ = fs::remove_dir_all(&self.0);
-        }
-    }
+    use km_testkit::Scratch;
 
     #[test]
     fn only_a_kmpkg_is_a_package() {

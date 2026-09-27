@@ -492,6 +492,8 @@ pub fn choose(situation: &Situation<'_>) -> Choice {
 mod tests {
     use std::time::Instant;
 
+    use km_testkit::Scratch;
+
     use super::*;
     use crate::discover::Sighting;
 
@@ -902,15 +904,9 @@ mod tests {
     // The record itself.
     // ---------------------------------------------------------------------------------------
 
-    fn scratch(name: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!("km-known-{name}-{}", std::process::id()));
-        std::fs::create_dir_all(&dir).expect("temp dir");
-        dir
-    }
-
     #[test]
     fn a_record_survives_a_restart() {
-        let dir = scratch("roundtrip");
+        let dir = Scratch::new("known-roundtrip");
         let path = path_in(&dir, "machine.json");
         let record = Known::at("http://192.168.1.42:8177", Why::Adopted).answered(
             "abc123",
@@ -922,13 +918,12 @@ mod tests {
         assert_eq!(read(&path).as_ref(), Some(&record));
         forget(&path);
         assert!(read(&path).is_none());
-        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// A record this build cannot read is no record rather than a crash, and never an empty one.
     #[test]
     fn a_record_this_build_cannot_read_is_no_record() {
-        let dir = scratch("unreadable");
+        let dir = Scratch::new("known-unreadable");
         let path = path_in(&dir, "machine.json");
 
         for bad in [
@@ -941,13 +936,12 @@ mod tests {
             std::fs::write(&path, bad).expect("write");
             assert!(read(&path).is_none(), "{bad:?} should read as nothing");
         }
-        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// A write leaves the record and nothing else.
     #[test]
     fn a_write_leaves_no_temporary_file_behind() {
-        let dir = scratch("tidy");
+        let dir = Scratch::new("known-tidy");
         let path = path_in(&dir, "machine.json");
         write(&path, &Known::at("http://192.168.1.9:8177", Why::Chosen));
 
@@ -957,7 +951,6 @@ mod tests {
             .map(|entry| entry.file_name().to_string_lossy().into_owned())
             .collect();
         assert_eq!(left, vec!["machine.json".to_owned()]);
-        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

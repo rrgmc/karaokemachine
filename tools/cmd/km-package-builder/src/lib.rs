@@ -1627,7 +1627,7 @@ mod tests {
     #[test]
     fn a_database_path_resolves_to_the_folder_around_it() {
         let scratch = Scratch::new("folder-of");
-        let folder = scratch.0.clone();
+        let folder = scratch.to_path_buf();
         let tidied = crate::model::tidy(&folder);
 
         let database = folder.join(db::DATABASE_NAME);
@@ -1884,7 +1884,7 @@ mod tests {
     #[test]
     fn only_a_folder_that_is_really_there_is_reopened() {
         let scratch = Scratch::new("reopen-rule");
-        let folder = scratch.0.clone();
+        let folder = scratch.to_path_buf();
 
         assert_eq!(
             crate::browse::indexed(&folder),

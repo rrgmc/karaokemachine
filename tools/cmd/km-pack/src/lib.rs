@@ -1647,6 +1647,7 @@ pub fn file_stem(path: &Path) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use km_testkit::Scratch;
 
     /// A named language reaches the entry for the two kinds that cannot detect one.
     ///
@@ -1703,8 +1704,7 @@ mod tests {
     /// at all rather than merely desirable.
     #[test]
     fn one_walk_finds_exactly_what_three_walks_found() {
-        let dir = std::env::temp_dir().join("km-pack-collect-songs");
-        let _ = std::fs::remove_dir_all(&dir);
+        let dir = Scratch::new("collect-songs");
         std::fs::create_dir_all(dir.join("deep/deeper")).expect("scratch");
 
         // Every kind, at three depths, with the case and extension variants the corpus actually
@@ -1738,15 +1738,12 @@ mod tests {
 
         assert_eq!(one, three);
         assert_eq!(one.len(), 9, "the non-song is in neither: {one:?}");
-
-        std::fs::remove_dir_all(&dir).expect("clean up");
     }
 
     /// A walk says how far it has got while it runs, and stops where it is told to.
     #[test]
     fn a_walk_reports_its_count_and_stops_when_told() {
-        let dir = std::env::temp_dir().join("km-pack-collect-observed");
-        let _ = std::fs::remove_dir_all(&dir);
+        let dir = Scratch::new("collect-observed");
         for folder in ["one", "two", "three"] {
             std::fs::create_dir_all(dir.join(folder)).expect("scratch");
             std::fs::write(dir.join(folder).join("a.kar"), b"x").expect("write");
@@ -1773,8 +1770,6 @@ mod tests {
         });
         assert_eq!(stopped, ControlFlow::Break(()));
         assert_eq!(part.len(), 1, "the walk went on past the stop: {part:?}");
-
-        std::fs::remove_dir_all(&dir).expect("clean up");
     }
 
     /// A linked folder is walked, and a link back to a folder above it ends there.
@@ -1784,12 +1779,9 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn a_link_back_up_the_tree_ends_the_walk_and_a_linked_folder_is_walked() {
-        let dir = std::env::temp_dir().join("km-pack-collect-links");
-        let elsewhere = std::env::temp_dir().join("km-pack-collect-links-elsewhere");
-        let _ = std::fs::remove_dir_all(&dir);
-        let _ = std::fs::remove_dir_all(&elsewhere);
+        let dir = Scratch::new("collect-links");
+        let elsewhere = Scratch::new("collect-links-elsewhere");
         std::fs::create_dir_all(dir.join("inner")).expect("scratch");
-        std::fs::create_dir_all(&elsewhere).expect("scratch");
         std::fs::write(dir.join("inner/a.kar"), b"x").expect("write");
         std::fs::write(elsewhere.join("b.kar"), b"x").expect("write");
         std::os::unix::fs::symlink(&dir, dir.join("inner/loop")).expect("link");
@@ -1806,9 +1798,6 @@ mod tests {
         let mut songs = Vec::new();
         collect_songs(&dir, &mut songs);
         assert_eq!(songs.len(), 2, "{songs:?}");
-
-        std::fs::remove_dir_all(&dir).expect("clean up");
-        std::fs::remove_dir_all(&elsewhere).expect("clean up");
     }
 
     #[test]
@@ -1827,8 +1816,7 @@ mod tests {
     /// An index is written by hand, so a number it cannot honor has to stop rather than be dropped.
     #[test]
     fn an_index_number_out_of_range_names_its_row_instead_of_being_ignored() {
-        let dir = std::env::temp_dir().join("km-pack-index-range");
-        std::fs::create_dir_all(&dir).expect("scratch");
+        let dir = Scratch::new("index-range");
         let path = dir.join("index.csv");
 
         std::fs::write(&path, "file,number\na.kar,1000000\n").expect("write");
@@ -1851,8 +1839,6 @@ mod tests {
             overrides["a.kar"].number,
             Some(u32::from(km_songcode::MAX_SLOT))
         );
-
-        std::fs::remove_dir_all(&dir).ok();
     }
 
     #[test]

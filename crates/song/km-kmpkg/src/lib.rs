@@ -1476,54 +1476,7 @@ fn read_manifest_from<R: Read + Seek>(reader: R, display: &str) -> Result<Manife
 mod tests {
     use super::*;
 
-    /// A scratch directory of this test's own, removed however the test ends.
-    ///
-    /// **The process id is what makes it a test's own**, and it is load-bearing rather than tidy. A
-    /// name of `km-package-tests-{name}` alone is unique within one run and shared by every run on
-    /// the machine — so two `cargo test` invocations of this crate at once write the same paths,
-    /// and one deletes the other's package out from under it mid-test. That is not hypothetical
-    /// here: worktrees share one `%TEMP%`, and several sessions build in this repository at a time.
-    /// It presents as two tests failing together, passing on a re-run, and passing under
-    /// `--test-threads=1` — which reads like a race in the code under test rather than in the
-    /// harness around it.
-    ///
-    /// The thread id is belt and braces for a `name` used from two threads at once; each test
-    /// passes its own today.
-    ///
-    /// Cleaning up on [`Drop`] rather than at the end of each test is what covers a panic, which is
-    /// exactly when a test used to leave its directory behind. The same shape as `Scratch` in
-    /// `km-package-builder`'s build tests.
-    struct Scratch(PathBuf);
-
-    impl Scratch {
-        fn new(name: &str) -> Self {
-            let dir = std::env::temp_dir().join(format!(
-                "km-package-tests-{}-{name}-{:?}",
-                std::process::id(),
-                std::thread::current().id()
-            ));
-            // Only reachable if a previous run was killed before its `Drop` ran *and* the operating
-            // system handed out the same process id again. Cheap, and the alternative is a test
-            // reading a stale package it did not write.
-            let _ = std::fs::remove_dir_all(&dir);
-            std::fs::create_dir_all(&dir).expect("temp dir");
-            Self(dir)
-        }
-    }
-
-    impl std::ops::Deref for Scratch {
-        type Target = Path;
-
-        fn deref(&self) -> &Path {
-            &self.0
-        }
-    }
-
-    impl Drop for Scratch {
-        fn drop(&mut self) {
-            let _ = std::fs::remove_dir_all(&self.0);
-        }
-    }
+    use km_testkit::Scratch;
 
     fn temp_dir(name: &str) -> Scratch {
         Scratch::new(name)
