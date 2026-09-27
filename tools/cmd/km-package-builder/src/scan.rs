@@ -1652,73 +1652,63 @@ mod tests {
     use crate::testing::Scratch;
 
     /// What holds for one run outranks what is kept, and the machine's own count is what is left.
+    ///
+    /// A number nobody can act on falls through to the next source rather than ending the run. A
+    /// scan somebody has just asked for should not stop over a stale variable in a shortcut.
     #[test]
-    fn a_flag_outranks_the_variable_outranks_the_file_outranks_the_processor_count() {
+    fn resolve_jobs_takes_the_first_source_that_names_a_usable_count() {
         let processors = std::thread::available_parallelism()
             .map(|n| n.get())
             .unwrap_or(4);
 
-        assert_eq!(resolve_jobs(Some(4), Some("16"), Some(8)), 4);
-        assert_eq!(resolve_jobs(None, Some("16"), Some(8)), 16);
-        assert_eq!(resolve_jobs(None, None, Some(8)), 8);
-        assert_eq!(resolve_jobs(None, None, None), processors);
+        // Each row is a label, the flag, the variable, the saved setting, and the resolved count.
+        let cases = [
+            ("flag over variable", Some(4), Some("16"), Some(8), 4),
+            ("variable over file", None, Some("16"), Some(8), 16),
+            ("file over processors", None, None, Some(8), 8),
+            ("processors last", None, None, None, processors),
+            // A kept number nobody can act on is no opinion, exactly as an unreadable variable is.
+            ("saved zero", None, None, Some(0), processors),
+            ("unreadable variable", None, Some("nonsense"), Some(6), 6),
+            ("empty variable", None, Some(""), None, processors),
+            ("blank variable", None, Some("   "), None, processors),
+            ("a word", None, Some("lots"), None, processors),
+            ("a negative", None, Some("-1"), None, processors),
+            ("a fraction", None, Some("4.5"), None, processors),
+            ("variable of zero", None, Some("0"), None, processors),
+            ("spaces around it", None, Some(" 8 "), None, 8),
+            // One reader is a scan, and none is a run that never ends. `run_inner` clamps as well,
+            // and this is the half that keeps a zero from ever reaching it.
+            ("no readers gets one", Some(0), None, None, 1),
+        ];
+        for (name, asked, named, saved, want) in cases {
+            assert_eq!(resolve_jobs(asked, named, saved), want, "{name}");
+        }
     }
 
-    /// A kept number nobody can act on is no opinion, exactly as an unreadable variable is.
+    /// A path under the root is relative with forward slashes, and a path outside it is kept whole
+    /// rather than mangled.
     #[test]
-    fn a_saved_reader_count_of_zero_is_no_opinion() {
-        let processors = std::thread::available_parallelism()
-            .map(|n| n.get())
-            .unwrap_or(4);
-
-        assert_eq!(resolve_jobs(None, None, Some(0)), processors);
-        assert_eq!(resolve_jobs(None, Some("nonsense"), Some(6)), 6);
-    }
-
-    /// **A number nobody can act on falls through rather than ending the run.** This is read on the
-    /// way into a scan somebody has just asked for, and refusing to start one over a stale variable
-    /// in a shortcut would cost them the scan to say so.
-    #[test]
-    fn a_reader_count_that_says_nothing_leaves_the_processor_count_standing() {
-        let processors = std::thread::available_parallelism()
-            .map(|n| n.get())
-            .unwrap_or(4);
-
-        for said in ["", "   ", "lots", "-1", "4.5", "0"] {
+    fn relative_path_is_forward_slashed_under_the_root_and_whole_outside_it() {
+        let cases = [
+            (
+                "a relative path uses forward slashes",
+                "/corpus/a/b.kar",
+                "a/b.kar",
+            ),
+            (
+                "a path outside the root is kept whole",
+                "/elsewhere/b.kar",
+                "/elsewhere/b.kar",
+            ),
+        ];
+        for (name, path, want) in cases {
             assert_eq!(
-                resolve_jobs(None, Some(said), None),
-                processors,
-                "{said:?} says no number of readers"
+                relative_path(Path::new("/corpus"), Path::new(path)),
+                want,
+                "{name}"
             );
         }
-        assert_eq!(
-            resolve_jobs(None, Some(" 8 "), None),
-            8,
-            "spaces around it are not"
-        );
-    }
-
-    /// One reader is a scan; none is a run that never ends. `run_inner` clamps as well, and this is
-    /// the half that keeps a zero from ever reaching it.
-    #[test]
-    fn asking_for_no_readers_still_gets_one() {
-        assert_eq!(resolve_jobs(Some(0), None, None), 1);
-    }
-
-    #[test]
-    fn a_relative_path_uses_forward_slashes() {
-        assert_eq!(
-            relative_path(Path::new("/corpus"), Path::new("/corpus/a/b.kar")),
-            "a/b.kar"
-        );
-    }
-
-    #[test]
-    fn a_path_outside_the_root_is_kept_whole_rather_than_mangled() {
-        assert_eq!(
-            relative_path(Path::new("/corpus"), Path::new("/elsewhere/b.kar")),
-            "/elsewhere/b.kar"
-        );
     }
 
     #[test]

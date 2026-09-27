@@ -8674,66 +8674,69 @@ mod tests {
         );
     }
 
-    /// A body of ticked rows is still a body the filter can be read out of.
+    /// A key the filter does not know is ignored however often it arrives, and a known key repeated
+    /// is refused.
     ///
-    /// `hx-include="#rows, #filters"` is what lets *Title from file name* redraw the list it was
-    /// used on, and it is only legal because a key this struct does not know is ignored however many
-    /// times it arrives. Asserted rather than assumed: the alternative is a 400 on a button nobody
-    /// tests by hand.
+    /// The ticked rows and a row's editor ride in the same body as the bar, through
+    /// `hx-include="#rows, #filters"`. So no control beside the bar may reuse one of its names, or
+    /// serde's `duplicate_field` turns a working button into a 400. Each row reads a body that
+    /// carries such controls, then the body that reusing the bar's name would send.
     #[test]
-    fn the_ticked_rows_riding_along_do_not_stop_the_filter_being_read() {
-        let body = "song_id=a&score=1&song_id=b&score=&title=x&row_artist=y&name=z\
-                    &song_id=c&suitability=8-10&folder=brasil%2F";
-        let query = FilterQuery::from_body(body).expect("the filter survives the company it keeps");
-        assert_eq!(query.suitability, "8-10");
-        assert_eq!(query.folder, "brasil/");
-
-        // The other half of the same rule: a repeated key this struct *does* know is refused, which
-        // is why no form beside the bar may reuse one of its names.
-        assert!(FilterQuery::from_body("folder=a&folder=b").is_err());
-    }
-
-    /// The row language select must not be named `language`.
-    ///
-    /// Every row of `#rows` now carries one, and `#rows` rides in the same body as `#filters` for
-    /// *Title from file name* and for the ticked-song actions. `FilterQuery` has a `language` key;
-    /// serde answers a repeated known key with `duplicate_field`. So a page of rows named `language`
-    /// would turn two working buttons into a 400 — the identical trap that made the bulk set's
-    /// select `set_language`, found here before it could be found by clicking.
-    #[test]
-    fn a_row_language_select_can_ride_in_the_same_body_as_the_filter_bar() {
-        let body = "song_id=a&row_language=pt&song_id=b&row_language=&song_id=c&row_language=ja\
-                    &language=ja&folder=brasil%2F";
-        let query = FilterQuery::from_body(body).expect("the rows' own selects are ignored");
-        assert_eq!(query.language, "ja", "the bar's own value, not a row's");
-        assert_eq!(query.folder, "brasil/");
-
-        // What the name would have cost, spelled out: this is the same body with the rows spelling
-        // it the wrong way, and it is a 400.
-        assert!(FilterQuery::from_body("language=pt&language=ja&folder=brasil%2F").is_err());
-    }
-
-    /// The row's artist box must not be named `artist`, for the reason its language select must not
-    /// be named `language`.
-    ///
-    /// **This one would have failed intermittently, which is what makes it worth its own test.** A
-    /// row's editor is in the DOM only while somebody has a row open, so a page of rows named
-    /// `artist` sends nothing extra most of the time — and then turns every ticked-song action into a
-    /// 400 for as long as one row is being renamed. A bug that comes and goes with something that
-    /// looks unrelated is the expensive kind.
-    #[test]
-    fn a_row_artist_box_can_ride_in_the_same_body_as_the_filter_bar() {
-        let body = "song_id=a&title=Wave&row_artist=Tom+Jobim\
-                    &artist=Dire+Straits&folder=brasil%2F";
-        let query = FilterQuery::from_body(body).expect("the row's own box is ignored");
-        assert_eq!(
-            query.artist, "Dire Straits",
-            "the bar's own value, not the row being edited"
-        );
-        assert_eq!(query.folder, "brasil/");
-
-        // What the name would have cost, spelled out.
-        assert!(FilterQuery::from_body("artist=Tom+Jobim&artist=Dire+Straits").is_err());
+    fn a_body_ignores_the_keys_beside_the_bar_and_refuses_a_repeated_bar_key() {
+        struct Case {
+            name: &'static str,
+            body: &'static str,
+            field: fn(&FilterQuery) -> &str,
+            want: &'static str,
+            clash: &'static str,
+        }
+        let cases = [
+            // *Title from file name* redraws the list it was used on, and only this makes that
+            // legal. The alternative is a 400 on a button nobody tests by hand.
+            Case {
+                name: "the ticked rows riding along do not stop the filter being read",
+                body: "song_id=a&score=1&song_id=b&score=&title=x&row_artist=y&name=z\
+                       &song_id=c&suitability=8-10&folder=brasil%2F",
+                field: |query| &query.suitability,
+                want: "8-10",
+                clash: "folder=a&folder=b",
+            },
+            // A row select named `language` would turn *Title from file name* and the ticked-song
+            // actions into a 400. The bulk set's select is `set_language` for the same reason.
+            Case {
+                name: "a row language select can ride in the same body as the filter bar",
+                body: "song_id=a&row_language=pt&song_id=b&row_language=&song_id=c&row_language=ja\
+                       &language=ja&folder=brasil%2F",
+                field: |query| &query.language,
+                want: "ja",
+                clash: "language=pt&language=ja&folder=brasil%2F",
+            },
+            // A row's editor is in the DOM only while a row is open, so a row box named `artist`
+            // would break the ticked-song actions intermittently. That is the expensive kind of
+            // bug.
+            Case {
+                name: "a row artist box can ride in the same body as the filter bar",
+                body: "song_id=a&title=Wave&row_artist=Tom+Jobim\
+                       &artist=Dire+Straits&folder=brasil%2F",
+                field: |query| &query.artist,
+                want: "Dire Straits",
+                clash: "artist=Tom+Jobim&artist=Dire+Straits",
+            },
+        ];
+        for Case {
+            name,
+            body,
+            field,
+            want,
+            clash,
+        } in cases
+        {
+            let query =
+                FilterQuery::from_body(body).unwrap_or_else(|error| panic!("{name}: {error}"));
+            assert_eq!(field(&query), want, "{name}: the bar's own value");
+            assert_eq!(query.folder, "brasil/", "{name}");
+            assert!(FilterQuery::from_body(clash).is_err(), "{name}: {clash}");
+        }
     }
 
     /// `?copies=2+` narrows, and `?duplicates=1` does not.
@@ -9391,36 +9394,29 @@ mod tests {
         );
     }
 
-    /// The create form no longer sends an id, and an absent one means *generate*.
+    /// The create form sends no id, and an absent one means *generate*. A supplied id is kept,
+    /// because `build::import` comes through the same handler with the id of a built `.kmpkg`.
     ///
-    /// The three empty shapes are one case on purpose: a page that posts `id=` and a page that omits
-    /// the field are indistinguishable to a form parser, and neither is somebody asking for a package
-    /// identified by the empty string.
+    /// A new identity would make the machine treat a re-import as a different package.
     #[test]
-    fn a_create_form_that_names_no_id_is_asking_for_a_generated_one() {
-        for body in ["name=Rock", "name=Rock&id=", "name=Rock&id=%20%20"] {
-            assert_eq!(
-                supplied_id(&Fields::parse(body)),
-                None,
-                "{body} should be asking for a generated id"
-            );
+    fn supplied_id_is_absent_when_blank_and_kept_when_named() {
+        let cases = [
+            // A page that posts `id=` and a page that omits the field are the same to a form
+            // parser. Neither asks for a package identified by the empty string.
+            ("no id field", "name=Rock", None),
+            ("an empty id", "name=Rock&id=", None),
+            ("an id of spaces", "name=Rock&id=%20%20", None),
+            (
+                "a supplied id",
+                "id=classic-rock-01&name=Rock",
+                Some("classic-rock-01"),
+            ),
+            // Trimmed, so a stray space in an imported manifest does not join the identity.
+            ("a padded id", "id=%20a1b2c3%20", Some("a1b2c3")),
+        ];
+        for (name, body, want) in cases {
+            assert_eq!(supplied_id(&Fields::parse(body)), want, "{name}: {body}");
         }
-    }
-
-    /// ...and an id that *is* supplied is honored, because `build::import` comes through the same
-    /// handler carrying the one it read out of a built `.kmpkg`. Giving that package a new identity
-    /// would make the machine treat a re-import as a different package.
-    #[test]
-    fn an_id_that_was_supplied_is_kept_rather_than_replaced() {
-        assert_eq!(
-            supplied_id(&Fields::parse("id=classic-rock-01&name=Rock")),
-            Some("classic-rock-01")
-        );
-        // Trimmed, so a stray space in an imported manifest does not become part of the identity.
-        assert_eq!(
-            supplied_id(&Fields::parse("id=%20a1b2c3%20")),
-            Some("a1b2c3")
-        );
     }
 
     /// The Build tab names a folder once and a file per form, a blank folder is the data folder, and a
