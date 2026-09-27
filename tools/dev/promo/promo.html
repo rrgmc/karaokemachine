@@ -1,0 +1,435 @@
+<!doctype html>
+<!--
+  The promotional video, as one page that draws any moment of it.
+
+  `seek(t)` draws the picture at `t` seconds and resolves once every image on it has decoded.
+  `capture.cjs` calls it once per frame and hands each screenshot to ffmpeg. Nothing here moves on its
+  own: there is no CSS animation and no timer, so a frame depends on `t` alone.
+
+  The music is the song the playing screen sings, from its first note. So second `t` of the video is
+  millisecond `1000 t` of the song, and frame `n` of `frames/` is the playing screen at `n / FPS`
+  seconds. `setBars` takes the second each bar starts at, and every scene cuts on a bar line. The
+  quiet verse takes the first four bars, and the rest is the chorus, one or two bars to a scene.
+
+  The palette is the site's, which `site/style.css` copies from `Theme::default()`.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>KaraokeMachine</title>
+<style>
+  :root {
+    --bg:     #0A0C14;
+    --ground: #2A0E42;
+    --glow:   #C43A8E;
+    --raised: #2A1B44;
+    --line:   #3A2757;
+    --text:   #ECEFF4;
+    --dim:    #9A92AA;
+    --muted:  #B3A9C2;
+    --amber:  #FFC107;
+    --blue:   #5FD3FF;
+    --green:  #57E79A;
+    --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial,
+            "Noto Sans", sans-serif;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    width: 1920px;
+    height: 1080px;
+    overflow: hidden;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font);
+  }
+
+  #stage {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    background:
+      radial-gradient(1400px 700px at 50% -120px, rgba(255, 193, 7, 0.10), transparent 68%),
+      radial-gradient(2200px 1000px at 32% -240px, rgba(196, 58, 142, 0.34), transparent 72%),
+      var(--bg);
+  }
+
+  /* Every element takes its opacity and transform from `seek`, and starts hidden. */
+  .layer { position: absolute; opacity: 0; will-change: transform, opacity; }
+
+  /* -- the title and the end card ------------------------------------------------------------- */
+
+  .card {
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+  }
+  .card .mark { width: 220px; height: 220px; }
+  .wordmark {
+    margin: 36px 0 0;
+    font-size: 150px;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    line-height: 1;
+  }
+  .wordmark span { color: var(--amber); }
+
+  /* A line of words that fills in amber from the left, as a sung line does on the television. */
+  .sung {
+    position: relative;
+    margin: 44px 0 0;
+    font-size: 50px;
+    font-weight: 600;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+  .sung .fill {
+    position: absolute;
+    inset: 0;
+    color: var(--amber);
+    clip-path: inset(0 100% 0 0);
+  }
+
+  .end .facts {
+    margin: 40px 0 0;
+    font-size: 44px;
+    color: var(--muted);
+  }
+  .end .url {
+    margin: 28px 0 0;
+    padding: 18px 40px;
+    border: 2px solid var(--line);
+    border-radius: 18px;
+    background: rgba(42, 27, 68, 0.7);
+    font-family: var(--mono);
+    font-size: 46px;
+    color: var(--amber);
+  }
+
+  /* -- the screens ---------------------------------------------------------------------------- */
+
+  .screen {
+    left: 0;
+    top: 0;
+    width: 1920px;
+    height: 1080px;
+    transform-origin: 0 0;
+    overflow: hidden;
+  }
+  .screen img { display: block; width: 1920px; height: 1080px; }
+  /* Drawn at full size and scaled, so the border and the shadow scale with the picture. */
+  .screen.framed {
+    border-radius: 28px;
+    box-shadow: 0 0 0 6px #1a1428, 0 40px 120px rgba(0, 0, 0, 0.65);
+  }
+
+  .phone {
+    width: 470px;
+    padding: 16px;
+    border-radius: 44px;
+    background: #15111f;
+    box-shadow: 0 0 0 2px #3a2f52, 0 36px 90px rgba(0, 0, 0, 0.6);
+  }
+  .phone img { display: block; width: 100%; border-radius: 28px; }
+
+  /* -- the words over a scene ----------------------------------------------------------------- */
+
+  .caption {
+    left: 96px;
+    bottom: 110px;
+    max-width: 1500px;
+    padding: 26px 40px 28px 36px;
+    border-left: 8px solid var(--amber);
+    border-radius: 6px 18px 18px 6px;
+    background: rgba(10, 12, 20, 0.82);
+    font-size: 54px;
+    font-weight: 700;
+    line-height: 1.2;
+  }
+
+  /* The idle screen draws its address panel along the bottom, so its caption sits above. */
+  .caption.top { bottom: auto; top: 110px; }
+
+  .headline {
+    left: 96px;
+    top: 84px;
+    width: 1728px;
+  }
+  .headline h2 {
+    margin: 0;
+    font-size: 72px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    line-height: 1.1;
+  }
+  .headline h2 span { color: var(--amber); }
+  .headline p {
+    margin: 22px 0 0;
+    font-size: 40px;
+    color: var(--muted);
+  }
+
+  #flash {
+    inset: 0;
+    background: radial-gradient(1200px 800px at 50% 50%, #fff6d6, rgba(255, 193, 7, 0.6) 60%, rgba(196, 58, 142, 0.4));
+  }
+
+  /* -- the song files and the platforms ------------------------------------------------------- */
+
+  .tiles {
+    left: 96px;
+    top: 470px;
+    width: 1728px;
+    display: flex;
+    justify-content: center;
+    gap: 28px;
+  }
+  .tile {
+    width: 330px;
+    padding: 60px 20px 56px;
+    border: 2px solid var(--line);
+    border-top: 8px solid var(--amber);
+    border-radius: 20px;
+    background: var(--raised);
+    text-align: center;
+    opacity: 0;
+  }
+  .tile b { display: block; font-size: 48px; font-weight: 800; }
+  .tile code {
+    display: block;
+    margin-top: 18px;
+    font-family: var(--mono);
+    font-size: 27px;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+
+  .chips {
+    left: 96px;
+    top: 400px;
+    width: 1728px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 34px;
+  }
+  .chips .row { display: flex; gap: 30px; }
+  .chip {
+    padding: 26px 46px;
+    border: 2px solid var(--line);
+    border-radius: 999px;
+    background: var(--raised);
+    font-size: 50px;
+    font-weight: 700;
+    opacity: 0;
+  }
+  .chip.machine { border-color: var(--amber); }
+</style>
+</head>
+<body>
+<div id="stage">
+
+  <!-- The playing screen, drawn by the machine itself from the song. -->
+  <div class="layer screen" id="live"><img id="live-img" alt=""></div>
+
+  <!-- The published stills from docs/images. -->
+  <div class="layer screen" id="idle"><img src="images/screen-idle-connect.png" alt=""></div>
+  <div class="layer screen framed" id="queue"><img src="images/screen-queue.png" alt=""></div>
+
+  <div class="layer phone" id="phone-browse"><img src="images/remote-browse.png" alt=""></div>
+  <div class="layer phone" id="phone-now"><img src="images/remote-now.png" alt=""></div>
+  <div class="layer phone" id="phone-queue"><img src="images/remote-queue.png" alt=""></div>
+
+  <div class="layer card" id="title">
+    <img class="mark" src="icon-512.png" alt="">
+    <h1 class="wordmark">Karaoke<span>Machine</span></h1>
+    <p class="sung">Pick a song by number, and sing.<span class="fill">Pick a song by number, and sing.</span></p>
+  </div>
+
+  <div class="layer caption top" id="cap-idle">Type a number, or point a phone at the code.</div>
+  <div class="layer caption" id="cap-live">Each syllable fills in time with the music.</div>
+
+  <div class="layer headline" id="head-remote">
+    <h2>Any phone is <span>the remote.</span></h2>
+    <p>Search the songs, queue one, change the key. There is no app to install.</p>
+  </div>
+  <div class="layer headline" id="head-queue">
+    <h2>The queue says <span>who sings next.</span></h2>
+  </div>
+
+  <div class="layer headline" id="head-files">
+    <h2>Five kinds of <span>song file.</span></h2>
+  </div>
+  <div class="layer tiles" id="files">
+    <div class="tile"><b>MIDI</b><code>.kar .mid</code></div>
+    <div class="tile"><b>Video</b><code>.mp4 .mkv .webm</code></div>
+    <div class="tile"><b>MP3+G</b><code>.mp3 + .cdg</code></div>
+    <div class="tile"><b>UltraStar</b><code>.txt + .mp3</code></div>
+    <div class="tile"><b>LRC</b><code>.lrc + .mp3</code></div>
+  </div>
+
+  <div class="layer headline" id="head-platforms">
+    <h2>On the television, <span>and in your pocket.</span></h2>
+  </div>
+  <div class="layer chips" id="platforms">
+    <div class="row">
+      <span class="chip machine">Windows</span><span class="chip machine">macOS</span><span class="chip machine">Linux</span>
+    </div>
+    <div class="row">
+      <span class="chip machine">Android</span><span class="chip machine">Google TV</span><span class="chip machine">Meta Quest</span>
+    </div>
+    <div class="row">
+      <span class="chip machine">iPhone</span><span class="chip machine">iPad</span>
+    </div>
+  </div>
+
+  <div class="layer card end" id="end">
+    <img class="mark" src="icon-512.png" alt="">
+    <h1 class="wordmark">Karaoke<span>Machine</span></h1>
+    <p class="facts">Free software, MIT or Apache-2.0.</p>
+    <p class="url">rrgmc.github.io/karaokemachine</p>
+  </div>
+
+  <!-- A flash of light where the chorus comes in and where the end card lands. -->
+  <div class="layer" id="flash"></div>
+
+</div>
+<script>
+  "use strict";
+
+  // The frame rate `frames/` was rendered at. `capture.cjs` sets it from the query string.
+  const FPS = Number(new URLSearchParams(location.search).get("fps") || 30);
+
+  // The second each bar of the song starts at, from `bars.json`. `setBars` replaces this stand-in.
+  let bars = Array.from({ length: 15 }, (_, bar) => (bar < 4 ? bar * 3.333 : 13.333 + (bar - 4) * 1.818));
+
+  // The bar holding the song's last chord, and how long the end card stays after it lands.
+  const LAST = 12;
+  const HOLD = 3.3;
+
+  const clamp = (x, lo = 0, hi = 1) => Math.min(hi, Math.max(lo, x));
+  const ease = (x) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
+  const out = (x) => 1 - Math.pow(1 - clamp(x), 3);
+
+  // 0 before `a`, 1 after `b`, and an eased step between.
+  const ramp = (t, a, b) => ease(clamp((t - a) / (b - a)));
+
+  // Up over `fade` seconds from `a`, and down over `fade` seconds to `b`.
+  const span = (t, a, b, fade = 0.2) => Math.min(ramp(t, a, a + fade), 1 - ramp(t, b - fade, b));
+
+  // A cut that lands hard: a little large at `at`, settling over a quarter of a second.
+  const punch = (t, at, size = 0.08) => (t < at ? 1 + size : 1 + size * (1 - out((t - at) / 0.28)));
+
+  const el = (id) => document.getElementById(id);
+  const B = (n) => bars[n];
+
+  function place(node, { opacity = 1, x = 0, y = 0, scale = 1 }) {
+    node.style.opacity = String(opacity);
+    node.style.transform = `translate(${x}px, ${y}px) scale(${scale})`;
+  }
+
+  // The items of a list arrive one to an eighth note from `start`, each with a small jump.
+  function onBeats(nodes, t, start, step, end) {
+    nodes.forEach((node, i) => {
+      const at = start + i * step;
+      const k = out((t - at) / 0.18);
+      const gone = ramp(t, end - 0.15, end);
+      node.style.opacity = String(t < at ? 0 : k * (1 - gone));
+      node.style.transform = `translateY(${(1 - k) * 36}px) scale(${0.9 + 0.1 * k})`;
+    });
+  }
+
+  function draw(t) {
+    const eighth = (B(5) - B(4)) / 8;
+
+    // Title, over the piano alone.
+    place(el("title"), { opacity: span(t, 0, B(1), 0.5), scale: 0.95 + 0.05 * ramp(t, 0, 1.4) });
+    el("title").querySelector(".fill").style.clipPath =
+      `inset(0 ${100 - 100 * clamp((t - 1.0) / (B(1) - 1.6))}% 0 0)`;
+
+    // The idle screen, as the verse starts.
+    const intoVerse = clamp((t - B(1)) / (B(2) - B(1)));
+    place(el("idle"), { opacity: span(t, B(1) - 0.3, B(2) + 0.2, 0.35), scale: 1 + 0.04 * intoVerse, x: -20 * intoVerse, y: -12 * intoVerse });
+    place(el("cap-idle"), { opacity: span(t, B(1) + 0.3, B(2) - 0.1, 0.3), y: 20 * (1 - ramp(t, B(1) + 0.3, B(1) + 0.7)) });
+
+    // The playing screen: a slow push through the verse, then the chorus lands on it.
+    const verse = clamp((t - B(2)) / (B(4) - B(2)));
+    const shrink = ramp(t, B(6), B(6) + 0.3);
+    let live = { opacity: 0 };
+    if (t >= B(2) - 0.2 && t < B(4)) {
+      live = { opacity: ramp(t, B(2) - 0.2, B(2) + 0.2), scale: 1 + 0.07 * verse, x: -67 * verse, y: -38 * verse };
+    } else if (t >= B(4) && t < B(6)) {
+      const k = punch(t, B(4), 0.12);
+      live = { scale: k, x: -960 * (k - 1), y: -540 * (k - 1) };
+    } else if (t >= B(6) && t < B(8)) {
+      live = { scale: 1 - 0.5 * shrink, x: 864 * shrink, y: 400 * shrink };
+    } else if (t >= B(11)) {
+      const k = punch(t, B(11), 0.1);
+      live = { scale: k, x: -960 * (k - 1), y: -540 * (k - 1) };
+    }
+    place(el("live"), live);
+    el("live").classList.toggle("framed", t >= B(6) && t < B(8));
+    place(el("cap-live"), { opacity: span(t, B(2) + 0.4, B(4) - 0.2, 0.3), y: 20 * (1 - ramp(t, B(2) + 0.4, B(2) + 0.8)) });
+
+    // The remote, for the chorus's second line.
+    place(el("head-remote"), { opacity: span(t, B(6) + 0.1, B(8)), y: 24 * (1 - out((t - B(6) - 0.1) / 0.3)) });
+    const browse = t < B(6) + 2 * eighth ? 0 : out((t - B(6) - 2 * eighth) / 0.3);
+    place(el("phone-browse"), { opacity: Math.min(browse, 1 - ramp(t, B(8) - 0.2, B(8))), x: 80, y: 320 + 420 * (1 - browse) });
+    const now = t < B(6) + 6 * eighth ? 0 : out((t - B(6) - 6 * eighth) / 0.3);
+    place(el("phone-now"), { opacity: Math.min(now, 1 - ramp(t, B(8) - 0.2, B(8))), x: 420, y: 390 + 420 * (1 - now) });
+
+    // The queue, one bar, in the frame the playing screen had.
+    const queue = t >= B(8) && t < B(9) ? 1 : 0;
+    place(el("queue"), { opacity: queue, scale: 0.5 * punch(t, B(8), 0.06), x: 864, y: 400 });
+    place(el("head-queue"), { opacity: queue, y: 24 * (1 - out((t - B(8)) / 0.3)) });
+    place(el("phone-queue"), { opacity: queue, x: 220, y: 330 + 60 * (1 - out((t - B(8)) / 0.3)) });
+
+    // The song files, one bar, a tile to an eighth.
+    const files = t >= B(9) && t < B(10) ? 1 : 0;
+    place(el("head-files"), { opacity: files, y: 24 * (1 - out((t - B(9)) / 0.3)) });
+    place(el("files"), { opacity: files });
+    onBeats([...el("files").children], t, B(9) + eighth, eighth, B(10));
+
+    // The platforms, one bar, a chip to a sixteenth.
+    const platforms = t >= B(10) && t < B(11) ? 1 : 0;
+    place(el("head-platforms"), { opacity: platforms, y: 24 * (1 - out((t - B(10)) / 0.3)) });
+    place(el("platforms"), { opacity: platforms });
+    onBeats([...el("platforms").querySelectorAll(".chip")], t, B(10) + eighth, eighth / 2, B(11));
+
+    // The end card lands on the last chord.
+    const end = t >= B(LAST) ? 1 : 0;
+    place(el("end"), { opacity: end, scale: punch(t, B(LAST), 0.1) });
+    if (end) el("live").style.opacity = "0";
+
+    // A flash where the chorus comes in and where the last chord lands.
+    const flash = (at, size) => (t < at ? 0 : size * Math.exp(-(t - at) / 0.12));
+    place(el("flash"), { opacity: Math.max(flash(B(4), 0.85), flash(B(LAST), 0.7), flash(B(11), 0.35)) });
+
+    // The playing screen at this moment of the song.
+    const n = Math.round(t * FPS);
+    const src = `frames/frame-${String(n).padStart(4, "0")}.png`;
+    const img = el("live-img");
+    if (Number(el("live").style.opacity) > 0 && !img.src.endsWith(src)) img.src = src;
+  }
+
+  window.setBars = (seconds) => {
+    bars = seconds;
+    window.DURATION = bars[LAST] + HOLD;
+  };
+  window.setBars(bars);
+  window.seek = async (t) => {
+    draw(t);
+    await Promise.all([...document.images].map((img) => (img.src ? img.decode().catch(() => {}) : null)));
+  };
+
+  // A reader who opens the page in a browser sees the first frame.
+  draw(0);
+</script>
+</body>
+</html>

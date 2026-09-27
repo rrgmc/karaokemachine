@@ -434,6 +434,7 @@ cargo km-banner            # the Android TV banner; needs icon-128.png first
 cargo km-preview           # every screen to target/preview
 tools/dev/screenshots.sh   # the eight pictures in docs/images that README.md shows
 tools/dev/screen-animation.sh  # the ninth, screen-singing.webp: a carol sung, animated
+tools/dev/promo-video.sh   # the promotional video, into dist/promo; needs Node with Playwright
 ```
 
 ### The Christmas carol pack

@@ -576,6 +576,36 @@ behind it, so the clip fabricates nothing.
 **The site's hero and its `og:image` stay `screen-playing.png`.** A link preview shows the first
 frame of an animation or nothing at all. The still is the better picture for that.
 
+## The promotional video sings a song written for it
+
+**The promotional video is a build product, and `tools/dev/promo-video.sh` builds it.** It runs half
+a minute at 1920x1080 and thirty frames a second, with sound. It lands in `dist/promo/` and is never
+committed. A video is tens of megabytes, and it changes whenever a published picture does.
+
+**The song is written for the video, words and music**: *Sing It Out Loud*, in
+`crates/playback/km-display/examples/promo/song.rs`. A promotion wants the energy of a karaoke hit.
+No hit may be published in it, and neither may a copy of one's tune. So the song takes the shape a
+karaoke anthem takes, a quiet verse and a loud chorus, and borrows nothing else. The carol pack is
+the only other song the project may publish, and a hymn does not sell a party.
+
+**The machine sings it, draws it and plays it.** The song is an ordinary Soft Karaoke file. The
+playing screen in the video is the display's own renderer, and the sound is the synthesizer's own
+offline render through the bundled SoundFont. Both read one song file and one tempo map, so the
+words keep time with the music. A mockup of the screen would show what the machine does not do.
+
+**Every other picture in it is already published.** The idle, queue and remote screens are stills
+from `docs/images/`, the mark is `icon/icon-512.png`, and the palette is the site's. So the video
+shows nothing the README does not, and it fabricates nothing beyond what those stills fabricate.
+
+**Its words follow the rules for published prose.** Each claim on screen is one the README makes:
+the five song sources, the platforms, the remote and the license. It names no suitability number and
+no scoring, because the machine rates files and never singers.
+
+**The page is HTML, captured by Playwright, because the words need typesetting.** The display draws
+a television screen and cannot lay out a title card. `tools/dev/promo/promo.html` draws any moment
+of the video from its time alone, and it cuts on the song's bar lines. So two runs on one machine
+give the same frames.
+
 ## Who the README is for
 
 **The README is for somebody who has the machine; `BUILDING.md` for somebody who has the source.** The

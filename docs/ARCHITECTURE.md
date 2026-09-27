@@ -250,6 +250,7 @@ tools/                     # six folders and nothing loose -- see "How things he
     bin.sh cmd.sh clean.sh check-assets.sh
   dev/                     # the working session
     worktree.sh claude-worktree-hook.sh screenshots.sh screen-animation.sh
+    promo-video.sh promo/  # the promotional video: its song, and a page captured frame by frame
     check-no-local-refs.sh
     clean.sh               # the whole checkout, where dist/clean.sh is the releases in it
     soundfont.sh soundfont-debug.sh soundfont-measure.sh

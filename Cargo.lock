@@ -2417,6 +2417,7 @@ dependencies = [
  "km-queue",
  "km-song",
  "km-songcode",
+ "midly",
  "qrcode",
  "sdl3",
  "sdl3-ttf-sys",
