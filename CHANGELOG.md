@@ -78,6 +78,8 @@ Entries are written for somebody who has the machine. Why any of it is the way i
 
 ### Changed
 
+- **Changing a microphone needs the admin password.** Its name, gain, effects and mute move to
+  `PUT /api/v1/admin/mics/{id}`. Reading them at `GET /api/v1/mics` stays open to anybody.
 - **A song with barely any singing in it stops sorting above the real ones.** A file sung for less
   than three quarters of a minute rates 4 out of 10 or lower and counts as defective. The package
   builder's default 8–10 band therefore leaves it out, and the under-5 band is where to find it. How

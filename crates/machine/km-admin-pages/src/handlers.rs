@@ -99,20 +99,7 @@ fn caller_of(headers: &HeaderMap, peer: Option<std::net::SocketAddr>) -> Caller 
     }
 }
 
-/// One cookie's value out of a `Cookie` header.
-///
-/// Written out rather than pulled in, for the reason `km-remote-pages`' own does: a cookie jar crate
-/// for one header this crate only ever reads is a dependency bought for nothing.
-pub(crate) fn cookie(headers: &HeaderMap, name: &str) -> Option<String> {
-    headers
-        .get(header::COOKIE)?
-        .to_str()
-        .ok()?
-        .split(';')
-        .filter_map(|pair| pair.split_once('='))
-        .find(|(key, _)| key.trim() == name)
-        .map(|(_, value)| value.trim().to_owned())
-}
+pub(crate) use km_api::cookie::read as cookie;
 
 /// The chrome every page carries.
 ///

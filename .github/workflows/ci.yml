@@ -155,8 +155,8 @@ jobs:
       - run: tools/platform/linux/apt-deps.sh --video
 
       # No separate build: `clippy --all-targets` type-checks every target and `cargo test` links them.
-      - run: cargo km-lint
-      - run: cargo km-test
+      - run: cargo --locked km-lint
+      - run: cargo --locked km-test
 
   desktop:
     needs: changes
@@ -173,8 +173,8 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           save-if: ${{ github.ref == 'refs/heads/master' }}
-      - run: cargo km-lint-no-video
-      - run: cargo km-test-no-video
+      - run: cargo --locked km-lint-no-video
+      - run: cargo --locked km-test-no-video
 
   # A second workspace on purpose: its programs need TLS from reqwest and km-package-builder needs
   # reqwest to have none, and cargo unifies features across a workspace. Excluded from the main
@@ -192,8 +192,8 @@ jobs:
         with:
           workspaces: tools/cmd/assets
           save-if: ${{ github.ref == 'refs/heads/master' }}
-      - run: cargo km-lint-assets
-      - run: cargo km-test-assets
+      - run: cargo --locked km-lint-assets
+      - run: cargo --locked km-test-assets
 
   # The one check branch protection requires. It fails when any job failed or was cancelled, and
   # passes when the rest passed or skipped.

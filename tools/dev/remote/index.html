@@ -1137,7 +1137,7 @@ function renderMics(mics) {
       slider.max = field === "gain" ? 2 : 1;
       slider.step = 0.01;
       slider.value = mic[field];
-      slider.onchange = () => api("PUT", `/mics/${mic.id}`, { [field]: Number(slider.value) })
+      slider.onchange = () => api("PUT", `/admin/mics/${mic.id}`, { [field]: Number(slider.value) })
         .then(renderMics);
       block.append(label, slider);
     }
@@ -1145,7 +1145,7 @@ function renderMics(mics) {
     const mute = document.createElement("button");
     mute.className = "plain";
     mute.textContent = mic.muted ? "Unmute" : "Mute";
-    mute.onclick = () => api("PUT", `/mics/${mic.id}`, { muted: !mic.muted }).then(renderMics);
+    mute.onclick = () => api("PUT", `/admin/mics/${mic.id}`, { muted: !mic.muted }).then(renderMics);
     block.append(mute);
     host.append(block);
   }

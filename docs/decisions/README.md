@@ -326,6 +326,7 @@ it are the same entry. How the thing is built is [`ARCHITECTURE.md`](../ARCHITEC
 - [Turning demo mode on is an owner's act; knowing it is on is not](api-and-network.md#turning-demo-mode-on-is-an-owners-act-knowing-it-is-on-is-not)
 - [The demo delay is a route of its own, and it is always written down](api-and-network.md#the-demo-delay-is-a-route-of-its-own-and-it-is-always-written-down)
 - [Starting one demo song is anybody's; turning demo mode on is not](api-and-network.md#starting-one-demo-song-is-anybodys-turning-demo-mode-on-is-not)
+- [Changing a microphone is an owner's act; reading them is not](api-and-network.md#changing-a-microphone-is-an-owners-act-reading-them-is-not)
 - [A refusal travels as a code, and whoever shows it writes the sentence](api-and-network.md#a-refusal-travels-as-a-code-and-whoever-shows-it-writes-the-sentence)
 - [Power is a capability of the host, not a method on the machine](api-and-network.md#power-is-a-capability-of-the-host-not-a-method-on-the-machine)
 - [The machine's own log is a route, and it is the owner's](api-and-network.md#the-machines-own-log-is-a-route-and-it-is-the-owners)

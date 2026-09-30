@@ -5,9 +5,8 @@
 //! controller can act on: which mics exist, what they are called, their gain and effect settings,
 //! whether they are muted.
 //!
-//! Deferred out of M3 on purpose. The registry is persisted configuration surfaced over the API, so
-//! it needs the API's shape to exist first; writing it against an interface that did not exist yet
-//! would have meant guessing twice.
+//! The registry is persisted configuration surfaced over the API. Reading it is public, and changing
+//! it is an owner's act under `/api/v1/admin/`.
 //!
 //! Everything is behind [`MicBus`] so that a future opt-in passthrough feature — cpal input into a
 //! ring buffer into a mixer stage — can implement the same operations without the API changing.
