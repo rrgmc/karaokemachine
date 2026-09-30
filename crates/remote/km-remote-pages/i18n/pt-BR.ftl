@@ -75,7 +75,6 @@ filter-tags-clear = Limpar tudo
 load-more = Carregar mais
 book-link = A lista de músicas, em PDF
 youtube-link = Procurar no YouTube
-no-lyric-match = não achado nesta música
 
 ## As ações de uma música
 
@@ -193,6 +192,7 @@ empty-folders-search = Nenhuma pasta corresponde a “{ $query }”.
 now-nothing-playing = Nada tocando
 now-up-next = A seguir
 now-singer-for = para
+song-position = Quanto da música já tocou
 
 ## O cartão da máquina, e a faixa acima dele
 

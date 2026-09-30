@@ -10,7 +10,7 @@
   {% endif %}
   <p class="hint">{{ "picture-kinds-hint"|t }}</p>
   <form method="post" action="/admin/pictures/upload" enctype="multipart/form-data">
-    <input type="file" name="file" accept="{{ accepts }}" required>
+    <input type="file" name="file" accept="{{ accepts }}" aria-label="{{ "picture-add"|t }}" required>
     <button type="submit">{{ "action-add"|t }}</button>
   </form>
 </section>

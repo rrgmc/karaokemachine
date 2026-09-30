@@ -38,6 +38,7 @@
             {% if !view.can_transpose() %}disabled{% endif %}>+</button>
     <button class="quiet" hx-post="/control/transpose-reset" hx-target="#player" hx-swap="outerHTML"
             {% if !view.can_transpose() %}disabled{% endif %}>{{ "reset"|t }}</button>
+    {% match key_hint %}{% when Some with (hint) %}<span class="hint">{{ hint }}</span>{% when None %}{% endmatch %}
   </div>
 
   <div class="control-row">
@@ -51,6 +52,7 @@
             {% if !view.can_tempo() %}disabled{% endif %}>+</button>
     <button class="quiet" hx-post="/control/tempo-reset" hx-target="#player" hx-swap="outerHTML"
             {% if !view.can_tempo() %}disabled{% endif %}>{{ "reset"|t }}</button>
+    {% match tempo_hint %}{% when Some with (hint) %}<span class="hint">{{ hint }}</span>{% when None %}{% endmatch %}
   </div>
 
   <div class="control-row">
@@ -67,7 +69,7 @@
             aria-pressed="{% if view.melody_on() %}true{% else %}false{% endif %}"
             hx-post="/control/melody" hx-target="#player" hx-swap="outerHTML"
             {% if !view.can_melody() %}disabled{% endif %}>{% if view.melody_on() %}{{ "toggle-on"|t }}{% else %}{{ "toggle-off"|t }}{% endif %}</button>
-    {% if !view.can_melody() %}<span class="hint">{{ "no-lyric-match"|t }}</span>{% endif %}
+    {% match melody_hint %}{% when Some with (hint) %}<span class="hint">{{ hint }}</span>{% when None %}{% endmatch %}
   </div>
 
 </div>

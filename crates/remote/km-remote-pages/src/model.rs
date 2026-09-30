@@ -368,6 +368,35 @@ impl PlayerView {
             .is_some_and(|now| now.tempo_available)
     }
 
+    /// Why the key cannot be changed, as a message key and the song kind it selects on.
+    ///
+    /// `None` while it can, and while nothing is loaded: the card's title already says that.
+    pub fn key_refusal(&self) -> Option<(&'static str, &'static str)> {
+        let now = self.state.now_playing.as_ref()?;
+        (!now.transpose_available).then_some(("error-no-key", now.kind.as_str()))
+    }
+
+    /// Why the tempo cannot be changed. See [`Self::key_refusal`].
+    pub fn tempo_refusal(&self) -> Option<(&'static str, &'static str)> {
+        let now = self.state.now_playing.as_ref()?;
+        (!now.tempo_available).then_some(("error-no-tempo", now.kind.as_str()))
+    }
+
+    /// Why there is no guide melody. See [`Self::key_refusal`].
+    ///
+    /// **A MIDI file has one to look for**, so its sentence says the search found nothing. Every
+    /// other kind has none at all, and its sentence says that instead.
+    pub fn melody_refusal(&self) -> Option<(&'static str, &'static str)> {
+        let now = self.state.now_playing.as_ref()?;
+        if now.melody_available {
+            return None;
+        }
+        Some(match now.kind {
+            km_kmpkg::SongKind::Midi => ("error-no-melody-channel", "midi"),
+            kind => ("error-no-melody", kind.as_str()),
+        })
+    }
+
     /// Whether a guide melody was found in this song.
     pub fn can_melody(&self) -> bool {
         self.state

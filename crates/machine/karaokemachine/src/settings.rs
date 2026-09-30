@@ -2369,6 +2369,16 @@ mod tests {
     }
 
     #[test]
+    fn the_owners_control_reaches_exactly_as_far_as_the_clamp() {
+        // A control shorter than the clamp hides a setting the machine takes. A longer one offers a
+        // setting the machine quietly cuts back.
+        assert_eq!(
+            km_admin_pages::views::LYRIC_OFFSET_REACH_MS,
+            MAX_LYRIC_OFFSET_MS
+        );
+    }
+
+    #[test]
     fn a_window_position_is_a_pair_or_nothing() {
         // Half a position centers the window rather than inventing the other half.
         let display = DisplaySettings {

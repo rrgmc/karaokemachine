@@ -2388,6 +2388,15 @@ async fn the_owner_pages_follow_the_same_cookie_the_remote_writes() {
     assert!(!body.contains(">Songs<"), "English survived: {body}");
 }
 
+/// The sign-in page names its language too, so a screen reader reads Portuguese as Portuguese.
+#[tokio::test]
+async fn the_sign_in_page_says_which_language_it_is_in() {
+    let (app, _) = nested(Arc::new(SpyGuard::default()));
+    let (status, body) = get_with(&app, "/admin/login", ("Cookie", "km_locale=pt-BR")).await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(body.contains(r#"<html lang="pt-BR">"#), "{body}");
+}
+
 /// With no cookie, the browser's own language decides.
 #[tokio::test]
 async fn a_browser_that_asks_for_portuguese_gets_portuguese_pages() {
@@ -2805,6 +2814,60 @@ async fn a_host_that_declares_a_script_gets_it_on_every_page_it_serves() {
         );
     }
     assert!(checked > 3, "only {checked} pages were read");
+}
+
+// -- when the words light up ---------------------------------------------------------------------
+
+/// A television that processes its picture draws the words late, and this is where the owner
+/// moves them. Both surfaces carry it, and saving it reaches the machine.
+#[tokio::test]
+async fn the_sound_tab_moves_the_words_against_the_audio() {
+    for host in BOTH_HOSTS {
+        let surface = host.name();
+        let (app, state) = nested_as(
+            host,
+            TestMachine::with_catalog(6),
+            Arc::new(SpyGuard::default()),
+        );
+
+        let (status, body) = get(&app, "/admin/sound").await;
+        assert_eq!(status, StatusCode::OK, "{surface}");
+        assert!(
+            body.contains(r#"action="/admin/sound/lyric-offset""#),
+            "{surface} should draw the control: {body}"
+        );
+        assert!(
+            body.contains("The words light up with the music."),
+            "{surface} should say where the words sit now: {body}"
+        );
+
+        let location = post_form_to(&app, "/admin/sound/lyric-offset", "ms=120").await;
+        assert!(location.contains("kind=good"), "{surface}: {location}");
+        assert_eq!(
+            state.controller().snapshot().settings.lyric_offset_ms,
+            120,
+            "{surface} should have moved the machine"
+        );
+
+        // A number past the control's reach is the reach, as the machine would clamp it.
+        post_form_to(&app, "/admin/sound/lyric-offset", "ms=-9000").await;
+        assert_eq!(
+            state.controller().snapshot().settings.lyric_offset_ms,
+            -km_admin_pages::views::LYRIC_OFFSET_REACH_MS,
+            "{surface}"
+        );
+    }
+}
+
+/// A form with no number in it says so, rather than moving the words to zero.
+#[tokio::test]
+async fn a_lyric_offset_with_no_number_is_refused_and_moves_nothing() {
+    let (app, state) =
+        nested_with_state(TestMachine::with_catalog(6), Arc::new(SpyGuard::default()));
+    post_form_to(&app, "/admin/sound/lyric-offset", "ms=80").await;
+    let location = post_form_to(&app, "/admin/sound/lyric-offset", "").await;
+    assert!(location.contains("kind=bad"), "{location}");
+    assert_eq!(state.controller().snapshot().settings.lyric_offset_ms, 80);
 }
 
 // -- the output's own level ----------------------------------------------------------------------

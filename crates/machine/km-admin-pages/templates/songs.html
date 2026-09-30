@@ -5,7 +5,7 @@
   <h2>{{ "songs-add"|t }}</h2>
   <p class="hint">{{ "songs-add-hint"|t }}</p>
   <form method="post" action="/admin/songs/upload" enctype="multipart/form-data">
-    <input type="file" name="file" accept="{{ accepts }}" required>
+    <input type="file" name="file" accept="{{ accepts }}" aria-label="{{ "songs-add"|t }}" required>
     <button type="submit">{{ "action-add"|t }}</button>
   </form>
 </section>

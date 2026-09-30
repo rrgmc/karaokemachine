@@ -533,6 +533,13 @@ pub const LEVEL_FLOOR_CENTI: i32 = -6000;
 /// it.
 pub const LEVEL_CONFIRM_RISE_CENTI: i32 = 600;
 
+/// How far the lyric offset reaches either way, in milliseconds: the machine's own clamp.
+///
+/// **A copy, because this crate cannot take the one in `km-display`**: that crate draws with SDL, and
+/// `km-admin` serves these pages from a computer that links no SDL. A test in `karaokemachine`,
+/// which takes both, holds the two equal.
+pub const LYRIC_OFFSET_REACH_MS: i16 = 500;
+
 /// The sound tab.
 #[derive(Template)]
 #[template(path = "sound.html")]
@@ -578,6 +585,12 @@ pub struct SoundPage {
     /// ends, but an HDMI output hands the volume to a receiver and will never have a level. `A
     /// control that can only be refused is left out, not grayed` decides both.
     pub level: Option<LevelControl>,
+    /// How far the television's words lead the audio, or `None` when the machine did not say.
+    pub lyric_offset_ms: Option<i16>,
+    /// The offset as a sentence: which way the words move, and by how much.
+    pub lyric_offset_said: String,
+    /// [`LYRIC_OFFSET_REACH_MS`], for the template.
+    pub lyric_offset_reach: i16,
     /// What the file chooser offers, from `km_api::uploads::accept_for`.
     ///
     /// See [`SongsPage::accepts`]. No media type on this one: `.sf2` is `audio/x-soundfont` at best
@@ -869,6 +882,8 @@ impl LocaleChoice {
 #[derive(Template)]
 #[template(path = "login.html")]
 pub struct LoginPage {
+    /// The BCP-47 tag for `<html lang>`, as [`Chrome::lang`] carries it on every other page.
+    pub lang: &'static str,
     /// The stamp on the stylesheet's URL.
     pub assets: &'static str,
     /// What went wrong last time, if anything.
