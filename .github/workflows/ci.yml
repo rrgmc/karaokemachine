@@ -11,6 +11,7 @@ name: CI
 # | linux     | debian:13, the appliance's base | `cargo km-lint`, `cargo km-test`: the video build   |
 # | desktop   | windows, macos                  | the `-no-video` twins                               |
 # | assets    | ubuntu                          | `tools/cmd/assets`, the second workspace            |
+# | supply-chain | ubuntu                       | `cargo deny` over both lockfiles                    |
 #
 # Linux carries the video build because Debian 13 is the ffmpeg the appliance links, and the other
 # two platforms find ffmpeg through a download that `tools/setup/fetch-ffmpeg.sh` owns and that
@@ -42,6 +43,9 @@ env:
   # SDL3_ttf vendors FreeType, whose CMakeLists.txt asks for CMake 3.0, and CMake 4 refuses anything
   # below 3.5. CMake's own suggested workaround, and a no-op where nothing needs it.
   CMAKE_POLICY_VERSION_MINIMUM: "3.5"
+  # File and line in a backtrace, and none of the rest of the debug info, which is most of what a
+  # target directory holds and most of what a link writes. Smaller caches and faster Windows links.
+  CARGO_PROFILE_DEV_DEBUG: line-tables-only
 
 jobs:
   # What moved. A schedule or a dispatch runs everything.
@@ -52,6 +56,7 @@ jobs:
   # fail open after a move of `tools/cmd/assets`; the weekly run is its backstop.
   changes:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     outputs:
       code: ${{ steps.filter.outputs.code == 'true' || (github.event_name != 'push' && github.event_name != 'pull_request') }}
       assets: ${{ steps.filter.outputs.assets == 'true' || (github.event_name != 'push' && github.event_name != 'pull_request') }}
@@ -76,6 +81,7 @@ jobs:
   # commit messages as well, which is why that checkout carries history.
   guards:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
         with:
@@ -126,6 +132,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 120
     container: debian:13-slim
     steps:
       - name: Base packages
@@ -167,6 +174,7 @@ jobs:
       matrix:
         os: [windows-latest, macos-latest]
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v7
       - run: rustup toolchain install --no-self-update
@@ -185,6 +193,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.assets == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
       - run: rustup toolchain install --no-self-update
@@ -195,13 +204,41 @@ jobs:
       - run: cargo --locked km-lint-assets
       - run: cargo --locked km-test-assets
 
+  # What the lockfiles let in, over both workspaces, against `deny.toml`. It reads the lockfiles and
+  # builds nothing, so it takes a minute.
+  #
+  # **Advisories run on the weekly schedule and on request, and never on a pull request.** A new
+  # advisory is published against a crate the tree already holds. On a pull request it would fail a
+  # change that did not cause it. The schedule finds it within a week, and a dispatch finds it now.
+  supply-chain:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - run: rustup toolchain install --no-self-update
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-deny
+      - name: Licenses, sources and bans
+        run: |
+          cargo deny --locked check licenses sources bans
+          cargo deny --locked --manifest-path tools/cmd/assets/Cargo.toml check --config deny.toml licenses sources bans
+      - name: Advisories
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        run: |
+          cargo deny --locked check advisories
+          cargo deny --locked --manifest-path tools/cmd/assets/Cargo.toml check --config deny.toml advisories
+
   # The one check branch protection requires. It fails when any job failed or was cancelled, and
   # passes when the rest passed or skipped.
   ci-ok:
     name: CI ok
     if: always()
-    needs: [changes, guards, linux, desktop, assets]
+    needs: [changes, guards, linux, desktop, assets, supply-chain]
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
         run: exit 1
