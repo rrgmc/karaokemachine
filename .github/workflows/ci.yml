@@ -218,18 +218,20 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - run: rustup toolchain install --no-self-update
+      # A minor release, and not the newest. A minor release of cargo-deny can move a flag, and a
+      # moved flag fails every pull request until somebody edits this job.
       - uses: taiki-e/install-action@v2
         with:
-          tool: cargo-deny
+          tool: cargo-deny@0.20
       - name: Licenses, sources and bans
         run: |
           cargo deny --locked check licenses sources bans
-          cargo deny --locked --manifest-path tools/cmd/assets/Cargo.toml check --config deny.toml licenses sources bans
+          cargo deny --locked --manifest-path tools/cmd/assets/Cargo.toml --config deny.toml check licenses sources bans
       - name: Advisories
         if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
         run: |
           cargo deny --locked check advisories
-          cargo deny --locked --manifest-path tools/cmd/assets/Cargo.toml check --config deny.toml advisories
+          cargo deny --locked --manifest-path tools/cmd/assets/Cargo.toml --config deny.toml check advisories
 
   # The one check branch protection requires. It fails when any job failed or was cancelled, and
   # passes when the rest passed or skipped.
