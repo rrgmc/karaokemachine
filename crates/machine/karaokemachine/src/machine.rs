@@ -4791,32 +4791,18 @@ fn next_sweep(tries_left: u8, stuck: usize, now: Instant) -> Option<AuditionSwee
 
 /// An ISO-8601 timestamp, to the second, in UTC.
 ///
-/// Hand-rolled because the only place the machine needs a wall-clock time is stamping an install,
-/// and a date library for one line is not worth the dependency. Days-since-epoch converted with the
-/// civil-from-days algorithm.
+/// The only place the machine needs a wall-clock time is stamping an install.
 fn timestamp() -> String {
-    let now = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs();
-    let (days, seconds) = (now / 86_400, now % 86_400);
-    let (year, month, day) = civil_from_days(days as i64);
-    let (hour, minute, second) = (seconds / 3_600, (seconds % 3_600) / 60, seconds % 60);
-    format!("{year:04}-{month:02}-{day:02}T{hour:02}:{minute:02}:{second:02}Z")
-}
-
-/// Days since 1970-01-01 to a calendar date. Howard Hinnant's `civil_from_days`.
-fn civil_from_days(days: i64) -> (i64, u32, u32) {
-    let z = days + 719_468;
-    let era = if z >= 0 { z } else { z - 146_096 } / 146_097;
-    let doe = (z - era * 146_097) as u64;
-    let yoe = (doe - doe / 1_460 + doe / 36_524 - doe / 146_096) / 365;
-    let y = yoe as i64 + era * 400;
-    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
-    let mp = (5 * doy + 2) / 153;
-    let d = (doy - (153 * mp + 2) / 5 + 1) as u32;
-    let m = if mp < 10 { mp + 3 } else { mp - 9 } as u32;
-    (if m <= 2 { y + 1 } else { y }, m, d)
+    let at = time::OffsetDateTime::now_utc();
+    format!(
+        "{:04}-{:02}-{:02}T{:02}:{:02}:{:02}Z",
+        at.year(),
+        u8::from(at.month()),
+        at.day(),
+        at.hour(),
+        at.minute(),
+        at.second()
+    )
 }
 
 /// What just happened, as far as demo mode's clock is concerned.
@@ -6071,15 +6057,6 @@ mod tests {
         // Somewhere this side of 2020 and the other side of 2100, which is all this needs to be.
         let year: i32 = stamp[..4].parse().expect("a year");
         assert!((2020..2100).contains(&year), "{stamp}");
-    }
-
-    #[test]
-    fn known_dates_convert_correctly() {
-        assert_eq!(civil_from_days(0), (1970, 1, 1));
-        assert_eq!(civil_from_days(1), (1970, 1, 2));
-        // A leap day, which is where a hand-rolled conversion goes wrong.
-        assert_eq!(civil_from_days(11_016), (2000, 2, 29));
-        assert_eq!(civil_from_days(20_688), (2026, 8, 23));
     }
 
     // -- staged auditions ------------------------------------------------------------------------

@@ -19,46 +19,28 @@
 //! machine's locale said. A count and an area are a number and an enum, so the words came here and
 //! the television stopped having one line that ignored its own locale setting.
 
-use std::sync::OnceLock;
-
-use km_locale::{Catalog, Locale};
+use km_locale::{Catalog, Catalogs, Locale};
 
 /// The screen's own words, one catalog per locale.
 ///
 /// `include_str!` rather than a file beside the binary, per `Bundling assets`: this crate ends up
 /// inside a `.deb`, a macOS bundle and an APK, and a catalog that failed to travel would leave a
 /// television reading `⟦idle-prompt⟧` with no way to say why.
-const CATALOGS: &[(Locale, &str)] = &[
-    (Locale::English, include_str!("../i18n/en.ftl")),
-    (
-        Locale::BrazilianPortuguese,
-        include_str!("../i18n/pt-BR.ftl"),
-    ),
-];
+static CATALOGS: Catalogs = Catalogs::new(
+    "display",
+    &[
+        (Locale::English, include_str!("../i18n/en.ftl")),
+        (
+            Locale::BrazilianPortuguese,
+            include_str!("../i18n/pt-BR.ftl"),
+        ),
+    ],
+);
 
 /// The screen's messages for one locale, parsed once.
 #[must_use]
 pub fn messages(locale: Locale) -> &'static Catalog {
-    static PARSED: OnceLock<Vec<(Locale, Catalog)>> = OnceLock::new();
-    let parsed = PARSED.get_or_init(|| {
-        CATALOGS
-            .iter()
-            .map(|(locale, source)| {
-                let catalog = Catalog::new(*locale, source)
-                    // Compiled in, so this cannot be caused by anything at run time.
-                    // `every_catalog_holds_exactly_the_english_keys` turns it into a build failure.
-                    .unwrap_or_else(|errors| {
-                        panic!("{locale} display catalog: {}", errors.join("; "))
-                    });
-                (*locale, catalog)
-            })
-            .collect()
-    });
-    parsed
-        .iter()
-        .find(|(candidate, _)| *candidate == locale)
-        .map(|(_, catalog)| catalog)
-        .expect("every locale has a display catalog")
+    CATALOGS.get(locale)
 }
 
 /// Characters outside Latin-1 that this screen draws and the bundled font has pictures for.

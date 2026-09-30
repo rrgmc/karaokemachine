@@ -173,16 +173,9 @@ pub fn read(path: &Path) -> Option<Known> {
 /// look on the network next time.
 pub fn write(path: &Path, known: &Known) {
     let write = || -> std::io::Result<()> {
-        if let Some(parent) = path.parent() {
-            std::fs::create_dir_all(parent)?;
-        }
-        let temporary = path.with_extension("tmp");
         let body = serde_json::to_string_pretty(known)
             .map_err(|error| std::io::Error::other(error.to_string()))?;
-        std::fs::write(&temporary, body)?;
-        std::fs::rename(&temporary, path).inspect_err(|_| {
-            let _ = std::fs::remove_file(&temporary);
-        })
+        crate::files::replace(path, body.as_bytes())
     };
     if let Err(error) = write() {
         tracing::warn!(%error, path = %path.display(), "the machine was not remembered");

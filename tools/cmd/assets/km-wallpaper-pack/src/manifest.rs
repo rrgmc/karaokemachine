@@ -58,40 +58,24 @@ pub fn zip_name(config_hash: &str) -> String {
 
 /// The build timestamp, RFC 3339 to the second — what [`Manifest::generated_at`] is set from.
 ///
-/// Hand-formatted from the epoch rather than pulling in a date library for one string: the manifest
-/// wants a stamp a person can read, and this crate has no other use for calendars.
-///
-/// **Here rather than in `main.rs`, where it was**, because `build` takes this string as an argument
-/// and every caller therefore needs it: `km-admin` drives the same phase from a page, and a second
-/// copy of a calendar algorithm to fill one field would be an absurd thing to keep in step.
+/// **Here rather than in `main.rs`**, because `build` takes this string as an argument and every
+/// caller therefore needs it: `km-admin` drives the same phase from a page.
 pub fn generated_now() -> String {
-    let seconds = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|elapsed| elapsed.as_secs())
-        .unwrap_or_default();
-    let days = seconds / 86_400;
-    let time = seconds % 86_400;
-    let (year, month, day) = civil_from_days(days as i64);
-    format!(
-        "{year:04}-{month:02}-{day:02}T{:02}:{:02}:{:02}Z",
-        time / 3600,
-        (time % 3600) / 60,
-        time % 60
-    )
+    rfc3339(std::time::SystemTime::now())
 }
 
-/// Howard's `civil_from_days`, the standard branch-free calendar conversion.
-fn civil_from_days(days: i64) -> (i64, u32, u32) {
-    let z = days + 719_468;
-    let era = z.div_euclid(146_097);
-    let doe = z.rem_euclid(146_097);
-    let yoe = (doe - doe / 1_460 + doe / 36_524 - doe / 146_096) / 365;
-    let year = yoe + era * 400;
-    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
-    let mp = (5 * doy + 2) / 153;
-    let day = (doy - (153 * mp + 2) / 5 + 1) as u32;
-    let month = if mp < 10 { mp + 3 } else { mp - 9 } as u32;
-    (if month <= 2 { year + 1 } else { year }, month, day)
+/// A moment as RFC 3339 in UTC, to the second.
+fn rfc3339(at: std::time::SystemTime) -> String {
+    let at = time::OffsetDateTime::from(at);
+    format!(
+        "{:04}-{:02}-{:02}T{:02}:{:02}:{:02}Z",
+        at.year(),
+        u8::from(at.month()),
+        at.day(),
+        at.hour(),
+        at.minute(),
+        at.second()
+    )
 }
 
 /// The manifest of a built pack.
@@ -462,9 +446,12 @@ mod tests {
 
     #[test]
     fn the_epoch_and_a_known_date_both_come_out_right() {
-        assert_eq!(civil_from_days(0), (1970, 1, 1));
+        let at = |days: u64| {
+            rfc3339(std::time::UNIX_EPOCH + std::time::Duration::from_secs(days * 86_400))
+        };
+        assert_eq!(at(0), "1970-01-01T00:00:00Z");
         // 2026-08-24 is 20689 days after the epoch.
-        assert_eq!(civil_from_days(20_689), (2026, 8, 24));
+        assert_eq!(at(20_689), "2026-08-24T00:00:00Z");
     }
 
     #[test]

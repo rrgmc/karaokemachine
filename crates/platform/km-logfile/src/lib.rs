@@ -476,38 +476,18 @@ fn prune(dir: &Path, stem: &str, extension: &str, keep: usize) {
 /// `YYYYMMDDThhmmssZ` for a moment, in UTC.
 ///
 /// A time before the epoch is not a thing this is ever asked for — it would mean a clock set to the
-/// 1960s — and it answers `19700101T000000Z` rather than carrying signed arithmetic through
-/// [`civil_from_days`] for a case that cannot arise.
+/// 1960s — and it answers `19700101T000000Z` rather than a date nobody could have meant.
 fn stamp(at: SystemTime) -> String {
-    let secs = at
-        .duration_since(UNIX_EPOCH)
-        .map_or(0, |since| since.as_secs());
-    let (days, rest) = (secs / 86_400, secs % 86_400);
-    let (year, month, day) = civil_from_days(days);
-    let (hour, minute, second) = (rest / 3_600, (rest / 60) % 60, rest % 60);
-    format!("{year:04}{month:02}{day:02}T{hour:02}{minute:02}{second:02}Z")
-}
-
-/// The calendar date `days` after 1970-01-01, in the proleptic Gregorian calendar.
-///
-/// Howard Hinnant's `civil_from_days`, which is the standard way to do this without a date library
-/// and is what every one of them does inside. It shifts the year to start in March so that the leap
-/// day is the last day of it, which is what removes every special case: the four-, hundred- and
-/// four-hundred-year rules all fall out of the era arithmetic instead of being written down.
-///
-/// Unsigned throughout because [`stamp`] never passes it a date before the epoch.
-fn civil_from_days(days: u64) -> (u64, u64, u64) {
-    // 719_468 is 1970-01-01 counted from 0000-03-01, the start of the first era.
-    let z = days + 719_468;
-    let era = z / 146_097; // 146_097 days is 400 years exactly.
-    let doe = z - era * 146_097; // day of era, [0, 146_096]
-    let yoe = (doe - doe / 1_460 + doe / 36_524 - doe / 146_096) / 365; // [0, 399]
-    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100); // day of the March-based year, [0, 365]
-    let mp = (5 * doy + 2) / 153; // March-based month, [0, 11]
-    let day = doy - (153 * mp + 2) / 5 + 1; // [1, 31]
-    let month = if mp < 10 { mp + 3 } else { mp - 9 }; // [1, 12]
-    let year = yoe + era * 400 + u64::from(month <= 2);
-    (year, month, day)
+    let at = time::OffsetDateTime::from(at.max(UNIX_EPOCH));
+    format!(
+        "{:04}{:02}{:02}T{:02}{:02}{:02}Z",
+        at.year(),
+        u8::from(at.month()),
+        at.day(),
+        at.hour(),
+        at.minute(),
+        at.second()
+    )
 }
 
 #[cfg(test)]

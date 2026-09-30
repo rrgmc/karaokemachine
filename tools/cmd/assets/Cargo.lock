@@ -2204,6 +2204,7 @@ dependencies = [
 name = "km-logfile"
 version = "1.18.0"
 dependencies = [
+ "time",
  "tracing",
  "tracing-subscriber",
 ]
@@ -2316,6 +2317,7 @@ dependencies = [
  "sha2 0.11.0",
  "tempfile",
  "thiserror 2.0.20",
+ "time",
  "tokio",
  "toml 0.9.12+spec-1.1.0",
  "tracing",

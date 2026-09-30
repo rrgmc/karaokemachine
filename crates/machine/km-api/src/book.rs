@@ -16,11 +16,9 @@
 //! flag, which has a `Library` and no HTTP. [`collect`] is shaped as a closure for exactly that
 //! reason — one paging loop, two callers, no second place for the cursor arithmetic to be wrong.
 
-use std::sync::OnceLock;
-
 use km_catalog::CatalogSong;
 use km_kmpkg::Language;
-use km_locale::{Catalog as Messages, Locale};
+use km_locale::{Catalog as Messages, Catalogs, Locale};
 use km_songbook::{BookSong, BookStyle, Entry, SortKey};
 use km_songcode::SongCode;
 
@@ -29,41 +27,24 @@ use km_songcode::SongCode;
 /// `include_str!` rather than a file beside the binary, per `Bundling assets`: this book is printed
 /// by an appliance under a television with no filesystem anybody browses, and a missing catalog
 /// would be a book of `⟦book-title⟧`.
-const CATALOGS: &[(Locale, &str)] = &[
-    (Locale::English, include_str!("../i18n/en.ftl")),
-    (
-        Locale::BrazilianPortuguese,
-        include_str!("../i18n/pt-BR.ftl"),
-    ),
-];
+static CATALOGS: Catalogs = Catalogs::new(
+    "book",
+    &[
+        (Locale::English, include_str!("../i18n/en.ftl")),
+        (
+            Locale::BrazilianPortuguese,
+            include_str!("../i18n/pt-BR.ftl"),
+        ),
+    ],
+);
 
 /// The messages for one locale, parsed once.
 ///
-/// A `OnceLock` per process rather than a parse per book: a catalog is immutable and a book is not
+/// Once per process rather than once per book: a catalog is immutable and a book is not
 /// the only thing that will want one.
 #[must_use]
 pub fn messages(locale: Locale) -> &'static Messages {
-    static PARSED: OnceLock<Vec<(Locale, Messages)>> = OnceLock::new();
-    let parsed = PARSED.get_or_init(|| {
-        CATALOGS
-            .iter()
-            .map(|(locale, source)| {
-                let catalog = Messages::new(*locale, source)
-                    // Compiled in, so this is a build fault rather than anything a caller can
-                    // cause. `every_catalog_holds_exactly_the_english_keys` catches it before a
-                    // release.
-                    .unwrap_or_else(|errors| {
-                        panic!("{locale} book catalog: {}", errors.join("; "))
-                    });
-                (*locale, catalog)
-            })
-            .collect()
-    });
-    parsed
-        .iter()
-        .find(|(candidate, _)| *candidate == locale)
-        .map(|(_, catalog)| catalog)
-        .expect("every locale has a book catalog")
+    CATALOGS.get(locale)
 }
 
 /// The heading songs with no language recorded appear under.

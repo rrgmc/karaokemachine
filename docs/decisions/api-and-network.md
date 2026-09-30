@@ -1331,8 +1331,8 @@ in it is indistinguishable from a machine with nothing to say.
 
 **A record is structured, not a formatted line.** The level, the target, the message and the fields
 arrive apart, so a reader can colour by one and filter by another without parsing text. The time is
-milliseconds since the epoch, and nothing formats a clock on the machine's side. Whoever draws it has
-a locale, and this has no date library to get one.
+milliseconds since the epoch, and nothing formats a clock on the machine's side. Whoever draws it
+knows the reader's time zone, and the machine does not.
 
 **A stream carries frames, and falling behind is a frame of its own.** The alternative is a synthetic
 record saying so, and that forges a line the machine never emitted. Once somebody pastes the pane into
