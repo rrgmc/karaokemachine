@@ -597,6 +597,10 @@ unicode-normalization = "0.1.24"
 # `tao`.
 unicode-width = "0.2.2"
 unicode-segmentation = "1.13.3"
+# A moment as a calendar date and a clock time, in UTC. Every stamp the workspace writes is a
+# `SystemTime` shown that way: a log file's name, a package's `created`, a backup's `written_at`.
+# Already in the tree through `zip`, and `std` is the only feature a `From<SystemTime>` needs.
+time = { version = "0.3.55", default-features = false, features = ["std"] }
 directories = "6.0.0"
 clap = { version = "4.6.6", features = ["derive"] }
 thiserror = "2.0.20"

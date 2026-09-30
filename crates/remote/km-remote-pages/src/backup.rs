@@ -362,48 +362,19 @@ fn trimmed(value: Option<&str>) -> Option<String> {
 
 /// A moment as RFC 3339 in UTC.
 ///
-/// **Hand-rolled, and that is the consistent move rather than a shortcut.** This workspace has no
-/// date library and five crates already do this — `karaokemachine`'s `machine.rs`, `km-logfile`,
-/// `km-wallpaper-pack`, `km-pack` and `km-package-builder`'s `scan.rs` — each privately. Reaching
-/// for a sixth dependency for one timestamp would be a poor trade, and hoisting one of the five into
-/// a shared crate is a change worth making on its own rather than smuggling in behind a feature.
 /// It appears once here: [`Document::filename`] slices this rather than computing a date again.
+/// A clock set before the epoch answers `1970-01-01`.
 fn written_at(at: SystemTime) -> String {
-    let seconds = at
-        .duration_since(UNIX_EPOCH)
-        .map_or(0, |since| since.as_secs());
-    let (days, rest) = (seconds / 86_400, seconds % 86_400);
-    let (year, month, day) = civil_from_days(days);
-    let (hour, minute, second) = (rest / 3_600, (rest / 60) % 60, rest % 60);
-    format!("{year:04}-{month:02}-{day:02}T{hour:02}:{minute:02}:{second:02}Z")
-}
-
-/// The calendar date `days` after 1970-01-01, in the proleptic Gregorian calendar.
-///
-/// Howard Hinnant's `civil_from_days`, which is what every date library does inside. It shifts the
-/// year to start in March so the leap day is the last day of it, which removes every special case:
-/// the four-, hundred- and four-hundred-year rules all fall out of the era arithmetic.
-///
-/// Unsigned throughout, because [`written_at`] never passes a date before the epoch — that would
-/// mean a clock set to the 1960s, and it answers `1970-01-01` rather than carrying signed
-/// arithmetic through here for a case that cannot arise.
-fn civil_from_days(days: u64) -> (u64, u64, u64) {
-    // 719_468 is 1970-01-01 counted from 0000-03-01, the start of the first era.
-    let z = days + 719_468;
-    let era = z / 146_097; // 146_097 days is 400 years exactly.
-    let day_of_era = z - era * 146_097;
-    let year_of_era =
-        (day_of_era - day_of_era / 1_460 + day_of_era / 36_524 - day_of_era / 146_096) / 365;
-    let day_of_year = day_of_era - (365 * year_of_era + year_of_era / 4 - year_of_era / 100);
-    let march_month = (5 * day_of_year + 2) / 153;
-    let day = day_of_year - (153 * march_month + 2) / 5 + 1;
-    let month = if march_month < 10 {
-        march_month + 3
-    } else {
-        march_month - 9
-    };
-    let year = year_of_era + era * 400 + u64::from(month <= 2);
-    (year, month, day)
+    let at = time::OffsetDateTime::from(at.max(UNIX_EPOCH));
+    format!(
+        "{:04}-{:02}-{:02}T{:02}:{:02}:{:02}Z",
+        at.year(),
+        u8::from(at.month()),
+        at.day(),
+        at.hour(),
+        at.minute(),
+        at.second()
+    )
 }
 
 #[cfg(test)]
@@ -735,7 +706,7 @@ mod tests {
         );
     }
 
-    /// The calendar arithmetic, against dates a leap-year rule gets wrong if it is written by hand.
+    /// The stamp, against dates a leap-year rule gets wrong.
     #[test]
     fn the_timestamp_is_the_right_day_across_the_leap_year_rules() {
         let at = |seconds: u64| written_at(UNIX_EPOCH + std::time::Duration::from_secs(seconds));

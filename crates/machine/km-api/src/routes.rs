@@ -128,7 +128,6 @@ pub const SURFACE: &[(&str, &str)] = &[
     ("GET", "/settings"),
     ("PUT", "/settings"),
     ("GET", "/mics"),
-    ("PUT", "/mics/mic1"),
     ("GET", "/audio/outputs"),
     ("GET", "/audio/soundfont"),
     ("GET", "/audio/soundfonts"),
@@ -149,6 +148,7 @@ pub const SURFACE: &[(&str, &str)] = &[
     ("POST", "/admin/sessions/reset"),
     ("PUT", "/admin/audio/output"),
     ("PUT", "/admin/audio/soundfont"),
+    ("PUT", "/admin/mics/mic1"),
     ("POST", "/admin/audio/soundfont/fetch"),
     ("POST", "/admin/audio/soundfonts"),
     ("DELETE", "/admin/audio/soundfonts/generaluser"),
@@ -527,8 +527,9 @@ fn api_router(config: &crate::ApiConfig, capabilities: Capabilities) -> Router<A
             "/settings",
             get(handlers::get_settings).put(handlers::put_settings),
         )
+        // Reading the microphones is public. Naming, muting and setting one is installation
+        // configuration for the mixer, so the write sits under `/admin/`.
         .route("/mics", get(handlers::get_mics))
-        .route("/mics/{id}", put(handlers::put_mic))
         // Reading what the machine's sound is coming out of, and what it is coming out *as*. The
         // three writes that answer the same question live under `/admin/audio/`.
         .route("/audio/outputs", get(handlers::get_audio_outputs))
@@ -596,6 +597,7 @@ fn api_router(config: &crate::ApiConfig, capabilities: Capabilities) -> Router<A
                 .layer(DefaultBodyLimit::max(handlers::MAX_WALLPAPER_BYTES)),
         )
         .route("/wallpapers/{id}", delete(handlers::delete_wallpaper))
+        .route("/mics/{id}", put(handlers::put_mic))
         // No `GET` twin, and that is not an omission: `/discover` is always public and always
         // carries the name, so the read side was built before the write side and by somebody else.
         .route("/machine/name", put(handlers::put_machine_name))

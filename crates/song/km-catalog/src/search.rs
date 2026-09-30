@@ -100,23 +100,8 @@ impl Default for SearchQuery {
     }
 }
 
-/// A value bound into a query.
-#[derive(Debug, Clone, PartialEq)]
-pub enum Binding {
-    /// A string.
-    Text(String),
-    /// An integer.
-    Integer(i64),
-}
-
-impl rusqlite::ToSql for Binding {
-    fn to_sql(&self) -> rusqlite::Result<rusqlite::types::ToSqlOutput<'_>> {
-        match self {
-            Self::Text(value) => value.to_sql(),
-            Self::Integer(value) => value.to_sql(),
-        }
-    }
-}
+/// A value bound into a query: rusqlite's own, so text and integers share one type.
+pub use rusqlite::types::Value as Binding;
 
 impl SearchQuery {
     /// A text search with default paging.
@@ -278,8 +263,9 @@ impl SearchQuery {
 
 /// Appends `AND <column> NOT IN (…)` for the packages a person hid, binding one value per id.
 ///
-/// An empty list appends nothing.
-pub(crate) fn push_package_exclusion(
+/// An empty list appends nothing. Public so the offline mirror leaves out exactly the songs the
+/// machine does.
+pub fn push_package_exclusion(
     sql: &mut String,
     bindings: &mut Vec<Binding>,
     column: &str,

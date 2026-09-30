@@ -8,11 +8,9 @@
 //! machine itself, in its own process, so nothing arrives from across a wire needing a code to be
 //! rendered from.
 
-use std::sync::OnceLock;
-
 use axum::http::HeaderMap;
 use axum::http::header;
-use km_locale::{Catalog, Locale};
+use km_locale::{Catalog, Catalogs, Locale};
 
 /// What language to draw a page in, given what this request said.
 ///
@@ -31,34 +29,21 @@ pub fn locale(headers: &HeaderMap) -> Locale {
 }
 
 /// The owner's words, one catalog per locale.
-const CATALOGS: &[(Locale, &str)] = &[
-    (Locale::English, include_str!("../i18n/en.ftl")),
-    (
-        Locale::BrazilianPortuguese,
-        include_str!("../i18n/pt-BR.ftl"),
-    ),
-];
+static CATALOGS: Catalogs = Catalogs::new(
+    "admin",
+    &[
+        (Locale::English, include_str!("../i18n/en.ftl")),
+        (
+            Locale::BrazilianPortuguese,
+            include_str!("../i18n/pt-BR.ftl"),
+        ),
+    ],
+);
 
 /// These pages' messages for one locale, parsed once.
 #[must_use]
 pub fn messages(locale: Locale) -> &'static Catalog {
-    static PARSED: OnceLock<Vec<(Locale, Catalog)>> = OnceLock::new();
-    let parsed = PARSED.get_or_init(|| {
-        CATALOGS
-            .iter()
-            .map(|(locale, source)| {
-                let catalog = Catalog::new(*locale, source).unwrap_or_else(|errors| {
-                    panic!("{locale} admin catalog: {}", errors.join("; "))
-                });
-                (*locale, catalog)
-            })
-            .collect()
-    });
-    parsed
-        .iter()
-        .find(|(candidate, _)| *candidate == locale)
-        .map(|(_, catalog)| catalog)
-        .expect("every locale has an admin catalog")
+    CATALOGS.get(locale)
 }
 
 #[cfg(test)]

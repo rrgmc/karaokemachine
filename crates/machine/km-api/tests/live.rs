@@ -258,12 +258,18 @@ async fn changing_the_key_reaches_every_connected_remote() {
 
 #[tokio::test]
 async fn a_mic_change_and_a_wallpaper_change_both_arrive() {
-    let server = Server::plain().await;
+    // Through the console's mirror, because a mic change is an owner's and this socket holds no
+    // token. The event still reaches the public stream.
+    let server = Server::start(ApiConfig::default().without_mdns().with_dev_console()).await;
     let mut socket = server.events().await;
     next_event(&mut socket, "state").await;
 
     server
-        .json("PUT", "/api/v1/mics/mic1", Some(r#"{"muted":true}"#))
+        .json(
+            "PUT",
+            "/dev/api/v1/admin/mics/mic1",
+            Some(r#"{"muted":true}"#),
+        )
         .await;
     let mics = next_event(&mut socket, "mics_changed").await;
     assert_eq!(mics["mics"]["mics"][0]["muted"], true);

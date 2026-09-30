@@ -166,7 +166,7 @@ for abi in "${order[@]}"; do
     command -v cygpath >/dev/null 2>&1 && ff="$(cygpath -m "$ff")"
     export FFMPEG_DIR="$ff"
   fi
-  cargo ndk -t "$abi" -P "$PLATFORM" build -p karaokemachine --lib \
+  cargo ndk -t "$abi" -P "$PLATFORM" build --locked -p karaokemachine --lib \
     "${FEATURE_ARGS[@]}" "${CARGO_ARGS[@]}"
 done
 

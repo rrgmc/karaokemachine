@@ -1280,6 +1280,9 @@ impl Controller for TestMachine {
         if let Some(volume_milli) = patch.music_volume_milli {
             inner.settings.music_volume = (volume_milli as f32 / 1000.0).clamp(0.0, 1.0);
         }
+        if let Some(offset_ms) = patch.lyric_offset_ms {
+            inner.settings.lyric_offset_ms = offset_ms;
+        }
         Ok(inner.settings)
     }
 

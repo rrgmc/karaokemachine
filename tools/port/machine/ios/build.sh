@@ -185,7 +185,7 @@ for slice in "${SLICES[@]}"; do
     export "BINDGEN_EXTRA_CLANG_ARGS_${triple//-/_}=--target=$target -isysroot $sysroot"
   fi
   # `--lib` because this package has no binary at all: an app links the archive, nothing runs it.
-  cargo build -p km-machine-ios --lib --target "$triple" \
+  cargo build --locked -p km-machine-ios --lib --target "$triple" \
     --features "$features" ${CARGO_ARGS+"${CARGO_ARGS[@]}"}
 done
 

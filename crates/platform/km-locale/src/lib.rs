@@ -23,6 +23,7 @@ pub mod filters;
 use std::borrow::Cow;
 use std::collections::BTreeSet;
 use std::fmt;
+use std::sync::OnceLock;
 
 // **The concurrent bundle, not the default one.** They differ only in their memoizer, and the
 // default's is a `RefCell` — so `FluentBundle<FluentResource>` is not `Sync`, and a `Catalog` built
@@ -304,6 +305,67 @@ pub fn check_catalogs(messages: impl Fn(Locale) -> &'static Catalog) -> Result<(
         Ok(())
     } else {
         Err(faults.join("\n"))
+    }
+}
+
+/// One crate's catalogs, one per locale, parsed on first use and kept for the life of the process.
+///
+/// **This is the loader every crate with catalogs uses**, beside [`check_catalogs`]. The sources are
+/// compiled in, so a parse error is a build fault rather than anything a caller can cause. It panics
+/// naming the crate, and that crate's `check_catalogs` test turns the panic into a failed build.
+///
+/// ```
+/// # use km_locale::{Catalogs, Locale};
+/// static WORDS: Catalogs = Catalogs::new(
+///     "example",
+///     &[
+///         (Locale::English, "greeting = Hello\n"),
+///         (Locale::BrazilianPortuguese, "greeting = Olá\n"),
+///     ],
+/// );
+/// assert_eq!(WORDS.get(Locale::BrazilianPortuguese).msg("greeting"), "Olá");
+/// ```
+pub struct Catalogs {
+    owner: &'static str,
+    sources: &'static [(Locale, &'static str)],
+    parsed: OnceLock<Vec<(Locale, Catalog)>>,
+}
+
+impl Catalogs {
+    /// The catalogs `owner` compiles in, one source per locale. Nothing is parsed until the first
+    /// [`Catalogs::get`].
+    #[must_use]
+    pub const fn new(owner: &'static str, sources: &'static [(Locale, &'static str)]) -> Self {
+        Self {
+            owner,
+            sources,
+            parsed: OnceLock::new(),
+        }
+    }
+
+    /// The catalog for one locale.
+    ///
+    /// # Panics
+    ///
+    /// When a compiled-in source does not parse, or names no source for `locale`. Both are build
+    /// faults that the owning crate's `check_catalogs` test catches.
+    pub fn get(&self, locale: Locale) -> &Catalog {
+        let parsed = self.parsed.get_or_init(|| {
+            self.sources
+                .iter()
+                .map(|(locale, source)| {
+                    let catalog = Catalog::new(*locale, source).unwrap_or_else(|errors| {
+                        panic!("{locale} {} catalog: {}", self.owner, errors.join("; "))
+                    });
+                    (*locale, catalog)
+                })
+                .collect()
+        });
+        parsed
+            .iter()
+            .find(|(candidate, _)| *candidate == locale)
+            .map(|(_, catalog)| catalog)
+            .unwrap_or_else(|| panic!("{} has no {locale} catalog", self.owner))
     }
 }
 

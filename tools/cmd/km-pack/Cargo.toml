@@ -39,6 +39,7 @@ serde_json = { workspace = true }
 # The package description. This is the only crate in the workspace that reads or writes YAML — see
 # the note beside it in the root `Cargo.toml`.
 serde_norway = { workspace = true }
+time = { workspace = true }
 
 # The library half of this crate is shared with `tools/cmd/km-package-builder`, and its tests build
 # entries from real parsed songs. The synthetic fixtures live behind km-song's `testing` feature,

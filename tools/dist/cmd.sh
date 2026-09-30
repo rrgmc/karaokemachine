@@ -1211,7 +1211,7 @@ for tool in "${TOOLS[@]}"; do
   # Word-split on purpose: `tool_build_args` prints either `-p <name>` or `--manifest-path <path>`,
   # and `dist_cargo_quiet` prints one flag or nothing at all.
   # shellcheck disable=SC2046
-  cargo build --release $(dist_cargo_quiet) $(tool_build_args "$tool") "${FEATURES[@]+"${FEATURES[@]}"}"
+  cargo build --release --locked $(dist_cargo_quiet) $(tool_build_args "$tool") "${FEATURES[@]+"${FEATURES[@]}"}"
   # Per tool rather than once at the end, and this is the loop that most needs it: six quiet builds
   # in a row is otherwise several silent minutes with nothing saying which one is running.
   printf '   built in %s\n' "$(dist_elapsed "$build_started")"

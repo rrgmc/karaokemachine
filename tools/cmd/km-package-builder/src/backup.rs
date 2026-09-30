@@ -42,7 +42,6 @@
 //! statement; `crate::build::import` hit exactly this and its comment says so.
 
 use std::collections::{BTreeMap, BTreeSet};
-use std::io::Write as _;
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
@@ -374,31 +373,8 @@ impl Backup {
     pub fn write(&self, path: &Path) -> Result<(), DbError> {
         let text = serde_json::to_string_pretty(self)
             .map_err(|error| DbError::Rejected(format!("writing the backup: {error}")))?;
-        if let Some(parent) = path.parent()
-            && !parent.as_os_str().is_empty()
-        {
-            std::fs::create_dir_all(parent).map_err(|error| {
-                DbError::Rejected(format!("creating {}: {error}", parent.display()))
-            })?;
-        }
-
-        let mut temporary = path.as_os_str().to_owned();
-        temporary.push(".writing");
-        let temporary = PathBuf::from(temporary);
-        let written = std::fs::File::create(&temporary).and_then(|mut file| {
-            file.write_all(text.as_bytes())?;
-            file.sync_all()
-        });
-        written.map_err(|error| {
-            DbError::Rejected(format!("writing {}: {error}", temporary.display()))
-        })?;
-        std::fs::rename(&temporary, path).map_err(|error| {
-            // The rename is what makes this safe, so a failed one must not leave the scratch file
-            // behind pretending to be a backup.
-            let _ = std::fs::remove_file(&temporary);
-            DbError::Rejected(format!("writing {}: {error}", path.display()))
-        })?;
-        Ok(())
+        km_api::files::replace(path, text.as_bytes())
+            .map_err(|error| DbError::Rejected(format!("writing {}: {error}", path.display())))
     }
 }
 
@@ -1665,7 +1641,7 @@ mod tests {
 
         assert_eq!(Backup::read(&path).expect("read"), bigger);
         assert!(
-            !scratch.join("backup.json.writing").exists(),
+            !scratch.join("backup.json.tmp").exists(),
             "the scratch file is renamed away, never left beside the real one"
         );
     }

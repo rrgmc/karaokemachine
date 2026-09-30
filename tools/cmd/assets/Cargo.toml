@@ -102,6 +102,8 @@ toml = "0.9.12"
 hex = "0.4.3"
 # The date form of `Retry-After`. Already in the graph through `hyper`.
 httpdate = "1.0.3"
+# A moment as a calendar date, for a manifest's `generated_at`. Already in this tree through `zip`.
+time = { version = "0.3.55", default-features = false, features = ["std"] }
 # A query parameter in form encoding, and one URL path segment. Both already in the graph through
 # `reqwest`.
 form_urlencoded = "1.2.2"

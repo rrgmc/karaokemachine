@@ -451,29 +451,11 @@ pub struct SongEdit {
     pub notes: Option<Option<String>>,
 }
 
-/// A value bound into a query.
+/// A value bound into a query: rusqlite's own.
 ///
 /// Filters are composed as SQL fragments plus a list of these, so nothing a person typed is ever
 /// interpolated into the statement text.
-#[derive(Debug, Clone)]
-pub enum Binding {
-    /// A number.
-    Integer(i64),
-    /// Text.
-    Text(String),
-    /// SQL NULL.
-    Null,
-}
-
-impl rusqlite::ToSql for Binding {
-    fn to_sql(&self) -> rusqlite::Result<rusqlite::types::ToSqlOutput<'_>> {
-        Ok(match self {
-            Self::Integer(value) => (*value).into(),
-            Self::Text(value) => value.as_str().into(),
-            Self::Null => rusqlite::types::Null.into(),
-        })
-    }
-}
+pub use rusqlite::types::Value as Binding;
 
 /// How many tokens of lyric FTS5 puts either side of a match in a passage.
 ///

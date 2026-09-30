@@ -863,7 +863,7 @@ impl MicsDto {
     }
 }
 
-/// `PUT /mics/{id}`.
+/// `PUT /admin/mics/{id}`.
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct MicPatchDto {

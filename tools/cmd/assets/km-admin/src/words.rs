@@ -26,9 +26,7 @@
 //! so no locale is in reach. A *phase* escapes that by travelling as a key and being worded at
 //! render time; an outcome would need the same shape to follow. See [`crate::job::phase`].
 
-use std::sync::OnceLock;
-
-use km_locale::{Catalog, Locale};
+use km_locale::{Catalog, Catalogs, Locale};
 
 /// The keys composed in Rust rather than spent by a `|t` in markup.
 ///
@@ -80,13 +78,16 @@ pub const COMPOSED: &[&str] = &[
 ];
 
 /// This program's own words, one catalog per locale.
-const CATALOGS: &[(Locale, &str)] = &[
-    (Locale::English, include_str!("../i18n/en.ftl")),
-    (
-        Locale::BrazilianPortuguese,
-        include_str!("../i18n/pt-BR.ftl"),
-    ),
-];
+static CATALOGS: Catalogs = Catalogs::new(
+    "km-admin",
+    &[
+        (Locale::English, include_str!("../i18n/en.ftl")),
+        (
+            Locale::BrazilianPortuguese,
+            include_str!("../i18n/pt-BR.ftl"),
+        ),
+    ],
+);
 
 /// What language to draw a page in, given what this request said.
 ///
@@ -102,23 +103,7 @@ pub fn locale(headers: &axum::http::HeaderMap) -> Locale {
 /// These pages' messages for one locale, parsed once.
 #[must_use]
 pub fn messages(locale: Locale) -> &'static Catalog {
-    static PARSED: OnceLock<Vec<(Locale, Catalog)>> = OnceLock::new();
-    let parsed = PARSED.get_or_init(|| {
-        CATALOGS
-            .iter()
-            .map(|(locale, source)| {
-                let catalog = Catalog::new(*locale, source).unwrap_or_else(|errors| {
-                    panic!("{locale} km-admin catalog: {}", errors.join("; "))
-                });
-                (*locale, catalog)
-            })
-            .collect()
-    });
-    parsed
-        .iter()
-        .find(|(candidate, _)| *candidate == locale)
-        .map(|(_, catalog)| catalog)
-        .expect("every locale has a catalog")
+    CATALOGS.get(locale)
 }
 
 #[cfg(test)]

@@ -1,4 +1,6 @@
 <div data-sse="position">
-  <div class="progress"><span style="width: {{ percent }}%"></span></div>
+  <div class="progress" role="progressbar" aria-label="{{ "song-position"|t }}"
+       aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ percent }}"
+       aria-valuetext="{{ elapsed }} / {{ total }}"><span style="width: {{ percent }}%"></span></div>
   <div class="times"><span>{{ elapsed }}</span><span>{{ total }}</span></div>
 </div>

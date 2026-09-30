@@ -30,7 +30,6 @@
 //! list any more — the URL prefix is the permission; see `km_api::routes`.)
 
 use std::collections::BTreeMap;
-use std::io::Write as _;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
@@ -1256,21 +1255,14 @@ impl Settings {
     /// it would otherwise name a version below the current one and be set aside on the next start.
     pub fn save(&self, paths: &Paths) -> std::io::Result<()> {
         paths.create()?;
-        let target = paths.settings_file();
-        let temp = target.with_extension("json.tmp");
         let stamped = Self {
             settings_version: CURRENT_SETTINGS_VERSION,
             ..self.clone()
         };
-        let text = serde_json::to_string_pretty(&stamped)
+        let mut text = serde_json::to_string_pretty(&stamped)
             .map_err(|error| std::io::Error::new(std::io::ErrorKind::InvalidData, error))?;
-        {
-            let mut file = std::fs::File::create(&temp)?;
-            file.write_all(text.as_bytes())?;
-            file.write_all(b"\n")?;
-            file.sync_all()?;
-        }
-        std::fs::rename(&temp, &target)
+        text.push('\n');
+        km_api::files::replace(&paths.settings_file(), text.as_bytes())
     }
 
     /// Whether to serve the development remote at `/dev/`.
@@ -2374,6 +2366,16 @@ mod tests {
         // And the raw field is left as written, so saving the file back does not silently rewrite
         // what somebody typed.
         assert_eq!(display.lyric_offset_ms, -30_000);
+    }
+
+    #[test]
+    fn the_owners_control_reaches_exactly_as_far_as_the_clamp() {
+        // A control shorter than the clamp hides a setting the machine takes. A longer one offers a
+        // setting the machine quietly cuts back.
+        assert_eq!(
+            km_admin_pages::views::LYRIC_OFFSET_REACH_MS,
+            MAX_LYRIC_OFFSET_MS
+        );
     }
 
     #[test]

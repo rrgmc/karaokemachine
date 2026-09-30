@@ -13,6 +13,9 @@ Entries are written for somebody who has the machine. Why any of it is the way i
 
 ### Added
 
+- **The admin Sound tab sets when the words light up.** A television that shows its picture late
+  draws the words after the music. Move them up to half a second earlier or later on the machine's
+  own admin page or in `km-admin`, and the machine remembers it.
 - **An LRC file beside an MP3 of the same name is a song.** A file that times each word gets the
   word-by-word highlight. A file that times only its lines lights each whole line as it starts. A
   bar above the next line fills during a break, so you know when to come back in. The next line
@@ -78,6 +81,11 @@ Entries are written for somebody who has the machine. Why any of it is the way i
 
 ### Changed
 
+- **A grayed-out key, tempo or melody button on the phone says why.** A video song says it has no key
+  to change, and a MIDI file with no melody line says the search found none. With nothing playing,
+  the buttons say nothing.
+- **Changing a microphone needs the admin password.** Its name, gain, effects and mute move to
+  `PUT /api/v1/admin/mics/{id}`. Reading them at `GET /api/v1/mics` stays open to anybody.
 - **A song with barely any singing in it stops sorting above the real ones.** A file sung for less
   than three quarters of a minute rates 4 out of 10 or lower and counts as defective. The package
   builder's default 8–10 band therefore leaves it out, and the under-5 band is where to find it. How

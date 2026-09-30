@@ -352,7 +352,7 @@ fn sample_body(path: &str) -> Option<Value> {
         "/queue/0/move" => json!({ "to_index": 0 }),
         "/transport/seek" => json!({ "ms": 0 }),
         "/settings" => json!({ "transpose": 0 }),
-        "/mics/mic1" => json!({ "muted": false }),
+        "/admin/mics/mic1" => json!({ "muted": false }),
         "/admin/audio/output" => json!({ "id": "system" }),
         "/admin/audio/level" => json!({ "db": -6.0 }),
         "/admin/audio/soundfont" => json!({ "id": "generaluser" }),
@@ -803,7 +803,7 @@ async fn a_404_says_what_was_missing() {
             "no-such-package",
         ),
         (Method::DELETE, "/queue/424242", "424242"),
-        (Method::PUT, "/mics/no-such-mic", "no-such-mic"),
+        (Method::PUT, "/admin/mics/no-such-mic", "no-such-mic"),
     ] {
         let (status, body) = harness
             .request(method.clone(), path, Some(serde_json::json!({})))
@@ -1877,7 +1877,7 @@ async fn a_mic_patch_touches_only_what_it_names_and_clamps_what_it_does() {
     let mics = harness
         .ok(
             Method::PUT,
-            "/mics/mic1",
+            "/admin/mics/mic1",
             Some(json!({ "gain": 99.0, "muted": true })),
         )
         .await;
@@ -1895,7 +1895,7 @@ async fn a_blank_device_hint_takes_the_hint_away_and_a_missing_one_keeps_it() {
     let named = harness
         .ok(
             Method::PUT,
-            "/mics/mic1",
+            "/admin/mics/mic1",
             Some(json!({ "device_hint": "USB Audio" })),
         )
         .await;
@@ -1904,14 +1904,18 @@ async fn a_blank_device_hint_takes_the_hint_away_and_a_missing_one_keeps_it() {
     // A patch that says nothing about the hint keeps it, which is why a blank one has to mean
     // something: there would otherwise be no way to say the mic is no longer on that input.
     let muted = harness
-        .ok(Method::PUT, "/mics/mic1", Some(json!({ "muted": true })))
+        .ok(
+            Method::PUT,
+            "/admin/mics/mic1",
+            Some(json!({ "muted": true })),
+        )
         .await;
     assert_eq!(muted["mics"][0]["device_hint"], "USB Audio");
 
     let cleared = harness
         .ok(
             Method::PUT,
-            "/mics/mic1",
+            "/admin/mics/mic1",
             Some(json!({ "device_hint": "" })),
         )
         .await;
@@ -1919,9 +1923,28 @@ async fn a_blank_device_hint_takes_the_hint_away_and_a_missing_one_keeps_it() {
 }
 
 #[tokio::test]
+async fn changing_a_mic_needs_the_admin_password_where_reading_them_does_not() {
+    // A mic's name, gain and mute are installation configuration for whoever does the mixing. A
+    // guest with the address may read them, and may not rename or mute them.
+    let harness = Harness::with_password("hunter2").tokenless();
+    let (status, _) = harness
+        .put("/admin/mics/mic1", json!({ "muted": true }))
+        .await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+
+    let mics = harness.ok(Method::GET, "/mics", None).await;
+    assert_eq!(
+        mics["mics"][0]["muted"], false,
+        "and the refusal changed nothing"
+    );
+}
+
+#[tokio::test]
 async fn patching_a_mic_that_does_not_exist_is_a_404() {
     let harness = Harness::new();
-    let (status, body) = harness.put("/mics/mic9", json!({ "muted": true })).await;
+    let (status, body) = harness
+        .put("/admin/mics/mic9", json!({ "muted": true }))
+        .await;
     assert_eq!(status, StatusCode::NOT_FOUND);
     assert!(body["message"].as_str().expect("text").contains("mic9"));
 }

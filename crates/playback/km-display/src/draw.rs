@@ -8,6 +8,8 @@
 //! published state. This module reads no atomics and owns no state of its own.
 
 use std::borrow::Cow;
+use std::cell::RefCell;
+use std::rc::Rc;
 
 use km_queue::QueueEntry;
 use km_song::{KaraokeFlavor, LyricTimeline};
@@ -3430,9 +3432,34 @@ fn draw_connect_panel<T: RenderTarget, C>(
     }
 }
 
+thread_local! {
+    /// The last code drawn, and the address it encodes.
+    ///
+    /// **One entry, keyed by the address**, because the connect panel draws the same code on every
+    /// frame and the address changes only when the network does. Encoding runs Reed–Solomon over
+    /// the whole payload and masks the grid eight ways, which is too much work to repeat per frame.
+    static LAST_QR: RefCell<Option<(String, Option<Rc<QrMatrix>>)>> = const { RefCell::new(None) };
+}
+
+/// The code for an address, encoded once while the address stays the same.
+fn qr_for(url: &str) -> Option<Rc<QrMatrix>> {
+    LAST_QR.with_borrow_mut(|last| {
+        if let Some((cached, qr)) = last
+            && cached == url
+        {
+            return qr.clone();
+        }
+        let qr = QrMatrix::encode(url).map(Rc::new);
+        *last = Some((url.to_owned(), qr.clone()));
+        qr
+    })
+}
+
 /// Draws a QR code as filled squares, with the quiet zone a scanner needs.
+///
+/// Each run of dark modules in a row is one rectangle, and all of them go in one `fill_rects` call.
 fn draw_qr<T: RenderTarget>(canvas: &mut Canvas<T>, url: &str, x: f32, y: f32, side: f32) {
-    let Some(qr) = QrMatrix::encode(url) else {
+    let Some(qr) = qr_for(url) else {
         return;
     };
     // Four modules of quiet zone is what the spec asks for; two is the practical minimum and keeps
@@ -3445,20 +3472,20 @@ fn draw_qr<T: RenderTarget>(canvas: &mut Canvas<T>, url: &str, x: f32, y: f32, s
     canvas.set_draw_color(Color::RGB(0xFF, 0xFF, 0xFF));
     let _ = canvas.fill_rect(FRect::new(x, y, side, side));
     canvas.set_draw_color(Color::RGB(0, 0, 0));
-    for row in 0..qr.size {
-        for column in 0..qr.size {
-            if qr.is_dark(column, row) {
-                let _ = canvas.fill_rect(FRect::new(
-                    x + (column + quiet) as f32 * cell,
-                    y + (row + quiet) as f32 * cell,
-                    // A hair over one cell, so rounding cannot leave hairline gaps that confuse a
-                    // scanner.
-                    cell + 0.5,
-                    cell + 0.5,
-                ));
-            }
-        }
-    }
+    let runs: Vec<FRect> = qr
+        .dark_runs()
+        .map(|(row, start, length)| {
+            FRect::new(
+                x + (start + quiet) as f32 * cell,
+                y + (row + quiet) as f32 * cell,
+                // A hair over the run, so rounding cannot leave hairline gaps that confuse a
+                // scanner.
+                length as f32 * cell + 0.5,
+                cell + 0.5,
+            )
+        })
+        .collect();
+    let _ = canvas.fill_rects(&runs);
 }
 
 /// Greedy word wrap, in columns.
@@ -3526,6 +3553,23 @@ mod tests {
 
     use super::*;
     use crate::connect::ConnectProblem;
+
+    #[test]
+    fn a_code_is_encoded_once_while_its_address_stays_the_same() {
+        let first = qr_for("http://192.168.1.x:8278/").expect("an address fits");
+        let again = qr_for("http://192.168.1.x:8278/").expect("an address fits");
+        assert!(
+            Rc::ptr_eq(&first, &again),
+            "the same address reuses the code"
+        );
+
+        let other = qr_for("http://192.168.1.x:8279/").expect("an address fits");
+        assert!(!Rc::ptr_eq(&first, &other), "a new address encodes again");
+        assert_eq!(
+            *other,
+            QrMatrix::encode("http://192.168.1.x:8279/").expect("fits")
+        );
+    }
 
     /// The two halves of the name are the name.
     ///

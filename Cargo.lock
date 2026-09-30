@@ -2250,6 +2250,7 @@ dependencies = [
  "serde_json",
  "tao",
  "thiserror 2.0.20",
+ "time",
  "tokio",
  "tracing",
  "tracing-subscriber",
@@ -2496,6 +2497,7 @@ name = "km-logfile"
 version = "1.18.0"
 dependencies = [
  "km-testkit",
+ "time",
  "tracing",
  "tracing-subscriber",
 ]
@@ -2573,6 +2575,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_norway",
+ "time",
  "walkdir",
 ]
 
@@ -2783,6 +2786,7 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror 2.0.20",
+ "time",
  "tokio",
  "tower",
  "tracing",
@@ -4107,9 +4111,9 @@ dependencies = [
 
 [[package]]
 name = "rustls"
-version = "0.23.43"
+version = "0.23.45"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0283386ce02abc0151e1761d08802dfe86c173b0b494af5cbc086574e453da06"
+checksum = "0d41d731c7d2f962d1ccc364cec258de3c0e93b38c2fb3ba97ac74513048d634"
 dependencies = [
  "log",
  "once_cell",
