@@ -12,7 +12,6 @@ import com.meta.spatial.core.Pose
 import com.meta.spatial.core.SpatialFeature
 import com.meta.spatial.core.Vector2
 import com.meta.spatial.core.Vector3
-import com.meta.spatial.isdk.IsdkFeature
 import com.meta.spatial.isdk.IsdkGrabState
 import com.meta.spatial.isdk.IsdkGrabbable
 import com.meta.spatial.isdk.IsdkPanelResize
@@ -80,9 +79,9 @@ class ImmersiveActivity : AppSystemActivity() {
     /**
      * Controllers and hands both, because a karaoke machine is pointed at rather than typed on.
      *
-     * `VRFeature` alone gives a ray from a controller and nothing from a hand, so a headset whose
-     * controllers are flat has no way to reach the keypad. `IsdkFeature` is what draws the hand's
-     * own ray, and it is also what grabs and resizes a panel. The manifest declares
+     * `VRFeature` registers Meta's Interaction SDK itself, which draws both rays and grabs and
+     * resizes a panel. **Do not register `IsdkFeature` beside it.** A second registration takes the
+     * ray off both controllers, and nothing in the log says so. The manifest declares
      * `oculus.software.handtracking` beside it, which is also what lets Horizon OS start this at
      * all when no controller is awake.
      *
@@ -92,7 +91,6 @@ class ImmersiveActivity : AppSystemActivity() {
     override fun registerFeatures(): List<SpatialFeature> =
         listOf(
             VRFeature(this),
-            IsdkFeature(this, spatial, systemManager),
             ComposeFeature(),
             mruk,
         ) + debugFeatures(this)

@@ -114,11 +114,9 @@ change a screen's shape takes the machine down with it, because `AppSystemActivi
 `recreate()`. A reshape leaves the song playing. A curved screen also costs nothing, running at 90
 frames a second with no stale frames, the same as a flat one.
 
-**`VRFeature` draws a controller's ray and no hand's.** `IsdkFeature`, from Meta's Interaction SDK,
-is what a hand points with. A headset whose controllers are flat has no other way to reach the
-keypad, so both features are registered. Spatial SDK 0.14.0 marks `IsdkFeature` deprecated and says
-`VRFeature` registers it. The explicit registration stays until a headset shows hands working
-without it.
+**`VRFeature` registers Meta's Interaction SDK, and nothing else may.** In Spatial SDK 0.14.0 the
+SDK draws the rays and grabs and resizes a panel. `IsdkFeature` is deprecated there. Registering it
+beside `VRFeature` takes the ray off both controllers, and the log names no error.
 
 **The screen's place is saved against a wall of the scanned room.** Spatial SDK 0.14.0 has no public
 persistent spatial anchor: `Scene.createUserAnchor` is internal. `MRUKFeature` does hand over the
