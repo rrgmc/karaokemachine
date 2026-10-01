@@ -26,6 +26,10 @@
         android:name="oculus.software.handtracking"
         android:required="false" />
 
+    <!-- The feature above lets the application start, and this lets it read the hands. Without it
+         the hand tracker refuses the application, and a hand draws no ray. -->
+    <uses-permission android:name="com.oculus.permission.HAND_TRACKING" />
+
     <!-- The room the headset scanned, which is what puts the screen on a wall and brings it back
          where the wearer left it. Horizon OS asks the wearer. A refusal costs only the wall, and
          the screen still moves by hand. -->
