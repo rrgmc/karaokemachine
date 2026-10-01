@@ -55,6 +55,7 @@ Entries are written for somebody who has the machine. Why any of it is the way i
   running.
 - **On a Quest, the queue hangs beside the screen.** It is the same remote a phone gets, so a
   wearer can search and add songs without holding a phone. A button under the screen hides it.
+  It faces you wherever you put it, and a corner resizes it.
 
 - **The package builder has a Folders page.** It lists the corpus by folder, with how many distinct
   songs are in each one and beneath it. Each folder opens the songs list narrowed to that folder,

@@ -1425,6 +1425,11 @@ error is shown, because nothing has failed that the wearer needs to fix.
 so the scene shows the page every phone in the room gets. It reaches it over loopback in the same
 process. It is not a second remote to keep in step. An owner who turns the remote off gets no panel.
 
+**The queue faces the wearer, and a corner resizes it.** It stands off to one side of the screen,
+so the screen's facing would point it past the wearer. It turns about the vertical instead, when it
+is placed and while it is carried. A resize scales the page between half and double its size, the
+same way the screen scales.
+
 **Resizing scales the screen and never re-lays it.** The machine draws at 1600x900 dp whatever size
 the wearer makes the screen. A resize that reached SDL would rebuild its surface under a playing
 song, and the machine pauses when its surface goes.

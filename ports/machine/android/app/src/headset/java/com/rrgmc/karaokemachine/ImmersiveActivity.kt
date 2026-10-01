@@ -9,9 +9,11 @@ import com.meta.spatial.compose.ComposeFeature
 import com.meta.spatial.compose.composePanel
 import com.meta.spatial.core.Entity
 import com.meta.spatial.core.Pose
+import com.meta.spatial.core.Quaternion
 import com.meta.spatial.core.SpatialFeature
 import com.meta.spatial.core.Vector2
 import com.meta.spatial.core.Vector3
+import com.meta.spatial.isdk.IsdkGrabMovementType
 import com.meta.spatial.isdk.IsdkGrabState
 import com.meta.spatial.isdk.IsdkGrabbable
 import com.meta.spatial.isdk.IsdkPanelResize
@@ -153,7 +155,17 @@ class ImmersiveActivity : AppSystemActivity() {
             queueEntity = Entity.createPanelEntity(
                 R.id.queue_panel,
                 Transform(Pose(ahead)),
-                IsdkGrabbable(),
+                // Turns about the vertical to face the wearer while it is carried.
+                IsdkGrabbable(true, IsdkGrabState.NotGrabbed, IsdkGrabMovementType.AxialBillboard),
+                // `Simple` for the same reason as the screen: the WebView keeps its layout and the
+                // page only grows.
+                IsdkPanelResize(
+                    true,
+                    ResizeMode.Simple,
+                    Vector2(QUEUE_WIDTH * QUEUE_SMALLEST, QUEUE_HEIGHT * QUEUE_SMALLEST),
+                    Vector2(QUEUE_WIDTH * QUEUE_LARGEST, QUEUE_HEIGHT * QUEUE_LARGEST),
+                    true,
+                ),
                 Visible(controls.queueShown),
             )
         }
@@ -221,9 +233,25 @@ class ImmersiveActivity : AppSystemActivity() {
         val height = place.width * 9.0f / 16.0f
         // A panel's local negative Z points out of its face, towards whoever is looking at it.
         val under = Vector3(0.0f, -(height / 2.0f + CONTROLS_GAP), -NEARER)
-        val beside = Vector3(-(place.width / 2.0f + QUEUE_GAP), 0.0f, -NEARER)
+        val queueScale = queueEntity?.tryGetComponent<Scale>()?.scale?.x ?: 1.0f
+        val queueHalf = QUEUE_WIDTH * queueScale / 2.0f
+        val beside = Vector3(-(place.width / 2.0f + QUEUE_GAP + queueHalf), 0.0f, -NEARER)
         controlsEntity?.setComponent(Transform(place.pose.times(Pose(under))))
-        queueEntity?.setComponent(Transform(place.pose.times(Pose(beside))))
+        queueEntity?.setComponent(Transform(facingViewer(place.pose.times(Pose(beside)).t)))
+    }
+
+    /**
+     * A panel at [position], turned about the vertical to face the wearer.
+     *
+     * The queue stands off to one side of the screen, so the screen's own facing points it past the
+     * wearer rather than at them.
+     */
+    private fun facingViewer(position: Vector3): Pose {
+        val toViewer = scene.getViewerPose().t - position
+        val level = Vector3(toViewer.x, 0.0f, toViewer.z)
+        if (level.length() < 0.01f) return Pose(position)
+        // A panel faces along its own negative Z, so its forward points away from the wearer.
+        return Pose(position, Quaternion.lookRotationAroundY(-level.normalize()))
     }
 
     /** Saves where the screen is, against the room. Without a room there is nothing to save to. */
@@ -330,8 +358,8 @@ class ImmersiveActivity : AppSystemActivity() {
         PanelRegistration(R.id.queue_panel) {
             view { context -> QueuePanel.view(context, address) }
             config {
-                width = 0.9f
-                height = 1.2f
+                width = QUEUE_WIDTH
+                height = QUEUE_HEIGHT
                 layoutWidthInDp = 540f
                 layoutHeightInDp = 720f
                 layerConfig = LayerConfig()
@@ -362,7 +390,15 @@ class ImmersiveActivity : AppSystemActivity() {
         /** Metres between the screen's lower edge and the controls. */
         const val CONTROLS_GAP = 0.2f
 
-        /** Metres from the screen's left edge to the queue's centre, for a queue 0.9 m wide. */
-        const val QUEUE_GAP = 0.55f
+        /** Metres between the screen's left edge and the queue's right edge. */
+        const val QUEUE_GAP = 0.1f
+
+        /** Metres. The queue's size before a hand stretches it. */
+        const val QUEUE_WIDTH = 0.9f
+        const val QUEUE_HEIGHT = 1.2f
+
+        /** The smallest and largest a hand may make the queue, as a share of its own size. */
+        const val QUEUE_SMALLEST = 0.5f
+        const val QUEUE_LARGEST = 2.0f
     }
 }
