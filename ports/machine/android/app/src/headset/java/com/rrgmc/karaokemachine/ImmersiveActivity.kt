@@ -24,6 +24,8 @@ import com.meta.spatial.isdk.ResizeMode
 import com.meta.spatial.mruk.MRUKFeature
 import com.meta.spatial.mruk.MRUKLoadDeviceResult
 import com.meta.spatial.mruk.MRUKRoom
+import com.meta.spatial.runtime.BlendFactor
+import com.meta.spatial.runtime.LayerAlphaBlend
 import com.meta.spatial.runtime.LayerConfig
 import com.meta.spatial.runtime.PanelSceneObject
 import com.meta.spatial.runtime.PanelShapeType
@@ -381,20 +383,32 @@ class ImmersiveActivity : AppSystemActivity() {
     /**
      * A pill of buttons under the screen: its shape, the wall, the queue and the window.
      *
-     * The panel is transparent, so only the pill drawn on it shows.
+     * The panel is transparent, so only the pill drawn on it shows. That takes three things, and
+     * any one missing paints the rest of the panel white: a window theme with no background, a view
+     * with no background, and a layer that blends. Android hands the compositor premultiplied alpha,
+     * so the blend takes the source as it is.
      */
     private fun controlsPanel(): PanelRegistration {
         val content: (ComposeView) -> Unit = { view ->
+            view.setBackgroundColor(android.graphics.Color.TRANSPARENT)
             view.setContent { Controls(controls, actions) }
         }
         return PanelRegistration(R.id.controls_panel) {
             composePanel(content)
             config {
+                themeResourceId = R.style.TransparentPanel
                 width = CONTROLS_WIDTH
                 height = CONTROLS_HEIGHT
                 layoutWidthInDp = 720f
                 layoutHeightInDp = 120f
-                layerConfig = LayerConfig()
+                layerConfig = LayerConfig(
+                    alphaBlend = LayerAlphaBlend(
+                        BlendFactor.ONE,
+                        BlendFactor.ONE_MINUS_SOURCE_ALPHA,
+                        BlendFactor.ONE,
+                        BlendFactor.ONE_MINUS_SOURCE_ALPHA,
+                    ),
+                )
                 enableTransparent = true
                 includeGlass = false
             }
