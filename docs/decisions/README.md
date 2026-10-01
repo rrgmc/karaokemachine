@@ -264,7 +264,7 @@ it are the same entry. How the thing is built is [`ARCHITECTURE.md`](../ARCHITEC
 - [Clearing the search box](remotes.md#clearing-the-search-box)
 - [Nothing detects "worth singing"](remotes.md#nothing-detects-worth-singing)
 - [Mirroring the catalog](remotes.md#mirroring-the-catalog)
-- [The singer's remote is not gated at all](remotes.md#the-singers-remote-is-not-gated-at-all)
+- [The singer's remote asks for a code and has no login page](remotes.md#the-singers-remote-asks-for-a-code-and-has-no-login-page)
 - [One implementation of each operation](remotes.md#one-implementation-of-each-operation)
 - [The dev remote stays](remotes.md#the-dev-remote-stays)
 - [Where the banks nobody is offered live](remotes.md#where-the-banks-nobody-is-offered-live)
@@ -305,6 +305,7 @@ it are the same entry. How the thing is built is [`ARCHITECTURE.md`](../ARCHITEC
 ## [The API and the network](api-and-network.md)
 
 - [The URL prefix is the permission](api-and-network.md#the-url-prefix-is-the-permission)
+- [Four access levels, and the method and path decide them](api-and-network.md#four-access-levels-and-the-method-and-path-decide-them)
 - [Network reach](api-and-network.md#network-reach)
 - [The machine holds its port, rather than claiming it once](api-and-network.md#the-machine-holds-its-port-rather-than-claiming-it-once)
 - [Debugging is a mode, and the machine says when it is on](api-and-network.md#debugging-is-a-mode-and-the-machine-says-when-it-is-on)

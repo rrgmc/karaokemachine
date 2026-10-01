@@ -30,7 +30,9 @@
 
 use std::collections::HashSet;
 
-use km_api::dto::{AddedToQueueDto, QueueDto, SettingsPatchDto, SongDto, StateDto};
+use km_api::dto::{
+    AccessDto, AccessGrantDto, AddedToQueueDto, QueueDto, SettingsPatchDto, SongDto, StateDto,
+};
 use km_api::events::Event;
 use km_songcode::SongCode;
 use tokio::sync::broadcast;
@@ -590,6 +592,23 @@ pub trait Machine: Send + Sync + 'static {
 
     /// The queue as it stands.
     async fn queue(&self) -> Result<QueueDto, RemoteError>;
+
+    /// What a caller holding this token may do, and what the room may do without one.
+    ///
+    /// **No default, because a default would have to guess**, and either guess is wrong somewhere.
+    /// Online the machine is this process and answers from its own state. Offline it is
+    /// `GET /api/v1/access`.
+    async fn access(&self, token: Option<&str>) -> Result<AccessDto, RemoteError>;
+
+    /// Exchanges a code, or the admin password, for a token of the level it opens.
+    ///
+    /// `from` is the phone's address, for the machine's rate limiter. Wrong words are
+    /// [`RemoteError::Unauthorized`].
+    async fn log_in(
+        &self,
+        code: &str,
+        from: Option<std::net::IpAddr>,
+    ) -> Result<AccessGrantDto, RemoteError>;
 
     /// Put a song at the back.
     ///

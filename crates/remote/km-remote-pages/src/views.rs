@@ -286,6 +286,12 @@ pub struct QueueCount {
 pub struct Chrome {
     /// Which tab is current: `browse`, `now`, `queue` or `setup`.
     pub tab: &'static str,
+    /// What this phone may do, and what the room may do.
+    ///
+    /// The page carries the level as a class on `<body>`, and the stylesheet hides every button
+    /// above it. A class rather than a branch in each template, because the event stream pushes
+    /// one fragment to every open page, whatever each phone's level.
+    pub access: km_api::dto::AccessDto,
     /// What this mode offers.
     pub capabilities: Capabilities,
     /// The badge.
@@ -321,6 +327,18 @@ pub struct Chrome {
     /// **A field rather than a message id**, for [`Chrome::lang`]'s reason: it is data, and a catalog
     /// entry for it would be a number a translator could get wrong.
     pub version: &'static str,
+}
+
+impl Chrome {
+    /// The message id naming this phone's level, for the line on the Setup tab.
+    pub fn access_key(&self) -> &'static str {
+        match self.access.access {
+            km_api::Access::View => "access-view",
+            km_api::Access::Queue => "access-queue",
+            km_api::Access::Control => "access-control",
+            km_api::Access::Admin => "access-admin",
+        }
+    }
 }
 
 /// One option in the language picker.

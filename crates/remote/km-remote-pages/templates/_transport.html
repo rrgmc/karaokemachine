@@ -1,4 +1,4 @@
-<div class="transport">
+<div class="transport needs-control">
   {% if view.is_playing() %}
   <button class="icon-btn" title="{{ "transport-pause"|t }}" aria-label="{{ "transport-pause"|t }}"
           hx-post="/control/pause?fragment=nowbar" hx-target="#nowbar" hx-swap="outerHTML">&#10074;&#10074;</button>

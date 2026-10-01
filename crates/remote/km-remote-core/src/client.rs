@@ -12,14 +12,9 @@
 //! pages say so through the banner, and a command sent while it is away fails immediately with
 //! something a page can say, rather than hanging until a timeout.
 //!
-//! **A machine with an admin password is not reachable from here yet, and that is a real gap rather
-//! than an oversight.** Every route this uses ships public, so the common case works; but an owner
-//! who has set a password and moved `queue.add` behind it will find this app able to browse and
-//! unable to queue, with a `not authorized` toast and nowhere to type anything. Closing it means a
-//! login page that exchanges the password through `POST /admin/login` and holds the token — the same
-//! flow the machine's own remote needs, which is why it belongs to that milestone rather than being
-//! half-built here. `check` already maps 401 and 403 onto [`RemoteError::Unauthorized`], so the page
-//! layer will need no change when it lands.
+//! **A code typed on the Setup tab buys a token, and this client sends it on every request.** A room
+//! below the queue or control level refuses a write with a 401 or a 403, and `check` maps both onto
+//! [`RemoteError::Unauthorized`]. The page layer turns that into a toast pointing at the code box.
 
 use std::sync::{Arc, RwLock};
 use std::time::Duration;
@@ -27,8 +22,8 @@ use std::time::Duration;
 use futures_util::StreamExt;
 use km_api::discover::Discovery;
 use km_api::dto::{
-    AddToQueueRequest, AddedToQueueDto, MoveRequest, PackagesDto, QueueDto, SettingsPatchDto,
-    SongDto, StateDto,
+    AccessDto, AccessGrantDto, AddToQueueRequest, AddedToQueueDto, LoginRequest, MoveRequest,
+    PackagesDto, QueueDto, SettingsPatchDto, SongDto, StateDto,
 };
 use km_api::events::Event;
 use km_remote_pages::machine::{Connection, Machine, RemoteError, Transport, codes};
@@ -84,6 +79,12 @@ const EVENT_CAPACITY: usize = 64;
 pub struct Api {
     http: reqwest::Client,
     base: String,
+    /// The access token a code bought from this machine, sent on every request.
+    ///
+    /// **One per machine, and shared by every clone of this `Api`.** The offline remote is one
+    /// person's app, so the code they typed is the level every page of it acts at. A different
+    /// machine is a new `Api`, and starts at that machine's room level.
+    token: Arc<RwLock<Option<String>>>,
 }
 
 impl Api {
@@ -95,7 +96,24 @@ impl Api {
                 .build()
                 .unwrap_or_default(),
             base: base.into().trim_end_matches('/').to_owned(),
+            token: Arc::new(RwLock::new(None)),
         }
+    }
+
+    /// The token held, if a code bought one.
+    fn token(&self) -> Option<String> {
+        self.token
+            .read()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .clone()
+    }
+
+    /// Keeps a token, or forgets the one held.
+    fn set_token(&self, token: Option<String>) {
+        *self
+            .token
+            .write()
+            .unwrap_or_else(|poisoned| poisoned.into_inner()) = token;
     }
 
     /// Where this points.
@@ -166,6 +184,10 @@ impl Api {
         &self,
         request: reqwest::RequestBuilder,
     ) -> Result<T, RemoteError> {
+        let request = match self.token() {
+            Some(token) => request.bearer_auth(token),
+            None => request,
+        };
         let response = request.send().await.map_err(transport_error)?;
         let response = check(response).await?;
         response.json().await.map_err(transport_error)
@@ -447,6 +469,38 @@ impl Machine for MachineClient {
     async fn queue(&self) -> Result<QueueDto, RemoteError> {
         self.with_api(|api| async move { api.get("/queue").await })
             .await
+    }
+
+    /// The token a page's cookie holds wins over the one this client keeps, so a code typed on
+    /// one page of the app is not undone by a stale cookie on another.
+    async fn access(&self, token: Option<&str>) -> Result<AccessDto, RemoteError> {
+        let token = token.map(str::to_owned);
+        self.with_api(|api| async move {
+            let request = api.http.get(api.url("/access"));
+            let request = match token.or_else(|| api.token()) {
+                Some(token) => request.bearer_auth(token),
+                None => request,
+            };
+            let response = request.send().await.map_err(transport_error)?;
+            check(response).await?.json().await.map_err(transport_error)
+        })
+        .await
+    }
+
+    async fn log_in(
+        &self,
+        code: &str,
+        _from: Option<std::net::IpAddr>,
+    ) -> Result<AccessGrantDto, RemoteError> {
+        let request = LoginRequest {
+            password: code.to_owned(),
+        };
+        self.with_api(|api| async move {
+            let grant: AccessGrantDto = api.post("/login", Some(&request)).await?;
+            api.set_token(Some(grant.token.clone()));
+            Ok(grant)
+        })
+        .await
     }
 
     async fn enqueue(

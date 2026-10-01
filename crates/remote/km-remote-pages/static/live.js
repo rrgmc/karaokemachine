@@ -296,7 +296,7 @@
 
   // The cookie, and the hour it lives for, are `prefs::AT`'s. This is the only cookie the browser
   // writes and the only one the server does not; `HttpOnly` is unconditional on that side because
-  // of `km_token`, so this one is set here or nowhere.
+  // of `km_access`, so this one is set here or nowhere.
   const AT_COOKIE = "km_at";
   const AT_MAX_AGE = 3600;
 

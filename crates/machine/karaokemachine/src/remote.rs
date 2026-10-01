@@ -314,6 +314,27 @@ impl Machine for OnlineMachine {
         Ok(QueueDto::new(&self.0.controller().queue()))
     }
 
+    async fn access(&self, token: Option<&str>) -> Result<km_api::dto::AccessDto, RemoteError> {
+        Ok(self.0.access_dto(self.0.access_for(token)))
+    }
+
+    async fn log_in(
+        &self,
+        code: &str,
+        from: Option<std::net::IpAddr>,
+    ) -> Result<km_api::dto::AccessGrantDto, RemoteError> {
+        let from = from.unwrap_or(std::net::IpAddr::V4(std::net::Ipv4Addr::UNSPECIFIED));
+        match self.0.auth().login_any(from, code) {
+            Ok((grant, access)) => Ok(km_api::dto::AccessGrantDto {
+                token: grant.token,
+                expires_in_secs: grant.expires_in_secs,
+                access,
+            }),
+            Err(km_api::LoginError::Rejected) => Err(RemoteError::Unauthorized),
+            Err(error) => Err(RemoteError::Failed(error.to_string())),
+        }
+    }
+
     async fn package_problems(&self) -> Vec<String> {
         self.0
             .catalog()

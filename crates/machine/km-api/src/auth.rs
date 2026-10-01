@@ -1,19 +1,23 @@
-//! Admin mode: one shared password, exchanged for a bearer token that survives a restart.
+//! The admin password and the two access codes, each exchanged for a bearer token that survives a
+//! restart.
 //!
 //! The threat model is a home LAN, not the internet. What this has to stop is a guest with the
 //! Wi-Fi password wiping the queue or uninstalling a package — not a determined attacker. So: one
-//! password (nobody wants per-user accounts on a karaoke machine), stored only as an `argon2` hash,
-//! exchanged for a token that carries its own expiry and is verified by recomputation.
+//! admin password and two optional codes, one for [`Access::Queue`] and one for [`Access::Control`].
+//! Nobody wants per-user accounts on a karaoke machine. Each is stored only as an `argon2` hash and
+//! exchanged for a token that carries its own level and expiry, verified by recomputation.
 //!
 //! **A machine always has a password.** The first one is generated at first start — see
 //! [`generate_factory_pin`] — so there is no state in which an admin route is open.
 //!
-//! Four things are deliberate:
+//! Five things are deliberate:
 //!
-//! * **There is no token table.** A token is `v1.<expiry>.<nonce>.<mac>`, where the MAC is
-//!   HMAC-SHA256 keyed on the stored `argon2` hash and the session epoch. Verification recomputes
-//!   it, so nothing is held in memory and a restart keeps everybody logged in. That is what the
-//!   owner asked for and it is why the map is gone.
+//! * **There is no token table.** A token is `v2.<level>.<expiry>.<nonce>.<mac>`, where the MAC is
+//!   HMAC-SHA256 keyed on the stored admin hash and taken over the level, that level's code hash and
+//!   the session epoch. Verification recomputes it, so nothing is held in memory and a restart keeps
+//!   everybody logged in.
+//! * **Changing or clearing a code ends that level's tokens and no others**, because the code's hash
+//!   is inside the signed message.
 //! * **The key is the stored hash, so changing the password invalidates every outstanding token**
 //!   without any code that says so. The old implementation cleared a map to achieve this; now it
 //!   falls out of the construction.
@@ -40,6 +44,8 @@ use argon2::password_hash::{PasswordHasher, PasswordVerifier};
 use ctutils::CtEq;
 use hmac::{Hmac, KeyInit, Mac};
 use sha2::Sha256;
+
+use crate::access::Access;
 
 /// How long a token stays valid.
 ///
@@ -89,8 +95,8 @@ const NONCE_BYTES: usize = 8;
 /// Bytes of MAC kept in a token. 128 bits is far past what a forger gets to attempt here.
 const MAC_BYTES: usize = 16;
 
-/// The one token format this build issues and accepts.
-const TOKEN_VERSION: &str = "v1";
+/// The one token format this build issues and accepts. It carries a level.
+const TOKEN_VERSION: &str = "v2";
 
 /// A successful login.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -185,6 +191,8 @@ pub struct AdminAuth {
     hash: RwLock<Option<String>>,
     /// Bumped to invalidate every outstanding token without changing the password.
     epoch: RwLock<u64>,
+    /// The `argon2` hashes of the queue code and the control code, where the owner set one.
+    codes: RwLock<Codes>,
     ttl: Duration,
     attempts: Mutex<HashMap<IpAddr, Attempts>>,
     everywhere: Mutex<Attempts>,
@@ -205,6 +213,7 @@ impl AdminAuth {
         Self {
             hash: RwLock::new(None),
             epoch: RwLock::new(0),
+            codes: RwLock::new(Codes::default()),
             ttl: DEFAULT_TOKEN_TTL,
             attempts: Mutex::new(HashMap::new()),
             everywhere: Mutex::new(Attempts::new()),
@@ -229,6 +238,47 @@ impl AdminAuth {
     pub fn with_epoch(self, epoch: u64) -> Self {
         self.set_epoch(epoch);
         self
+    }
+
+    /// Sets the two code hashes, as loaded from settings. Chainable.
+    pub fn with_codes(self, queue: Option<String>, control: Option<String>) -> Self {
+        self.set_code(Access::Queue, queue);
+        self.set_code(Access::Control, control);
+        self
+    }
+
+    /// Sets or clears the code for one level, for this run.
+    ///
+    /// Every token of that level stops verifying, for [`Self::set_hash`]'s reason: the code's hash
+    /// is inside the signed message. A level with no code ignores the call.
+    pub fn set_code(&self, level: Access, hash: Option<String>) {
+        let mut codes = self
+            .codes
+            .write()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        match level {
+            Access::Queue => codes.queue = hash,
+            Access::Control => codes.control = hash,
+            Access::View | Access::Admin => {}
+        }
+    }
+
+    /// Whether the owner has set a code for this level.
+    pub fn code_set(&self, level: Access) -> bool {
+        self.code_hash(level).is_some()
+    }
+
+    /// The stored hash of one level's code, cloned out from under the lock.
+    fn code_hash(&self, level: Access) -> Option<String> {
+        let codes = self
+            .codes
+            .read()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        match level {
+            Access::Queue => codes.queue.clone(),
+            Access::Control => codes.control.clone(),
+            Access::View | Access::Admin => None,
+        }
     }
 
     /// Whether a password is set.
@@ -320,63 +370,119 @@ impl AdminAuth {
             .to_string())
     }
 
-    /// Exchanges the password for a token.
+    /// Exchanges the admin password for an admin token.
     ///
     /// The rate limiters are checked before the password, so a flood costs an attacker the wait
-    /// rather than a few hundred milliseconds of our CPU per guess.
+    /// rather than a few hundred milliseconds of our CPU per guess. A code is not accepted here:
+    /// [`Self::login_any`] is the door for those.
     pub fn login(&self, from: IpAddr, password: &str) -> Result<Grant, LoginError> {
-        let Some(stored) = self.read_hash() else {
+        if self.read_hash().is_none() {
             return Err(LoginError::NotConfigured);
-        };
+        }
         if let Some(retry_after_secs) = self.throttled_for(from) {
             return Err(LoginError::RateLimited { retry_after_secs });
         }
-
-        let parsed = PasswordHash::new(&stored).map_err(|_| LoginError::BadStoredHash)?;
-        if Argon2::default()
-            .verify_password(password.as_bytes(), &parsed)
-            .is_err()
-        {
+        if !matches(self.read_hash().as_deref(), password)? {
             self.record_failure(from);
             return Err(LoginError::Rejected);
         }
-
         self.clear_failures(from);
         self.issue().ok_or(LoginError::NotConfigured)
     }
 
-    /// Mints a token without checking a password.
+    /// Exchanges the admin password or either code for a token of the level it grants.
+    ///
+    /// **The admin password is tried first, then the control code, then the queue code**, so a
+    /// caller always gets the highest level the words they typed open. It shares the rate limiter
+    /// with [`Self::login`], so a second door is not a second guessing budget.
+    pub fn login_any(&self, from: IpAddr, password: &str) -> Result<(Grant, Access), LoginError> {
+        if self.read_hash().is_none() {
+            return Err(LoginError::NotConfigured);
+        }
+        if let Some(retry_after_secs) = self.throttled_for(from) {
+            return Err(LoginError::RateLimited { retry_after_secs });
+        }
+        let Some(level) = self.level_of(password)? else {
+            self.record_failure(from);
+            return Err(LoginError::Rejected);
+        };
+        self.clear_failures(from);
+        let grant = self.issue_for(level).ok_or(LoginError::NotConfigured)?;
+        Ok((grant, level))
+    }
+
+    /// The level these words open, if they are the admin password or a code.
+    ///
+    /// **No rate limit, so only the owner's own surfaces call it**: the route that sets a code uses
+    /// it to refuse a code that is already the admin password or the other code.
+    pub fn level_of(&self, password: &str) -> Result<Option<Access>, LoginError> {
+        if matches(self.read_hash().as_deref(), password)? {
+            return Ok(Some(Access::Admin));
+        }
+        for level in [Access::Control, Access::Queue] {
+            if matches(self.code_hash(level).as_deref(), password)? {
+                return Ok(Some(level));
+            }
+        }
+        Ok(None)
+    }
+
+    /// Mints an admin token without checking a password.
     ///
     /// For tests, and for the machine's own in-process surfaces, which are already trusted. `None`
     /// when there is no password to key the MAC with.
     pub fn issue(&self) -> Option<Grant> {
+        self.issue_for(Access::Admin)
+    }
+
+    /// Mints a token of one level without checking a password.
+    ///
+    /// `None` when there is no admin password to key the MAC with, for [`Access::View`], which needs
+    /// no token, and for a level whose code the owner has not set.
+    pub fn issue_for(&self, level: Access) -> Option<Grant> {
         let stored = self.read_hash()?;
+        let code = self.code_for_signing(level)?;
         let expires_at = now_secs().saturating_add(self.ttl.as_secs());
         let nonce = random_hex(NONCE_BYTES);
-        let mac = sign(&stored, self.epoch(), expires_at, &nonce);
+        let mac = sign(&stored, level, &code, self.epoch(), expires_at, &nonce);
         Some(Grant {
-            token: format!("{TOKEN_VERSION}.{expires_at}.{nonce}.{mac}"),
+            token: format!("{TOKEN_VERSION}.{level}.{expires_at}.{nonce}.{mac}"),
             expires_in_secs: self.ttl.as_secs(),
         })
     }
 
-    /// Whether a token is currently valid.
-    ///
-    /// Recomputation, not lookup: the token carries its own expiry, and the MAC proves that expiry
-    /// was ours. A forged expiry changes the MAC input, so extending a token's life requires the
-    /// key, which is the stored hash.
+    /// Whether a token is a currently valid **admin** token.
     pub fn verify(&self, token: &str) -> bool {
-        let Some(stored) = self.read_hash() else {
-            return false;
-        };
-        let Some((expires_at, nonce, presented)) = split_token(token) else {
-            return false;
-        };
+        self.access_of(token) == Some(Access::Admin)
+    }
+
+    /// The level a token grants, or `None` when it is not currently valid.
+    ///
+    /// Recomputation, not lookup: the token carries its own level and expiry, and the MAC proves
+    /// both were ours. A forged level or expiry changes the MAC input, so raising a token's level or
+    /// extending its life requires the key, which is the stored admin hash.
+    pub fn access_of(&self, token: &str) -> Option<Access> {
+        let stored = self.read_hash()?;
+        let (level, expires_at, nonce, presented) = split_token(token)?;
         if expires_at <= now_secs() {
-            return false;
+            return None;
         }
-        let expected = sign(&stored, self.epoch(), expires_at, nonce);
-        expected.as_bytes().ct_eq(presented.as_bytes()).into()
+        let code = self.code_for_signing(level)?;
+        let expected = sign(&stored, level, &code, self.epoch(), expires_at, nonce);
+        let matches: bool = expected.as_bytes().ct_eq(presented.as_bytes()).into();
+        matches.then_some(level)
+    }
+
+    /// What a token of this level signs in place of a code.
+    ///
+    /// The admin level signs nothing extra, because the key is already its password. A code level
+    /// signs its code's hash, and has no tokens at all while that code is not set.
+    fn code_for_signing(&self, level: Access) -> Option<String> {
+        match level {
+            Access::Admin => Some(String::new()),
+            Access::Queue | Access::Control => self.code_hash(level),
+            Access::View => None,
+        }
     }
 
     /// Seconds the caller must wait, if either budget is spent.
@@ -448,28 +554,50 @@ fn now_secs() -> u64 {
         .unwrap_or(0)
 }
 
+/// The two code hashes, where the owner set them.
+#[derive(Debug, Default)]
+struct Codes {
+    queue: Option<String>,
+    control: Option<String>,
+}
+
+/// Whether the words match a stored `argon2` hash. No hash matches nothing.
+fn matches(stored: Option<&str>, password: &str) -> Result<bool, LoginError> {
+    let Some(stored) = stored else {
+        return Ok(false);
+    };
+    let parsed = PasswordHash::new(stored).map_err(|_| LoginError::BadStoredHash)?;
+    Ok(Argon2::default()
+        .verify_password(password.as_bytes(), &parsed)
+        .is_ok())
+}
+
 /// The MAC for one token's parameters, hex-encoded.
 ///
 /// The version string is inside the signed message, not merely a prefix on the token, so a later
-/// format cannot be made to verify by relabelling an older one.
-fn sign(key: &str, epoch: u64, expires_at: u64, nonce: &str) -> String {
+/// format cannot be made to verify by relabelling an older one. The level and the code's hash are
+/// inside it for the same reason.
+fn sign(key: &str, level: Access, code: &str, epoch: u64, expires_at: u64, nonce: &str) -> String {
     let mut mac =
         Hmac::<Sha256>::new_from_slice(key.as_bytes()).expect("HMAC accepts a key of any length");
-    mac.update(format!("km-admin-{TOKEN_VERSION}|{epoch}|{expires_at}|{nonce}").as_bytes());
+    mac.update(
+        format!("km-access-{TOKEN_VERSION}|{level}|{code}|{epoch}|{expires_at}|{nonce}").as_bytes(),
+    );
     hex(&mac.finalize().into_bytes()[..MAC_BYTES])
 }
 
-/// Splits `v1.<expiry>.<nonce>.<mac>` into its parts.
-fn split_token(token: &str) -> Option<(u64, &str, &str)> {
+/// Splits `v2.<level>.<expiry>.<nonce>.<mac>` into its parts.
+fn split_token(token: &str) -> Option<(Access, u64, &str, &str)> {
     let mut parts = token.split('.');
     let version = parts.next()?;
+    let level = Access::from_word(parts.next()?)?;
     let expires_at = parts.next()?.parse::<u64>().ok()?;
     let nonce = parts.next()?;
     let mac = parts.next()?;
     if version != TOKEN_VERSION || parts.next().is_some() || nonce.is_empty() || mac.is_empty() {
         return None;
     }
-    Some((expires_at, nonce, mac))
+    Some((level, expires_at, nonce, mac))
 }
 
 /// A PIN for a machine that has never had a password.
@@ -555,7 +683,7 @@ mod tests {
             Err(LoginError::NotConfigured)
         );
         assert!(auth.issue().is_none());
-        assert!(!auth.verify("v1.99999999999.aa.bb"));
+        assert!(!auth.verify("v2.admin.99999999999.aa.bb"));
     }
 
     #[test]
@@ -629,6 +757,8 @@ mod tests {
             "v1",
             "v1.a.b.c",
             "v2.99999999999.aa.bb",
+            "v2.owner.99999999999.aa.bb",
+            "v1.99999999999.aa.bb",
             ".....",
         ] {
             assert!(!auth.verify(nonsense), "{nonsense:?} should not verify");
@@ -708,8 +838,8 @@ mod tests {
     fn editing_the_expiry_out_of_a_token_does_not_extend_it() {
         let auth = configured("hunter2").with_ttl(Duration::from_secs(1));
         let grant = auth.issue().expect("a password is set");
-        let (_, nonce, mac) = split_token(&grant.token).expect("our own token parses");
-        let forged = format!("v1.{}.{nonce}.{mac}", now_secs() + 90_000);
+        let (_, _, nonce, mac) = split_token(&grant.token).expect("our own token parses");
+        let forged = format!("v2.admin.{}.{nonce}.{mac}", now_secs() + 90_000);
         assert!(!auth.verify(&forged));
     }
 
@@ -836,5 +966,90 @@ mod tests {
         let auth = configured(&pin);
         assert!(auth.login(LOCALHOST, &pin).is_ok());
         assert_eq!(auth.login(LOCALHOST, "000000"), Err(LoginError::Rejected));
+    }
+
+    fn with_codes(queue: &str, control: &str) -> AdminAuth {
+        configured("hunter2").with_codes(
+            Some(AdminAuth::hash_password(queue).expect("hashing works")),
+            Some(AdminAuth::hash_password(control).expect("hashing works")),
+        )
+    }
+
+    #[test]
+    fn each_code_opens_its_own_level_and_the_admin_password_opens_the_top() {
+        let auth = with_codes("sing", "boss");
+        for (words, level) in [
+            ("sing", Access::Queue),
+            ("boss", Access::Control),
+            ("hunter2", Access::Admin),
+        ] {
+            let (grant, granted) = auth.login_any(LOCALHOST, words).expect("a known code");
+            assert_eq!(granted, level);
+            assert_eq!(auth.access_of(&grant.token), Some(level));
+            assert_eq!(auth.verify(&grant.token), level == Access::Admin);
+        }
+        assert_eq!(
+            auth.login_any(LOCALHOST, "nope").map(|(_, level)| level),
+            Err(LoginError::Rejected)
+        );
+    }
+
+    #[test]
+    fn the_admin_door_takes_no_code() {
+        let auth = with_codes("sing", "boss");
+        assert_eq!(auth.login(LOCALHOST, "boss"), Err(LoginError::Rejected));
+    }
+
+    #[test]
+    fn a_level_with_no_code_issues_no_token() {
+        let auth = configured("hunter2");
+        assert!(auth.issue_for(Access::Queue).is_none());
+        assert!(auth.issue_for(Access::Control).is_none());
+        assert!(auth.issue_for(Access::View).is_none());
+        assert!(auth.issue_for(Access::Admin).is_some());
+    }
+
+    #[test]
+    fn relabelling_a_token_to_a_higher_level_breaks_its_mac() {
+        let auth = with_codes("sing", "boss");
+        let grant = auth
+            .issue_for(Access::Queue)
+            .expect("the queue code is set");
+        let raised = grant.token.replacen(".queue.", ".admin.", 1);
+        assert_eq!(auth.access_of(&raised), None);
+        let raised = grant.token.replacen(".queue.", ".control.", 1);
+        assert_eq!(auth.access_of(&raised), None);
+    }
+
+    #[test]
+    fn changing_a_code_ends_that_levels_tokens_and_no_others() {
+        let auth = with_codes("sing", "boss");
+        let queue = auth
+            .issue_for(Access::Queue)
+            .expect("the queue code is set");
+        let control = auth
+            .issue_for(Access::Control)
+            .expect("the control code is set");
+        let admin = auth.issue().expect("a password is set");
+
+        auth.set_code(
+            Access::Queue,
+            Some(AdminAuth::hash_password("sing2").expect("hashing works")),
+        );
+        assert_eq!(auth.access_of(&queue.token), None);
+        assert_eq!(auth.access_of(&control.token), Some(Access::Control));
+        assert!(auth.verify(&admin.token));
+
+        auth.set_code(Access::Control, None);
+        assert_eq!(auth.access_of(&control.token), None);
+        assert!(auth.verify(&admin.token));
+    }
+
+    #[test]
+    fn level_of_names_what_the_words_open() {
+        let auth = with_codes("sing", "boss");
+        assert_eq!(auth.level_of("sing"), Ok(Some(Access::Queue)));
+        assert_eq!(auth.level_of("hunter2"), Ok(Some(Access::Admin)));
+        assert_eq!(auth.level_of("other"), Ok(None));
     }
 }

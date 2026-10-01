@@ -374,8 +374,8 @@ is inert there, the same as `set_window_icon`.
   markup-comparison gate covers both **because the bar is a strict subset of the card**. A card whose
   markup did not change did not change the bar. That is the property to preserve if anything is ever
   added to the bar that is not also on the card.
-- **`?fragment=nowbar` never decided anything, and a test still pins that.** The remote is not gated
-  at all now, but a press from the queue answers exactly as the bare path does. A query string able to
+- **`?fragment=nowbar` never decided anything, and a test still pins that.** The level check reads
+  the action, never the query string, so a press from the queue answers exactly as the bare path does. A query string able to
   change what a press means would be a way round a rule rather than a spelling.
 - **The progress bar is deliberately not repeated.** `_position.html` exists precisely because the
   position is the only thing that moves; a copy in the bar would be a second fragment republished every

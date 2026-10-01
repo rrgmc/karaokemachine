@@ -235,10 +235,13 @@ It is queue, move to the front, and then end what is playing so the front is rea
 calls where `↑ next` is two. The API has no "play this one instead", and giving it one would put a
 remote's furniture inside the machine's queue.
 
-**Neither half is an admin route, so the judgement is all that governs it.** Adding is what this
-machine offers the whole room, and interrupting is not. **So it is off by default.** One guest should
-not be handed a one-tap way to end another guest's song beside every search result. Two taps,
-remembered per phone.
+**`↑ next` and `▶ now` need the control level, and adding needs only the queue level.** Adding is
+what this machine offers the whole room, and interrupting is not. The machine enforces that, and a
+phone below the control level is never shown either button. See
+[`Four access levels`](api-and-network.md#four-access-levels-and-the-method-and-path-decide-them).
+
+**At the control level the toggle is still off by default.** One guest should not be handed a
+one-tap way to end another guest's song beside every search result. Two taps, remembered per phone.
 
 ## The transport is folded away, and only on the Queue tab
 
@@ -391,10 +394,10 @@ press writes it back. The write is the only request, and the machine answers it 
 `actions=0`/`actions=1` into the button's own URL is correct only for as long as something re-renders
 that button. Nothing re-renders this one, and that is deliberate.
 
-**Markup a guest can un-hide buys them nothing, and it never did.** The toggle was never what stood
-between a phone and those routes. The machine's own check was, and both routes are open to the whole
-room by design. What the toggle decides is what an owner's guest is *offered*. That is a question
-about the room rather than about the server, and CSS answers exactly that question.
+**Markup a guest can un-hide buys them nothing.** The toggle does not stand between a phone and those
+routes. The level check behind each button does. What the toggle decides is what a phone at the
+control level is *offered*. That is a question about the room rather than about the server, and CSS
+answers exactly that question.
 
 ## The list carries on by being scrolled to
 
@@ -688,25 +691,38 @@ when another connection writes and resets on restart.
 
 **It is a public route, permanently**, and the mirror a client keeps depends on that.
 
-## The singer's remote is not gated at all
+## The singer's remote asks for a code and has no login page
 
-**Nothing it serves is an admin action, so there is nothing for a guard to refuse.** Every route it
-exercises sits outside `/api/v1/admin/` and always will. Those routes are search, queue, transport,
-the settings patch that carries key and tempo, and the event stream. Serving the page at `/` adds a
-page, not a permission, and that is true by construction rather than by a check.
+**Nothing it serves is an admin action.** Every route it exercises sits outside `/api/v1/admin/` and
+always will. Those routes are search, queue, transport, the settings patch that carries key and
+tempo, and the event stream.
 
-**No guard, no `/login` page and no token cookie.** A login page that could never be needed is worse
-than none. It implies the person has forgotten something.
+**A code box on the Setup tab, and no `/login` page.** A phone opens at the room level and can use
+the remote at once. Somebody given a code types it on the Setup tab, and the tab says what the phone
+can do. A login page in front of the remote would stop a guest who needs no code at all.
 
-**The property a guard would guarantee is a property of the route table instead.** Nothing the
-remote can do is anything the API would not already allow the same caller to do. The
+**The code buys a token, kept in an `HttpOnly` cookie named `km_access`.** Not `km_token`, which is
+the owner's page's cookie on the same origin, because a code typed here must not sign the owner out
+there. The remote reads `km_token` when `km_access` is absent, so an owner signed in at `/admin/` has
+the admin level on the remote too.
+
+**Every handler that writes checks the phone's level before it acts.** The pages call `km_api::ops`
+in-process, so the API's own check never runs for them. The level check in the handler is what makes
+the level real here. The offline remote talks to the machine over HTTP, so the machine checks again.
+
+**A button the phone cannot use is not drawn.** `<body>` carries the phone's level as a class, and
+each button above `view` carries the level it needs. The stylesheet hides the rest. A class rather
+than a branch in each template, because the event stream pushes one fragment to every open page,
+whatever each phone's level.
+
+**Nothing the remote can do is anything the API would not allow the same caller to do.** The
 alternative is a route that reaches the machine without going through `km_api::ops`. That is what
 [`One implementation of each operation`](#one-implementation-of-each-operation) forbids.
 
-**The cookie's reasoning survives one crate over.** A browser cannot be told to put an
-`Authorization` header on a link. So the owner's page at `/admin/` keeps the token in an `HttpOnly`
-cookie and rebuilds the header its guard expects. That is where a login form belongs: on the page
-where every control is an admin action, rather than on the page where none is.
+**The owner's page keeps its token the same way.** A browser cannot be told to put an
+`Authorization` header on a link. So `/admin/` keeps the token in an `HttpOnly` cookie and rebuilds
+the header its guard expects. A login form belongs there, on the page where every control is an admin
+action.
 
 ## One implementation of each operation
 

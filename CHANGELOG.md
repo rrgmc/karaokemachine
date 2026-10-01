@@ -35,6 +35,11 @@ Entries are written for somebody who has the machine. Why any of it is the way i
   package list and the API mark it, and `km-pack inspect` and `check` print it. The television does
   not show it. The package builder keeps the mark on a package it imports, and every rebuild keeps
   it too.
+- **Who may do what, in four levels.** A phone can watch, queue songs, or also skip and play a song
+  now. The owner does everything. Out of the box anybody in the room can queue. The
+  *This machine* tab sets what a phone with no code gets, and holds a code to queue and a code to
+  skip. A guest types a code on the remote's Setup tab, and the remote hides what that phone cannot
+  use.
 
 - **The machine runs on a Meta Quest, on a screen that hangs in the room.** It is a separate APK from
   the Android one, and it installs beside it rather than over it, so a headset can hold both. The
@@ -81,6 +86,10 @@ Entries are written for somebody who has the machine. Why any of it is the way i
 
 ### Changed
 
+- **A phone with no code queues songs and does not interrupt them.** Skip, play now, pause, stop,
+  restart, moving or removing a queued song, the demo song and the next picture need the skip level.
+  To give every phone those buttons, set the room level to *Queue, skip and play now* on the
+  *This machine* tab. The owner signs in to `/admin` once more after the update.
 - **A grayed-out key, tempo or melody button on the phone says why.** A video song says it has no key
   to change, and a MIDI file with no melody line says the search found none. With nothing playing,
   the buttons say nothing.

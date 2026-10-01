@@ -198,10 +198,9 @@ pub struct Remote {
     pub connect: Option<Arc<dyn Connect>>,
     /// What this mode offers.
     pub capabilities: Capabilities,
-    // **There is no guard here, and the absence is a decision.** Nothing the singer's remote serves
-    // is an admin action — every route it exercises sits outside `/api/v1/admin/` and always will —
-    // so a guard would have nothing to refuse, and a `/login` page that can never be needed is
-    // worse than none: it implies the person has forgotten something.
+    // **There is no guard here and no `/login` page.** Nothing the singer's remote serves is an
+    // admin action, and a phone opens at the room level. Each write handler checks the phone's
+    // level through `Machine::access` before it acts. See `handlers::permit`.
     /// What the browser tab shows, as PNG bytes served at `/static/icon.png`.
     ///
     /// Defaults to [`ICON_MACHINE_PNG`], so the mode that is *inside* the machine needs to say
@@ -382,6 +381,7 @@ pub fn router(state: Remote) -> Router {
         .route("/setup/packages", get(handlers::setup_packages))
         .route("/events", get(handlers::events))
         .route("/singer", post(handlers::set_singer))
+        .route("/access", post(handlers::set_access))
         .route("/locale", post(handlers::set_locale))
         .route("/packages/hidden", post(handlers::set_hidden_packages))
         // Which machine this device talks to. Useful only in a build with a `connect`, and harmless

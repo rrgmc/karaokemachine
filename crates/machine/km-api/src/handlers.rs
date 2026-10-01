@@ -24,16 +24,18 @@ use km_songcode::SongCode;
 use tokio::io::AsyncWriteExt;
 use tokio::sync::broadcast::error::RecvError;
 
+use crate::access::Access;
 use crate::auth::MIN_PASSWORD_CHARS;
 use crate::book::{self, BookFilter, BookQuery};
 use crate::connect::ConnectInfo;
 use crate::discover::Discovery;
 use crate::dto::{
-    AddToQueueRequest, AddedToQueueDto, AdminPasswordDto, AdminPasswordRequest, BankDto,
-    BankRequest, DebugDto, DebugRequest, ErrorDto, ExportParams, InstallReportDto, InstallRequest,
-    LoginRequest, LoginResponse, LyricsDto, MachineLocaleRequest, MachineNameRequest, MicPatchDto,
-    MicsDto, MoveRequest, PackageDto, PackagesDto, PlayFileRequest, PowerDto, QueueDto,
-    SearchParams, SearchResponse, SeekRequest, SetDemoDelayRequest, SetDemoRequest, SettingsDto,
+    AccessCodeRequest, AccessDto, AccessGrantDto, AddToQueueRequest, AddedToQueueDto,
+    AdminPasswordDto, AdminPasswordRequest, BankDto, BankRequest, DebugDto, DebugRequest, ErrorDto,
+    ExportParams, InstallReportDto, InstallRequest, LoginRequest, LoginResponse, LyricsDto,
+    MachineLocaleRequest, MachineNameRequest, MicPatchDto, MicsDto, MoveRequest, PackageDto,
+    PackagesDto, PlayFileRequest, PowerDto, QueueDto, RoomAccessRequest, SearchParams,
+    SearchResponse, SeekRequest, SetDemoDelayRequest, SetDemoRequest, SettingsDto,
     SettingsPatchDto, SongDto, StateDto, UninstallDto, UploadReportDto, effective_limit,
     export_limit,
 };
@@ -180,7 +182,7 @@ impl Peer {
     ///
     /// An unknown peer shares one bucket rather than getting a free pass, so a proxy that hides
     /// addresses throttles everybody behind it instead of nobody.
-    fn rate_limit_key(self) -> std::net::IpAddr {
+    pub fn rate_limit_key(self) -> std::net::IpAddr {
         self.0
             .map(|addr| addr.ip())
             .unwrap_or(std::net::IpAddr::V4(std::net::Ipv4Addr::UNSPECIFIED))
@@ -1062,6 +1064,65 @@ pub async fn login(
         token: grant.token,
         expires_in_secs: grant.expires_in_secs,
     }))
+}
+
+/// `POST /api/v1/login`
+///
+/// The admin password or either code, for a token of the highest level the words open.
+pub async fn login_any(
+    State(state): State<ApiState>,
+    peer: Peer,
+    Body(body): Body<LoginRequest>,
+) -> ApiResult<Json<AccessGrantDto>> {
+    let (grant, access) = state
+        .auth()
+        .login_any(peer.rate_limit_key(), &body.password)?;
+    tracing::info!(peer = ?peer.0, %access, "a code was exchanged for a token");
+    Ok(Json(AccessGrantDto {
+        token: grant.token,
+        expires_in_secs: grant.expires_in_secs,
+        access,
+    }))
+}
+
+/// `GET /api/v1/access`
+///
+/// The caller's level and the room's. A token that does not verify counts as no token, so a phone
+/// holding a stale one is told the room level rather than refused.
+pub async fn get_access(
+    State(state): State<ApiState>,
+    headers: axum::http::HeaderMap,
+) -> Json<AccessDto> {
+    Json(state.access_dto(state.caller_access(&headers)))
+}
+
+/// `PUT /api/v1/admin/access`
+///
+/// What the room gets with no code. See [`ops::set_room_access`].
+pub async fn put_room_access(
+    State(state): State<ApiState>,
+    Body(body): Body<RoomAccessRequest>,
+) -> ApiResult<Json<AccessDto>> {
+    ops::set_room_access(&state, body.room)?;
+    Ok(Json(state.access_dto(Access::Admin)))
+}
+
+/// `PUT /api/v1/admin/access/queue-code`
+pub async fn put_queue_code(
+    State(state): State<ApiState>,
+    Body(body): Body<AccessCodeRequest>,
+) -> ApiResult<Json<AccessDto>> {
+    ops::set_access_code(&state, Access::Queue, body.code.as_deref())?;
+    Ok(Json(state.access_dto(Access::Admin)))
+}
+
+/// `PUT /api/v1/admin/access/control-code`
+pub async fn put_control_code(
+    State(state): State<ApiState>,
+    Body(body): Body<AccessCodeRequest>,
+) -> ApiResult<Json<AccessDto>> {
+    ops::set_access_code(&state, Access::Control, body.code.as_deref())?;
+    Ok(Json(state.access_dto(Access::Admin)))
 }
 
 /// `POST /api/v1/admin/logout`

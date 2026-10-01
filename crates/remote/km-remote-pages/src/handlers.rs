@@ -25,7 +25,8 @@ use axum::extract::{Path, Query, State};
 
 use axum::http::{HeaderMap, StatusCode, header};
 use axum::response::{Html, IntoResponse, Redirect, Response};
-use km_api::dto::{OriginDto, SettingsPatchDto};
+use km_api::Access;
+use km_api::dto::{AccessDto, OriginDto, SettingsPatchDto};
 use km_locale::{Catalog, Locale};
 use km_song::text::fold;
 use km_songcode::SongCode;
@@ -293,6 +294,36 @@ fn failure(error: &RemoteError, locale: Locale) -> Response {
     )
 }
 
+/// What this phone may do.
+///
+/// A machine that cannot say is read as the lowest level. Every write would fail against it anyway,
+/// and a page that hides a button is better than one that offers it and then refuses.
+async fn access_of(state: &Remote, prefs: &Prefs) -> AccessDto {
+    state
+        .machine
+        .access(prefs.token.as_deref())
+        .await
+        .unwrap_or(AccessDto {
+            access: Access::View,
+            room: Access::View,
+            queue_code: false,
+            control_code: false,
+        })
+}
+
+/// Refuses unless this phone's level reaches `needed`.
+///
+/// **The check that makes the level real on this remote.** Its pages call the machine in-process
+/// online, so the API's own check never runs for them. Hiding a button is only what the phone is
+/// offered; this is what it may do.
+async fn permit(state: &Remote, prefs: &Prefs, needed: Access) -> Result<(), RemoteError> {
+    if access_of(state, prefs).await.access >= needed {
+        Ok(())
+    } else {
+        Err(RemoteError::Unauthorized)
+    }
+}
+
 /// Everything a full page needs around its content.
 async fn chrome(state: &Remote, tab: &'static str, prefs: &Prefs) -> Chrome {
     let connection = state.machine.connection();
@@ -302,8 +333,10 @@ async fn chrome(state: &Remote, tab: &'static str, prefs: &Prefs) -> Chrome {
         .await
         .map(|queue| queue.len)
         .unwrap_or(0);
+    let access = access_of(state, prefs).await;
     Chrome {
         tab,
+        access,
         capabilities: state.capabilities,
         queue_count: QueueCount { len: queue_len },
         conn: Conn {
@@ -1343,6 +1376,45 @@ pub async fn set_singer(headers: HeaderMap, body: String) -> Response {
     response
 }
 
+/// `POST /access` — a code typed on the Setup tab, or an empty one to forget the code held.
+///
+/// **Answers with a full refresh, for [`set_locale`]'s reason.** A new level changes which buttons
+/// every part of the page shows, so there is no single fragment that would be right. Wrong words are
+/// a toast and change nothing.
+pub async fn set_access(
+    State(state): State<Remote>,
+    peer: km_api::handlers::Peer,
+    headers: HeaderMap,
+    body: String,
+) -> Response {
+    let locale = prefs::locale(&headers);
+    let code = form::field(&body, "code").unwrap_or_default();
+    let code = code.trim();
+    if code.is_empty() {
+        let mut response = (StatusCode::OK, [("hx-refresh", "true")]).into_response();
+        prefs::attach(response.headers_mut(), prefs::clear(prefs::TOKEN));
+        return response;
+    }
+    match state
+        .machine
+        .log_in(code, Some(peer.rate_limit_key()))
+        .await
+    {
+        Ok(grant) => {
+            let mut response = (StatusCode::OK, [("hx-refresh", "true")]).into_response();
+            prefs::attach(
+                response.headers_mut(),
+                prefs::set_token(&grant.token, grant.expires_in_secs),
+            );
+            response
+        }
+        Err(RemoteError::Unauthorized) => {
+            views::toast_only(Toast::bad(say(locale, "access-code-wrong")), locale)
+        }
+        Err(error) => views::toast_only(views::message_for(&error, locale), locale),
+    }
+}
+
 /// `POST /locale` — what language this device reads the remote in.
 ///
 /// **Answers with a full refresh rather than a fragment**, which is the one place this page departs
@@ -1618,130 +1690,138 @@ pub async fn song_action(
     let prefs = Prefs::read(&headers);
     let locale = prefs.locale;
     let singer = prefs.singer.as_deref();
+    let needed = if action == "queue" {
+        Access::Queue
+    } else {
+        Access::Control
+    };
 
-    let outcome = match action.as_str() {
-        "queue" => state.machine.enqueue(number, singer).await.map(|added| {
-            (
-                Badge {
-                    level: "badge-good",
-                    text: "badge-queued",
-                },
-                Toast::good(
-                    crate::words::messages(locale)
-                        .msg_with("queued-song", &[("title", added.title.as_str().into())]),
-                ),
-            )
-        }),
-        // Two calls, because the API has no "queue at the front" — and faking one inside the machine
-        // trait would mean both implementations doing this same pair anyway. If neither lands the
-        // song at the front the badge says so, because a song is still queued either way.
-        "next" => match state.machine.enqueue(number, singer).await {
-            Ok(added) => {
-                if reached_the_front(&state, number, added.entry_id).await {
-                    Ok((
-                        Badge {
-                            level: "badge-good",
-                            text: "badge-next-up",
-                        },
-                        Toast::good(crate::words::messages(locale).msg_with(
-                            "playing-next-song",
-                            &[("title", added.title.as_str().into())],
-                        )),
-                    ))
-                } else {
-                    Ok((
-                        Badge {
-                            level: "badge-good",
-                            text: "badge-queued",
-                        },
-                        Toast::warn(crate::words::messages(locale).msg_with(
-                            "queued-not-moved",
-                            &[("title", added.title.as_str().into())],
-                        )),
-                    ))
-                }
-            }
-            Err(error) => Err(error),
-        },
-        // Three calls, for the same reason `next` is two: the API has no "play this one instead".
-        // Queue it, move it to the front, and then end whatever is playing so that the front is
-        // reached — which is `advance()` on the machine either way, whether it arrives as a skip or
-        // as a wake.
-        //
-        // **Skip first and fall back to play**, rather than reading the state to find out which is
-        // wanted. `Skip` answers `Unavailable` when nothing is loaded and `Play` answers
-        // `Unavailable` when nothing is loaded *and* nothing is queued — which cannot be the case
-        // here, since a song was just put at the front. Asking first would be a fourth round trip
-        // and would still be racing the song that ends between the question and the answer.
-        "now" => match state.machine.enqueue(number, singer).await {
-            Ok(added) => {
-                let moved = state.machine.move_entry(added.entry_id, 0).await.is_ok();
-                let on_deck = !moved && is_on_the_deck(&state, number).await;
-
-                if !moved && !on_deck {
-                    Ok((
-                        Badge {
-                            level: "badge-good",
-                            text: "badge-queued",
-                        },
-                        Toast::warn(crate::words::messages(locale).msg_with(
-                            "queued-not-moved",
-                            &[("title", added.title.as_str().into())],
-                        )),
-                    ))
-                } else {
-                    let started = if on_deck {
-                        // It is already the loaded song, so **skipping here would skip the very
-                        // song that was asked for** — which is why the two paths cannot be merged.
-                        // Play is insurance for a machine that loaded it without starting it, and
-                        // its answer is ignored: a machine that is already playing may refuse it,
-                        // and being on the deck is the outcome ▶ promised either way.
-                        let _ = state.machine.transport(Transport::Play).await;
-                        true
-                    } else {
-                        match state.machine.transport(Transport::Skip).await {
-                            Ok(_) => true,
-                            // Nothing was playing, so there is nothing to skip and the front of the
-                            // queue is simply where to start.
-                            Err(RemoteError::Unavailable { .. }) => {
-                                state.machine.transport(Transport::Play).await.is_ok()
-                            }
-                            Err(_) => false,
-                        }
-                    };
-                    if started {
-                        Ok((
-                            Badge {
-                                level: "badge-good",
-                                text: "badge-playing",
-                            },
-                            Toast::good(crate::words::messages(locale).msg_with(
-                                "playing-now-song",
-                                &[("title", added.title.as_str().into())],
-                            )),
-                        ))
-                    } else {
-                        // The song is at the front and will play when this one ends, which is what
-                        // `next up` means — saying `playing` here would be a lie about a television
-                        // nobody in this room can see from their phone.
+    let outcome = match permit(&state, &prefs, needed).await {
+        Err(refused) => Err(refused),
+        Ok(()) => match action.as_str() {
+            "queue" => state.machine.enqueue(number, singer).await.map(|added| {
+                (
+                    Badge {
+                        level: "badge-good",
+                        text: "badge-queued",
+                    },
+                    Toast::good(
+                        crate::words::messages(locale)
+                            .msg_with("queued-song", &[("title", added.title.as_str().into())]),
+                    ),
+                )
+            }),
+            // Two calls, because the API has no "queue at the front" — and faking one inside the machine
+            // trait would mean both implementations doing this same pair anyway. If neither lands the
+            // song at the front the badge says so, because a song is still queued either way.
+            "next" => match state.machine.enqueue(number, singer).await {
+                Ok(added) => {
+                    if reached_the_front(&state, number, added.entry_id).await {
                         Ok((
                             Badge {
                                 level: "badge-good",
                                 text: "badge-next-up",
                             },
+                            Toast::good(crate::words::messages(locale).msg_with(
+                                "playing-next-song",
+                                &[("title", added.title.as_str().into())],
+                            )),
+                        ))
+                    } else {
+                        Ok((
+                            Badge {
+                                level: "badge-good",
+                                text: "badge-queued",
+                            },
                             Toast::warn(crate::words::messages(locale).msg_with(
-                                "next-not-started",
+                                "queued-not-moved",
                                 &[("title", added.title.as_str().into())],
                             )),
                         ))
                     }
                 }
+                Err(error) => Err(error),
+            },
+            // Three calls, for the same reason `next` is two: the API has no "play this one instead".
+            // Queue it, move it to the front, and then end whatever is playing so that the front is
+            // reached — which is `advance()` on the machine either way, whether it arrives as a skip or
+            // as a wake.
+            //
+            // **Skip first and fall back to play**, rather than reading the state to find out which is
+            // wanted. `Skip` answers `Unavailable` when nothing is loaded and `Play` answers
+            // `Unavailable` when nothing is loaded *and* nothing is queued — which cannot be the case
+            // here, since a song was just put at the front. Asking first would be a fourth round trip
+            // and would still be racing the song that ends between the question and the answer.
+            "now" => match state.machine.enqueue(number, singer).await {
+                Ok(added) => {
+                    let moved = state.machine.move_entry(added.entry_id, 0).await.is_ok();
+                    let on_deck = !moved && is_on_the_deck(&state, number).await;
+
+                    if !moved && !on_deck {
+                        Ok((
+                            Badge {
+                                level: "badge-good",
+                                text: "badge-queued",
+                            },
+                            Toast::warn(crate::words::messages(locale).msg_with(
+                                "queued-not-moved",
+                                &[("title", added.title.as_str().into())],
+                            )),
+                        ))
+                    } else {
+                        let started = if on_deck {
+                            // It is already the loaded song, so **skipping here would skip the very
+                            // song that was asked for** — which is why the two paths cannot be merged.
+                            // Play is insurance for a machine that loaded it without starting it, and
+                            // its answer is ignored: a machine that is already playing may refuse it,
+                            // and being on the deck is the outcome ▶ promised either way.
+                            let _ = state.machine.transport(Transport::Play).await;
+                            true
+                        } else {
+                            match state.machine.transport(Transport::Skip).await {
+                                Ok(_) => true,
+                                // Nothing was playing, so there is nothing to skip and the front of the
+                                // queue is simply where to start.
+                                Err(RemoteError::Unavailable { .. }) => {
+                                    state.machine.transport(Transport::Play).await.is_ok()
+                                }
+                                Err(_) => false,
+                            }
+                        };
+                        if started {
+                            Ok((
+                                Badge {
+                                    level: "badge-good",
+                                    text: "badge-playing",
+                                },
+                                Toast::good(crate::words::messages(locale).msg_with(
+                                    "playing-now-song",
+                                    &[("title", added.title.as_str().into())],
+                                )),
+                            ))
+                        } else {
+                            // The song is at the front and will play when this one ends, which is what
+                            // `next up` means — saying `playing` here would be a lie about a television
+                            // nobody in this room can see from their phone.
+                            Ok((
+                                Badge {
+                                    level: "badge-good",
+                                    text: "badge-next-up",
+                                },
+                                Toast::warn(crate::words::messages(locale).msg_with(
+                                    "next-not-started",
+                                    &[("title", added.title.as_str().into())],
+                                )),
+                            ))
+                        }
+                    }
+                }
+                Err(error) => Err(error),
+            },
+            _ => {
+                return (StatusCode::NOT_FOUND, "no such action").into_response();
             }
-            Err(error) => Err(error),
         },
-        _ => {
-            return (StatusCode::NOT_FOUND, "no such action").into_response();
-        }
     };
 
     match outcome {
@@ -1778,7 +1858,10 @@ pub async fn queue_action(
     Path((entry, action)): Path<(u64, String)>,
     headers: HeaderMap,
 ) -> Response {
-    let locale = prefs::locale(&headers);
+    let prefs = Prefs::read(&headers);
+    let locale = prefs.locale;
+    // Moving or removing an entry needs the control level, because the entry may be somebody else's.
+    let permitted = permit(&state, &prefs, Access::Control).await;
     // The index a move needs is the entry's own, plus or minus one — which means reading the queue
     // first. Doing it here rather than in the trait keeps both implementations free of a concept the
     // API does not have.
@@ -1791,6 +1874,7 @@ pub async fn queue_action(
     });
 
     let result = match (action.as_str(), position) {
+        _ if permitted.is_err() => permitted,
         ("remove", _) => state.machine.dequeue(entry).await.map(|_| ()),
         ("up", Some(position)) => state
             .machine
@@ -1825,8 +1909,8 @@ pub async fn queue_action(
 /// bar. The same `?fragment=` idiom the browse routes use, and for the same reason: which fragment
 /// a press wants is a property of the press, not of the action.
 ///
-/// It never reaches the machine's own permission test, which is handed a *path* and answers on the
-/// `/api/v1/admin/` prefix alone, so a query parameter cannot be a way round it. A test pins it.
+/// The level check reads the action, never this, so a query parameter cannot be a way round it. A
+/// test pins it.
 #[derive(Debug, Default, Deserialize)]
 pub struct ControlParams {
     /// `nowbar`, or nothing.
@@ -1849,7 +1933,15 @@ pub async fn control(
     headers: HeaderMap,
     body: String,
 ) -> Response {
-    let locale = prefs::locale(&headers);
+    let prefs = Prefs::read(&headers);
+    let locale = prefs.locale;
+    // A singer's knobs need the queue level; the transport and the demo need the control level.
+    let needed = match action.as_str() {
+        "transpose-up" | "transpose-down" | "transpose-reset" | "tempo-up" | "tempo-down"
+        | "tempo-reset" | "melody" | "volume" => Access::Queue,
+        _ => Access::Control,
+    };
+    let permitted = permit(&state, &prefs, needed).await;
     // The steppers are relative — "one semitone up from whatever it is" — so the current state has
     // to be read before it can be changed. A machine that will not answer that cannot be told to do
     // anything either, so this stops here with the reason rather than sending a command computed
@@ -1867,6 +1959,7 @@ pub async fn control(
     };
 
     let result = match action.as_str() {
+        _ if permitted.is_err() => permitted,
         "play" => state.machine.transport(Transport::Play).await.map(|_| ()),
         "pause" => state.machine.transport(Transport::Pause).await.map(|_| ()),
         "skip" => state.machine.transport(Transport::Skip).await.map(|_| ()),

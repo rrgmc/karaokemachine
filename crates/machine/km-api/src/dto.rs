@@ -1807,6 +1807,51 @@ pub struct LoginResponse {
     pub expires_in_secs: u64,
 }
 
+/// The reply to `POST /login`: a token, and the level it opens.
+///
+/// The request is a [`LoginRequest`], because the admin password is one of the things it takes.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AccessGrantDto {
+    /// The bearer token to send as `Authorization: Bearer <token>`.
+    pub token: String,
+    /// How long it lasts.
+    pub expires_in_secs: u64,
+    /// The level the token opens: `queue`, `control` or `admin`.
+    pub access: crate::access::Access,
+}
+
+/// `GET /access`, and the reply to the three routes under `/admin/access`.
+///
+/// **Whether each code is set, and never the code.** A remote offers a code box only where a code
+/// exists, and the owner's page says *set* or *not set*.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AccessDto {
+    /// The caller's own level: the higher of the room's and the token's.
+    pub access: crate::access::Access,
+    /// What everybody gets with no code at all.
+    pub room: crate::access::Access,
+    /// Whether the owner has set a queue code.
+    pub queue_code: bool,
+    /// Whether the owner has set a control code.
+    pub control_code: bool,
+}
+
+/// `PUT /admin/access`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RoomAccessRequest {
+    /// `view`, `queue` or `control`. A room is never given `admin`.
+    pub room: crate::access::Access,
+}
+
+/// `PUT /admin/access/queue-code` and `PUT /admin/access/control-code`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AccessCodeRequest {
+    /// The new code, or `null` to clear it. A cleared code ends every token it granted.
+    pub code: Option<String>,
+}
+
 /// `GET /debug` and the reply to `PUT /admin/debug`.
 ///
 /// **`enabled` rather than `accept`**, unlike the upload switch this replaced: that one had the

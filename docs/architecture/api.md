@@ -77,18 +77,33 @@ Query parameters are `Deserialize` structs without
 `deny_unknown_fields`. So a client built against a later version can pass a key this one has not
 heard of, and still get its answer.
 
-## Admin mode: one prefix, one predicate
+## Access: four levels, one predicate
 
-**The permission is the URL.** `routes::needs_admin_token` tests the request path against
+**The admin permission is the URL.** `routes::needs_admin_token` tests the request path against
 `/api/v1/admin/`, with the trailing slash, so `/api/v1/adminfoo` is not one. It exempts
-`admin/login`. `ApiState::authorize` is its only caller and takes nothing else: not the route, not
-the peer address, not a map.
+`admin/login`.
+
+**`routes::required_access` answers the rest from the method and the path.** It returns
+`Access::Admin` wherever `needs_admin_token` says so. It returns `View` for a read, for the two login
+routes, for the two debug play routes and for any path outside `/api/v1/`. `POST /queue` and `PUT /settings` are `Queue`, and every
+other write is `Control`. `ApiState::authorize` takes the method, the path and the headers, and
+nothing else: not the peer address, not a map.
+
+**The caller's level is the higher of the room's and the token's.** `ApiState` holds the room level
+behind a lock, because the owner changes it while the machine runs. `AdminAuth` holds the admin hash
+and the two code hashes. A token is `v2.<level>.<expiry>.<nonce>.<mac>`. The MAC is keyed on the admin
+hash and taken over the level, that level's code hash, the epoch, the expiry and the nonce. So a code
+changed or cleared ends that level's tokens, and a relabelled level breaks the MAC.
+
+**401 and 403 mean different things.** A 401 says a token would help: there is none, or it does not
+verify. A 403 says the token is valid and too low. The decision is
+[`Four access levels`](../decisions/api-and-network.md#four-access-levels-and-the-method-and-path-decide-them).
 
 **One middleware, on the *outer* router, and the placement is the only one that works.** Inside
 `nest(API_PREFIX, api)`, axum has already stripped `/api/v1` from the path a layer sees. So a
 middleware there would test `/admin/demo` against a rule written about `/api/v1/admin/demo`. Out here
-the path is whole. It is harmless to the HTML pages, which live at `/admin/`, outside the API prefix,
-and carry their own guard.
+the path is whole. It is harmless to the HTML pages, which live at `/admin/` and `/`, outside the API prefix,
+and carry their own checks.
 
 A 46-entry route-id map and three rules that overrode it held this job before. The map cost a table
 that could disagree with the router. It bought a configurability nobody used. The decision
