@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Permits plain HTTP to loopback, and to nothing else.
+
+    The queue panel beside the screen is a WebView on the machine's own remote, which the machine
+    serves as plain HTTP in this same process. Android blocks cleartext by default, and that block
+    covers `127.0.0.1` as well. Without this exception the panel stays blank and says nothing about
+    why.
+
+    **Only the WebView needs it.** The machine's own sockets are native and this policy does not
+    reach them, so there is no reason to permit cleartext to the LAN. The remote's application
+    carries the same file for the same reason.
+-->
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">127.0.0.1</domain>
+        <domain includeSubdomains="false">localhost</domain>
+    </domain-config>
+</network-security-config>

@@ -8,6 +8,9 @@ buildscript {
         classpath 'com.android.tools.build:gradle:8.7.3'
         // For the `headset` flavour's Kotlin. See the flavour block in app/build.gradle.
         classpath 'org.jetbrains.kotlin:kotlin-gradle-plugin:2.1.0'
+        // The Compose compiler ships with Kotlin and takes Kotlin's version. The headset's controls
+        // are Compose, because Horizon OS's UI Set is.
+        classpath 'org.jetbrains.kotlin:compose-compiler-gradle-plugin:2.1.0'
     }
 }
 
