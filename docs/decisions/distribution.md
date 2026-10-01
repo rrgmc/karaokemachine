@@ -1430,6 +1430,11 @@ so the screen's facing would point it past the wearer. It turns about the vertic
 is placed and while it is carried. A resize scales the page between half and double its size, the
 same way the screen scales.
 
+**The controls ride under the screen and step aside for a song.** They are a small pill of four
+buttons: curved, wall, queue and window. They belong to the screen, so they follow it while it is
+moved or resized and cannot be pulled away. While a song plays the pill hides, so nothing but the
+lyrics sits in view. The window button shows only when a switch would lose nothing.
+
 **Resizing scales the screen and never re-lays it.** The machine draws at 1600x900 dp whatever size
 the wearer makes the screen. A resize that reached SDL would rebuild its surface under a playing
 song, and the machine pauses when its surface goes.

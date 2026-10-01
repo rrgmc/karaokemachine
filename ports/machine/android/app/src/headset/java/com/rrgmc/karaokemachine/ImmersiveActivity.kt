@@ -4,6 +4,8 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import androidx.compose.ui.platform.ComposeView
 import com.meta.spatial.compose.ComposeFeature
 import com.meta.spatial.compose.composePanel
@@ -42,8 +44,9 @@ import com.meta.spatial.vr.VRFeature
  * involved. See `What the machine *is*, on a headset` in docs/decisions/distribution.md.
  *
  * The wearer places the screen. It starts on the main wall of the scanned room, moves and resizes
- * by hand, and comes back where it was left. The singer's remote hangs beside it. A button under it
- * takes the machine into a system window, which is [FlatActivity].
+ * by hand, and comes back where it was left. The singer's remote hangs beside it. A pill of controls
+ * rides under it and steps aside while a song plays. One of its buttons takes the machine into a
+ * system window, which is [FlatActivity].
  */
 class ImmersiveActivity : AppSystemActivity() {
 
@@ -146,10 +149,11 @@ class ImmersiveActivity : AppSystemActivity() {
                 true,
             ),
         )
+        // Not grabbable: the controls belong to the screen and follow it, see [placeControls].
         controlsEntity = Entity.createPanelEntity(
             R.id.controls_panel,
             Transform(Pose(ahead)),
-            IsdkGrabbable(),
+            Visible(true),
         )
         if (queueAddress != null) {
             queueEntity = Entity.createPanelEntity(
@@ -176,10 +180,10 @@ class ImmersiveActivity : AppSystemActivity() {
     }
 
     /**
-     * Notices the wearer letting go of the screen, and remembers where it went.
+     * Carries the controls with the screen while the wearer holds it, and remembers where it went.
      *
-     * A grab and a resize both end here. Saving once at the release, rather than every frame, keeps
-     * the preferences file out of the frame loop.
+     * A grab and a resize both end here. The controls move only while the screen does, and saving
+     * happens once at the release, so a still screen costs nothing per frame.
      */
     override fun onSceneTick() {
         super.onSceneTick()
@@ -187,13 +191,45 @@ class ImmersiveActivity : AppSystemActivity() {
         val grabbed = entity.tryGetComponent<IsdkGrabbable>()?.grabState == IsdkGrabState.Grabbed
         val corner = entity.tryGetComponent<IsdkPanelResize>()?.activeResizeCorner
         val now = grabbed || (corner != null && corner != ResizeCornerState.NONE)
+        if (now || handling) placeControls()
         if (handling && !now) remember()
         handling = now
     }
 
+    override fun onResume() {
+        super.onResume()
+        watching = true
+        main.post(watch)
+    }
+
     override fun onPause() {
+        watching = false
+        main.removeCallbacks(watch)
         remember()
         super.onPause()
+    }
+
+    private val main = Handler(Looper.getMainLooper())
+    private var watching = false
+
+    /**
+     * Asks the machine what it is doing, every [WATCH_MS] while the scene is in front.
+     *
+     * The controls step aside while a song plays, so nothing but the lyrics sits under them. The
+     * window button shows only when a switch would lose nothing.
+     */
+    private val watch = object : Runnable {
+        override fun run() {
+            if (!watching) return
+            Thread {
+                val status = Machine.status(this@ImmersiveActivity)
+                runOnUiThread {
+                    controls.idle = status.idle
+                    controlsEntity?.setComponent(Visible(!status.playing))
+                }
+            }.start()
+            main.postDelayed(this, WATCH_MS)
+        }
     }
 
     override fun registerPanels(): List<PanelRegistration> =
@@ -225,19 +261,28 @@ class ImmersiveActivity : AppSystemActivity() {
      * The screen at [place] and at its width, with the controls under it and the queue beside it.
      *
      * The two small panels come out towards the wearer by [NEARER], so a screen on a wall never
-     * swallows them. Each stays grabbable, and neither follows the screen once the wearer moves it.
+     * swallows them. The queue stays grabbable and stays where the wearer leaves it. The controls
+     * belong to the screen, see [placeControls].
      */
     private fun put(place: ScreenPlace) {
         screenEntity?.setComponent(Transform(place.pose))
         screenEntity?.setComponent(Scale(Vector3(place.width / SCREEN_WIDTH)))
-        val height = place.width * 9.0f / 16.0f
         // A panel's local negative Z points out of its face, towards whoever is looking at it.
-        val under = Vector3(0.0f, -(height / 2.0f + CONTROLS_GAP), -NEARER)
         val queueScale = queueEntity?.tryGetComponent<Scale>()?.scale?.x ?: 1.0f
         val queueHalf = QUEUE_WIDTH * queueScale / 2.0f
         val beside = Vector3(-(place.width / 2.0f + QUEUE_GAP + queueHalf), 0.0f, -NEARER)
-        controlsEntity?.setComponent(Transform(place.pose.times(Pose(under))))
         queueEntity?.setComponent(Transform(facingViewer(place.pose.times(Pose(beside)).t)))
+        placeControls()
+    }
+
+    /** The controls centred under the screen as it is now, wherever it is and however large. */
+    private fun placeControls() {
+        val entity = screenEntity ?: return
+        val pose = entity.tryGetComponent<Transform>()?.transform ?: return
+        val scale = entity.tryGetComponent<Scale>()?.scale?.x ?: 1.0f
+        val height = SCREEN_WIDTH * scale * 9.0f / 16.0f
+        val under = Vector3(0.0f, -(height / 2.0f + CONTROLS_GAP), -NEARER)
+        controlsEntity?.setComponent(Transform(pose.times(Pose(under))))
     }
 
     /**
@@ -321,10 +366,9 @@ class ImmersiveActivity : AppSystemActivity() {
             placement.save(found, place)
         }
 
-        override fun toWindow() {
-            controls.refused = false
-            Switch.toFlat(this@ImmersiveActivity) { controls.refused = true }
-        }
+        // The button shows only while the machine is idle. A song queued in the moment between
+        // the last check and the press refuses the switch, and the next check hides the button.
+        override fun toWindow() = Switch.toFlat(this@ImmersiveActivity) {}
 
         override fun toggleQueue() {
             val shown = !controls.queueShown
@@ -334,7 +378,11 @@ class ImmersiveActivity : AppSystemActivity() {
         }
     }
 
-    /** One row of buttons under the screen: its shape, the wall, and the queue. */
+    /**
+     * A pill of buttons under the screen: its shape, the wall, the queue and the window.
+     *
+     * The panel is transparent, so only the pill drawn on it shows.
+     */
     private fun controlsPanel(): PanelRegistration {
         val content: (ComposeView) -> Unit = { view ->
             view.setContent { Controls(controls, actions) }
@@ -342,12 +390,12 @@ class ImmersiveActivity : AppSystemActivity() {
         return PanelRegistration(R.id.controls_panel) {
             composePanel(content)
             config {
-                width = 1.6f
-                height = 0.16f
-                layoutWidthInDp = 1600f
-                layoutHeightInDp = 160f
+                width = CONTROLS_WIDTH
+                height = CONTROLS_HEIGHT
+                layoutWidthInDp = 720f
+                layoutHeightInDp = 120f
                 layerConfig = LayerConfig()
-                enableTransparent = false
+                enableTransparent = true
                 includeGlass = false
             }
         }
@@ -387,8 +435,15 @@ class ImmersiveActivity : AppSystemActivity() {
         /** Metres. How far the controls and the queue stand out in front of the screen. */
         const val NEARER = 0.4f
 
-        /** Metres between the screen's lower edge and the controls. */
-        const val CONTROLS_GAP = 0.2f
+        /** Metres between the screen's lower edge and the controls' centre. */
+        const val CONTROLS_GAP = 0.1f
+
+        /** Metres. The controls' panel, at the same 6:1 as its 720x120 dp layout. */
+        const val CONTROLS_WIDTH = 0.6f
+        const val CONTROLS_HEIGHT = 0.1f
+
+        /** How often the scene asks the machine whether a song is playing. Loopback is cheap. */
+        const val WATCH_MS = 2000L
 
         /** Metres between the screen's left edge and the queue's right edge. */
         const val QUEUE_GAP = 0.1f

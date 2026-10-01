@@ -37,9 +37,21 @@ internal object Machine {
      * A machine that does not answer counts as idle, because a machine that is not running holds
      * nothing to lose. Blocks on the network, so it is never called on the main thread.
      */
-    fun idle(context: Context): Boolean {
-        val state = state(context) ?: return true
-        return state.isNull(NOW_PLAYING) && state.optInt(QUEUE_LEN, 0) == 0
+    fun idle(context: Context): Boolean = status(context).idle
+
+    /** What the machine is doing, as the headset shell needs to know it. */
+    data class Status(val playing: Boolean, val idle: Boolean)
+
+    /**
+     * Whether a song is loaded, and whether leaving now would lose nothing, from one request.
+     *
+     * A machine that does not answer is neither playing nor holding anything. Blocks on the
+     * network, so it is never called on the main thread.
+     */
+    fun status(context: Context): Status {
+        val state = state(context) ?: return Status(playing = false, idle = true)
+        val playing = !state.isNull(NOW_PLAYING)
+        return Status(playing = playing, idle = !playing && state.optInt(QUEUE_LEN, 0) == 0)
     }
 
     /** Whether a machine answers on this device at all. Blocks on the network. */
