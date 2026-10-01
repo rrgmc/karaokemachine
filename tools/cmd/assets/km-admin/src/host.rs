@@ -175,6 +175,32 @@ impl Machine for RemoteMachine {
         self.writing().await?.reset_sessions().await.map_err(fault)
     }
 
+    async fn access(&self) -> Result<km_api::dto::AccessDto, AdminError> {
+        // **A read with no token required**, so the Access card draws before anybody logs in. A
+        // write from it then asks for the password, as every other admin control here does.
+        self.client()?.access().await.map_err(fault)
+    }
+
+    async fn set_room_access(&self, room: km_api::Access) -> Result<(), AdminError> {
+        self.writing()
+            .await?
+            .set_room_access(room)
+            .await
+            .map_err(fault)
+    }
+
+    async fn set_access_code(
+        &self,
+        level: km_api::Access,
+        code: Option<&str>,
+    ) -> Result<(), AdminError> {
+        self.writing()
+            .await?
+            .set_access_code(level, code)
+            .await
+            .map_err(fault)
+    }
+
     async fn shut_down(&self) -> Result<(), AdminError> {
         Err(no_power())
     }

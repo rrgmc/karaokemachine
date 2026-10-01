@@ -17,6 +17,7 @@ mod common;
 
 use axum::http::StatusCode;
 use common::{get, log_in, post_form, post_form_to};
+use km_admin::machine::Call;
 use km_admin::server::State;
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
@@ -1422,4 +1423,154 @@ async fn a_run_pointed_elsewhere_does_not_borrow_another_machines_password() {
         !elsewhere.can_remember(),
         "a run pointed elsewhere offers a box whose tick it would discard"
     );
+}
+
+/// What `GET /access` answers, with the queue code set and the control code not.
+fn access_answer(room: &str) -> serde_json::Value {
+    serde_json::json!({
+        "access": "admin",
+        "room": room,
+        "queue_code": true,
+        "control_code": false,
+    })
+}
+
+/// The one request the machine received at this path, which the test expects exactly once.
+async fn the_one_sent_to(server: &MockServer, route: &str) -> wiremock::Request {
+    let mut sent: Vec<_> = server
+        .received_requests()
+        .await
+        .expect("recorded")
+        .into_iter()
+        .filter(|request| request.url.path() == route)
+        .collect();
+    assert_eq!(sent.len(), 1, "expected one request to {route}");
+    sent.remove(0)
+}
+
+/// The Access card is drawn from `GET /access`, and says which code is set without showing it.
+#[tokio::test]
+async fn the_access_card_is_drawn_from_the_machines_answer() {
+    let (server, state, _dir) = common::signed_in().await;
+    Mock::given(method("GET"))
+        .and(path(common::wire_path(Call::Access)))
+        .respond_with(ResponseTemplate::new(200).set_body_json(access_answer("view")))
+        .mount(&server)
+        .await;
+
+    let (status, body) = get(&state, "/admin/machine").await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert!(
+        body.contains(r#"action="/admin/machine/access""#)
+            && body.contains(r#"action="/admin/machine/access-code""#),
+        "the room level and both codes are set from here: {body}"
+    );
+    assert!(
+        body.contains(r#"<option value="view" selected>"#),
+        "the room level shown is the machine's: {body}"
+    );
+    // Only the set code offers Clear.
+    assert_eq!(
+        body.matches(r#"name="clear" value="yes""#).count(),
+        1,
+        "{body}"
+    );
+}
+
+/// The room level reaches `PUT /admin/access`, with the token.
+#[tokio::test]
+async fn the_room_level_reaches_the_admin_route() {
+    let (server, state, _dir) = common::signed_in().await;
+    let route = common::wire_path(Call::SetRoomAccess);
+    Mock::given(method("PUT"))
+        .and(path(route.as_str()))
+        .respond_with(ResponseTemplate::new(200).set_body_json(access_answer("control")))
+        .mount(&server)
+        .await;
+
+    let said = post_form_to(&state, "/admin/machine/access", "room=control").await;
+    assert!(said.contains("kind=good"), "{said}");
+
+    let sent = the_one_sent_to(&server, &route).await;
+    assert_eq!(
+        sent.headers
+            .get("authorization")
+            .map(|v| v.to_str().unwrap()),
+        Some("Bearer a-token"),
+    );
+    assert_eq!(
+        sent.body_json::<serde_json::Value>().expect("a JSON body"),
+        serde_json::json!({ "room": "control" }),
+    );
+}
+
+/// Each code reaches its own route: a typed one as a string, a cleared one as `null`.
+#[tokio::test]
+async fn each_code_reaches_its_own_route() {
+    let (server, state, _dir) = common::signed_in().await;
+    let queue = common::wire_path(Call::SetQueueCode);
+    let control = common::wire_path(Call::SetControlCode);
+    for route in [&queue, &control] {
+        Mock::given(method("PUT"))
+            .and(path(route.as_str()))
+            .respond_with(ResponseTemplate::new(200).set_body_json(access_answer("queue")))
+            .mount(&server)
+            .await;
+    }
+
+    let said = post_form_to(
+        &state,
+        "/admin/machine/access-code",
+        "level=queue&code=abcd",
+    )
+    .await;
+    assert!(said.contains("kind=good"), "{said}");
+    let said = post_form_to(
+        &state,
+        "/admin/machine/access-code",
+        "level=control&clear=yes",
+    )
+    .await;
+    assert!(said.contains("kind=good"), "{said}");
+
+    let sent = the_one_sent_to(&server, &queue).await;
+    assert_eq!(
+        sent.headers
+            .get("authorization")
+            .map(|v| v.to_str().unwrap()),
+        Some("Bearer a-token"),
+    );
+    assert_eq!(
+        sent.body_json::<serde_json::Value>().expect("a JSON body"),
+        serde_json::json!({ "code": "abcd" }),
+    );
+    let sent = the_one_sent_to(&server, &control).await;
+    assert_eq!(
+        sent.body_json::<serde_json::Value>().expect("a JSON body"),
+        serde_json::json!({ "code": null }),
+        "Clear sends null, which is how the machine clears a code"
+    );
+}
+
+/// A code the machine refuses comes back in the machine's own words.
+#[tokio::test]
+async fn a_refused_code_reads_as_the_machines_sentence() {
+    let (server, state, _dir) = common::signed_in().await;
+    Mock::given(method("PUT"))
+        .and(path(common::wire_path(Call::SetControlCode)))
+        .respond_with(ResponseTemplate::new(400).set_body_json(serde_json::json!({
+            "error": "bad_request",
+            "message": "That code is the queue code.",
+        })))
+        .mount(&server)
+        .await;
+
+    let said = post_form_to(
+        &state,
+        "/admin/machine/access-code",
+        "level=control&code=abcd",
+    )
+    .await;
+    assert!(said.contains("kind=bad"), "{said}");
+    assert!(said.contains("That code is the queue code."), "{said}");
 }
