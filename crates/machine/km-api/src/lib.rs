@@ -14,6 +14,8 @@
 //! * [`dto`] — the wire format, defined in one place so the contract is readable.
 //! * [`routes`] — the router, and the URL prefix that is the permission.
 //! * [`auth`] — the single shared password, hashed, exchanged for a short-lived token.
+//! * [`cookie`] — reading a cookie that one of the machine's pages wrote.
+//! * [`files`] — replacing a file whole, for every record the machine keeps on disk.
 //! * [`events`] — the WebSocket event stream, and why per-syllable position is never streamed.
 //! * [`connect`] — working out the address a phone should actually type, and saying so honestly
 //!   when there is not one.
@@ -37,10 +39,12 @@ pub mod auth;
 pub mod book;
 pub mod config;
 pub mod connect;
+pub mod cookie;
 pub mod discover;
 pub mod dto;
 pub mod error;
 pub mod events;
+pub mod files;
 pub mod handlers;
 pub mod listener;
 pub mod machine;

@@ -4824,32 +4824,18 @@ fn next_sweep(tries_left: u8, stuck: usize, now: Instant) -> Option<AuditionSwee
 
 /// An ISO-8601 timestamp, to the second, in UTC.
 ///
-/// Hand-rolled because the only place the machine needs a wall-clock time is stamping an install,
-/// and a date library for one line is not worth the dependency. Days-since-epoch converted with the
-/// civil-from-days algorithm.
+/// The only place the machine needs a wall-clock time is stamping an install.
 fn timestamp() -> String {
-    let now = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs();
-    let (days, seconds) = (now / 86_400, now % 86_400);
-    let (year, month, day) = civil_from_days(days as i64);
-    let (hour, minute, second) = (seconds / 3_600, (seconds % 3_600) / 60, seconds % 60);
-    format!("{year:04}-{month:02}-{day:02}T{hour:02}:{minute:02}:{second:02}Z")
-}
-
-/// Days since 1970-01-01 to a calendar date. Howard Hinnant's `civil_from_days`.
-fn civil_from_days(days: i64) -> (i64, u32, u32) {
-    let z = days + 719_468;
-    let era = if z >= 0 { z } else { z - 146_096 } / 146_097;
-    let doe = (z - era * 146_097) as u64;
-    let yoe = (doe - doe / 1_460 + doe / 36_524 - doe / 146_096) / 365;
-    let y = yoe as i64 + era * 400;
-    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
-    let mp = (5 * doy + 2) / 153;
-    let d = (doy - (153 * mp + 2) / 5 + 1) as u32;
-    let m = if mp < 10 { mp + 3 } else { mp - 9 } as u32;
-    (if m <= 2 { y + 1 } else { y }, m, d)
+    let at = time::OffsetDateTime::now_utc();
+    format!(
+        "{:04}-{:02}-{:02}T{:02}:{:02}:{:02}Z",
+        at.year(),
+        u8::from(at.month()),
+        at.day(),
+        at.hour(),
+        at.minute(),
+        at.second()
+    )
 }
 
 /// What just happened, as far as demo mode's clock is concerned.
@@ -5174,6 +5160,8 @@ fn soundfont_label(slot: u8, total: usize, name: &str, pending: bool) -> String 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    use km_testkit::Scratch;
 
     fn held(banks: &[u16]) -> BTreeSet<u16> {
         banks.iter().copied().collect()
@@ -6104,23 +6092,11 @@ mod tests {
         assert!((2020..2100).contains(&year), "{stamp}");
     }
 
-    #[test]
-    fn known_dates_convert_correctly() {
-        assert_eq!(civil_from_days(0), (1970, 1, 1));
-        assert_eq!(civil_from_days(1), (1970, 1, 2));
-        // A leap day, which is where a hand-rolled conversion goes wrong.
-        assert_eq!(civil_from_days(11_016), (2000, 2, 29));
-        assert_eq!(civil_from_days(20_688), (2026, 8, 23));
-    }
-
     // -- staged auditions ------------------------------------------------------------------------
 
     /// A scratch root under the system temporary directory, removed when the test ends.
-    fn audition_scratch(name: &str) -> PathBuf {
-        let root = std::env::temp_dir().join(format!("km-audition-test-{name}"));
-        let _ = std::fs::remove_dir_all(&root);
-        std::fs::create_dir_all(&root).expect("scratch");
-        root
+    fn audition_scratch(name: &str) -> Scratch {
+        Scratch::new(&format!("audition-{name}"))
     }
 
     fn staged(root: &Path, name: &str) -> PathBuf {
@@ -6140,7 +6116,6 @@ mod tests {
         assert_eq!(dirs.len(), 2);
         assert!(dirs[0].ends_with("000000000000000000000000000000000000001"));
         assert_eq!(newest_audition(&root), Some(dirs[1].clone()));
-        let _ = std::fs::remove_dir_all(&root);
     }
 
     /// **What the old "keep the newest" rule could not express.** The folder that stays is the one
@@ -6158,7 +6133,6 @@ mod tests {
         assert!(playing.exists(), "the song being played must stay");
         assert!(!older.exists());
         assert!(!newest.exists(), "newest is not a reason to keep it");
-        let _ = std::fs::remove_dir_all(&root);
     }
 
     /// Going idle keeps nothing: the machine is not reading any of them.
@@ -6172,7 +6146,6 @@ mod tests {
 
         assert!(root.exists(), "the root itself is not the scratch");
         assert_eq!(audition_dirs(&root).len(), 0);
-        let _ = std::fs::remove_dir_all(&root);
     }
 
     /// **The regression this design is built around.** A curator sends a second video while the
@@ -6190,7 +6163,6 @@ mod tests {
         assert!(playing.exists());
         assert!(!finished.exists());
         assert!(arriving.exists(), "an upload in flight must not be deleted");
-        let _ = std::fs::remove_dir_all(&root);
     }
 
     /// Which folder a loaded song pins, by rule rather than by anything remembered.
@@ -6277,8 +6249,8 @@ mod tests {
     /// A machine that has never taken an upload has no folder, and starting must not care.
     #[test]
     fn purging_a_folder_that_was_never_made_is_not_an_error() {
-        let root = std::env::temp_dir().join("km-audition-test-absent");
-        let _ = std::fs::remove_dir_all(&root);
+        let scratch = Scratch::new("audition-absent");
+        let root = scratch.join("never-made");
         purge_auditions(&root);
         assert!(!root.exists());
     }
@@ -6389,10 +6361,12 @@ mod tests {
     /// [`Engine::recording`] rather than [`Engine::silent`] for the reason that constructor's own
     /// doc gives: a silent engine's `can_play` is false, so `queue_add` never reaches `advance` and
     /// a test built on one proves nothing about the queue at all.
-    fn a_machine_with_eight_songs(name: &str) -> (Arc<Machine>, CommandLog, Vec<SongCode>) {
-        let root = std::env::temp_dir().join(format!("km-machine-tests-{name}"));
-        let _ = std::fs::remove_dir_all(&root);
-        std::fs::create_dir_all(&root).expect("a scratch tree");
+    ///
+    /// The scratch folder comes first, so a caller's binding for it drops after the machine does.
+    fn a_machine_with_eight_songs(
+        name: &str,
+    ) -> (Scratch, Arc<Machine>, CommandLog, Vec<SongCode>) {
+        let root = Scratch::new(&format!("machine-{name}"));
 
         let package_path = root.join("vol1.kmpkg");
         let mut builder = km_kmpkg::PackageBuilder::new(km_kmpkg::PackageMeta {
@@ -6412,7 +6386,7 @@ mod tests {
         let (engine, log) = Engine::recording();
         let machine = Arc::new(
             Machine::new(
-                Paths::rooted_at(&root),
+                Paths::rooted_at(root.path()),
                 Settings::default(),
                 engine,
                 Events::new(),
@@ -6428,7 +6402,7 @@ mod tests {
         let codes = (1..=8)
             .map(|slot| SongCode::in_bank(bank, slot).expect("a code in the package's bank"))
             .collect();
-        (machine, log, codes)
+        (root, machine, log, codes)
     }
 
     fn a_request(number: SongCode) -> QueueRequest {
@@ -6443,7 +6417,7 @@ mod tests {
     /// Nothing is loaded and nothing is queued, so the first song queued should take the deck.
     #[test]
     fn queueing_a_song_on_an_idle_machine_starts_it() {
-        let (machine, log, codes) = a_machine_with_eight_songs("idle-start");
+        let (_scratch, machine, log, codes) = a_machine_with_eight_songs("idle-start");
 
         assert!(machine.lock_state().loaded.is_none(), "starts idle");
         machine.queue_add(a_request(codes[0])).expect("queue");
@@ -6464,7 +6438,7 @@ mod tests {
     /// first song of an evening would pass a one-song test.
     #[test]
     fn a_song_starting_asks_for_a_new_picture() {
-        let (machine, _log, codes) = a_machine_with_eight_songs("wallpaper-per-song");
+        let (_scratch, machine, _log, codes) = a_machine_with_eight_songs("wallpaper-per-song");
 
         assert!(
             !machine.take_wallpaper_request(),
@@ -6494,7 +6468,7 @@ mod tests {
     /// **`wallpaper.on_song_change` turned off leaves the picture to the interval.**
     #[test]
     fn a_machine_told_not_to_change_the_picture_per_song_does_not() {
-        let (machine, _log, codes) = a_machine_with_eight_songs("wallpaper-per-song-off");
+        let (_scratch, machine, _log, codes) = a_machine_with_eight_songs("wallpaper-per-song-off");
         machine.lock_settings().wallpaper.on_song_change = false;
 
         machine.queue_add(a_request(codes[0])).expect("queue one");
@@ -6516,7 +6490,7 @@ mod tests {
     /// The value is asserted through the command's `Debug` text, which is what this log records.
     #[test]
     fn every_song_start_sends_a_levelling_gain_and_a_midi_song_sends_one() {
-        let (machine, log, codes) = a_machine_with_eight_songs("song-gain-sent");
+        let (_scratch, machine, log, codes) = a_machine_with_eight_songs("song-gain-sent");
 
         machine.queue_add(a_request(codes[0])).expect("queue one");
         assert_eq!(
@@ -6550,7 +6524,7 @@ mod tests {
     /// measured and the gain is unity; the assertion that matters is that the two agree.
     #[test]
     fn the_gain_recorded_for_the_panel_is_the_gain_the_engine_was_sent() {
-        let (machine, log, codes) = a_machine_with_eight_songs("song-gain-recorded");
+        let (_scratch, machine, log, codes) = a_machine_with_eight_songs("song-gain-recorded");
 
         assert!(
             machine.song_levelling().is_none(),
@@ -6582,7 +6556,7 @@ mod tests {
     /// The deck is occupied, so the second song waits rather than displacing the first.
     #[test]
     fn a_second_queued_song_waits_its_turn() {
-        let (machine, log, codes) = a_machine_with_eight_songs("waits-its-turn");
+        let (_scratch, machine, log, codes) = a_machine_with_eight_songs("waits-its-turn");
 
         machine.queue_add(a_request(codes[0])).expect("queue one");
         machine.queue_add(a_request(codes[1])).expect("queue two");
@@ -6607,7 +6581,7 @@ mod tests {
     /// reaching for `start_demo`, so the arrangement under test is the one that runs.
     #[test]
     fn queueing_during_a_demo_takes_the_deck_and_queueing_over_a_singer_does_not() {
-        let (machine, log, codes) = a_machine_with_eight_songs("demo-yields");
+        let (_scratch, machine, log, codes) = a_machine_with_eight_songs("demo-yields");
         let mut events = machine.events.subscribe();
 
         machine.lock_state().demo_once = true;
@@ -6685,7 +6659,7 @@ mod tests {
     /// arrangement under test is the one that runs.
     #[test]
     fn skipping_a_demo_starts_another_and_skipping_a_singers_song_does_not() {
-        let (machine, log, codes) = a_machine_with_eight_songs("demo-skip-chains");
+        let (_scratch, machine, log, codes) = a_machine_with_eight_songs("demo-skip-chains");
         machine.lock_state().demo_enabled = true;
 
         machine.lock_state().demo_once = true;
@@ -6746,7 +6720,7 @@ mod tests {
     /// set any earlier than that arm would be wiped by it and the song would wait out the delay.
     #[test]
     fn a_skip_into_silence_starts_a_demo_when_the_mode_is_on() {
-        let (machine, log, _codes) = a_machine_with_eight_songs("skip-into-silence");
+        let (_scratch, machine, log, _codes) = a_machine_with_eight_songs("skip-into-silence");
         let mut events = machine.events.subscribe();
         machine.lock_state().demo_enabled = true;
 
@@ -6796,7 +6770,7 @@ mod tests {
     /// where there is no catalog to look in.
     #[test]
     fn a_skip_into_silence_with_the_mode_off_says_nothing_is_playing() {
-        let (machine, log, _codes) = a_machine_with_eight_songs("skip-into-silence-off");
+        let (_scratch, machine, log, _codes) = a_machine_with_eight_songs("skip-into-silence-off");
         let loads = log.count("Load");
 
         let refused = Controller::transport(machine.as_ref(), TransportCommand::Skip)
@@ -6832,7 +6806,7 @@ mod tests {
     /// why the press delegates to it rather than asking about the deck alone.
     #[test]
     fn a_skip_with_somebody_waiting_refuses_rather_than_starting_a_demo() {
-        let (machine, log, codes) = a_machine_with_eight_songs("skip-over-a-queue");
+        let (_scratch, machine, log, codes) = a_machine_with_eight_songs("skip-over-a-queue");
         machine.lock_state().demo_enabled = true;
 
         machine.queue_add(a_request(codes[0])).expect("queue one");
@@ -6873,7 +6847,7 @@ mod tests {
     /// machine goes quiet the way it would have when the song ran out.
     #[test]
     fn a_hand_pressed_demo_skipped_with_the_mode_off_leaves_silence() {
-        let (machine, _log, _codes) = a_machine_with_eight_songs("demo-skip-one-shot");
+        let (_scratch, machine, _log, _codes) = a_machine_with_eight_songs("demo-skip-one-shot");
 
         machine.lock_state().demo_once = true;
         machine.poll();
@@ -6907,7 +6881,7 @@ mod tests {
     /// It also holds whatever interleaving the scheduler picks, which a count of loads does not.
     #[test]
     fn eight_threads_queueing_at_once_lose_no_songs() {
-        let (machine, _log, codes) = a_machine_with_eight_songs("no-lost-songs");
+        let (_scratch, machine, _log, codes) = a_machine_with_eight_songs("no-lost-songs");
         let gate = Arc::new(std::sync::Barrier::new(codes.len()));
 
         let mut singers = Vec::new();

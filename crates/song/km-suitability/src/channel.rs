@@ -188,13 +188,10 @@ impl ChannelBuilder {
 
 #[cfg(test)]
 mod tests {
-    use km_song::{ParseOptions, Song, testing};
+    use km_song::testing;
+    use km_song::testing::parse as song;
 
     use super::*;
-
-    fn song(bytes: &[u8]) -> Song {
-        Song::parse(bytes, &ParseOptions::default()).expect("fixture parses")
-    }
 
     fn channel(stats: &[ChannelStats], channel: u8) -> &ChannelStats {
         stats

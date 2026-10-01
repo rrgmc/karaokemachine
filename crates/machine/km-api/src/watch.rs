@@ -346,6 +346,7 @@ async fn hls_license() -> Response {
 mod tests {
     use axum::body::Body;
     use axum::http::{Request, StatusCode};
+    use km_testkit::Scratch;
     use tower::ServiceExt;
 
     use super::*;
@@ -376,8 +377,8 @@ mod tests {
     }
 
     /// A directory with a playlist in it, for the tests that need one.
-    fn with_playlist() -> tempdir::Dir {
-        let dir = tempdir::Dir::new();
+    fn with_playlist() -> Scratch {
+        let dir = Scratch::new("watch");
         std::fs::write(dir.path().join(PLAYLIST), "#EXTM3U\n").expect("writing a playlist");
         dir
     }
@@ -389,7 +390,7 @@ mod tests {
     /// its own shows nothing.
     #[tokio::test]
     async fn the_bare_path_redirects_onto_the_slash() {
-        let dir = tempdir::Dir::new();
+        let dir = Scratch::new("watch");
         let (status, _, location) = get_path(dir.path(), WATCH_PATH).await;
         assert_eq!(status, StatusCode::TEMPORARY_REDIRECT);
         assert_eq!(location, "/watch/");
@@ -398,7 +399,7 @@ mod tests {
     /// ...and everything the page asks for afterwards is there beneath it.
     #[tokio::test]
     async fn the_page_and_what_it_loads_are_served() {
-        let dir = tempdir::Dir::new();
+        let dir = Scratch::new("watch");
         for (path, expected) in [
             ("/watch/", "text/html; charset=utf-8"),
             ("/watch/hls.light.min.js", "text/javascript; charset=utf-8"),
@@ -485,7 +486,7 @@ mod tests {
 
     /// A GET for `path` on a router that has, or has not, been handed the stream as fragments.
     async fn status_of(path: &str, live: Option<Live>) -> StatusCode {
-        let dir = tempdir::Dir::new();
+        let dir = Scratch::new("watch");
         router(dir.path(), live)
             .oneshot(
                 Request::builder()
@@ -547,7 +548,7 @@ mod tests {
     /// A client told "here is nothing" plays silence; one told the playlist is absent retries.
     #[tokio::test]
     async fn a_machine_that_is_not_streaming_has_no_playlist() {
-        let dir = tempdir::Dir::new();
+        let dir = Scratch::new("watch");
         let (status, ..) = get_path(dir.path(), "/stream/live.m3u8").await;
         assert_eq!(status, StatusCode::NOT_FOUND);
     }
@@ -558,35 +559,5 @@ mod tests {
         let dir = with_playlist();
         let (status, ..) = get_path(dir.path(), "/stream/../../secrets.txt").await;
         assert_ne!(status, StatusCode::OK);
-    }
-
-    /// A directory that lasts as long as the test, and takes itself away afterwards.
-    mod tempdir {
-        use std::path::{Path, PathBuf};
-
-        pub struct Dir(PathBuf);
-
-        impl Dir {
-            pub fn new() -> Self {
-                // The process id and a counter, so two tests running at once never meet. Nothing
-                // here needs unpredictability — this is a scratch directory, not a secret.
-                static NEXT: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
-                let n = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-                let path =
-                    std::env::temp_dir().join(format!("km-watch-{}-{n}", std::process::id()));
-                std::fs::create_dir_all(&path).expect("a scratch directory");
-                Self(path)
-            }
-
-            pub fn path(&self) -> &Path {
-                &self.0
-            }
-        }
-
-        impl Drop for Dir {
-            fn drop(&mut self) {
-                let _ = std::fs::remove_dir_all(&self.0);
-            }
-        }
     }
 }

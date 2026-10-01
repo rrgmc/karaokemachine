@@ -1,0 +1,61 @@
+# What `cargo deny` holds both workspaces to. CI's `supply-chain` job runs it over this workspace
+# and over `tools/cmd/assets`, which reads this same file.
+#
+# **Every content file is from a stranger**, so a known hole in a crate that reads one is a hole in
+# the machine. See `Risks to keep visible` in CONTRIBUTING.md.
+
+[graph]
+# Every feature, so the desktop shells' `wry` and the video build's `ffmpeg-next` are checked too.
+# This reads the lockfile and builds nothing, so the rule against `--all-features` does not apply.
+all-features = true
+
+[advisories]
+# A crate this workspace names itself may not be unmaintained. One deeper in the tree is reported
+# and does not fail, because nothing here can replace it.
+unmaintained = "workspace"
+ignore = []
+
+[licenses]
+# Every license a crate in either tree carries today. A new one fails the check until somebody
+# reads it and adds it here.
+allow = [
+    "0BSD",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "BSL-1.0",
+    "bzip2-1.0.6",
+    "CC0-1.0",
+    "CDLA-Permissive-2.0",
+    "ISC",
+    "MIT",
+    "MIT-0",
+    "MPL-2.0",
+    "Unicode-3.0",
+    "Unlicense",
+    "WTFPL",
+    "Zlib",
+]
+confidence-threshold = 0.9
+# The two workspaces share this list, and neither carries every license on it.
+unused-allowed-license = "allow"
+
+[bans]
+# Most duplicate versions are forced by an upstream crate, the `windows` family through `wry` above
+# all. Refusing them would fail on something no change here can fix.
+multiple-versions = "allow"
+# The workspace's own crates depend on each other by path, and none is published.
+wildcards = "allow"
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+# The two dependencies that are not published crates. `Cargo.lock` pins each one's commit, and the
+# reasons sit beside each in the root `Cargo.toml`.
+allow-git = [
+    "https://github.com/rrgmc/rustysynth",
+    "https://github.com/RangelReale/ecapplog-rust",
+]
+# The assets workspace takes neither.
+unused-allowed-source = "allow"

@@ -1372,25 +1372,16 @@ mod tests {
     /// This is the whole of what moving media into the `.kmpkg` asks of this crate: the packaged
     /// route supplies a window into an archive instead of a file, and everything downstream has to
     /// be unable to tell.
+    ///
+    /// With custom I/O the name is all ffmpeg has to probe by, so an entry is called
+    /// `media/<number>.mp4`. A name with no extension leaves probing to sniff the bytes, which can
+    /// decide wrong on a fragmented MP4 or a short read.
     #[test]
     fn a_reader_probes_to_the_same_shape_as_a_path() {
         let by_path = probe(&fixture()).expect("path");
         let file = std::fs::File::open(fixture()).expect("open");
         let by_reader = probe_from(file, "media/0007.mp4").expect("reader");
         assert_eq!(by_path, by_reader);
-    }
-
-    /// With custom I/O there is no filename for ffmpeg to look at, so the name is doing real work.
-    ///
-    /// The failure this guards against is quiet: a name with no extension leaves probing to sniff
-    /// the bytes, which for a fragmented MP4 or a short read can decide wrong. An entry is called
-    /// `media/<number>.mp4` precisely so this keeps working.
-    #[test]
-    fn the_name_is_what_a_reader_is_probed_as() {
-        let file = std::fs::File::open(fixture()).expect("open");
-        let info = probe_from(file, "media/0007.mp4").expect("probe");
-        assert_eq!(info.video_codec, "h264");
-        assert!(info.duration_ms > 0);
     }
 
     /// And a video **decodes** from a reader, not merely probes.
@@ -1405,22 +1396,7 @@ mod tests {
         assert_eq!(reader.name(), "media/0007.mp4");
         assert_eq!(info.width, 160);
 
-        let mut player = km_audio::TrackPlayer::new(feed, 48_000);
-        let mut left = vec![0.0; 512];
-        let mut right = vec![0.0; 512];
-        let mut peak = 0.0f32;
-        let mut picture = None;
-        for _ in 0..400 {
-            player.render(&mut left, &mut right, true);
-            peak = peak.max(left.iter().fold(0.0f32, |acc, s| acc.max(s.abs())));
-            if picture.is_none() {
-                picture = frames.take_frame_for(u32::MAX);
-            }
-            if peak > 0.01 && picture.is_some() {
-                break;
-            }
-            std::thread::sleep(Duration::from_millis(5));
-        }
+        let (peak, picture) = play_until(feed, &frames, 0.01, |_| u32::MAX);
 
         assert!(peak > 0.01, "no audio came out of a reader-backed video");
         let picture = picture.expect("a picture came out of a reader-backed video");
@@ -1430,30 +1406,41 @@ mod tests {
         frames.recycle(picture);
     }
 
-    /// The whole chain: ffmpeg decodes, km-audio's feed carries it, the player renders it.
-    #[test]
-    fn a_real_file_decodes_to_both_audio_and_pictures() {
-        let (_info, reader, feed, frames) = open(&fixture()).expect("the fixture opens");
+    /// Renders a video's sound until it is loud enough and a picture has come out, or gives up.
+    ///
+    /// The decoder is a thread that has just started, so this is a wait, not a poll loop with a
+    /// guess in it: both conditions are what the tests are about. `due` says which picture to ask
+    /// for at the player's position.
+    fn play_until(
+        feed: km_audio::AudioFeed,
+        frames: &FrameReader,
+        loud_enough: f32,
+        due: impl Fn(&km_audio::TrackPlayer) -> u32,
+    ) -> (f32, Option<Frame>) {
         let mut player = km_audio::TrackPlayer::new(feed, 48_000);
-
         let mut left = vec![0.0; 512];
         let mut right = vec![0.0; 512];
         let mut peak = 0.0f32;
         let mut picture = None;
-
-        // The decoder is a thread that has just started, so this is a wait, not a poll loop with a
-        // guess in it: both conditions are what the test is actually about.
         for _ in 0..400 {
             player.render(&mut left, &mut right, true);
             peak = peak.max(left.iter().fold(0.0f32, |acc, s| acc.max(s.abs())));
             if picture.is_none() {
-                picture = frames.take_frame_for(player.position_ms());
+                picture = frames.take_frame_for(due(&player));
             }
-            if peak > 0.3 && picture.is_some() {
+            if peak > loud_enough && picture.is_some() {
                 break;
             }
             std::thread::sleep(Duration::from_millis(5));
         }
+        (peak, picture)
+    }
+
+    /// The whole chain: ffmpeg decodes, km-audio's feed carries it, the player renders it.
+    #[test]
+    fn a_real_file_decodes_to_both_audio_and_pictures() {
+        let (_info, reader, feed, frames) = open(&fixture()).expect("the fixture opens");
+        let (peak, picture) = play_until(feed, &frames, 0.3, |player| player.position_ms());
 
         assert!(
             peak > 0.3,

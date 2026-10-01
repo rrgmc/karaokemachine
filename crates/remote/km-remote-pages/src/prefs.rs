@@ -32,7 +32,7 @@
 //! form-encoding crate for two functions — is a dependency for thirty lines.
 
 use axum::http::HeaderMap;
-use axum::http::header::{self, COOKIE, SET_COOKIE};
+use axum::http::header::{self, SET_COOKIE};
 use km_locale::Locale;
 use km_songcode::SongCode;
 
@@ -225,23 +225,7 @@ pub fn list_tag(state: Option<&str>) -> String {
     String::from_utf8_lossy(&crate::hex8(hash)).into_owned()
 }
 
-/// One cookie's decoded value.
-pub fn cookie(headers: &HeaderMap, name: &str) -> Option<String> {
-    for header in headers.get_all(COOKIE) {
-        let Ok(header) = header.to_str() else {
-            continue;
-        };
-        for pair in header.split(';') {
-            let Some((key, value)) = pair.split_once('=') else {
-                continue;
-            };
-            if key.trim() == name {
-                return Some(decode(value.trim()));
-            }
-        }
-    }
-    None
-}
+pub use km_api::cookie::read as cookie;
 
 /// The `Set-Cookie` value for a preference that should outlive the session.
 pub fn set_pref(name: &str, value: &str) -> String {
@@ -414,6 +398,8 @@ pub fn decode(value: &str) -> String {
 
 #[cfg(test)]
 mod tests {
+    use axum::http::header::COOKIE;
+
     use super::*;
 
     fn headers_with(cookie: &str) -> HeaderMap {

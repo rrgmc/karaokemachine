@@ -191,6 +191,12 @@ deliberately *not* reset between songs, because it calibrates a room, not a perf
 only the tick the local display draws from. The engine, the audio and the `lyric_line` API event are
 untouched.
 
+**The owner's Sound tab carries it, on the machine's page and in `km-admin` alike.** It calibrates the
+room's television, so it sits with the other settings an owner makes once. A singer's remote does not
+show it. The control is a number box that reaches as far as the clamp. The page carries no script,
+and a slider shows no number without one. It asks nothing first: a wrong offset moves the words and
+nothing else.
+
 **Delaying the audio to match late video is what an AV receiver's lip-sync control does, and it is
 unusable here.** The microphones are mixed in hardware, so the singers' own voices are in the signal
 it would delay. Lip-sync would put the room's own singing behind the music.

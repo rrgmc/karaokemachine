@@ -23,6 +23,7 @@ pub mod filters;
 use std::borrow::Cow;
 use std::collections::BTreeSet;
 use std::fmt;
+use std::sync::OnceLock;
 
 // **The concurrent bundle, not the default one.** They differ only in their memoizer, and the
 // default's is a `RefCell` — so `FluentBundle<FluentResource>` is not `Sync`, and a `Catalog` built
@@ -270,6 +271,104 @@ pub struct Catalog {
     keys: BTreeSet<String>,
 }
 
+/// Checks that every locale's catalog parses to exactly the keys the English one holds.
+///
+/// **This is the test every crate with catalogs owes**, and each one calls this rather than writing
+/// its own. Fluent resolves a key at run time, so no compiler catches a missing one. A key only
+/// English has reaches a screen as `⟦key⟧`. A key only a translation has is a leftover that nothing
+/// looks up.
+///
+/// English is the reference, because a key is added there first. A translation falling behind is
+/// the ordinary fault, and this names it.
+///
+/// # Errors
+///
+/// One line for each locale that disagrees, naming the keys it lacks and the keys only it has.
+pub fn check_catalogs(messages: impl Fn(Locale) -> &'static Catalog) -> Result<(), String> {
+    let english = messages(Locale::English);
+    let mut faults = Vec::new();
+    for locale in Locale::ALL {
+        let catalog = messages(*locale);
+        if catalog.keys().is_empty() {
+            faults.push(format!("{locale} parsed to nothing at all"));
+            continue;
+        }
+        let missing = catalog.missing_from(english);
+        let extra = english.missing_from(catalog);
+        if !missing.is_empty() || !extra.is_empty() {
+            faults.push(format!(
+                "{locale} lacks {missing:?} and has {extra:?}, which English does not"
+            ));
+        }
+    }
+    if faults.is_empty() {
+        Ok(())
+    } else {
+        Err(faults.join("\n"))
+    }
+}
+
+/// One crate's catalogs, one per locale, parsed on first use and kept for the life of the process.
+///
+/// **This is the loader every crate with catalogs uses**, beside [`check_catalogs`]. The sources are
+/// compiled in, so a parse error is a build fault rather than anything a caller can cause. It panics
+/// naming the crate, and that crate's `check_catalogs` test turns the panic into a failed build.
+///
+/// ```
+/// # use km_locale::{Catalogs, Locale};
+/// static WORDS: Catalogs = Catalogs::new(
+///     "example",
+///     &[
+///         (Locale::English, "greeting = Hello\n"),
+///         (Locale::BrazilianPortuguese, "greeting = Olá\n"),
+///     ],
+/// );
+/// assert_eq!(WORDS.get(Locale::BrazilianPortuguese).msg("greeting"), "Olá");
+/// ```
+pub struct Catalogs {
+    owner: &'static str,
+    sources: &'static [(Locale, &'static str)],
+    parsed: OnceLock<Vec<(Locale, Catalog)>>,
+}
+
+impl Catalogs {
+    /// The catalogs `owner` compiles in, one source per locale. Nothing is parsed until the first
+    /// [`Catalogs::get`].
+    #[must_use]
+    pub const fn new(owner: &'static str, sources: &'static [(Locale, &'static str)]) -> Self {
+        Self {
+            owner,
+            sources,
+            parsed: OnceLock::new(),
+        }
+    }
+
+    /// The catalog for one locale.
+    ///
+    /// # Panics
+    ///
+    /// When a compiled-in source does not parse, or names no source for `locale`. Both are build
+    /// faults that the owning crate's `check_catalogs` test catches.
+    pub fn get(&self, locale: Locale) -> &Catalog {
+        let parsed = self.parsed.get_or_init(|| {
+            self.sources
+                .iter()
+                .map(|(locale, source)| {
+                    let catalog = Catalog::new(*locale, source).unwrap_or_else(|errors| {
+                        panic!("{locale} {} catalog: {}", self.owner, errors.join("; "))
+                    });
+                    (*locale, catalog)
+                })
+                .collect()
+        });
+        parsed
+            .iter()
+            .find(|(candidate, _)| *candidate == locale)
+            .map(|(_, catalog)| catalog)
+            .unwrap_or_else(|| panic!("{} has no {locale} catalog", self.owner))
+    }
+}
+
 impl Catalog {
     /// Parses a `.ftl` source into a catalog.
     ///
@@ -353,11 +452,7 @@ impl Catalog {
 
     /// The keys `other` has that this one does not.
     ///
-    /// **This is the test every crate with catalogs owes.** Fluent resolves a missing key at run
-    /// time and there is no compiler to catch one, so the guarantee askama was chosen for —
-    /// "a field renamed and not updated in the markup is a build failure rather than a blank card
-    /// discovered by somebody holding a microphone" — is bought back here, one step later, by
-    /// asserting this is empty against the English catalog.
+    /// [`check_catalogs`] asserts this is empty in both directions against the English catalog.
     #[must_use]
     pub fn missing_from(&self, other: &Catalog) -> BTreeSet<String> {
         other.keys.difference(&self.keys).cloned().collect()
@@ -393,6 +488,30 @@ impl fmt::Debug for Catalog {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The parity check names a locale that lacks a key and a key only a translation has.
+    #[test]
+    fn a_catalog_out_of_step_with_english_is_named() {
+        fn leaked(locale: Locale, source: &str) -> &'static Catalog {
+            Box::leak(Box::new(Catalog::new(locale, source).expect("parses")))
+        }
+        let english = leaked(Locale::English, "kept = Kept\nadded = Added\n");
+        let behind = leaked(
+            Locale::BrazilianPortuguese,
+            "kept = Mantido\nleftover = Sobra\n",
+        );
+        let fault = check_catalogs(|locale| {
+            if locale == Locale::English {
+                english
+            } else {
+                behind
+            }
+        })
+        .expect_err("a translation out of step is a fault");
+        assert!(fault.contains("\"added\""), "{fault}");
+        assert!(fault.contains("\"leftover\""), "{fault}");
+        assert!(check_catalogs(|_| english).is_ok());
+    }
 
     #[test]
     fn a_tag_reads_back_as_the_locale_that_wrote_it() {

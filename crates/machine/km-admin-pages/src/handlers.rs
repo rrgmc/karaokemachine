@@ -99,20 +99,7 @@ fn caller_of(headers: &HeaderMap, peer: Option<std::net::SocketAddr>) -> Caller 
     }
 }
 
-/// One cookie's value out of a `Cookie` header.
-///
-/// Written out rather than pulled in, for the reason `km-remote-pages`' own does: a cookie jar crate
-/// for one header this crate only ever reads is a dependency bought for nothing.
-pub(crate) fn cookie(headers: &HeaderMap, name: &str) -> Option<String> {
-    headers
-        .get(header::COOKIE)?
-        .to_str()
-        .ok()?
-        .split(';')
-        .filter_map(|pair| pair.split_once('='))
-        .find(|(key, _)| key.trim() == name)
-        .map(|(_, value)| value.trim().to_owned())
-}
+pub(crate) use km_api::cookie::read as cookie;
 
 /// The chrome every page carries.
 ///
@@ -791,6 +778,8 @@ pub async fn sound_page(
         .as_ref()
         .and_then(|outputs| outputs.level.as_ref())
         .map(|level| level_control(level, level_open, locale));
+    // Left out when the machine does not say, like the picker above.
+    let lyric_offset = state.sound.lyric_offset().await.ok();
 
     views::page(
         &SoundPage {
@@ -820,10 +809,55 @@ pub async fn sound_page(
             }),
             output_changeable: outputs.as_ref().is_none_or(|outputs| outputs.changeable),
             level,
+            lyric_offset_said: lyric_offset_said(lyric_offset.unwrap_or(0), locale),
+            lyric_offset_ms: lyric_offset,
+            lyric_offset_reach: views::LYRIC_OFFSET_REACH_MS,
             accepts: km_api::uploads::accept_for(km_api::machine::Upload::SoundFont),
         },
         locale,
     )
+}
+
+/// The lyric offset as the Sound tab says it: which way the words move, and by how much.
+fn lyric_offset_said(ms: i16, locale: km_locale::Locale) -> String {
+    let words = crate::words::messages(locale);
+    let args = [("ms", i64::from(ms.unsigned_abs()).into())];
+    match ms {
+        0 => words.msg("lyric-offset-none"),
+        1.. => words.msg_with("lyric-offset-early", &args),
+        _ => words.msg_with("lyric-offset-late", &args),
+    }
+    .into_owned()
+}
+
+/// `POST /admin/sound/lyric-offset`.
+///
+/// **No confirmation, unlike the level.** A wrong offset moves the words and nothing else, and the
+/// same box moves them back.
+pub async fn use_lyric_offset(
+    State(state): State<Admin>,
+    headers: HeaderMap,
+    Form(form): Form<LyricOffsetForm>,
+) -> Response {
+    let locale = state.locale(&headers);
+    let words = crate::words::messages(locale);
+    let Some(ms) = form.ms else {
+        return back_to("sound", "bad", &words.msg("lyric-offset-unreadable"));
+    };
+    let reach = i32::from(views::LYRIC_OFFSET_REACH_MS);
+    let wanted = ms.clamp(-reach, reach) as i16;
+    match state.sound.set_lyric_offset(wanted).await {
+        Ok(landed) => back_to("sound", "good", &lyric_offset_said(landed, locale)),
+        Err(error) => refusal(&state, "sound", &error, locale),
+    }
+}
+
+/// Where the words should sit against the audio.
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct LyricOffsetForm {
+    /// Milliseconds, as the box sent them. Positive means the words lead.
+    #[serde(default)]
+    pub ms: Option<i32>,
 }
 
 /// The level control, as the Sound tab draws it.
@@ -2197,6 +2231,7 @@ pub async fn login_page(State(state): State<Admin>, headers: axum::http::HeaderM
     let _ = &state;
     views::page(
         &LoginPage {
+            lang: locale.tag(),
             assets: ASSET_VERSION,
             notice: None,
         },
@@ -2238,13 +2273,17 @@ pub async fn login(
             "good",
             &crate::words::messages(state.locale(&headers)).msg("login-yes"),
         ),
-        Err(refusal) => views::page(
-            &LoginPage {
-                assets: ASSET_VERSION,
-                notice: Some(Notice::bad(refusal.to_string())),
-            },
-            state.locale(&headers),
-        ),
+        Err(refusal) => {
+            let locale = state.locale(&headers);
+            views::page(
+                &LoginPage {
+                    lang: locale.tag(),
+                    assets: ASSET_VERSION,
+                    notice: Some(Notice::bad(refusal.to_string())),
+                },
+                locale,
+            )
+        }
     }
 }
 

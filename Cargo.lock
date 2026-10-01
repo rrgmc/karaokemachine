@@ -2240,6 +2240,7 @@ dependencies = [
  "km-songcode",
  "km-stream",
  "km-suitability",
+ "km-testkit",
  "km-tray",
  "km-video",
  "ndk-context",
@@ -2249,6 +2250,7 @@ dependencies = [
  "serde_json",
  "tao",
  "thiserror 2.0.20",
+ "time",
  "tokio",
  "tracing",
  "tracing-subscriber",
@@ -2281,6 +2283,7 @@ dependencies = [
  "km-kmpkg",
  "km-locale",
  "km-songcode",
+ "km-testkit",
  "serde",
  "serde_json",
  "thiserror 2.0.20",
@@ -2317,6 +2320,7 @@ dependencies = [
  "km-song",
  "km-songbook",
  "km-songcode",
+ "km-testkit",
  "mdns-sd",
  "percent-encoding",
  "serde",
@@ -2342,6 +2346,7 @@ dependencies = [
  "km-queue",
  "km-song",
  "km-suitability",
+ "km-testkit",
  "objc2-core-audio",
  "objc2-core-audio-types",
  "objc2-core-foundation",
@@ -2380,6 +2385,7 @@ dependencies = [
  "km-kmpkg",
  "km-song",
  "km-songcode",
+ "km-testkit",
  "rusqlite",
  "serde_json",
  "thiserror 2.0.20",
@@ -2417,6 +2423,8 @@ dependencies = [
  "km-queue",
  "km-song",
  "km-songcode",
+ "km-testkit",
+ "midly",
  "qrcode",
  "sdl3",
  "sdl3-ttf-sys",
@@ -2459,6 +2467,7 @@ dependencies = [
  "km-fixes",
  "km-song",
  "km-songcode",
+ "km-testkit",
  "serde",
  "serde_json",
  "sha2 0.11.0",
@@ -2487,6 +2496,8 @@ dependencies = [
 name = "km-logfile"
 version = "1.18.0"
 dependencies = [
+ "km-testkit",
+ "time",
  "tracing",
  "tracing-subscriber",
 ]
@@ -2559,10 +2570,12 @@ dependencies = [
  "km-songbook",
  "km-songcode",
  "km-suitability",
+ "km-testkit",
  "km-video",
  "serde",
  "serde_json",
  "serde_norway",
+ "time",
  "walkdir",
 ]
 
@@ -2592,6 +2605,7 @@ dependencies = [
  "km-song",
  "km-songcode",
  "km-suitability",
+ "km-testkit",
  "km-tray",
  "km-video",
  "km-webshell",
@@ -2628,6 +2642,7 @@ dependencies = [
  "km-pack",
  "km-song",
  "km-songcode",
+ "km-testkit",
  "km-tray",
  "km-webshell",
  "serde",
@@ -2718,6 +2733,7 @@ dependencies = [
  "km-remote-pages",
  "km-song",
  "km-songcode",
+ "km-testkit",
  "mdns-sd",
  "reqwest",
  "rusqlite",
@@ -2734,6 +2750,7 @@ name = "km-remote-host"
 version = "1.18.0"
 dependencies = [
  "km-remote-core",
+ "km-testkit",
  "tokio",
  "tracing",
 ]
@@ -2763,11 +2780,13 @@ dependencies = [
  "km-locale",
  "km-song",
  "km-songcode",
+ "km-testkit",
  "percent-encoding",
  "qrcode",
  "serde",
  "serde_json",
  "thiserror 2.0.20",
+ "time",
  "tokio",
  "tower",
  "tracing",
@@ -2820,6 +2839,14 @@ dependencies = [
  "km-song",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "km-testkit"
+version = "1.18.0"
+dependencies = [
+ "axum",
+ "tower",
 ]
 
 [[package]]
@@ -4084,9 +4111,9 @@ dependencies = [
 
 [[package]]
 name = "rustls"
-version = "0.23.43"
+version = "0.23.45"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0283386ce02abc0151e1761d08802dfe86c173b0b494af5cbc086574e453da06"
+checksum = "0d41d731c7d2f962d1ccc364cec258de3c0e93b38c2fb3ba97ac74513048d634"
 dependencies = [
  "log",
  "once_cell",

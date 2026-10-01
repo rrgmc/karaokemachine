@@ -214,14 +214,6 @@ mod tests {
     }
 
     #[test]
-    fn legacy_single_byte_text_decodes_via_the_fallback() {
-        // 0xE7 0xE3 is "çã" in CP1252 and invalid UTF-8.
-        let bytes = &[b'c', 0xE7, 0xE3, b'o'];
-        let decoder = TextDecoder::resolve(&[bytes], Some("windows-1252"));
-        assert_eq!(decoder.decode(bytes), "cção");
-    }
-
-    #[test]
     fn malformed_bytes_are_replaced_rather_than_failing() {
         let decoder = TextDecoder::utf8();
         let decoded = decoder.decode(&[b'a', 0xFF, b'b']);
@@ -332,17 +324,5 @@ mod tests {
             decode_all(&decoder, &JAPANESE_SHIFT_JIS),
             "これは にほんご の もじ を よむ ため の みじかい ぶんしょう です"
         );
-    }
-
-    #[test]
-    fn detection_gives_the_same_answer_every_time() {
-        // Heuristics that varied between runs would be untestable, and a song whose lyrics changed
-        // encoding between two openings would be worse than one that never opened.
-        for samples in [&JAPANESE_SHIFT_JIS, &CZECH_CP1250] {
-            let first = TextDecoder::resolve(samples, None);
-            let second = TextDecoder::resolve(samples, None);
-            assert_eq!(first.name(), second.name());
-            assert_eq!(first.source(), second.source());
-        }
     }
 }

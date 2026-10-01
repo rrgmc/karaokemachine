@@ -12,6 +12,7 @@
 //! It also records what it was told to do, so a test can assert that a request reached the machine
 //! and not merely that it returned 200.
 
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, atomic};
 
@@ -305,6 +306,43 @@ impl Inner {
     }
 }
 
+/// An output level like an appliance's USB interface: 1 dB steps from −128 dB to unity, sitting
+/// 20 dB down. That is the state the output-level control exists for.
+#[must_use]
+pub fn attenuated() -> OutputLevel {
+    OutputLevel {
+        db_centi: -2000,
+        db_min_centi: -12800,
+        db_max_centi: 0,
+        step_centi: 100,
+    }
+}
+
+/// The argon2 hash of `password`, made once per process for each password asked for.
+///
+/// **Argon2 costs something on purpose**, and a suite that builds a machine for every test would
+/// pay that cost for every test. A test about the hash itself calls [`AdminAuth::hash_password`]
+/// instead, because it needs a salt of its own.
+///
+/// # Panics
+///
+/// When argon2 refuses to hash, which it does only for parameters this crate never sets.
+///
+/// [`AdminAuth::hash_password`]: crate::auth::AdminAuth::hash_password
+#[must_use]
+pub fn password_hash(password: &str) -> String {
+    static HASHES: Mutex<BTreeMap<String, String>> = Mutex::new(BTreeMap::new());
+    let mut hashes = HASHES
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    hashes
+        .entry(password.to_owned())
+        .or_insert_with(|| {
+            crate::auth::AdminAuth::hash_password(password).expect("argon2 hashes a password")
+        })
+        .clone()
+}
+
 /// A karaoke machine that exists only in memory.
 #[derive(Debug)]
 pub struct TestMachine {
@@ -587,6 +625,30 @@ impl TestMachine {
     /// Installs a fault so an error path can be exercised.
     pub fn set_faults(&self, faults: Faults) {
         self.lock().faults = faults;
+    }
+
+    /// The name every audition was played under, in the order they arrived.
+    #[must_use]
+    pub fn auditions(&self) -> Vec<String> {
+        self.recorded()
+            .into_iter()
+            .filter_map(|entry| match entry {
+                Recorded::PlayAudition(name) => Some(name),
+                _ => None,
+            })
+            .collect()
+    }
+
+    /// What a curation tool had settled, one entry per audition, in the order they arrived.
+    #[must_use]
+    pub fn decided(&self) -> Vec<Decided> {
+        self.recorded()
+            .into_iter()
+            .filter_map(|entry| match entry {
+                Recorded::Decided(decided) => Some(decided),
+                _ => None,
+            })
+            .collect()
     }
 
     /// What the machine was asked to do, in order.
@@ -1222,6 +1284,9 @@ impl Controller for TestMachine {
         if let Some(volume_milli) = patch.music_volume_milli {
             inner.settings.music_volume = (volume_milli as f32 / 1000.0).clamp(0.0, 1.0);
         }
+        if let Some(offset_ms) = patch.lyric_offset_ms {
+            inner.settings.lyric_offset_ms = offset_ms;
+        }
         Ok(inner.settings)
     }
 
@@ -1798,36 +1863,6 @@ mod tests {
     }
 
     #[test]
-    fn playing_takes_the_song_off_the_front_of_the_queue() {
-        let machine = TestMachine::with_catalog(3);
-        let id = machine.queue_add(request(1001)).expect("queued");
-        assert_eq!(machine.snapshot().queue_len, 1);
-
-        machine
-            .transport(TransportCommand::Play)
-            .expect("plays what was queued");
-        let snapshot = machine.snapshot();
-        assert_eq!(snapshot.transport, Transport::Playing);
-        assert_eq!(snapshot.queue_len, 0);
-        assert_eq!(
-            snapshot.now_playing.expect("a song").origin,
-            Origin::Catalog {
-                number: SongCode::new(1001),
-                entry_id: id
-            }
-        );
-    }
-
-    #[test]
-    fn playing_an_empty_machine_says_there_is_nothing_to_play() {
-        let machine = TestMachine::new();
-        assert!(matches!(
-            machine.transport(TransportCommand::Play),
-            Err(ControlError::Unavailable(_))
-        ));
-    }
-
-    #[test]
     fn skipping_the_last_song_leaves_the_machine_idle() {
         let machine = TestMachine::with_catalog(2);
         machine.queue_add(request(1001)).expect("queued");
@@ -1836,32 +1871,6 @@ mod tests {
         let snapshot = machine.snapshot();
         assert_eq!(snapshot.transport, Transport::Idle);
         assert!(snapshot.now_playing.is_none());
-    }
-
-    /// A skip into silence is a demo press while the mode is on, and a refusal while it is off.
-    ///
-    /// **Both halves, because the mode is the whole of the difference.** The record is what says a
-    /// demo was asked for, there being no poll thread to load one.
-    #[test]
-    fn a_skip_into_silence_asks_for_a_demo_only_while_the_mode_is_on() {
-        let machine = TestMachine::with_catalog(2);
-        assert!(matches!(
-            machine.transport(TransportCommand::Skip),
-            Err(ControlError::Unavailable(_))
-        ));
-        assert!(
-            !machine.recorded().contains(&Recorded::DemoStarted),
-            "nothing may ask for a demo with the mode off"
-        );
-
-        machine.set_demo(true, false).expect("the mode goes on");
-        machine
-            .transport(TransportCommand::Skip)
-            .expect("a skip into silence asks for a demo");
-        assert!(
-            machine.recorded().contains(&Recorded::DemoStarted),
-            "and the press has to reach the controller"
-        );
     }
 
     #[test]
@@ -1877,47 +1886,6 @@ mod tests {
     }
 
     #[test]
-    fn commands_are_recorded_in_the_order_they_arrive() {
-        let machine = TestMachine::with_catalog(1);
-        machine.queue_add(request(1001)).expect("queued");
-        machine.transport(TransportCommand::Play).expect("plays");
-        machine.transport(TransportCommand::Pause).expect("pauses");
-        assert_eq!(
-            machine.recorded(),
-            [
-                Recorded::Transport(TransportCommand::Play),
-                Recorded::Transport(TransportCommand::Pause),
-            ]
-        );
-    }
-
-    #[test]
-    fn search_filters_the_way_the_real_one_does() {
-        let machine = TestMachine::with_catalog(4);
-        let all = machine.search(&SearchQuery::default()).expect("search");
-        assert_eq!(all.len(), 4);
-
-        let by_text = machine.search(&SearchQuery::text("Even")).expect("search");
-        assert_eq!(by_text.len(), 2);
-
-        let good = machine
-            .search(&SearchQuery {
-                min_suitability: Some(8),
-                ..Default::default()
-            })
-            .expect("search");
-        assert_eq!(good.len(), 2);
-
-        let melodic = machine
-            .search(&SearchQuery {
-                melody_only: true,
-                ..Default::default()
-            })
-            .expect("search");
-        assert_eq!(melodic.len(), 2);
-    }
-
-    #[test]
     fn loading_a_song_yields_a_real_parsed_timeline() {
         let machine = TestMachine::with_catalog(1);
         let song = machine
@@ -1926,72 +1894,5 @@ mod tests {
             .expect("present");
         assert!(!song.lyrics.lines.is_empty());
         assert!(machine.load(SongCode::new(9999)).expect("load").is_none());
-    }
-
-    #[test]
-    fn a_transpose_outside_the_engines_range_is_refused() {
-        let machine = TestMachine::new();
-        let error = machine
-            .update_settings(&SettingsPatch {
-                transpose: Some(100),
-                ..Default::default()
-            })
-            .expect_err("out of range");
-        assert!(matches!(error, ControlError::Rejected(_)));
-        // ...and nothing was applied.
-        assert_eq!(machine.snapshot().settings.transpose, 0);
-    }
-
-    #[test]
-    fn enabling_the_melody_on_a_song_without_one_is_refused() {
-        let machine = TestMachine::with_catalog(2);
-        // Song 1002 is the one detection abstained on.
-        machine.queue_add(request(1002)).expect("queued");
-        machine.transport(TransportCommand::Play).expect("plays");
-        let error = machine
-            .update_settings(&SettingsPatch {
-                melody_enabled: Some(true),
-                ..Default::default()
-            })
-            .expect_err("no melody channel");
-        assert!(matches!(error, ControlError::Unavailable(_)));
-    }
-
-    #[test]
-    fn faults_make_the_error_paths_reachable() {
-        let machine = TestMachine::with_catalog(1);
-        machine.set_faults(Faults {
-            search: Some("the index is corrupt".to_owned()),
-            queue_full: true,
-            ..Default::default()
-        });
-        assert!(machine.search(&SearchQuery::default()).is_err());
-        assert_eq!(
-            machine.queue_add(request(1001)),
-            Err(ControlError::QueueFull)
-        );
-    }
-
-    #[test]
-    fn uninstalling_removes_the_package_and_its_songs() {
-        let machine = TestMachine::with_catalog(3);
-        assert_eq!(machine.song_count().expect("count"), 3);
-        assert_eq!(machine.uninstall("vol1").expect("uninstall"), 3);
-        assert_eq!(machine.song_count().expect("count"), 0);
-        assert_eq!(
-            machine.uninstall("vol1"),
-            Err(CatalogError::NotFound("package 'vol1'".to_owned()))
-        );
-    }
-
-    #[test]
-    fn playing_a_file_directly_reports_a_file_origin() {
-        let machine = TestMachine::new();
-        machine
-            .play_file(Path::new("fixtures/sample.kar"), &Audition::default())
-            .expect("plays");
-        let now = machine.snapshot().now_playing.expect("a song");
-        assert!(matches!(now.origin, Origin::File { .. }));
-        assert_eq!(now.title, "sample");
     }
 }

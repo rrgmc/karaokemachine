@@ -1143,7 +1143,7 @@ pub async fn now(State(state): State<Remote>, headers: HeaderMap) -> Response {
     let prefs = Prefs::read(&headers);
     let locale = prefs.locale;
     let chrome = chrome(&state, "now", &prefs).await;
-    let player = player_block(&state).await;
+    let player = player_block(&state, locale).await;
     views::page(&NowPage { chrome, player }, locale)
 }
 
@@ -1269,8 +1269,8 @@ async fn player_view(state: &Remote) -> PlayerView {
 }
 
 /// The player card as it stands.
-async fn player_block(state: &Remote) -> PlayerBlock {
-    PlayerBlock::of(player_view(state).await)
+async fn player_block(state: &Remote, locale: Locale) -> PlayerBlock {
+    PlayerBlock::of(player_view(state).await, locale)
 }
 
 /// The Queue page's now bar as it stands.
@@ -1953,7 +1953,7 @@ pub async fn control(
             return if params.wants_nowbar() {
                 views::with_toast(&NowBar::unreachable(), toast, locale)
             } else {
-                views::with_toast(&PlayerBlock::unreachable(), toast, locale)
+                views::with_toast(&PlayerBlock::unreachable(locale), toast, locale)
             };
         }
     };
@@ -2033,7 +2033,7 @@ pub async fn control(
             None => views::page(&block, locale),
         }
     } else {
-        let block = PlayerBlock::of(view);
+        let block = PlayerBlock::of(view, locale);
         match toast {
             Some(toast) => views::with_toast(&block, toast, locale),
             None => views::page(&block, locale),
@@ -3490,7 +3490,7 @@ fn publish_rendered(
 }
 
 fn render_card(view: &PlayerView) -> Result<Vec<(Locale, String)>, askama::Error> {
-    everywhere(|_| PlayerBlock::of(view.clone()))
+    everywhere(|locale| PlayerBlock::of(view.clone(), locale))
 }
 
 /// The card and the bar, which are one state rendered for two pages.
@@ -3499,7 +3499,7 @@ async fn publish_player(state: &Remote) {
     publish_rendered(
         state,
         sse::PLAYER,
-        everywhere(|_| PlayerBlock::of(view.clone())),
+        everywhere(|locale| PlayerBlock::of(view.clone(), locale)),
     );
     publish_rendered(state, sse::NOWBAR, everywhere(|_| NowBar::of(view.clone())));
 }
@@ -3696,7 +3696,7 @@ mod tests {
         };
         add(
             sse::PLAYER,
-            everywhere(|_| PlayerBlock::of(waiting.clone())),
+            everywhere(|locale| PlayerBlock::of(waiting.clone(), locale)),
         );
         add(sse::NOWBAR, everywhere(|_| NowBar::of(waiting.clone())));
         add(sse::POSITION, everywhere(|_| PositionBlock::of(&idle)));

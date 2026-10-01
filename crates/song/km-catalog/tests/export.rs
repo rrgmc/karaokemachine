@@ -5,34 +5,18 @@
 //! are pinned here rather than left to the API's tests: **a page boundary never loses or repeats a
 //! song**, and **the version moves if and only if the set of songs did**.
 
-use std::path::PathBuf;
+mod common;
 
+use common::build_package;
 use km_catalog::{Library, SongCode};
-use km_kmpkg::{Package, PackageBuilder, PackageMeta, SongEntry};
+use km_kmpkg::SongEntry;
+use km_testkit::Scratch;
 
 const NOW: &str = "2026-08-27T12:00:00Z";
 
 /// Two package ids of the generated shape, which is the only shape a manifest may carry.
 const VOL1: &str = "1f4a9c8e2b7d0356";
 const VOL2: &str = "a1b2c3d4e5f60789";
-
-fn temp_dir(name: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("km-catalog-export-{name}"));
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).expect("temp dir");
-    dir
-}
-
-fn meta(id: &str) -> PackageMeta {
-    PackageMeta {
-        id: id.to_owned(),
-        name: format!("Package {id}"),
-        version: "1.0.0".to_owned(),
-        publisher: None,
-        created: None,
-        volume: None,
-    }
-}
 
 fn song(number: u32, title: &str, artist: Option<&str>, language: Option<&str>) -> SongEntry {
     SongEntry {
@@ -58,23 +42,12 @@ fn song(number: u32, title: &str, artist: Option<&str>, language: Option<&str>) 
     }
 }
 
-fn build_package(dir: &std::path::Path, id: &str, songs: Vec<SongEntry>) -> Package {
-    let path = dir.join(format!("{id}.kmpkg"));
-    let mut builder = PackageBuilder::new(meta(id));
-    for entry in songs {
-        let bytes = format!("midi bytes for {}", entry.number).into_bytes();
-        builder.add(entry, bytes).expect("add");
-    }
-    builder.write(&path).expect("write");
-    Package::open(&path).expect("open")
-}
-
 /// The property a mirror depends on: page after page, following the last number seen, covers the
 /// catalog exactly once. A boundary that dropped or repeated a song would give somebody a song
 /// list quietly missing one, which nothing downstream could detect.
 #[test]
 fn paging_by_the_last_number_covers_every_song_exactly_once() {
-    let dir = temp_dir("keyset");
+    let dir = Scratch::new("catalog-export-keyset");
     // Slots 1..25, installed into bank 10, so the codes are 10001..10025 — the package numbers its
     // songs from 1 and the machine puts them in a thousand, which is the whole arrangement in one
     // line.
@@ -99,8 +72,6 @@ fn paging_by_the_last_number_covers_every_song_exactly_once() {
 
     let expected: Vec<SongCode> = (1..=25).map(|n| SongCode::new(10_000 + n)).collect();
     assert_eq!(seen, expected, "every code, in order, once");
-
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 #[test]
@@ -114,7 +85,7 @@ fn an_export_of_an_empty_catalog_is_an_empty_page_and_not_an_error() {
 /// phone until something else happened to bump it.
 #[test]
 fn the_version_moves_when_the_catalog_does_and_not_otherwise() {
-    let dir = temp_dir("version");
+    let dir = Scratch::new("catalog-export-version");
     let one = build_package(&dir, VOL1, vec![song(1, "One", None, None)]);
     let two = build_package(&dir, VOL2, vec![song(2, "Two", None, None)]);
 
@@ -145,8 +116,6 @@ fn the_version_moves_when_the_catalog_does_and_not_otherwise() {
         after_removal,
         "a no-op uninstall must not send a mirror to re-read the catalog"
     );
-
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// The property the machine's own startup depends on, and the one the test above cannot see.
@@ -160,7 +129,7 @@ fn the_version_moves_when_the_catalog_does_and_not_otherwise() {
 /// legitimately move the version. Only a repeat of one package can tell the two apart.
 #[test]
 fn reinstalling_an_unchanged_package_does_not_move_the_version() {
-    let dir = temp_dir("reinstall");
+    let dir = Scratch::new("catalog-export-reinstall");
     let songs = || {
         vec![
             song(1, "One", None, None),
@@ -212,13 +181,11 @@ fn reinstalling_an_unchanged_package_does_not_move_the_version() {
         library.catalog_version().expect("version") > after_change,
         "moving a package to another bank renumbers its songs and must move it"
     );
-
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 #[test]
 fn the_version_survives_reopening_the_file() {
-    let dir = temp_dir("persist");
+    let dir = Scratch::new("catalog-export-persist");
     let path = dir.join("library.sqlite");
     let package = build_package(&dir, VOL1, vec![song(1, "One", None, None)]);
 
@@ -230,15 +197,13 @@ fn the_version_survives_reopening_the_file() {
 
     let library = Library::open(&path).expect("reopen");
     assert_eq!(library.catalog_version().expect("version"), recorded);
-
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// The remote's language picker. Ordered by how much of the catalog each accounts for, because a
 /// picker whose first entry is whatever sorts first alphabetically is a picker somebody has to read.
 #[test]
 fn languages_are_counted_and_the_commonest_comes_first() {
-    let dir = temp_dir("languages");
+    let dir = Scratch::new("catalog-export-languages");
     let package = build_package(
         &dir,
         VOL1,
@@ -260,13 +225,11 @@ fn languages_are_counted_and_the_commonest_comes_first() {
         vec![("pt".to_owned(), 3), ("en".to_owned(), 1)],
         "songs with no language recorded are not a language"
     );
-
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 #[test]
 fn artists_are_counted_and_can_be_narrowed_by_name() {
-    let dir = temp_dir("artists");
+    let dir = Scratch::new("catalog-export-artists");
     let package = build_package(
         &dir,
         VOL1,
@@ -290,15 +253,13 @@ fn artists_are_counted_and_can_be_narrowed_by_name() {
 
     let narrowed = library.artists(Some("urbana"), &[]).expect("artists");
     assert_eq!(narrowed, vec![("Legião Urbana".to_owned(), 2)]);
-
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// A person hides a package on their own remote. Its songs leave the search and every picker, and
 /// the counts left are the songs that person can reach.
 #[test]
 fn a_hidden_package_leaves_the_search_and_every_picker() {
-    let dir = temp_dir("hidden");
+    let dir = Scratch::new("catalog-export-hidden");
     let tagged = |number, title, artist, language, tag: &str| {
         let mut entry = song(number, title, Some(artist), Some(language));
         entry.tags = vec![tag.to_owned()];
@@ -355,13 +316,11 @@ fn a_hidden_package_leaves_the_search_and_every_picker() {
         vec![("rock".to_owned(), 3), ("kids".to_owned(), 1)],
         "nothing hidden counts every package"
     );
-
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 #[test]
 fn artists_are_narrowed_accent_insensitively() {
-    let dir = temp_dir("artists-folded");
+    let dir = Scratch::new("catalog-export-artists-folded");
     let package = build_package(
         &dir,
         VOL1,
@@ -379,12 +338,11 @@ fn artists_are_narrowed_accent_insensitively() {
         vec![("Legião Urbana".to_owned(), 1)],
         "a singer typing the name without its tilde still finds the band"
     );
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 #[test]
 fn the_artist_list_is_ordered_by_the_folded_name() {
-    let dir = temp_dir("artists-order");
+    let dir = Scratch::new("catalog-export-artists-order");
     let package = build_package(
         &dir,
         VOL1,
@@ -405,7 +363,6 @@ fn the_artist_list_is_ordered_by_the_folded_name() {
         .map(|(name, _)| name)
         .collect();
     assert_eq!(names, ["Ângela", "Bebel", "Zeca"]);
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// **Two spellings of one name stay two rows**, and this is a guard rather than a description. The
@@ -415,7 +372,7 @@ fn the_artist_list_is_ordered_by_the_folded_name() {
 /// lets somebody notice the duplicate at all.
 #[test]
 fn two_spellings_of_one_artist_stay_two_rows() {
-    let dir = temp_dir("artists-spellings");
+    let dir = Scratch::new("catalog-export-artists-spellings");
     let package = build_package(
         &dir,
         VOL1,
@@ -438,7 +395,6 @@ fn two_spellings_of_one_artist_stay_two_rows() {
             ("Zeca".to_owned(), 1),
         ]
     );
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// `%` is a wildcard in `LIKE`, and until the escaping was shared it was passed through — so an
@@ -449,7 +405,7 @@ fn two_spellings_of_one_artist_stay_two_rows() {
 /// anyway — the safety of this line should not rest on another function's internals.
 #[test]
 fn a_wildcard_typed_into_an_artist_search_is_a_literal() {
-    let dir = temp_dir("wildcard");
+    let dir = Scratch::new("catalog-export-wildcard");
     let package = build_package(
         &dir,
         VOL1,
@@ -464,8 +420,6 @@ fn a_wildcard_typed_into_an_artist_search_is_a_literal() {
 
     let narrowed = library.artists(Some("50%"), &[]).expect("artists");
     assert_eq!(narrowed, vec![("50% Off".to_owned(), 1)]);
-
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// Reconciling against the set that is already there must not move the version.
@@ -477,7 +431,7 @@ fn a_wildcard_typed_into_an_artist_search_is_a_literal() {
 /// changed — the fault this file was written to pin down.
 #[test]
 fn reconciling_against_an_unchanged_set_does_not_move_the_version() {
-    let dir = temp_dir("retain-unchanged");
+    let dir = Scratch::new("catalog-export-retain-unchanged");
     let one = build_package(&dir, VOL1, vec![song(1, "One", None, None)]);
     let two = build_package(&dir, VOL2, vec![song(2, "Two", None, None)]);
 
@@ -500,8 +454,6 @@ fn reconciling_against_an_unchanged_set_does_not_move_the_version() {
         .expect("reconcile");
     assert!(dropped.is_empty());
     assert_eq!(library.catalog_version().expect("version"), settled);
-
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// A package the reconcile was not told to keep loses its rows, its songs and its searchability.
@@ -512,7 +464,7 @@ fn reconciling_against_an_unchanged_set_does_not_move_the_version() {
 /// shape of bug this replaces.
 #[test]
 fn reconciling_drops_what_it_was_not_told_to_keep() {
-    let dir = temp_dir("retain-drops");
+    let dir = Scratch::new("catalog-export-retain-drops");
     let one = build_package(&dir, VOL1, vec![song(1, "Only Mine", None, None)]);
     let two = build_package(&dir, VOL2, vec![song(2, "Gone Away", None, None)]);
 
@@ -542,8 +494,6 @@ fn reconciling_drops_what_it_was_not_told_to_keep() {
         hits.is_empty(),
         "a dropped package's songs must leave the search index too: {hits:?}"
     );
-
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// An empty `keep` empties the catalog rather than failing.
@@ -553,7 +503,7 @@ fn reconciling_drops_what_it_was_not_told_to_keep() {
 /// emptying the packages folder — the least acceptable place to fail.
 #[test]
 fn reconciling_with_an_empty_keep_list_empties_the_catalog() {
-    let dir = temp_dir("retain-empty");
+    let dir = Scratch::new("catalog-export-retain-empty");
     let one = build_package(&dir, VOL1, vec![song(1, "One", None, None)]);
 
     let mut library = Library::open_in_memory().expect("open");
@@ -569,6 +519,4 @@ fn reconciling_with_an_empty_keep_list_empties_the_catalog() {
     let settled = library.catalog_version().expect("version");
     assert!(library.retain_packages(&[]).expect("reconcile").is_empty());
     assert_eq!(library.catalog_version().expect("version"), settled);
-
-    let _ = std::fs::remove_dir_all(&dir);
 }

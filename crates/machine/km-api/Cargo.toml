@@ -78,6 +78,7 @@ tracing = { workspace = true }
 testing = ["km-song/testing"]
 
 [dev-dependencies]
+km-testkit = { workspace = true, features = ["http"] }
 tower = { workspace = true }
 # The `dev_server` example logs what it is doing; the library itself only emits `tracing` events and
 # leaves the subscriber to the binary.

@@ -422,7 +422,7 @@ mod tests {
     #[test]
     fn the_console_twin_hands_the_registration_to_the_windowed_one() {
         let scratch = Scratch::new("register-twin");
-        let folder = scratch.0.clone();
+        let folder = scratch.to_path_buf();
 
         let extension = if cfg!(windows) { ".exe" } else { "" };
         let windowed = folder.join(format!("km-package-builder{extension}"));

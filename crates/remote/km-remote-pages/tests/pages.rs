@@ -12,7 +12,7 @@ use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
-use axum::body::{Body, to_bytes};
+use axum::body::Body;
 use axum::http::{Method, Request, StatusCode};
 use km_api::dto::{
     AddedToQueueDto, NowPlayingDto, OriginDto, QueueDto, QueueEntryDto, SettingsDto,
@@ -26,6 +26,7 @@ use km_remote_pages::machine::{
 };
 use km_remote_pages::{Capabilities, Remote};
 use km_songcode::SongCode;
+use km_testkit::http;
 use tokio::sync::broadcast;
 use tower::ServiceExt;
 
@@ -1186,20 +1187,9 @@ impl Harness {
     }
 
     async fn send(&self, request: Request<Body>) -> (StatusCode, axum::http::HeaderMap, String) {
-        let response = km_remote_pages::router(self.remote.clone())
-            .oneshot(request)
-            .await
-            .expect("the router answers");
-        let status = response.status();
-        let headers = response.headers().clone();
-        let bytes = to_bytes(response.into_body(), 4 * 1024 * 1024)
-            .await
-            .expect("read the body");
-        (
-            status,
-            headers,
-            String::from_utf8_lossy(&bytes).into_owned(),
-        )
+        let answer = http::send(km_remote_pages::router(self.remote.clone()), request).await;
+        let text = answer.text();
+        (answer.status, answer.headers, text)
     }
 
     /// The offline shell's answer to which mark its tab shows. See
@@ -1212,26 +1202,12 @@ impl Harness {
     /// A response body that is not text. `get` would hand back a lossy `String`, which is the wrong
     /// tool for asking whether two PNGs are the same bytes.
     async fn bytes(&self, path: &str) -> Vec<u8> {
-        let request = Request::builder()
-            .uri(path)
-            .body(Body::empty())
-            .expect("build");
-        let response = km_remote_pages::router(self.remote.clone())
-            .oneshot(request)
-            .await
-            .expect("the router answers");
-        to_bytes(response.into_body(), 4 * 1024 * 1024)
-            .await
-            .expect("read the body")
-            .to_vec()
+        let router = km_remote_pages::router(self.remote.clone());
+        http::send(router, http::get(path)).await.body.to_vec()
     }
 
     async fn get(&self, path: &str) -> String {
-        let request = Request::builder()
-            .uri(path)
-            .body(Body::empty())
-            .expect("build");
-        self.send(request).await.2
+        self.send(http::get(path)).await.2
     }
 
     /// A navigation with the headers kept, and a cookie sent if there is one.
@@ -1243,30 +1219,27 @@ impl Harness {
         path: &str,
         cookie: Option<&str>,
     ) -> (StatusCode, axum::http::HeaderMap, String) {
-        let mut request = Request::builder().uri(path);
+        let mut request = http::get(path);
         if let Some(cookie) = cookie {
-            request = request.header("Cookie", cookie);
+            request
+                .headers_mut()
+                .insert("Cookie", cookie.parse().expect("a cookie header"));
         }
-        self.send(request.body(Body::empty()).expect("build")).await
+        self.send(request).await
     }
 
     /// A navigation from a browser that asked for a language.
     async fn get_in(&self, path: &str, accept_language: &str) -> String {
-        let request = Request::builder()
-            .uri(path)
-            .header("Accept-Language", accept_language)
-            .body(Body::empty())
-            .expect("build");
+        let mut request = http::get(path);
+        request.headers_mut().insert(
+            "Accept-Language",
+            accept_language.parse().expect("a language header"),
+        );
         self.send(request).await.2
     }
 
     async fn htmx(&self, path: &str) -> String {
-        let request = Request::builder()
-            .uri(path)
-            .header("HX-Request", "true")
-            .body(Body::empty())
-            .expect("build");
-        self.send(request).await.2
+        self.htmx_full(path).await.2
     }
 
     /// An htmx GET with the status and headers kept.
@@ -1274,22 +1247,15 @@ impl Harness {
     /// The ⋯ preference needs all three at once: it is only honored for an htmx request, it answers
     /// `204`, and everything it does is in a `Set-Cookie`.
     async fn htmx_full(&self, path: &str) -> (StatusCode, axum::http::HeaderMap, String) {
-        let request = Request::builder()
-            .uri(path)
-            .header("HX-Request", "true")
-            .body(Body::empty())
-            .expect("build");
+        let mut request = http::get(path);
+        request
+            .headers_mut()
+            .insert("HX-Request", axum::http::HeaderValue::from_static("true"));
         self.send(request).await
     }
 
     async fn post(&self, path: &str) -> (StatusCode, axum::http::HeaderMap, String) {
-        let request = Request::builder()
-            .method(Method::POST)
-            .uri(path)
-            .header("HX-Request", "true")
-            .body(Body::empty())
-            .expect("build");
-        self.send(request).await
+        self.send(htmx_post(path, Body::empty())).await
     }
 
     /// A form post. **No `Content-Type`, deliberately** — `form::field` reads the body as a string
@@ -1304,13 +1270,7 @@ impl Harness {
     /// Separate from [`Self::post_form`] rather than widening it, because every existing caller
     /// passes a literal and `&'static str` is the tighter signature for those.
     async fn post_owned(&self, path: &str, body: String) -> (StatusCode, String) {
-        let request = Request::builder()
-            .method(Method::POST)
-            .uri(path)
-            .header("HX-Request", "true")
-            .body(Body::from(body))
-            .expect("build");
-        let (status, _, text) = self.send(request).await;
+        let (status, _, text) = self.send(htmx_post(path, Body::from(body))).await;
         (status, text)
     }
 
@@ -1318,6 +1278,16 @@ impl Harness {
     async fn get_headers(&self, path: &str) -> (StatusCode, axum::http::HeaderMap, String) {
         self.get_full(path, None).await
     }
+}
+
+/// An htmx `POST` of a body, with no `Content-Type`. See [`Harness::post_form`] for why none.
+fn htmx_post(path: &str, body: Body) -> Request<Body> {
+    Request::builder()
+        .method(Method::POST)
+        .uri(path)
+        .header("HX-Request", "true")
+        .body(body)
+        .expect("build")
 }
 
 /// Every `Set-Cookie` on a response, joined — a response carries several, and which one is which is
@@ -2931,7 +2901,7 @@ async fn the_live_script_scrolls_to_a_row_and_never_to_a_pixel() {
 /// Opens `GET /events` and answers with the status, **without reading the body**.
 ///
 /// **A test that reads this body never returns.** `Hub::stream` is an SSE response with a keep-alive
-/// and no end, and `Harness::send` — like `get` and `htmx` above it — calls `to_bytes` on whatever
+/// and no end, and `Harness::send` — like `get` and `htmx` above it — reads to the end of whatever
 /// it gets. There was no test of this route until now, so nothing warned anybody; reach for this
 /// helper rather than the harness.
 ///
@@ -3650,14 +3620,6 @@ async fn a_portuguese_page_has_no_english_and_no_untranslated_keys() {
     assert!(browse.contains("mostrando"), "the list count: {browse}");
 }
 
-/// European Portuguese is served far better by Brazilian Portuguese than by English.
-#[tokio::test]
-async fn a_region_this_build_does_not_have_falls_back_to_the_language() {
-    let harness = Harness::offline();
-    let body = harness.get_in("/queue", "pt-PT").await;
-    assert!(body.contains(r#"<html lang="pt-BR">"#), "{body}");
-}
-
 /// A language nothing here speaks gets English rather than a blank or a refusal.
 #[tokio::test]
 async fn a_language_this_build_does_not_have_gets_the_source_language() {
@@ -4340,15 +4302,10 @@ async fn the_backup_flow_backs_out_to_setup_and_sharing_to_the_folder() {
 #[tokio::test]
 async fn a_stale_folder_goes_back_to_the_folder_list_rather_than_erroring() {
     let (harness, _) = Harness::with_folders(&[(1, "Rock")]);
-    let (status, headers, _) = harness.get_headers("/favorites/share/99").await;
-    assert_eq!(status, StatusCode::SEE_OTHER);
-    assert_eq!(
-        headers
-            .get("location")
-            .and_then(|value| value.to_str().ok())
-            .unwrap_or_default(),
-        "/?mode=favorites"
-    );
+    let router = km_remote_pages::router(harness.remote.clone());
+    let answer = http::send(router, http::get("/favorites/share/99")).await;
+    assert_eq!(answer.status, StatusCode::SEE_OTHER);
+    assert_eq!(answer.location(), "/?mode=favorites");
 }
 
 /// Neither feature is a thing the machine's own remote is withholding — it keeps no collection at

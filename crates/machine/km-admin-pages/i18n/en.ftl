@@ -96,6 +96,14 @@ level-confirm-to = After
 confirm-level-heading = Turn the machine up?
 confirm-level = This is the level going into the amplifier, and everything will be louder by the same amount. Turn the amplifier down first if the room is already set up.
 confirm-level-button = Turn it up
+lyric-offset-heading = When the words light up
+lyric-offset-hint = Move the words earlier when they light up after the music on this television. The machine remembers this.
+lyric-offset-none = The words light up with the music.
+lyric-offset-early = The words light up { $ms } ms before the music.
+lyric-offset-late = The words light up { $ms } ms after the music.
+lyric-offset-choose = Choose when the words light up
+lyric-offset-save = Use this timing
+lyric-offset-unreadable = That timing could not be read.
 
 ## Pictures
 

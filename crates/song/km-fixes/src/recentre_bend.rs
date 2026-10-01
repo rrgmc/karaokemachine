@@ -249,13 +249,10 @@ pub fn describe(channel: u8) -> String {
 
 #[cfg(test)]
 mod tests {
-    use km_song::{ParseOptions, Song, testing};
+    use km_song::testing;
+    use km_song::testing::parse as song;
 
     use super::*;
-
-    fn song(bytes: &[u8]) -> Song {
-        Song::parse(bytes, &ParseOptions::default()).expect("fixture parses")
-    }
 
     #[test]
     fn a_return_that_stops_short_is_flagged() {

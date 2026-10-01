@@ -11,12 +11,13 @@
 //! firewall prompt on every rebuild and leave a dead rule behind. See `No test binds a non-loopback
 //! address` in the repository's notes.
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::sync::Arc;
 
 use km_api::testing::{Decided, Faults, Recorded, TestMachine};
 use km_api::{ApiConfig, ApiState, Listening, bind};
 use km_package_builder::app::Client;
+use km_testkit::Scratch;
 
 /// The password the test machine is set up with.
 const MACHINE_PASSWORD: &str = "curate1975";
@@ -86,56 +87,18 @@ impl Machine {
     }
 
     fn played(&self) -> Vec<String> {
-        self.machine
-            .recorded()
-            .iter()
-            .filter_map(|entry| match entry {
-                Recorded::PlayAudition(name) => Some(name.clone()),
-                _ => None,
-            })
-            .collect()
+        self.machine.auditions()
     }
 
     /// Everything the machine was told a curator had already settled, one entry per audition.
     fn played_with(&self) -> Vec<Decided> {
-        self.machine
-            .recorded()
-            .iter()
-            .filter_map(|entry| match entry {
-                Recorded::Decided(decided) => Some(decided.clone()),
-                _ => None,
-            })
-            .collect()
+        self.machine.decided()
     }
 }
 
 impl Drop for Machine {
     fn drop(&mut self) {
         self.task.abort();
-    }
-}
-
-/// A scratch folder holding one or two files, removed when the test ends.
-struct Songs(PathBuf);
-
-impl Songs {
-    fn new(name: &str) -> Self {
-        let dir = std::env::temp_dir().join(format!("km-builder-upload-{name}"));
-        let _ = std::fs::remove_dir_all(&dir);
-        std::fs::create_dir_all(&dir).expect("scratch");
-        Self(dir)
-    }
-
-    fn write(&self, name: &str, bytes: &[u8]) -> PathBuf {
-        let path = self.0.join(name);
-        std::fs::write(&path, bytes).expect("write");
-        path
-    }
-}
-
-impl Drop for Songs {
-    fn drop(&mut self) {
-        let _ = std::fs::remove_dir_all(&self.0);
     }
 }
 
@@ -150,7 +113,7 @@ fn stem_of(path: &Path) -> String {
 #[tokio::test]
 async fn a_song_sent_over_the_wire_is_played_under_the_stem_it_was_sent_with() {
     let machine = Machine::start(Faults::default()).await;
-    let songs = Songs::new("one");
+    let songs = Scratch::new("upload-one");
     let song = songs.write("whatever-the-file-is-called.kar", b"MThd not really a midi");
 
     machine
@@ -173,7 +136,7 @@ async fn a_song_sent_over_the_wire_is_played_under_the_stem_it_was_sent_with() {
 #[tokio::test]
 async fn both_halves_of_an_mp3_g_song_cross_in_one_request() {
     let machine = Machine::start(Faults::default()).await;
-    let songs = Songs::new("pair");
+    let songs = Scratch::new("upload-pair");
     // Deliberately the shapes a real corpus has: a mixed-case extension, and a stem with a trailing
     // space. Neither may reach the machine's disk, because both halves are named from the stem.
     let audio = songs.write("Perfidia .MP3", b"ID3 audio");
@@ -199,7 +162,7 @@ async fn both_halves_of_an_mp3_g_song_cross_in_one_request() {
 #[tokio::test]
 async fn a_stem_with_accents_in_it_survives_the_wire() {
     let machine = Machine::start(Faults::default()).await;
-    let songs = Songs::new("accents");
+    let songs = Scratch::new("upload-accents");
     let song = songs.write("O Poeta Está Vivo.kar", b"MThd");
     let stem = stem_of(&song);
 
@@ -223,7 +186,7 @@ async fn a_stem_with_accents_in_it_survives_the_wire() {
 #[tokio::test]
 async fn a_machine_not_in_debugging_mode_is_answered_with_the_setting_to_change() {
     let machine = Machine::start_with_debugging(Faults::default(), false).await;
-    let songs = Songs::new("refused");
+    let songs = Scratch::new("upload-refused");
     let song = songs.write("song.kar", b"MThd");
 
     let error = machine
@@ -263,7 +226,7 @@ async fn a_machine_not_in_debugging_mode_is_answered_with_the_setting_to_change(
 #[tokio::test]
 async fn an_uploaded_package_comes_back_as_a_sentence_and_not_as_a_body() {
     let machine = Machine::start(Faults::default()).await;
-    let packages = Songs::new("package-upload");
+    let packages = Scratch::new("upload-package-upload");
     let package = packages.write("favtest1.kmpkg", b"PK\x03\x04 not really a package");
 
     let said = machine
@@ -289,7 +252,7 @@ async fn an_uploaded_package_comes_back_as_a_sentence_and_not_as_a_body() {
 #[tokio::test]
 async fn a_curator_who_has_not_signed_in_is_refused_by_both_send_routes() {
     let machine = Machine::start(Faults::default()).await;
-    let packages = Songs::new("no-password");
+    let packages = Scratch::new("upload-no-password");
     let package = packages.write("favtest1.kmpkg", b"PK\x03\x04 not really a package");
 
     let error = machine
@@ -398,7 +361,7 @@ async fn a_song_that_is_no_longer_on_this_disk_fails_before_anything_is_sent() {
 #[tokio::test]
 async fn a_songs_corrections_cross_with_it() {
     let machine = Machine::start(Faults::default()).await;
-    let songs = Songs::new("fixes");
+    let songs = Scratch::new("upload-fixes");
     let song = songs.write("something.kar", b"MThd not really a midi");
     // The forced instrument is here for its argument: a correction whose name crossed without its
     // program would preview a song nobody chose.
@@ -440,7 +403,7 @@ async fn a_songs_corrections_cross_with_it() {
 #[tokio::test]
 async fn an_ultrastar_songs_words_cross_with_its_mp3() {
     let machine = Machine::start(Faults::default()).await;
-    let songs = Songs::new("ultrastar");
+    let songs = Scratch::new("upload-ultrastar");
     let audio = songs.write("Someone - Song.mp3", b"ID3 not really audio");
     let words = km_song::ultrastar::parse(
         b"#TITLE:Song\n#MP3:Someone - Song.mp3\n#BPM:300\n: 0 4 0 Hel\n: 4 2 0 lo\nE\n",
@@ -481,7 +444,7 @@ async fn an_ultrastar_songs_words_cross_with_its_mp3() {
 #[tokio::test]
 async fn an_empty_list_crosses_as_an_empty_list() {
     let machine = Machine::start(Faults::default()).await;
-    let songs = Songs::new("fixes-none");
+    let songs = Scratch::new("upload-fixes-none");
     let song = songs.write("something.kar", b"MThd not really a midi");
 
     machine
@@ -512,7 +475,7 @@ async fn an_empty_list_crosses_as_an_empty_list() {
 #[tokio::test]
 async fn a_song_nobody_has_decided_about_sends_nothing() {
     let machine = Machine::start(Faults::default()).await;
-    let songs = Songs::new("fixes-undecided");
+    let songs = Scratch::new("upload-fixes-undecided");
     let song = songs.write("something.kar", b"MThd not really a midi");
 
     machine
@@ -533,7 +496,7 @@ async fn a_song_nobody_has_decided_about_sends_nothing() {
 #[tokio::test]
 async fn a_curators_title_and_performer_cross_with_the_song() {
     let machine = Machine::start(Faults::default()).await;
-    let songs = Songs::new("names");
+    let songs = Scratch::new("upload-names");
     let song = songs.write("iwtkwli.kar", b"MThd not really a midi");
 
     machine
@@ -566,7 +529,7 @@ async fn a_curators_title_and_performer_cross_with_the_song() {
 #[tokio::test]
 async fn a_song_nobody_has_renamed_sends_no_names() {
     let machine = Machine::start(Faults::default()).await;
-    let songs = Songs::new("names-none");
+    let songs = Scratch::new("upload-names-none");
     let song = songs.write("something.kar", b"MThd not really a midi");
 
     machine
@@ -587,7 +550,7 @@ async fn a_song_nobody_has_renamed_sends_no_names() {
 #[tokio::test]
 async fn a_curators_key_crosses_with_the_song() {
     let machine = Machine::start(Faults::default()).await;
-    let songs = Songs::new("key");
+    let songs = Scratch::new("upload-key");
     let song = songs.write("something.kar", b"MThd not really a midi");
 
     machine
@@ -622,7 +585,7 @@ async fn a_curators_key_crosses_with_the_song() {
 async fn a_curators_melody_channel_crosses_with_the_song() {
     for (stem, melody) in [("Named", Some(2)), ("None", None)] {
         let machine = Machine::start(Faults::default()).await;
-        let songs = Songs::new(&format!("melody-{stem}"));
+        let songs = Scratch::new(&format!("upload-melody-{stem}"));
         let song = songs.write("something.kar", b"MThd not really a midi");
 
         machine
@@ -658,7 +621,7 @@ async fn a_curators_melody_channel_crosses_with_the_song() {
 #[tokio::test]
 async fn a_key_that_is_not_a_number_leaves_the_song_in_its_own() {
     let machine = Machine::start(Faults::default()).await;
-    let songs = Songs::new("key-bad");
+    let songs = Scratch::new("upload-key-bad");
     let song = songs.write("something.kar", b"MThd not really a midi");
 
     let response = reqwest::Client::new()

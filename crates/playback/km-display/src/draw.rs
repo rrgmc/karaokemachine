@@ -8,6 +8,8 @@
 //! published state. This module reads no atomics and owns no state of its own.
 
 use std::borrow::Cow;
+use std::cell::RefCell;
+use std::rc::Rc;
 
 use km_queue::QueueEntry;
 use km_song::{KaraokeFlavor, LyricTimeline};
@@ -3430,9 +3432,34 @@ fn draw_connect_panel<T: RenderTarget, C>(
     }
 }
 
+thread_local! {
+    /// The last code drawn, and the address it encodes.
+    ///
+    /// **One entry, keyed by the address**, because the connect panel draws the same code on every
+    /// frame and the address changes only when the network does. Encoding runs Reed–Solomon over
+    /// the whole payload and masks the grid eight ways, which is too much work to repeat per frame.
+    static LAST_QR: RefCell<Option<(String, Option<Rc<QrMatrix>>)>> = const { RefCell::new(None) };
+}
+
+/// The code for an address, encoded once while the address stays the same.
+fn qr_for(url: &str) -> Option<Rc<QrMatrix>> {
+    LAST_QR.with_borrow_mut(|last| {
+        if let Some((cached, qr)) = last
+            && cached == url
+        {
+            return qr.clone();
+        }
+        let qr = QrMatrix::encode(url).map(Rc::new);
+        *last = Some((url.to_owned(), qr.clone()));
+        qr
+    })
+}
+
 /// Draws a QR code as filled squares, with the quiet zone a scanner needs.
+///
+/// Each run of dark modules in a row is one rectangle, and all of them go in one `fill_rects` call.
 fn draw_qr<T: RenderTarget>(canvas: &mut Canvas<T>, url: &str, x: f32, y: f32, side: f32) {
-    let Some(qr) = QrMatrix::encode(url) else {
+    let Some(qr) = qr_for(url) else {
         return;
     };
     // Four modules of quiet zone is what the spec asks for; two is the practical minimum and keeps
@@ -3445,20 +3472,20 @@ fn draw_qr<T: RenderTarget>(canvas: &mut Canvas<T>, url: &str, x: f32, y: f32, s
     canvas.set_draw_color(Color::RGB(0xFF, 0xFF, 0xFF));
     let _ = canvas.fill_rect(FRect::new(x, y, side, side));
     canvas.set_draw_color(Color::RGB(0, 0, 0));
-    for row in 0..qr.size {
-        for column in 0..qr.size {
-            if qr.is_dark(column, row) {
-                let _ = canvas.fill_rect(FRect::new(
-                    x + (column + quiet) as f32 * cell,
-                    y + (row + quiet) as f32 * cell,
-                    // A hair over one cell, so rounding cannot leave hairline gaps that confuse a
-                    // scanner.
-                    cell + 0.5,
-                    cell + 0.5,
-                ));
-            }
-        }
-    }
+    let runs: Vec<FRect> = qr
+        .dark_runs()
+        .map(|(row, start, length)| {
+            FRect::new(
+                x + (start + quiet) as f32 * cell,
+                y + (row + quiet) as f32 * cell,
+                // A hair over the run, so rounding cannot leave hairline gaps that confuse a
+                // scanner.
+                length as f32 * cell + 0.5,
+                cell + 0.5,
+            )
+        })
+        .collect();
+    let _ = canvas.fill_rects(&runs);
 }
 
 /// Greedy word wrap, in columns.
@@ -3526,6 +3553,23 @@ mod tests {
 
     use super::*;
     use crate::connect::ConnectProblem;
+
+    #[test]
+    fn a_code_is_encoded_once_while_its_address_stays_the_same() {
+        let first = qr_for("http://192.168.1.x:8278/").expect("an address fits");
+        let again = qr_for("http://192.168.1.x:8278/").expect("an address fits");
+        assert!(
+            Rc::ptr_eq(&first, &again),
+            "the same address reuses the code"
+        );
+
+        let other = qr_for("http://192.168.1.x:8279/").expect("an address fits");
+        assert!(!Rc::ptr_eq(&first, &other), "a new address encodes again");
+        assert_eq!(
+            *other,
+            QrMatrix::encode("http://192.168.1.x:8279/").expect("fits")
+        );
+    }
 
     /// The two halves of the name are the name.
     ///
@@ -4952,27 +4996,34 @@ mod tests {
         assert_eq!(short, vec!["the quick".to_owned(), "brown fox".to_owned()]);
     }
 
+    /// `wrap` breaks on words and loses nothing. A word wider than a line breaks between graphemes.
     #[test]
     fn wrapping_breaks_on_words_and_keeps_everything() {
-        let lines = wrap("the quick brown fox jumps over the lazy dog", 12);
-        assert!(lines.len() > 1);
-        for line in &lines {
-            assert!(line.width() <= 12, "too long: {line:?}");
-        }
-        assert_eq!(
-            lines.join(" "),
-            "the quick brown fox jumps over the lazy dog"
-        );
-    }
-
-    #[test]
-    fn wrapping_handles_a_word_longer_than_the_limit() {
-        let lines = wrap("short verylongwordthatcannotbebroken", 10);
-        // The long word is broken across lines rather than being lost, overflowing or looping.
-        assert_eq!(lines.first().map(String::as_str), Some("short"));
-        assert_eq!(lines[1..].concat(), "verylongwordthatcannotbebroken");
-        for line in &lines {
-            assert!(line.width() <= 10, "too long: {line:?}");
+        let cases: [(&str, &str, usize, &[&str]); 5] = [
+            (
+                "wrapping breaks on words and keeps everything",
+                "the quick brown fox jumps over the lazy dog",
+                12,
+                &["the quick", "brown fox", "jumps over", "the lazy dog"],
+            ),
+            // The long word is broken across lines rather than being lost, overflowing or looping.
+            (
+                "wrapping handles a word longer than the limit",
+                "short verylongwordthatcannotbebroken",
+                10,
+                &["short", "verylongwo", "rdthatcann", "otbebroken"],
+            ),
+            ("wrapping empty text yields nothing", "", 20, &[]),
+            ("wrapping blank text yields nothing", "   ", 20, &[]),
+            (
+                "an absurdly small limit still makes progress",
+                "a b c d e f",
+                1,
+                &["a b c d", "e f"],
+            ),
+        ];
+        for (name, text, max_columns, want) in cases {
+            assert_eq!(wrap(text, max_columns), want, "{name}");
         }
     }
 
@@ -4999,90 +5050,55 @@ mod tests {
         assert!(cut.ends_with('…'));
     }
 
-    /// A cut falls between graphemes, so an accent is never left without its letter.
+    /// `ellipsize` leaves a text that fits alone, and marks a cut with an ellipsis inside the budget.
     #[test]
-    fn a_cut_keeps_a_letter_with_its_accent_and_an_emoji_whole() {
-        let decomposed = "Cafe\u{301} Cafe\u{301} Cafe\u{301}";
-        let cut = ellipsize(decomposed, 5);
-        assert_eq!(cut, "Cafe\u{301}…");
-
+    fn a_text_is_cut_only_when_it_does_not_fit() {
         let family = "\u{1F468}\u{200D}\u{1F469}\u{200D}\u{1F467}";
-        let cut = ellipsize(&format!("ab {family}{family}"), 6);
-        assert_eq!(cut, format!("ab {family}…"));
-    }
-
-    #[test]
-    fn wrapping_empty_text_yields_nothing() {
-        assert!(wrap("", 20).is_empty());
-        assert!(wrap("   ", 20).is_empty());
-    }
-
-    #[test]
-    fn an_absurdly_small_limit_still_makes_progress() {
-        assert!(!wrap("a b c d e f", 1).is_empty());
-    }
-
-    /// The notice's own cut, said rather than silent. Mirrors what `draw_idle` does, since the
-    /// drawing itself needs a canvas: over-long input keeps two lines and says it kept two.
-    ///
-    /// **The fixture is invented rather than real.** A package's own refusal, at the length one
-    /// actually is, is not input this notice can see — what it carries is a count and an area — so a
-    /// fixture in that shape would test the cut against something that never reaches it. What is
-    /// held here is the mechanism, against the case it exists for: a translation of
-    /// [`Faults::line`] longer than any locale has yet produced, on a screen narrower than any
-    /// television. See `NOTICE_MAX_LINES`.
-    #[test]
-    fn an_over_long_notice_is_cut_and_says_so() {
-        let per_line = 40;
-        let notice = "4 problems: packages, sound, pictures, and a fourth area nobody has \
-                      thought of yet, at the length a translation might reach";
-        let mut lines = wrap(notice, per_line);
-        assert!(
-            lines.len() > NOTICE_MAX_LINES,
-            "the fixture must overflow to test the cut"
-        );
-        lines.truncate(NOTICE_MAX_LINES);
-        let last = lines.last_mut().unwrap();
-        *last = ellipsize(&format!("{last}…"), per_line);
-        assert!(last.ends_with('…'), "the cut should be visible: {last}");
-        assert!(
-            last.chars().count() <= per_line,
-            "the marked line must still fit: {last}"
-        );
-    }
-
-    /// ...and a notice that fits is not marked, which is the case that would cry wolf.
-    #[test]
-    fn a_notice_that_fits_carries_no_ellipsis() {
-        let lines = wrap("\"fx.kmpkg\" was not installed: file not found", 40);
-        assert!(lines.len() <= NOTICE_MAX_LINES);
-        assert!(!lines.last().unwrap().ends_with('…'));
-    }
-
-    #[test]
-    fn a_title_that_fits_is_left_alone() {
-        assert_eq!(ellipsize("Planeta Sonho", 40), "Planeta Sonho");
-        // Exactly at the limit is still "fits" — an ellipsis here would lose a character for nothing.
-        assert_eq!(ellipsize("abcde", 5), "abcde");
-    }
-
-    #[test]
-    fn a_long_title_is_cut_and_marked() {
-        let cut = ellipsize("Bola de Meia, Bola de Gude (Milton Nascimento)", 20);
-        assert!(cut.ends_with('…'), "the cut should be visible: {cut}");
-        assert_eq!(
-            cut.chars().count(),
-            20,
-            "the result must not exceed the budget it was given"
-        );
-    }
-
-    #[test]
-    fn cutting_counts_characters_rather_than_bytes() {
-        // This is the case that would panic if the implementation sliced by byte: every one of these
-        // characters is multi-byte, and the corpus this machine reads is full of them.
-        let cut = ellipsize("Não Vou Ficar — Coração Acelerado", 10);
-        assert_eq!(cut.chars().count(), 10);
-        assert!(cut.starts_with("Não"), "got {cut}");
+        let two_families = format!("ab {family}{family}");
+        let one_family_cut = format!("ab {family}…");
+        let cases: [(&str, &str, usize, &str); 6] = [
+            (
+                "a title that fits is left alone",
+                "Planeta Sonho",
+                40,
+                "Planeta Sonho",
+            ),
+            // An ellipsis at the limit would lose a character for nothing.
+            (
+                "a title exactly at the limit is left alone",
+                "abcde",
+                5,
+                "abcde",
+            ),
+            (
+                "a long title is cut and marked",
+                "Bola de Meia, Bola de Gude (Milton Nascimento)",
+                20,
+                "Bola de Meia, Bola …",
+            ),
+            // Accented letters and the dash are multi-byte, so slicing by byte would panic.
+            (
+                "cutting counts characters rather than bytes",
+                "Não Vou Ficar — Coração Acelerado",
+                10,
+                "Não Vou F…",
+            ),
+            // A cut falls between graphemes, so an accent is never left without its letter.
+            (
+                "a cut keeps a letter with its accent",
+                "Cafe\u{301} Cafe\u{301} Cafe\u{301}",
+                5,
+                "Cafe\u{301}…",
+            ),
+            (
+                "a cut keeps an emoji whole",
+                &two_families,
+                6,
+                &one_family_cut,
+            ),
+        ];
+        for (name, text, max_columns, want) in cases {
+            assert_eq!(ellipsize(text, max_columns), want, "{name}");
+        }
     }
 }

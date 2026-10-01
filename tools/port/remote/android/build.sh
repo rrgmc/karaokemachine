@@ -70,7 +70,7 @@ fi
 
 for abi in "${order[@]}"; do
   # `--lib` because the APK ships exactly one `.so` and this package has no binary at all.
-  cargo ndk -t "$abi" -P "$PLATFORM" build -p km-remote-android --lib "${CARGO_ARGS[@]}"
+  cargo ndk -t "$abi" -P "$PLATFORM" build --locked -p km-remote-android --lib "${CARGO_ARGS[@]}"
 done
 
 profile="debug"

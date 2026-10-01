@@ -16,22 +16,23 @@
 //! sentence a refusal with no name of its own gets — so an offline remote talking to a newer
 //! machine degrades to a true sentence rather than to a blank or a shrug.
 
-use std::sync::OnceLock;
-
-use km_locale::{Catalog, Locale};
+use km_locale::{Catalog, Catalogs, Locale};
 
 /// The remote's own words, one catalog per locale.
 ///
 /// `include_str!`, per `Bundling assets` — this crate ends up inside the machine, inside `km-remote`,
 /// inside an APK and inside an iOS app, and a catalog that failed to travel would leave a page of
 /// `⟦error-queue-full⟧`.
-const CATALOGS: &[(Locale, &str)] = &[
-    (Locale::English, include_str!("../i18n/en.ftl")),
-    (
-        Locale::BrazilianPortuguese,
-        include_str!("../i18n/pt-BR.ftl"),
-    ),
-];
+static CATALOGS: Catalogs = Catalogs::new(
+    "remote",
+    &[
+        (Locale::English, include_str!("../i18n/en.ftl")),
+        (
+            Locale::BrazilianPortuguese,
+            include_str!("../i18n/pt-BR.ftl"),
+        ),
+    ],
+);
 
 /// The remote's messages for one locale, parsed once.
 ///
@@ -39,23 +40,7 @@ const CATALOGS: &[(Locale, &str)] = &[
 /// [`km_locale::filters`].
 #[must_use]
 pub fn messages(locale: Locale) -> &'static Catalog {
-    static PARSED: OnceLock<Vec<(Locale, Catalog)>> = OnceLock::new();
-    let parsed = PARSED.get_or_init(|| {
-        CATALOGS
-            .iter()
-            .map(|(locale, source)| {
-                let catalog = Catalog::new(*locale, source).unwrap_or_else(|errors| {
-                    panic!("{locale} remote catalog: {}", errors.join("; "))
-                });
-                (*locale, catalog)
-            })
-            .collect()
-    });
-    parsed
-        .iter()
-        .find(|(candidate, _)| *candidate == locale)
-        .map(|(_, catalog)| catalog)
-        .expect("every locale has a remote catalog")
+    CATALOGS.get(locale)
 }
 
 /// The generic refusal, and the fallback for a code this build does not know.
@@ -217,34 +202,11 @@ mod tests {
     use super::*;
     use crate::handlers::NO_CHOICE;
 
+    /// Every locale holds exactly the keys English holds, so nothing draws a bracketed key.
     #[test]
-    fn every_catalog_parses() {
-        for locale in Locale::ALL {
-            assert!(!messages(*locale).keys().is_empty(), "{locale}");
-        }
-    }
-
-    #[test]
-    fn every_message_is_translated() {
-        let english = messages(Locale::English);
-        for locale in Locale::ALL {
-            let missing = messages(*locale).missing_from(english);
-            assert!(
-                missing.is_empty(),
-                "{locale} has not caught up: {missing:?}"
-            );
-        }
-    }
-
-    #[test]
-    fn no_locale_invents_a_message_english_does_not_have() {
-        let english = messages(Locale::English);
-        for locale in Locale::ALL {
-            let extra = english.missing_from(messages(*locale));
-            assert!(
-                extra.is_empty(),
-                "{locale} has keys nothing asks for: {extra:?}"
-            );
+    fn every_catalog_holds_exactly_the_english_keys() {
+        if let Err(fault) = km_locale::check_catalogs(messages) {
+            panic!("{fault}");
         }
     }
 

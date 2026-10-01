@@ -845,7 +845,7 @@ mod tests {
     }
 
     fn song(bytes: &[u8]) -> Arc<Song> {
-        Arc::new(Song::parse(bytes, &ParseOptions::default()).expect("fixture parses"))
+        Arc::new(testing::parse(bytes))
     }
 
     /// One second of wall-clock time, in microseconds.

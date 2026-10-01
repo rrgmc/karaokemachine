@@ -136,7 +136,7 @@ dist_detail "developer dir: $DEVELOPER_DIR"
 
 for slice in "${SLICES[@]}"; do
   # `--lib` because this package has no binary at all: an app links the archive, nothing runs it.
-  cargo build -p km-remote-ios --lib --target "$(triple_of "$slice")" \
+  cargo build --locked -p km-remote-ios --lib --target "$(triple_of "$slice")" \
     ${CARGO_ARGS+"${CARGO_ARGS[@]}"}
 done
 

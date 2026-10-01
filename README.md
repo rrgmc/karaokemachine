@@ -285,6 +285,7 @@ key.** The function keys work without the strip, and each has a letter key that 
 | `F7` | `-` | Lower the key |
 | `F8` | `+` | Raise the key |
 | `F9` | `M` | Turn the guide melody on and off, for a song that has one |
+| | `K` | Put the song back in its own key |
 | | `W` | Show the next wallpaper |
 | | `I` | Show the address and QR code |
 | | `F` | Fill the screen |
@@ -294,12 +295,16 @@ key.** The function keys work without the strip, and each has a letter key that 
 | `Enter` | | Queue the song number |
 | `Backspace` | | Correct the song number |
 | `Delete` | | Clear the song number |
+| `↑` `↓` `←` `→` | | Move around the on-screen number pad, where one is drawn |
+| `Esc` | | Leave full screen. In a window, stop the machine |
+| `Back`, on a TV remote or a phone | | Go back one step, and leave the machine from the first screen |
 | `F10` | | Open the packages folder |
 | `Ctrl+F10` | | Read the packages folder again |
 | `F11`, or `Ctrl+F11` on a Mac | | Open the remote in this computer's browser |
 | `F12` | | Show how the picture is doing |
 | `Ctrl+F12` | | Stop the strip of buttons timing out |
 | `Ctrl+Q` | | Stop the machine |
+| `Ctrl+1`–`Ctrl+9` | | Change to another SoundFont bank that `debug.soundfonts` names, to compare them |
 
 **`T`** is for a machine that shares a screen with other windows. The machine remembers the setting.
 Some Linux desktops do not let an application place itself, and there the key does nothing.

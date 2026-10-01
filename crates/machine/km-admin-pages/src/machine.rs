@@ -717,6 +717,15 @@ pub trait Sound: Send + Sync + 'static {
     /// where the level landed, which a control with coarse steps will have rounded.
     async fn set_level(&self, db_centi: i32) -> Result<km_api::machine::AudioOutputs, AdminError>;
 
+    /// How far the television's words lead the audio, in milliseconds.
+    async fn lyric_offset(&self) -> Result<i16, AdminError>;
+
+    /// Move the words on the television against the audio, and keep the choice.
+    ///
+    /// **Here rather than on a singer's page**, because it calibrates the room's television and
+    /// not a performance. The machine clamps it, so this answers with where it landed.
+    async fn set_lyric_offset(&self, ms: i16) -> Result<i16, AdminError>;
+
     /// Every bank that could be chosen, and which one the setting names.
     async fn banks(&self) -> Result<km_api::machine::SoundFontBanks, AdminError>;
 

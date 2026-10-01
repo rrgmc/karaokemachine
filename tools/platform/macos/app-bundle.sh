@@ -159,7 +159,7 @@ build_started=$SECONDS
 # CMake 4 rejects the vendored FreeType inside SDL3_ttf. Harmless on CMake 3, so it is set
 # unconditionally rather than probed for.
 # shellcheck disable=SC2046  # dist_cargo_quiet prints one flag or nothing at all
-CMAKE_POLICY_VERSION_MINIMUM=3.5 cargo build --release $(dist_cargo_quiet) \
+CMAKE_POLICY_VERSION_MINIMUM=3.5 cargo build --release --locked $(dist_cargo_quiet) \
   -p karaokemachine "${FEATURES[@]+"${FEATURES[@]}"}"
 printf '   built in %s\n' "$(dist_elapsed "$build_started")"
 # **The build also produces `karaokemachine-console`, and this bundle deliberately ignores it.** The

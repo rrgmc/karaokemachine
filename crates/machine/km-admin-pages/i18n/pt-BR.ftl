@@ -95,6 +95,14 @@ level-confirm-to = Depois
 confirm-level-heading = Aumentar a máquina?
 confirm-level = Este é o nível que entra no amplificador, e tudo ficará mais alto na mesma medida. Abaixe o amplificador antes se a sala já estiver ajustada.
 confirm-level-button = Aumentar
+lyric-offset-heading = Quando a letra acende
+lyric-offset-hint = Adiante a letra quando ela acende depois da música nesta televisão. A máquina guarda esta escolha.
+lyric-offset-none = A letra acende junto com a música.
+lyric-offset-early = A letra acende { $ms } ms antes da música.
+lyric-offset-late = A letra acende { $ms } ms depois da música.
+lyric-offset-choose = Escolha quando a letra acende
+lyric-offset-save = Usar este tempo
+lyric-offset-unreadable = Não foi possível ler esse tempo.
 
 ## Imagens
 

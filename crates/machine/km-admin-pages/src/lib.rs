@@ -500,6 +500,7 @@ pub fn router(state: Admin) -> Router {
         // this page has no script to build a URL with. The confirmation a large rise raises posts
         // back here too, with the value in the query.
         .route("/sound/level", post(handlers::use_level))
+        .route("/sound/lyric-offset", post(handlers::use_lyric_offset))
         .route(
             "/sound/{id}/remove",
             get(handlers::confirm_remove_bank).post(handlers::remove_bank),

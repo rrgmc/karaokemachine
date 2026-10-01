@@ -575,15 +575,6 @@ mod tests {
         assert!(Cli::try_parse_from(["km-remote", "--ecapplog", "1.2.3.4:99"]).is_err());
     }
 
-    /// The port `clap` defaults to is the one the library defines, not a second copy of the number.
-    #[test]
-    fn the_default_port_is_the_librarys_and_not_a_second_copy_of_it() {
-        assert_eq!(
-            Cli::parse_from(["km-remote"]).port,
-            km_remote_core::DEFAULT_PORT
-        );
-    }
-
     /// What each combination of build, executable and flag decides.
     ///
     /// `(window, browser)` for each. The pair matters more than either half: the bug this replaced

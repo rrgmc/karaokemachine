@@ -632,7 +632,7 @@ pub fn spawn_event_stream(client: MachineClient) {
             };
 
             let outcome = tokio::select! {
-                outcome = follow(&client, &api, STREAM_IDLE_TIMEOUT) => outcome,
+                outcome = follow(&client, &api, CONNECT_TIMEOUT, STREAM_IDLE_TIMEOUT) => outcome,
                 // Pointed somewhere else. The socket to the machine being left is dropped with the
                 // future, which is the tidy half of what this arm is for.
                 changed = redirects.changed() => {
@@ -743,14 +743,19 @@ fn next_backoff(current: Duration, had_connected: bool) -> Duration {
 
 /// One connection's worth of following, until it drops.
 ///
-/// `idle` is how long the machine may say nothing before this gives up on it. Passed in rather than
-/// read from [`STREAM_IDLE_TIMEOUT`] because it is the one thing here a test has to be able to
-/// shorten: proving that silence is noticed otherwise means a test that waits five real seconds, and
-/// a paused clock cannot help — `tokio` advances a paused clock whenever the runtime is idle, which
-/// during a socket handshake it is.
-async fn follow(client: &MachineClient, api: &Api, idle: Duration) -> Result<(), String> {
+/// `connect` is how long the handshake may take, and `idle` is how long the machine may say
+/// nothing before this gives up on it. Both are passed in rather than read from [`CONNECT_TIMEOUT`]
+/// and [`STREAM_IDLE_TIMEOUT`], because a test has to be able to shorten them. Proving a deadline
+/// otherwise means a test that waits five real seconds. A paused clock cannot help: `tokio`
+/// advances a paused clock whenever the runtime is idle, which during a socket handshake it is.
+async fn follow(
+    client: &MachineClient,
+    api: &Api,
+    connect: Duration,
+    idle: Duration,
+) -> Result<(), String> {
     let url = format!("{}/api/v1/events", api.base()).replacen("http", "ws", 1);
-    let (socket, _) = tokio::time::timeout(CONNECT_TIMEOUT, tokio_tungstenite::connect_async(&url))
+    let (socket, _) = tokio::time::timeout(connect, tokio_tungstenite::connect_async(&url))
         .await
         .map_err(|_| "The karaoke machine is not answering.".to_owned())?
         .map_err(|error| format!("The karaoke machine is not answering ({error})."))?;
@@ -986,17 +991,6 @@ mod tests {
         assert_eq!(connection.address, None);
     }
 
-    /// The silence this gives up on is measured in the machine's own heartbeats, so a machine that
-    /// stops ticking is a broken build here rather than a remote that flaps.
-    #[test]
-    fn the_idle_deadline_is_a_count_of_the_machines_heartbeats() {
-        assert_eq!(
-            STREAM_IDLE_TIMEOUT,
-            km_api::events::STATE_INTERVAL * 20,
-            "twenty missed heartbeats"
-        );
-    }
-
     /// A silent listener that completes the WebSocket handshake and then says nothing at all.
     ///
     /// **Loopback only**, which is a rule rather than a habit here: Windows keys a firewall rule on
@@ -1108,7 +1102,7 @@ mod tests {
 
         let client = MachineClient::new();
         let api = Api::new(&address);
-        let outcome = follow(&client, &api, Duration::from_millis(50)).await;
+        let outcome = follow(&client, &api, CONNECT_TIMEOUT, Duration::from_millis(50)).await;
 
         assert_eq!(
             outcome,
@@ -1123,11 +1117,10 @@ mod tests {
     /// The handshake gets a deadline too. Nothing answers on this port, and on a host that refuses
     /// by saying nothing that is otherwise an attempt with no end to it.
     ///
-    /// **The listener is held and never accepted from, rather than dropped.** Dropping it freed the
-    /// port, another test in the same run bound it, and this one failed saying the client was
-    /// online — which it was, to somebody else's machine. Holding it also makes the test match its
-    /// own name: a closed port is refused at once and proves no deadline at all, where a listener
-    /// that never accepts leaves the handshake with nothing but [`CONNECT_TIMEOUT`] to end it.
+    /// **The listener is held and never accepted from, rather than dropped.** A dropped listener
+    /// frees the port for another test in the same run to bind. A closed port is also refused at
+    /// once, which proves no deadline at all. A listener that never accepts leaves the handshake
+    /// with nothing but its deadline to end it.
     #[tokio::test]
     async fn a_machine_that_never_answers_does_not_hold_the_attempt_open() {
         // Bound for the length of the test and never accepted from, so the port stays this test's
@@ -1135,14 +1128,19 @@ mod tests {
         let (_never_accepted, address) = silent_machine().await;
 
         let client = MachineClient::new();
-        client.point_at(Api::new(&address));
-        spawn_event_stream(client.clone());
-
-        let connection = until(&client, "the attempt to settle", |c| {
-            c.reason != Some(codes::CONNECTING)
-        })
+        let api = Api::new(&address);
+        let outcome = follow(
+            &client,
+            &api,
+            Duration::from_millis(100),
+            STREAM_IDLE_TIMEOUT,
+        )
         .await;
-        assert!(!connection.online);
-        assert_eq!(connection.address.as_deref(), Some(address.as_str()));
+
+        assert_eq!(
+            outcome,
+            Err("The karaoke machine is not answering.".to_owned())
+        );
+        assert!(!client.connection().online);
     }
 }

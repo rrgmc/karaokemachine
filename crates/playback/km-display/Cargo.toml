@@ -74,10 +74,13 @@ sdl3 = { version = "0.18.4", default-features = false, features = [
 ] }
 
 [dev-dependencies]
+km-testkit = { workspace = true }
 km-song = { workspace = true, features = ["testing"] }
 # `examples/screen_animation.rs` reads its song out of a released package. A dev-dependency reaches
 # no library and no binary, so the crate itself still avoids `km-kmpkg`.
 km-kmpkg = { workspace = true }
+# `examples/promo/` writes the song the promotional video sings, as a Standard MIDI File.
+midly = { workspace = true }
 
 [[example]]
 name = "preview"

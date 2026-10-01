@@ -30,7 +30,6 @@
 //! list any more — the URL prefix is the permission; see `km_api::routes`.)
 
 use std::collections::BTreeMap;
-use std::io::Write as _;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
@@ -1268,21 +1267,14 @@ impl Settings {
     /// it would otherwise name a version below the current one and be set aside on the next start.
     pub fn save(&self, paths: &Paths) -> std::io::Result<()> {
         paths.create()?;
-        let target = paths.settings_file();
-        let temp = target.with_extension("json.tmp");
         let stamped = Self {
             settings_version: CURRENT_SETTINGS_VERSION,
             ..self.clone()
         };
-        let text = serde_json::to_string_pretty(&stamped)
+        let mut text = serde_json::to_string_pretty(&stamped)
             .map_err(|error| std::io::Error::new(std::io::ErrorKind::InvalidData, error))?;
-        {
-            let mut file = std::fs::File::create(&temp)?;
-            file.write_all(text.as_bytes())?;
-            file.write_all(b"\n")?;
-            file.sync_all()?;
-        }
-        std::fs::rename(&temp, &target)
+        text.push('\n');
+        km_api::files::replace(&paths.settings_file(), text.as_bytes())
     }
 
     /// Whether to serve the development remote at `/dev/`.
@@ -1518,12 +1510,24 @@ mod tests {
 
         // The first load writes a complete file: defaults, a fresh instance id and the PIN this
         // machine gives itself. That is the file a second run has to leave alone.
-        let (first, _) = Settings::load(&paths);
+        let (first, wrote) = Settings::load(&paths);
+        assert!(wrote, "a first run writes its file");
+        assert!(!first.machine.instance_id.is_empty());
         let written = std::fs::read_to_string(paths.settings_file()).expect("the settings file");
 
         // A second load must find nothing to change — no migration, no password to mint — and
-        // saving what it read must produce the same bytes.
-        let (second, _) = Settings::load(&paths);
+        // saving what it read must produce the same bytes. A file rewritten at every start is the
+        // fault: the instance id and `ensure_password` are what decide, and neither may keep
+        // finding work.
+        let (second, wrote) = Settings::load(&paths);
+        assert!(
+            !wrote,
+            "a settled settings file must not be rewritten at every start"
+        );
+        assert_eq!(
+            first.machine.instance_id, second.machine.instance_id,
+            "a remote recognizes the machine it talked to yesterday"
+        );
         let after = std::fs::read_to_string(paths.settings_file()).expect("the settings file");
         assert_eq!(
             written, after,
@@ -1575,42 +1579,28 @@ mod tests {
         );
     }
 
-    /// A scratch directory that removes itself.
-    struct Scratch(PathBuf);
+    use km_testkit::Scratch;
 
-    impl Scratch {
-        fn new(name: &str) -> Self {
-            let dir = std::env::temp_dir().join(format!(
-                "km-settings-{}-{name}-{:?}",
-                std::process::id(),
-                std::thread::current().id()
-            ));
-            std::fs::create_dir_all(&dir).expect("make the scratch directory");
-            Self(dir)
-        }
+    /// What a test writes where a real asset would go. Nothing here parses it.
+    const NOT_AN_ASSET: &[u8] = b"not a real asset, and not parsed here";
 
+    /// The shapes these tests build inside a scratch folder.
+    trait Fixture {
+        fn paths(&self) -> Paths;
+        fn checkout(&self) -> &Path;
+        fn write_pack(&self, relative: &str) -> PathBuf;
+    }
+
+    impl Fixture for Scratch {
         fn paths(&self) -> Paths {
-            Paths::rooted_at(&self.0)
-        }
-
-        /// The scratch root itself, for a test that needs a second folder beside the data one.
-        fn root(&self) -> &Path {
-            &self.0
+            Paths::rooted_at(self.path())
         }
 
         /// A checkout-shaped tree: `assets/` and `local/assets/`, both real directories.
         fn checkout(&self) -> &Path {
-            std::fs::create_dir_all(self.0.join("assets")).expect("the bundled tree");
-            std::fs::create_dir_all(self.0.join("local").join("assets")).expect("the overlay");
-            &self.0
-        }
-
-        /// Writes a file below the scratch root, making its parents.
-        fn write(&self, relative: &str) -> PathBuf {
-            let path = self.0.join(relative);
-            std::fs::create_dir_all(path.parent().expect("a parent")).expect("make the parents");
-            std::fs::write(&path, b"not a real asset, and not parsed here").expect("write");
-            path
+            std::fs::create_dir_all(self.join("assets")).expect("the bundled tree");
+            std::fs::create_dir_all(self.join("local").join("assets")).expect("the overlay");
+            self.path()
         }
 
         /// A real zip holding one picture, which is what a wallpaper folder has to have in it.
@@ -1620,7 +1610,7 @@ mod tests {
         /// folder's archives. The entry's *bytes* are still junk — the scan reads an archive's
         /// directory and never decodes — so only the zip itself has to be real.
         fn write_pack(&self, relative: &str) -> PathBuf {
-            let path = self.0.join(relative);
+            let path = self.join(relative);
             std::fs::create_dir_all(path.parent().expect("a parent")).expect("make the parents");
             let file = std::fs::File::create(&path).expect("create the pack");
             let mut zip = zip::ZipWriter::new(file);
@@ -1629,12 +1619,6 @@ mod tests {
             std::io::Write::write_all(&mut zip, b"not decoded here").expect("write the entry");
             zip.finish().expect("finish the pack");
             path
-        }
-    }
-
-    impl Drop for Scratch {
-        fn drop(&mut self) {
-            let _ = std::fs::remove_dir_all(&self.0);
         }
     }
 
@@ -2013,6 +1997,9 @@ mod tests {
     /// Absent follows the build rather than reading as the *closed* answer: a file written before
     /// the field existed carries no opinion, which is correct — it was never asked. A file carrying
     /// an explicit `false` means `false`.
+    ///
+    /// The same file predates the bank switcher, and parsing it is what makes that field need no
+    /// `settings_version` migration either.
     #[test]
     fn a_settings_file_written_before_the_switch_existed_carries_no_opinion() {
         let settings: Settings =
@@ -2020,6 +2007,8 @@ mod tests {
                 .expect("parse");
         assert_eq!(settings.debug.play_file_roots.len(), 1);
         assert!(settings.debug.enabled.is_none());
+        assert!(settings.debug.soundfonts.is_empty());
+        assert!(!settings.soundfont_switcher_on());
 
         let refused: Settings =
             serde_json::from_str(r#"{"debug":{"enabled":false}}"#).expect("parse");
@@ -2048,25 +2037,6 @@ mod tests {
 
         let (reloaded, _) = Settings::load(&paths);
         assert!(reloaded.debug.enabled.is_none());
-    }
-
-    #[test]
-    fn a_first_run_writes_a_file_and_mints_an_instance_id() {
-        let scratch = Scratch::new("first-run");
-        let (settings, written) = Settings::load(&scratch.paths());
-        assert!(written);
-        assert!(!settings.machine.instance_id.is_empty());
-        assert!(scratch.paths().settings_file().is_file());
-    }
-
-    #[test]
-    fn the_instance_id_survives_a_restart() {
-        let scratch = Scratch::new("stable-id");
-        let (first, _) = Settings::load(&scratch.paths());
-        let (second, written) = Settings::load(&scratch.paths());
-        // A remote should recognize the machine it talked to yesterday, so this must not change.
-        assert_eq!(first.machine.instance_id, second.machine.instance_id);
-        assert!(!written, "a second load should not need to rewrite");
     }
 
     /// The guide melody starts on, and a machine that has said otherwise is still obeyed.
@@ -2389,27 +2359,6 @@ mod tests {
         );
     }
 
-    /// A file with nothing to change is not rewritten on every start.
-    ///
-    /// **The failure this guards is a settings file rewritten for ever.** What decides whether
-    /// `load` writes is the instance id and `ensure_password`, and neither must keep finding work.
-    #[test]
-    fn a_settings_file_with_nothing_to_do_is_left_alone() {
-        let scratch = Scratch::new("settled");
-        scratch.paths().create().expect("directories");
-
-        // First load writes: it mints an instance id and a password.
-        let (_, written) = Settings::load(&scratch.paths());
-        assert!(written);
-
-        // Second load has nothing left to do.
-        let (_, written) = Settings::load(&scratch.paths());
-        assert!(
-            !written,
-            "a settled settings file must not be rewritten at every start"
-        );
-    }
-
     #[test]
     fn the_lyric_offset_starts_at_zero() {
         // The shipped default has to be exactly 0, because that is the value `shift_ticks` short
@@ -2432,6 +2381,16 @@ mod tests {
         // And the raw field is left as written, so saving the file back does not silently rewrite
         // what somebody typed.
         assert_eq!(display.lyric_offset_ms, -30_000);
+    }
+
+    #[test]
+    fn the_owners_control_reaches_exactly_as_far_as_the_clamp() {
+        // A control shorter than the clamp hides a setting the machine takes. A longer one offers a
+        // setting the machine quietly cuts back.
+        assert_eq!(
+            km_admin_pages::views::LYRIC_OFFSET_REACH_MS,
+            MAX_LYRIC_OFFSET_MS
+        );
     }
 
     #[test]
@@ -2526,11 +2485,11 @@ mod tests {
     #[test]
     fn a_debug_path_inside_an_allowed_root_is_permitted_and_one_outside_is_not() {
         let scratch = Scratch::new("debug-roots");
-        let allowed = scratch.0.join("songs");
+        let allowed = scratch.join("songs");
         std::fs::create_dir_all(&allowed).expect("make it");
         let inside = allowed.join("a.kar");
         std::fs::write(&inside, b"not really a midi").expect("write");
-        let outside = scratch.0.join("elsewhere.kar");
+        let outside = scratch.join("elsewhere.kar");
         std::fs::write(&outside, b"not really a midi").expect("write");
 
         let settings = Settings {
@@ -2668,17 +2627,6 @@ mod tests {
         );
     }
 
-    /// The added field has to parse against every settings file that predates it, which is what
-    /// makes this need no `settings_version` migration.
-    #[test]
-    fn a_settings_file_written_before_the_switcher_existed_still_reads() {
-        let json = r#"{ "debug": { "play_file_roots": ["/tunes/karaoke"] } }"#;
-        let settings: Settings = serde_json::from_str(json).expect("it should still parse");
-        assert_eq!(settings.debug.play_file_roots.len(), 1);
-        assert!(settings.debug.soundfonts.is_empty());
-        assert!(!settings.soundfont_switcher_on());
-    }
-
     /// A bank with no measured level round-trips without inventing one.
     #[test]
     fn a_bank_with_no_level_writes_no_level() {
@@ -2705,9 +2653,9 @@ mod tests {
     #[test]
     fn dot_dot_cannot_walk_out_of_an_allowed_root() {
         let scratch = Scratch::new("traversal");
-        let allowed = scratch.0.join("songs");
+        let allowed = scratch.join("songs");
         std::fs::create_dir_all(&allowed).expect("make it");
-        let secret = scratch.0.join("secret.kar");
+        let secret = scratch.join("secret.kar");
         std::fs::write(&secret, b"not really a midi").expect("write");
 
         let settings = Settings {
@@ -2726,12 +2674,12 @@ mod tests {
         let scratch = Scratch::new("missing");
         let settings = Settings {
             debug: DebugSettings {
-                play_file_roots: vec![scratch.0.clone()],
+                play_file_roots: vec![scratch.to_path_buf()],
                 ..Default::default()
             },
             ..Default::default()
         };
-        assert!(!settings.debug_path_allowed(&scratch.0.join("nothing-here.kar")));
+        assert!(!settings.debug_path_allowed(&scratch.join("nothing-here.kar")));
     }
 
     #[test]
@@ -2828,8 +2776,8 @@ mod tests {
     #[test]
     fn an_overlay_file_wins_over_the_bundled_one() {
         let scratch = Scratch::new("overlay-wins");
-        scratch.write("assets/soundfont/gm.sf2");
-        let local = scratch.write("local/assets/soundfont/gm.sf2");
+        scratch.write("assets/soundfont/gm.sf2", NOT_AN_ASSET);
+        let local = scratch.write("local/assets/soundfont/gm.sf2", NOT_AN_ASSET);
         assert_eq!(overlaid(&scratch).asset("soundfont/gm.sf2"), local);
     }
 
@@ -2838,7 +2786,7 @@ mod tests {
     #[test]
     fn an_asset_the_overlay_does_not_hold_still_comes_from_the_bundle() {
         let scratch = Scratch::new("overlay-partial");
-        scratch.write("local/assets/soundfont/gm.sf2");
+        scratch.write("local/assets/soundfont/gm.sf2", NOT_AN_ASSET);
         let paths = overlaid(&scratch);
         assert_eq!(
             paths.asset(FONT_SUBPATH),
@@ -2878,7 +2826,7 @@ mod tests {
         let resolved = WallpaperSettings::default().to_config(&paths).dir;
         assert_eq!(
             resolved,
-            scratch.0.join("local/assets").join(WALLPAPER_SUBDIR)
+            scratch.join("local/assets").join(WALLPAPER_SUBDIR)
         );
         assert_ne!(resolved, paths.asset_dir.join(WALLPAPER_SUBDIR));
     }
@@ -2917,7 +2865,7 @@ mod tests {
     fn a_debug_extra_does_not_make_an_empty_folder_look_full() {
         let scratch = Scratch::new("extra-not-contents");
         scratch.write_pack("assets/wallpapers/default-wallpapers.zip");
-        let named = scratch.write("elsewhere/named.png");
+        let named = scratch.write("elsewhere/named.png", NOT_AN_ASSET);
         let paths = scratch.paths();
         paths.create().expect("make the writable directories");
 
@@ -2951,7 +2899,7 @@ mod tests {
         scratch.write_pack("wallpapers/holiday.zip");
         let paths = scratch.paths();
 
-        let named = scratch.root().join("somewhere-else");
+        let named = scratch.path().join("somewhere-else");
         let settings = WallpaperSettings {
             dir: Some(named.clone()),
             ..WallpaperSettings::default()
@@ -2987,8 +2935,8 @@ mod tests {
     fn a_wallpaper_folder_holding_nothing_that_draws_falls_through() {
         let scratch = Scratch::new("undrawable-wallpapers");
         scratch.write_pack("assets/wallpapers/default-wallpapers.zip");
-        scratch.write("wallpapers/pack.zip"); // not a zip; thirty bytes of prose
-        scratch.write("wallpapers/notes.txt");
+        scratch.write("wallpapers/pack.zip", NOT_AN_ASSET); // not a zip; a line of prose
+        scratch.write("wallpapers/notes.txt", NOT_AN_ASSET);
         let paths = scratch.paths();
 
         let (resolved, source) = paths.wallpaper_dir();
@@ -3033,7 +2981,7 @@ mod tests {
     #[test]
     fn a_configured_wallpaper_folder_still_beats_the_overlay() {
         let scratch = Scratch::new("overlay-configured");
-        scratch.write("local/assets/wallpapers/pack.zip");
+        scratch.write("local/assets/wallpapers/pack.zip", NOT_AN_ASSET);
         let settings = WallpaperSettings {
             dir: Some(PathBuf::from("/photos/holiday")),
             ..Default::default()
@@ -3095,7 +3043,7 @@ mod tests {
     #[test]
     fn the_overlay_needs_both_directories() {
         let scratch = Scratch::new("overlay-predicate");
-        let root = &scratch.0;
+        let root = scratch.path();
         assert_eq!(checkout_overlay(root), None, "neither directory");
 
         std::fs::create_dir_all(root.join("assets")).expect("the bundled tree");
@@ -3121,7 +3069,7 @@ mod tests {
     #[test]
     fn an_exe_sibling_asset_dir_gets_no_overlay() {
         let scratch = Scratch::new("overlay-exe-sibling");
-        let exe_dir = scratch.0.join("install");
+        let exe_dir = scratch.join("install");
         std::fs::create_dir_all(exe_dir.join("assets")).expect("an installed layout");
         let (asset_dir, overlay) = Paths::asset_dirs_from(Some(&exe_dir), Some(scratch.checkout()));
         assert_eq!(asset_dir, exe_dir.join("assets"));
@@ -3135,11 +3083,9 @@ mod tests {
     #[test]
     fn a_macos_bundle_asset_dir_gets_no_overlay() {
         let scratch = Scratch::new("overlay-bundle");
-        let exe_dir = scratch.0.join("Karaoke Machine.app/Contents/MacOS");
+        let exe_dir = scratch.join("Karaoke Machine.app/Contents/MacOS");
         std::fs::create_dir_all(&exe_dir).expect("the bundle");
-        let resources = scratch
-            .0
-            .join("Karaoke Machine.app/Contents/Resources/assets");
+        let resources = scratch.join("Karaoke Machine.app/Contents/Resources/assets");
         std::fs::create_dir_all(&resources).expect("the resources");
         let (asset_dir, overlay) = Paths::asset_dirs_from(Some(&exe_dir), Some(scratch.checkout()));
         assert_eq!(asset_dir, resources.canonicalize().unwrap_or(resources));
@@ -3152,7 +3098,7 @@ mod tests {
     #[test]
     fn a_bundle_without_resources_falls_through_and_may_overlay() {
         let scratch = Scratch::new("overlay-bundle-bare");
-        let exe_dir = scratch.0.join("Karaoke Machine.app/Contents/MacOS");
+        let exe_dir = scratch.join("Karaoke Machine.app/Contents/MacOS");
         std::fs::create_dir_all(&exe_dir).expect("the bundle");
         let cwd = scratch.checkout().to_path_buf();
         let (asset_dir, overlay) = Paths::asset_dirs_from(Some(&exe_dir), Some(&cwd));
@@ -3339,7 +3285,7 @@ mod tests {
     fn a_writable_second_folder_takes_the_writes_but_not_the_first_scan() {
         let scratch = Scratch::new("write-dir-shared");
         let mut paths = scratch.paths();
-        let shared = scratch.root().join("shared");
+        let shared = scratch.path().join("shared");
         paths.extra_data_dir = Some(shared.clone());
         paths.extra_data_writable = true;
 
@@ -3360,7 +3306,7 @@ mod tests {
     fn a_read_only_second_folder_is_scanned_but_not_written_to() {
         let scratch = Scratch::new("write-dir-readonly");
         let mut paths = scratch.paths();
-        let shared = scratch.root().join("shared");
+        let shared = scratch.path().join("shared");
         paths.extra_data_dir = Some(shared.clone());
         paths.extra_data_writable = false;
 

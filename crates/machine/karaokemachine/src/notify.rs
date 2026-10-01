@@ -89,29 +89,9 @@ mod linux {
 #[cfg(all(test, target_os = "linux"))]
 mod tests {
     use std::os::unix::net::UnixDatagram;
-    use std::path::{Path, PathBuf};
+    use std::path::Path;
 
-    /// A scratch directory that cleans up after itself, the same shape as `Scratch` in `settings.rs`.
-    struct Scratch(PathBuf);
-
-    impl Scratch {
-        fn new(name: &str) -> Self {
-            let dir = std::env::temp_dir().join(format!(
-                "km-notify-{}-{name}-{:?}",
-                std::process::id(),
-                std::thread::current().id()
-            ));
-            let _ = std::fs::remove_dir_all(&dir);
-            std::fs::create_dir_all(&dir).expect("make the scratch directory");
-            Self(dir)
-        }
-    }
-
-    impl Drop for Scratch {
-        fn drop(&mut self) {
-            let _ = std::fs::remove_dir_all(&self.0);
-        }
-    }
+    use km_testkit::Scratch;
 
     /// A real datagram on a real socket.
     ///
@@ -121,7 +101,7 @@ mod tests {
     #[test]
     fn what_systemd_is_waiting_for_arrives() {
         let scratch = Scratch::new("arrives");
-        let path = scratch.0.join("notify.sock");
+        let path = scratch.join("notify.sock");
 
         let listener = UnixDatagram::bind(&path).expect("bind the stand-in service manager");
         listener
@@ -144,7 +124,7 @@ mod tests {
     #[test]
     fn a_socket_nobody_is_listening_on_is_survivable() {
         let scratch = Scratch::new("deaf");
-        super::linux::send(&scratch.0.join("nothing-here.sock"), "READY=1");
+        super::linux::send(&scratch.join("nothing-here.sock"), "READY=1");
     }
 
     /// Which names are the abstract namespace and which are files.

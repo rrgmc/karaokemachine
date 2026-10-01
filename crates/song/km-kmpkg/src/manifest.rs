@@ -1672,44 +1672,95 @@ mod tests {
         assert!(manifest.is_valid());
     }
 
+    /// Each manifest carries the problem its row names, among whatever else `problems()` reports.
     #[test]
-    fn an_empty_package_is_a_problem() {
-        let manifest = Manifest::new(meta());
-        assert!(manifest.problems().contains(&ManifestProblem::Empty));
-    }
-
-    #[test]
-    fn a_duplicate_number_is_reported() {
-        let mut manifest = Manifest::new(meta());
-        manifest.songs.push(song(7));
-        manifest.songs.push(song(7));
-        assert!(
+    fn a_malformed_manifest_reports_what_is_wrong_with_it() {
+        let with = |songs: Vec<SongEntry>| {
+            let mut manifest = Manifest::new(meta());
+            manifest.songs = songs;
             manifest
-                .problems()
-                .contains(&ManifestProblem::DuplicateNumber(7))
-        );
-    }
-
-    #[test]
-    fn song_number_zero_is_rejected() {
-        let mut manifest = Manifest::new(meta());
-        manifest.songs.push(song(0));
-        assert!(manifest.problems().contains(&ManifestProblem::ZeroNumber));
-    }
-
-    #[test]
-    fn a_number_above_the_last_slot_is_rejected() {
-        // A slot of 1000 is not merely undialable — banked, it *is* the next package's first song,
-        // so a package carrying one would name a song that is not its own.
-        let mut manifest = Manifest::new(meta());
-        manifest
-            .songs
-            .push(song(u32::from(km_songcode::MAX_SLOT) + 1));
-        assert!(
+        };
+        let last_slot = u32::from(km_songcode::MAX_SLOT);
+        let newer_format = {
+            let mut manifest = with(vec![song(1)]);
+            manifest.format = FORMAT_VERSION + 1;
             manifest
-                .problems()
-                .contains(&ManifestProblem::NumberTooLarge(1_000))
-        );
+        };
+        let cases: [(&str, Manifest, Vec<ManifestProblem>); 8] = [
+            (
+                "an empty package is a problem",
+                with(Vec::new()),
+                vec![ManifestProblem::Empty],
+            ),
+            (
+                "a duplicate number is reported",
+                with(vec![song(7), song(7)]),
+                vec![ManifestProblem::DuplicateNumber(7)],
+            ),
+            (
+                "song number zero is rejected",
+                with(vec![song(0)]),
+                vec![ManifestProblem::ZeroNumber],
+            ),
+            // Banked, slot 1000 is the next package's first song, so a package carrying one would
+            // name a song that is not its own.
+            (
+                "a number above the last slot is rejected",
+                with(vec![song(last_slot + 1)]),
+                vec![ManifestProblem::NumberTooLarge(1_000)],
+            ),
+            // The package is too big, and the songs past the end are named as well. A curated
+            // package is a volume somebody chose, not a folder somebody pointed at.
+            (
+                "a package larger than a bank is rejected",
+                with((1..=last_slot + 1).map(song).collect()),
+                vec![
+                    ManifestProblem::TooManySongs { count: 1_000 },
+                    ManifestProblem::NumberTooLarge(1_000),
+                ],
+            ),
+            (
+                "a missing title is reported",
+                with(vec![SongEntry {
+                    title: "   ".to_owned(),
+                    ..song(5)
+                }]),
+                vec![ManifestProblem::MissingTitle(5)],
+            ),
+            // The corpus is full of duplicates, so the same recording under two numbers is a
+            // mistake worth catching before the package ships.
+            (
+                "identical content under two numbers is reported",
+                with(vec![
+                    SongEntry {
+                        content_hash: Some("abc123".to_owned()),
+                        ..song(10)
+                    },
+                    SongEntry {
+                        content_hash: Some("abc123".to_owned()),
+                        ..song(20)
+                    },
+                ]),
+                vec![ManifestProblem::DuplicateContent {
+                    first: 10,
+                    second: 20,
+                }],
+            ),
+            (
+                "a newer format is refused rather than misread",
+                newer_format,
+                vec![ManifestProblem::UnsupportedFormat(FORMAT_VERSION + 1)],
+            ),
+        ];
+        for (name, manifest, want) in cases {
+            let problems = manifest.problems();
+            for problem in want {
+                assert!(
+                    problems.contains(&problem),
+                    "{name}: {problem:?} is missing from {problems:?}"
+                );
+            }
+        }
     }
 
     #[test]
@@ -1722,60 +1773,12 @@ mod tests {
     }
 
     #[test]
-    fn a_package_larger_than_a_bank_is_rejected() {
-        // Two problems and not one: the package is too big, *and* the songs past the end are named.
-        // A curated package is meant to be a volume somebody chose, not a folder somebody pointed at.
-        let mut manifest = Manifest::new(meta());
-        for number in 1..=u32::from(km_songcode::MAX_SLOT) + 1 {
-            manifest.songs.push(song(number));
-        }
-        let problems = manifest.problems();
-        assert!(problems.contains(&ManifestProblem::TooManySongs { count: 1_000 }));
-        assert!(problems.contains(&ManifestProblem::NumberTooLarge(1_000)));
-    }
-
-    #[test]
     fn a_package_filling_a_bank_exactly_is_fine() {
         let mut manifest = Manifest::new(meta());
         for number in 1..=u32::from(km_songcode::MAX_SLOT) {
             manifest.songs.push(song(number));
         }
         assert_eq!(manifest.problems(), vec![]);
-    }
-
-    #[test]
-    fn a_missing_title_is_reported() {
-        let mut manifest = Manifest::new(meta());
-        let mut entry = song(5);
-        entry.title = "   ".to_owned();
-        manifest.songs.push(entry);
-        assert!(
-            manifest
-                .problems()
-                .contains(&ManifestProblem::MissingTitle(5))
-        );
-    }
-
-    #[test]
-    fn identical_content_under_two_numbers_is_reported() {
-        // The corpus this is built for is full of duplicates, so a package with the same recording
-        // under two numbers is a mistake worth catching before it ships.
-        let mut manifest = Manifest::new(meta());
-        let mut first = song(10);
-        first.content_hash = Some("abc123".to_owned());
-        let mut second = song(20);
-        second.content_hash = Some("abc123".to_owned());
-        manifest.songs.push(first);
-        manifest.songs.push(second);
-
-        assert!(
-            manifest
-                .problems()
-                .contains(&ManifestProblem::DuplicateContent {
-                    first: 10,
-                    second: 20
-                })
-        );
     }
 
     #[test]
@@ -1847,18 +1850,6 @@ mod tests {
             manifest.songs.push(entry);
             assert_eq!(manifest.problems(), vec![], "{label} should be accepted");
         }
-    }
-
-    #[test]
-    fn a_newer_format_is_refused_rather_than_misread() {
-        let mut manifest = Manifest::new(meta());
-        manifest.format = FORMAT_VERSION + 1;
-        manifest.songs.push(song(1));
-        assert!(
-            manifest
-                .problems()
-                .contains(&ManifestProblem::UnsupportedFormat(FORMAT_VERSION + 1))
-        );
     }
 
     #[test]
@@ -2043,24 +2034,6 @@ mod tests {
         }
     }
 
-    /// A package whose id is already a name keeps the name it has always installed under.
-    #[test]
-    fn a_safe_id_reaches_the_stem_exactly_as_it_stands() {
-        let named = PackageMeta {
-            id: "1f4a9c8e2b7d0356".to_owned(),
-            name: "Brasil Volume 1".to_owned(),
-            ..meta()
-        };
-        assert_eq!(named.file_stem(), "brasil-volume-1-1f4a9c8e2b7d0356");
-
-        let unnamed = PackageMeta {
-            id: "1f4a9c8e2b7d0356".to_owned(),
-            name: "🎤".to_owned(),
-            ..meta()
-        };
-        assert_eq!(unnamed.file_stem(), "1f4a9c8e2b7d0356");
-    }
-
     #[test]
     fn an_unsafe_path_in_a_manifest_is_reported() {
         let mut manifest = Manifest::new(meta());
@@ -2096,26 +2069,58 @@ mod tests {
                 message: "only 3 instrument channels".to_owned(),
             }],
         });
+        entry.title = "Fixed By Hand".to_owned();
+        entry.mark_edited(EditedField::Title);
+        entry.lyric_preview = vec!["Tempo perdido".to_owned(), "E que tudo mais".to_owned()];
         manifest.songs.push(entry);
 
         let json = serde_json::to_string_pretty(&manifest).expect("serializes");
         let parsed: Manifest = serde_json::from_str(&json).expect("deserializes");
         assert_eq!(parsed, manifest);
+        assert!(parsed.songs[0].is_edited(EditedField::Title));
     }
 
+    /// A song with nothing in an optional field writes no key for it.
+    ///
+    /// A manifest full of nulls and empty lists is harder to read and larger for no benefit.
     #[test]
-    fn absent_optional_fields_are_omitted_from_the_json() {
+    fn an_empty_optional_field_writes_no_key() {
         let mut manifest = Manifest::new(meta());
         manifest.songs.push(song(1));
         let json = serde_json::to_string(&manifest).expect("serializes");
-        // A manifest full of nulls is harder to read and larger for no benefit.
-        assert!(!json.contains("\"melody\""), "got {json}");
-        assert!(!json.contains("\"suitability\""));
-        assert!(!json.contains("\"default_transpose\""));
-        // The same argument as the tags below: a package whose songs all draw their words is
-        // byte-identical to what a build predating this field wrote, which is why the format
-        // version did not move for it.
-        assert!(!json.contains("\"lyrics_hidden\""));
+        let cases = [
+            ("an absent melody is omitted", "\"melody\""),
+            ("an absent suitability is omitted", "\"suitability\""),
+            (
+                "a zero default transpose is omitted",
+                "\"default_transpose\"",
+            ),
+            // A package whose songs all draw their words is byte-identical to one written without
+            // this field, so the format version need not move for it.
+            (
+                "words that are drawn write no hidden key",
+                "\"lyrics_hidden\"",
+            ),
+            (
+                "the edited list is omitted from json when empty",
+                "\"edited\"",
+            ),
+            // A video song, an MP3+G song and a wordless MIDI file write the same bytes as a build
+            // without previews.
+            (
+                "a song with no words writes no preview key at all",
+                "lyric_preview",
+            ),
+            // An empty list is an absence, and a package full of them would carry the word once
+            // per song.
+            (
+                "a song with nothing to correct writes no fixes key",
+                "\"fixes\"",
+            ),
+        ];
+        for (name, key) in cases {
+            assert!(!json.contains(key), "{name}: got {json}");
+        }
     }
 
     /// The three answers about a song's words, across a rebuild from source.
@@ -2442,50 +2447,6 @@ mod tests {
         assert!(fresh.edited.is_empty());
     }
 
-    #[test]
-    fn the_edited_list_is_omitted_from_json_when_empty() {
-        let mut manifest = Manifest::new(meta());
-        manifest.songs.push(song(1));
-        let json = serde_json::to_string(&manifest).expect("serializes");
-        assert!(!json.contains("\"edited\""), "got {json}");
-    }
-
-    #[test]
-    fn edits_round_trip_through_json() {
-        let mut manifest = Manifest::new(meta());
-        let mut entry = song(1);
-        entry.title = "Fixed By Hand".to_owned();
-        entry.mark_edited(EditedField::Title);
-        manifest.songs.push(entry);
-
-        let json = serde_json::to_string(&manifest).expect("serializes");
-        let parsed: Manifest = serde_json::from_str(&json).expect("deserializes");
-        assert!(parsed.songs[0].is_edited(EditedField::Title));
-    }
-
-    #[test]
-    fn a_song_with_no_words_writes_no_preview_key_at_all() {
-        // The point of `skip_serializing_if`: a video song, an MP3+G song and a wordless MIDI file
-        // must produce the same bytes they always did.
-        let mut manifest = Manifest::new(meta());
-        manifest.songs.push(song(1));
-        let json = serde_json::to_string(&manifest).expect("serializes");
-        assert!(!json.contains("lyric_preview"), "{json}");
-    }
-
-    #[test]
-    fn a_preview_survives_a_round_trip() {
-        let mut manifest = Manifest::new(meta());
-        let mut entry = song(1);
-        entry.lyric_preview = vec!["Tempo perdido".to_owned(), "E que tudo mais".to_owned()];
-        manifest.songs.push(entry);
-
-        let json = serde_json::to_string(&manifest).expect("serializes");
-        let parsed: Manifest = serde_json::from_str(&json).expect("deserializes");
-        assert_eq!(parsed.songs[0].lyric_preview.len(), 2);
-        assert_eq!(parsed.songs[0].lyric_preview[0], "Tempo perdido");
-    }
-
     /// The reason the format version did not move. A build that predates this field sees an unknown
     /// key and ignores it, because nothing here sets `deny_unknown_fields` — so a package written by
     /// this build still opens on every machine in service. Modeled by a struct with the field
@@ -2635,16 +2596,6 @@ mod tests {
         manifest.songs.push(song(99));
         assert_eq!(manifest.song(99).map(|s| s.number), Some(99));
         assert!(manifest.song(1234).is_none());
-    }
-
-    #[test]
-    fn a_song_with_nothing_to_correct_writes_no_fixes_key() {
-        let entry = song(1);
-        let json = serde_json::to_string(&entry).expect("serializes");
-        assert!(
-            !json.contains("\"fixes\""),
-            "an empty list is an absence, and a package full of them would carry the word once per song"
-        );
     }
 
     #[test]

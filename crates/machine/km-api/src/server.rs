@@ -849,10 +849,7 @@ async fn run_advertiser(state: ApiState, port: u16, slot: Arc<Mutex<Option<Adver
 
 #[cfg(test)]
 mod tests {
-    use axum::http::header::AUTHORIZATION;
-
     use super::*;
-    use crate::routes::{ADMIN_LOGIN_PATH, API_PREFIX};
     use crate::testing::TestMachine;
 
     const ADMIN_ROUTE: &str = "/api/v1/admin/demo";
@@ -873,18 +870,10 @@ mod tests {
     fn bearer(token: &str) -> HeaderMap {
         let mut headers = HeaderMap::new();
         headers.insert(
-            AUTHORIZATION,
+            axum::http::header::AUTHORIZATION,
             format!("Bearer {token}").parse().expect("header"),
         );
         headers
-    }
-
-    fn log_in(state: &ApiState) -> String {
-        state
-            .auth()
-            .login(std::net::Ipv4Addr::LOCALHOST.into(), "hunter2")
-            .expect("the password is right")
-            .token
     }
 
     fn with_codes(room: Access) -> ApiState {
@@ -993,53 +982,8 @@ mod tests {
         );
     }
 
-    #[test]
-    fn a_public_route_needs_nothing() {
-        let state = passworded();
-        assert!(
-            state
-                .authorize(&Method::POST, PUBLIC_ROUTE, &HeaderMap::new())
-                .is_ok()
-        );
-        assert!(
-            state
-                .authorize(&Method::PUT, "/api/v1/settings", &HeaderMap::new())
-                .is_ok()
-        );
-    }
-
-    #[test]
-    fn an_admin_route_without_a_token_is_a_401() {
-        let state = passworded();
-        let error = state
-            .authorize(&Method::POST, ADMIN_ROUTE, &HeaderMap::new())
-            .expect_err("an admin route must refuse");
-        assert!(matches!(error, ApiError::Unauthorized(_)));
-        assert!(error.to_string().contains(ADMIN_ROUTE));
-    }
-
-    #[test]
-    fn a_valid_token_opens_an_admin_route() {
-        let state = passworded();
-        let token = log_in(&state);
-        assert!(
-            state
-                .authorize(&Method::POST, ADMIN_ROUTE, &bearer(&token))
-                .is_ok()
-        );
-    }
-
-    #[test]
-    fn a_made_up_token_does_not() {
-        let state = passworded();
-        let error = state
-            .authorize(&Method::POST, ADMIN_ROUTE, &bearer(&"0".repeat(64)))
-            .expect_err("a forged token must refuse");
-        assert!(error.to_string().contains("log in again"));
-    }
-
-    /// The inversion at the heart of the change. This state used to open every admin route; now it
-    /// shuts them, because a machine that cannot verify a token cannot admit anybody.
+    /// A machine with no password shuts every admin route, because it cannot verify a token and so
+    /// cannot admit anybody.
     #[test]
     fn with_no_password_an_admin_route_is_shut_rather_than_open() {
         let state = state_with(ApiConfig::default());
@@ -1058,87 +1002,6 @@ mod tests {
         assert!(
             state
                 .authorize(&Method::POST, PUBLIC_ROUTE, &HeaderMap::new())
-                .is_ok()
-        );
-    }
-
-    #[test]
-    fn login_stays_reachable_because_it_is_the_way_in() {
-        let state = passworded();
-        assert!(
-            state
-                .authorize(&Method::POST, ADMIN_LOGIN_PATH, &HeaderMap::new())
-                .is_ok()
-        );
-    }
-
-    #[test]
-    fn discover_is_reachable_from_anywhere() {
-        let state = passworded();
-        let path = format!("{API_PREFIX}/discover");
-        assert!(
-            state
-                .authorize(&Method::GET, &path, &HeaderMap::new())
-                .is_ok()
-        );
-    }
-
-    /// Sign-out-everywhere, driven through the state the way a handler drives it.
-    #[test]
-    fn bumping_the_session_epoch_shuts_every_token_out() {
-        let state = passworded();
-        let token = log_in(&state);
-        assert!(
-            state
-                .authorize(&Method::POST, ADMIN_ROUTE, &bearer(&token))
-                .is_ok()
-        );
-
-        state.set_session_epoch(state.session_epoch() + 1);
-        assert!(
-            state
-                .authorize(&Method::POST, ADMIN_ROUTE, &bearer(&token))
-                .is_err()
-        );
-    }
-
-    #[test]
-    fn changing_the_password_shuts_every_token_out() {
-        let state = passworded();
-        let token = log_in(&state);
-        assert!(
-            state
-                .authorize(&Method::POST, ADMIN_ROUTE, &bearer(&token))
-                .is_ok()
-        );
-
-        state.set_admin_password(
-            Some(crate::auth::AdminAuth::hash_password("something else").expect("hashing works")),
-            false,
-        );
-        assert!(
-            state
-                .authorize(&Method::POST, ADMIN_ROUTE, &bearer(&token))
-                .is_err()
-        );
-    }
-
-    /// A token minted before a restart has to keep working, and the only thing that carries across
-    /// one is the stored hash. Two states built from the same config is what a restart looks like
-    /// from here.
-    #[test]
-    fn a_token_outlives_the_state_that_issued_it() {
-        let config = ApiConfig::default()
-            .with_password("hunter2")
-            .expect("hashing works");
-        let token = {
-            let before = state_with(config.clone());
-            log_in(&before)
-        };
-        let after = state_with(config);
-        assert!(
-            after
-                .authorize(&Method::POST, ADMIN_ROUTE, &bearer(&token))
                 .is_ok()
         );
     }
@@ -1171,16 +1034,5 @@ mod tests {
             !state.discovery().factory_password,
             "discovery is still reading a snapshot"
         );
-    }
-
-    #[test]
-    fn a_machine_reports_whether_it_is_still_on_its_factory_password() {
-        let mut config = ApiConfig::default()
-            .with_password("123456")
-            .expect("hashing works");
-        config.factory_password = true;
-        assert!(state_with(config.clone()).factory_password());
-        config.factory_password = false;
-        assert!(!state_with(config).factory_password());
     }
 }

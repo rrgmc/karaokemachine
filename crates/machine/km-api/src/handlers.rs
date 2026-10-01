@@ -633,7 +633,7 @@ pub async fn get_mics(State(state): State<ApiState>) -> Json<MicsDto> {
     Json(MicsDto::new(&state.controller().mics()))
 }
 
-/// `PUT /api/v1/mics/{id}`
+/// `PUT /api/v1/admin/mics/{id}`
 pub async fn put_mic(
     State(state): State<ApiState>,
     Segment(id): Segment<String>,

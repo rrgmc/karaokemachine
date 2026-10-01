@@ -8,9 +8,7 @@
 //! `km_kmpkg::Language` carries for its pickers. Nor is `--help`, which clap builds from doc
 //! comments, and nor are the tray's words, which `km-tray` owns.
 
-use std::sync::OnceLock;
-
-use km_locale::{Catalog, Locale};
+use km_locale::{Catalog, Catalogs, Locale};
 
 /// The files whose `msg` calls the key scanner reads.
 #[cfg(test)]
@@ -21,52 +19,32 @@ const SOURCES: &[&str] = &[
 ];
 
 /// This tool's words, one catalog per locale.
-const CATALOGS: &[(Locale, &str)] = &[
-    (Locale::English, include_str!("../i18n/en.ftl")),
-    (
-        Locale::BrazilianPortuguese,
-        include_str!("../i18n/pt-BR.ftl"),
-    ),
-];
+static CATALOGS: Catalogs = Catalogs::new(
+    "km-package-simple",
+    &[
+        (Locale::English, include_str!("../i18n/en.ftl")),
+        (
+            Locale::BrazilianPortuguese,
+            include_str!("../i18n/pt-BR.ftl"),
+        ),
+    ],
+);
 
 /// These pages' messages for one locale, parsed once.
 #[must_use]
 pub fn messages(locale: Locale) -> &'static Catalog {
-    static PARSED: OnceLock<Vec<(Locale, Catalog)>> = OnceLock::new();
-    let parsed = PARSED.get_or_init(|| {
-        CATALOGS
-            .iter()
-            .map(|(locale, source)| {
-                let catalog = Catalog::new(*locale, source).unwrap_or_else(|errors| {
-                    panic!("{locale} km-package-simple catalog: {}", errors.join("; "))
-                });
-                (*locale, catalog)
-            })
-            .collect()
-    });
-    parsed
-        .iter()
-        .find(|(candidate, _)| *candidate == locale)
-        .map(|(_, catalog)| catalog)
-        .expect("every locale has a catalog")
+    CATALOGS.get(locale)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    /// Every locale holds exactly the keys English holds, so nothing draws a bracketed key.
     #[test]
-    fn every_message_is_translated_and_none_is_invented() {
-        let english = messages(Locale::English);
-        for locale in Locale::ALL {
-            let catalog = messages(*locale);
-            let missing = catalog.missing_from(english);
-            assert!(missing.is_empty(), "{locale} is missing {missing:?}");
-            let extra = english.missing_from(catalog);
-            assert!(
-                extra.is_empty(),
-                "{locale} has {extra:?}, which English does not"
-            );
+    fn every_catalog_holds_exactly_the_english_keys() {
+        if let Err(fault) = km_locale::check_catalogs(messages) {
+            panic!("{fault}");
         }
     }
 

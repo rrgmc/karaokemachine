@@ -1102,7 +1102,15 @@ fn backfill_sort_keys(conn: &Connection) -> Result<(), LibraryError> {
     Ok(())
 }
 
-fn has_table(conn: &Connection, table: &str) -> Result<bool, LibraryError> {
+/// Whether a table exists yet.
+///
+/// Public, with [`has_column`], so every store that probes its shape instead of reading a version
+/// number asks the same question the same way.
+///
+/// # Errors
+///
+/// When SQLite cannot answer.
+pub fn has_table(conn: &Connection, table: &str) -> rusqlite::Result<bool> {
     let count: i64 = conn.query_row(
         "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?1",
         [table],
@@ -1111,7 +1119,12 @@ fn has_table(conn: &Connection, table: &str) -> Result<bool, LibraryError> {
     Ok(count > 0)
 }
 
-fn has_column(conn: &Connection, table: &str, column: &str) -> Result<bool, LibraryError> {
+/// Whether a table already carries a column. See [`has_table`].
+///
+/// # Errors
+///
+/// When SQLite cannot answer.
+pub fn has_column(conn: &Connection, table: &str, column: &str) -> rusqlite::Result<bool> {
     let mut statement = conn.prepare(&format!("PRAGMA table_info({table})"))?;
     let mut rows = statement.query([])?;
     while let Some(row) = rows.next()? {
@@ -1130,7 +1143,10 @@ fn has_column(conn: &Connection, table: &str, column: &str) -> Result<bool, Libr
 /// anything — so a search for `50%` matched every artist, and one for `AC_DC` matched `ACaDC`. It is
 /// a small wrongness and an easy one to reintroduce, which is why it is a function rather than a
 /// note: a pattern built any other way is now visibly built any other way.
-pub(crate) fn escape_like(value: &str) -> String {
+///
+/// Public so the offline mirror's `LIKE` escapes exactly what the machine's does.
+#[must_use]
+pub fn escape_like(value: &str) -> String {
     let mut out = String::with_capacity(value.len());
     for ch in value.chars() {
         if matches!(ch, '%' | '_' | '\\') {

@@ -113,7 +113,7 @@ fi
 dist_step build
 build_started=$SECONDS
 # shellcheck disable=SC2046  # dist_cargo_quiet prints one flag or nothing at all
-cargo build --release $(dist_cargo_quiet) -p karaokemachine "${FEATURES[@]+"${FEATURES[@]}"}"
+cargo build --release --locked $(dist_cargo_quiet) -p karaokemachine "${FEATURES[@]+"${FEATURES[@]}"}"
 printf '   built in %s\n' "$(dist_elapsed "$build_started")"
 # **Two executables, and both are checked for.** They are the same library under two subsystems --
 # `karaokemachine` GUI, so a double-click opens the machine and no console beside it, and

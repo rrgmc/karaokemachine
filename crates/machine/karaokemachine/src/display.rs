@@ -173,9 +173,9 @@ const POSITION_WINDOW_PICTURE_MS: u32 = 6_000;
 
 /// Whether the window is allowed to leave fullscreen.
 ///
-/// Android is a fixed-function appliance: the activity is fullscreen by theme (`styles.xml`), there
-/// is no desktop to return to, and a remote that dropped the television out of fullscreen would
-/// leave nobody a way back. "The appliance is always fullscreen" is a decision rather than an
+/// Android is a fixed-function appliance. The activity is fullscreen by theme (`styles.xml`), and
+/// `run` starts it fullscreen whatever `display.fullscreen` says. There is no desktop to return to,
+/// and a remote that dropped the television out of fullscreen would leave nobody a way back. "The appliance is always fullscreen" is a decision rather than an
 /// accident of the keycode table, so it is compiled out rather than merely unreachable.
 ///
 /// **iOS answers the same way for the nearer half of that reason.** An application owns the screen
@@ -1607,6 +1607,11 @@ fn run_with(
         }
     };
 
+    // **Where fullscreen is fixed, the machine starts fullscreen whatever the settings say.** The
+    // theme alone does not hold it. SDL answers `set_fullscreen(false)` by clearing the theme's flag
+    // and showing the status and navigation bars, and `display.fullscreen` defaults to off.
+    let fullscreen = FULLSCREEN_IS_FIXED || config.fullscreen;
+
     // A window that is about to go fullscreen is created at the *display's* size, not at
     // `config.window` -- that describes the windowed rect and nothing else.
     //
@@ -1620,7 +1625,7 @@ fn run_with(
     // `Display::get_mode` is SDL_GetDesktopDisplayMode, which on kmsdrm reports the connector's
     // preferred mode. Falling back to the configured size keeps a headless or odd video backend
     // working rather than refusing to open at all.
-    let (window_width, window_height) = if config.fullscreen {
+    let (window_width, window_height) = if fullscreen {
         match video.get_primary_display().and_then(|d| d.get_mode()) {
             Ok(mode) if mode.w > 0 && mode.h > 0 => {
                 let (w, h) = (mode.w as u32, mode.h as u32);
@@ -1657,7 +1662,7 @@ fn run_with(
     // Where it was left, when that is still on a screen. A fullscreen start is centered whatever
     // was saved: the display's mode is the size, and the saved corner belongs to the smaller rect.
     match windowed.position {
-        Some((x, y)) if !config.fullscreen => builder.position(x, y),
+        Some((x, y)) if !fullscreen => builder.position(x, y),
         _ => builder.position_centered(),
     };
     let mut window = builder
@@ -1690,7 +1695,7 @@ fn run_with(
     // into the GPU, not the glyph rasterising. It lives out here because a cache inside the frame
     // would be a cache of nothing.
     let mut text_cache = km_display::text::TextCache::new(canvas.texture_creator());
-    apply_fullscreen(&mut canvas, &sdl.mouse(), config.fullscreen, windowed);
+    apply_fullscreen(&mut canvas, &sdl.mouse(), fullscreen, windowed);
     // After the window exists rather than as a creation flag, so that starting in front and being
     // put there by `T` are one code path. Skipped where it would mean nothing, so a platform with
     // no window stack does not log a refusal every start.
@@ -3572,64 +3577,61 @@ mod tests {
         }
     }
 
-    /// A desktop drop is a path and is passed through untouched.
-    #[test]
-    fn a_dropped_path_is_left_alone() {
-        assert_eq!(
-            dropped_path("/tunes/karaoke/party.kmpkg"),
-            PathBuf::from("/tunes/karaoke/party.kmpkg"),
-        );
-        assert_eq!(
-            dropped_path(r"D:\tunes\karaoke\party.kmpkg"),
-            PathBuf::from(r"D:\tunes\karaoke\party.kmpkg"),
-        );
-    }
-
-    /// iOS hands over a URL, and it becomes the path it names.
+    /// A desktop drop is a path and passes through untouched, and an iOS URL becomes the path it
+    /// names.
     ///
-    /// The percent-decoding is the half worth asserting: a package named by a person is quite
-    /// likely to have a space in it, and `%20` reaching `Catalog::install` is refused as a file that
-    /// is not there.
+    /// The percent-decoding is the half worth asserting. A package a person named is likely to hold
+    /// a space, and `Catalog::install` refuses a `%20` as a file that is not there.
     #[test]
-    fn a_dropped_url_becomes_the_path_it_names() {
-        assert_eq!(
-            dropped_path("file:///var/mobile/Documents/party.kmpkg"),
-            PathBuf::from("/var/mobile/Documents/party.kmpkg"),
-        );
-        assert_eq!(
-            dropped_path("file:///var/mobile/Documents/party%20night.kmpkg"),
-            PathBuf::from("/var/mobile/Documents/party night.kmpkg"),
-        );
-        assert_eq!(
-            dropped_path("file://localhost/var/mobile/party.kmpkg"),
-            PathBuf::from("/var/mobile/party.kmpkg"),
-        );
-    }
-
-    /// An escape is a byte of UTF-8, not a character.
-    ///
-    /// Two escapes that mean one letter have to be decoded together, which is why the decoder works
-    /// on bytes: taken one at a time they would come out as two wrong letters and the file would not
-    /// be found.
-    #[test]
-    fn a_dropped_url_keeps_a_name_that_is_not_ascii() {
-        assert_eq!(
-            dropped_path("file:///var/mobile/can%C3%A7%C3%B5es.kmpkg"),
-            PathBuf::from("/var/mobile/canções.kmpkg"),
-        );
-    }
-
-    /// A stray `%` is kept rather than swallowed.
-    #[test]
-    fn a_dropped_url_keeps_a_percent_that_escapes_nothing() {
-        assert_eq!(
-            dropped_path("file:///var/mobile/100%.kmpkg"),
-            PathBuf::from("/var/mobile/100%.kmpkg"),
-        );
-        assert_eq!(
-            dropped_path("file:///var/mobile/50%zz.kmpkg"),
-            PathBuf::from("/var/mobile/50%zz.kmpkg"),
-        );
+    fn dropped_path_turns_a_drop_into_the_file_it_names() {
+        let cases = [
+            (
+                "a path",
+                "/tunes/karaoke/party.kmpkg",
+                "/tunes/karaoke/party.kmpkg",
+            ),
+            (
+                "a Windows path",
+                r"D:\tunes\karaoke\party.kmpkg",
+                r"D:\tunes\karaoke\party.kmpkg",
+            ),
+            (
+                "a URL",
+                "file:///var/mobile/Documents/party.kmpkg",
+                "/var/mobile/Documents/party.kmpkg",
+            ),
+            (
+                "a URL with a space",
+                "file:///var/mobile/Documents/party%20night.kmpkg",
+                "/var/mobile/Documents/party night.kmpkg",
+            ),
+            (
+                "a URL naming localhost",
+                "file://localhost/var/mobile/party.kmpkg",
+                "/var/mobile/party.kmpkg",
+            ),
+            // An escape is a byte of UTF-8, not a character. Two escapes that mean one letter
+            // decode together, or they come out as two wrong letters.
+            (
+                "a name that is not ASCII",
+                "file:///var/mobile/can%C3%A7%C3%B5es.kmpkg",
+                "/var/mobile/canções.kmpkg",
+            ),
+            // A stray `%` is kept rather than swallowed.
+            (
+                "a trailing percent",
+                "file:///var/mobile/100%.kmpkg",
+                "/var/mobile/100%.kmpkg",
+            ),
+            (
+                "a percent before non-hex",
+                "file:///var/mobile/50%zz.kmpkg",
+                "/var/mobile/50%zz.kmpkg",
+            ),
+        ];
+        for (name, dropped, want) in cases {
+            assert_eq!(dropped_path(dropped), PathBuf::from(want), "{name}");
+        }
     }
 
     /// What `D` does, driven through the real [`km_api::machine::Controller`] trait.
@@ -4170,18 +4172,39 @@ mod tests {
         assert_eq!(c.smooth(1_000, P, true, Instant::now()), 1_000);
     }
 
+    /// Once a step is known, one report after it is swept forward by elapsed time, and a seek or a
+    /// pause shows the report exactly.
+    ///
+    /// Each row primes a smoother to a step of `STEP`, then feeds one report some time after the
+    /// last.
     #[test]
-    fn once_a_step_is_known_a_report_is_shown_half_a_step_early() {
-        let (mut c, t) = primed(Instant::now());
-        // Re-reading the same report at the same instant: the sweep has not started.
-        assert_eq!(c.smooth(1_000 + STEP, P, true, t), 1_000 + STEP - STEP / 2);
-    }
-
-    #[test]
-    fn it_sweeps_forward_between_reports() {
-        let (mut c, t) = primed(Instant::now());
-        let mid = t + Duration::from_millis(u64::from(P) / 2);
-        assert_eq!(c.smooth(1_000 + STEP, P, true, mid), 1_000 + STEP);
+    fn a_primed_smoother_sweeps_a_step_and_lands_a_seek_exactly() {
+        // The report the priming ended on.
+        let at = 1_000 + STEP;
+        let half = Duration::from_millis(u64::from(P) / 2);
+        let soon = Duration::from_millis(10);
+        let quiet = Duration::from_secs(30);
+        let jumped = at + STEP * StepSmoother::SEEK_FACTOR + 1;
+        // Twice the usual step: a tempo change or a long block, not a seek.
+        let varied = at + STEP * 2;
+        // Each row is a label, the report, whether it plays, the time since the priming, and the
+        // value shown.
+        let cases: [(&str, u32, bool, Duration, u32); 7] = [
+            // Re-reading the same report at the same instant: the sweep has not started.
+            ("half a step early", at, true, Duration::ZERO, at - STEP / 2),
+            ("sweeps between reports", at, true, half, at),
+            // The sweep never passes one step when the engine goes quiet.
+            ("a quiet engine", at, true, quiet, at + STEP / 2),
+            ("a seek backwards lands", 500, true, soon, 500),
+            ("a far jump forward is a seek", jumped, true, soon, jumped),
+            ("a varied step is a step", varied, true, soon, varied - STEP),
+            // A paused position is never invented.
+            ("a pause", at, false, Duration::from_millis(200), at),
+        ];
+        for (name, reported, playing, after, want) in cases {
+            let (mut c, t) = primed(Instant::now());
+            assert_eq!(c.smooth(reported, P, playing, t + after), want, "{name}");
+        }
     }
 
     /// The property the design rests on: no seam where the staircase used to step.
@@ -4214,52 +4237,6 @@ mod tests {
         assert!(
             (mean as i64 - staircase as i64).abs() <= 1,
             "mean drifted to {mean}, staircase was {staircase}"
-        );
-    }
-
-    #[test]
-    fn it_never_sweeps_past_one_step_when_the_engine_goes_quiet() {
-        let (mut c, t) = primed(Instant::now());
-        let far = t + Duration::from_secs(30);
-        assert_eq!(
-            c.smooth(1_000 + STEP, P, true, far),
-            1_000 + STEP + STEP / 2
-        );
-    }
-
-    #[test]
-    fn a_seek_backwards_lands_exactly_rather_than_being_swept_towards() {
-        let (mut c, t) = primed(Instant::now());
-        assert_eq!(c.smooth(500, P, true, t + Duration::from_millis(10)), 500);
-    }
-
-    #[test]
-    fn a_forward_jump_far_larger_than_the_established_step_is_read_as_a_seek() {
-        let (mut c, t) = primed(Instant::now());
-        let jumped = 1_000 + STEP + STEP * StepSmoother::SEEK_FACTOR + 1;
-        assert_eq!(
-            c.smooth(jumped, P, true, t + Duration::from_millis(10)),
-            jumped
-        );
-    }
-
-    #[test]
-    fn a_step_that_merely_varies_is_still_a_step() {
-        let (mut c, t) = primed(Instant::now());
-        // Twice the usual -- a tempo change or a long block, not a seek.
-        let next = 1_000 + STEP + STEP * 2;
-        assert_eq!(
-            c.smooth(next, P, true, t + Duration::from_millis(10)),
-            next - STEP
-        );
-    }
-
-    #[test]
-    fn a_paused_position_is_never_invented() {
-        let (mut c, t) = primed(Instant::now());
-        assert_eq!(
-            c.smooth(1_000 + STEP, P, false, t + Duration::from_millis(200)),
-            1_000 + STEP
         );
     }
 

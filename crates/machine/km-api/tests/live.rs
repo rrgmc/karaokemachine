@@ -265,12 +265,25 @@ async fn changing_the_key_reaches_every_connected_remote() {
 
 #[tokio::test]
 async fn a_mic_change_and_a_wallpaper_change_both_arrive() {
-    let server = Server::plain().await;
+    // Through the console's mirror, because a mic change is an owner's and this socket holds no
+    // token. The event still reaches the public stream. The room holds the control level, because
+    // the next picture needs it.
+    let server = Server::start(
+        ApiConfig::default()
+            .without_mdns()
+            .with_dev_console()
+            .with_room_access(Access::Control),
+    )
+    .await;
     let mut socket = server.events().await;
     next_event(&mut socket, "state").await;
 
     server
-        .json("PUT", "/api/v1/mics/mic1", Some(r#"{"muted":true}"#))
+        .json(
+            "PUT",
+            "/dev/api/v1/admin/mics/mic1",
+            Some(r#"{"muted":true}"#),
+        )
         .await;
     let mics = next_event(&mut socket, "mics_changed").await;
     assert_eq!(mics["mics"]["mics"][0]["muted"], true);
@@ -359,25 +372,16 @@ async fn the_event_stream_stays_open_on_a_machine_with_a_password() {
 // -- a real connection ---------------------------------------------------------------------------
 
 #[tokio::test]
-async fn discovery_answers_over_real_http() {
-    let server = Server::plain().await;
-    let body = server.json("GET", "/api/v1/discover", None).await;
-    assert_eq!(body["app"], "karaokemachine");
-    assert_eq!(body["song_count"], 4);
-    assert_eq!(body["port"], server.addr.port());
-}
-
-#[tokio::test]
-async fn the_address_refresher_does_not_undo_the_port_that_was_bound() {
-    // The test above raced this and lost on Linux and macOS while passing on Windows, which read as
-    // flakiness and was not: `tokio::time::interval` fires its first tick at once, and the refresher
-    // re-resolved `config.bind` — port 0 here, because the harness asks for an ephemeral port — over
-    // the real address `bind` had already worked out. Waiting for that first tick to have happened is
-    // what makes the assertion deterministic instead of a coin toss.
+async fn discovery_answers_over_real_http_with_the_port_that_was_bound() {
+    // `tokio::time::interval` fires its first tick at once, and the address refresher runs on it.
+    // It must not re-resolve `config.bind`, which is port 0 here, over the address `bind` worked
+    // out. Waiting for that first tick is what makes the assertion deterministic.
     let server = Server::plain().await;
     tokio::time::sleep(Duration::from_millis(150)).await;
 
     let body = server.json("GET", "/api/v1/discover", None).await;
+    assert_eq!(body["app"], "karaokemachine");
+    assert_eq!(body["song_count"], 4);
     assert_eq!(
         body["port"],
         server.addr.port(),
@@ -448,30 +452,6 @@ async fn binding_reports_the_address_before_anything_is_served() {
 
 // -- static files --------------------------------------------------------------------------------
 
-#[tokio::test]
-async fn the_dev_remote_is_served_when_it_is_configured() {
-    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../../tools/dev/remote")
-        .canonicalize()
-        .expect("the dev remote is in the repository");
-    let server = Server::start(ApiConfig::default().without_mdns().with_dev_remote(dir)).await;
-
-    let response = server.get("/dev/index.html").await;
-    assert!(
-        response.starts_with("HTTP/1.1 200"),
-        "expected the dev remote, got: {}",
-        response.lines().next().unwrap_or_default()
-    );
-    // **The real page, and checked against a marker only the page has.** Asserting `/api/v1` or
-    // `KaraokeMachine` would pass against the *landing* page too, which is precisely the thing this
-    // exists to catch. `km.dev.base` is the page's own `localStorage` key; the other tests here use
-    // it and say why.
-    assert!(
-        response.contains("km.dev.base"),
-        "something other than the dev console was served: {response}"
-    );
-}
-
 /// The case a staged build is actually in: no directory anywhere, and the page still served.
 ///
 /// The console is served out of the binary, so a distributable that stages no `dev/` directory
@@ -512,25 +492,6 @@ async fn a_missing_dev_remote_directory_falls_back_to_the_built_in_copy() {
     assert!(response.contains("km.dev.base"), "got: {response}");
 }
 
-#[tokio::test]
-async fn the_dev_remote_is_absent_when_it_is_turned_off() {
-    let mut config = ApiConfig::default().without_mdns();
-    config.serve_dev_remote = false;
-    let server = Server::start(config).await;
-    let response = server.get("/dev/index.html").await;
-    // Falls through to the root fallback rather than serving a development tool on a product
-    // surface. Checked against a marker unique to the page itself -- the landing page legitimately
-    // mentions /dev/, so searching for the words would pass whatever was served.
-    assert!(
-        !response.contains("km.dev.base"),
-        "the dev remote was served with serve_dev_remote off"
-    );
-    assert!(
-        response.contains("No singer-facing remote"),
-        "got: {response}"
-    );
-}
-
 /// **Nobody has to turn it off.**
 ///
 /// Two layers answer this question — `ApiConfig`'s default here and `Settings::serve_dev_remote` —
@@ -541,9 +502,16 @@ async fn the_dev_remote_is_absent_when_it_is_turned_off() {
 async fn the_dev_remote_is_absent_unless_something_asks_for_it() {
     let server = Server::start(ApiConfig::default().without_mdns()).await;
     let response = server.get("/dev/index.html").await;
+    // Falls through to the root fallback rather than serving a development tool on a product
+    // surface. Checked against a marker unique to the page itself -- the landing page legitimately
+    // mentions /dev/, so searching for the words would pass whatever was served.
     assert!(
         !response.contains("km.dev.base"),
         "the dev remote was served by a default configuration"
+    );
+    assert!(
+        response.contains("No singer-facing remote"),
+        "got: {response}"
     );
 }
 

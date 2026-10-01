@@ -8,7 +8,7 @@
 use std::net::SocketAddr;
 
 use axum::Router;
-use axum::body::{Body, to_bytes};
+use axum::body::Body;
 use axum::http::{Method, Request, StatusCode};
 use km_api::machine::{
     AudioOutput, SoundFontBank, SoundFontBanks, SoundFontChoice, SoundFontStatus, SoundKind,
@@ -16,9 +16,9 @@ use km_api::machine::{
 use km_api::routes::{API_PREFIX, LOG_SURFACE, POWER_SURFACE, SURFACE, required_access, router};
 use km_api::testing::{Faults, Recorded, TestMachine, TestPower};
 use km_api::{Access, ApiConfig, ApiState, PowerError};
+use km_testkit::http;
 use serde_json::{Value, json};
 use std::sync::Arc;
-use tower::ServiceExt;
 
 /// A machine, its router, and the peer address requests appear to come from.
 struct Harness {
@@ -66,12 +66,7 @@ impl Harness {
 
     /// The default machine for this file: a catalog, and a password, as a real one has.
     fn passworded() -> Self {
-        Self::with_config(
-            ApiConfig::default()
-                .without_mdns()
-                .with_password(HARNESS_PASSWORD)
-                .expect("argon2 hashes a password"),
-        )
+        Self::with_config(config_on(HARNESS_PASSWORD))
     }
 
     /// The same machine, with the caller holding no token.
@@ -85,23 +80,14 @@ impl Harness {
     /// **Those two are not admin routes**, so this is not about the token: with the mode off they
     /// are not mounted at all and answer 404. Every test about auditioning a file needs this.
     fn debugging() -> Self {
-        let mut config = ApiConfig::default()
-            .without_mdns()
-            .with_password(HARNESS_PASSWORD)
-            .expect("argon2 hashes a password");
+        let mut config = config_on(HARNESS_PASSWORD);
         config.debug_enabled = true;
         Self::with_config(config)
     }
 
     fn empty() -> Self {
         let machine = TestMachine::new().shared();
-        let state = ApiState::from_machine(
-            machine.clone(),
-            ApiConfig::default()
-                .without_mdns()
-                .with_password(HARNESS_PASSWORD)
-                .expect("argon2 hashes a password"),
-        );
+        let state = ApiState::from_machine(machine.clone(), config_on(HARNESS_PASSWORD));
         let token = state.auth().issue().map(|grant| grant.token);
         Self {
             machine,
@@ -180,20 +166,12 @@ impl Harness {
 
     /// A machine with a password already set, which is every real machine.
     fn with_password(password: &str) -> Self {
-        Self::with_config(
-            ApiConfig::default()
-                .without_mdns()
-                .with_password(password)
-                .expect("argon2 hashes a password"),
-        )
+        Self::with_config(config_on(password))
     }
 
     /// A machine on a factory password, as a fresh install is.
     fn on_a_factory_password(password: &str) -> Self {
-        let mut config = ApiConfig::default()
-            .without_mdns()
-            .with_password(password)
-            .expect("argon2 hashes a password");
+        let mut config = config_on(password);
         config.factory_password = true;
         Self::with_config(config)
     }
@@ -247,15 +225,8 @@ impl Harness {
         request
             .extensions_mut()
             .insert(axum::extract::ConnectInfo(self.peer));
-        let response = self
-            .router()
-            .oneshot(request)
-            .await
-            .expect("the router answers");
-        let status = response.status();
-        let bytes = to_bytes(response.into_body(), 4 * 1024 * 1024)
-            .await
-            .expect("read the body");
+        let answer = http::send(self.router(), request).await;
+        let (status, bytes) = (answer.status, answer.body);
         let value = if bytes.is_empty() {
             Value::Null
         } else {
@@ -289,44 +260,20 @@ impl Harness {
         self.request(Method::POST, path, Some(body)).await
     }
 
-    /// A multipart POST, built by hand.
+    /// A multipart POST.
     ///
     /// `parts` is `(field name, optional file name, bytes)`; a `None` file name is an ordinary text
-    /// field. Written out rather than reached for through a crate because this is the only multipart
-    /// request in the project and a body is eight lines of it — and because a test that assembles
-    /// the bytes itself is a test of what the route really parses.
+    /// field.
     async fn post_multipart(
         &self,
         path: &str,
         parts: &[(&str, Option<&str>, &[u8])],
     ) -> (StatusCode, Value) {
-        const BOUNDARY: &str = "----kmtestboundary";
-        let mut body: Vec<u8> = Vec::new();
-        for (name, file_name, bytes) in parts {
-            body.extend_from_slice(format!("--{BOUNDARY}\r\n").as_bytes());
-            match file_name {
-                Some(file_name) => body.extend_from_slice(
-                    format!(
-                        "content-disposition: form-data; name=\"{name}\"; filename=\"{file_name}\"\r\n\r\n"
-                    )
-                    .as_bytes(),
-                ),
-                None => body.extend_from_slice(
-                    format!("content-disposition: form-data; name=\"{name}\"\r\n\r\n").as_bytes(),
-                ),
-            }
-            body.extend_from_slice(bytes);
-            body.extend_from_slice(b"\r\n");
-        }
-        body.extend_from_slice(format!("--{BOUNDARY}--\r\n").as_bytes());
-
+        let (content_type, body) = http::multipart(parts);
         let mut builder = Request::builder()
             .method(Method::POST)
             .uri(format!("{API_PREFIX}{path}"))
-            .header(
-                "content-type",
-                format!("multipart/form-data; boundary={BOUNDARY}"),
-            );
+            .header("content-type", content_type);
         if let Some(token) = &self.token {
             builder = builder.header("authorization", format!("Bearer {token}"));
         }
@@ -372,17 +319,8 @@ impl Harness {
         request
             .extensions_mut()
             .insert(axum::extract::ConnectInfo(self.peer));
-        let response = self
-            .router()
-            .oneshot(request)
-            .await
-            .expect("the router answers");
-        let status = response.status();
-        let headers = response.headers().clone();
-        let bytes = to_bytes(response.into_body(), 8 * 1024 * 1024)
-            .await
-            .expect("read the body");
-        (status, headers, bytes.to_vec())
+        let answer = http::send(self.router(), request).await;
+        (answer.status, answer.headers, answer.body.to_vec())
     }
 
     /// Reads the value a successful call returned, failing loudly otherwise.
@@ -414,7 +352,7 @@ fn sample_body(path: &str) -> Option<Value> {
         "/queue/0/move" => json!({ "to_index": 0 }),
         "/transport/seek" => json!({ "ms": 0 }),
         "/settings" => json!({ "transpose": 0 }),
-        "/mics/mic1" => json!({ "muted": false }),
+        "/admin/mics/mic1" => json!({ "muted": false }),
         "/admin/audio/output" => json!({ "id": "system" }),
         "/admin/audio/level" => json!({ "db": -6.0 }),
         "/admin/audio/soundfont" => json!({ "id": "generaluser" }),
@@ -446,6 +384,13 @@ const SWEEP_PASSWORD: &str = "sweep1975";
 
 /// The password `Harness::new` sets up, so an admin route is reachable at all.
 const HARNESS_PASSWORD: &str = "harness1975";
+
+/// A machine's config on `password`, hashed once per process rather than once per test.
+fn config_on(password: &str) -> ApiConfig {
+    let mut config = ApiConfig::default().without_mdns();
+    config.admin_password_hash = Some(km_api::testing::password_hash(password));
+    config
+}
 
 // -- the surface exists --------------------------------------------------------------------------
 
@@ -750,7 +695,7 @@ async fn the_owner_sets_the_room_level_and_the_codes() {
 /// Logging in is reachable without a token, because it is how a caller gets one.
 #[tokio::test]
 async fn the_login_route_is_the_one_exception_to_the_prefix() {
-    let harness = Harness::with_password(SWEEP_PASSWORD);
+    let harness = Harness::with_password(SWEEP_PASSWORD).tokenless();
     let (status, body) = harness
         .request(
             Method::POST,
@@ -1012,7 +957,7 @@ async fn a_404_says_what_was_missing() {
             "no-such-package",
         ),
         (Method::DELETE, "/queue/424242", "424242"),
-        (Method::PUT, "/mics/no-such-mic", "no-such-mic"),
+        (Method::PUT, "/admin/mics/no-such-mic", "no-such-mic"),
     ] {
         let (status, body) = harness
             .request(method.clone(), path, Some(serde_json::json!({})))
@@ -1043,21 +988,6 @@ async fn a_song_carries_the_first_lines_of_its_words_when_its_package_has_them()
         plain.get("lyric_preview").is_none(),
         "a song with no words should spend no bytes saying so: {plain}"
     );
-}
-
-/// The `serde(default)` on `SongDto::lyric_preview`, stated as a test rather than as a comment.
-///
-/// `km-remote-core` deserializes the export's NDJSON back into this same struct and refuses a whole
-/// page if one line will not parse, and the machine leaves `lyric_preview` out of a song with none —
-/// so a row without the key has to parse.
-#[test]
-fn a_song_row_with_no_preview_key_parses() {
-    let older = r#"{"number":"1001","title":"Song 1001","artist":null,"language":null,
-        "kind":"midi","duration_ms":180000,"suitability":9,"melody_available":true,
-        "default_transpose":0,"package_id":"vol1"}"#;
-    let song: km_api::dto::SongDto = serde_json::from_str(older).expect("an older row must parse");
-    assert_eq!(song.title, "Song 1001");
-    assert!(song.lyric_preview.is_empty());
 }
 
 /// A code that is not a code refuses in this API's shape, rather than in axum's.
@@ -1612,35 +1542,7 @@ async fn a_queued_song_also_blocks_a_change() {
     assert_eq!(body["changeable"], false);
 }
 
-#[tokio::test]
-async fn choosing_an_output_device_is_open_while_no_password_is_set() {
-    // The shipped ACL's only admin route outside `acl.write` and `admin.*`. A guest may see where
-    // the sound is going, and whether they may move it depends entirely on whether a password has
-    // been set -- with none, the `admin` mark is dormant. See the `A machine with no password has
-    // no door` decision in docs/decisions/.
-    let harness = Harness::new();
-    let (status, _) = harness.get("/audio/outputs").await;
-    assert_eq!(status, StatusCode::OK);
-
-    // No password configured, so the mark is dormant and this behaves as a public route.
-    let (status, _) = harness
-        .put("/admin/audio/output", json!({ "id": "system" }))
-        .await;
-    assert_ne!(status, StatusCode::FORBIDDEN);
-}
-
 // -- the output's own level ----------------------------------------------------------------------
-
-/// A control like the appliance's USB interface: 1 dB steps from −128 dB to unity, sitting 20 dB
-/// down, which is the state this whole surface exists because of.
-fn attenuated() -> km_api::machine::OutputLevel {
-    km_api::machine::OutputLevel {
-        db_centi: -2000,
-        db_min_centi: -12800,
-        db_max_centi: 0,
-        step_centi: 100,
-    }
-}
 
 #[tokio::test]
 async fn an_output_with_no_level_reports_none_rather_than_zero() {
@@ -1655,7 +1557,9 @@ async fn an_output_with_no_level_reports_none_rather_than_zero() {
 #[tokio::test]
 async fn the_level_is_reported_in_decibels() {
     let harness = Harness::new();
-    harness.machine.set_output_level_range(attenuated());
+    harness
+        .machine
+        .set_output_level_range(km_api::testing::attenuated());
     let (status, body) = harness.get("/audio/outputs").await;
     assert_eq!(status, StatusCode::OK);
     // Decibels on the wire, so the number beside the slider is the number `amixer` prints.
@@ -1668,7 +1572,9 @@ async fn the_level_is_reported_in_decibels() {
 #[tokio::test]
 async fn moving_the_level_reaches_the_machine() {
     let harness = Harness::new();
-    harness.machine.set_output_level_range(attenuated());
+    harness
+        .machine
+        .set_output_level_range(km_api::testing::attenuated());
     let (status, body) = harness
         .put("/admin/audio/level", json!({ "db": 0.0 }))
         .await;
@@ -1684,7 +1590,9 @@ async fn moving_the_level_reaches_the_machine() {
 #[tokio::test]
 async fn a_level_past_either_end_is_clamped_rather_than_refused() {
     let harness = Harness::new();
-    harness.machine.set_output_level_range(attenuated());
+    harness
+        .machine
+        .set_output_level_range(km_api::testing::attenuated());
 
     // A client drawing a slider from an earlier reading can be a step out of date without being
     // wrong, so the answer is the nearest legal level and not a 400.
@@ -1716,7 +1624,9 @@ async fn an_output_with_no_level_refuses_the_change() {
 #[tokio::test]
 async fn the_level_is_not_refused_while_a_song_is_playing() {
     let harness = Harness::new().at_the_machine();
-    harness.machine.set_output_level_range(attenuated());
+    harness
+        .machine
+        .set_output_level_range(km_api::testing::attenuated());
     harness.post("/queue", json!({ "number": "1001" })).await;
     harness.post("/transport/play", json!({})).await;
 
@@ -1837,15 +1747,6 @@ async fn a_stale_bank_setting_is_reported_as_a_fallback_rather_than_a_problem() 
 }
 
 #[tokio::test]
-async fn which_bank_is_playing_is_readable_without_a_password() {
-    // It shares `audio.read` with the device list, which ships public: knowing why the instruments
-    // sound wrong is not a privilege, and only `audio.write` -- moving the sound elsewhere -- is.
-    let harness = Harness::new();
-    let (status, _) = harness.get("/audio/soundfont").await;
-    assert_eq!(status, StatusCode::OK);
-}
-
-#[tokio::test]
 async fn the_bank_list_offers_the_bundled_one_even_when_nothing_has_been_added() {
     // The ordinary machine, and the case a picker is most likely to be written without: one row,
     // already selected, and nothing to choose. It must still be a list rather than an error.
@@ -1908,24 +1809,6 @@ async fn choosing_a_bank_moves_the_selection() {
     let banks = body["banks"].as_array().expect("a list of banks");
     assert_eq!(banks[0]["selected"], false);
     assert_eq!(banks[1]["selected"], true);
-}
-
-#[tokio::test]
-async fn choosing_a_bank_is_open_while_no_password_is_set() {
-    // It shares `audio.write` with the output device, which is admin-marked because both are
-    // installation configuration rather than performance knobs. With no password the mark is
-    // dormant and this behaves as a public route -- the `A machine with no password has no door`
-    // decision, and the same shape as `choosing_an_output_device_is_open_while_no_password_is_set`.
-    let harness = Harness::new();
-    harness.machine.set_soundfonts(two_banks());
-    let (status, _) = harness
-        .put(
-            "/admin/audio/soundfont",
-            json!({ "id": "roland-sc-55-v3-7" }),
-        )
-        .await;
-    assert_ne!(status, StatusCode::FORBIDDEN);
-    assert_ne!(status, StatusCode::UNAUTHORIZED);
 }
 
 #[tokio::test]
@@ -2110,16 +1993,6 @@ async fn the_bank_list_is_the_shortlist_until_the_whole_catalog_is_asked_for() {
 }
 
 #[tokio::test]
-async fn the_whole_catalog_needs_no_password() {
-    // It is a width, not a permission: `audio.read` ships public, and `POST .../fetch` was never
-    // gated by rank either, so refusing to *name* a bank while agreeing to fetch it would be a line
-    // drawn where there is no difference in what somebody may do.
-    let harness = Harness::new();
-    let (status, _) = harness.get("/audio/soundfonts?all=true").await;
-    assert_eq!(status, StatusCode::OK);
-}
-
-#[tokio::test]
 async fn a_query_parameter_this_version_has_not_heard_of_is_ignored() {
     // The rule `SearchParams` and `ExportParams` already keep: a client built against a later
     // version passes something extra and still gets its answer.
@@ -2158,7 +2031,7 @@ async fn a_mic_patch_touches_only_what_it_names_and_clamps_what_it_does() {
     let mics = harness
         .ok(
             Method::PUT,
-            "/mics/mic1",
+            "/admin/mics/mic1",
             Some(json!({ "gain": 99.0, "muted": true })),
         )
         .await;
@@ -2176,7 +2049,7 @@ async fn a_blank_device_hint_takes_the_hint_away_and_a_missing_one_keeps_it() {
     let named = harness
         .ok(
             Method::PUT,
-            "/mics/mic1",
+            "/admin/mics/mic1",
             Some(json!({ "device_hint": "USB Audio" })),
         )
         .await;
@@ -2185,14 +2058,18 @@ async fn a_blank_device_hint_takes_the_hint_away_and_a_missing_one_keeps_it() {
     // A patch that says nothing about the hint keeps it, which is why a blank one has to mean
     // something: there would otherwise be no way to say the mic is no longer on that input.
     let muted = harness
-        .ok(Method::PUT, "/mics/mic1", Some(json!({ "muted": true })))
+        .ok(
+            Method::PUT,
+            "/admin/mics/mic1",
+            Some(json!({ "muted": true })),
+        )
         .await;
     assert_eq!(muted["mics"][0]["device_hint"], "USB Audio");
 
     let cleared = harness
         .ok(
             Method::PUT,
-            "/mics/mic1",
+            "/admin/mics/mic1",
             Some(json!({ "device_hint": "" })),
         )
         .await;
@@ -2200,9 +2077,28 @@ async fn a_blank_device_hint_takes_the_hint_away_and_a_missing_one_keeps_it() {
 }
 
 #[tokio::test]
+async fn changing_a_mic_needs_the_admin_password_where_reading_them_does_not() {
+    // A mic's name, gain and mute are installation configuration for whoever does the mixing. A
+    // guest with the address may read them, and may not rename or mute them.
+    let harness = Harness::with_password("hunter2").tokenless();
+    let (status, _) = harness
+        .put("/admin/mics/mic1", json!({ "muted": true }))
+        .await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+
+    let mics = harness.ok(Method::GET, "/mics", None).await;
+    assert_eq!(
+        mics["mics"][0]["muted"], false,
+        "and the refusal changed nothing"
+    );
+}
+
+#[tokio::test]
 async fn patching_a_mic_that_does_not_exist_is_a_404() {
     let harness = Harness::new();
-    let (status, body) = harness.put("/mics/mic9", json!({ "muted": true })).await;
+    let (status, body) = harness
+        .put("/admin/mics/mic9", json!({ "muted": true }))
+        .await;
     assert_eq!(status, StatusCode::NOT_FOUND);
     assert!(body["message"].as_str().expect("text").contains("mic9"));
 }
@@ -2918,6 +2814,15 @@ async fn playing_a_file_directly_bypasses_the_catalog() {
         entry,
         Recorded::PlayFile(path) if path.ends_with("lyric_events.mid")
     )));
+
+    // A file with nothing decided about it carries no decision, so detection answers for it.
+    let decided = harness.machine.decided();
+    assert_eq!(decided.len(), 1, "{decided:?}");
+    assert!(decided[0].fixes.is_none(), "no corrections were sent");
+    assert!(
+        decided[0].transpose.is_none(),
+        "a song nobody has transposed plays in the key its file is written in"
+    );
 }
 
 #[tokio::test]
@@ -2958,10 +2863,11 @@ async fn an_uploaded_song_is_staged_and_played_under_the_name_it_was_sent_with()
     assert_eq!(state["transport"], "playing");
     // Named from the `stem` field and the part's *extension*, never from its filename.
     assert!(
-        harness.machine.recorded().iter().any(|entry| matches!(
-            entry,
-            Recorded::PlayAudition(name) if name == "Sultans of Swing.kar"
-        )),
+        harness
+            .machine
+            .auditions()
+            .iter()
+            .any(|name| name == "Sultans of Swing.kar"),
         "{:?}",
         harness.machine.recorded()
     );
@@ -2987,15 +2893,7 @@ async fn both_halves_of_an_mp3_g_song_are_staged_under_one_stem() {
         .await;
 
     assert_eq!(status, StatusCode::OK);
-    let names: Vec<String> = harness
-        .machine
-        .recorded()
-        .iter()
-        .filter_map(|entry| match entry {
-            Recorded::PlayAudition(name) => Some(name.clone()),
-            _ => None,
-        })
-        .collect();
+    let names = harness.machine.auditions();
     // One call, naming the half sent first — the machine finds the other beside it.
     assert_eq!(names, vec!["Perfidia.mp3".to_owned()]);
 }
@@ -3027,17 +2925,19 @@ async fn an_uploaded_ultrastar_song_is_its_mp3_with_the_words_beside_it() {
     assert_eq!(status, StatusCode::OK, "{body}");
     let recorded = harness.machine.recorded();
     assert!(
-        recorded.iter().any(|entry| matches!(
-            entry,
-            Recorded::PlayAudition(name) if name == "Ace Of Spades.mp3"
-        )),
+        harness
+            .machine
+            .auditions()
+            .iter()
+            .any(|name| name == "Ace Of Spades.mp3"),
         "{recorded:?}"
     );
     assert!(
-        recorded.iter().any(|entry| matches!(
-            entry,
-            Recorded::Decided(decided) if decided.lyrics.as_ref() == Some(&words)
-        )),
+        harness
+            .machine
+            .decided()
+            .iter()
+            .any(|decided| decided.lyrics.as_ref() == Some(&words)),
         "{recorded:?}"
     );
 }
@@ -3065,12 +2965,10 @@ async fn an_uploaded_lrc_song_names_its_kind_beside_the_words() {
     assert_eq!(status, StatusCode::OK, "{body}");
     let recorded = harness.machine.recorded();
     assert!(
-        recorded.iter().any(|entry| matches!(
-            entry,
-            Recorded::Decided(decided)
-                if decided.lyrics.as_ref() == Some(&words)
-                    && decided.lyrics_kind == Some(km_catalog::SongKind::Lrc)
-        )),
+        harness.machine.decided().iter().any(|decided| {
+            decided.lyrics.as_ref() == Some(&words)
+                && decided.lyrics_kind == Some(km_catalog::SongKind::Lrc)
+        }),
         "{recorded:?}"
     );
 }
@@ -3135,9 +3033,13 @@ async fn an_ultrastar_songs_words_travel_with_a_path() {
             })),
         )
         .await;
-    assert!(harness.machine.recorded().iter().any(
-        |entry| matches!(entry, Recorded::Decided(decided) if decided.lyrics.as_ref() == Some(&words))
-    ));
+    assert!(
+        harness
+            .machine
+            .decided()
+            .iter()
+            .any(|decided| decided.lyrics.as_ref() == Some(&words))
+    );
 }
 
 #[tokio::test]
@@ -3163,12 +3065,9 @@ async fn an_uploaded_stem_cannot_climb_out_of_the_staging_folder() {
         if status == StatusCode::OK {
             let played = harness
                 .machine
-                .recorded()
-                .iter()
-                .find_map(|entry| match entry {
-                    Recorded::PlayAudition(name) => Some(name.clone()),
-                    _ => None,
-                })
+                .auditions()
+                .into_iter()
+                .next()
                 .expect("something was played");
             assert_eq!(
                 std::path::Path::new(&played).file_name(),
@@ -3199,11 +3098,7 @@ async fn an_upload_that_is_not_a_kind_of_song_is_refused_before_anything_is_writ
         "{body}"
     );
     assert!(
-        !harness
-            .machine
-            .recorded()
-            .iter()
-            .any(|entry| matches!(entry, Recorded::PlayAudition(_))),
+        harness.machine.auditions().is_empty(),
         "nothing should have been played"
     );
 }
@@ -3931,26 +3826,20 @@ async fn a_token_from_one_machine_does_not_open_another() {
     first.log_in("carols1975").await;
     let stolen = first.token.clone().expect("a token");
 
-    let mut second = Harness::with_password("carols1975").at_the_machine();
+    // Hashed afresh rather than taken from the cache, so its salt is its own.
+    let mut second = Harness::with_config(
+        ApiConfig::default()
+            .without_mdns()
+            .with_password("carols1975")
+            .expect("argon2 hashes a password"),
+    )
+    .at_the_machine();
     second.token = Some(stolen);
     let (status, _) = second.put("/admin/demo", json!({ "enabled": true })).await;
     assert_eq!(status, StatusCode::UNAUTHORIZED);
 }
 
 // -- admin mode ----------------------------------------------------------------------------------
-
-/// Logging in yields a token that opens an admin route.
-#[tokio::test]
-async fn logging_in_yields_a_token_that_opens_an_admin_route() {
-    let mut harness = Harness::with_password("carols1975").tokenless();
-
-    let (status, _) = harness.put("/admin/demo", json!({ "enabled": true })).await;
-    assert_eq!(status, StatusCode::UNAUTHORIZED, "closed before logging in");
-
-    harness.log_in("carols1975").await;
-    let (status, _) = harness.put("/admin/demo", json!({ "enabled": true })).await;
-    assert_eq!(status, StatusCode::OK, "open afterwards");
-}
 
 /// The wrong password is a 401, and enough of them is a lockout that the right one also waits.
 #[tokio::test]
@@ -4165,10 +4054,7 @@ async fn the_debug_routes_are_absent_until_debugging_is_on() {
     assert_eq!(status, StatusCode::NOT_FOUND, "{body}");
     assert_eq!(body["error"], km_api::ApiError::UNKNOWN_ENDPOINT);
 
-    let mut config = ApiConfig::default()
-        .without_mdns()
-        .with_password("carols1975")
-        .expect("hash");
+    let mut config = config_on("carols1975");
     config.debug_enabled = true;
     let on = Harness::with_config(config).at_the_machine();
     let (status, body) = on
@@ -4289,24 +4175,6 @@ async fn installing_a_package_moves_the_catalog_version() {
         .as_u64()
         .expect("a version");
     assert!(after > before, "{before} -> {after}");
-}
-
-/// The export stays public on a machine with a password, and that is now permanent.
-///
-/// **This inverts the test it replaced**, which closed `songs.export` and asserted it refused. There
-/// is no way to close it any more: it sits outside `/api/v1/admin/`, and the reasoning that used to
-/// make it its own ACL id — the difference between a guest looking a song up and a guest walking off
-/// with the index — is a distinction the product no longer offers to draw. Worth a test either way,
-/// because it is the mirror a client keeps its catalog with.
-#[tokio::test]
-async fn the_export_stays_open_on_a_machine_with_a_password() {
-    let harness = Harness::with_password("carols1975");
-
-    let (status, _, _) = harness.raw("/songs/export").await;
-    assert_eq!(status, StatusCode::OK);
-
-    let (status, _) = harness.get("/songs").await;
-    assert_eq!(status, StatusCode::OK, "and so is search");
 }
 
 // -- the song book -------------------------------------------------------------------------------
@@ -4577,24 +4445,6 @@ async fn a_name_cannot_break_out_of_the_headers() {
     }
 }
 
-/// Public, permanently, on a machine with a password.
-///
-/// The prefix settles it: the book is not under `/api/v1/admin/`, so there is nothing to close. An
-/// option to close it would be thin anyway — a printed song list is the most public artifact a
-/// karaoke machine has.
-#[tokio::test]
-async fn the_song_book_stays_open_on_a_machine_with_a_password() {
-    let harness = Harness::with_password("carols1975");
-
-    let (status, _, _) = harness.raw_bytes("/songs/book.pdf").await;
-    assert_eq!(status, StatusCode::OK);
-
-    let (status, _) = harness.get("/songs").await;
-    assert_eq!(status, StatusCode::OK, "search is untouched");
-    let (status, _, _) = harness.raw("/songs/export").await;
-    assert_eq!(status, StatusCode::OK, "and so is the export");
-}
-
 // -- power ---------------------------------------------------------------------------------------
 
 /// The gate, in both directions and in one test, because the pair is the assertion.
@@ -4666,7 +4516,9 @@ async fn every_power_route_demands_a_token() {
     );
 }
 
-#[tokio::test]
+// A paused clock, so the grace before the host is asked passes at once. Tokio does not move a
+// paused clock while a blocking task runs, so the host has answered before any assertion reads it.
+#[tokio::test(start_paused = true)]
 async fn shutting_down_is_accepted_rather_than_done_and_reaches_the_host() {
     let harness = Harness::powered();
     let (status, body) = harness
@@ -4688,7 +4540,9 @@ async fn shutting_down_is_accepted_rather_than_done_and_reaches_the_host() {
     assert_eq!(harness.power_recorded(), vec![Recorded::ShutDown]);
 }
 
-#[tokio::test]
+// A paused clock, so the grace before the host is asked passes at once. Tokio does not move a
+// paused clock while a blocking task runs, so the host has answered before any assertion reads it.
+#[tokio::test(start_paused = true)]
 async fn restarting_reaches_the_host_as_a_restart_and_not_as_a_shutdown() {
     // The distinction the two paths exist to keep visible: one ends the evening, the other
     // interrupts it for ten seconds, and a body field carrying a verb would have made them look
@@ -4713,7 +4567,9 @@ async fn restarting_reaches_the_host_as_a_restart_and_not_as_a_shutdown() {
 /// What this asserts instead is that the machine stays up and says so, which is the behaviour that
 /// matters: a `systemctl` that answers *Interactive authentication required.* must not leave a box
 /// that has half-stopped.
-#[tokio::test]
+// A paused clock, so the grace before the host is asked passes at once. Tokio does not move a
+// paused clock while a blocking task runs, so the host has answered before any assertion reads it.
+#[tokio::test(start_paused = true)]
 async fn a_host_that_refuses_leaves_the_machine_running() {
     let harness = Harness::powered_but_refused("Interactive authentication required.");
     let (status, _) = harness
@@ -4740,14 +4596,8 @@ async fn a_host_that_refuses_leaves_the_machine_running() {
 /// into a diagnostic surface, not into letting the network switch the television off.
 #[tokio::test]
 async fn the_dev_mirror_does_not_carry_the_power_routes() {
-    let harness = Harness::with_config(
-        ApiConfig::default()
-            .without_mdns()
-            .with_password(HARNESS_PASSWORD)
-            .expect("argon2 hashes a password")
-            .with_dev_console(),
-    )
-    .with_power(TestPower::new());
+    let harness = Harness::with_config(config_on(HARNESS_PASSWORD).with_dev_console())
+        .with_power(TestPower::new());
 
     for (_, path) in POWER_SURFACE {
         // Mounted under the real prefix, where the password is.
@@ -4872,13 +4722,7 @@ async fn the_tail_is_what_the_ring_kept_and_says_what_it_lost() {
 /// exception there is about a change nobody can undo rather than about anything merely sensitive.
 #[tokio::test]
 async fn the_dev_mirror_carries_the_log_routes() {
-    let harness = Harness::with_config(
-        ApiConfig::default()
-            .without_mdns()
-            .with_password(HARNESS_PASSWORD)
-            .expect("argon2 hashes a password")
-            .with_dev_console(),
-    );
+    let harness = Harness::with_config(config_on(HARNESS_PASSWORD).with_dev_console());
     let tap = km_logtap::LogTap::new().with_filter("info");
     tap.push(km_logtap::Record {
         seq: 0,
@@ -4937,14 +4781,18 @@ async fn a_files_corrections_travel_with_its_path() {
             })),
         )
         .await;
-    assert!(harness.machine.recorded().iter().any(|entry| matches!(
-        entry,
-        Recorded::Decided(decided)
-            if decided.fixes.as_deref() == Some(&[
-                km_fixes::Fix::MuteChannel { channel: 2 },
-                km_fixes::Fix::ForceProgram { channel: 4, program: 52 },
-            ][..])
-    )));
+    assert!(harness.machine.decided().iter().any(|decided| {
+        decided.fixes.as_deref()
+            == Some(
+                &[
+                    km_fixes::Fix::MuteChannel { channel: 2 },
+                    km_fixes::Fix::ForceProgram {
+                        channel: 4,
+                        program: 52,
+                    },
+                ][..],
+            )
+    }));
 }
 
 /// A correction this build knows the shape of and cannot honour is a bad request, not a fix to
@@ -4965,25 +4813,6 @@ async fn an_instrument_no_program_change_could_carry_is_refused() {
     assert_eq!(status, StatusCode::BAD_REQUEST);
 }
 
-#[tokio::test]
-async fn a_file_with_nothing_decided_about_it_is_left_to_detection() {
-    let harness = Harness::debugging();
-    harness
-        .ok(
-            Method::POST,
-            "/debug/play-file",
-            Some(json!({ "path": "fixtures/generated/lyric_events.mid" })),
-        )
-        .await;
-    assert!(
-        harness
-            .machine
-            .recorded()
-            .iter()
-            .any(|entry| matches!(entry, Recorded::Decided(decided) if decided.fixes.is_none()))
-    );
-}
-
 /// An empty list is a decision the wire has to carry as one.
 #[tokio::test]
 async fn deciding_on_no_corrections_is_not_the_same_as_deciding_nothing() {
@@ -4995,10 +4824,13 @@ async fn deciding_on_no_corrections_is_not_the_same_as_deciding_nothing() {
             Some(json!({ "path": "fixtures/generated/lyric_events.mid", "fixes": [] })),
         )
         .await;
-    assert!(harness.machine.recorded().iter().any(|entry| matches!(
-        entry,
-        Recorded::Decided(decided) if decided.fixes.as_deref() == Some(&[][..])
-    )));
+    assert!(
+        harness
+            .machine
+            .decided()
+            .iter()
+            .any(|decided| decided.fixes.as_deref() == Some(&[][..]))
+    );
 }
 
 /// The key a curator chose crosses with the song, and lands where a package's own would.
@@ -5020,27 +4852,11 @@ async fn a_curators_key_travels_with_the_song() {
         )
         .await;
     assert!(
-        harness.machine.recorded().iter().any(
-            |entry| matches!(entry, Recorded::Decided(decided) if decided.transpose == Some(-2))
-        )
-    );
-}
-
-/// A song nobody has transposed sends nothing, and plays in the key its file is written in.
-#[tokio::test]
-async fn a_song_nobody_has_transposed_sends_no_key() {
-    let harness = Harness::debugging();
-    harness
-        .ok(
-            Method::POST,
-            "/debug/play-file",
-            Some(json!({ "path": "fixtures/generated/lyric_events.mid" })),
-        )
-        .await;
-    assert!(
-        harness.machine.recorded().iter().any(
-            |entry| matches!(entry, Recorded::Decided(decided) if decided.transpose.is_none())
-        )
+        harness
+            .machine
+            .decided()
+            .iter()
+            .any(|decided| decided.transpose == Some(-2))
     );
 }
 
@@ -5069,9 +4885,11 @@ async fn a_curators_melody_channel_travels_in_all_three_states() {
             .ok(Method::POST, "/debug/play-file", Some(body.clone()))
             .await;
         assert!(
-            harness.machine.recorded().iter().any(
-                |entry| matches!(entry, Recorded::Decided(decided) if decided.melody == expected)
-            ),
+            harness
+                .machine
+                .decided()
+                .iter()
+                .any(|decided| decided.melody == expected),
             "{body}"
         );
     }

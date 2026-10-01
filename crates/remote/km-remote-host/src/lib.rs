@@ -357,70 +357,7 @@ pub fn failure() -> Option<String> {
 mod tests {
     use super::*;
 
-    /// A data directory of this test's own, cleaned up on the way out — or on the way in, next time.
-    ///
-    /// The same shape as `km-remote-core`'s own `Scratch`, and for the same reason: nothing in this
-    /// workspace depends on `tempfile`, and one struct is cheaper than a dependency.
-    ///
-    /// **The one test here cannot be cleaned up by its own `Drop`**, which is why there is a sweep as
-    /// well. The directory is handed to [`start`], so the runtime holds it and releases its SQLite
-    /// files when that shuts down — after every local in the test body has gone. Windows refuses to
-    /// remove a file another handle still has open, so the removal fails and the directory waits for
-    /// a later process to take it. The sweep is what makes the growth one run's worth rather than
-    /// unbounded.
-    struct Scratch(PathBuf);
-
-    /// The prefix these are named with, and what the sweep recognizes its own by.
-    const SCRATCH_PREFIX: &str = "km-remote-host-";
-
-    /// How old a directory has to be before the sweep will take it: longer than any run of this
-    /// suite, so a checkout building beside this one keeps its own.
-    const SCRATCH_STALE: std::time::Duration = std::time::Duration::from_secs(60 * 60);
-
-    impl Scratch {
-        fn new(name: &str) -> Self {
-            sweep_once();
-            let dir = std::env::temp_dir().join(format!(
-                "{SCRATCH_PREFIX}{name}-{}-{:?}",
-                std::process::id(),
-                std::thread::current().id()
-            ));
-            let _ = std::fs::remove_dir_all(&dir);
-            std::fs::create_dir_all(&dir).expect("temp dir");
-            Self(dir)
-        }
-    }
-
-    impl Drop for Scratch {
-        fn drop(&mut self) {
-            let _ = std::fs::remove_dir_all(&self.0);
-        }
-    }
-
-    /// Takes the directories an earlier run could not remove, once per process.
-    fn sweep_once() {
-        static SWEPT: std::sync::Once = std::sync::Once::new();
-        SWEPT.call_once(|| {
-            let Ok(entries) = std::fs::read_dir(std::env::temp_dir()) else {
-                return;
-            };
-            for entry in entries.flatten() {
-                let stale = entry
-                    .metadata()
-                    .and_then(|meta| meta.modified())
-                    .map(|at| at.elapsed().unwrap_or_default() > SCRATCH_STALE)
-                    .unwrap_or(false);
-                if stale
-                    && entry
-                        .file_name()
-                        .to_string_lossy()
-                        .starts_with(SCRATCH_PREFIX)
-                {
-                    let _ = std::fs::remove_dir_all(entry.path());
-                }
-            }
-        });
-    }
+    use km_testkit::Scratch;
 
     /// What a test looks for on the network, which is nothing.
     ///
@@ -455,14 +392,14 @@ mod tests {
     fn a_server_starts_stops_and_starts_again() {
         let scratch = Scratch::new("lifecycle");
 
-        start(scratch.0.clone(), None, quiet());
+        start(scratch.to_path_buf(), None, quiet());
         let first = await_port();
         assert_ne!(first, 0, "a started server must report a port");
         assert!(failure().is_none(), "a healthy start reports no failure");
 
         // Idempotent: the second call must leave the first run alone rather than build a second
         // runtime, which is what makes it safe to call from an Activity that gets recreated.
-        start(scratch.0.clone(), None, quiet());
+        start(scratch.to_path_buf(), None, quiet());
         assert_eq!(port(), first, "a second start must not disturb the first");
 
         // The mirror is empty and no machine was found, which is the ordinary first-run state and
@@ -477,7 +414,7 @@ mod tests {
         // The one that matters: a stop must leave the shell startable. The Go remote this follows
         // had a guard against double-starting become a guard against ever starting again, and Try
         // again then did nothing for the rest of the process's life.
-        start(scratch.0.clone(), None, quiet());
+        start(scratch.to_path_buf(), None, quiet());
         let second = await_port();
         assert_ne!(second, 0, "the shell must still be startable after a stop");
         stop();
