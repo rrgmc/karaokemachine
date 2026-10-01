@@ -1773,6 +1773,11 @@ beside the screen that will then show it. What is missing from a box under a tel
 machine is being set up", and it admits more than these three.** Correcting the block a package landed in is as
 much a setting-up act as typing the machine's name, in the same half hour.
 
+**Who may queue and who may skip pass the same test.** The room level and the two access codes are
+decided beside the password, in the same half hour. This program draws the machine's own Access card
+over `GET /access` and the three routes under `/admin/access`. The machine answers only whether a code
+is set, so no code crosses back to this program.
+
 **"A second place to keep right" is answered rather than ignored**, by
 [`Two admin surfaces, one vocabulary`](#two-admin-surfaces-one-vocabulary). The two say the same words
 for the same controls, so a person who has learned one can read the other. And neither holds any

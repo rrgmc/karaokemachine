@@ -35,11 +35,12 @@ use std::time::{Duration, Instant};
 
 use km_api::discover::Discovery;
 use km_api::dto::{
-    AdminPasswordDto, AdminPasswordRequest, AudioLevelRequest, AudioOutputRequest, AudioOutputsDto,
-    BankDto, BankRequest, DebugDto, DemoDto, DevRemoteDto, DevRemoteRequest, LoginRequest,
-    LoginResponse, MachineLocaleRequest, MachineNameRequest, PackagesDto, PerformanceDto,
-    PerformanceRequest, SetDemoDelayRequest, SetDemoRequest, SettingsDto, SettingsPatchDto,
-    SoundFontDto, SoundFontRequest, SoundFontsDto, UninstallDto, UploadReportDto, WallpapersDto,
+    AccessCodeRequest, AccessDto, AdminPasswordDto, AdminPasswordRequest, AudioLevelRequest,
+    AudioOutputRequest, AudioOutputsDto, BankDto, BankRequest, DebugDto, DemoDto, DevRemoteDto,
+    DevRemoteRequest, LoginRequest, LoginResponse, MachineLocaleRequest, MachineNameRequest,
+    PackagesDto, PerformanceDto, PerformanceRequest, RoomAccessRequest, SetDemoDelayRequest,
+    SetDemoRequest, SettingsDto, SettingsPatchDto, SoundFontDto, SoundFontRequest, SoundFontsDto,
+    UninstallDto, UploadReportDto, WallpapersDto,
 };
 
 /// The machine's own default port, so "a bare host means 8177" is not written down twice.
@@ -126,6 +127,17 @@ pub enum Call<'a> {
     /// markup means being able to answer both. An owner whose phone went missing should not have to
     /// pick a new password and then tell the house what it is.
     ResetSessions,
+    /// `GET` — what the room may do with no code, and whether each code is set.
+    ///
+    /// Public, so the Access card draws before this program has logged in. The codes themselves
+    /// never cross: the machine answers only whether each one is set.
+    Access,
+    /// `PUT` — set what the room may do with no code.
+    SetRoomAccess,
+    /// `PUT` — set or clear the code that raises a phone to the queue level.
+    SetQueueCode,
+    /// `PUT` — set or clear the code that raises a phone to the control level, which skips.
+    SetControlCode,
     /// `POST` — send a file of one of the three kinds.
     Send(km_api::machine::Upload),
     /// `DELETE` — uninstall a package, by id.
@@ -220,6 +232,10 @@ impl<'a> Call<'a> {
         Call::SetLocale,
         Call::SetPassword,
         Call::ResetSessions,
+        Call::Access,
+        Call::SetRoomAccess,
+        Call::SetQueueCode,
+        Call::SetControlCode,
         Call::Send(km_api::machine::Upload::Package),
         Call::Send(km_api::machine::Upload::Wallpaper),
         Call::Send(km_api::machine::Upload::SoundFont),
@@ -247,6 +263,7 @@ impl<'a> Call<'a> {
             | Self::AudioOutputs
             | Self::Settings
             | Self::Locale
+            | Self::Access
             | Self::LoadedBank => reqwest::Method::GET,
             Self::Login
             | Self::SetPassword
@@ -263,6 +280,9 @@ impl<'a> Call<'a> {
             | Self::SetSettings
             | Self::Rename
             | Self::SetLocale
+            | Self::SetRoomAccess
+            | Self::SetQueueCode
+            | Self::SetControlCode
             | Self::SetPackageBank(_)
             | Self::UseBank => reqwest::Method::PUT,
             Self::RemovePackage(_) | Self::RemoveWallpaper(_) | Self::RemoveBank(_) => {
@@ -342,6 +362,11 @@ impl<'a> Call<'a> {
             Self::SetLocale => "/admin/machine/locale",
             Self::SetPassword => "/admin/password",
             Self::ResetSessions => "/admin/sessions/reset",
+            // The read is public and the writes are not, as everywhere else here.
+            Self::Access => "/access",
+            Self::SetRoomAccess => "/admin/access",
+            Self::SetQueueCode => "/admin/access/queue-code",
+            Self::SetControlCode => "/admin/access/control-code",
             Self::Send(kind) => km_api::uploads::path_for(kind),
             // Unreachable: `path` answers all seven before delegating here. A `match` rather than
             // a catch-all so that adding a variant and forgetting both arms is a compile error.
@@ -911,6 +936,47 @@ impl Client {
             self.forget_token();
         }
         outcome
+    }
+
+    /// What the room may do with no code, and whether each code is set.
+    pub async fn access(&self) -> Result<AccessDto, Refused> {
+        self.get_json(Call::Access).await
+    }
+
+    /// Sets what the room may do with no code.
+    ///
+    /// The machine refuses `admin` for a room, and that refusal passes through in its own words.
+    pub async fn set_room_access(&self, room: km_api::Access) -> Result<(), Refused> {
+        self.json_with::<_, AccessDto>(Call::SetRoomAccess, &RoomAccessRequest { room })
+            .await
+            .map(drop)
+    }
+
+    /// Sets the queue or the control code, or with `None` clears it.
+    ///
+    /// **The token is kept**, unlike after [`Self::set_password`]. A changed code ends only the
+    /// tokens of its own level, and this program holds an admin one.
+    ///
+    /// What a code may be is the machine's rule. Its length and its clash with the password or the
+    /// other code come back as the machine's own sentence.
+    pub async fn set_access_code(
+        &self,
+        level: km_api::Access,
+        code: Option<&str>,
+    ) -> Result<(), Refused> {
+        let call = match level {
+            km_api::Access::Queue => Call::SetQueueCode,
+            km_api::Access::Control => Call::SetControlCode,
+            _ => return Err(Refused::Local(format!("no code opens the {level:?} level"))),
+        };
+        self.json_with::<_, AccessDto>(
+            call,
+            &AccessCodeRequest {
+                code: code.map(str::to_owned),
+            },
+        )
+        .await
+        .map(drop)
     }
 
     /// Which bank is loaded, and whether all of it loaded.
