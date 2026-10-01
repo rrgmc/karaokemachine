@@ -1,0 +1,25 @@
+{# The folders and their pager. Every page turn sends `at` and `filter` back inside `previous` and
+   `next`, because a turn that dropped either would walk somebody out of the folder they narrowed. #}
+<div id="folders-{{ target }}">
+<ul class="folders">
+{% for folder in folders %}
+  <li><button type="button" class="link" hx-get="/folders?for={{ target }}&amp;at={{ folder.path|urlencode }}"
+              hx-target="#browse-{{ target }}">{{ folder.name }}</button></li>
+{% else %}
+  <li class="hint">{% if filter.is_empty() %}{{ "browse-nothing-found"|t }}{% else %}{{ "browse-no-folder-called-that"|t }}{% endif %}</li>
+{% endfor %}
+</ul>
+{% if !range.is_empty() %}
+<nav class="pager">
+  {% if !previous.is_empty() %}
+  <button type="button" class="quiet" hx-get="/folders?rows=1&amp;for={{ target }}&amp;{{ previous }}"
+          hx-target="#folders-{{ target }}" hx-swap="outerHTML">{{ "page-previous"|t }}</button>
+  {% endif %}
+  <span>{{ range }}</span>
+  {% if !next.is_empty() %}
+  <button type="button" class="quiet" hx-get="/folders?rows=1&amp;for={{ target }}&amp;{{ next }}"
+          hx-target="#folders-{{ target }}" hx-swap="outerHTML">{{ "page-next"|t }}</button>
+  {% endif %}
+</nav>
+{% endif %}
+</div>

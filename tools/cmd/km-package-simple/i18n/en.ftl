@@ -15,6 +15,18 @@ home-folder-placeholder = The full path of a folder
 action-read = Read the folder
 action-other-folder = Choose another folder
 
+action-browse = Browse
+action-use-folder = Use this folder
+action-close-browser = Close
+browse-top-title = Go to the top
+browse-up-title = Go up one folder
+browse-this-computer = This computer
+browse-folders-named = Folders named
+browse-part-of-a-name = Part of a name
+browse-nothing-found = There are no folders here.
+browse-no-folder-called-that = No folder here has that in its name.
+browse-range = Folders { $first } to { $last } of { $count }
+
 said-failed = That did not work:
 said-busy = Wait for the work in progress to finish.
 said-no-folder = There is no folder at that path.

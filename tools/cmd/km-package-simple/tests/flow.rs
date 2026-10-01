@@ -69,6 +69,10 @@ async fn a_folder_becomes_an_uncurated_package_with_the_changes_made_on_the_page
         page.contains("copy.kar"),
         "the copy is listed as not a song: {page}"
     );
+    assert!(
+        page.contains(r##"hx-target="#browse-out_dir" hx-swap="innerHTML""##),
+        "the output folder offers a picker of its own: {page}"
+    );
 
     // Rename the first song and leave the second out.
     let (status, _) = post(&app, "/songs/0", "title=Renamed&artist=Somebody").await;
@@ -129,4 +133,82 @@ async fn a_folder_that_is_not_there_is_said_and_nothing_starts() {
     assert!(matches!(app.lock().phase, Phase::Empty));
     let page = get(&app, "/").await;
     assert!(page.contains("There is no folder at that path"), "{page}");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn the_folder_picker_is_offered_and_lists_nothing_until_pressed() {
+    let app = App::new(None, "http://127.0.0.1:0/".to_owned());
+    let page = get(&app, "/").await;
+    assert!(
+        page.contains(r##"hx-get="/folders" hx-target="#browse-path" hx-swap="innerHTML""##),
+        "the form's hx-swap=none must not be inherited: {page}"
+    );
+    assert!(page.contains(r#"<div id="browse-path"></div>"#), "{page}");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn the_folder_picker_lists_folders_sorted_and_narrows_by_name() {
+    let root = Scratch::new("flow-picker");
+    for name in ["beta", "Alpha", ".hidden"] {
+        std::fs::create_dir_all(root.join(name)).expect("making a test folder");
+    }
+    std::fs::write(root.join("song.kar"), km_song::testing::soft_karaoke()).expect("write");
+    let app = App::new(None, "http://127.0.0.1:0/".to_owned());
+
+    let picker = get(&app, &format!("/folders?for=path&at={}", form_value(&root))).await;
+    let alpha = picker.find(">Alpha<").expect("Alpha is listed");
+    let beta = picker.find(">beta<").expect("beta is listed");
+    assert!(alpha < beta, "the order folds case: {picker}");
+    assert!(
+        !picker.contains(">.hidden<"),
+        "a dotted folder is not walked to"
+    );
+    assert!(!picker.contains("song.kar"), "a file is not a folder");
+    assert!(picker.contains(r#"data-use="path""#), "{picker}");
+
+    let narrowed = get(
+        &app,
+        &format!(
+            "/folders?for=path&rows=1&filter=ALP&at={}",
+            form_value(&root)
+        ),
+    )
+    .await;
+    assert!(narrowed.contains(">Alpha<"), "{narrowed}");
+    assert!(!narrowed.contains(">beta<"), "{narrowed}");
+    assert!(
+        narrowed
+            .trim_start()
+            .starts_with(r#"<div id="folders-path">"#),
+        "{narrowed}"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn the_folder_picker_says_why_a_folder_cannot_be_read() {
+    let app = App::new(None, "http://127.0.0.1:0/".to_owned());
+    let router = km_package_simple::server::router(Arc::clone(&app));
+    let answer = http::send(
+        router,
+        http::get("/folders?for=out_dir&at=%2Fno%2Fsuch%2Ffolder"),
+    )
+    .await;
+    assert_eq!(answer.status, StatusCode::OK);
+    assert!(
+        answer.text().contains("could not be read"),
+        "{}",
+        answer.text()
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn the_folder_picker_lists_the_top_and_refuses_an_unknown_box() {
+    let app = App::new(None, "http://127.0.0.1:0/".to_owned());
+    let router = km_package_simple::server::router(Arc::clone(&app));
+    let top = http::send(router, http::get("/folders?for=path&drives=1")).await;
+    assert_eq!(top.status, StatusCode::OK);
+
+    let router = km_package_simple::server::router(Arc::clone(&app));
+    let unknown = http::send(router, http::get("/folders?for=name")).await;
+    assert_eq!(unknown.status, StatusCode::BAD_REQUEST);
 }

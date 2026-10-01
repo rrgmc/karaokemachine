@@ -2645,6 +2645,7 @@ dependencies = [
  "clap",
  "directories",
  "km-console",
+ "km-folders",
  "km-kmpkg",
  "km-locale",
  "km-logfile",

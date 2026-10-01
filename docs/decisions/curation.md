@@ -1431,6 +1431,13 @@ it again.
   folder to write to. The language starts at `und`, because nobody has checked what language the
   songs are in. The id is generated.
 
+**Both folders are typed or picked from a page inside the tool, never from a native dialog.** A
+Browse button beside each box opens a folder picker under it, and no directory is read until it is
+pressed. **Use this folder** fills the box and posts nothing, so the box's own button still reads or
+builds. The reasons are the ones in [`How a corpus is opened`](#how-a-corpus-is-opened). A native
+dialog needs a GUI toolkit on every platform, and on Linux this tool runs in a browser. The listing
+is `km-folders`, which the package builder's picker uses too.
+
 **A folder of more than 999 songs becomes volumes.** Each volume is a package of its own, named
 `<name> vol<n>`, and the first volume's id is the set's. The curation tool divides a set the same
 way. A refusal would send the person back to the curation tool.

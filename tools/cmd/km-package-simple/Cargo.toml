@@ -42,6 +42,7 @@ km-pack = { workspace = true }
 km-songcode = { workspace = true }
 km-console = { workspace = true }
 km-osopen = { workspace = true }
+km-folders = { workspace = true }
 km-logfile = { workspace = true }
 km-locale = { workspace = true, features = ["askama"] }
 askama = { workspace = true }

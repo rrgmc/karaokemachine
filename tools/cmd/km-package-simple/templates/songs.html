@@ -22,11 +22,20 @@
         {% endfor %}
       </select>
     </label>
-    <label class="wide">{{ "form-out"|t }} <input name="out_dir" value="{{ form.out_dir }}" required></label>
+    <label class="wide" for="out_dir">{{ "form-out"|t }}</label>
+    <div class="row wide">
+      <input id="out_dir" name="out_dir" value="{{ form.out_dir }}" required>
+      {# `hx-swap` spelled out, or the form's `none` is inherited and the picker is thrown away. #}
+      <button type="button" class="quiet" hx-get="/folders" hx-target="#browse-out_dir" hx-swap="innerHTML"
+              hx-vals='js:{"for": "out_dir", "current": document.getElementById("out_dir").value}'>{{ "action-browse"|t }}&hellip;</button>
+    </div>
   </div>
   <p class="hint">{{ "form-language-hint"|t }}</p>
   <button type="submit">{{ "action-build"|t }}</button>
 </form>
+{# Empty until Browse is pressed. Outside the form, because the picker holds a form of its own and
+   Enter in its filter box would otherwise build. #}
+<div id="browse-out_dir"></div>
 
 {{ list|safe }}
 {% endblock %}
