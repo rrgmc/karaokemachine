@@ -1,0 +1,41 @@
+{# The folder picker, swapped into `#browse-<target>`. **Use this folder** fills the box and closes
+   the picker: it posts nothing, so the box's own form still does the reading or the building. #}
+<div class="picker">
+  <div class="crumbs">
+    {% if let Some(here) = here %}
+      <button type="button" class="quiet" hx-get="/folders?for={{ target }}&amp;drives=1"
+              hx-target="#browse-{{ target }}" title="{{ "browse-top-title"|t }}">&#x23F6;</button>
+      {% if let Some(parent) = parent %}
+      <button type="button" class="quiet" hx-get="/folders?for={{ target }}&amp;at={{ parent|urlencode }}"
+              hx-target="#browse-{{ target }}" title="{{ "browse-up-title"|t }}">..</button>
+      {% endif %}
+      <span class="here mono grow">{{ here }}</span>
+      <button type="button" data-use="{{ target }}" data-path="{{ here }}">{{ "action-use-folder"|t }}</button>
+    {% else %}
+      <span class="here grow">{{ "browse-this-computer"|t }}</span>
+    {% endif %}
+    <button type="button" class="quiet" data-close="{{ target }}">{{ "action-close-browser"|t }}</button>
+  </div>
+
+  {% if let Some(error) = error %}
+  <p class="error">{{ error }}</p>
+  {% endif %}
+
+  {# Outside the rows, which is what it swaps, so the box being typed into survives its own result.
+     Walking into a folder replaces the whole picker and empties the box with it: a name typed here
+     is about the folder it was typed in. #}
+  {% if let Some(here) = here %}
+  <form class="row filter" onsubmit="return false">
+    <input type="hidden" name="rows" value="1">
+    <input type="hidden" name="for" value="{{ target }}">
+    <input type="hidden" name="at" value="{{ here }}">
+    <label>{{ "browse-folders-named"|t }}
+      <input type="search" name="filter" placeholder="{{ "browse-part-of-a-name"|t }}" value="{{ rows.filter }}"
+             hx-get="/folders" hx-trigger="keyup changed delay:400ms, search" hx-include="closest form"
+             hx-target="#folders-{{ target }}" hx-swap="outerHTML">
+    </label>
+  </form>
+  {% endif %}
+
+  {{ rows|safe }}
+</div>

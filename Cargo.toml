@@ -35,6 +35,7 @@ members = [
     "crates/platform/km-console",
     "crates/platform/km-tray",
     "crates/platform/km-osopen",
+    "crates/platform/km-folders",
     "crates/platform/km-androidlog",
     "crates/platform/km-logfile",
     "crates/platform/km-logtap",
@@ -227,6 +228,9 @@ km-tray = { path = "crates/platform/km-tray" }
 # processes", which is a second exception rather than a second caller. It takes no dependencies at
 # all, which is what made the duplication defensible for as long as it was.
 km-osopen = { path = "crates/platform/km-osopen" }
+# One page of the folders under a folder, for the folder pickers both package builders draw inside
+# their pages. The listing only: each tool says its own thing beside a row.
+km-folders = { path = "crates/platform/km-folders" }
 # The machine passwords a computer was told to remember. **Shared with `km-admin` across the
 # `tools/cmd/assets/` workspace boundary**, which is safe on the rule that boundary keeps: it takes no
 # HTTP client, so nothing it carries can unify with the `reqwest` over there. Where the file goes is

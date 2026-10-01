@@ -12,7 +12,13 @@
   <label for="path">{{ "home-folder"|t }}</label>
   <div class="row">
     <input id="path" name="path" value="{{ last_folder }}" placeholder="{{ "home-folder-placeholder"|t }}" required autofocus>
+    {# `hx-swap` spelled out, or the form's `none` is inherited and the picker is thrown away. #}
+    <button type="button" class="quiet" hx-get="/folders" hx-target="#browse-path" hx-swap="innerHTML"
+            hx-vals='js:{"for": "path", "current": document.getElementById("path").value}'>{{ "action-browse"|t }}&hellip;</button>
     <button type="submit">{{ "action-read"|t }}</button>
   </div>
 </form>
+{# Empty until Browse is pressed: no directory is read before somebody asks. Outside the form,
+   because the picker holds a form of its own. #}
+<div id="browse-path"></div>
 {% endblock %}

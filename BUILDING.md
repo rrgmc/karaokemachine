@@ -818,6 +818,7 @@ workflow, is [`What CI runs`](CONTRIBUTING.md#what-ci-runs) in `CONTRIBUTING.md`
 | `crates/remote/km-remote-core` | The offline remote as a library — the catalog mirror, the favorites, the machine client, discovery and the server. No command line, no data-directory guess, nothing that prints, no signal handler: the desktop, Android and iOS shells each supply those |
 | `crates/remote/km-remote` | The desktop shell over it: the standalone offline remote, in a window of its own on Windows and macOS |
 | `crates/platform/km-tray` | The icon in the OS icon bar for a tool that runs a web server — so a run with no window is still visible, and can still be closed. Shared by `km-package-builder` and `km-remote` |
+| `crates/platform/km-folders` | One page of the folders under a folder, for the in-page folder picker. Shared by `km-package-builder` and `km-package-simple` |
 | `crates/machine/karaokemachine` | The binary |
 | `tools/cmd/km-pack` | Packaging, as a library *and* a command |
 | `tools/cmd/km-lyrics` | Dump a parsed lyric timeline and analysis for one file, or scan a folder |

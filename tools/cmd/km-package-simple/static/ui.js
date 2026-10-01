@@ -36,3 +36,17 @@
     });
   });
 })();
+
+// The folder picker. **Use this folder** puts the path in the box the picker belongs to and closes
+// it; nothing is posted, so the box's own form still reads or builds. **Close** only closes.
+document.body.addEventListener("click", (event) => {
+  const use = event.target.closest("[data-use]");
+  const close = event.target.closest("[data-close]");
+  const target = use ? use.dataset.use : close ? close.dataset.close : null;
+  if (!target) return;
+  const box = document.getElementById(target);
+  if (use && box) box.value = use.dataset.path;
+  const picker = document.getElementById(`browse-${target}`);
+  if (picker) picker.innerHTML = "";
+  if (box) box.focus();
+});

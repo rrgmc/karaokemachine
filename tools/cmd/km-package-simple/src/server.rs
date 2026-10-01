@@ -49,6 +49,7 @@ pub fn router(app: Arc<App>) -> Router {
         .route("/", get(home))
         .route("/progress", get(progress))
         .route("/folder", post(read_folder))
+        .route("/folders", get(folders))
         .route("/songs/{index}", post(rename))
         .route("/songs/keep", post(keep))
         .route("/build", post(build))
@@ -142,6 +143,92 @@ async fn read_folder(
         Ok(()) => refresh(),
         Err(key) => refresh_saying(&app, &headers, key),
     }
+}
+
+/// What the folder picker asks for.
+#[derive(Debug, Default, Deserialize)]
+struct FoldersQuery {
+    /// Which box the choice fills: `path` or `out_dir`.
+    #[serde(rename = "for", default)]
+    target: String,
+    /// The folder to list. Absent means wherever [`picker_start`] says.
+    at: Option<String>,
+    /// What the box holds now, which is where the picker starts when it names a folder.
+    current: Option<String>,
+    /// Show only folders whose name holds this.
+    #[serde(default)]
+    filter: String,
+    /// Which page, as a row index.
+    #[serde(default)]
+    offset: usize,
+    /// List the drives. **A presence flag, read only for being there**: a `bool` would demand the
+    /// query spell `true`, and the crumb sends `drives=1`.
+    drives: Option<String>,
+    /// Answer with the rows and the pager only, for the filter box and a page turn.
+    rows: Option<String>,
+}
+
+/// `GET /folders`: the folder picker, or one page of its rows.
+///
+/// Listing a directory reads the disk, so it runs on a blocking thread. A folder that cannot be
+/// read is drawn with the reason, never answered with an error status.
+async fn folders(
+    State(app): State<Arc<App>>,
+    headers: HeaderMap,
+    Query(query): Query<FoldersQuery>,
+) -> Response {
+    let Some(target) = views::PickFor::parse(&query.target) else {
+        return StatusCode::BAD_REQUEST.into_response();
+    };
+    let locale = locale_of(&app, &headers);
+    let here = if query.drives.is_some() {
+        None
+    } else {
+        picker_start(&app, target, &query)
+    };
+    let ask = km_folders::Ask {
+        here,
+        filter: query.filter.trim().to_owned(),
+        offset: query.offset,
+    };
+    let Ok(listing) = tokio::task::spawn_blocking(move || km_folders::list(&ask)).await else {
+        return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+    };
+    let words = crate::words::messages(locale);
+    if query.rows.is_some() {
+        views::render(&views::folder_rows(listing, target, words), locale)
+    } else {
+        views::render(&views::folders(listing, target, words), locale)
+    }
+}
+
+/// Where the picker starts: the folder asked for, else what the box holds when it is a folder,
+/// else the folder read last, else home.
+fn picker_start(
+    app: &App,
+    target: views::PickFor,
+    query: &FoldersQuery,
+) -> Option<std::path::PathBuf> {
+    if let Some(at) = &query.at {
+        return Some(std::path::PathBuf::from(at));
+    }
+    let current = query
+        .current
+        .as_deref()
+        .map(str::trim)
+        .filter(|current| !current.is_empty())
+        .map(std::path::PathBuf::from)
+        .filter(|current| current.is_dir());
+    let last = || match target {
+        views::PickFor::Path => app
+            .lock()
+            .settings
+            .last_folder
+            .clone()
+            .filter(|folder| folder.is_dir()),
+        views::PickFor::OutDir => None,
+    };
+    current.or_else(last).or_else(km_folders::start)
 }
 
 #[derive(Debug, Deserialize)]

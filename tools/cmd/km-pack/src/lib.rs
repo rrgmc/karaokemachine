@@ -979,6 +979,21 @@ pub fn suitability_record(analysis: &Analysis) -> SuitabilityRecord {
     }
 }
 
+/// The band a suitability is drawn in, as the class both package builders' stylesheets colour.
+///
+/// **One home for the thresholds**, because two tools draw the same column and two copies of the
+/// bands would drift. `none` is a song with no suitability, which no MIDI analysis produced. It is
+/// drawn like an empty cell rather than like a bad value: `low` would claim something was measured
+/// and found wanting.
+pub fn suitability_class(suitability: Option<u8>) -> &'static str {
+    match suitability {
+        None => "none",
+        Some(0..=4) => "low",
+        Some(5..=7) => "mid",
+        Some(_) => "high",
+    }
+}
+
 /// The manifest spelling of a warning code.
 pub fn warning_code(code: km_suitability::WarningCode) -> String {
     format!("{code:?}").to_lowercase()
@@ -1635,6 +1650,18 @@ pub fn file_stem(path: &Path) -> String {
 mod tests {
     use super::*;
     use km_testkit::Scratch;
+
+    #[test]
+    fn suitabilities_are_classed_by_how_good_they_are() {
+        assert_eq!(suitability_class(Some(0)), "low");
+        assert_eq!(suitability_class(Some(4)), "low");
+        assert_eq!(suitability_class(Some(5)), "mid");
+        assert_eq!(suitability_class(Some(7)), "mid");
+        assert_eq!(suitability_class(Some(8)), "high");
+        // A song with no automatic suitability at all. Its own class rather than `low`: a colour
+        // that says "measured and found wanting" would be a lie about a thing never measured.
+        assert_eq!(suitability_class(None), "none");
+    }
 
     /// A named language reaches the entry for the two kinds that cannot detect one.
     ///

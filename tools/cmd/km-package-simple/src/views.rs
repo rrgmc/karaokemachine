@@ -187,6 +187,8 @@ pub struct RowView {
     pub language: String,
     /// Its suitability out of 10, or a dash.
     pub suitability: String,
+    /// The band the stylesheet colours it in: `low`, `mid`, `high` or `none`.
+    pub suitability_class: &'static str,
     /// Whether it goes in.
     pub kept: bool,
 }
@@ -223,6 +225,112 @@ pub struct FileView {
     pub name: String,
     /// `412 songs`.
     pub songs: String,
+}
+
+/// Which box a folder picker fills.
+///
+/// **A closed set, so the query cannot name an element.** The value reaches an `id` and a
+/// `data-use` attribute, and the script looks the box up by it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PickFor {
+    /// The folder to read, on the first page.
+    Path,
+    /// The folder the packages go to, in the package form.
+    OutDir,
+}
+
+impl PickFor {
+    /// Reads the `for` query value.
+    #[must_use]
+    pub fn parse(value: &str) -> Option<Self> {
+        match value {
+            "path" => Some(Self::Path),
+            "out_dir" => Some(Self::OutDir),
+            _ => None,
+        }
+    }
+
+    /// The box's `id`, which is also its form field's name.
+    #[must_use]
+    pub fn id(self) -> &'static str {
+        match self {
+            Self::Path => "path",
+            Self::OutDir => "out_dir",
+        }
+    }
+}
+
+/// The folder picker: where it is, the way up, the filter box and one page of folders.
+#[derive(Template)]
+#[template(path = "_folders.html")]
+pub struct FoldersFragment {
+    /// The box a choice fills.
+    pub target: &'static str,
+    /// Where the picker is. `None` is the list of drives.
+    pub here: Option<String>,
+    /// The folder above, if there is one.
+    pub parent: Option<String>,
+    /// Why the listing is short, when it is.
+    pub error: Option<String>,
+    /// The folders and their pager.
+    pub rows: FolderRows,
+}
+
+/// One page of folders and the pager, swapped on its own so the filter box keeps what is typed.
+#[derive(Template)]
+#[template(path = "_folder_rows.html")]
+pub struct FolderRows {
+    /// The box a choice fills.
+    pub target: &'static str,
+    /// The folders on this page.
+    pub folders: Vec<km_folders::Folder>,
+    /// What is being narrowed by.
+    pub filter: String,
+    /// `Folders 1 to 100 of 130`, or empty when there are none.
+    pub range: String,
+    /// The query string for the page before, empty when this is the first.
+    pub previous: String,
+    /// The query string for the page after, empty when this is the last.
+    pub next: String,
+}
+
+/// The folder picker drawn from a listing.
+#[must_use]
+pub fn folders(listing: km_folders::Listing, target: PickFor, words: &Catalog) -> FoldersFragment {
+    FoldersFragment {
+        target: target.id(),
+        here: listing.here.clone(),
+        parent: listing.parent.clone(),
+        error: listing.error.clone(),
+        rows: folder_rows(listing, target, words),
+    }
+}
+
+/// The page of folders and its pager, drawn from a listing.
+#[must_use]
+pub fn folder_rows(listing: km_folders::Listing, target: PickFor, words: &Catalog) -> FolderRows {
+    let range = if listing.total == 0 {
+        String::new()
+    } else {
+        words
+            .msg_with(
+                "browse-range",
+                &[
+                    ("first", (listing.offset + 1).into()),
+                    ("last", (listing.offset + listing.rows.len()).into()),
+                    ("count", listing.total.into()),
+                ],
+            )
+            .into_owned()
+    };
+    FolderRows {
+        target: target.id(),
+        folders: listing.rows,
+        filter: listing.filter,
+        range,
+        previous: listing.previous,
+        next: listing.next,
+    }
 }
 
 /// The page the state calls for.
@@ -378,6 +486,7 @@ pub fn song_list(inner: &Inner, words: &Catalog, page: usize) -> SongList {
                 suitability: row
                     .suitability
                     .map_or_else(|| "—".to_owned(), |value| value.to_string()),
+                suitability_class: km_pack::suitability_class(row.suitability),
                 kept: row.kept,
             }
         })

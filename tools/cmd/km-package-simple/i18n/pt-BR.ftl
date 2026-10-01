@@ -15,6 +15,18 @@ home-folder-placeholder = O caminho completo de uma pasta
 action-read = Ler a pasta
 action-other-folder = Escolher outra pasta
 
+action-browse = Procurar
+action-use-folder = Usar esta pasta
+action-close-browser = Fechar
+browse-top-title = Ir para o topo
+browse-up-title = Subir uma pasta
+browse-this-computer = Este computador
+browse-folders-named = Pastas chamadas
+browse-part-of-a-name = Parte de um nome
+browse-nothing-found = Não há pastas aqui.
+browse-no-folder-called-that = Nenhuma pasta aqui tem isso no nome.
+browse-range = Pastas { $first } a { $last } de { $count }
+
 said-failed = Não funcionou:
 said-busy = Espere o trabalho em andamento terminar.
 said-no-folder = Não há pasta nesse caminho.

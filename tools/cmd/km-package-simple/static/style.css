@@ -11,7 +11,10 @@
     --dim: #9aa1ad;
     --accent: #6ea8fe;
     --accent-ink: #0b1220;
-    --bad: #f47067;
+    /* The package builder's three, so a suitability reads the same in both tools. */
+    --good: #57c785;
+    --warn: #e3b341;
+    --bad: #e26d6d;
 }
 
 * { box-sizing: border-box; }
@@ -94,6 +97,13 @@ th, td { padding: 0.25rem 0.4rem; border-bottom: 1px solid var(--line); }
 td input:not([type="checkbox"]) { width: 100%; }
 .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 
+/* The package builder's suitability colours, by the bands in `km_pack::suitability_class`. A song
+   with no suitability is grey, like an empty cell, rather than red. */
+.suitability.low { color: var(--bad); }
+.suitability.mid { color: var(--warn); }
+.suitability.high { color: var(--good); }
+.suitability.none { color: var(--dim); }
+
 /* A row left out stays on the list, dimmed, so it can be put back. */
 tr.left-out { opacity: 0.45; }
 
@@ -105,3 +115,27 @@ tr.left-out { opacity: 0.45; }
 .files { padding-left: 1.2rem; }
 
 progress { width: 100%; max-width: 32rem; }
+
+.fields .wide { grid-column: 1 / -1; }
+.fields .row input { flex: 1; min-width: 20rem; }
+
+/* The folder picker, drawn under the box it fills. */
+.picker {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 0.75rem 1rem;
+    margin: 0.75rem 0 1rem;
+}
+.crumbs { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.5rem; }
+.picker .filter { margin-bottom: 0.5rem; color: var(--dim); }
+.folders { list-style: none; margin: 0; padding: 0; columns: 16rem; }
+.folders li { break-inside: avoid; }
+button.link {
+    background: transparent;
+    color: var(--accent);
+    padding: 0.1rem 0;
+    text-align: left;
+    overflow-wrap: anywhere;
+}
+button.link:hover { text-decoration: underline; }

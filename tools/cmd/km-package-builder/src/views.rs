@@ -3331,17 +3331,11 @@ pub struct MachineAccessFragment {
     pub ok: bool,
 }
 
-/// Renders a suitability with a class that says whether it is good.
+/// Renders a suitability with a class that says whether it is good. The bands are
+/// [`km_pack::suitability_class`], which `km-package-simple` draws from too; this takes a reference
+/// because that is what a template hands over.
 pub fn suitability_class(suitability: &Option<u8>) -> &'static str {
-    match suitability {
-        // A video song, which has no automatic suitability at all. Drawn like the dash in an
-        // empty artist cell rather than like a bad one: `low` would color it as though something
-        // had been measured and found wanting.
-        None => "none",
-        Some(0..=4) => "low",
-        Some(5..=7) => "mid",
-        Some(_) => "high",
-    }
+    km_pack::suitability_class(*suitability)
 }
 
 #[cfg(test)]
@@ -6439,17 +6433,6 @@ mod tests {
         let no_match = empty(true, true).in_english().expect("render");
         assert!(no_match.contains("Not found"), "{no_match}");
         assert!(!no_match.contains("re-read every file"), "{no_match}");
-    }
-
-    #[test]
-    fn suitabilities_are_classed_by_how_good_they_are() {
-        assert_eq!(suitability_class(&Some(0)), "low");
-        assert_eq!(suitability_class(&Some(4)), "low");
-        assert_eq!(suitability_class(&Some(5)), "mid");
-        assert_eq!(suitability_class(&Some(8)), "high");
-        // A video song, which has no automatic suitability at all. Its own class rather than `low`: a
-        // color that says "measured and found wanting" would be a lie about a thing never measured.
-        assert_eq!(suitability_class(&None), "none");
     }
 
     /// The Open page draws no directory listing, and offers a button that fetches one.
