@@ -69,6 +69,14 @@ async fn a_folder_becomes_an_uncurated_package_with_the_changes_made_on_the_page
         page.contains("copy.kar"),
         "the copy is listed as not a song: {page}"
     );
+    // A MIDI song has a suitability, so it is coloured by its band and never drawn as `none`.
+    assert!(
+        ["low", "mid", "high"]
+            .iter()
+            .any(|band| page.contains(&format!(r#"<span class="suitability {band}">"#))),
+        "{page}"
+    );
+    assert!(!page.contains(r#"class="suitability none""#), "{page}");
     assert!(
         page.contains(r##"hx-target="#browse-out_dir" hx-swap="innerHTML""##),
         "the output folder offers a picker of its own: {page}"

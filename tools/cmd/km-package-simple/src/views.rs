@@ -187,6 +187,8 @@ pub struct RowView {
     pub language: String,
     /// Its suitability out of 10, or a dash.
     pub suitability: String,
+    /// The band the stylesheet colours it in: `low`, `mid`, `high` or `none`.
+    pub suitability_class: &'static str,
     /// Whether it goes in.
     pub kept: bool,
 }
@@ -484,6 +486,7 @@ pub fn song_list(inner: &Inner, words: &Catalog, page: usize) -> SongList {
                 suitability: row
                     .suitability
                     .map_or_else(|| "—".to_owned(), |value| value.to_string()),
+                suitability_class: km_pack::suitability_class(row.suitability),
                 kept: row.kept,
             }
         })

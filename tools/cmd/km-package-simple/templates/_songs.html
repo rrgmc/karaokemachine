@@ -25,7 +25,7 @@
         <td><input name="artist" value="{{ row.artist }}"
                    hx-post="/songs/{{ row.index }}" hx-trigger="change" hx-include="closest tr" hx-swap="none"></td>
         <td>{{ row.language }}</td>
-        <td class="num">{{ row.suitability }}</td>
+        <td class="num"><span class="suitability {{ row.suitability_class }}">{{ row.suitability }}</span></td>
         {# `static/ui.js` posts it, because a shift-click sends a run of songs in one request. #}
         <td><input type="checkbox" name="keep" value="on"{% if row.kept %} checked{% endif %}
                    aria-label="{{ "column-keep"|t }}" data-index="{{ row.index }}"></td>
