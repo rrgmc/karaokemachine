@@ -216,46 +216,10 @@ mod tests {
 
     /// A one-track MIDI file carrying exactly these events.
     ///
-    /// Hand-written bytes rather than a `Song` literal, because the parser is the only public way
-    /// into a `Song` and these tests are then on the same footing as every other fixture in this
-    /// crate. [`testing`] has no note-level builder to borrow.
+    /// Bytes rather than a `Song` literal, because the parser is the only public way into a `Song`.
+    /// These tests are then on the same footing as every other fixture in this crate.
     fn midi(events: &[Timed]) -> Vec<u8> {
-        fn varlen(out: &mut Vec<u8>, mut value: u32) {
-            let mut buffer = [0u8; 4];
-            let mut len = 0;
-            loop {
-                buffer[len] = (value & 0x7F) as u8;
-                len += 1;
-                value >>= 7;
-                if value == 0 {
-                    break;
-                }
-            }
-            for i in (0..len).rev() {
-                out.push(buffer[i] | if i == 0 { 0x00 } else { 0x80 });
-            }
-        }
-
-        let mut track: Vec<u8> = Vec::new();
-        let mut previous = 0u32;
-        for (tick, bytes) in events {
-            varlen(&mut track, tick - previous);
-            previous = *tick;
-            track.extend_from_slice(bytes);
-        }
-        varlen(&mut track, 0);
-        track.extend_from_slice(&[0xFF, 0x2F, 0x00]);
-
-        let mut out: Vec<u8> = Vec::new();
-        out.extend_from_slice(b"MThd");
-        out.extend_from_slice(&6u32.to_be_bytes());
-        out.extend_from_slice(&0u16.to_be_bytes());
-        out.extend_from_slice(&1u16.to_be_bytes());
-        out.extend_from_slice(&testing::TPQN.to_be_bytes());
-        out.extend_from_slice(b"MTrk");
-        out.extend_from_slice(&u32::try_from(track.len()).expect("small").to_be_bytes());
-        out.extend_from_slice(&track);
-        out
+        testing::channel_events(events)
     }
 
     /// At the fixtures' 480 ticks per quarter and 120 BPM, a quarter note is 500 ms.

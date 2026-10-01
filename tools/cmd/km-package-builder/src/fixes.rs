@@ -441,20 +441,15 @@ mod tests {
 
     /// A file with notes on two melodic channels and the drum channel, named so the melody detector
     /// has something to weigh.
-    /// The analysis of one fixture, read through a scratch directory of this thread's own.
+    /// The analysis of one fixture, read through a scratch directory of its own.
     ///
-    /// **`Scratch` and not a path in the temp folder**, which is the hazard that module was written
-    /// to end and this helper is the last place holding it: eight tests here call this and cargo
-    /// runs them in parallel, so a fixed file name is one thread deleting the file another is
-    /// reading. `Scratch` keys its directory on the process and the thread, which is what makes the
-    /// name unshared in both directions.
+    /// **`Scratch` and not a fixed path in the temp folder.** Eight tests here call this, and cargo
+    /// runs them in parallel. A fixed file name lets one thread delete the file another is reading.
+    /// `Scratch` names its folder per process and per call, so no two callers share it.
     fn analysis() -> Analysis {
         let scratch = crate::testing::Scratch::new("fixes-analysis");
-        scratch.write(
-            "analysis.mid",
-            &km_song::testing::melody_and_accompaniment(),
-        );
-        analyze(Some(&scratch.0.join("analysis.mid")))
+        scratch.write("analysis.mid", km_song::testing::melody_and_accompaniment());
+        analyze(Some(&scratch.join("analysis.mid")))
     }
 
     #[test]
@@ -574,8 +569,8 @@ mod tests {
     #[test]
     fn a_suggested_recentre_is_offered_unticked_and_a_tick_is_stored() {
         let scratch = crate::testing::Scratch::new("fixes-recentre");
-        scratch.write("bend.mid", &km_song::testing::bend_left_off_centre());
-        let analysis = analyze(Some(&scratch.0.join("bend.mid")));
+        scratch.write("bend.mid", km_song::testing::bend_left_off_centre());
+        let analysis = analyze(Some(&scratch.join("bend.mid")));
         let recentre = Fix::RecentreBend { channel: 4 };
         assert!(analysis.suggested.contains(&recentre));
         assert!(!analysis.detected.contains(&recentre));

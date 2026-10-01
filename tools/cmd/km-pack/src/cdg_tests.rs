@@ -6,14 +6,13 @@
 //! not real — `add_cdg_song` itself is covered end to end by building a package from the corpus.
 
 use super::*;
+use km_testkit::Scratch;
 
 /// A folder with `names` in it, each file given a byte so it exists.
-fn folder(tag: &str, names: &[&str]) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("km-pack-cdg-{tag}"));
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).expect("temp dir");
+fn folder(tag: &str, names: &[&str]) -> Scratch {
+    let dir = Scratch::new(&format!("cdg-{tag}"));
     for name in names {
-        std::fs::write(dir.join(name), b"x").expect("write");
+        dir.write(name, b"x");
     }
     dir
 }
@@ -31,7 +30,6 @@ fn a_pair_is_found_once_and_from_the_audio_side() {
     pairs.sort_by(|a, b| a.audio.cmp(&b.audio));
     assert_eq!(stems(&pairs), vec!["a", "b"], "each pair exactly once");
     assert!(orphans.is_empty());
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 #[test]
@@ -44,7 +42,6 @@ fn pairing_survives_the_extension_being_in_either_case() {
     pairs.sort_by(|a, b| a.audio.cmp(&b.audio));
     assert_eq!(stems(&pairs), vec!["loud", "quiet"]);
     assert!(orphans.is_empty(), "{orphans:?}");
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 #[test]
@@ -58,7 +55,6 @@ fn pairing_survives_a_stem_that_differs_only_by_a_trailing_space() {
 
     assert_eq!(pairs.len(), 1, "orphans: {orphans:?}");
     assert!(orphans.is_empty());
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 #[test]
@@ -85,7 +81,6 @@ fn each_half_of_a_broken_pair_is_reported_rather_than_dropped() {
             ("silent".to_owned(), CdgOrphan::NoAudio),
         ]
     );
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 #[test]

@@ -382,6 +382,17 @@ impl Sound for RemoteMachine {
         Ok(outputs_from(dto))
     }
 
+    async fn lyric_offset(&self) -> Result<i16, AdminError> {
+        let dto = self.client()?.settings().await.map_err(fault)?;
+        Ok(dto.lyric_offset_ms)
+    }
+
+    async fn set_lyric_offset(&self, ms: i16) -> Result<i16, AdminError> {
+        // `client` rather than `writing`: the route is public, so no password is asked for.
+        let dto = self.client()?.set_lyric_offset(ms).await.map_err(fault)?;
+        Ok(dto.lyric_offset_ms)
+    }
+
     async fn banks(&self) -> Result<km_api::machine::SoundFontBanks, AdminError> {
         // **The machine's installed banks, which is a different list from this program's own.**
         // `views::banks` draws the sixty-odd banks this computer could *fetch*; this is the handful

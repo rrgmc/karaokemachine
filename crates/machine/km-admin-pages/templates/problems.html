@@ -87,7 +87,7 @@
   {% when Some with (Fix::Picture) %}
   <form method="post" action="/admin/pictures/upload?back=problems"
         enctype="multipart/form-data">
-    <input type="file" name="file" required>
+    <input type="file" name="file" aria-label="{{ "picture-add"|t }}" required>
     <button type="submit">{{ "action-add"|t }}</button>
   </form>
 

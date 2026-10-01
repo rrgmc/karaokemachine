@@ -172,6 +172,7 @@ windows-registry = { workspace = true }
 winresource = { workspace = true }
 
 [dev-dependencies]
+km-testkit = { workspace = true, features = ["http"] }
 # The scan is tested over a corpus built from the synthetic fixtures rather than the real one, which
 # is machine-local and very large. The feature is off by default so it never ships.
 km-song = { workspace = true, features = ["testing"] }

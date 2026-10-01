@@ -52,9 +52,11 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 form_urlencoded = { workspace = true }
 percent-encoding = { workspace = true }
+time = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
 
 [dev-dependencies]
+km-testkit = { workspace = true, features = ["http"] }
 # Driving the real router as a service, the way `km-api` and `km-package-builder` both test theirs.
 tower = { workspace = true, features = ["util"] }

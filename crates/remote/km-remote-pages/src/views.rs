@@ -1057,6 +1057,15 @@ pub struct PlayerBlock {
     pub view: PlayerView,
     /// The position, which is nested inside the card on the page and replaced separately after.
     pub position: PositionBlock,
+    /// Why the key buttons are grayed, when they are.
+    ///
+    /// Composed in Rust, because the sentence names the kind of song: `A video song has no key to
+    /// change.` A grayed button that says nothing reads as a fault in the remote.
+    pub key_hint: Option<String>,
+    /// Why the tempo buttons are grayed, when they are.
+    pub tempo_hint: Option<String>,
+    /// Why the guide melody button is grayed, when it is.
+    pub melody_hint: Option<String>,
 }
 
 /// What is playing, at the top of the Queue page.
@@ -1104,10 +1113,19 @@ pub struct PositionBlock {
 }
 
 impl PlayerBlock {
-    /// The whole card for one state.
-    pub fn of(view: PlayerView) -> Self {
-        let position = PositionBlock::of(&view);
-        Self { view, position }
+    /// The whole card for one state, in one language.
+    pub fn of(view: PlayerView, locale: Locale) -> Self {
+        let words = crate::words::messages(locale);
+        let hint = |refusal: Option<(&str, &'static str)>| {
+            refusal.map(|(key, kind)| words.msg_with(key, &[("kind", kind.into())]).into_owned())
+        };
+        Self {
+            key_hint: hint(view.key_refusal()),
+            tempo_hint: hint(view.tempo_refusal()),
+            melody_hint: hint(view.melody_refusal()),
+            position: PositionBlock::of(&view),
+            view,
+        }
     }
 
     /// The card for a machine that has not answered.
@@ -1115,8 +1133,8 @@ impl PlayerBlock {
     /// An idle card, not an error: the offline app spends most of its life here, and a page that
     /// refused to draw would make "the television is off" look like a fault in the remote. The
     /// banner is what says the machine is away, and it says it once.
-    pub fn unreachable() -> Self {
-        Self::of(PlayerView::unreachable())
+    pub fn unreachable(locale: Locale) -> Self {
+        Self::of(PlayerView::unreachable(), locale)
     }
 }
 
@@ -1418,7 +1436,78 @@ fn share_path(folder: i64) -> String {
 
 #[cfg(test)]
 mod tests {
+    use km_api::dto::{NowPlayingDto, OriginDto, SettingsDto, StateDto, TransportDto};
+
     use super::*;
+
+    /// A card for a song of one kind, with the three performance controls open or not.
+    fn card_for(kind: km_kmpkg::SongKind, open: bool) -> String {
+        let view = PlayerView {
+            state: StateDto {
+                transport: TransportDto::Playing,
+                now_playing: Some(NowPlayingDto {
+                    origin: OriginDto::Catalog {
+                        number: SongCode::new(1001),
+                        entry_id: 1,
+                    },
+                    title: "Tempo Perdido".to_owned(),
+                    artist: None,
+                    language: None,
+                    singer: None,
+                    kind,
+                    duration_ms: 222_000,
+                    melody_channel: None,
+                    melody_available: open,
+                    transpose_available: open,
+                    tempo_available: open,
+                    has_lyrics: true,
+                }),
+                position_ms: 0,
+                queue_len: 0,
+                settings: SettingsDto {
+                    transpose: 0,
+                    tempo_ratio: 1.0,
+                    melody_enabled: false,
+                    music_volume: 0.8,
+                    lyric_offset_ms: 0,
+                },
+            },
+            online: true,
+        };
+        render(&PlayerBlock::of(view, Locale::English), Locale::English).expect("the card renders")
+    }
+
+    /// A grayed button says why, in the words the toast would have used for the same press.
+    #[test]
+    fn a_grayed_control_says_why_for_the_kind_of_song() {
+        let video = card_for(km_kmpkg::SongKind::Video, false);
+        for sentence in [
+            "A video song has no key to change.",
+            "A video song has no tempo to change.",
+            "A video song has no guide melody.",
+        ] {
+            assert!(video.contains(sentence), "{sentence} is missing: {video}");
+        }
+
+        // A MIDI file has a melody to look for, so its sentence says the search found nothing.
+        let midi = card_for(km_kmpkg::SongKind::Midi, false);
+        assert!(
+            midi.contains("The guide melody could not be found in this song."),
+            "{midi}"
+        );
+    }
+
+    /// Nothing to explain on a card whose controls work, or on an idle one: its title already says
+    /// that nothing is loaded.
+    #[test]
+    fn an_open_or_idle_card_carries_no_reasons() {
+        let open = card_for(km_kmpkg::SongKind::Midi, true);
+        assert!(!open.contains(r#"class="hint""#), "{open}");
+
+        let idle = render(&PlayerBlock::unreachable(Locale::English), Locale::English)
+            .expect("the card renders");
+        assert!(!idle.contains(r#"class="hint""#), "{idle}");
+    }
 
     #[test]
     fn a_toast_carries_its_level_into_the_markup() {

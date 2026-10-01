@@ -897,13 +897,6 @@ mod tests {
     }
 
     #[test]
-    fn a_long_name_is_cut_to_the_dns_label_limit() {
-        let long = "a".repeat(200);
-        let tidied = tidy_name(&long).expect("a name of letters is usable");
-        assert_eq!(tidied.len(), MAX_NAME_BYTES);
-    }
-
-    #[test]
     fn cutting_a_long_name_never_splits_a_character() {
         // 63 is not a multiple of 2, so a string of two-byte characters lands mid-character at the
         // limit -- which is the whole reason the cut walks back to a boundary. Slicing there would

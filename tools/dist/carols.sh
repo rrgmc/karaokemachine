@@ -169,7 +169,7 @@ mkdir -p "$WORK"
 
 started=$SECONDS
 dist_step "building the songs"
-cargo run $(dist_cargo_quiet) -p km-carols -- \
+cargo run --locked $(dist_cargo_quiet) -p km-carols -- \
   --source "$SOURCE" \
   --out "$WORK" \
   --abc2midi "$ABC2MIDI" \
@@ -187,7 +187,7 @@ PKG="$OUT/$CAROLS_SLUG-$CAROLS_VERSION.kmpkg"
 
 dist_step "building the package"
 dist_run "km-pack build" \
-  cargo run $(dist_cargo_quiet) -p km-pack -- build "$WORK/$CAROLS_ID.kmspec.yaml" --out "$PKG"
+  cargo run --locked $(dist_cargo_quiet) -p km-pack -- build "$WORK/$CAROLS_ID.kmspec.yaml" --out "$PKG"
 
 cp "$WORK/CREDITS.md" "$OUT/CREDITS.md"
 
@@ -200,7 +200,7 @@ fi
 # -- report -------------------------------------------------------------------------------------------
 
 dist_step "what came out"
-cargo run $(dist_cargo_quiet) -p km-pack -- check "$PKG"
+cargo run --locked $(dist_cargo_quiet) -p km-pack -- check "$PKG"
 
 printf '\n%s\n' "wrote $PKG ($(( $(dist_bytes "$OUT") / 1024 )) KiB) with CREDITS.md beside it"
 printf '%s\n' "Install it by dropping it in the folder \`karaokemachine --show-paths\` calls packages,"

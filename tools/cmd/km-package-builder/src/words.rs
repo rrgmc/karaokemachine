@@ -31,9 +31,7 @@
 //! **The tray and the menu bar.** `km-tray` words *Show window*, *Open in browser* and *Quit* for
 //! three programs, and none of the three passes it a locale.
 
-use std::sync::OnceLock;
-
-use km_locale::{Catalog, Locale};
+use km_locale::{Catalog, Catalogs, Locale};
 
 /// The keys the Rust reaches through something a scanner cannot see.
 ///
@@ -135,77 +133,32 @@ const SOURCES: &[&str] = &[
 ];
 
 /// This tool's words, one catalog per locale.
-const CATALOGS: &[(Locale, &str)] = &[
-    (Locale::English, include_str!("../i18n/en.ftl")),
-    (
-        Locale::BrazilianPortuguese,
-        include_str!("../i18n/pt-BR.ftl"),
-    ),
-];
+static CATALOGS: Catalogs = Catalogs::new(
+    "km-package-builder",
+    &[
+        (Locale::English, include_str!("../i18n/en.ftl")),
+        (
+            Locale::BrazilianPortuguese,
+            include_str!("../i18n/pt-BR.ftl"),
+        ),
+    ],
+);
 
 /// These pages' messages for one locale, parsed once.
 #[must_use]
 pub fn messages(locale: Locale) -> &'static Catalog {
-    static PARSED: OnceLock<Vec<(Locale, Catalog)>> = OnceLock::new();
-    let parsed = PARSED.get_or_init(|| {
-        CATALOGS
-            .iter()
-            .map(|(locale, source)| {
-                let catalog = Catalog::new(*locale, source).unwrap_or_else(|errors| {
-                    panic!("{locale} km-package-builder catalog: {}", errors.join("; "))
-                });
-                (*locale, catalog)
-            })
-            .collect()
-    });
-    parsed
-        .iter()
-        .find(|(candidate, _)| *candidate == locale)
-        .map(|(_, catalog)| catalog)
-        .expect("every locale has a catalog")
+    CATALOGS.get(locale)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    /// Every locale holds exactly the keys English holds, so nothing draws a bracketed key.
     #[test]
-    fn every_catalog_parses() {
-        for locale in Locale::ALL {
-            let catalog = messages(*locale);
-            assert!(
-                !catalog.keys().is_empty(),
-                "{locale} parsed to nothing at all"
-            );
-        }
-    }
-
-    /// Every message is translated, so no page falls back to a bracketed key.
-    ///
-    /// English is the reference, because it is where a key is added: a translator's file falling
-    /// behind is the ordinary case and is what this catches.
-    #[test]
-    fn every_message_is_translated() {
-        let english = messages(Locale::English);
-        for locale in Locale::ALL {
-            let missing = messages(*locale).missing_from(english);
-            assert!(
-                missing.is_empty(),
-                "{locale} is missing {missing:?}, so those pages would draw a key"
-            );
-        }
-    }
-
-    /// ...and no locale carries a key English does not, which nothing asks for.
-    #[test]
-    fn no_locale_invents_a_message_english_does_not_have() {
-        let english = messages(Locale::English);
-        for locale in Locale::ALL {
-            let extra = english.missing_from(messages(*locale));
-            assert!(
-                extra.is_empty(),
-                "{locale} has {extra:?}, which English does not and nothing asks for"
-            );
+    fn every_catalog_holds_exactly_the_english_keys() {
+        if let Err(fault) = km_locale::check_catalogs(messages) {
+            panic!("{fault}");
         }
     }
 

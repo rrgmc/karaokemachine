@@ -34,6 +34,7 @@ thiserror = { workspace = true }
 tracing = { workspace = true }
 
 [dev-dependencies]
+km-testkit = { workspace = true }
 km-kmpkg = { workspace = true }
 km-fixes = { workspace = true }
 # For building a catalog with the *old* schema by hand, so the migration has something real to

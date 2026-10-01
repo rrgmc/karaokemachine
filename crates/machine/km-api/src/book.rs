@@ -16,11 +16,9 @@
 //! flag, which has a `Library` and no HTTP. [`collect`] is shaped as a closure for exactly that
 //! reason — one paging loop, two callers, no second place for the cursor arithmetic to be wrong.
 
-use std::sync::OnceLock;
-
 use km_catalog::CatalogSong;
 use km_kmpkg::Language;
-use km_locale::{Catalog as Messages, Locale};
+use km_locale::{Catalog as Messages, Catalogs, Locale};
 use km_songbook::{BookSong, BookStyle, Entry, SortKey};
 use km_songcode::SongCode;
 
@@ -29,40 +27,24 @@ use km_songcode::SongCode;
 /// `include_str!` rather than a file beside the binary, per `Bundling assets`: this book is printed
 /// by an appliance under a television with no filesystem anybody browses, and a missing catalog
 /// would be a book of `⟦book-title⟧`.
-const CATALOGS: &[(Locale, &str)] = &[
-    (Locale::English, include_str!("../i18n/en.ftl")),
-    (
-        Locale::BrazilianPortuguese,
-        include_str!("../i18n/pt-BR.ftl"),
-    ),
-];
+static CATALOGS: Catalogs = Catalogs::new(
+    "book",
+    &[
+        (Locale::English, include_str!("../i18n/en.ftl")),
+        (
+            Locale::BrazilianPortuguese,
+            include_str!("../i18n/pt-BR.ftl"),
+        ),
+    ],
+);
 
 /// The messages for one locale, parsed once.
 ///
-/// A `OnceLock` per process rather than a parse per book: a catalog is immutable and a book is not
+/// Once per process rather than once per book: a catalog is immutable and a book is not
 /// the only thing that will want one.
 #[must_use]
 pub fn messages(locale: Locale) -> &'static Messages {
-    static PARSED: OnceLock<Vec<(Locale, Messages)>> = OnceLock::new();
-    let parsed = PARSED.get_or_init(|| {
-        CATALOGS
-            .iter()
-            .map(|(locale, source)| {
-                let catalog = Messages::new(*locale, source)
-                    // Compiled in, so this is a build fault rather than anything a caller can cause
-                    // — and `every_catalog_parses` is what turns it into one before a release.
-                    .unwrap_or_else(|errors| {
-                        panic!("{locale} book catalog: {}", errors.join("; "))
-                    });
-                (*locale, catalog)
-            })
-            .collect()
-    });
-    parsed
-        .iter()
-        .find(|(candidate, _)| *candidate == locale)
-        .map(|(_, catalog)| catalog)
-        .expect("every locale has a book catalog")
+    CATALOGS.get(locale)
 }
 
 /// The heading songs with no language recorded appear under.
@@ -788,46 +770,15 @@ mod tests {
 
     // -- The catalogs --------------------------------------------------------------------------
 
+    /// Every locale holds exactly the keys English holds, so nothing draws a bracketed key.
+    ///
+    /// The `language-` family is held to this as well, because every catalog writes it in full.
+    /// Its completeness against the ISO table is a different claim, and
+    /// `a_language_without_a_translated_name_falls_back_to_its_english_one` makes it.
     #[test]
-    fn every_catalog_parses() {
-        // `messages` panics on a bad catalog, which is right — it is compiled in, so nobody can
-        // cause it at run time. This is what turns that into a build failure instead of a book.
-        for locale in Locale::ALL {
-            assert!(!messages(*locale).keys().is_empty(), "{locale}");
-        }
-    }
-
-    #[test]
-    fn every_message_is_translated() {
-        // The guarantee Fluent cannot give at compile time, bought back one step later. Without it
-        // an untranslated key reaches a printed page as `⟦book-title⟧`, which is a book somebody
-        // has to throw away.
-        let english = messages(Locale::English);
-        for locale in Locale::ALL {
-            let missing = messages(*locale).missing_from(english);
-            assert!(
-                missing.is_empty(),
-                "{locale} has not caught up: {missing:?}"
-            );
-        }
-    }
-
-    #[test]
-    fn no_locale_invents_a_message_english_does_not_have() {
-        // The same test read backwards. A key only a translation has is one nothing looks up — a
-        // leftover from a rename, which would otherwise sit there looking like work.
-        //
-        // The `language-` family is the one deliberate exception and is *not* exempted here,
-        // because it is written in full in every catalog; it is exempt from being *complete*
-        // against the ISO table, which is a different claim and is `a_language_without_a_translated
-        // _name_falls_back_to_its_english_one`'s business.
-        let english = messages(Locale::English);
-        for locale in Locale::ALL {
-            let extra = english.missing_from(messages(*locale));
-            assert!(
-                extra.is_empty(),
-                "{locale} has keys nothing asks for: {extra:?}"
-            );
+    fn every_catalog_holds_exactly_the_english_keys() {
+        if let Err(fault) = km_locale::check_catalogs(messages) {
+            panic!("{fault}");
         }
     }
 

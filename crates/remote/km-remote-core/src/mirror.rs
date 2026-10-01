@@ -16,13 +16,16 @@ use std::path::Path;
 use std::sync::{Arc, Mutex};
 
 use km_api::dto::SongDto;
-use km_catalog::fts_match_query;
+use km_catalog::search::push_package_exclusion;
+use km_catalog::{escape_like, fts_match_query};
+pub(crate) use km_catalog::{has_column, has_table};
 use km_remote_pages::machine::{
     ArtistFilter, ArtistRow, BrowseQuery, LanguageRow, Miss, Order, PackageRow, RemoteError,
     Resolution, SongPage, SongRef, Songs, TagRow,
 };
 use km_song::text::{fold, initial};
 use km_songcode::SongCode;
+use rusqlite::types::Value;
 use rusqlite::{Connection, OptionalExtension, params};
 
 /// The file the mirror lives in.
@@ -544,30 +547,6 @@ impl Mirror {
     }
 }
 
-/// Appends `AND <column> NOT IN (…)` for the packages a person hid, binding one value per id.
-///
-/// The twin of the helper in `km_catalog::search`, so both remotes leave out the same songs. An
-/// empty list appends nothing.
-fn push_package_exclusion(
-    sql: &mut String,
-    bindings: &mut Vec<Value>,
-    column: &str,
-    packages: &[String],
-) {
-    if packages.is_empty() {
-        return;
-    }
-    let mut placeholders = Vec::with_capacity(packages.len());
-    for package in packages {
-        bindings.push(Value::Text(package.clone()));
-        placeholders.push(format!("?{}", bindings.len()));
-    }
-    sql.push_str(&format!(
-        " AND {column} NOT IN ({})",
-        placeholders.join(", ")
-    ));
-}
-
 /// What one browse request becomes, in SQL.
 ///
 /// A struct rather than a four-element tuple because the fourth element is the one that is easy to
@@ -580,33 +559,10 @@ struct Conditions {
     ranked: bool,
 }
 
-/// A bound value. Local, because the two rusqlite types this needs are not one type.
-#[derive(Debug, Clone)]
-enum Value {
-    Text(String),
-    Integer(i64),
-}
-
-impl rusqlite::ToSql for Value {
-    fn to_sql(&self) -> rusqlite::Result<rusqlite::types::ToSqlOutput<'_>> {
-        match self {
-            Value::Text(text) => text.to_sql(),
-            Value::Integer(number) => number.to_sql(),
-        }
-    }
-}
-
-/// Reads a song's code from the column that holds it, which is always the first.
-///
-/// The mirror's own copy of `km-catalog`'s helper, for the same reason `escape_like` is duplicated
-/// below: the machine's version is internal to that crate, and this is three lines.
-fn read_code(row: &rusqlite::Row<'_>) -> rusqlite::Result<SongCode> {
-    Ok(SongCode::new(row.get(0)?))
-}
-
 fn read_song(row: &rusqlite::Row<'_>) -> rusqlite::Result<SongDto> {
     Ok(SongDto {
-        number: read_code(row)?,
+        // The code is always the first column.
+        number: SongCode::new(row.get(0)?),
         title: row.get(1)?,
         artist: row.get(2)?,
         language: row.get(3)?,
@@ -636,22 +592,6 @@ fn read_song(row: &rusqlite::Row<'_>) -> rusqlite::Result<SongDto> {
             .map(str::to_owned)
             .collect(),
     })
-}
-
-/// Escapes the two characters `LIKE` treats as wildcards, plus the escape character.
-///
-/// The same job `km_catalog::escape_like` does, and for the same reason: without it, an artist search
-/// for `50%` matches every artist there is. Not shared, because that one is `pub(crate)` to a crate
-/// this does not belong to, and eight lines is a poorer reason to widen an API than it looks.
-fn escape_like(value: &str) -> String {
-    let mut out = String::with_capacity(value.len());
-    for ch in value.chars() {
-        if matches!(ch, '%' | '_' | '\\') {
-            out.push('\\');
-        }
-        out.push(ch);
-    }
-    out
 }
 
 /// The mirror behind the remote's catalog trait.
@@ -793,37 +733,6 @@ fn discard_unless_current(conn: &Connection) -> Result<(), rusqlite::Error> {
          DROP TABLE IF EXISTS songs;
          DROP TABLE IF EXISTS meta;",
     )
-}
-
-/// Whether a table exists yet.
-///
-/// `pub(crate)` for [`crate::favdb`], which asks the same question of the collection. The pair is
-/// this crate's one spelling of "probe the shape, there is no version number", and a second copy is
-/// exactly the drift the header above warns about.
-pub(crate) fn has_table(conn: &Connection, table: &str) -> Result<bool, rusqlite::Error> {
-    let count: i64 = conn.query_row(
-        "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?1",
-        [table],
-        |row| row.get(0),
-    )?;
-    Ok(count > 0)
-}
-
-/// Whether a table already carries a column. See [`has_table`] for why both are `pub(crate)`.
-pub(crate) fn has_column(
-    conn: &Connection,
-    table: &str,
-    column: &str,
-) -> Result<bool, rusqlite::Error> {
-    let mut statement = conn.prepare(&format!("PRAGMA table_info({table})"))?;
-    let mut rows = statement.query([])?;
-    while let Some(row) = rows.next()? {
-        let name: String = row.get(1)?;
-        if name == column {
-            return Ok(true);
-        }
-    }
-    Ok(false)
 }
 
 #[cfg(test)]

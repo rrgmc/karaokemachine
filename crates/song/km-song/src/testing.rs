@@ -22,6 +22,17 @@
 /// Ticks per quarter note used by every fixture, so tick maths in tests stays readable.
 pub const TPQN: u16 = 480;
 
+/// Parses fixture bytes with the options the machine uses.
+///
+/// # Panics
+///
+/// When the bytes do not parse. Every builder in [`FIXTURES`] parses, so a panic here is the fault
+/// under test.
+#[must_use]
+pub fn parse(bytes: &[u8]) -> crate::Song {
+    crate::Song::parse(bytes, &crate::ParseOptions::default()).expect("the fixture parses")
+}
+
 /// Microseconds per quarter note at 120 BPM.
 pub const TEMPO_120: u32 = 500_000;
 
@@ -196,6 +207,21 @@ impl TrackWriter {
         chunk.extend_from_slice(&self.data);
         chunk
     }
+}
+
+/// A one-track file carrying exactly these channel-voice events, each at its absolute tick.
+///
+/// For a test about what notes and controllers do, where no lyric or header matters.
+#[must_use]
+pub fn channel_events(events: &[(u32, [u8; 3])]) -> Vec<u8> {
+    let mut track = TrackWriter::new();
+    let mut previous = 0;
+    for (tick, bytes) in events {
+        track.push_varlen(tick - previous);
+        track.raw(bytes);
+        previous = *tick;
+    }
+    smf(vec![track.finish()])
 }
 
 /// Assembles a complete file from finished track chunks.

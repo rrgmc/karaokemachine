@@ -27,3 +27,6 @@ crc32fast = { workspace = true }
 sha2 = { workspace = true }
 getrandom = { workspace = true }
 thiserror = { workspace = true }
+
+[dev-dependencies]
+km-testkit = { workspace = true }

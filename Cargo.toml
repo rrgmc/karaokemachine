@@ -57,6 +57,9 @@ members = [
     # and `cargo km-test` cover it. The exclusion below is for a feature-unification hazard, which
     # this crate does not have.
     "tools/dev/km-pick",
+    # What more than one crate's tests need. A dev-dependency only, and it depends on no `km-*`
+    # crate, so every crate here can take it without a cycle.
+    "tools/dev/km-testkit",
 ]
 
 # `tools/cmd/assets` is a **second workspace** and deliberately not part of this one. Cargo unifies
@@ -286,6 +289,8 @@ km-machine-ios = { path = "crates/machine/km-machine-ios" }
 # builds the same manifests from the same files. Two tools disagreeing about what a manifest holds
 # is a defect nobody would notice until a package behaved oddly on the machine.
 km-pack = { path = "tools/cmd/km-pack" }
+# What more than one crate's tests need. Taken as a dev-dependency only; nothing that ships links it.
+km-testkit = { path = "tools/dev/km-testkit" }
 
 # MIDI + audio
 midly = "0.5.3"
@@ -592,6 +597,10 @@ unicode-normalization = "0.1.24"
 # `tao`.
 unicode-width = "0.2.2"
 unicode-segmentation = "1.13.3"
+# A moment as a calendar date and a clock time, in UTC. Every stamp the workspace writes is a
+# `SystemTime` shown that way: a log file's name, a package's `created`, a backup's `written_at`.
+# Already in the tree through `zip`, and `std` is the only feature a `From<SystemTime>` needs.
+time = { version = "0.3.55", default-features = false, features = ["std"] }
 directories = "6.0.0"
 clap = { version = "4.6.6", features = ["derive"] }
 thiserror = "2.0.20"
@@ -634,7 +643,7 @@ todo = "warn"
 lto = "thin"
 codegen-units = 1
 
-# Three dependencies get optimized even in a dev build, because each is unusably slow without it and
+# Some dependencies get optimized even in a dev build, because each is unusably slow without it and
 # none is code anybody steps through: `image` decodes and resamples wallpapers, `rustysynth` renders
 # every audio callback, and `argon2` is a hash whose whole purpose is to cost something.
 #
@@ -664,4 +673,19 @@ opt-level = 2
 opt-level = 2
 
 [profile.dev.package.argon2]
+opt-level = 2
+
+# ...and three more whose cost lands on every test run, as `argon2`'s does. `whatlang` guesses the
+# language of every song a scan writes, and unoptimized it is seven eighths of writing one.
+# `libsqlite3-sys` compiles the bundled SQLite, which every catalog and curation test runs through.
+# **Measured on `km-package-builder`'s tests**: 8.5s with neither, 6.1s with `whatlang` alone, 6.8s
+# with SQLite alone and 4.4s with both. `ebur128` meters a song's loudness, and `km-loudness`'s tests
+# take 0.9s unoptimized and 0.04s optimized.
+[profile.dev.package.whatlang]
+opt-level = 2
+
+[profile.dev.package.libsqlite3-sys]
+opt-level = 2
+
+[profile.dev.package.ebur128]
 opt-level = 2

@@ -434,6 +434,7 @@ cargo km-banner            # the Android TV banner; needs icon-128.png first
 cargo km-preview           # every screen to target/preview
 tools/dev/screenshots.sh   # the eight pictures in docs/images that README.md shows
 tools/dev/screen-animation.sh  # the ninth, screen-singing.webp: a carol sung, animated
+tools/dev/promo-video.sh   # the promotional video, into dist/promo; needs Node with Playwright
 ```
 
 ### The Christmas carol pack
@@ -823,6 +824,7 @@ workflow, is [`What CI runs`](CONTRIBUTING.md#what-ci-runs) in `CONTRIBUTING.md`
 | `tools/cmd/km-package-builder` | The curation web tool: a folder of source files in, `.kmpkg` packages out |
 | `tools/cmd/km-package-simple` | The folder packager: one folder in, uncurated `.kmpkg` packages out, with no database |
 | `tools/cmd/assets/km-wallpaper-pack` | Builds a legibility-verified wallpaper pack. **In the second workspace** — `tools/cmd/assets` is `exclude`d from this one, see the note in `Cargo.toml` |
+| `tools/dev/km-testkit` | What more than one crate's tests need: a scratch folder that removes itself, and a router driven with no socket. A dev-dependency only |
 
 ---
 

@@ -103,3 +103,6 @@ tracing = { workspace = true }
 # They live in `crates/remote/km-remote`, and their absence here is what makes a second and third shell
 # possible. Three of them being absent from this table is a compile error rather than a review
 # comment, which is the point of writing it down as a dependency list instead of a rule.
+
+[dev-dependencies]
+km-testkit = { workspace = true }

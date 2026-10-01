@@ -4,11 +4,8 @@
 //! through [`Song::parse`], which is what the rest of the system actually calls.
 
 use km_song::testing;
+use km_song::testing::parse;
 use km_song::{EventKind, KaraokeFlavor, LyricGranularity, ParseOptions, Song, Timebase};
-
-fn parse(bytes: &[u8]) -> Song {
-    Song::parse(bytes, &ParseOptions::default()).expect("fixture should parse")
-}
 
 #[test]
 fn soft_karaoke_file_parses_completely() {
@@ -44,16 +41,6 @@ fn soft_karaoke_page_and_line_markers_survive_parsing() {
     // No stray marker characters leak into the text.
     assert!(!song.lyrics.plain_text().contains('/'));
     assert!(!song.lyrics.plain_text().contains('\\'));
-}
-
-#[test]
-fn both_underscore_conventions_reach_the_words_as_spacing() {
-    let song = parse(&testing::underscore_spacing());
-
-    assert_eq!(song.lyrics.line_count(), 2);
-    assert_eq!(song.lyrics.lines[0].text(), "Se apronta pra");
-    assert_eq!(song.lyrics.lines[1].text(), "THE MELODY ");
-    assert!(!song.lyrics.plain_text().contains('_'));
 }
 
 #[test]

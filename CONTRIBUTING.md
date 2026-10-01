@@ -196,6 +196,7 @@ request. `CI ok` fails when any job failed, and passes when the rest passed or s
 | `linux` | `debian:13-slim` | `cargo km-lint`, `cargo km-test`: the video build | only Markdown or `docs/` changed |
 | `desktop` | windows, macos | `cargo km-lint-no-video`, `cargo km-test-no-video` | only Markdown or `docs/` changed |
 | `assets` | ubuntu | `cargo km-lint-assets`, `cargo km-test-assets` | that directory, the toolchain pin and `ci.yml` are untouched |
+| `supply-chain` | ubuntu | `cargo deny` over both lockfiles: licenses, sources and bans, and advisories on the schedule or on request | only Markdown or `docs/` changed |
 
 **Why one workflow with skipping jobs, and not a workflow per concern with path filters.** GitHub
 puts path filters on the trigger. A required check from a workflow that never started never reports,
@@ -213,6 +214,11 @@ platform-specific paths.
 
 **The aliases are the feature lists.** Every job runs a `cargo km-*` alias, so `ci.yml` holds no copy
 of a feature string, and `check.sh` asserts the aliases against `tools/setup/features.sh`.
+
+**`deny.toml` holds the license list both workspaces answer to.** A crate carrying a license not on it
+fails the job until somebody reads that license and adds it. **Advisories never run on a pull
+request.** A new advisory names a crate the tree already holds, so it would fail a change that did
+not cause it. The weekly run finds it, and a dispatch finds it at once.
 
 **No separate `cargo build` step**: `clippy --all-targets` type-checks every target and `cargo test`
 compiles and links them. **Caches are saved from `master` only**, so pull requests read one cache per
@@ -723,6 +729,8 @@ re-derive:
   this crate can apply. The answer is the ffmpeg version, not the code around it. **There is no
   fuzzing.** The two cheapest targets are `km_song::Song::parse` and `km_cdg::GraphicsStream::stats`,
   both of which take `&[u8]` directly, and both are five lines if somebody wants the coverage.
+- **`cargo deny` reads the advisory database against both lockfiles every week.** A hole in a
+  published crate that reads a stranger's file is found within a week, and `supply-chain` names it.
 - **`rustysynth` is a git dependency on a fork, so it sits outside advisory coverage**, and a `.sf2`
   is a file a stranger sends. What holds it still is `Cargo.lock` plus `--locked` on every release
   path, rather than a `rev` in the manifest. The reasoning for that sits beside the dependency

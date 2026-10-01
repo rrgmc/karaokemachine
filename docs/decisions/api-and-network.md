@@ -1162,6 +1162,25 @@ retried twenty times a second. Anybody who queues, skips or stops first cancels 
 and `starts_in_secs` is `None`, because the song has not started yet. What a caller wants from it is
 `enabled`. That tells them whether another song will follow the one they asked for.
 
+## Changing a microphone is an owner's act; reading them is not
+
+**`PUT /api/v1/admin/mics/{id}` is behind the password, and `GET /api/v1/mics` is not.** A mic's
+name, device hint, gain, effects and mute are installation configuration. They tell whoever runs the
+mixer which input is which. The machine applies none of them, because
+[`Microphones`](audio.md#microphones) puts the mixing in hardware.
+
+**A guest with the address could otherwise rename every mic or mark one muted.** The mixer would
+still pass the sound. The page would then say something false about the room, and nobody could tell
+who changed it. Reading them stays public for the same reason demo mode does: using the answer and
+changing the state are different acts.
+
+**The gain ceiling stays, and the password does not replace it.** `MAX_GAIN` guards a speaker
+against any caller, the owner included. The password decides who may set a mic at all.
+
+**The development console reaches the write through its mirror**, as it reaches every other admin
+route. No owner page carries a mic control. A mixer that reads the registry is the consumer these
+fields exist for.
+
 ## A refusal travels as a code, and whoever shows it writes the sentence
 
 **The machine composes in English because it has no idea who is reading.** So a remote that renders
@@ -1312,8 +1331,8 @@ in it is indistinguishable from a machine with nothing to say.
 
 **A record is structured, not a formatted line.** The level, the target, the message and the fields
 arrive apart, so a reader can colour by one and filter by another without parsing text. The time is
-milliseconds since the epoch, and nothing formats a clock on the machine's side. Whoever draws it has
-a locale, and this has no date library to get one.
+milliseconds since the epoch, and nothing formats a clock on the machine's side. Whoever draws it
+knows the reader's time zone, and the machine does not.
 
 **A stream carries frames, and falling behind is a frame of its own.** The alternative is a synthetic
 record saying so, and that forges a line the machine never emitted. Once somebody pastes the pane into

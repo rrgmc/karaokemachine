@@ -398,7 +398,7 @@ mod tests {
     #[test]
     fn creating_a_database_off_the_main_thread_is_not_slower() {
         let scratch = Scratch::new("thread-timing");
-        let folder = scratch.0.clone();
+        let folder = scratch.to_path_buf();
         std::fs::create_dir_all(folder.join("main")).expect("temp folder");
         std::fs::create_dir_all(folder.join("spawned")).expect("temp folder");
 
@@ -434,7 +434,7 @@ mod tests {
     #[test]
     fn dropping_a_workspace_stops_its_scan() {
         let scratch = Scratch::new("drop-stops-scan");
-        let folder = scratch.0.clone();
+        let folder = scratch.to_path_buf();
 
         let workspace = Workspace::new(crate::db::Db::create(&folder).expect("create"));
         let progress = workspace.start_scan(ScanOptions::default());
@@ -458,7 +458,7 @@ mod tests {
     #[test]
     fn dropping_a_workspace_stops_its_build() {
         let scratch = Scratch::new("drop-stops-build");
-        let folder = scratch.0.clone();
+        let folder = scratch.to_path_buf();
 
         let workspace = Workspace::new(crate::db::Db::create(&folder).expect("create"));
         // No such package, so the build fails immediately -- which is fine and is not what is being
@@ -479,7 +479,7 @@ mod tests {
     #[test]
     fn a_folder_on_disk_gets_a_reading_connection() {
         let scratch = Scratch::new("reader-on-disk");
-        let workspace = Workspace::new(crate::db::Db::create(&scratch.0).expect("create"));
+        let workspace = Workspace::new(crate::db::Db::create(scratch.path()).expect("create"));
 
         assert!(
             !Arc::ptr_eq(workspace.reader(), &workspace.db),

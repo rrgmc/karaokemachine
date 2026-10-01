@@ -484,6 +484,21 @@ impl Sound for ThisMachine {
             })
     }
 
+    async fn lyric_offset(&self) -> Result<i16, AdminError> {
+        Ok(self.0.controller().snapshot().settings.lyric_offset_ms)
+    }
+
+    async fn set_lyric_offset(&self, ms: i16) -> Result<i16, AdminError> {
+        // Through `ops`, so every open remote hears the settings change.
+        let patch = km_api::machine::SettingsPatch {
+            lyric_offset_ms: Some(ms),
+            ..Default::default()
+        };
+        km_api::ops::apply_settings(&self.0, patch)
+            .map(|settings| settings.lyric_offset_ms)
+            .map_err(from_api)
+    }
+
     async fn banks(&self) -> Result<km_api::machine::SoundFontBanks, AdminError> {
         // **`true`, the whole catalog.** This page lists what is installed so it can be used or
         // removed, which is not the shortlist a picker wants -- and `soundfonts` is read-only and

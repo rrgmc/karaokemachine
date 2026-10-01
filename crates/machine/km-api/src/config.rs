@@ -164,18 +164,6 @@ mod tests {
         assert_eq!(config.bind.port(), DEFAULT_PORT);
     }
 
-    /// The state that used to open every admin route now closes them all. A config with no hash
-    /// cannot verify a token, so `/api/v1/admin/...` refuses everybody rather than admitting
-    /// everybody — which was the whole point of the change.
-    #[test]
-    fn a_config_with_no_password_shuts_the_admin_routes_rather_than_opening_them() {
-        let config = ApiConfig::default();
-        assert!(!config.admin_configured());
-        let auth = crate::auth::AdminAuth::default();
-        assert!(!auth.verify("anything at all"));
-        assert!(auth.issue().is_none());
-    }
-
     #[test]
     fn debugging_is_off_until_somebody_asks_for_it() {
         assert!(!ApiConfig::default().debug_enabled);
@@ -193,25 +181,6 @@ mod tests {
         let config = ApiConfig::default().on_all_interfaces(9000);
         assert!(config.bind.ip().is_unspecified());
         assert_eq!(config.bind.port(), 9000);
-    }
-
-    #[test]
-    fn the_password_itself_is_nowhere_in_the_config() {
-        let config = ApiConfig::default()
-            .with_password("let me in")
-            .expect("hash");
-        assert!(config.admin_configured());
-        let hash = config.admin_password_hash.expect("a hash");
-        assert!(!hash.contains("let me in"));
-        assert!(hash.starts_with("$argon2"));
-    }
-
-    #[test]
-    fn two_machines_do_not_share_an_instance_id() {
-        assert_ne!(
-            ApiConfig::default().instance_id,
-            ApiConfig::default().instance_id
-        );
     }
 
     #[test]

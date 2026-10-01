@@ -939,64 +939,13 @@ impl Radar {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::testing::{StubLocator, sighting};
     use std::sync::atomic::{AtomicUsize, Ordering};
 
     // **The policy lives in `km_api::discover::known::choose`**, where its five cases are asserted
     // — a record with no id has to behave exactly as a bare address does. A second policy function
     // here, free to disagree with that one, is exactly the drift the single definition prevents.
     // What is here is the *looking*: the locators, and the ladder that decides which rung answers.
-
-    /// A locator that answers whatever it was told to, and counts how often it was asked.
-    ///
-    /// The count is the interesting half: what [`locate`] promises is not only that it finds a
-    /// machine but that it does **not** go looking when it already has an answer, and only a
-    /// counter can tell the two apart.
-    struct StubLocator {
-        answer: Vec<Sighting>,
-        asked: AtomicUsize,
-        wanted: std::sync::Mutex<Option<String>>,
-    }
-
-    impl StubLocator {
-        fn new(answer: Option<&str>) -> Self {
-            Self::seeing(answer.into_iter().map(|url| sighting(None, url)).collect())
-        }
-
-        fn seeing(answer: Vec<Sighting>) -> Self {
-            Self {
-                answer,
-                asked: AtomicUsize::new(0),
-                wanted: std::sync::Mutex::new(None),
-            }
-        }
-
-        fn asked(&self) -> usize {
-            self.asked.load(Ordering::Relaxed)
-        }
-
-        fn hunting(&self) -> Option<String> {
-            self.wanted.lock().expect("not poisoned").clone()
-        }
-    }
-
-    impl Locator for StubLocator {
-        fn look(&self) -> Vec<Sighting> {
-            self.asked.fetch_add(1, Ordering::Relaxed);
-            self.answer.clone()
-        }
-
-        fn hunt(&self, id: Option<&str>) {
-            *self.wanted.lock().expect("not poisoned") = id.map(str::to_owned);
-        }
-    }
-
-    fn sighting(id: Option<&str>, url: &str) -> Sighting {
-        Sighting {
-            name: "Living Room".to_owned(),
-            id: id.map(str::to_owned),
-            url: url.to_owned(),
-        }
-    }
 
     fn radar_over(locator: StubLocator) -> (Radar, std::sync::Arc<StubLocator>) {
         let locator = std::sync::Arc::new(locator);

@@ -281,6 +281,26 @@ impl QrMatrix {
         Some(Self { size, modules })
     }
 
+    /// Each horizontal run of dark modules, as `(row, first column, length)`.
+    ///
+    /// A run draws as one rectangle, which is a third of the rectangles one per module costs.
+    pub fn dark_runs(&self) -> impl Iterator<Item = (usize, usize, usize)> + '_ {
+        (0..self.size).flat_map(move |row| {
+            let line = &self.modules[row * self.size..(row + 1) * self.size];
+            let mut column = 0;
+            std::iter::from_fn(move || {
+                while column < line.len() && !line[column] {
+                    column += 1;
+                }
+                let start = column;
+                while column < line.len() && line[column] {
+                    column += 1;
+                }
+                (column > start).then_some((row, start, column - start))
+            })
+        })
+    }
+
     /// Whether the module at a position is dark. Out-of-range positions read as light.
     pub fn is_dark(&self, x: usize, y: usize) -> bool {
         if x >= self.size || y >= self.size {
@@ -298,6 +318,22 @@ mod tests {
     use km_locale::Locale;
 
     use super::*;
+
+    #[test]
+    fn the_dark_runs_cover_exactly_the_dark_modules() {
+        let qr = QrMatrix::encode("http://192.168.1.x:8278/").expect("an address fits");
+        let mut painted = vec![false; qr.modules.len()];
+        for (row, start, length) in qr.dark_runs() {
+            assert!(length > 0, "a run is never empty");
+            for column in start..start + length {
+                let at = row * qr.size + column;
+                assert!(!painted[at], "runs never overlap");
+                painted[at] = true;
+            }
+        }
+        assert_eq!(painted, qr.modules);
+        assert!(qr.dark_runs().count() < qr.modules.iter().filter(|dark| **dark).count());
+    }
 
     const EN: Locale = Locale::English;
     const PT: Locale = Locale::BrazilianPortuguese;

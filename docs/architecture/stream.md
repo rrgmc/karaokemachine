@@ -167,7 +167,7 @@ wall clock. Each segment is two seconds of stream, so real time is where the two
 **The conversion being unoptimized was the whole of it**, and it is invisible from the outside. Every
 other piece of pixel work in this path is C, compiled optimized whatever profile the workspace uses:
 SDL's software renderer, and libopenh264 inside ffmpeg. So `km-stream` joins `image`, `rustysynth`
-and `argon2` in `[profile.dev.package]`, for the reason all three are there.
+and `argon2` in `[profile.dev.package]`, for the reason each of them is there.
 
 **A stream that runs slow is not a slow stream.** It is one whose sound will arrive faster than its
 pictures.

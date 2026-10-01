@@ -29,3 +29,6 @@ workspace = true
 km-remote-core = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }
+
+[dev-dependencies]
+km-testkit = { workspace = true }

@@ -19,30 +19,23 @@
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
-/// A scratch directory that cleans up after itself.
-///
-/// Hand-rolled rather than `tempfile`, which this workspace does not depend on anywhere; the same
-/// shape as `Scratch` in `settings.rs`.
-struct Scratch(PathBuf);
+use km_testkit::Scratch;
 
-impl Scratch {
-    fn new(name: &str) -> Self {
-        let dir = std::env::temp_dir().join(format!(
-            "km-wait-for-drm-{}-{name}-{:?}",
-            std::process::id(),
-            std::thread::current().id()
-        ));
-        let _ = std::fs::remove_dir_all(&dir);
-        std::fs::create_dir_all(&dir).expect("make the scratch directory");
-        Self(dir)
-    }
+/// The fake `/sys/class/drm` and `/dev/dri` a test builds inside its scratch folder.
+trait Drm {
+    fn connector(&self, name: &str, status: &str, modes: &str);
+    fn node(&self, card: &str);
+    fn sysfs(&self) -> PathBuf;
+    fn dri(&self) -> PathBuf;
+}
 
+impl Drm for Scratch {
     /// A connector directory: `<sysfs>/card0-HDMI-A-1/{status,modes}`.
     ///
     /// `modes` is written even when empty, because an empty `modes` beside a `connected` status is
     /// the exact state that produced the fault this script now waits past.
     fn connector(&self, name: &str, status: &str, modes: &str) {
-        let dir = self.0.join("sys").join(name);
+        let dir = self.join("sys").join(name);
         std::fs::create_dir_all(&dir).expect("the connector directory");
         std::fs::write(dir.join("status"), format!("{status}\n")).expect("status");
         std::fs::write(dir.join("modes"), modes).expect("modes");
@@ -50,23 +43,17 @@ impl Scratch {
 
     /// A card node under the fake `/dev/dri`.
     fn node(&self, card: &str) {
-        let dir = self.0.join("dri");
+        let dir = self.join("dri");
         std::fs::create_dir_all(&dir).expect("the dri directory");
         std::fs::write(dir.join(card), b"").expect("the node");
     }
 
     fn sysfs(&self) -> PathBuf {
-        self.0.join("sys")
+        self.join("sys")
     }
 
     fn dri(&self) -> PathBuf {
-        self.0.join("dri")
-    }
-}
-
-impl Drop for Scratch {
-    fn drop(&mut self) {
-        let _ = std::fs::remove_dir_all(&self.0);
+        self.join("dri")
     }
 }
 

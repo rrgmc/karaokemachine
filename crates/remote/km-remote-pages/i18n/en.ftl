@@ -83,7 +83,6 @@ filter-tags-clear = Clear all
 load-more = Load more
 book-link = The song book, as a PDF
 youtube-link = Find on YouTube
-no-lyric-match = not found in this song
 
 ## A song's actions
 #
@@ -223,6 +222,7 @@ now-up-next = Up next
 # Reads as `for Ana` — the name follows it in the markup, so a language that puts the name first
 # has nowhere to say so. Worth knowing before a third language arrives.
 now-singer-for = for
+song-position = How far into the song
 
 ## The machine card, and the strip above it
 

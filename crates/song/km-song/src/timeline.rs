@@ -1060,51 +1060,91 @@ mod tests {
             .collect()
     }
 
+    /// `split_points` over runs of five-character syllables with a 40-character budget.
+    ///
+    /// A cut goes at a pause wide enough to count, as near the middle as the pauses allow, and only
+    /// where a word may end. A run with no such place stays whole.
     #[test]
-    fn a_run_is_cut_at_its_widest_gap_rather_than_where_the_budget_runs_out() {
-        let widths = [5; 12];
-        let mut gaps = [100u32; 12];
-        gaps[4] = 3_000;
-        assert_eq!(split_points(&widths, &gaps, &[true; 12], 40, 100), vec![4]);
-    }
-
-    #[test]
-    fn an_equal_gap_is_broken_toward_the_middle() {
-        let widths = [5; 12];
-        let cuts = split_points(&widths, &[100; 12], &[true; 12], 40, 100);
-        assert_eq!(cuts, vec![6]);
-    }
-
-    #[test]
-    fn a_run_is_cut_until_every_piece_fits() {
-        let widths = [5; 20];
-        let cuts = split_points(&widths, &[100; 20], &[true; 20], 40, 100);
-        assert_eq!(cuts, vec![5, 10, 15]);
-    }
-
-    #[test]
-    fn a_run_with_nothing_breakable_inside_it_stays_whole() {
-        let widths = [5; 12];
-        let mut breakable = [false; 12];
-        breakable[0] = true;
-        assert!(split_points(&widths, &[100; 12], &breakable, 40, 100).is_empty());
-    }
-
-    #[test]
-    fn a_run_the_file_never_paused_in_stays_whole() {
-        // Wide enough to want three cuts, with nothing in it a singer would hear as a phrase end.
-        let widths = [5; 20];
-        assert!(split_points(&widths, &[100; 20], &[true; 20], 40, 500).is_empty());
-    }
-
-    #[test]
-    fn cutting_stops_where_the_pauses_run_out() {
-        // One real pause a third of the way in, and ordinary steps either side of it: the run is cut
-        // once and the two pieces are left at whatever width that leaves them.
-        let widths = [5; 20];
-        let mut gaps = [100u32; 20];
-        gaps[6] = 900;
-        assert_eq!(split_points(&widths, &gaps, &[true; 20], 40, 500), vec![6]);
+    fn a_run_is_cut_only_at_its_pauses() {
+        struct Case {
+            name: &'static str,
+            syllables: usize,
+            /// Gaps wider than the 100 ms step, as (index, ms).
+            pauses: &'static [(usize, u32)],
+            /// Whether every syllable may start a piece, or only the first.
+            every_breakable: bool,
+            min_gap_ms: u32,
+            cuts: &'static [usize],
+        }
+        let cases = [
+            Case {
+                name: "a run is cut at its widest gap rather than where the budget runs out",
+                syllables: 12,
+                pauses: &[(4, 3_000)],
+                every_breakable: true,
+                min_gap_ms: 100,
+                cuts: &[4],
+            },
+            Case {
+                name: "an equal gap is broken toward the middle",
+                syllables: 12,
+                pauses: &[],
+                every_breakable: true,
+                min_gap_ms: 100,
+                cuts: &[6],
+            },
+            Case {
+                name: "a run is cut until every piece fits",
+                syllables: 20,
+                pauses: &[],
+                every_breakable: true,
+                min_gap_ms: 100,
+                cuts: &[5, 10, 15],
+            },
+            // No cut lands before the first syllable, so nothing inside the run may take one.
+            Case {
+                name: "a run with nothing breakable inside it stays whole",
+                syllables: 12,
+                pauses: &[],
+                every_breakable: false,
+                min_gap_ms: 100,
+                cuts: &[],
+            },
+            // Wide enough to want three cuts, with nothing in it a singer would hear as a phrase end.
+            Case {
+                name: "a run the file never paused in stays whole",
+                syllables: 20,
+                pauses: &[],
+                every_breakable: true,
+                min_gap_ms: 500,
+                cuts: &[],
+            },
+            // One real pause a third of the way in: the run is cut once, and each piece keeps the
+            // width that leaves it.
+            Case {
+                name: "cutting stops where the pauses run out",
+                syllables: 20,
+                pauses: &[(6, 900)],
+                every_breakable: true,
+                min_gap_ms: 500,
+                cuts: &[6],
+            },
+        ];
+        for case in cases {
+            let widths = vec![5; case.syllables];
+            let mut gaps = vec![100u32; case.syllables];
+            for &(at, ms) in case.pauses {
+                gaps[at] = ms;
+            }
+            let mut breakable = vec![case.every_breakable; case.syllables];
+            breakable[0] = true;
+            assert_eq!(
+                split_points(&widths, &gaps, &breakable, 40, case.min_gap_ms),
+                case.cuts,
+                "{}",
+                case.name
+            );
+        }
     }
 
     #[test]
@@ -1354,45 +1394,61 @@ mod tests {
         assert_eq!(timeline.lines[0].text(), "Tempo perdido");
     }
 
+    /// `preview(2)` over lines built one per string.
+    ///
+    /// A preview is the first lines a singer would sing. It skips a leading banner, and only a
+    /// leading one, because a false positive then costs one line rather than the song.
     #[test]
-    fn a_preview_is_the_first_lines_of_the_song() {
-        let timeline = lines_of(&["Tempo perdido", "E que tudo mais", "va pro inferno"]);
-        assert_eq!(
-            timeline.preview(2),
-            vec!["Tempo perdido", "E que tudo mais"]
-        );
-    }
-
-    #[test]
-    fn a_preview_skips_the_sequencers_advertisement() {
-        let timeline = lines_of(&[
-            "Karaoke do Brasil",
-            "http://www.example.test/kar",
-            "****************",
-            "Tempo perdido",
-            "E que tudo mais",
-        ]);
-        assert_eq!(
-            timeline.preview(2),
-            vec!["Tempo perdido", "E que tudo mais"]
-        );
-    }
-
-    /// The rule that was tried and measured away. Skipping a line because it matched the title cost
-    /// far more than it saved: 20,000 corpus files said nearly every line it caught was the real
-    /// opening of a song whose hook is its own name. Pinned as a test so it does not come back on
-    /// the same plausible reasoning.
-    #[test]
-    fn a_first_line_that_is_also_the_title_is_kept() {
-        let timeline = lines_of(&[
-            "Good golly Miss Molly",
-            "You sure like to ball",
-            "Good golly Miss Molly",
-        ]);
-        assert_eq!(
-            timeline.preview(2),
-            vec!["Good golly Miss Molly", "You sure like to ball"]
-        );
+    fn a_preview_is_the_first_sung_lines() {
+        let all_banner = [
+            vec!["Karaoke by Someone"; PREVIEW_MAX_SKIP],
+            vec!["Karaoke by Someone Else", "and another"],
+        ]
+        .concat();
+        let cases: [(&str, Vec<&str>, [&str; 2]); 5] = [
+            (
+                "a preview is the first lines of the song",
+                vec!["Tempo perdido", "E que tudo mais", "va pro inferno"],
+                ["Tempo perdido", "E que tudo mais"],
+            ),
+            (
+                "a preview skips the sequencer's advertisement",
+                vec![
+                    "Karaoke do Brasil",
+                    "http://www.example.test/kar",
+                    "****************",
+                    "Tempo perdido",
+                    "E que tudo mais",
+                ],
+                ["Tempo perdido", "E que tudo mais"],
+            ),
+            // A line that matches the title stays. In 20,000 corpus files nearly every such line
+            // opened a song whose hook is its own name.
+            (
+                "a first line that is also the title is kept",
+                vec![
+                    "Good golly Miss Molly",
+                    "You sure like to ball",
+                    "Good golly Miss Molly",
+                ],
+                ["Good golly Miss Molly", "You sure like to ball"],
+            ),
+            (
+                "a banner after the words have started is left alone",
+                vec!["Tempo perdido", "Karaoke do Brasil", "E que tudo mais"],
+                ["Tempo perdido", "Karaoke do Brasil"],
+            ),
+            // Past the budget the classifier is likelier to be wrong than the file is to be all
+            // credit, so what is there is taken. An unreliable preview beats a blank one.
+            (
+                "a song that is nothing but banner gives up rather than skipping for ever",
+                all_banner,
+                ["Karaoke by Someone Else", "and another"],
+            ),
+        ];
+        for (name, texts, want) in cases {
+            assert_eq!(lines_of(&texts).preview(2), want, "{name}");
+        }
     }
 
     #[test]
@@ -1455,30 +1511,6 @@ mod tests {
     }
 
     #[test]
-    fn a_banner_after_the_words_have_started_is_left_alone() {
-        // Only leading lines are skipped, so a false positive costs one line rather than the song.
-        let timeline = lines_of(&["Tempo perdido", "Karaoke do Brasil", "E que tudo mais"]);
-        assert_eq!(
-            timeline.preview(2),
-            vec!["Tempo perdido", "Karaoke do Brasil"]
-        );
-    }
-
-    #[test]
-    fn a_song_that_is_nothing_but_banner_gives_up_rather_than_skipping_for_ever() {
-        // Past the budget the classifier is likelier to be wrong than the file is to be all credit,
-        // so what is there is taken. An unreliable preview beats a blank one.
-        let mut texts = vec!["Karaoke by Someone"; PREVIEW_MAX_SKIP];
-        texts.push("Karaoke by Someone Else");
-        texts.push("and another");
-        let timeline = lines_of(&texts);
-        assert_eq!(
-            timeline.preview(2),
-            vec!["Karaoke by Someone Else", "and another"]
-        );
-    }
-
-    #[test]
     fn a_file_with_no_line_markers_is_cut_rather_than_stored_whole() {
         // One `LyricLine` holding the entire song is a real corpus shape, not a hypothetical.
         let whole = "la ".repeat(200);
@@ -1512,94 +1544,137 @@ mod tests {
         build_timeline(unmarked(pattern, count), inference(), ticks_to_ms)
     }
 
-    #[test]
-    fn a_file_that_marks_every_syllable_as_a_word_is_drawn_with_narrow_dividers() {
-        let timeline = narrowed(&["can ", "ta ", "re ", "mos "], 40);
-        assert!(timeline.word_ends.divided());
-        let text = timeline.lines[0].text();
-        assert!(
-            text.contains(SYLLABLE_DIVIDER),
-            "the divider replaces the space: {text:?}"
-        );
-        assert!(
-            !text.contains(' '),
-            "no full space is left to read as a word end: {text:?}"
-        );
-        assert_eq!(timeline.granularity(), LyricGranularity::SyllableLevel);
-    }
-
-    #[test]
-    fn a_narrowed_line_does_not_end_with_a_divider() {
-        let timeline = narrowed(&["can ", "ta ", "re ", "mos "], 40);
-        assert!(
-            timeline.line_count() > 1,
-            "the width heuristic should split"
-        );
-        for line in &timeline.lines {
-            let text = line.text();
-            assert!(
-                !text.ends_with(SYLLABLE_DIVIDER),
-                "a gap nothing follows sets the centered line off center: {text:?}"
-            );
-        }
-    }
-
-    /// **The case that stops correct words being run together.**
+    /// The spacing an unmarked file writes decides whether its syllables are drawn apart.
     ///
-    /// One event per whole word, each with its space and no break marker, meets every other
-    /// condition — and its words are exactly where it says they are.
+    /// A divided line draws each fragment apart on a divider and keeps no full space to read as a
+    /// word end. A joined line keeps the file's own spacing and carries no divider.
     #[test]
-    fn a_file_of_whole_words_keeps_its_spaces() {
-        let timeline = narrowed(&["guitarra ", "cantando ", "sozinho ", "amanhece "], 40);
-        assert!(!timeline.word_ends.divided());
-        assert!(timeline.lines[0].text().contains(' '));
-    }
-
-    /// The word-per-event file that comes closest to the syllable ones, at 3.4 characters a
-    /// fragment against their 2.75 — so this pins the constant where the corpus put it and not
-    /// somewhere an easier example would allow.
-    #[test]
-    fn short_whole_words_keep_their_spaces_too() {
-        let timeline = narrowed(&["MY ", "LOVE'S ", "HERE, ", "IT'S ", "NO ", "DREAM "], 42);
-        assert!(!timeline.word_ends.divided());
-        assert!(timeline.lines[0].text().contains(' '));
-    }
-
-    /// English syllables average what short whole words do, so the mean alone would spare them.
-    /// None of them is long, and that is what says they are syllables.
-    #[test]
-    fn short_english_syllables_are_divided_when_none_is_long() {
-        let timeline = narrowed(
-            &[
-                "wal ", "king ", "down ", "the ", "ci ", "ty ", "road ", "at ", "night ", "a ",
-                "lone ", "wait ", "ing ",
-            ],
-            52,
-        );
-        assert_eq!(timeline.word_ends, WordEnds::EverySyllableSpaced);
-    }
-
-    /// Whole words at the same mean carry long ones among them, and keep their spaces.
-    #[test]
-    fn short_whole_words_with_long_ones_among_them_keep_their_spaces() {
-        let timeline = narrowed(
-            &[
-                "I ",
-                "remember ",
-                "you ",
-                "and ",
-                "me ",
-                "in ",
-                "the ",
-                "rain ",
-                "so ",
-                "long ",
-                "ago ",
-            ],
-            44,
-        );
-        assert_eq!(timeline.word_ends, WordEnds::AsWritten);
-        assert!(timeline.lines[0].text().contains(' '));
+    fn the_spacing_a_file_writes_decides_whether_its_syllables_are_divided() {
+        let cases: [(&str, &[&str], usize, WordEnds); 9] = [
+            (
+                "a file that marks every syllable as a word is drawn with narrow dividers",
+                &["can ", "ta ", "re ", "mos "],
+                40,
+                WordEnds::EverySyllableSpaced,
+            ),
+            // One event per whole word, each spaced and unmarked, meets every other condition. Its
+            // words are exactly where it says they are.
+            (
+                "a file of whole words keeps its spaces",
+                &["guitarra ", "cantando ", "sozinho ", "amanhece "],
+                40,
+                WordEnds::AsWritten,
+            ),
+            // At 3.4 characters a fragment against the syllable files' 2.75, this is the word file
+            // closest to them. It pins the constant where the corpus put it.
+            (
+                "short whole words keep their spaces too",
+                &["MY ", "LOVE'S ", "HERE, ", "IT'S ", "NO ", "DREAM "],
+                42,
+                WordEnds::AsWritten,
+            ),
+            // English syllables average what short whole words do, so the mean alone would spare
+            // them. None of them is long, and that says they are syllables.
+            (
+                "short english syllables are divided when none is long",
+                &[
+                    "wal ", "king ", "down ", "the ", "ci ", "ty ", "road ", "at ", "night ", "a ",
+                    "lone ", "wait ", "ing ",
+                ],
+                52,
+                WordEnds::EverySyllableSpaced,
+            ),
+            // Whole words at the same mean carry long ones among them.
+            (
+                "short whole words with long ones among them keep their spaces",
+                &[
+                    "I ",
+                    "remember ",
+                    "you ",
+                    "and ",
+                    "me ",
+                    "in ",
+                    "the ",
+                    "rain ",
+                    "so ",
+                    "long ",
+                    "ago ",
+                ],
+                44,
+                WordEnds::AsWritten,
+            ),
+            // Half the syllables end a word, which is what the convention looks like.
+            (
+                "a file that marks word ends keeps its spaces",
+                &["can", "ta ", "re", "mos "],
+                40,
+                WordEnds::AsWritten,
+            ),
+            // One fragment per note with no separator at all draws
+            // `andthisiscrazybutheresmynumber` across the television.
+            (
+                "a file that marks no boundary at all is drawn with narrow dividers",
+                &["can", "ta", "re", "mos"],
+                40,
+                WordEnds::NoneSpaced,
+            ),
+            // Spacing this file uses is the file saying where its words are, so it is trusted.
+            (
+                "a file that spaces some of its fragments is left joined",
+                &["can", "ta", "re ", "mos"],
+                40,
+                WordEnds::AsWritten,
+            ),
+            // A script that writes its words without spaces is written correctly already, so
+            // dividing its fragments is the same error the other way round.
+            (
+                "a file in a script that spaces nothing is left joined",
+                &["こ", "ん", "に", "ち", "は"],
+                40,
+                WordEnds::AsWritten,
+            ),
+        ];
+        for (name, pattern, count, want) in cases {
+            let timeline = narrowed(pattern, count);
+            assert_eq!(timeline.word_ends, want, "{name}");
+            let text = timeline.lines[0].text();
+            if want.divided() {
+                assert!(
+                    text.contains(SYLLABLE_DIVIDER),
+                    "{name}: the divider replaces the space: {text:?}"
+                );
+                assert!(
+                    !text.contains(' '),
+                    "{name}: no full space is left to read as a word end: {text:?}"
+                );
+                assert_eq!(
+                    timeline.granularity(),
+                    LyricGranularity::SyllableLevel,
+                    "{name}"
+                );
+                assert!(
+                    timeline.line_count() > 1,
+                    "{name}: the width heuristic should split"
+                );
+                for line in &timeline.lines {
+                    let text = line.text();
+                    assert!(
+                        !text.ends_with(SYLLABLE_DIVIDER),
+                        "{name}: a gap nothing follows sets the centered line off center: {text:?}"
+                    );
+                }
+            } else {
+                assert!(
+                    !text.contains(SYLLABLE_DIVIDER),
+                    "{name}: a joined line carries no divider: {text:?}"
+                );
+                assert_eq!(
+                    text.contains(' '),
+                    pattern.iter().any(|p| p.contains(' ')),
+                    "{name}: a joined line keeps the spaces the file wrote: {text:?}"
+                );
+            }
+        }
     }
 
     /// A break marker says where a line ends and nothing about words, so a file that marks every
@@ -1647,49 +1722,34 @@ mod tests {
         assert!(!timeline.word_ends.divided());
     }
 
-    #[test]
-    fn a_file_that_marks_word_ends_keeps_its_spaces() {
-        // Half the syllables end a word, which is what the convention looks like.
-        let timeline = narrowed(&["can", "ta ", "re", "mos "], 40);
-        assert!(!timeline.word_ends.divided());
-    }
-
+    /// Below `MIN_JUDGED_SYLLABLES` a file's spacing says too little to judge, spaced or not.
     #[test]
     fn too_few_syllables_are_not_judged() {
-        let timeline = narrowed(&["can ", "ta ", "re ", "mos "], MIN_JUDGED_SYLLABLES - 1);
-        assert!(!timeline.word_ends.divided());
-        let timeline = narrowed(&["can ", "ta ", "re ", "mos "], MIN_JUDGED_SYLLABLES);
-        assert!(timeline.word_ends.divided());
-    }
-
-    /// The complaint this answers: a file of one fragment per note with no separator at all draws
-    /// `andthisiscrazybutheresmynumber` across the television.
-    #[test]
-    fn a_file_that_marks_no_boundary_at_all_is_drawn_with_narrow_dividers() {
-        let timeline = narrowed(&["can", "ta", "re", "mos"], 40);
-        assert!(timeline.word_ends.divided());
-        let text = timeline.lines[0].text();
-        assert!(
-            text.contains(SYLLABLE_DIVIDER),
-            "the fragments are drawn apart: {text:?}"
-        );
-        assert!(
-            !text.contains(' '),
-            "and not on anything that reads as a word end: {text:?}"
-        );
-        assert!(
-            !text.ends_with(SYLLABLE_DIVIDER),
-            "a gap nothing follows sets the centered line off center: {text:?}"
-        );
-        assert_eq!(timeline.granularity(), LyricGranularity::SyllableLevel);
-    }
-
-    /// Spacing this file uses is the file saying where its words are, and it is then trusted.
-    #[test]
-    fn a_file_that_spaces_some_of_its_fragments_is_left_joined() {
-        let timeline = narrowed(&["can", "ta", "re ", "mos"], 40);
-        assert!(!timeline.word_ends.divided());
-        assert!(!timeline.lines[0].text().contains(SYLLABLE_DIVIDER));
+        let spaced: &[&str] = &["can ", "ta ", "re ", "mos "];
+        let unspaced: &[&str] = &["can", "ta", "re", "mos"];
+        let cases = [
+            ("spaced, one short", spaced, MIN_JUDGED_SYLLABLES - 1, false),
+            ("spaced, at the bound", spaced, MIN_JUDGED_SYLLABLES, true),
+            (
+                "unspaced, one short",
+                unspaced,
+                MIN_JUDGED_SYLLABLES - 1,
+                false,
+            ),
+            (
+                "unspaced, at the bound",
+                unspaced,
+                MIN_JUDGED_SYLLABLES,
+                true,
+            ),
+        ];
+        for (name, pattern, count, divided) in cases {
+            assert_eq!(
+                narrowed(pattern, count).word_ends.divided(),
+                divided,
+                "{name}"
+            );
+        }
     }
 
     /// **One space in hundreds of fragments is noise, not a convention**, and the corpus file this
@@ -1722,15 +1782,6 @@ mod tests {
         assert!(!timeline.lines[0].text().contains(SYLLABLE_DIVIDER));
     }
 
-    /// **A script that writes its words without spaces is written correctly already**, so dividing
-    /// its fragments is the same error the other way round.
-    #[test]
-    fn a_file_in_a_script_that_spaces_nothing_is_left_joined() {
-        let timeline = narrowed(&["こ", "ん", "に", "ち", "は"], 40);
-        assert!(!timeline.word_ends.divided());
-        assert!(!timeline.lines[0].text().contains(SYLLABLE_DIVIDER));
-    }
-
     /// One Han character in a Latin file is enough, because a file mixing the two is a file whose
     /// spacing this rule cannot speak for.
     #[test]
@@ -1739,14 +1790,6 @@ mod tests {
         raws[3].text = "愛".to_owned();
         let timeline = build_timeline(raws, inference(), ticks_to_ms);
         assert!(!timeline.word_ends.divided());
-    }
-
-    #[test]
-    fn too_few_unspaced_syllables_are_not_judged() {
-        let timeline = narrowed(&["can", "ta", "re", "mos"], MIN_JUDGED_SYLLABLES - 1);
-        assert!(!timeline.word_ends.divided());
-        let timeline = narrowed(&["can", "ta", "re", "mos"], MIN_JUDGED_SYLLABLES);
-        assert!(timeline.word_ends.divided());
     }
 
     /// Where the two rules part company. A file that spaces every fragment keeps the one it left

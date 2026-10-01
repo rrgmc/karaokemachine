@@ -8,11 +8,9 @@
 //! machine itself, in its own process, so nothing arrives from across a wire needing a code to be
 //! rendered from.
 
-use std::sync::OnceLock;
-
 use axum::http::HeaderMap;
 use axum::http::header;
-use km_locale::{Catalog, Locale};
+use km_locale::{Catalog, Catalogs, Locale};
 
 /// What language to draw a page in, given what this request said.
 ///
@@ -31,68 +29,32 @@ pub fn locale(headers: &HeaderMap) -> Locale {
 }
 
 /// The owner's words, one catalog per locale.
-const CATALOGS: &[(Locale, &str)] = &[
-    (Locale::English, include_str!("../i18n/en.ftl")),
-    (
-        Locale::BrazilianPortuguese,
-        include_str!("../i18n/pt-BR.ftl"),
-    ),
-];
+static CATALOGS: Catalogs = Catalogs::new(
+    "admin",
+    &[
+        (Locale::English, include_str!("../i18n/en.ftl")),
+        (
+            Locale::BrazilianPortuguese,
+            include_str!("../i18n/pt-BR.ftl"),
+        ),
+    ],
+);
 
 /// These pages' messages for one locale, parsed once.
 #[must_use]
 pub fn messages(locale: Locale) -> &'static Catalog {
-    static PARSED: OnceLock<Vec<(Locale, Catalog)>> = OnceLock::new();
-    let parsed = PARSED.get_or_init(|| {
-        CATALOGS
-            .iter()
-            .map(|(locale, source)| {
-                let catalog = Catalog::new(*locale, source).unwrap_or_else(|errors| {
-                    panic!("{locale} admin catalog: {}", errors.join("; "))
-                });
-                (*locale, catalog)
-            })
-            .collect()
-    });
-    parsed
-        .iter()
-        .find(|(candidate, _)| *candidate == locale)
-        .map(|(_, catalog)| catalog)
-        .expect("every locale has an admin catalog")
+    CATALOGS.get(locale)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    /// Every locale holds exactly the keys English holds, so nothing draws a bracketed key.
     #[test]
-    fn every_catalog_parses() {
-        for locale in Locale::ALL {
-            assert!(!messages(*locale).keys().is_empty(), "{locale}");
-        }
-    }
-
-    #[test]
-    fn every_message_is_translated() {
-        let english = messages(Locale::English);
-        for locale in Locale::ALL {
-            let missing = messages(*locale).missing_from(english);
-            assert!(
-                missing.is_empty(),
-                "{locale} has not caught up: {missing:?}"
-            );
-        }
-    }
-
-    #[test]
-    fn no_locale_invents_a_message_english_does_not_have() {
-        let english = messages(Locale::English);
-        for locale in Locale::ALL {
-            let extra = english.missing_from(messages(*locale));
-            assert!(
-                extra.is_empty(),
-                "{locale} has keys nothing asks for: {extra:?}"
-            );
+    fn every_catalog_holds_exactly_the_english_keys() {
+        if let Err(fault) = km_locale::check_catalogs(messages) {
+            panic!("{fault}");
         }
     }
 

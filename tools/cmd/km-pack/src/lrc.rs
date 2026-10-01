@@ -231,20 +231,14 @@ pub fn add_lrc_song(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use km_testkit::Scratch;
 
     const LINES: &[u8] = b"[ti:Song]\n[ar:Someone]\n[00:01.00]First line\n[00:30.00]Second line\n\
         [01:00.00]Third line\n[01:30.00]Fourth line\n";
 
-    fn folder(name: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!("km-pack-lrc-{name}-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&dir);
-        std::fs::create_dir_all(&dir).expect("folder");
-        dir
-    }
-
     #[test]
     fn an_lrc_file_is_a_song_with_the_mp3_of_its_stem() {
-        let dir = folder("pair");
+        let dir = Scratch::new("lrc-pair");
         std::fs::write(dir.join("Someone - Song.lrc"), LINES).expect("lyrics");
         assert!(matches!(
             read_lrc(&dir.join("Someone - Song.lrc")),
@@ -262,7 +256,7 @@ mod tests {
 
     #[test]
     fn an_mp3_plus_g_pair_is_that_song_and_its_lrc_is_refused() {
-        let dir = folder("taken");
+        let dir = Scratch::new("lrc-taken");
         std::fs::write(dir.join("Song.lrc"), LINES).expect("lyrics");
         std::fs::write(dir.join("Song.mp3"), b"audio").expect("audio");
         std::fs::write(dir.join("Song.cdg"), b"graphics").expect("graphics");

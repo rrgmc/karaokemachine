@@ -173,8 +173,10 @@ anyhow = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
+time = { workspace = true }
 
 [dev-dependencies]
+km-testkit = { workspace = true }
 # The synthetic fixtures, so the wiring can be tested without the corpus.
 km-song = { workspace = true, features = ["testing"] }
 # The in-memory machine, so `toggle_demo` can be driven through the real `Controller` trait. A real

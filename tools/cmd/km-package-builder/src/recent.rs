@@ -265,7 +265,7 @@ mod tests {
     #[test]
     fn a_list_survives_being_written_and_read_back() {
         let scratch = Scratch::new("round-trip");
-        let file = scratch.0.join("recent.json");
+        let file = scratch.join("recent.json");
 
         let mut written = Recent::at(Some(file.clone()));
         assert!(written.folders.is_empty(), "nothing has been written yet");

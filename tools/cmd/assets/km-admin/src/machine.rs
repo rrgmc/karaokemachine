@@ -38,8 +38,8 @@ use km_api::dto::{
     AdminPasswordDto, AdminPasswordRequest, AudioLevelRequest, AudioOutputRequest, AudioOutputsDto,
     BankDto, BankRequest, DebugDto, DemoDto, DevRemoteDto, DevRemoteRequest, LoginRequest,
     LoginResponse, MachineLocaleRequest, MachineNameRequest, PackagesDto, PerformanceDto,
-    PerformanceRequest, SetDemoDelayRequest, SetDemoRequest, SoundFontDto, SoundFontRequest,
-    SoundFontsDto, UninstallDto, UploadReportDto, WallpapersDto,
+    PerformanceRequest, SetDemoDelayRequest, SetDemoRequest, SettingsDto, SettingsPatchDto,
+    SoundFontDto, SoundFontRequest, SoundFontsDto, UninstallDto, UploadReportDto, WallpapersDto,
 };
 
 /// The machine's own default port, so "a bare host means 8177" is not written down twice.
@@ -103,6 +103,10 @@ pub enum Call<'a> {
     SetAudioOutput,
     /// `PUT` — move the level the chosen output runs at.
     SetAudioLevel,
+    /// `GET` — the playback settings, the lyric offset among them.
+    Settings,
+    /// `PUT` — change some of the playback settings. The Sound page moves only the lyric offset.
+    SetSettings,
     /// `PUT` — rename the machine.
     Rename,
     /// `GET` — what language the machine's television draws in.
@@ -209,6 +213,8 @@ impl<'a> Call<'a> {
         Call::AudioOutputs,
         Call::SetAudioOutput,
         Call::SetAudioLevel,
+        Call::Settings,
+        Call::SetSettings,
         Call::Rename,
         Call::Locale,
         Call::SetLocale,
@@ -239,6 +245,7 @@ impl<'a> Call<'a> {
             | Self::DevRemote
             | Self::Performance
             | Self::AudioOutputs
+            | Self::Settings
             | Self::Locale
             | Self::LoadedBank => reqwest::Method::GET,
             Self::Login
@@ -253,6 +260,7 @@ impl<'a> Call<'a> {
             | Self::SetPerformance
             | Self::SetAudioOutput
             | Self::SetAudioLevel
+            | Self::SetSettings
             | Self::Rename
             | Self::SetLocale
             | Self::SetPackageBank(_)
@@ -323,6 +331,9 @@ impl<'a> Call<'a> {
             Self::AudioOutputs => "/audio/outputs",
             Self::SetAudioOutput => "/admin/audio/output",
             Self::SetAudioLevel => "/admin/audio/level",
+            // **One path for both, and no password.** A setting is a performance knob, so reading
+            // and changing it are a guest's business alike.
+            Self::Settings | Self::SetSettings => "/settings",
             Self::Rename => "/admin/machine/name",
             // The read is public and the write is not, as everywhere else here. The write sits
             // under `/machine/` beside the name because both are facts an owner wrote down about
@@ -756,6 +767,21 @@ impl Client {
     pub async fn set_audio_level(&self, db: f32) -> Result<AudioOutputsDto, Refused> {
         self.json_with(Call::SetAudioLevel, &AudioLevelRequest { db })
             .await
+    }
+
+    /// The playback settings, which the Sound page reads the lyric offset from.
+    pub async fn settings(&self) -> Result<SettingsDto, Refused> {
+        self.get_json(Call::Settings).await
+    }
+
+    /// Moves the words on the machine's television against the audio. The machine clamps it and
+    /// answers with every setting as it now stands.
+    pub async fn set_lyric_offset(&self, ms: i16) -> Result<SettingsDto, Refused> {
+        let patch = SettingsPatchDto {
+            lyric_offset_ms: Some(ms),
+            ..SettingsPatchDto::default()
+        };
+        self.json_with(Call::SetSettings, &patch).await
     }
 
     /// Turns demo mode on or off, for this run or for good.

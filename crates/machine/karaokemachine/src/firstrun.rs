@@ -168,30 +168,11 @@ pub enum Notice {
 mod tests {
     use super::*;
 
-    /// A scratch directory that removes itself. The same shape `settings::tests::Scratch` uses, and
-    /// separate from it because a test module cannot reach another one's private helper.
-    struct Scratch(PathBuf);
+    use km_testkit::Scratch;
 
-    impl Scratch {
-        fn new(name: &str) -> Self {
-            let dir = std::env::temp_dir().join(format!(
-                "km-firstrun-{}-{name}-{:?}",
-                std::process::id(),
-                std::thread::current().id()
-            ));
-            std::fs::create_dir_all(&dir).expect("make the scratch directory");
-            Self(dir)
-        }
-
-        fn paths(&self) -> Paths {
-            Paths::rooted_at(&self.0)
-        }
-    }
-
-    impl Drop for Scratch {
-        fn drop(&mut self) {
-            let _ = std::fs::remove_dir_all(&self.0);
-        }
+    /// The machine's paths, rooted in a test's own scratch folder.
+    fn paths_in(scratch: &Scratch) -> Paths {
+        Paths::rooted_at(scratch.path())
     }
 
     #[test]
@@ -243,7 +224,7 @@ mod tests {
     #[test]
     fn a_request_round_trips_through_the_file() {
         let scratch = Scratch::new("round-trip");
-        let paths = scratch.paths();
+        let paths = paths_in(&scratch);
         assert!(read(&paths).is_none(), "nothing is requested yet");
 
         let request = Request::new("colombogmgs2");
@@ -259,7 +240,7 @@ mod tests {
     #[test]
     fn a_file_that_will_not_parse_is_removed() {
         let scratch = Scratch::new("bad-json");
-        let paths = scratch.paths();
+        let paths = paths_in(&scratch);
         std::fs::create_dir_all(&paths.config_dir).expect("the config directory");
         std::fs::write(file(&paths), "not json").expect("the bad file is written");
 
@@ -275,7 +256,7 @@ mod tests {
     #[test]
     fn a_readable_request_is_not_discarded() {
         let scratch = Scratch::new("good-json");
-        let paths = scratch.paths();
+        let paths = paths_in(&scratch);
         write(&paths, &Request::new(RECOMMENDED)).expect("the request is written");
 
         assert!(!discard_unreadable(&paths));
@@ -286,6 +267,6 @@ mod tests {
     #[test]
     fn no_request_is_not_an_unreadable_one() {
         let scratch = Scratch::new("absent");
-        assert!(!discard_unreadable(&scratch.paths()));
+        assert!(!discard_unreadable(&paths_in(&scratch)));
     }
 }

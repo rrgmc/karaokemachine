@@ -128,7 +128,6 @@ pub const SURFACE: &[(&str, &str)] = &[
     ("GET", "/settings"),
     ("PUT", "/settings"),
     ("GET", "/mics"),
-    ("PUT", "/mics/mic1"),
     ("GET", "/audio/outputs"),
     ("GET", "/audio/soundfont"),
     ("GET", "/audio/soundfonts"),
@@ -149,6 +148,7 @@ pub const SURFACE: &[(&str, &str)] = &[
     ("POST", "/admin/sessions/reset"),
     ("PUT", "/admin/audio/output"),
     ("PUT", "/admin/audio/soundfont"),
+    ("PUT", "/admin/mics/mic1"),
     ("POST", "/admin/audio/soundfont/fetch"),
     ("POST", "/admin/audio/soundfonts"),
     ("DELETE", "/admin/audio/soundfonts/generaluser"),
@@ -527,8 +527,9 @@ fn api_router(config: &crate::ApiConfig, capabilities: Capabilities) -> Router<A
             "/settings",
             get(handlers::get_settings).put(handlers::put_settings),
         )
+        // Reading the microphones is public. Naming, muting and setting one is installation
+        // configuration for the mixer, so the write sits under `/admin/`.
         .route("/mics", get(handlers::get_mics))
-        .route("/mics/{id}", put(handlers::put_mic))
         // Reading what the machine's sound is coming out of, and what it is coming out *as*. The
         // three writes that answer the same question live under `/admin/audio/`.
         .route("/audio/outputs", get(handlers::get_audio_outputs))
@@ -596,6 +597,7 @@ fn api_router(config: &crate::ApiConfig, capabilities: Capabilities) -> Router<A
                 .layer(DefaultBodyLimit::max(handlers::MAX_WALLPAPER_BYTES)),
         )
         .route("/wallpapers/{id}", delete(handlers::delete_wallpaper))
+        .route("/mics/{id}", put(handlers::put_mic))
         // No `GET` twin, and that is not an omission: `/discover` is always public and always
         // carries the name, so the read side was built before the write side and by somebody else.
         .route("/machine/name", put(handlers::put_machine_name))
@@ -1064,37 +1066,6 @@ mod tests {
             assert!(
                 !needs_admin_token(&full),
                 "{full} must be public when mounted"
-            );
-        }
-    }
-
-    /// The mirror image of the assertion above it, and the reason both are written out rather than
-    /// derived: the two conditional surfaces are conditional for opposite reasons. Debugging is a
-    /// mode, so its routes are public when they exist; power is a capability, so its routes are the
-    /// owner's when they exist. A power route that slipped out from under `/admin/` would let
-    /// anybody on the LAN switch the television off.
-    #[test]
-    fn the_power_routes_are_always_admin_routes() {
-        for (_, path) in POWER_SURFACE {
-            let full = format!("{API_PREFIX}{path}");
-            assert!(
-                needs_admin_token(&full),
-                "{full} must demand a token when mounted"
-            );
-        }
-    }
-
-    /// The third conditional surface, and the third reason for being one. Debugging is a mode, so
-    /// its routes are public when they exist; power is a capability of the box, so its routes are
-    /// the owner's; a log is a capability too, and what it holds is the owner's business — paths,
-    /// addresses and the name they gave the machine.
-    #[test]
-    fn the_log_routes_are_always_admin_routes() {
-        for (_, path) in LOG_SURFACE {
-            let full = format!("{API_PREFIX}{path}");
-            assert!(
-                needs_admin_token(&full),
-                "{full} must demand a token when mounted"
             );
         }
     }

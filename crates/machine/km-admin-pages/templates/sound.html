@@ -93,11 +93,32 @@
   {% endmatch %}
 </section>
 
+{# **The words on the television against the audio.** A television that processes its picture
+   shows it late, so the words run behind the music. This calibrates the room rather than a song,
+   which is why it is here and not on a singer's page. #}
+{% match lyric_offset_ms %}
+{% when Some with (ms) %}
+<section class="card">
+  <h2>{{ "lyric-offset-heading"|t }}</h2>
+  <p>{{ lyric_offset_said }}</p>
+  <p class="hint">{{ "lyric-offset-hint"|t }}</p>
+  {# A number box and not a slider: this page carries no script, and a slider shows no number
+     without one. #}
+  <form method="post" action="/admin/sound/lyric-offset" class="inline">
+    <input type="number" name="ms" aria-label="{{ "lyric-offset-choose"|t }}"
+           min="-{{ lyric_offset_reach }}" max="{{ lyric_offset_reach }}" step="10"
+           value="{{ ms }}" required>
+    <button type="submit">{{ "lyric-offset-save"|t }}</button>
+  </form>
+</section>
+{% when None %}
+{% endmatch %}
+
 <section class="card">
   <h2>{{ "bank-add"|t }}</h2>
   <p class="hint">{{ "bank-add-hint"|t }}</p>
   <form method="post" action="/admin/sound/upload" enctype="multipart/form-data">
-    <input type="file" name="file" accept="{{ accepts }}" required>
+    <input type="file" name="file" accept="{{ accepts }}" aria-label="{{ "bank-add"|t }}" required>
     <button type="submit">{{ "action-add"|t }}</button>
   </form>
 </section>

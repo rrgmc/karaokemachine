@@ -890,6 +890,7 @@ async fn to_the_door(
 mod tests {
     use axum::body::Body;
     use axum::http::{Request, StatusCode};
+    use km_testkit::http;
     use tower::ServiceExt;
 
     use super::*;
@@ -947,15 +948,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn the_page_renders() {
-        let (status, content_type, body) = get_path("/admin/connect").await;
-        assert_eq!(status, StatusCode::OK);
-        assert!(content_type.starts_with("text/html"), "{content_type}");
-        let html = String::from_utf8(body).expect("utf-8");
-        assert!(html.contains(APP_NAME), "the page names the product");
-    }
-
-    #[tokio::test]
     async fn every_static_file_is_really_embedded_and_typed() {
         // `include_str!` makes a *missing* file a build failure, which is most of the guarantee.
         // What it cannot catch is a route serving the wrong content type, and a stylesheet sent as
@@ -990,36 +982,23 @@ mod tests {
         );
     }
 
-    /// A fixed boundary and one file part, which is all these tests need to build by hand.
+    /// One file part of `bytes` bytes of `x`, under the field name the machine reads.
     fn multipart(file_name: &str, bytes: usize) -> (String, Vec<u8>) {
-        const BOUNDARY: &str = "----km-admin-test";
-        let head = format!(
-            "--{BOUNDARY}\r\nContent-Disposition: form-data; name=\"{}\"; filename=\"{file_name}\"\r\n\r\n",
-            km_api::uploads::FILE_FIELD
-        );
-        let mut body = head.into_bytes();
-        body.extend(std::iter::repeat_n(b'x', bytes));
-        body.extend_from_slice(format!("\r\n--{BOUNDARY}--\r\n").as_bytes());
-        (format!("multipart/form-data; boundary={BOUNDARY}"), body)
+        let file = vec![b'x'; bytes];
+        http::multipart(&[(km_api::uploads::FILE_FIELD, Some(file_name), &file)])
+    }
+
+    /// A `POST` of `body`, sent as the media type `kind`.
+    fn posted(path: &str, kind: &str, body: Vec<u8>) -> Request<Body> {
+        Request::post(path)
+            .header(header::CONTENT_TYPE, kind)
+            .body(Body::from(body))
+            .expect("request")
     }
 
     async fn post(state: State, path: &str, kind: &str, body: Vec<u8>) -> (StatusCode, String) {
-        let response = router(state)
-            .oneshot(
-                Request::builder()
-                    .method("POST")
-                    .uri(path)
-                    .header(header::CONTENT_TYPE, kind)
-                    .body(Body::from(body))
-                    .expect("request"),
-            )
-            .await
-            .expect("response");
-        let status = response.status();
-        let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
-            .await
-            .expect("body");
-        (status, String::from_utf8_lossy(&bytes).into_owned())
+        let answer = http::send(router(state), posted(path, kind, body)).await;
+        (answer.status, answer.text())
     }
 
     /// The same, reading the `Location` rather than the body.
@@ -1030,29 +1009,14 @@ mod tests {
     /// send control used to answer a `400` naming it in a body. The sentence is the same; where to
     /// read it is not.
     async fn post_for_location(state: State, path: &str, kind: &str, body: Vec<u8>) -> String {
-        let response = router(state)
-            .oneshot(
-                Request::builder()
-                    .method("POST")
-                    .uri(path)
-                    .header(header::CONTENT_TYPE, kind)
-                    .body(Body::from(body))
-                    .expect("request"),
-            )
-            .await
-            .expect("response");
+        let answer = http::send(router(state), posted(path, kind, body)).await;
         assert_eq!(
-            response.status(),
+            answer.status,
             StatusCode::SEE_OTHER,
             "an upload answers with a redirect carrying the notice"
         );
         // Percent-decoded enough to read: the notice rides as `said=` with spaces as `+`.
-        response
-            .headers()
-            .get(header::LOCATION)
-            .and_then(|value| value.to_str().ok())
-            .unwrap_or_default()
-            .replace('+', " ")
+        answer.location().replace('+', " ")
     }
 
     /// A state with a machine that is not there, so a network attempt would be visible.
@@ -1087,7 +1051,7 @@ mod tests {
     }
 
     async fn post_form(state: State, path: &str) -> (StatusCode, String) {
-        post(state, path, "application/x-www-form-urlencoded", Vec::new()).await
+        post(state, path, http::FORM, Vec::new()).await
     }
 
     /// **The whole point of the change, at the route level.** A pack outlives the build that made

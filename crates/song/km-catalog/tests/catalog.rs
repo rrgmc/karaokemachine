@@ -4,13 +4,15 @@
 //! most for FTS5, which is a compile-time option in SQLite — a query that looks right is no evidence
 //! the index exists.
 
-use std::path::PathBuf;
+mod common;
 
+use common::{build_package, meta};
 use km_catalog::{Library, LibraryError, SearchQuery, SongCode, SortOrder};
 use km_kmpkg::{
     BreakdownRecord, MelodyRecord, Package, PackageBuilder, PackageMeta, SongEntry,
     SuitabilityRecord,
 };
+use km_testkit::Scratch;
 
 const NOW: &str = "2026-08-23T10:00:00Z";
 
@@ -20,24 +22,6 @@ const NOW: &str = "2026-08-23T10:00:00Z";
 const VOL1: &str = "1f4a9c8e2b7d0356";
 const VOL2: &str = "a1b2c3d4e5f60789";
 const VOL3: &str = "0987f6e5d4c3b2a1";
-
-fn temp_dir(name: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("km-catalog-tests-{name}"));
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).expect("temp dir");
-    dir
-}
-
-fn meta(id: &str) -> PackageMeta {
-    PackageMeta {
-        id: id.to_owned(),
-        name: format!("Package {id}"),
-        version: "1.0.0".to_owned(),
-        publisher: None,
-        created: None,
-        volume: None,
-    }
-}
 
 fn song(number: u32, title: &str, artist: Option<&str>) -> SongEntry {
     SongEntry {
@@ -82,21 +66,9 @@ fn rated(mut entry: SongEntry, value: u8, melody: Option<u8>) -> SongEntry {
     entry
 }
 
-/// Builds a package on disk with the given songs, each with distinct content.
-fn build_package(dir: &std::path::Path, id: &str, songs: Vec<SongEntry>) -> Package {
-    let path = dir.join(format!("{id}.kmpkg"));
-    let mut builder = PackageBuilder::new(meta(id));
-    for entry in songs {
-        let bytes = format!("midi bytes for {}", entry.number).into_bytes();
-        builder.add(entry, bytes).expect("add");
-    }
-    builder.write(&path).expect("write");
-    Package::open(&path).expect("open")
-}
-
 #[test]
 fn a_package_installs_and_its_songs_are_found_by_number() {
-    let dir = temp_dir("install");
+    let dir = Scratch::new("catalog-install");
     let package = build_package(
         &dir,
         VOL1,
@@ -129,12 +101,11 @@ fn a_package_installs_and_its_songs_are_found_by_number() {
             .expect("query")
             .is_none()
     );
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 #[test]
 fn full_text_search_works_which_proves_fts5_is_compiled_in() {
-    let dir = temp_dir("fts");
+    let dir = Scratch::new("catalog-fts");
     let package = build_package(
         &dir,
         VOL1,
@@ -159,13 +130,11 @@ fn full_text_search_works_which_proves_fts5_is_compiled_in() {
         .expect("search");
     assert_eq!(results.len(), 1);
     assert_eq!(results[0].number, SongCode::new(1_003));
-
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 #[test]
 fn a_partial_word_finds_the_song() {
-    let dir = temp_dir("prefix");
+    let dir = Scratch::new("catalog-prefix");
     let package = build_package(&dir, VOL1, vec![song(1, "Yesterday", Some("The Beatles"))]);
     let mut library = Library::open_in_memory().expect("open");
     library.install(&package, 1, NOW).expect("install");
@@ -175,12 +144,11 @@ fn a_partial_word_finds_the_song() {
         .search(&SearchQuery::text("yester"))
         .expect("search");
     assert_eq!(results.len(), 1, "a prefix should match");
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 #[test]
 fn search_ignores_accents_which_matters_for_this_corpus() {
-    let dir = temp_dir("accents");
+    let dir = Scratch::new("catalog-accents");
     let package = build_package(
         &dir,
         VOL1,
@@ -214,13 +182,11 @@ fn search_ignores_accents_which_matters_for_this_corpus() {
         .search(&SearchQuery::text("coração"))
         .expect("search");
     assert_eq!(results.len(), 1);
-
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 #[test]
 fn search_text_that_is_all_operators_does_not_error() {
-    let dir = temp_dir("operators");
+    let dir = Scratch::new("catalog-operators");
     let package = build_package(&dir, VOL1, vec![song(1, "AC/DC Live", Some("AC/DC"))]);
     let mut library = Library::open_in_memory().expect("open");
     library.install(&package, 1, NOW).expect("install");
@@ -232,7 +198,6 @@ fn search_text_that_is_all_operators_does_not_error() {
         let results = library.search(&SearchQuery::text(query));
         assert!(results.is_ok(), "{query:?} should not error: {results:?}");
     }
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 #[test]
@@ -240,7 +205,7 @@ fn two_packages_that_number_from_the_same_slot_do_not_collide() {
     // The requirement, stated as a test, and it is the one this whole arrangement exists for: two
     // packages both number a song 500, and both live in one catalog with nobody renumbering
     // anything, because the machine put them in different thousands.
-    let dir = temp_dir("banks");
+    let dir = Scratch::new("catalog-banks");
     let first = build_package(&dir, VOL1, vec![song(500, "First Claim", Some("A"))]);
     let second = build_package(&dir, VOL2, vec![song(500, "Second Claim", Some("B"))]);
 
@@ -267,12 +232,11 @@ fn two_packages_that_number_from_the_same_slot_do_not_collide() {
             .title,
         "Second Claim"
     );
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 #[test]
 fn two_packages_cannot_take_the_same_bank() {
-    let dir = temp_dir("bank-taken");
+    let dir = Scratch::new("catalog-bank-taken");
     let first = build_package(&dir, VOL1, vec![song(1, "One", Some("A"))]);
     let second = build_package(&dir, VOL2, vec![song(2, "Two", Some("B"))]);
 
@@ -289,12 +253,11 @@ fn two_packages_cannot_take_the_same_bank() {
         other => panic!("expected the bank to be refused, got {other:?}"),
     }
     assert_eq!(library.song_count().expect("count"), 1);
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 #[test]
 fn a_bank_above_the_last_one_is_refused() {
-    let dir = temp_dir("bad-bank");
+    let dir = Scratch::new("catalog-bad-bank");
     let package = build_package(&dir, VOL1, vec![song(1, "One", Some("A"))]);
     let mut library = Library::open_in_memory().expect("open");
 
@@ -303,7 +266,6 @@ fn a_bank_above_the_last_one_is_refused() {
         other => panic!("expected the bank to be refused, got {other:?}"),
     }
     assert_eq!(library.song_count().expect("count"), 0);
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// Bank 0 is the machine's own, and the catalog is where that is an invariant rather than a check.
@@ -312,7 +274,7 @@ fn a_bank_above_the_last_one_is_refused() {
 /// already installed may be moved there.
 #[test]
 fn bank_zero_holds_no_package() {
-    let dir = temp_dir("reserved-bank");
+    let dir = Scratch::new("catalog-reserved-bank");
     let package = build_package(&dir, VOL1, vec![song(1, "One", Some("A"))]);
     let mut library = Library::open_in_memory().expect("open");
 
@@ -328,12 +290,11 @@ fn bank_zero_holds_no_package() {
         Err(LibraryError::BankReserved)
     ));
     assert_eq!(library.bank_of(VOL1).expect("bank"), Some(5));
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 #[test]
 fn moving_a_package_to_another_bank_re_keys_every_song_in_it() {
-    let dir = temp_dir("re-bank");
+    let dir = Scratch::new("catalog-re-bank");
     let package = build_package(
         &dir,
         VOL1,
@@ -364,12 +325,11 @@ fn moving_a_package_to_another_bank_re_keys_every_song_in_it() {
     assert_eq!(library.bank_of(VOL1).expect("bank"), Some(4));
     // A mirror has to be told: every code in the package just changed.
     assert!(library.catalog_version().expect("version") > before);
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 #[test]
 fn reinstalling_the_same_package_replaces_it_rather_than_colliding() {
-    let dir = temp_dir("upgrade");
+    let dir = Scratch::new("catalog-upgrade");
     let v1 = build_package(&dir, VOL1, vec![song(1, "Old Title", Some("A"))]);
 
     let mut library = Library::open_in_memory().expect("open");
@@ -403,12 +363,11 @@ fn reinstalling_the_same_package_replaces_it_rather_than_colliding() {
             .title,
         "New Title"
     );
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 #[test]
 fn uninstalling_removes_the_songs_and_the_search_index_with_them() {
-    let dir = temp_dir("uninstall");
+    let dir = Scratch::new("catalog-uninstall");
     let package = build_package(
         &dir,
         VOL1,
@@ -438,12 +397,11 @@ fn uninstalling_removes_the_songs_and_the_search_index_with_them() {
             .is_empty()
     );
     assert!(library.packages().expect("packages").is_empty());
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 #[test]
 fn the_suitability_filter_and_ordering_work() {
-    let dir = temp_dir("suitability");
+    let dir = Scratch::new("catalog-suitability");
     let package = build_package(
         &dir,
         VOL1,
@@ -490,14 +448,12 @@ fn the_suitability_filter_and_ordering_work() {
         .expect("search");
     assert_eq!(with_melody.len(), 2);
     assert!(with_melody.iter().all(|s| s.melody_channel.is_some()));
-
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// What the machine's demo mode draws on: one arbitrary song, and a different one next time.
 #[test]
 fn the_random_order_shuffles_and_still_honors_the_filter() {
-    let dir = temp_dir("random");
+    let dir = Scratch::new("catalog-random");
     // Twenty songs, so "every draw returned the same one" is a one-in-a-huge-number coincidence
     // rather than something four songs could produce by luck.
     let songs: Vec<_> = (1..=20)
@@ -542,13 +498,11 @@ fn the_random_order_shuffles_and_still_honors_the_filter() {
         seen.len() > 1,
         "forty draws returned only {seen:?}; the order is not random"
     );
-
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 #[test]
 fn the_artist_filter_matches_a_substring_case_insensitively() {
-    let dir = temp_dir("artist");
+    let dir = Scratch::new("catalog-artist");
     let package = build_package(
         &dir,
         VOL1,
@@ -568,7 +522,6 @@ fn the_artist_filter_matches_a_substring_case_insensitively() {
         })
         .expect("search");
     assert_eq!(results.len(), 2);
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// The language filter matches exactly, where the artist filter above matches a substring.
@@ -578,7 +531,7 @@ fn the_artist_filter_matches_a_substring_case_insensitively() {
 /// leave no way to ask for exactly `zh`, and would be the only route to a wrong answer here.
 #[test]
 fn the_language_filter_matches_a_whole_code_and_nothing_else() {
-    let dir = temp_dir("language");
+    let dir = Scratch::new("catalog-language");
     let mut brazilian = song(1, "Corcovado", Some("Tom Jobim"));
     brazilian.language = Some("pt".to_owned());
     let mut japanese = song(2, "Sakura", None);
@@ -618,13 +571,11 @@ fn the_language_filter_matches_a_whole_code_and_nothing_else() {
         })
         .expect("search");
     assert_eq!(unfiltered.len(), 3, "including the one with no language");
-
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 #[test]
 fn paging_returns_distinct_pages_that_cover_everything() {
-    let dir = temp_dir("paging");
+    let dir = Scratch::new("catalog-paging");
     let songs: Vec<SongEntry> = (1..=25)
         .map(|n| song(n, &format!("Song {n:02}"), Some("A")))
         .collect();
@@ -655,12 +606,11 @@ fn paging_returns_distinct_pages_that_cover_everything() {
     all.sort_unstable();
     all.dedup();
     assert_eq!(all.len(), 25, "pages must not overlap or skip");
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 #[test]
 fn duplicate_content_across_packages_is_reported_but_not_refused() {
-    let dir = temp_dir("duplicates");
+    let dir = Scratch::new("catalog-duplicates");
 
     // Two packages containing the same recording under different numbers -- exactly what building a
     // catalog from a corpus full of duplicates produces.
@@ -706,13 +656,11 @@ fn duplicate_content_across_packages_is_reported_but_not_refused() {
     let groups = library.duplicate_content().expect("scan");
     assert_eq!(groups.len(), 1);
     assert_eq!(groups[0], vec![SongCode::new(1_001), SongCode::new(2_002)]);
-
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 #[test]
 fn a_catalog_persists_across_reopening() {
-    let dir = temp_dir("persist");
+    let dir = Scratch::new("catalog-persist");
     let db = dir.join("library.sqlite");
     let package = build_package(&dir, VOL1, vec![song(42, "Persistent", Some("A"))]);
 
@@ -736,13 +684,11 @@ fn a_catalog_persists_across_reopening() {
         .expect("query")
         .expect("path");
     assert!(path.ends_with(&format!("{VOL1}.kmpkg")), "got {path}");
-
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 #[test]
 fn the_recorded_path_leads_back_to_playable_midi() {
-    let dir = temp_dir("readback");
+    let dir = Scratch::new("catalog-readback");
     let package = build_package(&dir, VOL1, vec![song(7, "Readable", Some("A"))]);
     let mut library = Library::open_in_memory().expect("open");
     library.install(&package, 1, NOW).expect("install");
@@ -755,13 +701,11 @@ fn the_recorded_path_leads_back_to_playable_midi() {
     let reopened = Package::open(&path).expect("reopen from the catalog path");
     let midi = reopened.read_song(7).expect("read");
     assert_eq!(midi, b"midi bytes for 7");
-
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 #[test]
 fn a_songs_first_lines_travel_from_the_package_into_the_catalog() {
-    let dir = temp_dir("preview");
+    let dir = Scratch::new("catalog-preview");
     let mut with_words = song(1, "Tempo Perdido", Some("Legião Urbana"));
     with_words.lyric_preview = vec![
         "Tempo perdido".to_owned(),
@@ -796,13 +740,11 @@ fn a_songs_first_lines_travel_from_the_package_into_the_catalog() {
         .expect("query")
         .expect("song 10002");
     assert!(plain.lyric_preview.is_empty());
-
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 #[test]
 fn installed_packages_are_listed_with_their_details() {
-    let dir = temp_dir("listing");
+    let dir = Scratch::new("catalog-listing");
     let package = build_package(&dir, VOL1, vec![song(1, "A", None), song(2, "B", None)]);
     let mut library = Library::open_in_memory().expect("open");
     library.install(&package, 1, NOW).expect("install");
@@ -812,13 +754,12 @@ fn installed_packages_are_listed_with_their_details() {
     assert_eq!(packages[0].id, VOL1);
     assert_eq!(packages[0].song_count, 2);
     assert_eq!(packages[0].installed_at, NOW);
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// The header's flags word reaches the listing whole, with a bit this build has no name for kept.
 #[test]
 fn an_installed_package_keeps_its_flags_word() {
-    let dir = temp_dir("flags");
+    let dir = Scratch::new("catalog-flags");
     let path = dir.join("flagged.kmpkg");
     let flags = km_kmpkg::PackageFlags::UNCURATED.with(km_kmpkg::PackageFlags::from_bits(1 << 9));
     let mut builder = PackageBuilder::new(meta(VOL1));
@@ -832,13 +773,12 @@ fn an_installed_package_keeps_its_flags_word() {
     let mut library = Library::open_in_memory().expect("open");
     library.install(&package, 1, NOW).expect("install");
     assert_eq!(library.packages().expect("packages")[0].flags, flags);
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// A catalog written before the flags column is rebuilt, so no installed package reads as unflagged.
 #[test]
 fn a_catalog_without_the_flags_column_is_dropped_and_rebuilt() {
-    let dir = temp_dir("migrate-flags");
+    let dir = Scratch::new("catalog-migrate-flags");
     let path = dir.join("library.sqlite");
     let package = build_package(&dir, VOL1, vec![song(1, "A", None)]);
     {
@@ -852,7 +792,6 @@ fn a_catalog_without_the_flags_column_is_dropped_and_rebuilt() {
 
     let library = Library::open(&path).expect("an older catalog still opens");
     assert!(library.packages().expect("packages").is_empty());
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// A catalog keyed by number alone is thrown away rather than converted.
@@ -863,7 +802,7 @@ fn a_catalog_without_the_flags_column_is_dropped_and_rebuilt() {
 /// from a package fails loudly rather than quietly losing it.
 #[test]
 fn a_catalog_from_before_song_codes_is_dropped_and_rebuilt() {
-    let dir = temp_dir("migrate-codes");
+    let dir = Scratch::new("catalog-migrate-codes");
     let path = dir.join("library.sqlite");
 
     {
@@ -909,7 +848,6 @@ fn a_catalog_from_before_song_codes_is_dropped_and_rebuilt() {
     assert!(library.packages().expect("packages").is_empty());
     // And the rebuilt catalog is usable rather than merely empty.
     assert!(library.song(SongCode::new(42)).expect("query").is_none());
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// The twin of the test above, for a catalog with `songs.prefix`.
@@ -919,7 +857,7 @@ fn a_catalog_from_before_song_codes_is_dropped_and_rebuilt() {
 /// offline remote answering every browse with `no such column`.
 #[test]
 fn a_catalog_from_the_prefix_era_is_dropped_and_rebuilt() {
-    let dir = temp_dir("migrate-banks");
+    let dir = Scratch::new("catalog-migrate-banks");
     let path = dir.join("library.sqlite");
 
     {
@@ -980,7 +918,6 @@ fn a_catalog_from_the_prefix_era_is_dropped_and_rebuilt() {
             .title,
         "Dialled As 3500"
     );
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// A measurement in a manifest reaches the catalog, and the peak beside it deliberately does not.
@@ -990,7 +927,7 @@ fn a_catalog_from_the_prefix_era_is_dropped_and_rebuilt() {
 /// produces. The media is a stub because the catalog never opens it — installing reads the manifest.
 #[test]
 fn a_measured_song_carries_its_loudness_into_the_catalog() {
-    let dir = temp_dir("install-loudness");
+    let dir = Scratch::new("catalog-install-loudness");
     let source = dir.join("stub.mp4");
     std::fs::write(&source, b"not really a video, and nothing here opens it").expect("stub");
 
@@ -1022,8 +959,6 @@ fn a_measured_song_carries_its_loudness_into_the_catalog() {
         .loudness_lufs
         .expect("the measurement came across");
     assert!((lufs - (-5.5)).abs() < 1e-4, "got {lufs}");
-
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// The twin of `km_remote_core`'s `songs_sort_by_a_folded_key_rather_than_by_the_raw_title`,
@@ -1032,7 +967,7 @@ fn a_measured_song_carries_its_loudness_into_the_catalog() {
 /// accented title came after `Z`, and `É o amor` was last in a catalog of eleven thousand songs.
 #[test]
 fn songs_sort_by_a_folded_key_rather_than_by_the_raw_title() {
-    let dir = temp_dir("sort-title");
+    let dir = Scratch::new("catalog-sort-title");
     let package = build_package(
         &dir,
         VOL1,
@@ -1061,7 +996,6 @@ fn songs_sort_by_a_folded_key_rather_than_by_the_raw_title() {
         titles,
         ["Águas de Março", "apple", "Banana", "É o amor", "Zebra"]
     );
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// Two songs sharing a title are two recordings, so the performer decides between them.
@@ -1071,7 +1005,7 @@ fn songs_sort_by_a_folded_key_rather_than_by_the_raw_title() {
 /// `sort_artist` term gets wrong — an empty fold sorts first.
 #[test]
 fn songs_sharing_a_title_sort_by_performer() {
-    let dir = temp_dir("sort-title-artist");
+    let dir = Scratch::new("catalog-sort-title-artist");
     let package = build_package(
         &dir,
         VOL1,
@@ -1104,12 +1038,11 @@ fn songs_sharing_a_title_sort_by_performer() {
             ("Gotta Tell You".to_owned(), Some("Aaron".to_owned())),
         ]
     );
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 #[test]
 fn artists_sort_by_a_folded_key_rather_than_by_the_raw_name() {
-    let dir = temp_dir("sort-artist");
+    let dir = Scratch::new("catalog-sort-artist");
     let package = build_package(
         &dir,
         VOL1,
@@ -1133,7 +1066,6 @@ fn artists_sort_by_a_folded_key_rather_than_by_the_raw_name() {
         .filter_map(|s| s.artist)
         .collect();
     assert_eq!(artists, ["Ângela", "Bebel", "Zeca"]);
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// `artist COLLATE NOCASE` sorted a song with no artist first, because SQLite sorts NULL first.
@@ -1141,7 +1073,7 @@ fn artists_sort_by_a_folded_key_rather_than_by_the_raw_name() {
 /// first too — so the change is invisible here, which is exactly the property worth pinning.
 #[test]
 fn a_song_with_no_artist_still_sorts_before_the_named_ones() {
-    let dir = temp_dir("sort-artist-none");
+    let dir = Scratch::new("catalog-sort-artist-none");
     let package = build_package(
         &dir,
         VOL1,
@@ -1165,7 +1097,6 @@ fn a_song_with_no_artist_still_sorts_before_the_named_ones() {
         .map(|s| s.title)
         .collect();
     assert_eq!(titles, ["Two", "One", "Three"]);
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 fn tagged(number: u32, title: &str, tags: &[&str]) -> SongEntry {
@@ -1184,7 +1115,7 @@ fn tagged(number: u32, title: &str, tags: &[&str]) -> SongEntry {
 /// An empty list is still no filter, which is the case a bare `any` gets wrong.
 #[test]
 fn two_tags_widen_to_the_songs_that_carry_either() {
-    let dir = temp_dir("tag-or");
+    let dir = Scratch::new("catalog-tag-or");
     let package = build_package(
         &dir,
         VOL1,
@@ -1240,8 +1171,6 @@ fn two_tags_widen_to_the_songs_that_carry_either() {
         .expect("query")
         .expect("1");
     assert_eq!(found.tags, ["brasil", "rock"]);
-
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// A package rebuilt with **only its tags changed** moves `catalog_version`.
@@ -1253,7 +1182,7 @@ fn two_tags_widen_to_the_songs_that_carry_either() {
 /// above it, and it fails without the column.
 #[test]
 fn a_package_whose_only_change_is_its_tags_moves_the_catalog_version() {
-    let dir = temp_dir("tag-digest");
+    let dir = Scratch::new("catalog-tag-digest");
 
     let mut library = Library::open_in_memory().expect("open");
     let plain = build_package(&dir, VOL1, vec![tagged(1, "One", &[])]);
@@ -1276,8 +1205,6 @@ fn a_package_whose_only_change_is_its_tags_moves_the_catalog_version() {
         library.catalog_version().expect("version") > before,
         "a tag change has to reach the phones"
     );
-
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// A song whose words are turned off reaches the machine saying so, and tells the phones.
@@ -1287,7 +1214,7 @@ fn a_package_whose_only_change_is_its_tags_moves_the_catalog_version() {
 /// because a package rebuilt for nothing but this really is a different package to look at.
 #[test]
 fn a_song_whose_words_are_turned_off_survives_the_install_and_moves_the_version() {
-    let dir = temp_dir("lyrics-hidden");
+    let dir = Scratch::new("catalog-lyrics-hidden");
 
     let mut library = Library::open_in_memory().expect("open");
     let plain = build_package(&dir, VOL1, vec![song(1, "One", Some("A"))]);
@@ -1320,14 +1247,12 @@ fn a_song_whose_words_are_turned_off_survives_the_install_and_moves_the_version(
         library.catalog_version().expect("version") > before,
         "what a song puts on a television is part of the package, so the mirrors re-read"
     );
-
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// A song's corrections reach the catalog and come back as they went in.
 #[test]
 fn a_fix_list_survives_the_round_trip_through_the_catalog() {
-    let dir = temp_dir("fixes-round-trip");
+    let dir = Scratch::new("catalog-fixes-round-trip");
     let mut entry = song(1, "Corrected", None);
     entry.fixes = vec![
         km_fixes::Fix::IgnoreBankSelect { channel: 4 },
@@ -1347,14 +1272,12 @@ fn a_fix_list_survives_the_round_trip_through_the_catalog() {
     let resolved = km_fixes::resolve(&stored.fixes);
     assert!(resolved.ignore_bank[4]);
     assert!(resolved.mute[2]);
-
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// A song with nothing wrong stores an empty list rather than a NULL nobody can read.
 #[test]
 fn a_song_with_no_corrections_reads_back_as_an_empty_list() {
-    let dir = temp_dir("fixes-empty");
+    let dir = Scratch::new("catalog-fixes-empty");
     let package = build_package(&dir, VOL1, vec![song(1, "Plain", None)]);
     let mut library = Library::open_in_memory().expect("open");
     library.install(&package, 1, NOW).expect("install");
@@ -1365,6 +1288,4 @@ fn a_song_with_no_corrections_reads_back_as_an_empty_list() {
         .expect("the song is there");
     assert!(stored.fixes.is_empty());
     assert!(km_fixes::resolve(&stored.fixes).is_empty());
-
-    let _ = std::fs::remove_dir_all(&dir);
 }

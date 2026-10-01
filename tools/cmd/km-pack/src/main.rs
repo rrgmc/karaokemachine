@@ -1838,13 +1838,8 @@ mod tests {
     /// they do.
     #[test]
     fn a_scanned_folder_does_not_name_the_package() {
-        let dir = std::env::temp_dir().join(format!(
-            "km-pack-spec-id-{}-{:?}",
-            std::process::id(),
-            std::thread::current().id()
-        ));
+        let dir = km_testkit::Scratch::new("spec-id");
         let songs = dir.join("Festa-Ana-2024");
-        let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&songs).expect("a scratch corpus");
         std::fs::write(songs.join("a.kar"), km_song::testing::soft_karaoke()).expect("a song");
 
@@ -1876,8 +1871,6 @@ mod tests {
         );
         // Not merely different from the folder: nothing built from this description may carry it.
         assert!(!written.contains("Festa-Ana-2024\n  id"), "got {written}");
-
-        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// An id somebody types is refused where they typed it.
