@@ -2458,6 +2458,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "km-folders"
+version = "1.18.0"
+dependencies = [
+ "directories",
+ "form_urlencoded",
+ "km-testkit",
+]
+
+[[package]]
 name = "km-kmpkg"
 version = "1.18.0"
 dependencies = [
@@ -2594,6 +2603,7 @@ dependencies = [
  "km-console",
  "km-ecapplog",
  "km-fixes",
+ "km-folders",
  "km-kmpkg",
  "km-langguess",
  "km-locale",

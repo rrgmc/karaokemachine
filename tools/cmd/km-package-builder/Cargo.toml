@@ -87,6 +87,8 @@ km-console = { workspace = true }
 # in this crate until the machine became the third caller; the crate's own header carries the rule
 # that promoted it, and the Windows quoting bug that was found here and had to be fixed in two files.
 km-osopen = { workspace = true }
+# The Open page's folder listing, shared with `km-package-simple`. The indexed badge stays here.
+km-folders = { workspace = true }
 # Where the log goes when nothing is reading, which is the other half of the `km-console` note above:
 # a double-clicked window has no console, so `--log-file` puts the same stream in this tool's data
 # folder instead of discarding it.

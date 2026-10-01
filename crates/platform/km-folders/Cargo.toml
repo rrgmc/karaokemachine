@@ -1,0 +1,21 @@
+[package]
+name = "km-folders"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+description = "One page of the folders under a folder, for a folder picker drawn inside a web page."
+
+[lints]
+workspace = true
+
+# The listing and nothing about what a caller wants to say beside a row. The package builder adds a
+# badge for an indexed corpus; the simple package builder adds nothing.
+[dependencies]
+directories = { workspace = true }
+form_urlencoded = { workspace = true }
+
+[dev-dependencies]
+km-testkit = { workspace = true }
