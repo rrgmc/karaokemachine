@@ -722,8 +722,8 @@ reading `UninstallString` back by hand. Inno has an unbounded string type and
 three built-ins. MSIX cannot be installed unsigned at all, and MSI's per-user story buys
 group-policy deployment nobody asked for.
 
-**What it deliberately does not do**: no MSI, no MSIX, no auto-update. The release build signs it,
-and [`Signing a Windows release`](#signing-a-windows-release) says how.
+**What it deliberately does not do**: no MSI, no MSIX, no auto-update. It is unsigned, so SmartScreen
+warns on a recipient's first run. [`Signing a Windows release`](#signing-a-windows-release) says why.
 
 ## What an installed build contains
 
@@ -1214,19 +1214,28 @@ this later, then goes unread with it.
 weather. The uninstaller is the opposite case and still says so, because somebody runs it by hand
 and can be surprised by it.
 
-**Windows signs elsewhere.** Its certificate belongs to a signing service that CI calls, so the two
-platforms' signing stories are separate.
+**Windows is separate.** A Windows release is unsigned, and only a signing service that CI calls
+could sign it. [`Signing a Windows release`](#signing-a-windows-release) says why.
 
 ## Signing a Windows release
 
-**The release workflow signs both Windows setup programs and every program they install through
-SignPath Foundation.** SignPath Foundation gives free code signing to open-source projects. The
-publisher Windows names is *SignPath Foundation*, not the project's author.
+**A Windows release is unsigned.** SmartScreen shows *"Windows protected your PC"* on a recipient's
+first run, and they click *More info → Run anyway*. The release workflow can sign through SignPath,
+and it signs nothing until a SignPath token is set.
 
-**SignPath, because the cheaper certificates are not open to this project.** A Microsoft Store
-listing signs only an MSIX that the Store delivers, and the release page offers an Inno setup.
-Azure Artifact Signing accepts an individual only in the USA and Canada. A purchased certificate
-costs a yearly fee, and its key sits on a token or in a cloud HSM that CI reaches with difficulty.
+**No free certificate is open to this project.** SignPath Foundation signs free only for a project
+with wide public recognition, such as stars, forks and outside articles. It declined this project on
+that ground, and it reviews a new application once that recognition exists. Azure Artifact Signing
+accepts an individual only in the USA and Canada. A Microsoft Store listing signs only an MSIX that
+the Store delivers, and the release page offers an Inno setup.
+
+**A purchased certificate is a yearly fee, so it is a choice and not a build step.** The cheapest is
+Certum's open-source certificate, at about €50 a year. It names the author's legal name as the
+publisher, and CI reaches its key only through tools that Certum does not support. A paid SignPath
+plan costs about $500 a year and needs no change to the workflow.
+
+**The SignPath wiring stays.** A Foundation acceptance or a paid plan then needs only the token and
+two repository variables. The rest of this entry says what the workflow does once they are set.
 
 **Two signing rounds, because Inno packs the programs before the setup exists.** The job stages
 both payloads and sends our own `.exe` files to SignPath. It compiles the setups from the signed
@@ -1237,7 +1246,7 @@ as the file they downloaded.
 and SignPath reads its own copy. A program that a build stops producing fails the request. A new
 program is not signed until somebody names it there.
 
-**Three things stay unsigned:**
+**Three things stay unsigned even then:**
 
 - **the four ffmpeg DLLs**, because they are not this project's code;
 - **the Inno uninstaller**, because Inno signs it only through a signer on the build machine;
@@ -1247,17 +1256,16 @@ program is not signed until somebody names it there.
 SignPath, so a Windows job can wait up to an hour per round. The policy is the repository variable
 `SIGNPATH_SIGNING_POLICY`. `test-signing` uses a test certificate that no Windows trusts.
 
-**Without `SIGNPATH_API_TOKEN` the job builds unsigned setups and prints a warning.** A fork, and a
-repository not yet accepted by SignPath, can still cut a release. A token without the two variables
-stops the job, because that is a configuration fault and not a choice.
+**Without `SIGNPATH_API_TOKEN` the job builds unsigned setups and prints a warning.** That is how
+every release is cut today, and a fork cuts its releases the same way. A token without the two
+variables stops the job, because that is a configuration fault and not a choice.
 
 **A signature does not remove SmartScreen at once.** SmartScreen judges a new file by the reputation
 of its publisher and of the file. So a recipient can still see *"Windows protected your PC"* on a new
 version. It then names the publisher.
 
-**SignPath Foundation sets conditions, and the README states them.** Its section
-[`Code signing policy`](../../README.md#code-signing-policy) names the roles, and it says what the
-programs send over the network.
+**The README's [`Privacy`](../../README.md#privacy) section says what the programs send over the
+network.** SignPath Foundation asks for that statement, and it stays true whoever signs.
 
 ## What a macOS bundle says it is for
 
@@ -2596,9 +2604,9 @@ a last job runs `bash tools/dist/release.sh --upload` over what they staged. Pub
 `gh release edit v<version> --draft=false`, typed by somebody who has opened the page.
 
 **The runners build Windows, Linux, Android, Meta Quest and iOS.** A public repository's standard runners cost
-nothing, so they carry every platform whose build needs no Apple account. That takes two sets of
-secrets: the Android release keystore, and the SignPath token that
-[`Signing a Windows release`](#signing-a-windows-release) uses.
+nothing, so they carry every platform whose build needs no Apple account. That takes one set of
+secrets, the Android release keystore. The SignPath token that
+[`Signing a Windows release`](#signing-a-windows-release) reads is optional and is not set.
 
 **Every release's two macOS packages are built on a Mac, and added to the same draft.** They are
 published notarized or not at all, and notarizing takes two Developer ID certificates and an Apple
