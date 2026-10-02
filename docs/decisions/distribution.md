@@ -2513,7 +2513,7 @@ name the build gave it, so one name holds in `dist/`, in the documents and on th
 
 ## A release page carries the platforms the machine cutting it can build
 
-**`tools/dist/release.sh --platforms windows,linux,android,quest` names what a cut carries**, and the rows
+**`bash tools/dist/release.sh --platforms windows,linux,android,quest` names what a cut carries**, and the rows
 for every other platform leave the table, the count and the body's download table together. A run
 that names none carries all thirteen, which is the full release and the default.
 
@@ -2564,7 +2564,7 @@ published notarized or not at all, and notarizing takes two Developer ID certifi
 account, which stay on the Mac rather than in the repository's secrets. So the workflow runs
 `release.sh --platforms windows,linux,android,quest,ios --elsewhere macos`: the page names the packages
 and says how they are signed from its first draft, and the Mac adds them with
-`tools/dist/release.sh --add --platforms macos`, which `task release:macos` runs after building
+`bash tools/dist/release.sh --add --platforms macos`, which `task release:macos` runs after building
 both. The draft is published once both halves are on it.
 
 **The Mac builds from the tag or uploads nothing.** `--add` refuses a checkout that is not at the
