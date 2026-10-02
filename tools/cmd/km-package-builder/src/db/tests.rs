@@ -2376,6 +2376,30 @@ fn a_title_squeezed_out_of_the_file_name_is_swept() {
     assert!(after[0].from_filename);
 }
 
+/// A MIDI title that names a part of the arrangement is swept, and the song browses under its file
+/// name. A video's tag is not a track's name, so the same word there stays.
+#[test]
+fn a_title_naming_a_part_is_swept_from_a_midi_song() {
+    let mut db = Db::open_in_memory(Path::new("/corpus")).expect("open");
+    add(&mut db, "piano", None, "f/Wicked Game.mid");
+    add(&mut db, "video", None, "f/Piano.mp4");
+    db.execute_for_test(
+        "UPDATE songs SET det_title = 'A.PIANO 1' WHERE id = 'piano';
+         UPDATE songs SET det_title = 'Piano', kind = 'video' WHERE id = 'video';",
+    )
+    .expect("titles an older parser let through");
+    db.set_setting(CLEANED_META, "3").expect("the old sweep");
+
+    db.clean_detected_text().expect("sweep");
+
+    let after = db.songs(&Filter::default()).expect("browse");
+    let midi = after.iter().find(|row| row.id == "piano").expect("midi");
+    assert_eq!(midi.title, "Wicked Game");
+    assert!(midi.from_filename);
+    let video = after.iter().find(|row| row.id == "video").expect("video");
+    assert_eq!(video.title, "Piano");
+}
+
 /// A database swept by the older spelling is swept once more, and then left alone.
 ///
 /// The flag this began as could not express that: a boolean says *swept*, and what has to be

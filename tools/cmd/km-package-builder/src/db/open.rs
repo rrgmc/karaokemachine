@@ -786,6 +786,10 @@ impl Db {
     /// sleeping K`. `km_song::abbreviates_file_name` decides it from the title and the stem, so this
     /// sweep has all it needs in the row.
     ///
+    /// The fourth is a track's name: `Piano`, `BASS` or `Track 0`, taken as a MIDI title because
+    /// no other name was there. `km_song::names_a_part` decides it. A re-scan could try the next
+    /// track's name, and this sweep cannot, so a row it changes falls to the file name.
+    ///
     /// **The check is in Rust, over every row, once.** No partial index can express *contains a
     /// control character*, and SQLite's own string functions are worse than unhelpful here: they
     /// take text as C strings, so `length`, `substr` and `trim` all stop at the first NUL and a SQL
@@ -805,13 +809,14 @@ impl Db {
         let pending: Vec<CleanedNames> = {
             let mut statement = self
                 .conn
-                .prepare("SELECT id, det_title, det_artist, stem FROM songs")?;
+                .prepare("SELECT id, det_title, det_artist, stem, kind FROM songs")?;
             let rows = statement.query_map([], |row| {
                 Ok(CleanedNames {
                     id: row.get(0)?,
                     title: row.get(1)?,
                     artist: row.get(2)?,
                     stem: row.get(3)?,
+                    kind: row.get(4)?,
                 })
             })?;
             rows.filter_map(|row| match row {
