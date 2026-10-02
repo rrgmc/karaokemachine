@@ -1327,6 +1327,10 @@ title, so they agree with the curation page.
 title, so a row it changes falls to the file name rather than to the next track. It touches MIDI
 rows only, because a video's tag or an MP3's frame is not a track's name.
 
+**The rule also moves `ANALYSIS_REVISION`, with a reach of every song.** No stored column says
+which track a title came from. So the next scan reads every song once more, and a song the sweep
+sent to its file name can take its next track's name.
+
 A real title made only of part words is lost, such as `Voices` or `Slow`. It is lost to the file
 name, and in a sample of the corpus that file name held the title whenever the title was real.
 
