@@ -11,6 +11,8 @@ Entries are written for somebody who has the machine. Why any of it is the way i
 
 ## [Unreleased]
 
+## [1.19.0] - 2026-10-02
+
 ### Added
 
 - **The admin Sound tab sets when the words light up.** A television that shows its picture late

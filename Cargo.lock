@@ -2206,7 +2206,7 @@ dependencies = [
 
 [[package]]
 name = "karaokemachine"
-version = "1.18.0"
+version = "1.19.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2273,7 +2273,7 @@ dependencies = [
 
 [[package]]
 name = "km-admin-pages"
-version = "1.18.0"
+version = "1.19.0"
 dependencies = [
  "askama",
  "async-trait",
@@ -2294,7 +2294,7 @@ dependencies = [
 
 [[package]]
 name = "km-androidlog"
-version = "1.18.0"
+version = "1.19.0"
 dependencies = [
  "tracing",
  "tracing-subscriber",
@@ -2302,7 +2302,7 @@ dependencies = [
 
 [[package]]
 name = "km-api"
-version = "1.18.0"
+version = "1.19.0"
 dependencies = [
  "argon2",
  "axum",
@@ -2337,7 +2337,7 @@ dependencies = [
 
 [[package]]
 name = "km-audio"
-version = "1.18.0"
+version = "1.19.0"
 dependencies = [
  "alsa",
  "cpal",
@@ -2359,7 +2359,7 @@ dependencies = [
 
 [[package]]
 name = "km-banks"
-version = "1.18.0"
+version = "1.19.0"
 dependencies = [
  "sha1 0.11.0",
  "sha2 0.11.0",
@@ -2368,7 +2368,7 @@ dependencies = [
 
 [[package]]
 name = "km-carols"
-version = "1.18.0"
+version = "1.19.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -2379,7 +2379,7 @@ dependencies = [
 
 [[package]]
 name = "km-catalog"
-version = "1.18.0"
+version = "1.19.0"
 dependencies = [
  "km-fixes",
  "km-kmpkg",
@@ -2395,7 +2395,7 @@ dependencies = [
 
 [[package]]
 name = "km-cdg"
-version = "1.18.0"
+version = "1.19.0"
 dependencies = [
  "image",
  "km-audio",
@@ -2407,7 +2407,7 @@ dependencies = [
 
 [[package]]
 name = "km-console"
-version = "1.18.0"
+version = "1.19.0"
 dependencies = [
  "tracing",
  "windows-sys 0.61.2",
@@ -2415,7 +2415,7 @@ dependencies = [
 
 [[package]]
 name = "km-display"
-version = "1.18.0"
+version = "1.19.0"
 dependencies = [
  "image",
  "km-kmpkg",
@@ -2438,7 +2438,7 @@ dependencies = [
 
 [[package]]
 name = "km-ecapplog"
-version = "1.18.0"
+version = "1.19.0"
 dependencies = [
  "ecapplog",
  "log",
@@ -2450,7 +2450,7 @@ dependencies = [
 
 [[package]]
 name = "km-fixes"
-version = "1.18.0"
+version = "1.19.0"
 dependencies = [
  "km-song",
  "serde",
@@ -2459,7 +2459,7 @@ dependencies = [
 
 [[package]]
 name = "km-folders"
-version = "1.18.0"
+version = "1.19.0"
 dependencies = [
  "directories",
  "form_urlencoded",
@@ -2468,7 +2468,7 @@ dependencies = [
 
 [[package]]
 name = "km-kmpkg"
-version = "1.18.0"
+version = "1.19.0"
 dependencies = [
  "crc32fast",
  "flate2",
@@ -2485,7 +2485,7 @@ dependencies = [
 
 [[package]]
 name = "km-langguess"
-version = "1.18.0"
+version = "1.19.0"
 dependencies = [
  "km-kmpkg",
  "whatlang",
@@ -2493,7 +2493,7 @@ dependencies = [
 
 [[package]]
 name = "km-locale"
-version = "1.18.0"
+version = "1.19.0"
 dependencies = [
  "askama",
  "fluent-bundle",
@@ -2503,7 +2503,7 @@ dependencies = [
 
 [[package]]
 name = "km-logfile"
-version = "1.18.0"
+version = "1.19.0"
 dependencies = [
  "km-testkit",
  "time",
@@ -2513,7 +2513,7 @@ dependencies = [
 
 [[package]]
 name = "km-logsettings"
-version = "1.18.0"
+version = "1.19.0"
 dependencies = [
  "km-ecapplog",
  "km-logfile",
@@ -2525,7 +2525,7 @@ dependencies = [
 
 [[package]]
 name = "km-logtap"
-version = "1.18.0"
+version = "1.19.0"
 dependencies = [
  "tokio",
  "tracing",
@@ -2534,14 +2534,14 @@ dependencies = [
 
 [[package]]
 name = "km-loudness"
-version = "1.18.0"
+version = "1.19.0"
 dependencies = [
  "ebur128",
 ]
 
 [[package]]
 name = "km-lyrics"
-version = "1.18.0"
+version = "1.19.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -2554,7 +2554,7 @@ dependencies = [
 
 [[package]]
 name = "km-machine-ios"
-version = "1.18.0"
+version = "1.19.0"
 dependencies = [
  "karaokemachine",
  "tracing",
@@ -2562,11 +2562,11 @@ dependencies = [
 
 [[package]]
 name = "km-osopen"
-version = "1.18.0"
+version = "1.19.0"
 
 [[package]]
 name = "km-pack"
-version = "1.18.0"
+version = "1.19.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -2590,7 +2590,7 @@ dependencies = [
 
 [[package]]
 name = "km-package-builder"
-version = "1.18.0"
+version = "1.19.0"
 dependencies = [
  "anyhow",
  "askama",
@@ -2637,7 +2637,7 @@ dependencies = [
 
 [[package]]
 name = "km-package-simple"
-version = "1.18.0"
+version = "1.19.0"
 dependencies = [
  "anyhow",
  "askama",
@@ -2670,7 +2670,7 @@ dependencies = [
 
 [[package]]
 name = "km-passwords"
-version = "1.18.0"
+version = "1.19.0"
 dependencies = [
  "directories",
  "serde",
@@ -2680,7 +2680,7 @@ dependencies = [
 
 [[package]]
 name = "km-pick"
-version = "1.18.0"
+version = "1.19.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -2689,7 +2689,7 @@ dependencies = [
 
 [[package]]
 name = "km-queue"
-version = "1.18.0"
+version = "1.19.0"
 dependencies = [
  "km-songcode",
  "thiserror 2.0.20",
@@ -2697,7 +2697,7 @@ dependencies = [
 
 [[package]]
 name = "km-remote"
-version = "1.18.0"
+version = "1.19.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -2719,7 +2719,7 @@ dependencies = [
 
 [[package]]
 name = "km-remote-android"
-version = "1.18.0"
+version = "1.19.0"
 dependencies = [
  "jni 0.22.4",
  "km-androidlog",
@@ -2731,7 +2731,7 @@ dependencies = [
 
 [[package]]
 name = "km-remote-core"
-version = "1.18.0"
+version = "1.19.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2758,7 +2758,7 @@ dependencies = [
 
 [[package]]
 name = "km-remote-host"
-version = "1.18.0"
+version = "1.19.0"
 dependencies = [
  "km-remote-core",
  "km-testkit",
@@ -2768,7 +2768,7 @@ dependencies = [
 
 [[package]]
 name = "km-remote-ios"
-version = "1.18.0"
+version = "1.19.0"
 dependencies = [
  "km-remote-core",
  "km-remote-host",
@@ -2778,7 +2778,7 @@ dependencies = [
 
 [[package]]
 name = "km-remote-pages"
-version = "1.18.0"
+version = "1.19.0"
 dependencies = [
  "askama",
  "async-trait",
@@ -2805,7 +2805,7 @@ dependencies = [
 
 [[package]]
 name = "km-song"
-version = "1.18.0"
+version = "1.19.0"
 dependencies = [
  "chardetng",
  "encoding_rs",
@@ -2820,14 +2820,14 @@ dependencies = [
 
 [[package]]
 name = "km-songbook"
-version = "1.18.0"
+version = "1.19.0"
 dependencies = [
  "km-songcode",
 ]
 
 [[package]]
 name = "km-songcode"
-version = "1.18.0"
+version = "1.19.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -2836,7 +2836,7 @@ dependencies = [
 
 [[package]]
 name = "km-stream"
-version = "1.18.0"
+version = "1.19.0"
 dependencies = [
  "ffmpeg-next",
  "thiserror 2.0.20",
@@ -2845,7 +2845,7 @@ dependencies = [
 
 [[package]]
 name = "km-suitability"
-version = "1.18.0"
+version = "1.19.0"
 dependencies = [
  "km-song",
  "serde",
@@ -2854,7 +2854,7 @@ dependencies = [
 
 [[package]]
 name = "km-testkit"
-version = "1.18.0"
+version = "1.19.0"
 dependencies = [
  "axum",
  "tower",
@@ -2862,7 +2862,7 @@ dependencies = [
 
 [[package]]
 name = "km-tray"
-version = "1.18.0"
+version = "1.19.0"
 dependencies = [
  "anyhow",
  "image",
@@ -2872,7 +2872,7 @@ dependencies = [
 
 [[package]]
 name = "km-video"
-version = "1.18.0"
+version = "1.19.0"
 dependencies = [
  "ffmpeg-next",
  "km-audio",
@@ -2883,7 +2883,7 @@ dependencies = [
 
 [[package]]
 name = "km-webshell"
-version = "1.18.0"
+version = "1.19.0"
 dependencies = [
  "tao",
  "tracing",
