@@ -453,8 +453,8 @@ class ImmersiveActivity : AppSystemActivity() {
         const val USE_SCENE = "com.oculus.permission.USE_SCENE"
         const val SCENE_REQUEST = 1
 
-        /** Metres. A television's distance, at a television's size. */
-        const val SCREEN_DISTANCE = 2.0f
+        /** Metres from the wearer. A 2 m screen there fills about 37 degrees, as a television does. */
+        const val SCREEN_DISTANCE = 3.0f
         const val SCREEN_WIDTH = 2.0f
 
         /** Metres. The widest a hand may stretch the screen. */
