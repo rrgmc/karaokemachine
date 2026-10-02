@@ -3,9 +3,9 @@
 # Builds the Christmas carol pack -- sixteen public-domain carols, as one `.kmpkg` somebody can
 # download and drop into their packages folder.
 #
-#   tools/dist/carols.sh                 # fetch, convert, build, report
-#   tools/dist/carols.sh -v              # ...and watch the conversion go past
-#   tools/dist/carols.sh --keep-work     # keep the generated ABC and the .kar files
+#   bash tools/dist/carols.sh                 # fetch, convert, build, report
+#   bash tools/dist/carols.sh -v              # ...and watch the conversion go past
+#   bash tools/dist/carols.sh --keep-work     # keep the generated ABC and the .kar files
 #
 # ** This pack is a separate download and is never bundled with the machine. ** Nothing here writes
 # into `assets/`, so no carrier changes and a fresh install still starts with an empty catalog on

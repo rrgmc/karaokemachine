@@ -2,7 +2,7 @@
 #
 # Every value in `.cargo/config.toml` is a string, and this is what keeps it that way.
 #
-#   tools/dev/check-cargo-config.sh         # exit 1 and name every array
+#   bash tools/dev/check-cargo-config.sh         # exit 1 and name every array
 #
 # **A worktree is the reason.** Cargo walks up from the directory it runs in, collects every
 # `.cargo/config.toml` above it and merges them: a string takes the nearest file's value, an array is

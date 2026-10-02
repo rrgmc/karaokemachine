@@ -166,7 +166,7 @@ than assuming:
 apksigner verify --print-certs app/build/outputs/apk/release/app-release.apk
 ```
 
-`CN=Android Debug` there means the variable was unset. `tools/port/apk-signer.sh <apk>` says the same
+`CN=Android Debug` there means the variable was unset. `bash tools/port/apk-signer.sh <apk>` says the same
 thing in one line, and the build prints it after `assembleRelease`.
 
 **The cost is worth knowing before it is paid.** Android refuses to install an APK signed with a

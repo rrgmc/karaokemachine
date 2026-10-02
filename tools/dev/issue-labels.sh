@@ -2,8 +2,8 @@
 #
 # The platform and program labels an issue body asks for.
 #
-#   tools/dev/issue-labels.sh < body.md              # print them, one per line
-#   tools/dev/issue-labels.sh --apply 12 < body.md   # and put them on issue 12
+#   bash tools/dev/issue-labels.sh < body.md              # print them, one per line
+#   bash tools/dev/issue-labels.sh --apply 12 < body.md   # and put them on issue 12
 #
 # **The form's answer is the source of the label.** GitHub renders a dropdown as its label under a
 # `###` heading and joins a multiple choice with a comma, so the body carries the answer in a shape

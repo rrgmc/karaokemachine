@@ -11,8 +11,8 @@ a second thing to keep right. `tools/dist/site.sh` assembles the pages and their
 folder and is what CI runs, so previewing through it previews exactly what gets published.
 
 ```sh
-tools/dist/site.sh --open     # stage into dist/site and open it
-tools/dist/site.sh            # just stage it
+bash tools/dist/site.sh --open     # stage into dist/site and open it
+bash tools/dist/site.sh            # just stage it
 ```
 
 `dist/` is gitignored, like every other carrier's output.

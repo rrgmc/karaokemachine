@@ -2,8 +2,8 @@
 #
 # Says which key signed an APK.
 #
-#   tools/port/apk-signer.sh <apk>            # prints one line naming the signer
-#   tools/port/apk-signer.sh --cn <apk>       # prints the certificate's CN alone, for a test to read
+#   bash tools/port/apk-signer.sh <apk>            # prints one line naming the signer
+#   bash tools/port/apk-signer.sh --cn <apk>       # prints the certificate's CN alone, for a test to read
 #
 # **A report, not a gate.** It runs after `assembleRelease` in both Android tasks so the answer is
 # visible at the moment of building, which is the rule `KM_SIGN_IDENTITY` follows on macOS: absent
@@ -22,7 +22,7 @@ APK=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --cn) CN_ONLY=1 ;;
-    -h|--help) echo "usage: tools/port/apk-signer.sh [--cn] <apk>"; exit 0 ;;
+    -h|--help) echo "usage: bash tools/port/apk-signer.sh [--cn] <apk>"; exit 0 ;;
     *) APK="$1" ;;
   esac
   shift

@@ -2,12 +2,12 @@
 #
 # Plays a different General MIDI bank on this machine, locally and undoably.
 #
-#   tools/dev/soundfont.sh                       # which bank is playing, and where it came from
-#   tools/dev/soundfont.sh --list                # the banks this knows about
-#   tools/dev/soundfont.sh --bank musescore      # fetch it and point this machine at it
-#   tools/dev/soundfont.sh --file <path>.sf2     # ...a bank already on disk
-#   tools/dev/soundfont.sh --bank musescore --music-volume 0.7
-#   tools/dev/soundfont.sh --clear               # back to the bundled bank
+#   bash tools/dev/soundfont.sh                       # which bank is playing, and where it came from
+#   bash tools/dev/soundfont.sh --list                # the banks this knows about
+#   bash tools/dev/soundfont.sh --bank musescore      # fetch it and point this machine at it
+#   bash tools/dev/soundfont.sh --file <path>.sf2     # ...a bank already on disk
+#   bash tools/dev/soundfont.sh --bank musescore --music-volume 0.7
+#   bash tools/dev/soundfont.sh --clear               # back to the bundled bank
 #
 # `task soundfont`, `task soundfont:list` and `task soundfont:clear` are these.
 #

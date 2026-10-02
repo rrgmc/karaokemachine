@@ -2,11 +2,11 @@
 # Makes a deployed box boot like an appliance: no bootloader menu unless somebody presses a key, and
 # the machine's own mark on the television instead of kernel text.
 #
-#   tools/platform/linux/appliance-boot.sh user@box                    # do it
-#   tools/platform/linux/appliance-boot.sh user@box --revert           # put the box back
-#   tools/platform/linux/appliance-boot.sh user@box --force            # anyway, on a dual-boot box
-#   tools/platform/linux/appliance-boot.sh user@box --slim-initramfs   # and make the boot faster
-#   tools/platform/linux/appliance-boot.sh user@box --port 2222 --identity ~/.ssh/karaoke
+#   bash tools/platform/linux/appliance-boot.sh user@box                    # do it
+#   bash tools/platform/linux/appliance-boot.sh user@box --revert           # put the box back
+#   bash tools/platform/linux/appliance-boot.sh user@box --force            # anyway, on a dual-boot box
+#   bash tools/platform/linux/appliance-boot.sh user@box --slim-initramfs   # and make the boot faster
+#   bash tools/platform/linux/appliance-boot.sh user@box --port 2222 --identity ~/.ssh/karaoke
 #
 # **`--slim-initramfs` is opt-in because its cost is a property of your box, not of this product.**
 # It builds the initramfs for the hardware present rather than for all of it. What was measured on
@@ -72,7 +72,7 @@ while [ $# -gt 0 ]; do
 done
 
 if [ -z "$HOST" ]; then
-  echo "appliance-boot: usage: tools/platform/linux/appliance-boot.sh [user@]host [--revert]" >&2
+  echo "appliance-boot: usage: bash tools/platform/linux/appliance-boot.sh [user@]host [--revert]" >&2
   echo "                    [--force] [--slim-initramfs] [--port N] [--identity PATH]" >&2
   exit 2
 fi

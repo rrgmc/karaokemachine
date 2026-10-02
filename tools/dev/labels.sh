@@ -2,11 +2,11 @@
 #
 # The issue labels this repository declares, and the commands that put them on GitHub.
 #
-#   tools/dev/labels.sh list                        # the table, for a person
-#   tools/dev/labels.sh table                       # the same rows, for a script
-#   tools/dev/labels.sh paths                       # the folder each pull request label comes from
-#   tools/dev/labels.sh check                       # or: task lint:labels
-#   tools/dev/labels.sh sync [--prune] [--dry-run]  # declare them on GitHub
+#   bash tools/dev/labels.sh list                        # the table, for a person
+#   bash tools/dev/labels.sh table                       # the same rows, for a script
+#   bash tools/dev/labels.sh paths                       # the folder each pull request label comes from
+#   bash tools/dev/labels.sh check                       # or: task lint:labels
+#   bash tools/dev/labels.sh sync [--prune] [--dry-run]  # declare them on GitHub
 #
 # **A label names the platform and the program, because that is what an issue list is asked.** The
 # bug form requires both, and an answer that lives only in the body cannot be filtered on: "what is
