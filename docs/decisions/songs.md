@@ -1289,8 +1289,8 @@ name the song has.
 here: `IMALIVE` has seven characters, and `01ALMART (2)` starts with its title.
 
 About one title in ten of the DOS shape matches, and a sample read clean. The rest are mostly
-track names such as `BASS` and `PIANO`. That is a different defect, and this rule does not see it,
-because those letters are not in the stem.
+track names such as `BASS` and `PIANO`, which
+[`A track named for a part names no song`](#a-track-named-for-a-part-names-no-song) answers.
 
 **The rule holds everywhere a title is chosen**, so the curation page and the television agree. The
 package builder applies it where a scan writes `det_title`, and its open-time sweep applies it to
@@ -1299,6 +1299,36 @@ played directly. The row then falls through to
 [`A song with no title`](curation.md#a-song-with-no-title) and carries the `file name` tag.
 
 **Nothing a person typed is touched.** A title somebody edited stays in front of both.
+
+## A track named for a part names no song
+
+**A MIDI track name is a title only when it names more than a part of the arrangement.** A file
+with no title offers the name of its first or second track. A sequencer names those tracks
+`Piano`, `BASS`, `A.PIANO 1`, `Track 0`, `Seq-1` or `MIDI out`. Taken as titles, such names call
+thousands of songs by one instrument.
+
+`km_song::names_a_part` splits the name into words, and a run of digits is its own word. The name
+names a part when every word is one of these, and one is a part word:
+
+- a word of the part list: an instrument, a voice, or a label of a track such as `track`, `seq` or
+  `midi`;
+- a number;
+- a single character, such as the `A` of `A.PIANO`.
+
+**One other word keeps the name**, so `Piano Man` and `Bass Line Baby` stay titles. A word in
+another script is another word, so a Japanese name holding `Track08` stays too.
+
+**The parser refuses the name and tries the next track.** So a file whose first track is `Piano`
+and whose second is `Corcovado` is titled `Corcovado`. A file with nothing better falls to
+[`A song with no title`](curation.md#a-song-with-no-title). `km-pack` and the machine read the parsed
+title, so they agree with the curation page.
+
+**The package builder sweeps rows already written**, once, at open. The sweep has only the stored
+title, so a row it changes falls to the file name rather than to the next track. It touches MIDI
+rows only, because a video's tag or an MP3's frame is not a track's name.
+
+A real title made only of part words is lost, such as `Voices` or `Slow`. It is lost to the file
+name, and in a sample of the corpus that file name held the title whenever the title was real.
 
 ## A song's words can be turned off, and three faults turn them off without being asked
 
