@@ -98,7 +98,17 @@ impl Row {
             .map(|stem| stem.to_string_lossy().into_owned())
             .unwrap_or_default()
     }
+
+    /// Whether it has a suitability, and that suitability is below [`GOOD_SUITABILITY`].
+    #[must_use]
+    pub fn is_low(&self) -> bool {
+        self.suitability
+            .is_some_and(|value| value < GOOD_SUITABILITY)
+    }
 }
+
+/// The lowest suitability that **Leave out below 8** keeps: the start of the `high` band.
+pub const GOOD_SUITABILITY: u8 = 8;
 
 /// A file the folder holds that is not a song, and why.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -360,6 +370,21 @@ impl Session {
         true
     }
 
+    /// Whether a kept song has a suitability below [`GOOD_SUITABILITY`].
+    #[must_use]
+    pub fn keeps_low(&self) -> bool {
+        self.rows.iter().any(|row| row.kept && row.is_low())
+    }
+
+    /// Leaves out every song whose suitability is below [`GOOD_SUITABILITY`].
+    ///
+    /// A song with no suitability stays as it is, because nothing measured it.
+    pub fn leave_out_low(&mut self) {
+        for row in self.rows.iter_mut().filter(|row| row.is_low()) {
+            row.kept = false;
+        }
+    }
+
     /// Every volume the kept songs make, each with its description and its file.
     ///
     /// `id` is the package's id, which the first volume keeps. The description says `uncurated:
@@ -489,6 +514,19 @@ mod tests {
             "a run past the end changes nothing"
         );
         assert!(session.slots()[4].is_some());
+    }
+
+    #[test]
+    fn a_song_below_8_is_left_out_and_one_with_no_suitability_stays() {
+        let mut session = session(4);
+        session.rows[1].suitability = Some(8);
+        session.rows[2].suitability = None;
+        session.rows[2].kind = Kind::Video;
+        assert!(session.keeps_low());
+        session.leave_out_low();
+        let kept: Vec<bool> = session.rows.iter().map(|row| row.kept).collect();
+        assert_eq!(kept, [false, true, true, false]);
+        assert!(!session.keeps_low());
     }
 
     #[test]

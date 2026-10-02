@@ -1425,6 +1425,9 @@ it again.
 - A title and an artist can be typed over, and a blank box takes back what the file says.
 - A song can be left out, and every number after it closes the gap. A package nobody curated has no
   printed book whose numbers a gap would protect.
+- One button leaves out every song with a suitability below 8, which is where the `high` band
+  starts. A song with no suitability stays in, because nothing measured it. The button shows only
+  while a kept song is below 8, and a left-out song can still be kept again by hand.
 - A copy of a song already listed is not a song, and neither is half an MP3+G pair. Both are listed
   below the songs with the reason.
 - The form takes a name, a version, a publisher, the language for songs that name none, and the

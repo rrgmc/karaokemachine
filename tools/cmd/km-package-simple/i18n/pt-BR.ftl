@@ -64,6 +64,7 @@ column-artist = Artista
 column-language = Idioma
 column-suitability = Adequação
 column-keep = Manter
+action-leave-out-low = Deixar de fora todas as músicas com adequação abaixo de { $threshold }
 page-previous = Anterior
 page-next = Próxima
 

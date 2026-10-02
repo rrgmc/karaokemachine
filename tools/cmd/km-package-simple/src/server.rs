@@ -52,6 +52,7 @@ pub fn router(app: Arc<App>) -> Router {
         .route("/folders", get(folders))
         .route("/songs/{index}", post(rename))
         .route("/songs/keep", post(keep))
+        .route("/songs/leave-out-low", post(leave_out_low))
         .route("/build", post(build))
         .route("/back", post(back))
         .route("/close", post(close))
@@ -281,6 +282,24 @@ async fn keep(
     if !changed {
         return StatusCode::NOT_FOUND.into_response();
     }
+    views::render(
+        &views::song_list(&inner, crate::words::messages(locale), query.page),
+        locale,
+    )
+}
+
+/// `POST /songs/leave-out-low`: leave out every song below 8, and redraw the list.
+async fn leave_out_low(
+    State(app): State<Arc<App>>,
+    headers: HeaderMap,
+    Query(query): Query<PageQuery>,
+) -> Response {
+    let locale = locale_of(&app, &headers);
+    let mut inner = app.lock();
+    let Some(session) = inner.session.as_mut() else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
+    session.leave_out_low();
     views::render(
         &views::song_list(&inner, crate::words::messages(locale), query.page),
         locale,

@@ -151,6 +151,8 @@ pub struct LanguageOption {
 pub struct SongList {
     /// `412 of 420 songs go in, as 1 package.`
     pub summary: String,
+    /// The words on the button that leaves out every song below 8, or `None` when no kept song is.
+    pub leave_out_low: Option<String>,
     /// This page's rows.
     pub rows: Vec<RowView>,
     /// Which page this is, from 0.
@@ -450,6 +452,7 @@ pub fn song_list(inner: &Inner, words: &Catalog, page: usize) -> SongList {
     let Some(session) = &inner.session else {
         return SongList {
             summary: String::new(),
+            leave_out_low: None,
             rows: Vec::new(),
             page: 0,
             range: String::new(),
@@ -503,6 +506,14 @@ pub fn song_list(inner: &Inner, words: &Catalog, page: usize) -> SongList {
                 ],
             )
             .into_owned(),
+        leave_out_low: session.keeps_low().then(|| {
+            words
+                .msg_with(
+                    "action-leave-out-low",
+                    &[("threshold", crate::session::GOOD_SUITABILITY.into())],
+                )
+                .into_owned()
+        }),
         rows,
         page,
         range: words
