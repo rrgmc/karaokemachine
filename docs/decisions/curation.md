@@ -2199,19 +2199,23 @@ is live while a confirmation sits on the page, so the filter can move between so
 sentence and pressing the button. Same rule as every filter-wide action one section up, at a much
 smaller stake and for the same reason.
 
-**A chip rewrites its own filter, and that one does not ask.** A curation pass is a name given early
-and narrowed all morning, and *Portuguese, unclassified* means something different by eleven than it
-did at nine. So writing the narrowing back is the commonest thing anybody does to a saved filter.
-Doing it through the save box means typing a name on the screen, then answering a question about a
-collision that was the whole intention. The chip carries the button instead.
+**A chip rewrites its own filter, after one browser confirmation.** A curation pass is a name given
+early and narrowed all morning, and *Portuguese, unclassified* means something different by eleven
+than it did at nine. So writing the narrowing back is the commonest thing anybody does to a saved
+filter. Doing it through the save box means typing a name on the screen, then answering a question
+about a collision that was the whole intention. The chip carries the button instead.
 
-**What separates it from the paragraph above is how the row was arrived at, not what is at stake.**
-A save reaches an existing row by colliding with it, and the confirmation's work is to say *which*
-row that is. A name typed in a hurry can land on somebody else's morning. A button drawn on a chip
-has already named its row; there is no second filter it could have meant. What is still owed is the
-sentence, and it names the filter rather than either query. A line of `language=pt&favorited=out` is
-the machine's spelling of a question asked in somebody's own words; reading it tells them nothing
-they did not do.
+**The rewrite asks, because a misclick on it destroys a position.** The button sits between the link
+that restores the filter and the rename button, at chip size. A saved filter that carries a page is
+where somebody stopped in a corpus of hundreds of thousands of files. Overwriting it by mistake loses
+that place, and nothing records it anywhere else. So the button carries an `hx-confirm` naming the
+filter, the same guard the forget button has.
+
+**It is a browser confirmation, not the save box's fragment.** A save reaches an existing row by
+colliding with it, so its confirmation shows *which* row that is and both queries. A button drawn on a
+chip has already named its row; there is no second filter it could have meant. So the question names
+the filter rather than either query. A line of `language=pt&favorited=out` is the machine's spelling
+of a question asked in somebody's own words; reading it tells them nothing they did not do.
 
 **Every sentence the saved strip says is a toast, and the one thing that is not a sentence stays in
 the slot.** These controls sit above a page of rows. Their message slot has nobody watching it and
