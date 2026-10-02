@@ -522,8 +522,8 @@ task build:ios RELEASE=1 DEVICE=1 IPA=1         # an unsigned .ipa: the machine,
 task build:ios:remote RELEASE=1 DEVICE=1 IPA=1  #   ...and the offline remote
 tools/dist/release.sh           # gather the carriers into dist/release/<version>/ under release names
 tools/dist/release.sh --upload  #   ...and put them, and the body, on the draft GitHub release
-tools/dist/release.sh --platforms windows,linux,android  # ...the carriers one machine builds
-tools/dist/release.sh --upload --platforms windows,linux,android,ios --elsewhere macos
+tools/dist/release.sh --platforms windows,linux,android,quest  # ...the carriers one machine builds
+tools/dist/release.sh --upload --platforms windows,linux,android,quest,ios --elsewhere macos
                                 #   ...and a page that also names what a Mac adds
 tools/dist/release.sh --add --platforms macos   # on the Mac: add its packages to that draft
 task release:macos              #   ...both notarized packages built, then that, at the tag only
@@ -537,8 +537,8 @@ is
 [`A release page carries the platforms the machine cutting it can build`](docs/decisions/distribution.md#a-release-page-carries-the-platforms-the-machine-cutting-it-can-build).
 
 **A pushed `v*` tag runs all of this in CI, except the Mac's half.** `.github/workflows/release.yml`
-stages ten of the twelve carriers on hosted runners and runs
-`release.sh --upload --platforms windows,linux,android,ios --elsewhere macos`. A Mac builds the two
+stages eleven of the thirteen carriers on hosted runners and runs
+`release.sh --upload --platforms windows,linux,android,quest,ios --elsewhere macos`. A Mac builds the two
 `.pkg` files, and `release.sh --add --platforms macos` adds them. [`RELEASE.md`](RELEASE.md) has the
 order.
 
