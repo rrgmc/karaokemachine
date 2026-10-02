@@ -256,7 +256,14 @@ class ImmersiveActivity : AppSystemActivity() {
                 // Nothing is shown to the wearer, so the log is the only place a failure is seen.
                 Log.i(TAG, "room scan: $result, rooms=${mruk.rooms.size}")
                 if (result != MRUKLoadDeviceResult.SUCCESS) return@runOnUiThread
-                val found = mruk.getCurrentRoom() ?: mruk.rooms.firstOrNull() ?: return@runOnUiThread
+                // Only the room the wearer stands in. A headset holds every room it has scanned,
+                // and taking one of the others hangs the screen on a wall in another part of the
+                // house, out of reach. Outside every scanned room there is no wall, and the screen
+                // stays in front of the wearer.
+                val viewer = scene.getViewerPose().t
+                val found = mruk.rooms.firstOrNull { it.isPositionInRoom(viewer, true) }
+                Log.i(TAG, "room scan: wearer is ${if (found == null) "outside every" else "inside a"} room")
+                if (found == null) return@runOnUiThread
                 room = found
                 controls.roomKnown = true
                 val place = placement.restore(found) ?: placement.onWall(found, scene.getViewerPose(), SCREEN_WIDTH)

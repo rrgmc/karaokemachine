@@ -1421,6 +1421,10 @@ scanned room behind `com.oculus.permission.USE_SCENE`. Without it, or in a room 
 screen opens straight ahead and still moves by hand. It opens there again on the next launch. No
 error is shown, because nothing has failed that the wearer needs to fix.
 
+**Only the room the wearer stands in counts.** A headset keeps every room it has scanned. A wall in
+another room is behind walls and out of reach, so the screen uses a room only when the wearer is
+inside it. Standing in a room never scanned is the same as having no scan.
+
 **The queue hangs beside the screen, and it is the machine's own remote.** A wearer holds no phone,
 so the scene shows the page every phone in the room gets. It reaches it over loopback in the same
 process. It is not a second remote to keep in step. An owner who turns the remote off gets no panel.
