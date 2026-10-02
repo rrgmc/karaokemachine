@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  SignPath artifact configuration `payload`: the programs a Windows setup installs, signed before
+  Inno Setup compiles them. The release workflow uploads them from `dist/`, so the archive holds
+  `bin/windows/` and `km-remote/windows/km-remote-<version>-<triple>/`.
+
+  Each program is named, and each must match exactly once. A program that a build stops producing
+  then fails the signing request, and a new file in the folder is not signed until it is named here.
+  The ffmpeg DLLs are not ours, so they are not signed.
+
+  SignPath reads its own copy of this file. A change here is pasted into the project's artifact
+  configuration in the same pull request.
+-->
+<artifact-configuration xmlns="http://signpath.io/artifact-configuration/v1">
+  <zip-file>
+    <directory path="bin/windows">
+      <pe-file-set>
+        <include path="karaokemachine.exe"/>
+        <include path="km-package-builder.exe"/>
+        <include path="km-package-simple.exe"/>
+        <include path="km-remote.exe"/>
+        <include path="km-admin.exe"/>
+        <include path="km-pack.exe"/>
+        <include path="km-lyrics.exe"/>
+        <include path="km-wallpaper-pack.exe"/>
+        <for-each>
+          <authenticode-sign/>
+        </for-each>
+      </pe-file-set>
+    </directory>
+    <pe-file path="km-remote/windows/km-remote-*/km-remote.exe">
+      <authenticode-sign/>
+    </pe-file>
+  </zip-file>
+</artifact-configuration>

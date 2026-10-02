@@ -72,14 +72,46 @@ jobs:
 
   # Both setup programs round-trip themselves -- install, run every executable on a bare PATH,
   # uninstall -- which needs no elevation because both install per user.
+  # **Signed through SignPath when the token is set, and built unsigned with a warning when it is
+  # not.** Our own programs are signed before Inno Setup compiles them, so an installed program
+  # carries a signature too, and the two setup programs are signed after. Each round is one signing
+  # request, and the release policy waits for a person to approve it in SignPath. The decision is
+  # `Signing a Windows release` in docs/decisions/distribution.md, and the two artifact
+  # configurations are in tools/platform/windows/signpath/.
+  #
+  # The organization id and the policy are variables, because neither is a secret. The policy starts
+  # as `test-signing` and becomes `release-signing` once the project is accepted.
   windows:
     needs: tag
     runs-on: windows-latest
-    timeout-minutes: 120
+    # Two signing requests can each wait an hour for an approval.
+    timeout-minutes: 240
+    permissions:
+      contents: read
+      actions: read
+    env:
+      SIGNPATH_API_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
+      SIGNPATH_ORGANIZATION_ID: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+      SIGNPATH_SIGNING_POLICY: ${{ vars.SIGNPATH_SIGNING_POLICY }}
     defaults:
       run:
         shell: bash
     steps:
+      - name: Signing
+        id: signing
+        run: |
+          if [ -z "$SIGNPATH_API_TOKEN" ]; then
+            echo "::warning::SIGNPATH_API_TOKEN is not set, so both Windows setup programs are unsigned."
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ -z "$SIGNPATH_ORGANIZATION_ID" ] || [ -z "$SIGNPATH_SIGNING_POLICY" ]; then
+            echo "release: SIGNPATH_API_TOKEN is set, but the repository variables" >&2
+            echo "         SIGNPATH_ORGANIZATION_ID and SIGNPATH_SIGNING_POLICY are not both set." >&2
+            exit 1
+          fi
+          echo "enabled=true" >> "$GITHUB_OUTPUT"
+
       - uses: actions/checkout@v7
         with:
           ref: ${{ env.TAG }}
@@ -100,8 +132,73 @@ jobs:
           fi
 
       - run: bash tools/setup/fetch-ffmpeg.sh
-      - run: bash tools/platform/windows/installer.sh
-      - run: bash tools/platform/windows/installer-remote.sh
+
+      # The two staging runs each installer script makes itself without `--no-build`, made first so
+      # the programs can be signed before they are packaged.
+      - run: bash tools/dist/bin.sh
+      - run: bash tools/dist/cmd.sh km-remote
+
+      # The archive keeps the paths below `dist/`, which `payload.xml` names.
+      - name: Upload the programs to sign
+        id: payload
+        if: steps.signing.outputs.enabled == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: windows-payload-unsigned
+          path: |
+            dist/bin/windows/*.exe
+            dist/km-remote/windows/km-remote-*/km-remote.exe
+          if-no-files-found: error
+          retention-days: 1
+      - name: Sign the programs
+        if: steps.signing.outputs.enabled == 'true'
+        uses: signpath/github-action-submit-signing-request@v3
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: karaokemachine
+          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY }}
+          artifact-configuration-slug: payload
+          github-artifact-id: ${{ steps.payload.outputs.artifact-id }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 3600
+          output-artifact-directory: dist/signed/payload
+      - name: Put the signed programs back
+        if: steps.signing.outputs.enabled == 'true'
+        run: |
+          cp -R dist/signed/payload/. dist/
+          rm -rf dist/signed
+
+      - run: bash tools/platform/windows/installer.sh --no-build
+      - run: bash tools/platform/windows/installer-remote.sh --no-build
+
+      - name: Upload the setup programs to sign
+        id: setup
+        if: steps.signing.outputs.enabled == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: windows-setup-unsigned
+          path: dist/setup/windows/*.exe
+          if-no-files-found: error
+          retention-days: 1
+      - name: Sign the setup programs
+        if: steps.signing.outputs.enabled == 'true'
+        uses: signpath/github-action-submit-signing-request@v3
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: karaokemachine
+          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY }}
+          artifact-configuration-slug: setup
+          github-artifact-id: ${{ steps.setup.outputs.artifact-id }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 3600
+          output-artifact-directory: dist/signed/setup
+      - name: Put the signed setup programs back
+        if: steps.signing.outputs.enabled == 'true'
+        run: |
+          cp dist/signed/setup/*.exe dist/setup/windows/
+          rm -rf dist/signed
 
       - uses: actions/upload-artifact@v7
         with:
