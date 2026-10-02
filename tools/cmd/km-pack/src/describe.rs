@@ -210,8 +210,7 @@ pub fn describe(
             number: Some(number),
             title: Some(
                 over.title
-                    .or_else(|| parsed.meta.title.clone())
-                    .unwrap_or_else(|| crate::file_stem(path)),
+                    .unwrap_or_else(|| crate::title_or_stem(parsed.meta.title.as_deref(), path)),
             ),
             artist: over.artist.or_else(|| parsed.meta.artist.clone()),
             language,

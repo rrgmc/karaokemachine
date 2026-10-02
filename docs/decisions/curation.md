@@ -577,7 +577,9 @@ Telling a song somebody has checked from one nobody has is most of what curating
 
 **A song whose file named nothing but marks arrives here too**, by
 [`A name made of marks is not a name`](songs.md#a-name-made-of-marks-is-not-a-name). A separator row
-in a title meta event is refused rather than kept, so the row falls through to this one.
+in a title meta event is refused rather than kept, so the row falls through to this one. So does a
+DOS abbreviation of the file name, by
+[`A title squeezed out of the file's own name is not a name`](songs.md#a-title-squeezed-out-of-the-files-own-name-is-not-a-name).
 
 **The tag is the whole signal: the title is not dimmed.** In a list of blue links a gray one reads as
 *visited*. That is a stronger and quite different claim than *this song has no title of its own*.

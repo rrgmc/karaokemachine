@@ -609,11 +609,7 @@ fn add_midi(
         &analysis,
         ChosenFields {
             number,
-            title: parsed
-                .meta
-                .title
-                .clone()
-                .unwrap_or_else(|| crate::file_stem(source)),
+            title: crate::title_or_stem(parsed.meta.title.as_deref(), source),
             artist: parsed.meta.artist.clone(),
             language: None,
             file: format!("midi/{number}{}", extension(source)),

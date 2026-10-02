@@ -1310,17 +1310,21 @@ impl Machine {
         // What a curator typed, else what the file says, else the file's own name — the same chain
         // the curation tool shows a song under, so its page and the television agree. A corpus
         // file's own title is frequently the arranger's or an abbreviation, which is why somebody
-        // retyped it.
+        // retyped it. A title that only abbreviates the file name gives way to the name, as there.
+        let stem = path
+            .file_stem()
+            .and_then(|stem| stem.to_str())
+            .unwrap_or("unknown");
         let title = decided
             .title
             .map(ToOwned::to_owned)
-            .or_else(|| song.meta.title.clone())
-            .unwrap_or_else(|| {
-                path.file_stem()
-                    .and_then(|stem| stem.to_str())
-                    .unwrap_or("unknown")
-                    .to_owned()
-            });
+            .or_else(|| {
+                song.meta
+                    .title
+                    .clone()
+                    .filter(|title| !km_song::abbreviates_file_name(title, stem))
+            })
+            .unwrap_or_else(|| stem.to_owned());
         tracing::info!(
             path = %path.display(),
             %title,

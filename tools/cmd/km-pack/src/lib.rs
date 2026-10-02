@@ -1638,6 +1638,18 @@ pub fn extension(path: &Path) -> String {
         .unwrap_or_else(|| ".mid".to_owned())
 }
 
+/// What the file's title meta event says, else the file's own name.
+///
+/// The name also wins over a title that is only a DOS abbreviation of it, by
+/// [`km_song::abbreviates_file_name`]. The package builder applies the same rule, so its description
+/// and this build agree.
+pub fn title_or_stem(title: Option<&str>, path: &Path) -> String {
+    let stem = file_stem(path);
+    title
+        .filter(|title| !km_song::abbreviates_file_name(title, &stem))
+        .map_or(stem.clone(), ToOwned::to_owned)
+}
+
 /// The last-resort title for a file with no usable metadata.
 pub fn file_stem(path: &Path) -> String {
     path.file_stem()
@@ -1885,6 +1897,14 @@ mod tests {
     #[test]
     fn a_file_stem_is_the_last_resort_title() {
         assert_eq!(file_stem(Path::new("/x/Some Song.kar")), "Some Song");
+    }
+
+    #[test]
+    fn a_title_squeezed_out_of_the_file_name_gives_way_to_it() {
+        let path = Path::new("/x/DION.I'm alive K.mid");
+        assert_eq!(title_or_stem(Some("IMALIVE"), path), "DION.I'm alive K");
+        assert_eq!(title_or_stem(Some("I'm Alive"), path), "I'm Alive");
+        assert_eq!(title_or_stem(None, path), "DION.I'm alive K");
     }
 
     #[test]

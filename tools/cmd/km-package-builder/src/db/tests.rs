@@ -2330,6 +2330,52 @@ fn a_title_of_marks_is_swept_and_the_song_browses_under_its_file_name() {
     assert!(swept.from_filename);
 }
 
+/// A DOS abbreviation of the file's own name is not written as the title, and the song browses
+/// under the name.
+#[test]
+fn a_title_squeezed_out_of_the_file_name_is_not_written() {
+    let mut db = Db::open_in_memory(Path::new("/corpus")).expect("open");
+    add(
+        &mut db,
+        "squeezed",
+        Some("IMONLYSL"),
+        "f/THE BEATLES.I'm only sleeping K.mid",
+    );
+    add(&mut db, "copy", Some("FAITH"), "f/FAITH_(715840).mid");
+
+    let rows = db.songs(&Filter::default()).expect("browse");
+    let squeezed = rows
+        .iter()
+        .find(|row| row.id == "squeezed")
+        .expect("the squeezed song");
+    assert_eq!(squeezed.title, "THE BEATLES.I'm only sleeping K");
+    assert!(squeezed.from_filename);
+    assert_eq!(db.song("squeezed").expect("detail").det_title, None);
+    // A stem adding only a copy number says no more than the title does.
+    let copy = rows.iter().find(|row| row.id == "copy").expect("the copy");
+    assert_eq!(copy.title, "FAITH");
+}
+
+/// Rows written before the rule are swept to it, because a re-scan reaches no unchanged file.
+#[test]
+fn a_title_squeezed_out_of_the_file_name_is_swept() {
+    let mut db = Db::open_in_memory(Path::new("/corpus")).expect("open");
+    add(&mut db, "alive", None, "f/DION.I'm alive K.mid");
+    db.execute_for_test("UPDATE songs SET det_title = 'IMALIVE' WHERE id = 'alive'")
+        .expect("the title an older gate let through");
+    db.set_setting(CLEANED_META, "2").expect("the old sweep");
+    assert_eq!(
+        db.songs(&Filter::default()).expect("browse")[0].title,
+        "IMALIVE"
+    );
+
+    db.clean_detected_text().expect("sweep");
+
+    let after = db.songs(&Filter::default()).expect("browse");
+    assert_eq!(after[0].title, "DION.I'm alive K");
+    assert!(after[0].from_filename);
+}
+
 /// A database swept by the older spelling is swept once more, and then left alone.
 ///
 /// The flag this began as could not express that: a boolean says *swept*, and what has to be

@@ -33,8 +33,8 @@ use serde::Serialize;
 
 pub use crate::encoding::{EncodingSource, TextDecoder};
 pub use crate::karaoke::{
-    Dialect, KaraokeFlavor, KaraokeMeta, clean_meta_name, clean_meta_text, is_only_a_legal_notice,
-    looks_like_a_banner,
+    Dialect, KaraokeFlavor, KaraokeMeta, abbreviates_file_name, clean_meta_name, clean_meta_text,
+    is_only_a_legal_notice, looks_like_a_banner,
 };
 pub use crate::redact::{MASK, contact_spans, redact};
 pub use crate::tempo::{TempoMap, Timebase};

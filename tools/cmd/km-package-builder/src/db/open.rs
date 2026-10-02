@@ -782,6 +782,10 @@ impl Db {
     /// both now, and [`CLEANED_META_REVISION`] is what brings a database swept by the first spelling
     /// back for the second.
     ///
+    /// The third is abbreviation: `IMONLYSL` in the title of a file named `THE BEATLES.I'm only
+    /// sleeping K`. `km_song::abbreviates_file_name` decides it from the title and the stem, so this
+    /// sweep has all it needs in the row.
+    ///
     /// **The check is in Rust, over every row, once.** No partial index can express *contains a
     /// control character*, and SQLite's own string functions are worse than unhelpful here: they
     /// take text as C strings, so `length`, `substr` and `trim` all stop at the first NUL and a SQL
@@ -821,7 +825,7 @@ impl Db {
         if !pending.is_empty() {
             tracing::info!(
                 songs = pending.len(),
-                "taking the names nobody can read out of titles written by an earlier version"
+                "taking unreadable and abbreviated names out of titles written by an earlier version"
             );
             let mut update = transaction.prepare(
                 "UPDATE songs SET det_title = ?2, det_artist = ?3, stem = ?4 WHERE id = ?1",
