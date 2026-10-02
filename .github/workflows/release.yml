@@ -17,7 +17,7 @@ name: Release
 # **macOS is built on a Mac, not here.** Its two `.pkg` files are published notarized or not at all,
 # and notarizing takes two Developer ID certificates and an Apple account, which stay on the Mac.
 # `--elsewhere macos` keeps their rows on the page, and the Mac adds them to this draft with
-# `tools/dist/release.sh --add --platforms macos`. The decision is
+# `bash tools/dist/release.sh --add --platforms macos`. The decision is
 # `CI builds the release, and a Mac adds its packages` in docs/decisions/distribution.md.
 #
 # **Separate from `ci.yml`, because it is not a pull-request check.** Branch protection requires

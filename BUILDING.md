@@ -520,12 +520,12 @@ tools/platform/windows/installer-remote.sh  # ...and the remote alone, about 5 M
 tools/platform/macos/installer-remote.sh    #   the same on macOS: KM Remote in /Applications, nothing else
 task build:ios RELEASE=1 DEVICE=1 IPA=1         # an unsigned .ipa: the machine, for sideloading
 task build:ios:remote RELEASE=1 DEVICE=1 IPA=1  #   ...and the offline remote
-tools/dist/release.sh           # gather the carriers into dist/release/<version>/ under release names
-tools/dist/release.sh --upload  #   ...and put them, and the body, on the draft GitHub release
-tools/dist/release.sh --platforms windows,linux,android,quest  # ...the carriers one machine builds
-tools/dist/release.sh --upload --platforms windows,linux,android,quest,ios --elsewhere macos
+bash tools/dist/release.sh           # gather the carriers into dist/release/<version>/ under release names
+bash tools/dist/release.sh --upload  #   ...and put them, and the body, on the draft GitHub release
+bash tools/dist/release.sh --platforms windows,linux,android,quest  # ...the carriers one machine builds
+bash tools/dist/release.sh --upload --platforms windows,linux,android,quest,ios --elsewhere macos
                                 #   ...and a page that also names what a Mac adds
-tools/dist/release.sh --add --platforms macos   # on the Mac: add its packages to that draft
+bash tools/dist/release.sh --add --platforms macos   # on the Mac: add its packages to that draft
 task release:macos              #   ...both notarized packages built, then that, at the tag only
 ```
 

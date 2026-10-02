@@ -3,15 +3,15 @@
 # Gathers this version's carriers under one folder of release names, and uploads them to the draft
 # GitHub release for the tag.
 #
-#   tools/dist/release.sh                      # gather into dist/release/<version>/ and report
-#   tools/dist/release.sh --upload             # ...and create or update the draft release
-#   tools/dist/release.sh --platforms windows,linux,android   # ...the carriers one machine builds
-#   tools/dist/release.sh --upload --platforms windows,linux,android,ios --elsewhere macos
+#   bash tools/dist/release.sh                      # gather into dist/release/<version>/ and report
+#   bash tools/dist/release.sh --upload             # ...and create or update the draft release
+#   bash tools/dist/release.sh --platforms windows,linux,android,quest   # ...the carriers one machine builds
+#   bash tools/dist/release.sh --upload --platforms windows,linux,android,quest,ios --elsewhere macos
 #                                              # ...and a body that also names what a Mac adds later
-#   tools/dist/release.sh --add --platforms macos   # upload these carriers to the draft, body untouched
-#   tools/dist/release.sh --check-tag          # is this checkout at the version's tag, unchanged?
-#   tools/dist/release.sh --notes-file <path>  # a body other than tools/dist/release-notes.md
-#   tools/dist/release.sh -v
+#   bash tools/dist/release.sh --add --platforms macos   # upload these carriers to the draft, body untouched
+#   bash tools/dist/release.sh --check-tag          # is this checkout at the version's tag, unchanged?
+#   bash tools/dist/release.sh --notes-file <path>  # a body other than tools/dist/release-notes.md
+#   bash tools/dist/release.sh -v
 #
 #   dist/release/<version>/            every asset under the name it is published as
 #   dist/release/<version>-notes.md    the body, rendered from tools/dist/release-notes.md
@@ -130,9 +130,9 @@ while [ $# -gt 0 ]; do
       ;;
     -v|--verbose) DIST_VERBOSE=1 ;;
     -h|--help)
-      echo "usage: tools/dist/release.sh [--upload] [--platforms <list>] [--elsewhere <list>] [--notes-file <path>] [-v]"
-      echo "       tools/dist/release.sh --add --platforms <list> [-v]"
-      echo "       tools/dist/release.sh --check-tag"
+      echo "usage: bash tools/dist/release.sh [--upload] [--platforms <list>] [--elsewhere <list>] [--notes-file <path>] [-v]"
+      echo "       bash tools/dist/release.sh --add --platforms <list> [-v]"
+      echo "       bash tools/dist/release.sh --check-tag"
       exit 0
       ;;
     *) echo "dist-release: unknown option $1" >&2; exit 2 ;;
@@ -395,7 +395,7 @@ if [ "$ADD" -eq 1 ]; then
     echo "   The release workflow creates it when its builds finish:"
     echo "     gh run list --workflow release.yml --limit 1"
     echo "   Once the draft is there, upload what was built here, without building it again:"
-    echo "     tools/dist/release.sh --add --platforms $(printf '%s' "$PLATFORMS" | tr ' ' ',')"
+    echo "     bash tools/dist/release.sh --add --platforms $(printf '%s' "$PLATFORMS" | tr ' ' ',')"
     exit 0
   fi
   if [ "$state" != "true" ]; then
@@ -585,6 +585,6 @@ dist_run "gh release upload" gh release upload "$TAG" --clobber "$OUT"/*
 dist_step "uploaded $count assets to $TAG"
 echo "   gh release view $TAG --web"
 if [ -n "$ELSEWHERE" ]; then
-  echo "   (the page names $awaited more: tools/dist/release.sh --add --platforms $(printf '%s' "$ELSEWHERE" | tr ' ' ','))"
+  echo "   (the page names $awaited more: bash tools/dist/release.sh --add --platforms $(printf '%s' "$ELSEWHERE" | tr ' ' ','))"
 fi
 echo "   (still a draft: gh release edit $TAG --draft=false publishes it)"
