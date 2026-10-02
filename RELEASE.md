@@ -128,7 +128,7 @@ tools/dist/release.sh --upload  # ...and fill the draft release
 [`Releases`](BUILDING.md#releases) lists the script behind each one, and `release.sh` names any that
 is missing and stops.
 
-**Name the platforms where a Mac is not to hand.** `--platforms windows,linux,android` carries those
+**Name the platforms where a Mac is not to hand.** `--platforms windows,linux,android,quest` carries those
 and leaves the two `.pkg` files and the two `.ipa` files out of the count and off the page. It does
 that rather than failing on four carriers the machine cannot build. Everything else holds: a named
 platform whose carrier is missing still stops the run. See

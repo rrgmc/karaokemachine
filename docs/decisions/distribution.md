@@ -2513,7 +2513,7 @@ name the build gave it, so one name holds in `dist/`, in the documents and on th
 
 ## A release page carries the platforms the machine cutting it can build
 
-**`tools/dist/release.sh --platforms windows,linux,android` names what a cut carries**, and the rows
+**`tools/dist/release.sh --platforms windows,linux,android,quest` names what a cut carries**, and the rows
 for every other platform leave the table, the count and the body's download table together. A run
 that names none carries all thirteen, which is the full release and the default.
 
@@ -2555,14 +2555,14 @@ and fills the draft release.** Each platform's job runs the same staging script 
 a last job runs `tools/dist/release.sh --upload` over what they staged. Publishing stays
 `gh release edit v<version> --draft=false`, typed by somebody who has opened the page.
 
-**The runners build Windows, Linux, Android and iOS.** A public repository's standard runners cost
+**The runners build Windows, Linux, Android, Meta Quest and iOS.** A public repository's standard runners cost
 nothing, so they carry every platform whose build needs no Apple account. That takes one set of
 secrets, the Android release keystore.
 
 **Every release's two macOS packages are built on a Mac, and added to the same draft.** They are
 published notarized or not at all, and notarizing takes two Developer ID certificates and an Apple
 account, which stay on the Mac rather than in the repository's secrets. So the workflow runs
-`release.sh --platforms windows,linux,android,ios --elsewhere macos`: the page names the packages
+`release.sh --platforms windows,linux,android,quest,ios --elsewhere macos`: the page names the packages
 and says how they are signed from its first draft, and the Mac adds them with
 `tools/dist/release.sh --add --platforms macos`, which `task release:macos` runs after building
 both. The draft is published once both halves are on it.
