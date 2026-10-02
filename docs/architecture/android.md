@@ -125,6 +125,12 @@ scanned room, and its wall anchors are stable across sessions. So `Placement.kt`
 screen's pose relative to the nearest wall, by that wall's UUID, in the `headset` preferences. A
 restore multiplies the wall's current pose by the saved one.
 
+**Reading the room needs `USE_ANCHOR_API` as well as `USE_SCENE`.** MRUK reads the room as anchors.
+Without the anchor permission its search starts and never completes. The future from
+`loadSceneFromDevice` never returns, and nothing is logged. The search also waits for VR focus, so
+it does not complete while nobody wears the headset. `loadRoom` logs the result under the
+`KaraokeHeadset` tag.
+
 **`IsdkGrabbable` moves a panel and `IsdkPanelResize` resizes it.** The resize runs in
 `ResizeMode.Simple`, which writes the entity's `Scale` and leaves the panel's dp layout alone.
 `ResizeMode.Relayout` would resize SDL's surface instead. `onSceneTick` watches the grab state and

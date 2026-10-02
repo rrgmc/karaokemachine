@@ -6,6 +6,7 @@ import android.content.pm.PackageManager
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.util.Log
 import androidx.compose.ui.platform.ComposeView
 import com.meta.spatial.compose.ComposeFeature
 import com.meta.spatial.compose.composePanel
@@ -252,6 +253,8 @@ class ImmersiveActivity : AppSystemActivity() {
     private fun loadRoom() {
         mruk.loadSceneFromDevice().thenAccept { result ->
             runOnUiThread {
+                // Nothing is shown to the wearer, so the log is the only place a failure is seen.
+                Log.i(TAG, "room scan: $result, rooms=${mruk.rooms.size}")
                 if (result != MRUKLoadDeviceResult.SUCCESS) return@runOnUiThread
                 val found = mruk.getCurrentRoom() ?: mruk.rooms.firstOrNull() ?: return@runOnUiThread
                 room = found
@@ -416,6 +419,7 @@ class ImmersiveActivity : AppSystemActivity() {
 
     private companion object {
         const val PREFS = "headset"
+        const val TAG = "KaraokeHeadset"
         const val QUEUE_SHOWN = "queue_shown"
 
         /** Horizon OS's permission for the room the headset scanned. */
