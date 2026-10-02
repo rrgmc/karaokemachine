@@ -50,10 +50,11 @@ Entries are written for somebody who has the machine. Why any of it is the way i
 
 - **On a Quest, the screen goes where you put it.** It starts on the main wall of the room the
   headset scanned. Grab it with a hand or a controller to move it, and pull a corner to make it
-  larger. It comes back to the same place on the next launch. A small upright bar of buttons
-  rides on its right and moves with it. They put the screen back on the wall, show the queue and
-  open the window. The bar steps aside while a song plays. The headset asks once to read the room, and a
-  refusal leaves the screen straight ahead, still moving by hand.
+  larger. It comes back to the same place on the next launch. The headset asks once to read the
+  room. A refusal, or a room never scanned, opens the screen in front of you, still moving by hand.
+- **On a Quest, a small bar of buttons rides on the screen's right.** It moves with the screen. Its
+  buttons put the screen back on the wall, show the queue and open the window. The bar steps aside
+  while a song plays.
 - **On a Quest, one app shows the machine in the room or in a window.** The Window button beside the
   screen moves it into an ordinary system window, and a button in the window moves it back. The library
   tile opens whichever you used last. A switch restarts the machine, so it waits until no song is
