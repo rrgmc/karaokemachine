@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  SignPath artifact configuration `setup`: the two Windows setup programs, signed after Inno Setup
+  compiles them from the signed payload. The release workflow uploads `dist/setup/windows/*.exe`.
+
+  Both names must match exactly once, so a missing setup program fails the request.
+
+  SignPath reads its own copy of this file. A change here is pasted into the project's artifact
+  configuration in the same pull request.
+-->
+<artifact-configuration xmlns="http://signpath.io/artifact-configuration/v1">
+  <zip-file>
+    <pe-file path="karaokemachine-setup-*-windows-x86_64.exe">
+      <authenticode-sign/>
+    </pe-file>
+    <pe-file path="km-remote-setup-*-windows-x86_64.exe">
+      <authenticode-sign/>
+    </pe-file>
+  </zip-file>
+</artifact-configuration>

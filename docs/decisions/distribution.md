@@ -722,10 +722,8 @@ reading `UninstallString` back by hand. Inno has an unbounded string type and
 three built-ins. MSIX cannot be installed unsigned at all, and MSI's per-user story buys
 group-policy deployment nobody asked for.
 
-**What it deliberately does not do**: no MSI, no MSIX, no auto-update, no code signing. It is
-unsigned, so SmartScreen shows *"Windows protected your PC"* on a recipient's first run. They must
-click through *More info → Run anyway*. The fix is a purchased certificate, and therefore a purchase
-rather than a build step.
+**What it deliberately does not do**: no MSI, no MSIX, no auto-update. The release build signs it,
+and [`Signing a Windows release`](#signing-a-windows-release) says how.
 
 ## What an installed build contains
 
@@ -1216,8 +1214,50 @@ this later, then goes unread with it.
 weather. The uninstaller is the opposite case and still says so, because somebody runs it by hand
 and can be surprised by it.
 
-**Windows stays unsigned.** That needs a different certificate nobody has, so the two platforms'
-signing stories are separate.
+**Windows signs elsewhere.** Its certificate belongs to a signing service that CI calls, so the two
+platforms' signing stories are separate.
+
+## Signing a Windows release
+
+**The release workflow signs both Windows setup programs and every program they install through
+SignPath Foundation.** SignPath Foundation gives free code signing to open-source projects. The
+publisher Windows names is *SignPath Foundation*, not the project's author.
+
+**SignPath, because the cheaper certificates are not open to this project.** A Microsoft Store
+listing signs only an MSIX that the Store delivers, and the release page offers an Inno setup.
+Azure Artifact Signing accepts an individual only in the USA and Canada. A purchased certificate
+costs a yearly fee, and its key sits on a token or in a cloud HSM that CI reaches with difficulty.
+
+**Two signing rounds, because Inno packs the programs before the setup exists.** The job stages
+both payloads and sends our own `.exe` files to SignPath. It compiles the setups from the signed
+copies, and then sends the two setups. So the program a person starts carries the same publisher
+as the file they downloaded.
+
+**The artifact configurations name each program.** `tools/platform/windows/signpath/` holds them,
+and SignPath reads its own copy. A program that a build stops producing fails the request. A new
+program is not signed until somebody names it there.
+
+**Three things stay unsigned:**
+
+- **the four ffmpeg DLLs**, because they are not this project's code;
+- **the Inno uninstaller**, because Inno signs it only through a signer on the build machine;
+- **a setup staged by hand**, because the signer is reachable only from CI.
+
+**The release policy waits for a person.** Each request stays open until somebody approves it in
+SignPath, so a Windows job can wait up to an hour per round. The policy is the repository variable
+`SIGNPATH_SIGNING_POLICY`. `test-signing` uses a test certificate that no Windows trusts.
+
+**Without `SIGNPATH_API_TOKEN` the job builds unsigned setups and prints a warning.** A fork, and a
+repository not yet accepted by SignPath, can still cut a release. A token without the two variables
+stops the job, because that is a configuration fault and not a choice.
+
+**A signature does not remove SmartScreen at once.** SmartScreen judges a new file by the reputation
+of its publisher and of the file. So a recipient can still see *"Windows protected your PC"* on a new
+version. It then names the publisher.
+
+**SignPath Foundation sets conditions, and the README states them.** Its section
+[`Code signing policy`](../../README.md#code-signing-policy) names the roles, and it says what the
+programs send over the network.
 
 ## What a macOS bundle says it is for
 
@@ -2556,8 +2596,9 @@ a last job runs `bash tools/dist/release.sh --upload` over what they staged. Pub
 `gh release edit v<version> --draft=false`, typed by somebody who has opened the page.
 
 **The runners build Windows, Linux, Android, Meta Quest and iOS.** A public repository's standard runners cost
-nothing, so they carry every platform whose build needs no Apple account. That takes one set of
-secrets, the Android release keystore.
+nothing, so they carry every platform whose build needs no Apple account. That takes two sets of
+secrets: the Android release keystore, and the SignPath token that
+[`Signing a Windows release`](#signing-a-windows-release) uses.
 
 **Every release's two macOS packages are built on a Mac, and added to the same draft.** They are
 published notarized or not at all, and notarizing takes two Developer ID certificates and an Apple

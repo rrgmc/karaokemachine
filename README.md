@@ -46,6 +46,7 @@ pictures and the download are on the site,
   - [Getting a corpus into shape](#getting-a-corpus-into-shape)
 - [Documentation](#documentation)
 - [License](#license)
+- [Code signing policy](#code-signing-policy)
 - [Author](#author)
 
 ---
@@ -193,6 +194,10 @@ file per platform. The carol package is a separate download beside them. To buil
 
 **Every install also has a second launcher, which starts the machine streaming.** See
 [Watching it in another room](#watching-it-in-another-room).
+
+**Windows can show *"Windows protected your PC"* when you open a setup program.** Click
+**More info**, then **Run anyway**. The [code signing policy](#code-signing-policy) says who signs
+the Windows downloads.
 
 ### On Debian, it is also an appliance — if you ask
 
@@ -622,6 +627,39 @@ edited.
 may travel on. A Pixabay or Pexels pack stays on the machine that built it, and `manifest.json`
 records each image's license. See [`Where a wallpaper pack's photographs may come
 from`](docs/decisions/repository.md#where-a-wallpaper-packs-photographs-may-come-from).
+
+## Code signing policy
+
+Free code signing provided by [SignPath.io](https://about.signpath.io/), certificate by
+[SignPath Foundation](https://signpath.org/).
+
+**The Windows setup programs on the release page, and the programs they install, are signed.**
+Windows names the publisher as *SignPath Foundation*. The release workflow builds and signs them
+from the tagged source, and nothing built anywhere else is signed.
+
+| Role | Who |
+|---|---|
+| Committers and reviewers | [Rangel Reale](https://github.com/rrgmc) |
+| Approvers | [Rangel Reale](https://github.com/rrgmc) |
+
+### Privacy
+
+**No program sends telemetry, crash reports or usage data, and none checks for updates.** A crash
+report stays in a file on the computer. A program contacts a host on the internet only for what
+the list below names.
+
+- **The Windows setup program** downloads Microsoft's WebView2 installer when you choose a tool that
+  needs WebView2 and the computer does not have it.
+- **The machine downloads an instrument bank** when you ask it to. It also downloads one at its first
+  start when you left that checkbox ticked in the setup program.
+- **KM Admin downloads an instrument bank** when you click to fetch one.
+- **KM Admin and `km-wallpaper-pack` search Openverse, Pixabay or Pexels** when you ask for pictures.
+  The search terms go to that service, and with them the API key you gave it, if any. The pictures
+  then download from the addresses the service returns.
+
+A download sends a plain request and nothing that identifies you. **On your own network**, the
+machine answers the HTTP API and announces itself over mDNS, and the remotes and tools reach it there.
+A *YouTube* link in a remote or the package builder opens your browser only when you click it.
 
 ## Author
 

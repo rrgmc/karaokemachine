@@ -444,6 +444,7 @@ it are the same entry. How the thing is built is [`ARCHITECTURE.md`](../ARCHITEC
 - [An uninstaller finds its own work, and never by name](distribution.md#an-uninstaller-finds-its-own-work-and-never-by-name)
 - [Where a command lives on macOS](distribution.md#where-a-command-lives-on-macos)
 - [Signing a macOS release](distribution.md#signing-a-macos-release)
+- [Signing a Windows release](distribution.md#signing-a-windows-release)
 - [What a macOS bundle says it is for](distribution.md#what-a-macos-bundle-says-it-is-for)
 - [What the machine *is*, on iOS](distribution.md#what-the-machine-is-on-ios)
 - [An iOS carrier is unsigned, and the person installing signs it](distribution.md#an-ios-carrier-is-unsigned-and-the-person-installing-signs-it)
