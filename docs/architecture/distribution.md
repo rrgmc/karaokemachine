@@ -403,7 +403,13 @@ folders, which no environment variable redirects. So proving it would mean writi
 into the developer's own install, and their next start would fetch 262 MiB. The build asserts
 instead that the generated file exists and names the row the table marks `recommended`.
 
-Unsigned, so a recipient sees SmartScreen's *"Windows protected your PC"* and clicks through.
+**The installer itself signs nothing.** The release workflow signs around it in two SignPath rounds.
+It stages `dist/bin/windows` and the remote's folder with `tools/dist/bin.sh` and
+`tools/dist/cmd.sh km-remote`, and has our own `.exe` files signed in place. It then runs both
+installer scripts with `--no-build` and has the two setups signed. The artifact configurations are
+in `tools/platform/windows/signpath/`. A setup built anywhere else is unsigned, so SmartScreen shows
+*"Windows protected your PC"* and the recipient clicks through. The decision is
+`Signing a Windows release` in `docs/decisions/distribution.md`.
 
 ## The macOS installer
 

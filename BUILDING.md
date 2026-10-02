@@ -2132,8 +2132,9 @@ task dist NO_VIDEO=1  ZIP=1  VERBOSE=1
 - **Nothing signs the four by default**, so a recipient sees SmartScreen or Gatekeeper. Signing the
   macOS ones takes **two** certificates, and `--notarize` is never implied by signing — `task
   dist:setup:notarized` and `task dist:setup:remote:notarized` are the names for asking. **Windows
-  has no equivalent** and no signing at all: that needs a certificate nobody here has, so neither
-  Windows installer takes such a flag.
+  has no local equivalent.** Its certificate belongs to SignPath, which only the release workflow
+  reaches, so neither Windows installer takes a signing flag. See `Signing a Windows release` in
+  [`docs/decisions/distribution.md`](docs/decisions/distribution.md#signing-a-windows-release).
 
 ```sh
 tools/platform/linux/verify-deb.sh          # install that .deb in a clean container
