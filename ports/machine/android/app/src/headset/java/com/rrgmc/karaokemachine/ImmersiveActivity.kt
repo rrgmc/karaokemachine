@@ -178,8 +178,7 @@ class ImmersiveActivity : AppSystemActivity() {
                 Visible(controls.queueShown),
             )
         }
-        // Facing the wearer, rather than the direction the floor space happened to recentre to.
-        put(ScreenPlace(facingViewer(ahead), SCREEN_WIDTH))
+        putAhead()
 
         sceneReady = true
         if (sceneAllowed()) loadRoom()
@@ -255,7 +254,8 @@ class ImmersiveActivity : AppSystemActivity() {
             runOnUiThread {
                 // Nothing is shown to the wearer, so the log is the only place a failure is seen.
                 Log.i(TAG, "room scan: $result, rooms=${mruk.rooms.size}")
-                if (result != MRUKLoadDeviceResult.SUCCESS) return@runOnUiThread
+                // By now the headset is tracking, so in front of the wearer means where they are.
+                if (result != MRUKLoadDeviceResult.SUCCESS) return@runOnUiThread putAhead()
                 // Only the room the wearer stands in. A headset holds every room it has scanned,
                 // and taking one of the others hangs the screen on a wall in another part of the
                 // house, out of reach. Outside every scanned room there is no wall, and the screen
@@ -263,7 +263,7 @@ class ImmersiveActivity : AppSystemActivity() {
                 val viewer = scene.getViewerPose().t
                 val found = mruk.rooms.firstOrNull { it.isPositionInRoom(viewer, true) }
                 Log.i(TAG, "room scan: wearer is ${if (found == null) "outside every" else "inside a"} room")
-                if (found == null) return@runOnUiThread
+                if (found == null) return@runOnUiThread putAhead()
                 room = found
                 controls.roomKnown = true
                 val place = placement.restore(found) ?: placement.onWall(found, scene.getViewerPose(), SCREEN_WIDTH)
@@ -301,6 +301,26 @@ class ImmersiveActivity : AppSystemActivity() {
         val pose = screenEntity?.tryGetComponent<Transform>()?.transform ?: return
         val along = SCREEN_WIDTH * screenScale() / 2.0f + CONTROLS_GAP + CONTROLS_WIDTH / 2.0f
         controlsEntity?.setComponent(Transform(pose.times(Pose(Vector3(along, 0.0f, 0.0f)))))
+    }
+
+    /**
+     * The screen [SCREEN_DISTANCE] in front of the wearer, facing them.
+     *
+     * Measured from where the wearer is and where they look. A fixed point in the floor space sits
+     * wherever the headset last recentred, which can be beside the wearer or behind them.
+     */
+    private fun putAhead() {
+        val viewer = scene.getViewerPose()
+        val look = viewer.forward()
+        var level = Vector3(look.x, 0.0f, look.z)
+        level = if (level.length() < 0.01f) Vector3(0.0f, 0.0f, 1.0f) else level.normalize()
+        // Hung like a television: never lower than a standing eye, so a seated wearer looks
+        // slightly up at it rather than down. Before tracking starts the viewer is at the origin,
+        // on the floor, and this rule covers that too.
+        val height = maxOf(viewer.t.y, Placement.EYE_HEIGHT)
+        val at = Vector3(viewer.t.x, height, viewer.t.z) + level * SCREEN_DISTANCE
+        Log.i(TAG, "screen ahead: viewer=${viewer.t} look=$look screen=$at")
+        put(ScreenPlace(facingViewer(at), SCREEN_WIDTH))
     }
 
     /**
