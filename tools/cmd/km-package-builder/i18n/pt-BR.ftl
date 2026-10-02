@@ -119,6 +119,7 @@ saved-whole-corpus = o acervo inteiro
 saved-update-title = fazer { $name } passar a significar o filtro que está na tela agora
 saved-rename-title = renomear este
 saved-forget-title = esquecer este
+saved-update-confirm = Substituir o filtro salvo “{ $name }” pelo filtro que está na tela agora? O que ele guarda agora, inclusive a página, não pode ser recuperado.
 saved-forget-confirm = Esquecer o filtro salvo “{ $name }”? Nenhuma música é alterada.
 saved-already-saved = já está salvo, como
 saved-replace-it = Sim, substituir

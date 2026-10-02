@@ -893,6 +893,8 @@ pub struct SavedFilterRow {
     pub query: String,
     /// What the update button says it would do, which names the filter it would overwrite.
     pub update_title: String,
+    /// What the browser asks before overwriting it, which names the filter it would overwrite.
+    pub update_confirm: String,
     /// What the browser asks before forgetting it, which names the filter it would forget.
     pub forget_confirm: String,
 }
@@ -904,6 +906,7 @@ impl SavedFilterRow {
         let name = [("name", filter.name.as_str().into())];
         Self {
             update_title: words.msg_with("saved-update-title", &name).into_owned(),
+            update_confirm: words.msg_with("saved-update-confirm", &name).into_owned(),
             forget_confirm: words.msg_with("saved-forget-confirm", &name).into_owned(),
             id: filter.id,
             name: filter.name,
@@ -3665,9 +3668,8 @@ mod tests {
 
     /// A chip carries all three things that can be done to the filter it names.
     ///
-    /// The rewrite carries no `hx-confirm`, and that absence is asserted: it is the only control on
-    /// the page that changes what a name means without asking, because the chip it sits on has
-    /// already said which name.
+    /// The rewrite and the forget both carry an `hx-confirm` naming the filter. Each one destroys
+    /// what the name held, and a chip's buttons are small and side by side.
     #[test]
     fn a_chip_offers_rewriting_renaming_and_forgetting() {
         let html = SavedFilterChip {
@@ -3685,8 +3687,12 @@ mod tests {
         );
         assert!(html.contains("/songs/saved-filters/7/delete"), "{html}");
         assert!(
-            !html.contains(r#"hx-post="/songs/saved-filters/7/update" hx-confirm"#),
-            "the rewrite asks nothing: {html}"
+            html.contains("Replace the saved filter “Portuguese”"),
+            "the rewrite asks first: {html}"
+        );
+        assert!(
+            html.contains("Forget the saved filter “Portuguese”"),
+            "and so does the forget: {html}"
         );
     }
 

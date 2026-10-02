@@ -119,6 +119,7 @@ saved-whole-corpus = the whole corpus
 saved-update-title = make { $name } mean the filter on screen now
 saved-rename-title = rename this one
 saved-forget-title = forget this one
+saved-update-confirm = Replace the saved filter “{ $name }” with the filter on screen now? What it holds now, page included, cannot be brought back.
 saved-forget-confirm = Forget the saved filter “{ $name }”? No song is touched.
 saved-already-saved = is already saved, as
 saved-replace-it = Yes, replace it

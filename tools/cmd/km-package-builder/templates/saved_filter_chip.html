@@ -25,12 +25,12 @@
      the cursor instead of the corpus. See `handlers::songs`. #}
   <a href="/songs?{{ filter.query }}"
      title="{% if filter.query.is_empty() %}{{ "saved-whole-corpus"|t }}{% else %}{{ filter.query }}{% endif %}">{{ filter.name }}</a>
-  {# Straight away, with no confirmation, where saving under a name that is taken asks first. The
-     difference is how the row was arrived at: this button is on the row it writes, so there is no
-     second filter it could have meant. See `A filter can be given a name, and then it is not the
-     cursor` in `docs/decisions/curation.md`. #}
+  {# A browser confirmation naming the filter, the same guard as forgetting. The write destroys the
+     query the name held, page included, and this button sits beside the link that restores it. See
+     `A filter can be given a name, and then it is not the cursor` in `docs/decisions/curation.md`. #}
   <button type="button" class="chip-action"
           hx-post="/songs/saved-filters/{{ filter.id }}/update"
+          hx-confirm="{{ filter.update_confirm }}"
           hx-target="#saved-filter-result" hx-swap="innerHTML"
           title="{{ filter.update_title }}">&#8635;</button>
   <button type="button" class="chip-action"

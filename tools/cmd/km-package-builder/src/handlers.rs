@@ -3242,10 +3242,9 @@ fn saved_filter_failed(said: String) -> Response {
 ///
 /// Writes the filter on screen into a name that already exists, and says what it replaced.
 ///
-/// **It does not ask, where saving under a name that is taken does**, and the difference is how the
-/// row was arrived at rather than how much is at stake. A save reaches an existing row by colliding
-/// with it, so the confirmation's work is to show *which* row that is; this button is drawn on the
-/// row it writes. What is still owed is the sentence, and it names both queries.
+/// **The button asks first, through an `hx-confirm` naming the filter**, as the forget button does.
+/// The write destroys the query the name held, and nothing brings it back. It is not the save
+/// box's fragment, because the button is drawn on the row it writes: there is no second row to show.
 ///
 /// **The page comes or does not come by what the row already holds.** The save box has a *keep the
 /// page* tick and a chip has nowhere to put one, so the answer is read off the filter being
