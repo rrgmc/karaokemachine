@@ -46,7 +46,7 @@ pictures and the download are on the site,
   - [Getting a corpus into shape](#getting-a-corpus-into-shape)
 - [Documentation](#documentation)
 - [License](#license)
-- [Code signing policy](#code-signing-policy)
+- [Privacy](#privacy)
 - [Author](#author)
 
 ---
@@ -195,9 +195,8 @@ file per platform. The carol package is a separate download beside them. To buil
 **Every install also has a second launcher, which starts the machine streaming.** See
 [Watching it in another room](#watching-it-in-another-room).
 
-**Windows can show *"Windows protected your PC"* when you open a setup program.** Click
-**More info**, then **Run anyway**. The [code signing policy](#code-signing-policy) says who signs
-the Windows downloads.
+**Windows shows *"Windows protected your PC"* when you open a setup program**, because the Windows
+downloads are not signed. Click **More info**, then **Run anyway**.
 
 ### On Debian, it is also an appliance — if you ask
 
@@ -628,21 +627,7 @@ may travel on. A Pixabay or Pexels pack stays on the machine that built it, and 
 records each image's license. See [`Where a wallpaper pack's photographs may come
 from`](docs/decisions/repository.md#where-a-wallpaper-packs-photographs-may-come-from).
 
-## Code signing policy
-
-Free code signing provided by [SignPath.io](https://about.signpath.io/), certificate by
-[SignPath Foundation](https://signpath.org/).
-
-**The Windows setup programs on the release page, and the programs they install, are signed.**
-Windows names the publisher as *SignPath Foundation*. The release workflow builds and signs them
-from the tagged source, and nothing built anywhere else is signed.
-
-| Role | Who |
-|---|---|
-| Committers and reviewers | [Rangel Reale](https://github.com/rrgmc) |
-| Approvers | [Rangel Reale](https://github.com/rrgmc) |
-
-### Privacy
+## Privacy
 
 **No program sends telemetry, crash reports or usage data, and none checks for updates.** A crash
 report stays in a file on the computer. A program contacts a host on the internet only for what

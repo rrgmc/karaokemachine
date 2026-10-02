@@ -862,8 +862,8 @@ tasks:
   # release` decision is careful about the difference.
   #
   # **Not a fan-out, because there is nothing to fan out to.** tools/platform/windows/installer.sh
-  # takes `--no-build`, `-v` and `-h` and knows nothing about certificates; Windows signing happens
-  # in the release workflow through SignPath, which no local task reaches. So this is gated on
+  # takes `--no-build`, `-v` and `-h` and knows nothing about certificates; Windows signing, where
+  # it happens, is in the release workflow through SignPath, which no local task reaches. So this is gated on
   # darwin directly, the way `build:ios:remote` is, rather than dispatching to a pair.
   #
   # **Nothing is validated here and no certificate is named here.** Both belong to the script: it
