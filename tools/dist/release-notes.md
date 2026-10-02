@@ -1,14 +1,19 @@
-A karaoke machine that plays MIDI files, video files, MP3+G pairs and UltraStar songs. It
+A karaoke machine that plays MIDI files, video files, MP3+G pairs, and UltraStar and LRC songs. It
 highlights the words in time with the music, takes song requests from a phone, and has an HTTP API
 for search, queueing and control.
 
 ## What changed
 
-- **The machine is "Karaoke Machine" under its icon**, and its streaming launcher is "KM Stream", so
-  no launcher cuts the name mid-word. Upgrading removes the old shortcuts and applications.
-- **The package builder can number a package's only volume.** A package that will pass 999 songs
-  takes the name `vol1` from its first build. Its file then keeps that name when a second volume
-  starts.
+- **The machine runs on a Meta Quest**, on a screen that hangs in the room with the room still
+  behind it. Grab the screen to move it, and it comes back to the same place on the next launch.
+- **An LRC file beside an MP3 of the same name is a song.** A file that times each word gets the
+  word-by-word highlight, and one that times only its lines lights each line whole.
+- **Who may do what, in four levels.** Out of the box a phone with no code queues songs and does not
+  interrupt them. A code from the owner gives a guest the skip buttons.
+- **A folder becomes a package without the curation tool.** KM Simple Package reads a folder, lists
+  its songs, and writes packages marked *uncurated*.
+- **The admin Sound tab sets when the words light up**, up to half a second either way, for a
+  television that shows its picture late.
 
 ## Which file to download
 
