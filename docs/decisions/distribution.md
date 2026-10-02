@@ -2552,7 +2552,7 @@ the rows the first one wrote with it.
 
 **A pushed `v*` tag runs `.github/workflows/release.yml`, which builds eleven of the thirteen carriers
 and fills the draft release.** Each platform's job runs the same staging script a person types, and
-a last job runs `tools/dist/release.sh --upload` over what they staged. Publishing stays
+a last job runs `bash tools/dist/release.sh --upload` over what they staged. Publishing stays
 `gh release edit v<version> --draft=false`, typed by somebody who has opened the page.
 
 **The runners build Windows, Linux, Android, Meta Quest and iOS.** A public repository's standard runners cost

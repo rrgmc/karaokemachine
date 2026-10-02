@@ -452,7 +452,7 @@ The product decision is `What the box shows before the machine does` in
 [`distribution.md`](../decisions/distribution.md). This is how it is built, and what building it
 found.
 
-`tools/platform/linux/appliance-boot.sh [user@]host`, or `task deploy:linux:boot HOST=user@box`, is
+`bash tools/platform/linux/appliance-boot.sh [user@]host`, or `task deploy:linux:boot HOST=user@box`, is
 the once-per-box act. It installs Plymouth, and hides the bootloader menu behind a one-second any-key
 window. It selects the theme the `.deb` already put on the box. `--revert` undoes both from backups
 it takes exactly once.

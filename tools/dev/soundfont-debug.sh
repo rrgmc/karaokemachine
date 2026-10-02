@@ -2,10 +2,10 @@
 #
 # Fills the machine's Ctrl+2..Ctrl+9 SoundFont slots with the banks already on this box.
 #
-#   tools/dev/soundfont-debug.sh                 # find them and fill the slots
-#   tools/dev/soundfont-debug.sh --choose        # tick the ones you want, from all of the table
-#   tools/dev/soundfont-debug.sh --list          # what it would use, without writing anything
-#   tools/dev/soundfont-debug.sh --clear         # empty the slots, turning the switcher off
+#   bash tools/dev/soundfont-debug.sh                 # find them and fill the slots
+#   bash tools/dev/soundfont-debug.sh --choose        # tick the ones you want, from all of the table
+#   bash tools/dev/soundfont-debug.sh --list          # what it would use, without writing anything
+#   bash tools/dev/soundfont-debug.sh --clear         # empty the slots, turning the switcher off
 #
 # `task soundfont:debug`, `task soundfont:debug:choose`, `task soundfont:debug:list` and
 # `task soundfont:debug:clear` are these.

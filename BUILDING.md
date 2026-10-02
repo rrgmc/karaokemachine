@@ -445,15 +445,15 @@ pack`](docs/decisions/repository.md#a-downloadable-song-pack) decision also says
 pack that could be built at all.
 
 ```sh
-tools/dist/carols.sh          # or: task carols
-tools/dist/carols.sh -v       # ...watching the conversion
+bash tools/dist/carols.sh          # or: task carols
+bash tools/dist/carols.sh -v       # ...watching the conversion
 ```
 
 It needs the network once, to fetch the source hymnal into the asset cache and verify it against a
 pinned SHA-256. It also needs **`abc2midi`**, which nothing else here asks for:
 
 ```sh
-task abcmidi          # or: tools/setup/fetch-abcmidi.sh
+task abcmidi          # or: bash tools/setup/fetch-abcmidi.sh
 ```
 
 That builds it into the asset cache, once per machine, on any of the three platforms, and
@@ -680,7 +680,7 @@ KM_ANDROID_KEYSTORE_PASSWORD=... \
 `KM_ANDROID_KEY_PASSWORD` falls back to the store's, which is what PKCS12 requires them to share, and
 `KM_ANDROID_KEY_ALIAS` defaults to `karaokemachine`. **A keystore named but not there stops the
 build** rather than falling back, and every release build prints which key it used.
-`tools/port/apk-signer.sh <apk>` asks the same question of a file, and `tools/dist/release.sh` refuses
+`bash tools/port/apk-signer.sh <apk>` asks the same question of a file, and `tools/dist/release.sh` refuses
 to publish a debug-signed APK. See
 [`How the Android applications are signed`](docs/decisions/remotes.md#how-the-android-applications-are-signed).
 
@@ -1370,7 +1370,7 @@ tools/setup/fetch-assets.sh              # the GM SoundFont            (task ass
 tools/setup/fetch-assets.sh --list       # the banks it knows about
 tools/setup/fetch-ffmpeg.sh              # ffmpeg + libclang           (task ffmpeg)
 tools/setup/fetch-ffmpeg.sh --homebrew   # macOS: Homebrew's GPL build instead of a pinned LGPL one
-tools/setup/fetch-abcmidi.sh             # for the carol pack          (task abcmidi)
+bash tools/setup/fetch-abcmidi.sh             # for the carol pack          (task abcmidi)
 task ffmpeg:android                      # the LGPL ffmpeg for both Android ABIs
 ```
 
@@ -1952,7 +1952,7 @@ cargo run -p km-audio --example render_wav -- in.kar out.wav bank.sf2 --only-cha
 cargo run --release -p km-audio --example bank_info -- bank.sf2    # what a bank holds, and what loading it lost
 cargo run --release -p km-song --example event_census -- /path/to/corpus [limit]
 cargo run --release -p km-fixes --example fix_census -- /path/to/corpus [limit] [stride]
-KM_CORPUS=<your karaoke folder> tools/dev/soundfont-measure.sh     # the research note's §3 and §4, re-run
+KM_CORPUS=<your karaoke folder> bash tools/dev/soundfont-measure.sh     # the research note's §3 and §4, re-run
 # What a page and a scan batch cost on a corpus-sized .kmbuild. Ignored tests, because they need a
 # real corpus and the page cache emptied first -- see `docs/research/sqlite-mmap.md` for the regime
 # and `db::measure`'s own header for why one run measures one setting.
@@ -2027,8 +2027,8 @@ decimal.
 ## The Christmas carol pack
 
 ```sh
-tools/dist/carols.sh              # fetch, convert, build, report   (task carols)
-tools/dist/carols.sh --keep-work  # ...keeping the generated ABC and .kar files
+bash tools/dist/carols.sh              # fetch, convert, build, report   (task carols)
+bash tools/dist/carols.sh --keep-work  # ...keeping the generated ABC and .kar files
 ```
 
 Sixteen public-domain carols as one `.kmpkg`, **a separate download and never bundled**. Needs the
@@ -2038,9 +2038,9 @@ copyright line must say public domain in all four layers a hymn divides into.
 ## The landing page
 
 ```sh
-tools/dist/site.sh                # stage dist/site                   (task site)
-tools/dist/site.sh --open         # ...and open it                    (task site OPEN=1)
-tools/dist/site.sh -v             # ...naming every file it staged
+bash tools/dist/site.sh                # stage dist/site                   (task site)
+bash tools/dist/site.sh --open         # ...and open it                    (task site OPEN=1)
+bash tools/dist/site.sh -v             # ...naming every file it staged
 ```
 
 One hand-written page, `site/index.html` and `site/style.css`, staged with the nine pictures out
@@ -2061,13 +2061,13 @@ It refuses three things that would otherwise be found only after publishing:
 ## Issue labels
 
 ```sh
-tools/dev/labels.sh list                        # the table, for a person   (task lint:labels checks it)
-tools/dev/labels.sh table                       # the same rows, for a script
-tools/dev/labels.sh check                       # or: task lint:labels
-tools/dev/labels.sh sync --dry-run              # what declaring them would do
-tools/dev/labels.sh sync                        # create and update them on GitHub
-tools/dev/labels.sh sync --prune --dry-run      # ...and which labels it would delete
-printf '### Platform\n\nWindows\n' | tools/dev/issue-labels.sh   # the labels a body asks for
+bash tools/dev/labels.sh list                        # the table, for a person   (task lint:labels checks it)
+bash tools/dev/labels.sh table                       # the same rows, for a script
+bash tools/dev/labels.sh check                       # or: task lint:labels
+bash tools/dev/labels.sh sync --dry-run              # what declaring them would do
+bash tools/dev/labels.sh sync                        # create and update them on GitHub
+bash tools/dev/labels.sh sync --prune --dry-run      # ...and which labels it would delete
+printf '### Platform\n\nWindows\n' | bash tools/dev/issue-labels.sh   # the labels a body asks for
 ```
 
 **`tools/dev/labels.sh` is the one place a label is written down**, and `sync` is what puts the table
@@ -2217,9 +2217,9 @@ tools/port/remote/ios/build.sh [--release] [--device-only] [--no-app]
 task deploy:linux HOST=user@box              # tools/platform/linux/deploy.sh user@box
 task deploy:linux HOST=user@box NO_BUILD=1 | NO_VIDEO=1 | SONGS=./packages
 task deploy:linux HOST=user@box PORT=2222 | IDENTITY=~/.ssh/karaoke
-task deploy:linux:boot HOST=user@box         # tools/platform/linux/appliance-boot.sh user@box
+task deploy:linux:boot HOST=user@box         # bash tools/platform/linux/appliance-boot.sh user@box
 task deploy:linux:boot HOST=user@box REVERT=1 | FORCE=1 | SLIM=1      # once per box
-tools/platform/linux/grub-appliance-edit.sh < /etc/default/grub        # the filter the above uses; testable alone
+bash tools/platform/linux/grub-appliance-edit.sh < /etc/default/grub        # the filter the above uses; testable alone
 ```
 
 Builds, copies, installs and enables the service. **`HOST` is the one variable in the Taskfile with

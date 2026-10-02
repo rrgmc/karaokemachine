@@ -3,10 +3,10 @@
 # Measures General MIDI banks the way soundfont-banks.conf was measured -- seven songs of 90 s each
 # at music_volume 1.0, levels deliberately NOT normalised -- and prints the two tables as markdown.
 #
-#   KM_CORPUS=<folder> tools/dev/soundfont-measure.sh                  # every cached bank
-#   KM_CORPUS=<folder> tools/dev/soundfont-measure.sh musescore sgm    # named ones
-#   KM_CORPUS=<folder> tools/dev/soundfont-measure.sh --file <path>.sf2
-#   KM_CORPUS=<folder> tools/dev/soundfont-measure.sh --verdicts-only  # §3 only, one render each
+#   KM_CORPUS=<folder> bash tools/dev/soundfont-measure.sh                  # every cached bank
+#   KM_CORPUS=<folder> bash tools/dev/soundfont-measure.sh musescore sgm    # named ones
+#   KM_CORPUS=<folder> bash tools/dev/soundfont-measure.sh --file <path>.sf2
+#   KM_CORPUS=<folder> bash tools/dev/soundfont-measure.sh --verdicts-only  # §3 only, one render each
 #
 # ## Why this exists
 #

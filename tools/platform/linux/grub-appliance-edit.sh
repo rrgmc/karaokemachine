@@ -2,7 +2,7 @@
 # Turns an ordinary /etc/default/grub into an appliance's: no menu unless somebody asks for one, and
 # a boot that shows the machine's splash instead of kernel text.
 #
-#   tools/platform/linux/grub-appliance-edit.sh < /etc/default/grub > new
+#   bash tools/platform/linux/grub-appliance-edit.sh < /etc/default/grub > new
 #
 # **A filter, not an editor**, and that is the whole reason this is a separate file rather than ten
 # lines inside tools/platform/linux/appliance-boot.sh. Reading stdin and writing stdout means it can

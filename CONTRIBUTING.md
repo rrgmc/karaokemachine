@@ -13,12 +13,12 @@ task check          # local-refs, prose, the two pins, fmt, clippy, tests — ch
 
 ```sh
 tools/dev/check-no-local-refs.sh     # or: task lint:local  — runs first, cheapest failure to read
-tools/dev/check-prose.sh --changed   # or: task lint:prose  — the lines this branch adds
-tools/dev/check-prose.sh --commits   # ...and the messages it adds them in
+bash tools/dev/check-prose.sh --changed   # or: task lint:prose  — the lines this branch adds
+bash tools/dev/check-prose.sh --commits   # ...and the messages it adds them in
 tools/dev/check-toolchain-pin.sh     # or: task lint:pin
 tools/dev/check-version-pin.sh       # or: task lint:version
-tools/dev/check-cargo-config.sh      # or: task lint:cargo  — every value a worktree can inherit
-tools/dev/labels.sh check            # or: task lint:labels — a label for every platform, program and path row
+bash tools/dev/check-cargo-config.sh      # or: task lint:cargo  — every value a worktree can inherit
+bash tools/dev/labels.sh check            # or: task lint:labels — a label for every platform, program and path row
 cargo fmt --all
 cargo km-lint                        # clippy over every target, -D warnings
 cargo km-test                        # the test suite
@@ -58,7 +58,7 @@ a missing system library, and a wrong `#[cfg]`. All three have happened here.
 paths. To see what it will add:
 
 ```sh
-git diff --name-only master... | tools/dev/pr-labels.sh
+git diff --name-only master... | bash tools/dev/pr-labels.sh
 ```
 
 The rule is

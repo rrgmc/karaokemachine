@@ -2,10 +2,10 @@
 #
 # Prose in this repository states the rule, not how it was arrived at.
 #
-#   tools/dev/check-prose.sh --changed  # only the lines this branch added -- what a push should run
-#   tools/dev/check-prose.sh --commits  # the branch's own commit messages, subject and body
-#   tools/dev/check-prose.sh            # every tracked file
-#   tools/dev/check-prose.sh --list     # ...and print the shapes it looks for, then check
+#   bash tools/dev/check-prose.sh --changed  # only the lines this branch added -- what a push should run
+#   bash tools/dev/check-prose.sh --commits  # the branch's own commit messages, subject and body
+#   bash tools/dev/check-prose.sh            # every tracked file
+#   bash tools/dev/check-prose.sh --list     # ...and print the shapes it looks for, then check
 #
 # The standing decision is `How a document in this repository is written` in
 # docs/decisions/repository.md, and the short form is in CLAUDE.md. This keeps the mechanical half of

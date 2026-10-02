@@ -510,7 +510,7 @@ task deploy:linux:boot HOST=user@box             # hide the menu, use our splash
 task deploy:linux:boot HOST=user@box REVERT=1    # put the box back
 task deploy:linux:boot HOST=user@box FORCE=1     # anyway, on a dual-boot box
 task deploy:linux:boot HOST=user@box SLIM=1      # and make the boot faster
-tools/platform/linux/appliance-boot.sh user@box [--revert] [--force] [--slim-initramfs]
+bash tools/platform/linux/appliance-boot.sh user@box [--revert] [--force] [--slim-initramfs]
 ```
 
 **What it assumes about the box.** Debian, and little else. It probes for the bootloader, whatever

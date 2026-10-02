@@ -2,9 +2,9 @@
 #
 # Builds `abc2midi` into the asset cache, once per machine.
 #
-#   tools/setup/fetch-abcmidi.sh            # build it if it is not there; or: task abcmidi
-#   tools/setup/fetch-abcmidi.sh --force    # build it again
-#   tools/setup/fetch-abcmidi.sh --path     # print where it is and build nothing
+#   bash tools/setup/fetch-abcmidi.sh            # build it if it is not there; or: task abcmidi
+#   bash tools/setup/fetch-abcmidi.sh --force    # build it again
+#   bash tools/setup/fetch-abcmidi.sh --path     # print where it is and build nothing
 #
 # `abc2midi` is what `tools/dist/carols.sh` uses to turn the Open Hymnal's ABC into karaoke MIDI.
 # It is a **build-time** tool on the same footing as `ffmpeg` the command and Inno Setup: nothing

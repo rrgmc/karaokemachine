@@ -1443,7 +1443,7 @@ body does not answer at all is left alone, which is what keeps a label somebody 
 song, so four more labels sort a part of the list rather than the list.
 
 **Every label is declared in [`tools/dev/labels.sh`](../../tools/dev/labels.sh), which is the only
-place one is written down.** `tools/dev/labels.sh sync` puts that table on GitHub. A label created in
+place one is written down.** `bash tools/dev/labels.sh sync` puts that table on GitHub. A label created in
 the web interface is a label no checkout knows about and no guard can read. GitHub creates four
 labels in every new repository that this table leaves out, and they go the same way:
 

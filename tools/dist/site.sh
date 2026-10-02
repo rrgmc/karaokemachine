@@ -2,9 +2,9 @@
 #
 # Assembles the landing pages into one folder, ready to publish.
 #
-#   tools/dist/site.sh                 # stage into dist/site
-#   tools/dist/site.sh --open          # ...and open it in a browser
-#   tools/dist/site.sh -v              # say what went where
+#   bash tools/dist/site.sh                 # stage into dist/site
+#   bash tools/dist/site.sh --open          # ...and open it in a browser
+#   bash tools/dist/site.sh -v              # say what went where
 #
 # Published to https://rrgmc.github.io/karaokemachine/ by .github/workflows/pages.yml, which runs
 # exactly this script and uploads what it produces. **That is the point of the script existing rather

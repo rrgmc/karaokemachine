@@ -2,7 +2,7 @@
 #
 # One function opens every mDNS daemon, and this is what keeps that true.
 #
-#   tools/dev/check-mdns.sh                   # exit 1 and name every escape
+#   bash tools/dev/check-mdns.sh                   # exit 1 and name every escape
 #
 # `mdns_sd::ServiceDaemon::new` binds UDP `0.0.0.0:5353` and `[::]:5353`, which is what Windows
 # Firewall answers with a dialog and a rule keyed on the full image path. `km_api::discover::daemon`
