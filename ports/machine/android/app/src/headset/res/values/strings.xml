@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="headset_screen_curved">Curved</string>
     <string name="headset_screen_wall">Wall</string>
     <string name="headset_queue">Queue</string>
     <string name="headset_to_window">Window</string>

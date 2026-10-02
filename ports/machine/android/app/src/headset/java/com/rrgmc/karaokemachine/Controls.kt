@@ -4,7 +4,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -24,13 +24,11 @@ import com.meta.spatial.uiset.theme.SpatialTheme
 import com.meta.spatial.uiset.theme.darkSpatialColorScheme
 import com.meta.spatial.uiset.theme.icons.SpatialIcons
 import com.meta.spatial.uiset.theme.icons.regular.BulletList
-import com.meta.spatial.uiset.theme.icons.regular.Media180
 import com.meta.spatial.uiset.theme.icons.regular.OpenPanel
 import com.meta.spatial.uiset.theme.icons.regular.Reorient
 
 /** What the controls show, which the scene changes as it learns about the room and the machine. */
-internal class ControlsState(curved: Boolean, queueShown: Boolean) {
-    var curved by mutableStateOf(curved)
+internal class ControlsState(queueShown: Boolean) {
     var queueShown by mutableStateOf(queueShown)
 
     /** Whether a scanned room is loaded, which is what a wall needs. */
@@ -45,8 +43,6 @@ internal class ControlsState(curved: Boolean, queueShown: Boolean) {
 
 /** What the controls ask the scene to do. */
 internal interface ControlsActions {
-    fun shape(curved: Boolean)
-
     fun toWall()
 
     fun toWindow()
@@ -55,7 +51,7 @@ internal interface ControlsActions {
 }
 
 /**
- * A pill under the screen, in Horizon OS's own UI Set so it reads like the system around it.
+ * A vertical pill beside the screen, in Horizon OS's own UI Set, so it reads like the system.
  *
  * Each button is an icon over a word. A toggle shows its state by being selected. A button that
  * could do nothing is left out rather than greyed, so the pill holds only what works now.
@@ -64,20 +60,13 @@ internal interface ControlsActions {
 internal fun Controls(state: ControlsState, actions: ControlsActions) {
     SpatialTheme(darkSpatialColorScheme()) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Row(
+            Column(
                 modifier = Modifier
                     .background(PILL, RoundedCornerShape(percent = 50))
-                    .padding(horizontal = 24.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically,
+                    .padding(horizontal = 8.dp, vertical = 24.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Shelf(
-                    SpatialIcons.Regular.Media180,
-                    stringResource(R.string.headset_screen_curved),
-                    state.curved,
-                ) {
-                    actions.shape(!state.curved)
-                }
                 if (state.roomKnown) {
                     Shelf(
                         SpatialIcons.Regular.Reorient,
