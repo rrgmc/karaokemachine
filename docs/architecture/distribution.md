@@ -407,7 +407,9 @@ instead that the generated file exists and names the row the table marks `recomm
 It stages `dist/bin/windows` and the remote's folder with `tools/dist/bin.sh` and
 `tools/dist/cmd.sh km-remote`, and has our own `.exe` files signed in place. It then runs both
 installer scripts with `--no-build` and has the two setups signed. The artifact configurations are
-in `tools/platform/windows/signpath/`. A setup built anywhere else is unsigned, so SmartScreen shows
+in `tools/platform/windows/signpath/`.
+
+A setup built anywhere else is unsigned, so SmartScreen shows
 *"Windows protected your PC"* and the recipient clicks through. The decision is
 `Signing a Windows release` in `docs/decisions/distribution.md`.
 
