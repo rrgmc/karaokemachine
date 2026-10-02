@@ -89,6 +89,7 @@ it are the same entry. How the thing is built is [`ARCHITECTURE.md`](../ARCHITEC
 - [A half-read file plays, and says which track was lost](songs.md#a-half-read-file-plays-and-says-which-track-was-lost)
 - [A declared lyric encoding must name a real one, and packaging is where that is said](songs.md#a-declared-lyric-encoding-must-name-a-real-one-and-packaging-is-where-that-is-said)
 - [A name made of marks is not a name](songs.md#a-name-made-of-marks-is-not-a-name)
+- [A title squeezed out of the file's own name is not a name](songs.md#a-title-squeezed-out-of-the-files-own-name-is-not-a-name)
 - [A song's words can be turned off, and three faults turn them off without being asked](songs.md#a-songs-words-can-be-turned-off-and-three-faults-turn-them-off-without-being-asked)
 
 ## [Song sources — video, MP3+G, UltraStar and LRC](song-sources.md)

@@ -1268,6 +1268,38 @@ blank unclickable row [`A song with no title`](curation.md#a-song-with-no-title)
 **Nothing a person typed is touched**, and no artist is invented. A refused name leaves the song
 exactly where a song whose file said nothing already stands.
 
+## A title squeezed out of the file's own name is not a name
+
+**A detected title gives way to the file name when it only abbreviates that name.** Many MIDI files
+carry an 8.3 abbreviation in the title meta event. The file `THE BEATLES.I'm only sleeping K.mid`
+says `IMONLYSL` inside. Shown in front of the file name, the abbreviation hides the one readable
+name the song has.
+
+`km_song::abbreviates_file_name` decides it from the title and the file stem, with three tests:
+
+- **The title has the DOS shape**: two to eight characters, no lowercase letter and no whitespace.
+- **Its letters and digits occur in the stem's letters and digits**, uppercased. The match can be
+  anywhere, because the stem usually starts with the performer.
+- **The stem spells that run with more separators than the title has.** A space, an apostrophe, an
+  underscore, a dash and a full stop all count. This proves that somebody squeezed the name.
+
+**The third test keeps a title that is as good as the stem.** `FAITH` beside `FAITH_(715840)` and
+`01ALMART` beside `01ALMART (2)` have no separator inside the run. `KA-CHING` beside
+`Ka-Ching [17289]` has the same separator in both. A prefix rule or an eight-character rule fails
+here: `IMALIVE` has seven characters, and `01ALMART (2)` starts with its title.
+
+About one title in ten of the DOS shape matches, and a sample read clean. The rest are mostly
+track names such as `BASS` and `PIANO`. That is a different defect, and this rule does not see it,
+because those letters are not in the stem.
+
+**The rule holds everywhere a title is chosen**, so the curation page and the television agree. The
+package builder applies it where a scan writes `det_title`, and its open-time sweep applies it to
+rows already written. `km-pack` applies it in `title_or_stem`, and the machine applies it to a file
+played directly. The row then falls through to
+[`A song with no title`](curation.md#a-song-with-no-title) and carries the `file name` tag.
+
+**Nothing a person typed is touched.** A title somebody edited stays in front of both.
+
 ## A song's words can be turned off, and three faults turn them off without being asked
 
 **A per-song instruction that plays the song and draws none of its words.** A file can be a good
