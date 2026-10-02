@@ -107,15 +107,13 @@ impl SongRow {
         clock(self.song.duration_ms)
     }
 
-    /// Whether there is anything worth searching YouTube for.
-    ///
-    /// The row draws the link only where this is true, and *absent* is the right answer rather than
-    /// a link that lands on a page of nothing — see [`youtube_query`].
+    /// Whether there is anything to search YouTube for. Only a row with no title and no artist has
+    /// nothing — see [`youtube_query`].
     pub fn searchable(&self) -> bool {
         youtube_query(self.title(), self.song.artist.as_deref()).is_some()
     }
 
-    /// The YouTube search URL, or an empty string when there is nothing worth searching for.
+    /// The YouTube search URL, or an empty string when the row has no title and no artist.
     ///
     /// The template guards on [`searchable`](Self::searchable) first; the empty answer here is
     /// belt-and-braces rather than a case that should ever be rendered.
@@ -131,43 +129,25 @@ impl SongRow {
     }
 }
 
-/// What to search YouTube for, or `None` when the row does not say enough to bother.
+/// What to search YouTube for, or `None` when the row has no title and no artist.
 ///
 /// **Nothing stores a link.** No catalog, no package and no `SongDto` carries a URL, and this is
 /// the same conclusion `km-package-builder` reached with its own `youtube_query`: what a song has is
 /// a title and perhaps an artist, and a search is what those two make. It builds the same query
-/// string as that one, so the two programs send somebody to one page for one song. The builder
-/// links every song, because a curator searches to identify a file. This one keeps the filename
-/// guard below, because a singer browsing for a song gains nothing from a search for `AMD0123`.
+/// string as that one, so the two programs send somebody to one page for one song.
 ///
-/// The guard matters because of what the corpus actually contains. A great many files are titled
-/// `CORCOVAD` or `AMD0123`, which is the file's own truncated name rather than a song's, and a
-/// search for one of those finds nothing at all. With an artist the title no longer has to stand on
-/// its own, which is why the shape test only applies when there is not one.
+/// Every song gets a search, even one titled with its file's truncated name, such as `CORCOVAD`.
+/// That name is often enough for YouTube to find the song.
 fn youtube_query(title: &str, artist: Option<&str>) -> Option<String> {
     let title = title.trim();
     let artist = artist.map(str::trim).filter(|value| !value.is_empty());
 
-    if let Some(artist) = artist {
-        return Some(if title.is_empty() {
-            artist.to_owned()
-        } else {
-            format!("{artist} {title}")
-        });
+    match (artist, title.is_empty()) {
+        (Some(artist), true) => Some(artist.to_owned()),
+        (Some(artist), false) => Some(format!("{artist} {title}")),
+        (None, false) => Some(title.to_owned()),
+        (None, true) => None,
     }
-
-    if title.is_empty() || looks_like_a_filename(title) {
-        return None;
-    }
-    Some(title.to_owned())
-}
-
-/// Whether a title is a file's own name dressed up as one.
-///
-/// No spaces and no lower-case letters is the shape of a truncated 8.3 name rather than of a title.
-/// `CORCOVAD` and `AMD0123` both fail this; `Corcovado` and `Águas de Março` both pass.
-fn looks_like_a_filename(title: &str) -> bool {
-    !title.contains(' ') && !title.chars().any(char::is_lowercase)
 }
 
 /// An entry in the queue, as the page draws it.
@@ -462,10 +442,9 @@ mod tests {
         assert_eq!(clock(1_999), "0:01");
     }
 
-    /// An artist is enough on its own: the title no longer has to stand up by itself, so the shape
-    /// test does not apply and `CORCOVAD` becomes a perfectly good search beside `Tom Jobim`.
+    /// The artist comes first, and an artist alone is enough.
     #[test]
-    fn an_artist_makes_any_title_worth_searching_for() {
+    fn an_artist_leads_the_search() {
         assert_eq!(
             youtube_query("CORCOVAD", Some("Tom Jobim")).as_deref(),
             Some("Tom Jobim CORCOVAD")
@@ -476,21 +455,22 @@ mod tests {
         );
     }
 
-    /// The corpus is full of these, and a search for one lands on a page of nothing. Absent beats a
-    /// link that goes nowhere.
+    /// A title that is only a file's name is still searched for. Only a row with nothing has none.
     #[test]
-    fn a_title_that_is_only_a_filename_is_not_worth_searching_for() {
-        assert!(youtube_query("CORCOVAD", None).is_none());
-        assert!(youtube_query("AMD0123", None).is_none());
+    fn a_title_that_is_only_a_filename_is_still_searched_for() {
+        assert_eq!(youtube_query("CORCOVAD", None).as_deref(), Some("CORCOVAD"));
+        assert_eq!(youtube_query("AMD0123", None).as_deref(), Some("AMD0123"));
+        // A blank artist is left out of the query.
+        assert_eq!(
+            youtube_query("CORCOVAD", Some("   ")).as_deref(),
+            Some("CORCOVAD")
+        );
         assert!(youtube_query("", None).is_none());
-        // A blank artist does not rescue one.
-        assert!(youtube_query("CORCOVAD", Some("   ")).is_none());
+        assert!(youtube_query("  ", Some(" ")).is_none());
     }
 
-    /// One word is not the test — capitalisation and spaces are. `Corcovado` is a title and
-    /// `CORCOVAD` is what a filesystem did to one.
     #[test]
-    fn a_real_title_stands_on_its_own() {
+    fn a_title_stands_on_its_own() {
         assert_eq!(
             youtube_query("Águas de Março", None).as_deref(),
             Some("Águas de Março")

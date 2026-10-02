@@ -618,15 +618,11 @@ their children. So a new parent is invisible to all three. See `A queued row com
 URL: no catalog, no package, no `SongDto`. Adding one would be a field somebody has to fill in for a
 hundred thousand songs. Both programs build the same query, the artist and then the title.
 
-**In `km-package-builder`, every song gets a link.** A curator searches to find out what a file is.
-A title that is only the file's name, such as `CORCOVAD`, is the case where that search helps most.
-A song with no title searches for the file's stem.
-
-**On the remote, a row without an artist gets no link if its title has no spaces and no lower-case
-letters.** That is the shape of a truncated 8.3 filename rather than of a title. A singer browsing
-for a song gains nothing from a search for `AMD0123`, and the phone has no file name to fall back
-on. Of 39 songs in a test package, 38 got a link. The one that did not was titled `ABBA` with no
-artist.
+**Every song gets a link, in both programs.** A title that is only the file's truncated name, such
+as `CORCOVAD`, still gets a search. That name is often enough for YouTube to find the song, and a
+curator needs the search most for exactly that file. In `km-package-builder`, a song with no title
+searches for the file's stem. The remote has no file name, so only a row with no title and no artist
+gets no link.
 
 **The link can dead-end and that is accepted**: a machine under a television may sit on a LAN with no
 route out. It is a link and not an action, so the phone says what happened.

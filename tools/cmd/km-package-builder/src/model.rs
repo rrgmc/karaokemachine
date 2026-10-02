@@ -828,7 +828,6 @@ impl SongRow {
         &self.path_said
     }
 
-    /// Whether a YouTube search would be worth offering.
     /// Words the four sentences on this row that carry a value.
     ///
     /// Called by [`crate::server::State::say_rows`], beside the hint pass, for the same reason: what
@@ -918,6 +917,8 @@ impl SongRow {
         serde_json::from_str(&self.warnings).unwrap_or_default()
     }
 
+    /// Whether there is anything to search YouTube for. Only a song with no title, artist or file
+    /// name has nothing.
     pub fn searchable(&self) -> bool {
         youtube_query(&self.title, self.artist.as_deref(), &self.path).is_some()
     }
