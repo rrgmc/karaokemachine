@@ -1,6 +1,12 @@
 {# Redrawn whole when a song is kept or left out, because every number after it moves. #}
 <section id="songs" data-page="{{ page }}">
-  <p class="summary">{{ summary }}</p>
+  <div class="row">
+    <p class="summary grow">{{ summary }}</p>
+    {% if let Some(label) = leave_out_low %}
+    <button type="button" class="quiet" hx-post="/songs/leave-out-low?page={{ page }}"
+            hx-target="#songs" hx-swap="outerHTML">{{ label }}</button>
+    {% endif %}
+  </div>
   <p class="hint">{{ "songs-shift-hint"|t }}</p>
   <table>
     <thead>

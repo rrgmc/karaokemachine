@@ -89,6 +89,32 @@ async fn a_folder_becomes_an_uncurated_package_with_the_changes_made_on_the_page
     assert_eq!(status, StatusCode::OK);
     assert!(list.contains("left-out"), "{list}");
 
+    // The button that leaves out the low songs answers with the list, and changes no song that
+    // is 8 or more.
+    let before: Vec<bool> = app
+        .lock()
+        .session
+        .as_ref()
+        .expect("a session")
+        .rows
+        .iter()
+        .map(|row| row.kept)
+        .collect();
+    let (status, list) = post(&app, "/songs/leave-out-low?page=0", "").await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(list.contains(r#"id="songs""#), "{list}");
+    assert!(
+        !list.contains("/songs/leave-out-low"),
+        "no kept song is low any more: {list}"
+    );
+    let session = app.lock().session.clone().expect("a session");
+    for (row, was) in session.rows.iter().zip(before) {
+        assert_eq!(row.kept, was && !row.is_low(), "{}", row.song.file);
+    }
+    // Put the first song back, so the build below sees only the song left out by hand.
+    let (status, _) = post(&app, "/songs/keep?page=0", "from=0&to=0&keep=on").await;
+    assert_eq!(status, StatusCode::OK);
+
     let body = format!(
         "name=Party&version=1.0.0&publisher=&language=und&out_dir={}",
         form_value(&out)

@@ -62,6 +62,7 @@ column-artist = Artist
 column-language = Language
 column-suitability = Suitability
 column-keep = Keep
+action-leave-out-low = Leave out every song with a suitability below { $threshold }
 page-previous = Previous
 page-next = Next
 
