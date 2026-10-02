@@ -789,24 +789,226 @@ fn fill_generic_meta(decoded: &[(usize, u32, MetaTextKind, String)], meta: &mut 
             // Cleaned before `is_generic_track_name` looks at it, so a NUL-padded `Track` is
             // judged on the word rather than on the padding.
             .filter_map(|(_, _, _, text)| clean_meta_text(text))
-            .find(|name| !is_generic_track_name(name) && names_something(name));
+            .find(|name| !names_a_part(name) && names_something(name));
     }
 }
 
-fn is_generic_track_name(name: &str) -> bool {
-    const GENERIC: [&str; 8] = [
-        "words",
-        "lyrics",
-        "lyric",
-        "text",
-        "melody",
-        "untitled",
-        "track",
-        "soft karaoke",
-    ];
-    let lower = name.trim().to_lowercase();
-    lower.is_empty() || GENERIC.iter().any(|g| lower == *g)
+/// Whether a track name names a part of the arrangement rather than the song.
+///
+/// **A sequencer names every track, and the song only sometimes.** So the name on the first two
+/// tracks is often `Piano`, `BASS`, `A.PIANO 1`, `Track 0`, `Seq-1` or `MIDI out`. Taken as a title,
+/// it names thousands of songs alike.
+///
+/// The name is split into words, and a digit run is its own word, so `piano1` is `piano` and `1`.
+/// **Every word must be a number, a single character or a word of [`PART_WORDS`]**, and one must be a
+/// word of the list. One other word keeps the name, so `Piano Man` and `Bass Line Baby` stay titles.
+///
+/// A real title such as `Voices` or `Slow` is lost here, but only to the file name. Where the file
+/// name holds that title, the song still shows it.
+pub fn names_a_part(name: &str) -> bool {
+    let lower = name.to_lowercase();
+    let mut words = Vec::new();
+    let mut word = String::new();
+    for ch in lower.chars() {
+        let boundary = word.chars().last().is_some_and(|last| {
+            !ch.is_alphanumeric() || last.is_ascii_digit() != ch.is_ascii_digit()
+        });
+        if boundary {
+            words.push(std::mem::take(&mut word));
+        }
+        if ch.is_alphanumeric() {
+            word.push(ch);
+        }
+    }
+    words.push(word);
+    words.retain(|word| !word.is_empty());
+
+    // A name with no word in it is no part, and `names_something` refuses it as no name.
+    let mut named = false;
+    for word in &words {
+        if PART_WORDS.contains(&word.as_str()) {
+            named = true;
+        } else if !(word.chars().all(|ch| ch.is_ascii_digit()) || word.chars().count() == 1) {
+            return false;
+        }
+    }
+    named
 }
+
+/// The words a sequencer names a track with: instruments, voices, and the labels of a track itself.
+///
+/// Kept in alphabetical order, so a second copy of a word is easy to see.
+const PART_WORDS: &[&str] = &[
+    "ac",
+    "accordion",
+    "acou",
+    "acoustic",
+    "alto",
+    "backing",
+    "bagpipe",
+    "banjo",
+    "baritone",
+    "bass",
+    "basses",
+    "bassoon",
+    "bell",
+    "bells",
+    "bk",
+    "brass",
+    "celesta",
+    "celli",
+    "cello",
+    "ch",
+    "chan",
+    "channel",
+    "choir",
+    "chorus",
+    "chorused",
+    "clarinet",
+    "clarinets",
+    "clav",
+    "clavinet",
+    "clean",
+    "clef",
+    "conduct",
+    "conductor",
+    "contrabass",
+    "control",
+    "cymbal",
+    "cymbals",
+    "distorted",
+    "distortion",
+    "drum",
+    "drumkit",
+    "drummix",
+    "drums",
+    "drumset",
+    "dulcimer",
+    "el",
+    "elec",
+    "electric",
+    "ensemble",
+    "fiddle",
+    "fingerdbas",
+    "fingered",
+    "flute",
+    "flutes",
+    "fretless",
+    "fx",
+    "glockenspiel",
+    "grand",
+    "gt",
+    "gtr",
+    "guitar",
+    "guitars",
+    "hand",
+    "harmonica",
+    "harmony",
+    "harp",
+    "harpsichord",
+    "hat",
+    "hihat",
+    "honky",
+    "horn",
+    "horns",
+    "inst",
+    "instr",
+    "instrument",
+    "karaoke",
+    "kick",
+    "kit",
+    "lead",
+    "left",
+    "lh",
+    "lyric",
+    "lyrics",
+    "mandolin",
+    "marimba",
+    "master",
+    "melodie",
+    "melody",
+    "meta",
+    "midi",
+    "mute",
+    "muted",
+    "nameless",
+    "nylon",
+    "oboe",
+    "ocarina",
+    "orch",
+    "orchestra",
+    "organ",
+    "out",
+    "overdrive",
+    "overdriven",
+    "pad",
+    "perc",
+    "percussion",
+    "piano",
+    "pianos",
+    "piccolo",
+    "pizzicato",
+    "recorder",
+    "rh",
+    "rhodes",
+    "rhythm",
+    "right",
+    "sax",
+    "saxophone",
+    "section",
+    "seq",
+    "sequence",
+    "sfx",
+    "sitar",
+    "slap",
+    "snare",
+    "soft",
+    "soprano",
+    "sq",
+    "staff",
+    "steel",
+    "str",
+    "string",
+    "strings",
+    "syn",
+    "synth",
+    "synthesizer",
+    "tempo",
+    "tenor",
+    "text",
+    "timpani",
+    "tk",
+    "tom",
+    "toms",
+    "tonk",
+    "track",
+    "tracks",
+    "treble",
+    "tremolo",
+    "trk",
+    "trombone",
+    "trombones",
+    "trumpet",
+    "trumpets",
+    "tuba",
+    "ukulele",
+    "unnamed",
+    "untitled",
+    "upright",
+    "vibes",
+    "vibraphone",
+    "viola",
+    "violin",
+    "violins",
+    "vocal",
+    "vocals",
+    "voice",
+    "voices",
+    "vox",
+    "whistle",
+    "words",
+    "xylophone",
+];
 
 /// What an annotation begins with, in a file that writes them this way.
 const ANNOTATION_MARK: char = '%';
@@ -1803,8 +2005,9 @@ mod tests {
         let source = run(&events);
         assert_eq!(source.flavor, KaraokeFlavor::NamedTextTrack);
         assert_eq!(source.timeline.plain_text(), "from a track");
-        // "Conductor" is not a generic name, so it becomes the title.
-        assert_eq!(source.meta.title.as_deref(), Some("Conductor"));
+        // "Conductor" names a part of the arrangement, and "Words" the lyric track, so neither is
+        // the title.
+        assert_eq!(source.meta.title, None);
     }
 
     // -- control characters in metadata ----------------------------------------------------
@@ -1882,6 +2085,60 @@ mod tests {
             clean_meta_text("Águas de Março"),
             Some("Águas de Março".to_owned())
         );
+    }
+
+    // -- track names that name a part -----------------------------------------------------------
+
+    #[test]
+    fn a_track_named_for_a_part_names_no_song() {
+        for name in [
+            "Piano",
+            "BASS",
+            "A.PIANO 1",
+            "Track 0",
+            "Seq-1",
+            "tk1",
+            "MIDI out",
+            "Kick (MIDI)",
+            "trumpet(s)",
+            "Acoustic Grand Piano",
+            "FINGERDBAS",
+            "Soft Karaoke",
+            "Words",
+            "E.Bass/Slap Ch1",
+        ] {
+            assert!(names_a_part(name), "{name} names a song");
+        }
+    }
+
+    #[test]
+    fn a_track_name_with_another_word_in_it_is_a_title() {
+        for name in [
+            "Piano Man",
+            "Piano Roll",
+            "Bass Line Baby",
+            "Corcovado",
+            "1999",
+            "大悪司 Track08",
+            "Águas de Março",
+            "",
+        ] {
+            assert!(!names_a_part(name), "{name} names a part");
+        }
+    }
+
+    #[test]
+    fn the_first_track_named_for_the_song_is_the_title() {
+        let events = [
+            ev(0, 0, MetaTextKind::TrackName, b"Piano"),
+            ev(1, 0, MetaTextKind::TrackName, b"Corcovado"),
+        ];
+        assert_eq!(run(&events).meta.title.as_deref(), Some("Corcovado"));
+    }
+
+    #[test]
+    fn the_part_words_are_sorted_and_unique() {
+        assert!(PART_WORDS.windows(2).all(|pair| pair[0] < pair[1]));
     }
 
     // -- names squeezed out of the file name ---------------------------------------------------

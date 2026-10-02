@@ -148,7 +148,7 @@ fn step_to(conn: &Connection, version: u32) -> Result<(), DbError> {
     }
 }
 
-/// The three names on a song row that [`Db::clean_detected_text`] rewrites.
+/// The three names on a song row that [`Db::clean_detected_text`] rewrites, and the row's kind.
 ///
 /// A struct rather than a tuple because four `Option<String>`s in a row say nothing about which is
 /// which, and this one is read twice: once out of the database and once back into it.
@@ -157,6 +157,8 @@ pub(super) struct CleanedNames {
     pub(super) title: Option<String>,
     pub(super) artist: Option<String>,
     pub(super) stem: Option<String>,
+    /// `midi`, `video`, `cdg`, `ultrastar` or `lrc`. Only a MIDI title can be a track's name.
+    pub(super) kind: String,
 }
 
 impl CleanedNames {
@@ -172,6 +174,9 @@ impl CleanedNames {
         // letter the song belongs under. Free to straighten while the row is in hand.
         let stem = self.stem.as_deref().map(|value| value.trim().to_owned());
         // A DOS abbreviation of the file's own name gives way to the name, as it does at scan time.
+        // So does a MIDI title that names a part, such as `Piano`: the parser refuses it now, and
+        // this row was written before it did.
+        let midi = self.kind == "midi";
         let title = self
             .title
             .as_deref()
@@ -180,13 +185,15 @@ impl CleanedNames {
                 !stem
                     .as_deref()
                     .is_some_and(|stem| km_song::abbreviates_file_name(title, stem))
-            });
+            })
+            .filter(|title| !(midi && km_song::names_a_part(title)));
         let unchanged = title == self.title && artist == self.artist && stem == self.stem;
         (!unchanged).then_some(Self {
             id: self.id,
             title,
             artist,
             stem,
+            kind: self.kind,
         })
     }
 }
@@ -205,8 +212,9 @@ pub(super) const CLEANED_META: &str = "cleaned_meta_text";
 /// differently**, which costs every curation database in the field one pass over its songs.
 ///
 /// `1` takes the control characters out. `2` also refuses a name that is mostly marks. `3` also
-/// gives way to the file name where the title is a DOS abbreviation of it.
-pub(super) const CLEANED_META_REVISION: u32 = 3;
+/// gives way to the file name where the title is a DOS abbreviation of it. `4` also refuses a MIDI
+/// title that names a part of the arrangement, by `km_song::names_a_part`.
+pub(super) const CLEANED_META_REVISION: u32 = 4;
 
 /// The settings key holding the language-table revision the detected codes were computed from.
 ///

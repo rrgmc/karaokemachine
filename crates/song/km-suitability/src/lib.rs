@@ -54,7 +54,7 @@ pub use crate::thresholds::Thresholds;
 /// does not.
 ///
 /// **A bump adds an entry to [`REVISIONS`] saying which rows it can change.**
-pub const ANALYSIS_REVISION: u32 = 6;
+pub const ANALYSIS_REVISION: u32 = 7;
 
 /// Which stored rows one revision of the analysis can answer differently.
 ///
@@ -126,6 +126,13 @@ pub const REVISIONS: &[Revision] = &[
     // `Everything`.
     Revision {
         number: 6,
+        reach: Reach::EverySong,
+    },
+    // A MIDI track named for a part of the arrangement, such as `Piano` or `Track 0`, is no title,
+    // and the parser tries the next track's name. Any MIDI song can carry one, and no stored column
+    // says which track a title came from.
+    Revision {
+        number: 7,
         reach: Reach::EverySong,
     },
 ];
@@ -267,7 +274,7 @@ mod tests {
         }
 
         assert_eq!(
-            digest, 5_890_314_546_671_839_065,
+            digest, 1_214_128_112_897_570_132,
             "the analysis of the fixtures has changed, so a corpus scanned by an older build no \
              longer agrees with this one. Bump km_suitability::ANALYSIS_REVISION and put the new \
              digest here; a scan then re-reads what that build decided and nothing else."
