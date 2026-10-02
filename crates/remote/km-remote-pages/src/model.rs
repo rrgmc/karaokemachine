@@ -135,12 +135,10 @@ impl SongRow {
 ///
 /// **Nothing stores a link.** No catalog, no package and no `SongDto` carries a URL, and this is
 /// the same conclusion `km-package-builder` reached with its own `youtube_query`: what a song has is
-/// a title and perhaps an artist, and a search is what those two make. Deliberately the *same
-/// judgment* as that one, down to the query string it builds, so the tool that curates a corpus and
-/// the remote that browses it do not send somebody to two different pages for one song. It differs
-/// only in what it can see — the builder has the file's path and can compare a title against it,
-/// while a phone browsing a catalog has no path at all — so this is the two-argument form of the
-/// same test.
+/// a title and perhaps an artist, and a search is what those two make. It builds the same query
+/// string as that one, so the two programs send somebody to one page for one song. The builder
+/// links every song, because a curator searches to identify a file. This one keeps the filename
+/// guard below, because a singer browsing for a song gains nothing from a search for `AMD0123`.
 ///
 /// The guard matters because of what the corpus actually contains. A great many files are titled
 /// `CORCOVAD` or `AMD0123`, which is the file's own truncated name rather than a song's, and a

@@ -922,7 +922,7 @@ impl SongRow {
         youtube_query(&self.title, self.artist.as_deref(), &self.path).is_some()
     }
 
-    /// The YouTube search URL, or an empty string when there is nothing worth searching for.
+    /// The YouTube search URL, or an empty string when the song has no title, artist or file name.
     ///
     /// Templates guard on [`Self::searchable`] first; this returning empty is a belt-and-braces
     /// answer rather than a case that should be rendered.
@@ -1038,41 +1038,29 @@ pub fn format_duration(ms: u32) -> String {
     format!("{}:{:02}", seconds / 60, seconds % 60)
 }
 
-/// The text to search YouTube for, or `None` when there is nothing worth searching for.
+/// The text to search YouTube for, or `None` only when the song has no title, no artist and no
+/// file name.
 ///
-/// A title that is only the file's name is not a song title — the corpus is full of `CORCOVAD` and
-/// `AMD0123` — so a link built from one sends somebody to a page of nothing. With an artist the title
-/// no longer has to stand alone, which is why the file-stem test only applies when there is not one.
+/// Every song gets a search, even one whose title is only the file's name. A curator searches to
+/// find out what a file is, and a name such as `CORCOVAD` is often enough for YouTube to answer.
+/// An empty title falls back to the file's stem.
 pub fn youtube_query(title: &str, artist: Option<&str>, path: &str) -> Option<String> {
-    let title = title.trim();
+    let mut title = title.trim();
+    if title.is_empty() {
+        title = Path::new(path)
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or_default()
+            .trim();
+    }
     let artist = artist.map(str::trim).filter(|value| !value.is_empty());
 
-    if let Some(artist) = artist {
-        return Some(if title.is_empty() {
-            artist.to_owned()
-        } else {
-            format!("{artist} {title}")
-        });
+    match (artist, title.is_empty()) {
+        (Some(artist), true) => Some(artist.to_owned()),
+        (Some(artist), false) => Some(format!("{artist} {title}")),
+        (None, false) => Some(title.to_owned()),
+        (None, true) => None,
     }
-
-    if title.is_empty() || looks_like_a_filename(title, path) {
-        return None;
-    }
-    Some(title.to_owned())
-}
-
-/// Whether a title is just the file's own name dressed up.
-fn looks_like_a_filename(title: &str, path: &str) -> bool {
-    let stem = Path::new(path)
-        .file_stem()
-        .and_then(|s| s.to_str())
-        .unwrap_or_default();
-    if !stem.is_empty() && stem.eq_ignore_ascii_case(title) {
-        return true;
-    }
-    // No spaces and no lower-case letters is the shape of a truncated 8.3 name rather than a title.
-    // "CORCOVAD" and "AMD0123" both fail this; "Corcovado" and "Águas de Março" both pass.
-    !title.contains(' ') && !title.chars().any(char::is_lowercase)
 }
 
 /// Percent-encodes a value for a URL. Re-exported from [`crate::form`], which owns both halves.
@@ -1372,10 +1360,24 @@ mod tests {
     }
 
     #[test]
-    fn a_title_that_is_only_the_filename_is_not_worth_searching_for() {
-        assert!(youtube_query("CORCOVAD", None, "x/CORCOVAD.kar").is_none());
-        assert!(youtube_query("AMD0123", None, "x/other.kar").is_none());
-        assert!(youtube_query("", None, "x/other.kar").is_none());
+    fn a_title_that_is_only_the_filename_is_still_searched_for() {
+        assert_eq!(
+            youtube_query("CORCOVAD", None, "x/CORCOVAD.kar").as_deref(),
+            Some("CORCOVAD")
+        );
+        assert_eq!(
+            youtube_query("AMD0123", None, "x/other.kar").as_deref(),
+            Some("AMD0123")
+        );
+    }
+
+    #[test]
+    fn an_empty_title_searches_for_the_file_name() {
+        assert_eq!(
+            youtube_query("  ", None, "x/other.kar").as_deref(),
+            Some("other")
+        );
+        assert!(youtube_query("", None, "").is_none());
     }
 
     #[test]
@@ -1392,8 +1394,11 @@ mod tests {
     }
 
     #[test]
-    fn an_empty_artist_does_not_rescue_a_filename_title() {
-        assert!(youtube_query("CORCOVAD", Some("   "), "x/CORCOVAD.kar").is_none());
+    fn an_empty_artist_is_left_out_of_the_query() {
+        assert_eq!(
+            youtube_query("CORCOVAD", Some("   "), "x/CORCOVAD.kar").as_deref(),
+            Some("CORCOVAD")
+        );
     }
 
     #[test]

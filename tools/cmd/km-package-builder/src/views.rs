@@ -1315,7 +1315,7 @@ pub struct SongPage {
     /// True where somebody said the song has none, and also where detection abstained and nobody
     /// has said otherwise: the radios show the answer in force, and *no channel* is an answer.
     pub melody_is_none: bool,
-    /// The YouTube search URL, empty when there is nothing worth searching for.
+    /// The YouTube search URL, empty when the song has no title, artist or file name.
     pub youtube: String,
     /// The sentences on this page that carry a value.
     pub said: SongSaid,
@@ -5736,7 +5736,7 @@ mod tests {
     }
 
     #[test]
-    fn a_song_with_nothing_to_search_for_gets_no_youtube_link() {
+    fn a_song_titled_with_its_file_name_gets_a_youtube_link() {
         let page = SongsPage {
             chrome: chrome(),
             rows: rows(vec![row("CORCOVAD", None, "a/CORCOVAD.kar")]),
@@ -5747,7 +5747,8 @@ mod tests {
             saved: no_saved(),
         };
         let html = page.in_english().expect("render");
-        assert!(!html.contains("youtube.com"), "{html}");
+        assert!(html.contains("youtube.com"), "{html}");
+        assert!(html.contains("search_query=CORCOVAD"), "{html}");
     }
 
     #[test]
