@@ -293,6 +293,71 @@ pub fn clean_meta_name(text: &str) -> Option<String> {
     clean_meta_text(text).filter(|value| names_something(value))
 }
 
+/// Whether a title is the file's own name squeezed into a DOS-era field, so the name says more.
+///
+/// **A whole generation of MIDI files carries an 8.3 abbreviation in its title meta event.** The
+/// file beside it says `THE BEATLES.I'm only sleeping K`, and the title says `IMONLYSL`. Shown in
+/// front of the file name, the abbreviation hides the only readable name the song has.
+///
+/// Three tests, and each one is needed:
+///
+/// - **The DOS shape**: two to eight characters, no lowercase letter and no whitespace.
+/// - **Its letters and digits occur in the stem's letters and digits**, uppercased. Anywhere in
+///   it, not only at the start, because the stem usually leads with the performer.
+/// - **The stem spells that run with more separators than the title has.** Space, apostrophe,
+///   underscore, dash and full stop all count. This is what proves the title was squeezed.
+///
+/// The third test is what keeps a title that is as good as the stem. `FAITH` beside
+/// `FAITH_(715840)` and `01ALMART` beside `01ALMART (2)` match with no separator inside the run.
+/// `KA-CHING` beside `Ka-Ching [17289]` matches with the same one.
+///
+/// A track name such as `BASS` or `PIANO` taken as a title is a different defect, and this does not
+/// see it: those letters are not in the stem.
+pub fn abbreviates_file_name(title: &str, stem: &str) -> bool {
+    let title = title.trim();
+    let length = title.chars().count();
+    if !(2..=8).contains(&length)
+        || title
+            .chars()
+            .any(|ch| ch.is_lowercase() || ch.is_whitespace())
+    {
+        return false;
+    }
+    let squeezed: Vec<char> = title
+        .chars()
+        .filter(|ch| ch.is_alphanumeric())
+        .flat_map(char::to_uppercase)
+        .collect();
+    if squeezed.len() < 2 {
+        return false;
+    }
+    let title_separators = title.chars().filter(|ch| !ch.is_alphanumeric()).count();
+
+    // Each letter or digit of the stem, uppercased, with the position it came from, so a match can
+    // be mapped back to the span of the stem that spelled it.
+    let stem: Vec<char> = stem.chars().collect();
+    let kept: Vec<(usize, char)> = stem
+        .iter()
+        .enumerate()
+        .filter(|(_, ch)| ch.is_alphanumeric())
+        .flat_map(|(at, ch)| ch.to_uppercase().map(move |upper| (at, upper)))
+        .collect();
+    kept.windows(squeezed.len()).any(|window| {
+        let matches = window
+            .iter()
+            .map(|(_, ch)| *ch)
+            .eq(squeezed.iter().copied());
+        let (Some((first, _)), Some((last, _))) = (window.first(), window.last()) else {
+            return false;
+        };
+        let separators = stem[*first..=*last]
+            .iter()
+            .filter(|ch| !ch.is_alphanumeric())
+            .count();
+        matches && separators > title_separators
+    })
+}
+
 /// Whether a title or an artist names something, rather than being a row of marks.
 ///
 /// **Two letters or digits, anywhere in it.** A corpus carries separator rows in its title meta
@@ -1817,6 +1882,44 @@ mod tests {
             clean_meta_text("Águas de Março"),
             Some("Águas de Março".to_owned())
         );
+    }
+
+    // -- names squeezed out of the file name ---------------------------------------------------
+
+    #[test]
+    fn a_dos_title_squeezed_out_of_the_file_name_gives_way() {
+        for (title, stem) in [
+            ("IMONLYSL", "THE BEATLES.I'm only sleeping K"),
+            ("IMALIVE", "DION.I'm alive K"),
+            ("IMOUTTAL", "ANASTACIA-im_outta_love"),
+            ("YEAR2525", "In The Year 2525"),
+            ("GIVEITUP", "K.C.SUNSHINE BAND.Give it up"),
+        ] {
+            assert!(abbreviates_file_name(title, stem), "{title} / {stem}");
+        }
+    }
+
+    #[test]
+    fn a_title_as_good_as_the_file_name_stays() {
+        for (title, stem) in [
+            // No separator inside the run: the stem adds only a copy number.
+            ("FAITH", "FAITH_(715840)"),
+            ("01ALMART", "01ALMART (2)"),
+            ("POWER", "POWER (4)"),
+            // The same separators in both.
+            ("KA-CHING", "Ka-Ching [17289]"),
+            ("XGM-SEA", "XGM_SEA"),
+            // Letters the stem does not hold.
+            ("IMOUTTAL", "poly1336"),
+            ("BASS", "THE BEATLES.I'm only sleeping K"),
+            // Not the DOS shape.
+            ("Imagine", "LENNON.Imag ine K"),
+            ("NINECHARS", "NINE CHARS long"),
+            ("IM ALIVE", "DION.I'm alive K"),
+            ("I", "I. K"),
+        ] {
+            assert!(!abbreviates_file_name(title, stem), "{title} / {stem}");
+        }
     }
 
     // -- names made of marks ------------------------------------------------------------------
