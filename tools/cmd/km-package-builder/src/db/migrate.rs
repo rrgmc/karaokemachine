@@ -166,12 +166,21 @@ impl CleanedNames {
     /// than every row: an `UPDATE` here fires both full-text triggers and maintains three expression
     /// indexes, so rewriting a row to the value it already held is not free.
     pub(super) fn cleaned(self) -> Option<Self> {
-        let title = self.title.as_deref().and_then(km_song::clean_meta_name);
         let artist = self.artist.as_deref().and_then(km_song::clean_meta_name);
         // The stem comes from a file name rather than from inside the file, so it never carries a
         // control character -- but 399 of them have a space on one end, which sorts ahead of the
         // letter the song belongs under. Free to straighten while the row is in hand.
         let stem = self.stem.as_deref().map(|value| value.trim().to_owned());
+        // A DOS abbreviation of the file's own name gives way to the name, as it does at scan time.
+        let title = self
+            .title
+            .as_deref()
+            .and_then(km_song::clean_meta_name)
+            .filter(|title| {
+                !stem
+                    .as_deref()
+                    .is_some_and(|stem| km_song::abbreviates_file_name(title, stem))
+            });
         let unchanged = title == self.title && artist == self.artist && stem == self.stem;
         (!unchanged).then_some(Self {
             id: self.id,
@@ -195,8 +204,9 @@ pub(super) const CLEANED_META: &str = "cleaned_meta_text";
 /// more and a database swept by this one has to stay free. **Bump it whenever the gate would answer
 /// differently**, which costs every curation database in the field one pass over its songs.
 ///
-/// `1` took the control characters out. `2` also refuses a name that is mostly marks.
-pub(super) const CLEANED_META_REVISION: u32 = 2;
+/// `1` takes the control characters out. `2` also refuses a name that is mostly marks. `3` also
+/// gives way to the file name where the title is a DOS abbreviation of it.
+pub(super) const CLEANED_META_REVISION: u32 = 3;
 
 /// The settings key holding the language-table revision the detected codes were computed from.
 ///

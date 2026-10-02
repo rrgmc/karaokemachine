@@ -185,15 +185,23 @@ impl Db {
                     let cdg = song.cdg.as_ref();
                     // An LRC song's facts are an UltraStar song's, and land in the same columns.
                     let ultrastar = song.ultrastar.as_ref().or(song.lrc.as_ref());
+                    // A DOS abbreviation of the file's own name names the song worse than the name
+                    // does, so the row falls through to `stem`. Here, where every kind of song
+                    // passes, so no kind can skip it. `Db::clean_detected_text` applies the same
+                    // rule to rows already written.
+                    let det_title = song
+                        .det_title
+                        .as_deref()
+                        .filter(|title| !km_song::abbreviates_file_name(title, &song.stem));
                     // Read once and bound twice, so the code and the confidence beside it cannot
                     // come from two different readings of the same song.
                     let guessed = km_langguess::guess(
                         song.lyrics.as_deref(),
-                        song.det_title.as_deref().or(Some(song.stem.as_str())),
+                        det_title.or(Some(song.stem.as_str())),
                     );
                     upsert_song.execute(named_params! {
                         ":id": song.id,
-                        ":det_title": song.det_title,
+                        ":det_title": det_title,
                         ":det_artist": song.det_artist,
                         ":det_language": song.det_language,
                         ":flavor": midi.map(|m| m.flavor.clone()),
