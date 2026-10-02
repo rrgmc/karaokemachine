@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- A panel whose window draws nothing of its own, so only what the content paints shows.
+         The controls' pill uses it. Without it the window fills the panel white around the pill. -->
+    <style name="TransparentPanel" parent="android:Theme.Translucent.NoTitleBar">
+        <item name="android:windowBackground">@android:color/transparent</item>
+    </style>
+</resources>

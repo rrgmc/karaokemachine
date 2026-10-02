@@ -109,10 +109,11 @@ reports itself to the application:
    does not happen.
 3. **`com.oculus.supportedDevices`.** A store listing needs it, and a sideload does not.
 
-**A panel bends in place, and `PanelSceneObject.reshape()` is what does it.** Rebuilding the scene to
-change a screen's shape takes the machine down with it, because `AppSystemActivity` does not survive
-`recreate()`. A reshape leaves the song playing. A curved screen also costs nothing, running at 90
-frames a second with no stale frames, the same as a flat one.
+**A cylinder panel gets no handles, so the screen is a quad.** A cylinder panel is drawn around its
+entity: the entity is the centre of the curve, and the face is one radius beyond it. The Interaction
+SDK hit-tests the curved face. Its move and resize handles are drawn for a quad only, so a curved
+screen cannot be grabbed. `PanelSceneObject.reshape()` does bend a panel without stopping the song,
+but nothing uses it.
 
 **`VRFeature` registers Meta's Interaction SDK, and nothing else may.** In Spatial SDK 0.14.0 the
 SDK draws the rays and grabs and resizes a panel. `IsdkFeature` is deprecated there. Registering it
@@ -123,6 +124,12 @@ persistent spatial anchor: `Scene.createUserAnchor` is internal. `MRUKFeature` d
 scanned room, and its wall anchors are stable across sessions. So `Placement.kt` stores the
 screen's pose relative to the nearest wall, by that wall's UUID, in the `headset` preferences. A
 restore multiplies the wall's current pose by the saved one.
+
+**Reading the room needs `USE_ANCHOR_API` as well as `USE_SCENE`.** MRUK reads the room as anchors.
+Without the anchor permission its search starts and never completes. The future from
+`loadSceneFromDevice` never returns, and nothing is logged. The search also waits for VR focus, so
+it does not complete while nobody wears the headset. `loadRoom` logs the result under the
+`KaraokeHeadset` tag.
 
 **`IsdkGrabbable` moves a panel and `IsdkPanelResize` resizes it.** The resize runs in
 `ResizeMode.Simple`, which writes the entity's `Scale` and leaves the panel's dp layout alone.

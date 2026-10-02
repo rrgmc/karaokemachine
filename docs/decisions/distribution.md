@@ -1405,10 +1405,10 @@ none running it starts the last one used.
 microphone stand and whoever else is there. A headset that blacks out the room is a headset somebody
 takes off between songs.
 
-**The screen's shape belongs to the headset rather than to the settings file.** Flat or curved is a
-property of where somebody is standing, the way a window's position is a property of a desktop. The
-Kotlin shell remembers the choice, and `settings.json` never learns it. This keeps a second screen
-shape out of every platform that has one screen.
+**The screen is flat, because only a flat screen can be placed by hand.** Spatial SDK 0.14.0 draws
+move and resize handles around a flat panel only. A curved panel takes the ray on its face and shows
+no handles, so a wearer could not move or resize a curved screen. Placing the screen is the one
+thing the wearer must always be able to do, so the screen has no other shape.
 
 **The wearer places the screen, and the room remembers it.** It starts on the main wall of the
 room the headset scanned. A hand or a controller moves it, and a corner resizes it. The headset's
@@ -1421,6 +1421,10 @@ scanned room behind `com.oculus.permission.USE_SCENE`. Without it, or in a room 
 screen opens straight ahead and still moves by hand. It opens there again on the next launch. No
 error is shown, because nothing has failed that the wearer needs to fix.
 
+**Only the room the wearer stands in counts.** A headset keeps every room it has scanned. A wall in
+another room is behind walls and out of reach, so the screen uses a room only when the wearer is
+inside it. Standing in a room never scanned is the same as having no scan.
+
 **The queue hangs beside the screen, and it is the machine's own remote.** A wearer holds no phone,
 so the scene shows the page every phone in the room gets. It reaches it over loopback in the same
 process. It is not a second remote to keep in step. An owner who turns the remote off gets no panel.
@@ -1429,6 +1433,12 @@ process. It is not a second remote to keep in step. An owner who turns the remot
 so the screen's facing would point it past the wearer. It turns about the vertical instead, when it
 is placed and while it is carried. A resize scales the page between half and double its size, the
 same way the screen scales.
+
+**The controls ride beside the screen and step aside for a song.** They are a vertical pill of three
+buttons to the right of the screen: wall, queue and window. They sit in the screen's own plane.
+They belong to the screen, so they follow it while it
+is moved or resized and cannot be pulled away. While a song plays the pill hides, so nothing but the
+lyrics sits in view. The window button shows only when a switch would lose nothing.
 
 **Resizing scales the screen and never re-lays it.** The machine draws at 1600x900 dp whatever size
 the wearer makes the screen. A resize that reached SDL would rebuild its surface under a playing

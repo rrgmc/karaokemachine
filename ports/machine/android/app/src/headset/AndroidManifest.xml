@@ -34,6 +34,9 @@
          where the wearer left it. Horizon OS asks the wearer. A refusal costs only the wall, and
          the screen still moves by hand. -->
     <uses-permission android:name="com.oculus.permission.USE_SCENE" />
+    <!-- The room is read as anchors, and without this the anchor search starts and never answers.
+         Nothing fails and nothing is logged; the screen simply never reaches the wall. -->
+    <uses-permission android:name="com.oculus.permission.USE_ANCHOR_API" />
 
     <!-- The configuration lets the queue panel's WebView reach the machine's own remote over
          loopback, and nothing else. See the file for why cleartext needs saying at all. -->

@@ -4,6 +4,9 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.util.Log
 import androidx.compose.ui.platform.ComposeView
 import com.meta.spatial.compose.ComposeFeature
 import com.meta.spatial.compose.composePanel
@@ -22,9 +25,9 @@ import com.meta.spatial.isdk.ResizeMode
 import com.meta.spatial.mruk.MRUKFeature
 import com.meta.spatial.mruk.MRUKLoadDeviceResult
 import com.meta.spatial.mruk.MRUKRoom
+import com.meta.spatial.runtime.BlendFactor
+import com.meta.spatial.runtime.LayerAlphaBlend
 import com.meta.spatial.runtime.LayerConfig
-import com.meta.spatial.runtime.PanelSceneObject
-import com.meta.spatial.runtime.PanelShapeType
 import com.meta.spatial.runtime.ReferenceSpace
 import com.meta.spatial.toolkit.AppSystemActivity
 import com.meta.spatial.toolkit.PanelRegistration
@@ -42,8 +45,9 @@ import com.meta.spatial.vr.VRFeature
  * involved. See `What the machine *is*, on a headset` in docs/decisions/distribution.md.
  *
  * The wearer places the screen. It starts on the main wall of the scanned room, moves and resizes
- * by hand, and comes back where it was left. The singer's remote hangs beside it. A button under it
- * takes the machine into a system window, which is [FlatActivity].
+ * by hand, and comes back where it was left. The singer's remote hangs beside it. A pill of controls
+ * rides beside it and steps aside while a song plays. One of its buttons takes the machine into a
+ * system window, which is [FlatActivity].
  */
 class ImmersiveActivity : AppSystemActivity() {
 
@@ -51,17 +55,9 @@ class ImmersiveActivity : AppSystemActivity() {
 
     private val placement by lazy { Placement(prefs()) }
 
-    private val controls by lazy {
-        ControlsState(
-            curved = prefs().getBoolean(CURVED, false),
-            queueShown = prefs().getBoolean(QUEUE_SHOWN, true),
-        )
-    }
+    private val controls by lazy { ControlsState(queueShown = prefs().getBoolean(QUEUE_SHOWN, true)) }
 
     private val mruk by lazy { MRUKFeature(this, systemManager) }
-
-    /** The machine's panel, once the scene has built it, for bending it in place. */
-    private var screen: PanelSceneObject? = null
 
     private var screenEntity: Entity? = null
     private var controlsEntity: Entity? = null
@@ -135,7 +131,14 @@ class ImmersiveActivity : AppSystemActivity() {
         screenEntity = Entity.createPanelEntity(
             R.id.machine_panel,
             Transform(Pose(ahead)),
-            IsdkGrabbable(),
+            // Turns about the vertical to face the wearer while it is carried, so a hand never
+            // leaves it at an angle.
+            IsdkGrabbable(
+                true,
+                IsdkGrabState.NotGrabbed,
+                IsdkGrabMovementType.AxialBillboard,
+                GRAB_RESPONSIVENESS,
+            ),
             // `Simple` scales the quad and leaves the 1600x900 dp layout alone. SDL is therefore
             // never resized under a playing song, and the lyrics only grow.
             IsdkPanelResize(
@@ -146,17 +149,23 @@ class ImmersiveActivity : AppSystemActivity() {
                 true,
             ),
         )
+        // Not grabbable: the controls belong to the screen and follow it, see [placeControls].
         controlsEntity = Entity.createPanelEntity(
             R.id.controls_panel,
             Transform(Pose(ahead)),
-            IsdkGrabbable(),
+            Visible(true),
         )
         if (queueAddress != null) {
             queueEntity = Entity.createPanelEntity(
                 R.id.queue_panel,
                 Transform(Pose(ahead)),
                 // Turns about the vertical to face the wearer while it is carried.
-                IsdkGrabbable(true, IsdkGrabState.NotGrabbed, IsdkGrabMovementType.AxialBillboard),
+                IsdkGrabbable(
+                    true,
+                    IsdkGrabState.NotGrabbed,
+                    IsdkGrabMovementType.AxialBillboard,
+                    GRAB_RESPONSIVENESS,
+                ),
                 // `Simple` for the same reason as the screen: the WebView keeps its layout and the
                 // page only grows.
                 IsdkPanelResize(
@@ -169,17 +178,17 @@ class ImmersiveActivity : AppSystemActivity() {
                 Visible(controls.queueShown),
             )
         }
-        put(ScreenPlace(Pose(ahead), SCREEN_WIDTH))
+        putAhead()
 
         sceneReady = true
         if (sceneAllowed()) loadRoom()
     }
 
     /**
-     * Notices the wearer letting go of the screen, and remembers where it went.
+     * Carries the controls with the screen while the wearer holds it, and remembers where it went.
      *
-     * A grab and a resize both end here. Saving once at the release, rather than every frame, keeps
-     * the preferences file out of the frame loop.
+     * A grab and a resize both end here. The controls move only while the screen does, and saving
+     * happens once at the release, so a still screen costs nothing per frame.
      */
     override fun onSceneTick() {
         super.onSceneTick()
@@ -187,13 +196,45 @@ class ImmersiveActivity : AppSystemActivity() {
         val grabbed = entity.tryGetComponent<IsdkGrabbable>()?.grabState == IsdkGrabState.Grabbed
         val corner = entity.tryGetComponent<IsdkPanelResize>()?.activeResizeCorner
         val now = grabbed || (corner != null && corner != ResizeCornerState.NONE)
+        if (now || handling) placeControls()
         if (handling && !now) remember()
         handling = now
     }
 
+    override fun onResume() {
+        super.onResume()
+        watching = true
+        main.post(watch)
+    }
+
     override fun onPause() {
+        watching = false
+        main.removeCallbacks(watch)
         remember()
         super.onPause()
+    }
+
+    private val main = Handler(Looper.getMainLooper())
+    private var watching = false
+
+    /**
+     * Asks the machine what it is doing, every [WATCH_MS] while the scene is in front.
+     *
+     * The controls step aside while a song plays, so nothing but the lyrics holds the eye. The
+     * window button shows only when a switch would lose nothing.
+     */
+    private val watch = object : Runnable {
+        override fun run() {
+            if (!watching) return
+            Thread {
+                val status = Machine.status(this@ImmersiveActivity)
+                runOnUiThread {
+                    controls.idle = status.idle
+                    controlsEntity?.setComponent(Visible(!status.playing))
+                }
+            }.start()
+            main.postDelayed(this, WATCH_MS)
+        }
     }
 
     override fun registerPanels(): List<PanelRegistration> =
@@ -211,8 +252,18 @@ class ImmersiveActivity : AppSystemActivity() {
     private fun loadRoom() {
         mruk.loadSceneFromDevice().thenAccept { result ->
             runOnUiThread {
-                if (result != MRUKLoadDeviceResult.SUCCESS) return@runOnUiThread
-                val found = mruk.getCurrentRoom() ?: mruk.rooms.firstOrNull() ?: return@runOnUiThread
+                // Nothing is shown to the wearer, so the log is the only place a failure is seen.
+                Log.i(TAG, "room scan: $result, rooms=${mruk.rooms.size}")
+                // By now the headset is tracking, so in front of the wearer means where they are.
+                if (result != MRUKLoadDeviceResult.SUCCESS) return@runOnUiThread putAhead()
+                // Only the room the wearer stands in. A headset holds every room it has scanned,
+                // and taking one of the others hangs the screen on a wall in another part of the
+                // house, out of reach. Outside every scanned room there is no wall, and the screen
+                // stays in front of the wearer.
+                val viewer = scene.getViewerPose().t
+                val found = mruk.rooms.firstOrNull { it.isPositionInRoom(viewer, true) }
+                Log.i(TAG, "room scan: wearer is ${if (found == null) "outside every" else "inside a"} room")
+                if (found == null) return@runOnUiThread putAhead()
                 room = found
                 controls.roomKnown = true
                 val place = placement.restore(found) ?: placement.onWall(found, scene.getViewerPose(), SCREEN_WIDTH)
@@ -222,22 +273,54 @@ class ImmersiveActivity : AppSystemActivity() {
     }
 
     /**
-     * The screen at [place] and at its width, with the controls under it and the queue beside it.
+     * The screen at [place] and at its width, with the controls to its right and the queue to its
+     * left.
      *
-     * The two small panels come out towards the wearer by [NEARER], so a screen on a wall never
-     * swallows them. Each stays grabbable, and neither follows the screen once the wearer moves it.
+     * The queue comes out towards the wearer by [NEARER], so a screen on a wall never swallows it.
+     * It stays grabbable and stays where the wearer leaves it. The controls belong to the screen,
+     * see [placeControls].
      */
     private fun put(place: ScreenPlace) {
+        val scale = place.width / SCREEN_WIDTH
+        screenEntity?.setComponent(Scale(Vector3(scale)))
         screenEntity?.setComponent(Transform(place.pose))
-        screenEntity?.setComponent(Scale(Vector3(place.width / SCREEN_WIDTH)))
-        val height = place.width * 9.0f / 16.0f
         // A panel's local negative Z points out of its face, towards whoever is looking at it.
-        val under = Vector3(0.0f, -(height / 2.0f + CONTROLS_GAP), -NEARER)
         val queueScale = queueEntity?.tryGetComponent<Scale>()?.scale?.x ?: 1.0f
         val queueHalf = QUEUE_WIDTH * queueScale / 2.0f
         val beside = Vector3(-(place.width / 2.0f + QUEUE_GAP + queueHalf), 0.0f, -NEARER)
-        controlsEntity?.setComponent(Transform(place.pose.times(Pose(under))))
         queueEntity?.setComponent(Transform(facingViewer(place.pose.times(Pose(beside)).t)))
+        placeControls()
+    }
+
+    /**
+     * The controls to the right of the screen as it is now, in the screen's own plane.
+     *
+     * They sit level with the screen rather than in front of it, so they read as part of it.
+     */
+    private fun placeControls() {
+        val pose = screenEntity?.tryGetComponent<Transform>()?.transform ?: return
+        val along = SCREEN_WIDTH * screenScale() / 2.0f + CONTROLS_GAP + CONTROLS_WIDTH / 2.0f
+        controlsEntity?.setComponent(Transform(pose.times(Pose(Vector3(along, 0.0f, 0.0f)))))
+    }
+
+    /**
+     * The screen [SCREEN_DISTANCE] in front of the wearer, facing them.
+     *
+     * Measured from where the wearer is and where they look. A fixed point in the floor space sits
+     * wherever the headset last recentred, which can be beside the wearer or behind them.
+     */
+    private fun putAhead() {
+        val viewer = scene.getViewerPose()
+        val look = viewer.forward()
+        var level = Vector3(look.x, 0.0f, look.z)
+        level = if (level.length() < 0.01f) Vector3(0.0f, 0.0f, 1.0f) else level.normalize()
+        // Hung like a television: never lower than a standing eye, so a seated wearer looks
+        // slightly up at it rather than down. Before tracking starts the viewer is at the origin,
+        // on the floor, and this rule covers that too.
+        val height = maxOf(viewer.t.y, Placement.EYE_HEIGHT)
+        val at = Vector3(viewer.t.x, height, viewer.t.z) + level * SCREEN_DISTANCE
+        Log.i(TAG, "screen ahead: viewer=${viewer.t} look=$look screen=$at")
+        put(ScreenPlace(facingViewer(at), SCREEN_WIDTH))
     }
 
     /**
@@ -257,11 +340,11 @@ class ImmersiveActivity : AppSystemActivity() {
     /** Saves where the screen is, against the room. Without a room there is nothing to save to. */
     private fun remember() {
         val found = room ?: return
-        val entity = screenEntity ?: return
-        val pose = entity.tryGetComponent<Transform>()?.transform ?: return
-        val scale = entity.tryGetComponent<Scale>()?.scale?.x ?: 1.0f
-        placement.save(found, ScreenPlace(pose, SCREEN_WIDTH * scale))
+        val pose = screenEntity?.tryGetComponent<Transform>()?.transform ?: return
+        placement.save(found, ScreenPlace(pose, SCREEN_WIDTH * screenScale()))
     }
+
+    private fun screenScale() = screenEntity?.tryGetComponent<Scale>()?.scale?.x ?: 1.0f
 
     /**
      * The machine, on the screen the wearer chose.
@@ -288,32 +371,10 @@ class ImmersiveActivity : AppSystemActivity() {
                 layerConfig = LayerConfig()
                 enableTransparent = false
                 includeGlass = false
-                if (controls.curved) {
-                    panelShapeType = PanelShapeType.CYLINDER
-                    radiusForCylinderOrSphere = SCREEN_DISTANCE
-                }
             }
-            // Kept so the shape can change without restarting anything. A song is playing on this
-            // panel, and rebuilding the scene to bend a screen would stop it.
-            panel { screen = this }
         }
-
-    /** Bends or flattens the screen in place, leaving the song playing on it alone. */
-    private fun reshape(curved: Boolean) {
-        val panel = screen ?: return
-        val config = panel.panelShapeConfig ?: return
-        config.panelShapeType = if (curved) PanelShapeType.CYLINDER else PanelShapeType.QUAD
-        config.radiusForCylinderOrSphere = SCREEN_DISTANCE
-        panel.reshape(config)
-    }
 
     private val actions = object : ControlsActions {
-        override fun shape(curved: Boolean) {
-            prefs().edit().putBoolean(CURVED, curved).apply()
-            controls.curved = curved
-            reshape(curved)
-        }
-
         override fun toWall() {
             val found = room ?: return
             val place = placement.onWall(found, scene.getViewerPose(), SCREEN_WIDTH) ?: return
@@ -321,10 +382,9 @@ class ImmersiveActivity : AppSystemActivity() {
             placement.save(found, place)
         }
 
-        override fun toWindow() {
-            controls.refused = false
-            Switch.toFlat(this@ImmersiveActivity) { controls.refused = true }
-        }
+        // The button shows only while the machine is idle. A song queued in the moment between
+        // the last check and the press refuses the switch, and the next check hides the button.
+        override fun toWindow() = Switch.toFlat(this@ImmersiveActivity) {}
 
         override fun toggleQueue() {
             val shown = !controls.queueShown
@@ -334,20 +394,36 @@ class ImmersiveActivity : AppSystemActivity() {
         }
     }
 
-    /** One row of buttons under the screen: its shape, the wall, and the queue. */
+    /**
+     * A vertical pill of buttons beside the screen: the wall, the queue and the window.
+     *
+     * The panel is transparent, so only the pill drawn on it shows. That takes three things, and
+     * any one missing paints the rest of the panel white: a window theme with no background, a view
+     * with no background, and a layer that blends. Android hands the compositor premultiplied alpha,
+     * so the blend takes the source as it is.
+     */
     private fun controlsPanel(): PanelRegistration {
         val content: (ComposeView) -> Unit = { view ->
+            view.setBackgroundColor(android.graphics.Color.TRANSPARENT)
             view.setContent { Controls(controls, actions) }
         }
         return PanelRegistration(R.id.controls_panel) {
             composePanel(content)
             config {
-                width = 1.6f
-                height = 0.16f
-                layoutWidthInDp = 1600f
-                layoutHeightInDp = 160f
-                layerConfig = LayerConfig()
-                enableTransparent = false
+                themeResourceId = R.style.TransparentPanel
+                width = CONTROLS_WIDTH
+                height = CONTROLS_HEIGHT
+                layoutWidthInDp = 120f
+                layoutHeightInDp = 480f
+                layerConfig = LayerConfig(
+                    alphaBlend = LayerAlphaBlend(
+                        BlendFactor.ONE,
+                        BlendFactor.ONE_MINUS_SOURCE_ALPHA,
+                        BlendFactor.ONE,
+                        BlendFactor.ONE_MINUS_SOURCE_ALPHA,
+                    ),
+                )
+                enableTransparent = true
                 includeGlass = false
             }
         }
@@ -370,25 +446,38 @@ class ImmersiveActivity : AppSystemActivity() {
 
     private companion object {
         const val PREFS = "headset"
-        const val CURVED = "screen_curved"
+        const val TAG = "KaraokeHeadset"
         const val QUEUE_SHOWN = "queue_shown"
 
         /** Horizon OS's permission for the room the headset scanned. */
         const val USE_SCENE = "com.oculus.permission.USE_SCENE"
         const val SCENE_REQUEST = 1
 
-        /** Metres. A television's distance, at a television's size. */
-        const val SCREEN_DISTANCE = 2.0f
+        /** Metres from the wearer. A 2 m screen there fills about 44 degrees of view. */
+        const val SCREEN_DISTANCE = 2.5f
         const val SCREEN_WIDTH = 2.0f
 
         /** Metres. The widest a hand may stretch the screen. */
         const val WIDEST = 4.0f
 
-        /** Metres. How far the controls and the queue stand out in front of the screen. */
+        /** Metres. How far the queue stands out in front of the screen. */
         const val NEARER = 0.4f
 
-        /** Metres between the screen's lower edge and the controls. */
-        const val CONTROLS_GAP = 0.2f
+        /** Metres between the screen's right edge and the controls' panel. */
+        const val CONTROLS_GAP = 0.05f
+
+        /** Metres. The controls' panel, at the same 1:4 as its 120x480 dp layout. */
+        const val CONTROLS_WIDTH = 0.15f
+        const val CONTROLS_HEIGHT = 0.6f
+
+        /** How often the scene asks the machine whether a song is playing. Loopback is cheap. */
+        const val WATCH_MS = 2000L
+
+        /**
+         * How closely a carried panel follows the hand, where 1 is rigidly. The SDK's 0.15 smooths
+         * so much that a panel trails the hand and keeps sliding after the pinch opens.
+         */
+        const val GRAB_RESPONSIVENESS = 0.5f
 
         /** Metres between the screen's left edge and the queue's right edge. */
         const val QUEUE_GAP = 0.1f
