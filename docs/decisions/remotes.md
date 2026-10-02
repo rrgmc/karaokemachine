@@ -614,19 +614,15 @@ their children. So a new parent is invisible to all three. See `A queued row com
 
 ## A song links out to YouTube
 
-**A search URL built from artist and title, never a stored link. It is absent rather than broken
-where the title is not worth searching for.** Nothing in the workspace holds a URL: no catalog, no package,
-no `SongDto`. Adding one would be a field somebody has to fill in for a hundred thousand songs.
+**A search URL built from artist and title, never a stored link.** Nothing in the workspace holds a
+URL: no catalog, no package, no `SongDto`. Adding one would be a field somebody has to fill in for a
+hundred thousand songs. Both programs build the same query, the artist and then the title.
 
-The judgment about *which* rows get one is `km-package-builder`'s, ported rather than reinvented. So
-the tool that curates a corpus and the remote that browses it do not send somebody to two different
-pages for one song. With an artist, a row always gets one. Without one, it does not if the title has no
-spaces and no lower-case letters. That is the shape of a truncated 8.3 filename rather than of a
-title.
-
-That rule is measured against the corpus rather than guessed. The corpus is full of `CORCOVAD` and
-`AMD0123`, and a search for one of those finds nothing at all. Of 39 songs in a test package, 38 got a
-link. The one that did not was titled `ABBA` with no artist.
+**Every song gets a link, in both programs.** A title that is only the file's truncated name, such
+as `CORCOVAD`, still gets a search. That name is often enough for YouTube to find the song, and a
+curator needs the search most for exactly that file. In `km-package-builder`, a song with no title
+searches for the file's stem. The remote has no file name, so only a row with no title and no artist
+gets no link.
 
 **The link can dead-end and that is accepted**: a machine under a television may sit on a LAN with no
 route out. It is a link and not an action, so the phone says what happened.

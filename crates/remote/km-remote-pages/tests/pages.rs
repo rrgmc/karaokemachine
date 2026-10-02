@@ -1174,8 +1174,7 @@ impl Harness {
                 song(1002, "Águas de Março", Some("Tom Jobim")),
                 song(1003, "Exagerado", None),
                 // A title that is really the file's own truncated name, which the corpus is full of.
-                // Here so that the YouTube link has something to decline — see
-                // [`a_song_links_out_to_youtube_unless_its_title_is_a_filename`].
+                // It still gets a YouTube link — see [`every_song_links_out_to_youtube`].
                 song(1004, "CORCOVAD", None),
             ],
         };
@@ -2212,18 +2211,18 @@ async fn the_letter_is_addressable_wherever_it_travels() {
     );
 }
 
-/// A search URL and never a stored one — nothing in the workspace holds a link. The judgment about
-/// which titles are worth searching for is `km_remote_pages::model`'s, and matches the package builder's.
+/// A search URL and never a stored one — nothing in the workspace holds a link. The query is
+/// `km_remote_pages::model`'s, and matches the package builder's.
 #[tokio::test]
-async fn a_song_links_out_to_youtube_unless_its_title_is_a_filename() {
+async fn every_song_links_out_to_youtube() {
     let page = Harness::offline().get("/").await;
     assert!(
         page.contains("https://www.youtube.com/results?search_query=Legi"),
         "{page}"
     );
     assert!(page.contains("Find on YouTube"));
-    // `CORCOVAD` with no artist is the file's own name, and a search for it finds nothing.
-    assert!(!page.contains("search_query=CORCOVAD"), "{page}");
+    // `CORCOVAD` with no artist is the file's own name, and it still gets a search.
+    assert!(page.contains("search_query=CORCOVAD"), "{page}");
 }
 
 /// Taking a song out of a folder was nested inside `{% if extra %}`, and `extra` was never true — so
