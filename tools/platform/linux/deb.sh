@@ -120,9 +120,7 @@ fi
 # Built only when it is missing, the way check.sh:63 does it. The tag names its own content
 # (tools/platform/linux/image-tag.sh), so "the image exists" and "the image is the one these inputs
 # describe" are the same question, and building an already-built tag is a guaranteed layer-cache
-# hit: correct, and pure overhead. On this box that
-# overhead is not small, because a `docker build` is a container start and those cost seconds here
-# rather than milliseconds. See "Docker speed on this box" in CLAUDE.local.md.
+# hit: correct, and pure overhead.
 #
 # `--rebuild` still builds unconditionally, which is the whole point of asking for it. The flag is
 # tracked in REBUILD rather than inferred from BUILD_ARGS being non-empty: reading intent out of an

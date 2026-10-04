@@ -27,9 +27,8 @@
 # already fetched.
 #
 # **The runtime libraries are installed once, into a cached image, not on every run.** That install
-# was the dominant cost of this script -- 17 packages including libgl1-mesa-dri, and on Windows the
-# unpack onto Docker's overlay stalls for minutes. tools/platform/linux/verify-image.sh builds a derivative of
-# the base image with exactly the list in it, tagged by a hash of the generated Dockerfile, so a
+# was the dominant cost of this script -- 17 packages including libgl1-mesa-dri, downloaded and
+# unpacked on every run. tools/platform/linux/verify-image.sh builds a derivative of the base image with exactly the list in it, tagged by a hash of the generated Dockerfile, so a
 # changed list or a changed base cannot silently reuse a stale one.
 #
 # **Does that weaken what this proves? No, provided four things, and each is enforced rather than
