@@ -1697,7 +1697,7 @@ mod tests {
         assert!(!text.contains('<'), "a line mark reached the words: {text}");
         assert_eq!(
             text.lines().next(),
-            Some("WELL MY FRIENDS THE TIME HAS COME")
+            Some("Well my friends the time has come")
         );
         // One line per lyric event, and one syllable in each: the file times its words by the line,
         // and dropping the chords is what stops that being disguised as syllable-level timing.

@@ -843,6 +843,33 @@ a disk.
 The measuring and drawing paths are written to shrug off a string they cannot use. That path is never
 reachable on its own, because the dependency panics before it can refuse.
 
+## Words written all in capitals are drawn in sentence case
+
+**A file whose words hold no lowercase letter is drawn in sentence case.** Every letter becomes
+lowercase, and the first letter of each line becomes a capital. A screen of capitals is harder to
+read at singing speed, and such a file says nothing with them.
+
+**One lowercase letter anywhere leaves the file alone.** A file that writes both cases chose where
+its capitals go, and a line of capitals inside it is a line the writer meant.
+
+**Two floors keep the rule off a file that is not words.**
+
+- **Twenty capital letters.** A song in a script with no case can carry one Latin interjection.
+- **One run of five letters.** A chord chart written as lyrics holds note names and `MAJ` or `MIN`,
+  so its longest run is four. The suitability reads a chord's root as a capital, and the chart must
+  reach it unchanged.
+
+**No name and no pronoun gets its capital back.** `I`, a person's name and an acronym inside a line
+draw in lowercase. Telling one of them from a word takes a dictionary of the song's language, and
+that is not what a karaoke machine is. A lowercase name in a readable line costs less than a screen
+of capitals.
+
+**Nobody can turn it off for one song.** The rule holds no per-song field and no setting. A file
+that needs its capitals needs one lowercase letter to say so, and no such file is known.
+
+**The drawing changes on upgrade.** A package stores no lyric timeline, so the machine re-parses and
+every package already built draws the new case. The stored preview changes under a scan.
+
 ## A file that marks no word ends draws a narrower space
 
 **A file that puts a space after every syllable is drawn with a narrow space between its syllables,
