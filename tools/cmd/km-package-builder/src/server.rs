@@ -6182,6 +6182,49 @@ mod tests {
         );
     }
 
+    /// …and a count carried in the address does not decide where the end is.
+    ///
+    /// The nav's Songs link and a bare `/songs` both carry the count the last render made. Rows
+    /// taken out since leave that count too large, and the last page it names can be as empty as
+    /// the one asked for.
+    #[tokio::test]
+    async fn a_page_above_the_end_is_counted_again_under_a_carried_total() {
+        let (_corpus, state) = a_corpus_of("page-past-a-stale-total", 60);
+
+        let (status, html) = get(&state, "/songs?offset=100&total=200").await;
+        assert_eq!(status, axum::http::StatusCode::OK);
+        assert!(html.contains("page 2 of 2 (60 songs)"), "{html}");
+        assert_eq!(state.songs_filter(), "offset=50&total=60");
+    }
+
+    /// A saved filter holds no count, whichever route last wrote the filter down.
+    ///
+    /// A full page load writes the filter down with the count it made, and a named filter is kept
+    /// for months. The count would be the corpus as it stood on the day of the save.
+    #[tokio::test]
+    async fn a_saved_filter_holds_no_count() {
+        let (_corpus, state) = a_corpus_of("saved-no-count", 120);
+        let (status, _) = get(&state, "/songs?sort=title&offset=50").await;
+        assert_eq!(status, axum::http::StatusCode::OK);
+        assert_eq!(state.songs_filter(), "sort=title&offset=50&total=120");
+
+        post(
+            &state,
+            "/songs/saved-filters",
+            "saved_name=Place&keep_page=1",
+        )
+        .await;
+        post(&state, "/songs/saved-filters", "saved_name=Question").await;
+        assert_eq!(saved_named(&state, "Place").query, "sort=title&offset=50");
+        assert_eq!(saved_named(&state, "Question").query, "sort=title");
+
+        let (status, _) = get(&state, "/songs?sort=title&offset=100").await;
+        assert_eq!(status, axum::http::StatusCode::OK);
+        let place = saved_named(&state, "Place").id;
+        post(&state, &format!("/songs/saved-filters/{place}/update"), "").await;
+        assert_eq!(saved_named(&state, "Place").query, "sort=title&offset=100");
+    }
+
     // -- a page is drawn while the corpus is being written to ------------------------------------
 
     /// **The reported fault, as a test.** A scan holds the writing connection for the length of a

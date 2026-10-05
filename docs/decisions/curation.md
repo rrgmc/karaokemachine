@@ -2142,6 +2142,11 @@ song, and coming back, land on the row it was opened from.
 from under somebody who is still paging. An offset past the end is an empty list under a working
 *previous* button. A bookmark, a saved filter and a hand-typed address land there the same way.
 
+**An empty page under a carried count is counted again.** A paging link carries the count its page
+made, so the next page does not pay for it twice. The Songs tab and a bookmark carry it for longer,
+and a scan can leave it too large. The last page it names is then as empty as the one asked for.
+The second count is paid only where the page would otherwise draw nothing.
+
 **An address with no `?` at all is answered with the filter; `/songs?` is answered with the corpus.**
 Everything that means *the songs page* and has no filter to state sends a bare `/songs`. That is
 the redirect from `/`, the Open page's *back* link, the fragment that follows a folder opening, and
@@ -2249,6 +2254,10 @@ the top of the list as no `offset` at all. A stored row cannot, because the pair
 that the box was ticked. Without it, a place saved at the top reads as a question, and every rewrite
 takes its page off. Restoring loses nothing: `offset=0` is the first page to every route.
 
+**A saved query holds no count.** The remembered filter carries the count its last full render made.
+A name is kept for months, and that count would be the corpus as it stood on the day of the save.
+The save takes it off, and the restored page counts for itself.
+
 **Renaming refuses a name that is taken, where saving replaces one.** The two are the same act
 pointed opposite ways. A save writes a *query somebody is looking at* into a name, so both queries
 can be put on the screen and a choice offered. A rename writes a name over a query that is not on
@@ -2262,7 +2271,7 @@ because the order is the fold of the name. So a rename can carry a chip past its
 redrawn chip alone would sit in the position its old name earned.
 
 **The page comes back by default, and a box lets somebody leave it out.** *The page is part of it*
-in the section above is the whole argument: page sixteen of one favorite is a place in a morning's
+in the section above is the whole argument. Page sixteen of one favorite is a place in a morning's
 work. The box is for the other kind, a filter naming a *question* rather than a place. That kind
 should open at the top, however deep the corpus was being read when it was saved.
 
