@@ -2244,6 +2244,11 @@ and a chip has nowhere to put one. So the answer is read off the rewritten row: 
 and stays a question. Offering the box on a chip would ask, on every rewrite, a question that was
 settled when the name was given.
 
+**A saved place says its page outright, and the first page is `offset=0`.** A live address spells
+the top of the list as no `offset` at all. A stored row cannot, because the pair is the only record
+that the box was ticked. Without it, a place saved at the top reads as a question, and every rewrite
+takes its page off. Restoring loses nothing: `offset=0` is the first page to every route.
+
 **Renaming refuses a name that is taken, where saving replaces one.** The two are the same act
 pointed opposite ways. A save writes a *query somebody is looking at* into a name, so both queries
 can be put on the screen and a choice offered. A rename writes a name over a query that is not on
@@ -2256,7 +2261,7 @@ wrapping row and a name being typed anywhere else would move every chip after it
 because the order is the fold of the name. So a rename can carry a chip past its neighbors, and a
 redrawn chip alone would sit in the position its old name earned.
 
-**The page comes back by default, and a box lets somebody leave it out.** *The page comes back too*
+**The page comes back by default, and a box lets somebody leave it out.** *The page is part of it*
 in the section above is the whole argument: page sixteen of one favorite is a place in a morning's
 work. The box is for the other kind, a filter naming a *question* rather than a place. That kind
 should open at the top, however deep the corpus was being read when it was saved.

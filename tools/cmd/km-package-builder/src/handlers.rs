@@ -3125,6 +3125,29 @@ fn without_page(query: &str) -> String {
         .join("&")
 }
 
+/// Whether a saved query was written down as a place, with its page.
+///
+/// By pair, as [`without_page`] reads it: a search for the text `offset=` inside a title would
+/// answer for a key that is not there.
+fn keeps_page(query: &str) -> bool {
+    query.split('&').any(|pair| pair.starts_with("offset="))
+}
+
+/// The same query, saying its page outright.
+///
+/// **The first page is `offset=0` in a saved query, and no pair at all everywhere else.**
+/// [`FilterQuery::rebuild`] spells the top of the list as an absent key, which a live address can
+/// afford and a stored row cannot: the pair is the only record that somebody ticked *keep the
+/// page*, and [`update_saved_filter`] reads it. Restoring loses nothing by it, `offset=0` being the
+/// first page to every route that takes one.
+fn with_page(query: &str) -> String {
+    match (keeps_page(query), query.is_empty()) {
+        (true, _) => query.to_owned(),
+        (false, true) => "offset=0".to_owned(),
+        (false, false) => format!("{query}&offset=0"),
+    }
+}
+
 /// `POST /songs/saved-filters`
 ///
 /// **The one action on the songs page that does not send the filter bar with it.** Everything else
@@ -3165,7 +3188,7 @@ pub async fn save_filter(
         false => {
             let live = state.songs_filter();
             match fields.has("keep_page") {
-                true => live,
+                true => with_page(&live),
                 false => without_page(&live),
             }
         }
@@ -3249,7 +3272,8 @@ fn saved_filter_failed(said: String) -> Response {
 /// **The page comes or does not come by what the row already holds.** The save box has a *keep the
 /// page* tick and a chip has nowhere to put one, so the answer is read off the filter being
 /// rewritten: one that carries an `offset=` is a place somebody works from and is rewritten with
-/// one, and one that does not is a question and stays a question.
+/// one, and one that does not is a question and stays a question. [`with_page`] is what lets a
+/// place saved on the first page answer as a place.
 ///
 /// The live filter comes from [`State::songs_filter`] rather than from the body, for the reason
 /// [`save_filter`] gives at length.
@@ -3264,8 +3288,8 @@ pub async fn update_saved_filter(
             let Some(existing) = db.saved_filter(id)? else {
                 return Ok(None);
             };
-            let query = match existing.query.contains("offset=") {
-                true => live,
+            let query = match keeps_page(&existing.query) {
+                true => with_page(&live),
                 false => without_page(&live),
             };
             let written = db.update_saved_filter(id, &query, &now)?;
