@@ -486,6 +486,7 @@ it are the same entry. How the thing is built is [`ARCHITECTURE.md`](../ARCHITEC
 - [What a published picture says about the build it was taken from](repository.md#what-a-published-picture-says-about-the-build-it-was-taken-from)
 - [Which wallpaper the published pictures are taken over](repository.md#which-wallpaper-the-published-pictures-are-taken-over)
 - [The animated picture is of a public-domain carol](repository.md#the-animated-picture-is-of-a-public-domain-carol)
+- [What a picture taken inside a headset may show](repository.md#what-a-picture-taken-inside-a-headset-may-show)
 - [The promotional video sings a song written for it](repository.md#the-promotional-video-sings-a-song-written-for-it)
 - [Who the README is for](repository.md#who-the-readme-is-for)
 - [How a document in this repository is written](repository.md#how-a-document-in-this-repository-is-written)
