@@ -11,6 +11,12 @@ Entries are written for somebody who has the machine. Why any of it is the way i
 
 ## [Unreleased]
 
+### Fixed
+
+- **A song carries on when its headphones disconnect.** The song moves to the device the system
+  now uses and keeps its position, and it moves back when the headphones return. The machine went
+  silent until it was restarted.
+
 ## [1.19.0] - 2026-10-02
 
 ### Added

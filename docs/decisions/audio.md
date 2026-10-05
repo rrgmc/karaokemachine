@@ -233,6 +233,26 @@ is *late*, not clipped. Song time only advances while the device's callback runs
 with the music rather than a second ahead of it. Queuing a song sends the hint that starts the device
 coming up, so most of that second is spent while somebody is still choosing.
 
+## A song follows the output device
+
+**A song that loses its output device carries on from the same position on the next one.** Headphones
+that disconnect in the middle of a song are the ordinary case. The song moves to the device the
+system now calls the default, and it moves back when the headphones return.
+
+A song that was playing keeps playing, and a song that was paused stays paused. The key, the tempo,
+the melody mute and the volume are the ones the singer had. The queue does not move, because the
+singer has not finished the turn.
+
+**Continuing is what following the system default means.** Somebody who chose that setting asked for
+the sound to go where the system sends it. The song can therefore sound from a loudspeaker for the
+time the headphones are away.
+
+**With no device at all the song waits.** It keeps its position, and Play asks for a device again.
+
+**A video, MP3+G, UltraStar or LRC file played straight from disk ends instead**, and the queue moves
+on. The path that opens such a song also starts it as a new song. The machine therefore cannot open
+it a second time in place. A song from a package of any kind continues.
+
 ## The machine sleeps when it leaves the screen
 
 **A machine that is off the screen lets the system take its audio device. On return it has the

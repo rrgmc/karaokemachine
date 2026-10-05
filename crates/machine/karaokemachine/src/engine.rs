@@ -590,6 +590,24 @@ impl Engine {
     pub fn songs_ended(&self) -> u32 {
         self.shared.songs_ended()
     }
+
+    /// How many streams have been dropped because the output device went away or changed.
+    ///
+    /// A counter on the same terms as [`Engine::songs_ended`]. Each loss took the loaded song with
+    /// it, and this is how the machine learns to load the song again.
+    pub fn streams_lost(&self) -> u32 {
+        self.shared.streams_lost()
+    }
+
+    /// Whether the song was playing when the last stream was lost.
+    pub fn lost_while_playing(&self) -> bool {
+        self.shared.lost_while_playing()
+    }
+
+    /// Whether a stream has opened since the last one was lost.
+    pub fn reopened_since_loss(&self) -> bool {
+        self.shared.reopened_since_loss()
+    }
 }
 
 impl Drop for Engine {
@@ -1185,15 +1203,19 @@ fn run(
             // flag, because cpal recovers from one itself and killing the stream over it made the
             // machine unplayable through ALSA's `dmix`. See `on_error` in km-audio.
             //
-            // Say playback has stopped before dropping the stream. The transport atomic is written
+            // Say playback has stopped as the stream is dropped. The transport atomic is written
             // from inside the callback, so a stream that goes away mid-song freezes it at `Playing`
             // with the position stuck beside it, and the machine reports a song playing forever at a
             // standstill. Nobody can tell that from a hang, which is exactly what it was.
+            //
+            // The loss is counted after the close, and the order matters. The machine answers the
+            // count by asking for a new stream, and a request that arrived while this one was still
+            // held would find a stream and open nothing.
             if shared.transport() == km_queue::Transport::Playing {
                 tracing::warn!("the audio device went away mid-song; reporting playback stopped");
-                shared.publish_stopped();
             }
             held.close("the device is gone");
+            shared.publish_lost();
         }
         tick(
             &mut held,

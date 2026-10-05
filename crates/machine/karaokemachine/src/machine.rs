@@ -254,6 +254,22 @@ fn fixes_for(stored: &[km_fixes::Fix], describe_as: &str) -> km_fixes::ChannelFi
     km_fixes::resolve(stored)
 }
 
+/// Whether a song plays once it is loaded again after its stream was lost.
+///
+/// It plays if it was playing at the loss. A second loss finds the transport already stopped by the
+/// first, so an answer already held is kept.
+fn resumes_after_loss(held: Option<bool>, was_playing: bool) -> bool {
+    held.unwrap_or(false) || was_playing
+}
+
+/// The catalog number a loaded song came from, when it came from the catalog.
+fn catalog_number(origin: &Origin) -> Option<SongCode> {
+    match origin {
+        Origin::Catalog { number, .. } | Origin::Demo { number } => Some(*number),
+        Origin::File { .. } => None,
+    }
+}
+
 fn split_media(
     media: LoadedMedia,
     melody_channel: Option<u8>,
@@ -494,6 +510,14 @@ struct State {
     /// The engine's song-ended counter as last observed, so [`Machine::poll`] can tell a song ending
     /// from having already handled it.
     songs_ended_seen: u32,
+    /// The engine's lost-stream counter as last observed, on the same terms.
+    streams_lost_seen: u32,
+    /// Set while the loaded song waits for a stream to replace the one its device took away.
+    ///
+    /// `Some(true)` means the song plays once it is loaded again, and `Some(false)` means it comes
+    /// back paused. Play and Pause move it while the song waits, so a press made with no device to
+    /// play through is kept for when one returns.
+    awaiting_stream: Option<bool>,
     /// The lyric line last announced, so `lyric_line` fires on change rather than every poll.
     announced_line: Option<usize>,
     /// Set by the API, cleared by the display: "advance the wallpaper now".
@@ -828,6 +852,8 @@ impl Machine {
                 mics,
                 wallpapers,
                 songs_ended_seen: 0,
+                streams_lost_seen: 0,
+                awaiting_stream: None,
                 announced_line: None,
                 wallpaper_requested: false,
                 wallpaper_dir_stale: false,
@@ -1804,6 +1830,144 @@ impl Machine {
         }
     }
 
+    /// Records a Play or a Pause against a song that is waiting for a stream.
+    ///
+    /// Returns whether the song is waiting. A song that is not waiting is in a player, and the
+    /// caller sends the command to it as usual.
+    fn hold_for_stream(&self, play: bool) -> bool {
+        let mut state = self.lock_state();
+        match state.awaiting_stream.as_mut() {
+            Some(held) => {
+                *held = play;
+                true
+            }
+            None => false,
+        }
+    }
+
+    /// Puts the loaded song back after its output device went away or changed.
+    ///
+    /// The player lives inside the stream, so a stream dropped under a song takes the song with it.
+    /// The machine still holds the song as loaded, and without this a Play reaches an empty player
+    /// and does nothing. Headphones that disconnect and return are the ordinary case.
+    ///
+    /// Two steps on two ticks. The loss asks for a new stream with `Wake`. The song is loaded again
+    /// once that stream is open, because a video song's audio is decoded at the device's rate and
+    /// the rate is known only then. With no device at all the song waits, and a Play asks again.
+    fn settle_lost_stream(&self) {
+        let lost = self.engine.streams_lost();
+        let (newly_lost, awaiting) = {
+            let mut state = self.lock_state();
+            let newly_lost = state.streams_lost_seen != lost;
+            state.streams_lost_seen = lost;
+            if state.loaded.is_none() {
+                state.awaiting_stream = None;
+                return;
+            }
+            if newly_lost {
+                state.awaiting_stream = Some(resumes_after_loss(
+                    state.awaiting_stream,
+                    self.engine.lost_while_playing(),
+                ));
+            }
+            (newly_lost, state.awaiting_stream)
+        };
+        if newly_lost {
+            tracing::warn!("the output device went away under a song; asking for a new stream");
+            self.engine.send(Command::Wake);
+        }
+        let Some(play) = awaiting else {
+            return;
+        };
+        if !self.engine.reopened_since_loss() {
+            return;
+        }
+        self.lock_state().awaiting_stream = None;
+        self.restore_song(play);
+    }
+
+    /// Loads the song the machine holds into the stream that is now open, at the position it had.
+    fn restore_song(&self, play: bool) {
+        // The lost stream's last word. Nothing has written it since, because only a callback does.
+        let position_ms = self.engine.position_ms();
+        let Some(loaded) = self.lock_state().loaded.clone() else {
+            return;
+        };
+        let load = match (&loaded.media, &loaded.origin) {
+            (Media::Midi(song), _) => km_audio::audio::Load::Midi {
+                song: Arc::clone(song),
+                melody_channel: loaded.melody_channel,
+                fixes: loaded.fixes,
+            },
+            // A decoder feeds this song's audio, and the half of it the player held went with the
+            // stream. The song is opened again from its package, at the new device's rate.
+            (_, Origin::Catalog { number, .. } | Origin::Demo { number }) => {
+                let number = *number;
+                match self.load_from_catalog(number) {
+                    Ok(Some((media, _row))) => {
+                        let (media, load) = split_media(media, loaded.melody_channel, loaded.fixes);
+                        let mut state = self.lock_state();
+                        match state.loaded.as_mut() {
+                            Some(current) if catalog_number(&current.origin) == Some(number) => {
+                                current.media = media;
+                            }
+                            // Another song took the deck while this one was being opened.
+                            _ => return,
+                        }
+                        load
+                    }
+                    Ok(None) => {
+                        tracing::warn!(%number, "the song is no longer in the catalog; ending it");
+                        self.end_unrestorable_song();
+                        return;
+                    }
+                    Err(error) => {
+                        tracing::error!(%number, %error, "the song would not open again; ending it");
+                        self.end_unrestorable_song();
+                        return;
+                    }
+                }
+            }
+            // A video, MP3+G, UltraStar or LRC file played straight from disk. Its start path is a
+            // new song starting, so the song ends and the queue moves on.
+            (_, Origin::File { .. }) => {
+                tracing::warn!("a file played from disk cannot follow a device change; ending it");
+                self.end_unrestorable_song();
+                return;
+            }
+        };
+        tracing::info!(
+            position_ms,
+            play,
+            "loading the song again on the new output stream"
+        );
+        self.reload_at(load, position_ms, play);
+    }
+
+    /// Sends a song to a stream that has just been built, and puts it where it was.
+    ///
+    /// `Sticky` replays transpose, tempo, the melody mute, the volume and the song's gain when the
+    /// stream reopens, so the song and its position are all that is owed here. `SeekMs` does more
+    /// than move the clock. It replays every channel's program and controller state onto a new
+    /// synthesizer, so a MIDI song comes back with its own instruments.
+    fn reload_at(&self, load: km_audio::audio::Load, position_ms: u32, play: bool) {
+        self.engine.send(Command::Load(load));
+        if position_ms > 0 {
+            self.engine.send(Command::SeekMs(position_ms));
+        }
+        if play {
+            self.engine.send(Command::Play);
+        }
+    }
+
+    /// Ends a song that cannot be loaded again, and starts the next one.
+    fn end_unrestorable_song(&self) {
+        self.events.publish(Event::SongEnded {
+            reason: EndReason::Stopped,
+        });
+        self.advance();
+    }
+
     /// One step of the machine's own business: advancing the queue, and announcing lyric lines.
     ///
     /// Called from a watchdog thread at [`crate::POLL_INTERVAL`]. It exists because a song ending is
@@ -1829,6 +1993,8 @@ impl Machine {
         // A few atomics on every platform, and on a phone the two moments the sound changes hands:
         // a song starting asks for it, and a call taking it stops the song.
         self.settle_audio_focus();
+        // Two atomics, and work only on the tick an output device went away or came back.
+        self.settle_lost_stream();
 
         let ended = self.engine.songs_ended();
         let (was_seen, has_song, was_demo) = {
@@ -2330,6 +2496,8 @@ impl Machine {
                 lyric_offset_ms,
             };
             state.announced_line = None;
+            // A song starting brings its own `Load`, so nothing is owed to the song it replaces.
+            state.awaiting_stream = None;
             state.loaded = Some(loaded.clone());
             // **The picture belongs to the song rather than to the clock.** The same flag
             // `POST /wallpapers/next` sets, so a song start takes the display's one change path —
@@ -2386,6 +2554,7 @@ impl Machine {
         let had_song = {
             let mut state = self.lock_state();
             state.announced_line = None;
+            state.awaiting_stream = None;
             state.loaded.take().is_some()
         };
         self.engine.send(Command::Unload);
@@ -4056,7 +4225,11 @@ impl Controller for Machine {
         let loaded = self.lock_state().loaded.is_some();
         match command {
             TransportCommand::Play => {
-                if loaded {
+                if loaded && self.hold_for_stream(true) {
+                    // The song is not in a player yet, so `Play` would reach an empty one. `Wake`
+                    // asks for the device again, and the song plays when `poll` loads it.
+                    self.engine.send(Command::Wake);
+                } else if loaded {
                     self.engine.send(Command::Play);
                 } else if self.lock_state().queue.is_empty() {
                     return Err(ControlError::Unavailable(Refusal::coded(
@@ -4080,6 +4253,7 @@ impl Controller for Machine {
                         "nothing is playing",
                     )));
                 }
+                self.hold_for_stream(false);
                 self.engine.send(Command::Pause);
             }
             TransportCommand::Restart => {
@@ -5749,6 +5923,21 @@ mod tests {
         // It says what to do instead, because refusing with no remedy is a dead end for somebody
         // holding a D-pad.
         assert!(why.contains("remove the file yourself"), "{why}");
+    }
+
+    #[test]
+    fn a_song_resumes_after_a_lost_stream_only_if_it_was_playing() {
+        assert!(resumes_after_loss(None, true));
+        assert!(!resumes_after_loss(None, false));
+    }
+
+    #[test]
+    fn a_second_loss_keeps_what_the_first_decided() {
+        // The first loss stopped the transport, so the second one reports "not playing".
+        assert!(resumes_after_loss(Some(true), false));
+        // A song somebody paused while it waited stays paused, and one that plays again plays.
+        assert!(!resumes_after_loss(Some(false), false));
+        assert!(resumes_after_loss(Some(false), true));
     }
 
     /// The rule that keeps a bank swap from ending a video song.
