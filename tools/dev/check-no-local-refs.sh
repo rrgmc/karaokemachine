@@ -35,7 +35,9 @@
 # true, published, and immune to the check that quotes it.
 #
 # Tracked files only, from `git ls-files`, and binary files are skipped by `grep -I`: a PNG cannot be
-# checked this way and the decision covers pictures through `tools/dev/screenshots.sh` instead.
+# checked this way and the decision covers pictures through `tools/dev/screenshots.sh` instead. The
+# headset picture is taken by hand, and a person reads it against
+# `What a picture taken inside a headset may show`.
 #
 # `task check` runs this first, ahead of fmt, because it takes under a second and is the cheapest
 # failure in the pass to read. CI runs it first in the `guards` job.

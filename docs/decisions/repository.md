@@ -576,6 +576,41 @@ behind it, so the clip fabricates nothing.
 **The site's hero and its `og:image` stay `screen-playing.png`.** A link preview shows the first
 frame of an animation or nothing at all. The still is the better picture for that.
 
+## What a picture taken inside a headset may show
+
+**The machine's two panels on a bare wall, and nothing else of the room.** `headset-room.webp` is a
+capture from a headset. It shows the screen and the singer's queue hanging on a wall.
+
+**A person takes this picture by hand, because no script can wear a headset.** The scene draws the
+room behind the screen, and only a headset supplies a room. So this is the one published picture
+that no script writes.
+
+**The wall is bare, and the frame is cropped to it.**
+`What a committed file may say about the machine it was written on` covers the inside of a published
+PNG. A room is the owner's as much as a folder is. Furniture, a window, a door, a reflection and a
+picture on the wall each say whose room it is. A bare wall says only that the screen hangs in a
+room, which is what the picture is there to show.
+
+**A song is playing.** The idle screen prints the machine's real address and a QR code of it. The
+script invents that address, and a headset cannot. The playing screen prints neither.
+
+**The catalog rules hold.** The song is in English and comes from the demo corpus. The queue panel
+shows the party `tools/dev/screenshots.sh` queues, with the same invented singers. See
+`What the README may show of a catalog`.
+
+**No overlay, no hand and no controller is in frame.** A metrics overlay is drawn for a developer. A
+hand is a person, and a controller is somebody's hardware.
+
+**The file carries no metadata.** A capture can carry the device's model and the time it was taken.
+The published copy is encoded again without either.
+
+**The format is WebP, lossy at quality 88.** The headset writes a JPEG, so a PNG of it stores the
+noise of the room's camera at ten times the size.
+
+**Nothing checks any of this.** `tools/dev/check-no-local-refs.sh` skips a binary file, and no tool
+can tell a bare wall from a furnished one. The person who takes the picture reads it against these
+rules before it enters the tree.
+
 ## The promotional video sings a song written for it
 
 **The promotional video is a build product, and `tools/dev/promo-video.sh` builds it.** It runs half
