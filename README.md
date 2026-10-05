@@ -107,6 +107,12 @@ switched off.</sub></td>
 </tr>
 </table>
 
+<img src="docs/images/headset-room.webp" alt="The machine inside a Meta Quest: the playing screen
+hanging on a bare wall with the room still visible around it, and beside it a second panel showing
+the queue of six waiting songs with the singer who asked for each">
+
+<sub><b>In a headset</b>, the screen hangs on your wall and the queue hangs beside it.</sub>
+
 ---
 
 ## What it does
