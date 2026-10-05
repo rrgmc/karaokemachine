@@ -480,6 +480,29 @@ pub fn underscore_spacing() -> Vec<u8> {
     smf(vec![track.finish()])
 }
 
+/// Lyrics written entirely in capitals, in two marked lines.
+///
+/// The second line opens with a bracket, so the capital it gets back is not its first character.
+pub fn shouted_lyrics() -> Vec<u8> {
+    let mut track = TrackWriter::new();
+    track
+        .track_name(0, b"Capitals")
+        .tempo(0, TEMPO_120)
+        .lyric(0, b"TWIN")
+        .lyric(240, b"KLE ")
+        .lyric(240, b"TWIN")
+        .lyric(240, b"KLE ")
+        .lyric(240, b"LIT")
+        .lyric(240, b"TLE ")
+        .lyric(240, b"STAR/")
+        .lyric(480, b"(HOW ")
+        .lyric(240, b"I ")
+        .lyric(240, b"WON")
+        .lyric(240, b"DER)");
+
+    smf(vec![track.finish()])
+}
+
 /// A playable file with no lyrics whatsoever, which must still parse.
 pub fn instrumental() -> Vec<u8> {
     let mut track = TrackWriter::new();
@@ -1967,6 +1990,7 @@ pub const FIXTURES: &[Fixture] = &[
     ),
     ("unmarked_lyrics.mid", unmarked_lyrics),
     ("underscore_spacing.mid", underscore_spacing),
+    ("shouted_lyrics.mid", shouted_lyrics),
     ("instrumental.mid", instrumental),
     ("untitled_instrumental.mid", untitled_instrumental),
     ("tempo_change.mid", tempo_change),

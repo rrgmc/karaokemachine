@@ -843,6 +843,8 @@ pub fn build_timeline(
         lines.push(line);
     }
 
+    recase_shouted(&mut lines);
+
     LyricTimeline {
         lines,
         word_ends,
@@ -900,6 +902,78 @@ fn redact_contact_details(line: &mut LyricLine) {
     line.contact_redacted = true;
 }
 
+/// The fewest capital letters a timeline holds before [`recase_shouted`] judges it.
+///
+/// A song in a script with no case can carry one Latin interjection, and that is not a file written
+/// in capitals.
+const SHOUTED_MIN_LETTERS: usize = 20;
+
+/// The shortest run of letters [`recase_shouted`] takes for a word.
+///
+/// A chord chart written as lyrics holds note names and `MAJ` or `MIN`, so its longest run is four
+/// letters. `km-suitability` reads a chord's root as a capital, and a chart must reach it unchanged.
+const SHOUTED_MIN_WORD: usize = 5;
+
+/// Rewrites a timeline written entirely in capitals into sentence case.
+///
+/// A file with no lowercase letter anywhere says nothing with its capitals, so every letter becomes
+/// lowercase and the first letter of each line becomes a capital. A file with one lowercase letter
+/// chose its capitals and is left alone, a line of capitals inside it included.
+///
+/// **No name and no pronoun gets its capital back**, because telling one from a word takes a
+/// dictionary of the song's language. See `Words written all in capitals are drawn in sentence case`.
+///
+/// The rewrite is per syllable, as [`redact_contact_details`] is and for its reason: the display
+/// draws `Syllable::text`. It runs after the redaction, whose spans are byte offsets into the text
+/// as the file wrote it.
+fn recase_shouted(lines: &mut [LyricLine]) {
+    let mut capitals = 0usize;
+    let mut run = 0usize;
+    let mut longest_run = 0usize;
+    for line in lines.iter() {
+        for ch in line.syllables.iter().flat_map(|s| s.text.chars()) {
+            if ch.is_lowercase() {
+                return;
+            }
+            if ch.is_uppercase() {
+                capitals += 1;
+            }
+            // A divider sits inside a word, so it does not end a run.
+            if ch.is_alphabetic() {
+                run += 1;
+                longest_run = longest_run.max(run);
+            } else if ch != SYLLABLE_DIVIDER {
+                run = 0;
+            }
+        }
+        run = 0;
+    }
+    if capitals < SHOUTED_MIN_LETTERS || longest_run < SHOUTED_MIN_WORD {
+        return;
+    }
+
+    for line in lines {
+        let mut line_has_its_capital = false;
+        for syllable in &mut line.syllables {
+            let lowered = syllable.text.to_lowercase();
+            if line_has_its_capital {
+                syllable.text = lowered;
+                continue;
+            }
+            let mut rebuilt = String::with_capacity(lowered.len());
+            for ch in lowered.chars() {
+                if !line_has_its_capital && ch.is_lowercase() {
+                    rebuilt.extend(ch.to_uppercase());
+                    line_has_its_capital = true;
+                } else {
+                    rebuilt.push(ch);
+                }
+            }
+            syllable.text = rebuilt;
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -948,6 +1022,77 @@ mod tests {
         assert_eq!(timeline.lines[0].text(), "Twinkle twinkle");
         assert_eq!(timeline.lines[1].text(), "little star");
         assert_eq!(timeline.granularity(), LyricGranularity::SyllableLevel);
+    }
+
+    #[test]
+    fn a_timeline_written_in_capitals_is_drawn_in_sentence_case() {
+        let timeline = build_timeline(
+            vec![
+                raw(0, "TWIN", LineBreak::None),
+                raw(240, "KLE ", LineBreak::None),
+                raw(480, "TWIN", LineBreak::None),
+                raw(720, "KLE", LineBreak::None),
+                raw(960, "(LIT", LineBreak::Line),
+                raw(1_200, "TLE) ", LineBreak::None),
+                raw(1_440, "STAR", LineBreak::None),
+                raw(1_680, "\"", LineBreak::Line),
+                raw(1_920, "ÉS ", LineBreak::None),
+                raw(2_160, "TU\"", LineBreak::None),
+            ],
+            inference(),
+            ticks_to_ms,
+        );
+        assert_eq!(timeline.lines[0].text(), "Twinkle twinkle");
+        // The capital goes on the first letter, past whatever opens the line.
+        assert_eq!(timeline.lines[1].text(), "(Little) star");
+        // And past a syllable that holds no letter at all.
+        assert_eq!(timeline.lines[2].text(), "\"És tu\"");
+        assert_eq!(timeline.lines[0].syllables[1].text, "kle ");
+    }
+
+    #[test]
+    fn a_timeline_with_one_lowercase_letter_keeps_its_capitals() {
+        let timeline = lines_of(&["TWINKLE TWINKLE LITTLE STAR", "how I WONDER"]);
+        assert_eq!(timeline.lines[0].text(), "TWINKLE TWINKLE LITTLE STAR");
+        assert_eq!(timeline.lines[1].text(), "how I WONDER");
+    }
+
+    #[test]
+    fn a_few_capitals_are_not_a_timeline_written_in_capitals() {
+        let timeline = lines_of(&["HELLO", "WORLD"]);
+        assert_eq!(timeline.lines[0].text(), "HELLO");
+    }
+
+    /// `km-suitability` reads a chord's root as a capital.
+    #[test]
+    fn a_chord_chart_in_capitals_keeps_them() {
+        let timeline = lines_of(&[
+            "C  G  AMIN  F",
+            "C  G  F  CMAJ 7",
+            "D  A  BMIN  G",
+            "E  B  C#MIN  A",
+        ]);
+        assert_eq!(timeline.lines[0].text(), "C  G  AMIN  F");
+    }
+
+    #[test]
+    fn a_divider_inside_a_word_survives_the_recasing() {
+        let mut raws = Vec::new();
+        for (index, text) in ["CAN ", "TA ", "RE ", "MOS ", "JUN ", "TOS "]
+            .iter()
+            .cycle()
+            .take(48)
+            .enumerate()
+        {
+            raws.push(raw(index as u32 * 240, text, LineBreak::None));
+        }
+        let timeline = build_timeline(raws, inference(), ticks_to_ms);
+        assert!(timeline.word_ends.divided());
+        let first = timeline.lines[0].text();
+        assert!(
+            first.starts_with(&format!("Can{SYLLABLE_DIVIDER}ta")),
+            "{first:?}"
+        );
     }
 
     #[test]

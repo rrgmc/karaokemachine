@@ -83,6 +83,16 @@ fn a_file_written_with_harmonica_tabs_parses_to_its_words_alone() {
 }
 
 #[test]
+fn a_file_written_in_capitals_parses_to_sentence_case() {
+    let song = parse(&testing::shouted_lyrics());
+
+    assert_eq!(song.lyrics.line_count(), 2);
+    assert_eq!(song.lyrics.lines[0].text(), "Twinkle twinkle little star");
+    // No pronoun gets its capital back.
+    assert_eq!(song.lyrics.lines[1].text(), "(How i wonder)");
+}
+
+#[test]
 fn a_file_that_marks_no_word_ends_parses_with_narrow_dividers() {
     let song = parse(&testing::word_ends_unmarked());
 
