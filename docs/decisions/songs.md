@@ -865,12 +865,21 @@ reachable on its own, because the dependency panics before it can refuse.
 
 ## Words written all in capitals are drawn in sentence case
 
-**A file whose words hold no lowercase letter is drawn in sentence case.** Every letter becomes
-lowercase, and the first letter of each line becomes a capital. A screen of capitals is harder to
-read at singing speed, and such a file says nothing with them.
+**A file whose letters are nearly all capitals is drawn in sentence case.** Each line written in
+capitals becomes lowercase, and its first letter becomes a capital. A screen of capitals is harder
+to read at singing speed, and such a file says nothing with them.
 
-**One lowercase letter anywhere leaves the file alone.** A file that writes both cases chose where
-its capitals go, and a line of capitals inside it is a line the writer meant.
+**Nearly all is fewer than 8 lowercase letters in 100.** A file sung in capitals can open with a
+credit card in both cases, naming the artist and the publisher. In 6,000 files sampled from the
+local corpus the card stays under 7% of the file's letters.
+
+**A file at or over that share is left alone.** A file that writes both cases chose where its
+capitals go, and a line of capitals inside it is a line the writer meant. A duet that gives one
+singer the capitals starts at 9.6% in the same sample.
+
+**A line is written in capitals when its capitals outnumber its lowercase letters.** The credit
+card holds more lowercase letters than capitals, so it keeps its case. A line of capitals with one
+stray lowercase letter, such as `CORAÇãO`, is recased with the rest.
 
 **Two floors keep the rule off a file that is not words.**
 
@@ -885,7 +894,7 @@ that is not what a karaoke machine is. A lowercase name in a readable line costs
 of capitals.
 
 **Nobody can turn it off for one song.** The rule holds no per-song field and no setting. A file
-that needs its capitals needs one lowercase letter to say so, and no such file is known.
+that needs its capitals needs lowercase letters to say so, and no such file is known.
 
 **The drawing changes on upgrade.** A package stores no lyric timeline, so the machine re-parses and
 every package already built draws the new case. The stored preview changes under a scan.

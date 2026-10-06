@@ -54,7 +54,7 @@ pub use crate::thresholds::Thresholds;
 /// does not.
 ///
 /// **A bump adds an entry to [`REVISIONS`] saying which rows it can change.**
-pub const ANALYSIS_REVISION: u32 = 9;
+pub const ANALYSIS_REVISION: u32 = 10;
 
 /// Which stored rows one revision of the analysis can answer differently.
 ///
@@ -146,6 +146,12 @@ pub const REVISIONS: &[Revision] = &[
     Revision {
         number: 9,
         reach: Reach::SyllablesAtLeast(32),
+    },
+    // Words sung in capitals behind a credit in both cases are stored in sentence case. Only a file
+    // with a lyric line has words to rewrite, and the rewrite moves no line.
+    Revision {
+        number: 10,
+        reach: Reach::LyricLinesAtLeast(1),
     },
 ];
 
@@ -286,7 +292,7 @@ mod tests {
         }
 
         assert_eq!(
-            digest, 8_026_011_694_943_220_686,
+            digest, 10_158_108_493_564_367_928,
             "the analysis of the fixtures has changed, so a corpus scanned by an older build no \
              longer agrees with this one. Bump km_suitability::ANALYSIS_REVISION and put the new \
              digest here; a scan then re-reads what that build decided and nothing else."

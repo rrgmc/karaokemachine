@@ -98,9 +98,10 @@ rule claims without hunting for the divider in text the rule has already rewritt
 keeps this one narrow is a script. Han, kana, Hangul, Thai, Lao, Khmer and Myanmar write without
 spaces on purpose, and one character of any of them leaves the file joined.
 
-**A file may write every word in capitals, and `recase_shouted` is the last step of
+**A file may sing every word in capitals, and `recase_shouted` is the last step of
 `build_timeline`.** It needs the finished lines, because the capital it puts back is the first
-letter of each one. It rewrites `Syllable::text` syllable by syllable, after the redaction, whose
+letter of each one. It also judges each line by its own letters, so a credit in both cases keeps
+its case. It rewrites `Syllable::text` syllable by syllable, after the redaction, whose
 spans are byte offsets into the text as the file wrote it. The decision is
 [`Words written all in capitals are drawn in sentence case`](../decisions/songs.md#words-written-all-in-capitals-are-drawn-in-sentence-case).
 

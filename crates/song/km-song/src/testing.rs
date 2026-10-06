@@ -503,6 +503,30 @@ pub fn shouted_lyrics() -> Vec<u8> {
     smf(vec![track.finish()])
 }
 
+/// Lyrics sung in capitals behind a credit line written in both cases.
+///
+/// The credit holds four lowercase letters of the file's seventy-one, which is under the share
+/// that leaves a file alone.
+pub fn shouted_lyrics_with_a_credit() -> Vec<u8> {
+    let mut track = TrackWriter::new();
+    track
+        .track_name(0, b"Capitals")
+        .tempo(0, TEMPO_120)
+        .lyric(0, b"By ")
+        .lyric(240, b"Ann/");
+    for line in [
+        "TWINKLE TWINKLE LITTLE STAR/",
+        "HOW I WONDER WHAT YOU ARE/",
+        "UP ABOVE THE WORLD SO HIGH",
+    ] {
+        for word in line.split_inclusive(' ') {
+            track.lyric(240, word.as_bytes());
+        }
+    }
+
+    smf(vec![track.finish()])
+}
+
 /// A playable file with no lyrics whatsoever, which must still parse.
 pub fn instrumental() -> Vec<u8> {
     let mut track = TrackWriter::new();
@@ -2054,6 +2078,10 @@ pub const FIXTURES: &[Fixture] = &[
     ("unmarked_lyrics.mid", unmarked_lyrics),
     ("underscore_spacing.mid", underscore_spacing),
     ("shouted_lyrics.mid", shouted_lyrics),
+    (
+        "shouted_lyrics_with_a_credit.mid",
+        shouted_lyrics_with_a_credit,
+    ),
     ("instrumental.mid", instrumental),
     ("untitled_instrumental.mid", untitled_instrumental),
     ("tempo_change.mid", tempo_change),
