@@ -734,6 +734,8 @@ pub struct SimilarHits {
     pub hits: Vec<SongRow>,
     /// Whether the boxes held a name to search for. Empty boxes are not a search that found nothing.
     pub searched: bool,
+    /// Whether `#hits` carries the class that shows the first-words column.
+    pub show_first_words: bool,
     /// The rating options every row's select is built from, made once for the page.
     pub ratings: Vec<Choice>,
     /// The languages this corpus holds, for every row's language select.
@@ -784,6 +786,8 @@ pub struct SimilarWordsHits {
     /// or a file whose lyric track carries nothing but the sequencer's card — a different thing to
     /// say from *nothing matched*, and with a different answer.
     pub comparable: bool,
+    /// Whether `#hits` carries the class that shows the first-words column.
+    pub show_first_words: bool,
     /// The rating options every row's select is built from, made once for the page.
     pub ratings: Vec<Choice>,
     /// The languages this corpus holds, for every row's language select.

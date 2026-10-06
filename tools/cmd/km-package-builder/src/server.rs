@@ -160,6 +160,12 @@ pub struct SimilarNarrowing {
     pub granularity: String,
     pub copies: String,
     pub versions: String,
+    /// Whether the list draws the first-words column. It narrows nothing, and it is kept here
+    /// because the bar holding its box is what this type remembers.
+    ///
+    /// Both pages open with it on. Two files matched as one song are told apart by their opening
+    /// line, and a match under another name is confirmed by it.
+    pub first_words: bool,
 }
 
 /// Suitability opens at 8–10 and the other four at *any*. A match is looked for to find a better
@@ -172,6 +178,7 @@ impl Default for SimilarNarrowing {
             granularity: String::new(),
             copies: String::new(),
             versions: String::new(),
+            first_words: true,
         }
     }
 }
@@ -192,6 +199,7 @@ impl SimilarNarrowing {
             granularity: String::new(),
             copies: String::new(),
             versions: String::new(),
+            first_words: true,
         }
     }
 }
@@ -3493,6 +3501,7 @@ mod tests {
                 granularity: String::new(),
                 copies: String::new(),
                 versions: String::new(),
+                first_words: false,
             }
         );
         let (_, html) = get(&state, "/similar?title=Song%200000&from=song-0000").await;
@@ -3510,6 +3519,34 @@ mod tests {
         assert!(html.contains(r#"<option value="8-10" selected>"#), "{html}");
         assert!(html.contains("id=\"row-song-0000\""), "{html}");
         assert!(!html.contains("id=\"row-song-0001\""), "{html}");
+    }
+
+    /// Both matching pages open with the first-words box ticked and the column shown. A bar that
+    /// sends its selects and no box clears it, and the next ≈ link opens as the bar was left.
+    #[tokio::test]
+    async fn both_matching_pages_open_showing_the_first_words() {
+        let (_corpus, state) = a_corpus_of("similar-first-words", 3);
+        let ticked = r#"name="firstwords" value="1" checked"#;
+        let shown = r#"id="hits" class="firstwords""#;
+
+        for (page, hits) in [
+            ("/similar?title=Song%200000&from=song-0000", "/similar/hits"),
+            ("/similar-words?from=song-0000", "/similar-words/hits"),
+        ] {
+            let (_, html) = get(&state, page).await;
+            assert!(html.contains(ticked), "{html}");
+            assert!(html.contains(shown), "{html}");
+
+            let bar = "title=Song%200000&from=song-0000&suitability=&kind=&granularity=&copies=";
+            let (_, on) = get(&state, &format!("{hits}?{bar}&firstwords=1")).await;
+            assert!(on.contains(shown), "{on}");
+            let (_, off) = get(&state, &format!("{hits}?{bar}")).await;
+            assert!(off.contains("id=\"hits\">"), "{off}");
+
+            let (_, html) = get(&state, page).await;
+            assert!(!html.contains(ticked), "{html}");
+            assert!(!html.contains(shown), "{html}");
+        }
     }
 
     /// Leaving waits for the scan instead of killing it.

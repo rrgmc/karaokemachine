@@ -1,4 +1,5 @@
-<div id="hits">
+{# The class shows the first-words cell every row carries, for the similar-names page's reason. #}
+<div id="hits"{% if show_first_words %} class="firstwords"{% endif %}>
 <div id="action-result"></div>
 
 {% if !indexed %}

@@ -681,6 +681,12 @@ person's answer on hiding wins over the analysis in both directions, as it does 
 Like the two boxes beside it, it narrows nothing. It keeps the page, survives *clear all*, and is
 not persisted.
 
+**The two matching pages carry the same box, and there it opens ticked.** A match is a second file
+of a song or the same song under another name. The opening line confirms a match that a garbled name
+leaves in doubt. The browse list opens with the column off, because there it costs width on every
+row. That pass is made once, before a book is printed. Each matching page remembers the box with its
+narrowing controls for the run.
+
 ## Copies, in the song row
 
 **Hovering a title lists every folder the song sits in, headed by how many there are.** Showing only
