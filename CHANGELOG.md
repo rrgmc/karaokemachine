@@ -17,6 +17,9 @@ Entries are written for somebody who has the machine. Why any of it is the way i
 
 ### Fixed
 
+- **A song carries on when its headphones disconnect.** The song moves to the device the system
+  now uses and keeps its position, and it moves back when the headphones return. The machine went
+  silent until it was restarted.
 - **KM Simple Package stays where you are when you keep a song or leave it out.** The page jumped
   to its foot on every click of a box.
 

@@ -743,19 +743,18 @@ impl Machine {
             // does more than move the clock: it replays every channel's program and controller
             // state onto what is a brand-new synthesizer, which is why the song comes back sounding
             // like itself rather than like sixteen default pianos.
-            self.engine.send(Command::Load(km_audio::audio::Load::Midi {
-                song,
-                melody_channel,
-                // Carried from the loaded song rather than found again: the fixes in force include
-                // whatever somebody turned on by hand, which re-detecting would not know about.
-                fixes,
-            }));
-            if position_ms > 0 {
-                self.engine.send(Command::SeekMs(position_ms));
-            }
-            if was_playing {
-                self.engine.send(Command::Play);
-            }
+            self.reload_at(
+                km_audio::audio::Load::Midi {
+                    song,
+                    melody_channel,
+                    // Carried from the loaded song rather than found again: the fixes in force
+                    // include whatever somebody turned on by hand, which re-detecting would not
+                    // know about.
+                    fixes,
+                },
+                position_ms,
+                was_playing,
+            );
         }
 
         // The volume travels with the bank, when the bank was measured: banks differ enough in

@@ -350,11 +350,39 @@ xruns while dmix primes, both shrugged off, then zero in the following thirty se
 **The second bug was worse and is fixed with it.** Dropping a stream mid-song left the transport
 atomic frozen at `Playing`, with the position stuck beside it. Only the callback ever writes it, and
 a dropped stream leaves no callback. The machine reported a song playing forever, at a standstill,
-silently: indistinguishable from a hang, in front of a room. `publish_stopped` is called before an
-abnormal close.
+silently: indistinguishable from a hang, in front of a room. `publish_lost` reports the song stopped
+at an abnormal close.
 
 **The position is deliberately left where it was**: it is the last true thing known about the song.
 Inventing a new one would be no improvement on the lie it replaces.
+
+## A stream that loses its device is rebuilt under the song
+
+**Two cpal error kinds end a stream: `DeviceNotAvailable` and `StreamInvalidated`.** The second is
+what WASAPI reports when the default device changes and another device takes its place. cpal reports
+it and rebinds nothing. Its worker then waits on an endpoint that never asks for audio again, so the
+stream exists and plays nothing. `ends_the_stream` in `km-audio` names the two kinds, and every other
+kind is one the backend recovers from.
+
+**The player lives inside the stream, so the loaded song goes with it.** The audio thread drops the
+failed stream and then counts the loss in `SharedState::streams_lost`. The machine's `poll` compares
+that count with its own, exactly as it does for `songs_ended`.
+
+**The machine puts the song back in two steps.** `settle_lost_stream` first sends `Wake`, which opens
+a stream on the device the setting now resolves to. It loads the song once
+`SharedState::reopened_since_loss` says a stream is running. The order matters for a video, MP3+G,
+UltraStar or LRC song. A decoder produces its audio at the device's rate, and only the open gives
+that rate.
+
+| Song | What is loaded again |
+|---|---|
+| MIDI | the parsed `Arc<Song>` the machine still holds |
+| a decoded song from a package | the song, opened again from its package |
+| a decoded song played from disk | nothing: the song ends and the queue advances |
+
+`SeekMs` then puts the song at the position the lost stream last published, and `Play` follows if the
+song was playing. `Sticky` replays the knobs onto the new player. A song with no device to return to
+stays in `awaiting_stream`, and a Play press sends `Wake` again.
 
 **A useful consequence: the coarse audio period was self-inflicted.** The 170 ms period that made the
 display step came from a `plug`-over-bare-`hw` workaround written to dodge this bug. With `dmix`

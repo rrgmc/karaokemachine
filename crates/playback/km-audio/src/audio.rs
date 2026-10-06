@@ -144,6 +144,21 @@ fn transport_from_code(code: u8) -> Transport {
     }
 }
 
+/// Whether a stream that reported this error can never play again.
+///
+/// `DeviceNotAvailable` is a device that has gone. `StreamInvalidated` is a stream that cpal says
+/// must be rebuilt, and on Windows it is what a change of default device reports: the headphones
+/// leave, another device becomes the default, and the stream stays bound to an endpoint that will
+/// never ask for audio again. cpal rebinds nothing itself, so both end the stream.
+///
+/// Every other kind is one the backend recovers from, and an underrun is the common case.
+fn ends_the_stream(kind: cpal::ErrorKind) -> bool {
+    matches!(
+        kind,
+        cpal::ErrorKind::DeviceNotAvailable | cpal::ErrorKind::StreamInvalidated
+    )
+}
+
 /// State the audio thread publishes and everyone else reads.
 ///
 /// Plain atomics rather than a lock: the display reads this once per frame and the audio thread
@@ -195,7 +210,7 @@ pub struct SharedState {
     ///
     /// Counted rather than merely logged because the existing line fires once per event and says
     /// nothing about rate: three in a second and three in an hour read identically in a log and are
-    /// entirely different faults. `DeviceNotAvailable` is excluded — that ends the stream and has its
+    /// entirely different faults. An error that ends the stream is excluded — that one has its
     /// own flag; this is only the ones it carries on through.
     xruns: AtomicU32,
     /// Set by the stream's error callback.
@@ -204,6 +219,25 @@ pub struct SharedState {
     /// without this flag shows up only as "the audio command queue is full". The control thread
     /// watches it and drops the corpse, so the next song opens a live stream instead.
     stream_failed: AtomicBool,
+    /// Incremented each time a stream is dropped because its device went away or changed.
+    ///
+    /// A counter on the same terms as `songs_ended`: the machine compares it against a count of its
+    /// own, so a poll that runs late still sees the loss. The player inside the dropped stream held
+    /// the loaded song, and this is how the machine learns it has to load the song again.
+    streams_lost: AtomicU32,
+    /// Whether the song was playing when the last stream was lost.
+    ///
+    /// Recorded apart from `transport`, because the loss itself moves `transport` to `Stopped`. A
+    /// song that was playing resumes on the next stream, and a song that was paused stays paused.
+    lost_while_playing: AtomicBool,
+    /// Incremented each time a stream opens and starts.
+    ///
+    /// The machine reads it after a loss to learn that a new stream is running. A song is loaded
+    /// again only then, because a video song's audio is decoded at the rate of the device it plays
+    /// on and that rate is known once the device is open.
+    streams_opened: AtomicU32,
+    /// What `streams_opened` read when the last stream was lost.
+    opened_at_loss: AtomicU32,
 }
 
 impl SharedState {
@@ -264,6 +298,46 @@ impl SharedState {
     pub fn publish_stopped(&self) {
         self.transport
             .store(transport_code(Transport::Stopped), Ordering::Relaxed);
+    }
+
+    /// Records that the open stream is being dropped with a song possibly inside it.
+    ///
+    /// Called by the control thread before it drops a failed stream. It notes whether the song was
+    /// playing, reports playback stopped, and counts the loss. The position is left alone: it is the
+    /// last true thing known about the song, and the place the reload resumes from.
+    pub fn publish_lost(&self) {
+        let was_playing = self.transport() == Transport::Playing;
+        self.lost_while_playing
+            .store(was_playing, Ordering::Release);
+        if was_playing {
+            self.publish_stopped();
+        }
+        self.opened_at_loss
+            .store(self.streams_opened(), Ordering::Release);
+        self.streams_lost.fetch_add(1, Ordering::AcqRel);
+    }
+
+    /// Whether a stream has opened since the last one was lost.
+    ///
+    /// Asked this way, and not as a count the caller remembers, because the stream can reopen
+    /// before the caller has noticed the loss: a Play press opens one by itself.
+    pub fn reopened_since_loss(&self) -> bool {
+        self.streams_opened() != self.opened_at_loss.load(Ordering::Acquire)
+    }
+
+    /// How many streams have been lost to a device going away or changing since the engine started.
+    pub fn streams_lost(&self) -> u32 {
+        self.streams_lost.load(Ordering::Acquire)
+    }
+
+    /// Whether the song was playing when the last stream was lost.
+    pub fn lost_while_playing(&self) -> bool {
+        self.lost_while_playing.load(Ordering::Acquire)
+    }
+
+    /// How many streams have opened and started since the engine started.
+    pub fn streams_opened(&self) -> u32 {
+        self.streams_opened.load(Ordering::Acquire)
     }
 
     /// How much audio one callback covers, in milliseconds; 0 if no stream has run yet.
@@ -446,8 +520,12 @@ impl OutputStream {
             // exotic. Worse, dropping a stream mid-song left the queue believing it was still
             // playing, with the position frozen -- a silent hang in front of a microphone.
             match error.kind() {
-                cpal::ErrorKind::DeviceNotAvailable => {
-                    tracing::error!(%error, "the audio device is gone; dropping the stream");
+                kind if ends_the_stream(kind) => {
+                    tracing::error!(
+                        %error,
+                        ?kind,
+                        "the audio device is gone or has changed; dropping the stream"
+                    );
                     error_shared.stream_failed.store(true, Ordering::Release);
                 }
                 // Logged, and deliberately not fatal. If one of these ever does turn out to leave a
@@ -491,6 +569,7 @@ impl OutputStream {
         stream
             .play()
             .map_err(|e| AudioError::Stream(e.to_string()))?;
+        shared.streams_opened.fetch_add(1, Ordering::AcqRel);
 
         Ok(Self {
             _stream: stream,
@@ -898,6 +977,65 @@ mod tests {
         state.songs_ended.fetch_add(3, Ordering::AcqRel);
         state.publish_device(48_000, 2);
         assert_eq!(state.songs_ended(), 3);
+    }
+
+    #[test]
+    fn publishing_a_device_leaves_the_lost_stream_counter_alone() {
+        // The same invariant for the other counter the machine compares against its own.
+        let state = SharedState::default();
+        state.publish_lost();
+        state.publish_device(48_000, 2);
+        assert_eq!(state.streams_lost(), 1);
+    }
+
+    #[test]
+    fn a_stream_lost_while_playing_reports_stopped_and_remembers_it_was_playing() {
+        let state = SharedState::default();
+        state
+            .transport
+            .store(transport_code(Transport::Playing), Ordering::Relaxed);
+        state.position_ms.store(20_082, Ordering::Relaxed);
+        state.publish_lost();
+        assert_eq!(state.transport(), Transport::Stopped);
+        assert!(state.lost_while_playing());
+        assert_eq!(state.streams_lost(), 1);
+        // The reload resumes from here.
+        assert_eq!(state.position_ms(), 20_082);
+    }
+
+    #[test]
+    fn a_lost_stream_is_reopened_only_by_an_open_after_the_loss() {
+        let state = SharedState::default();
+        state.streams_opened.fetch_add(1, Ordering::AcqRel);
+        state.publish_lost();
+        assert!(!state.reopened_since_loss());
+        state.streams_opened.fetch_add(1, Ordering::AcqRel);
+        assert!(state.reopened_since_loss());
+    }
+
+    #[test]
+    fn a_stream_lost_while_paused_stays_paused() {
+        let state = SharedState::default();
+        state
+            .transport
+            .store(transport_code(Transport::Paused), Ordering::Relaxed);
+        state.publish_lost();
+        assert_eq!(state.transport(), Transport::Paused);
+        assert!(!state.lost_while_playing());
+        assert_eq!(state.streams_lost(), 1);
+    }
+
+    #[test]
+    fn a_gone_device_and_an_invalidated_stream_both_end_the_stream() {
+        assert!(ends_the_stream(cpal::ErrorKind::DeviceNotAvailable));
+        assert!(ends_the_stream(cpal::ErrorKind::StreamInvalidated));
+    }
+
+    #[test]
+    fn an_underrun_does_not_end_the_stream() {
+        // What ALSA's `dmix` reports while it primes, and what cpal repairs itself.
+        assert!(!ends_the_stream(cpal::ErrorKind::Xrun));
+        assert!(!ends_the_stream(cpal::ErrorKind::BackendError));
     }
 
     // Opening a real device is not tested: CI has no audio hardware. The behavior that matters --

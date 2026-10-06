@@ -43,6 +43,7 @@ it are the same entry. How the thing is built is [`ARCHITECTURE.md`](../ARCHITEC
 - [Lyric timing offset](audio.md#lyric-timing-offset)
 - [Guide melody default](audio.md#guide-melody-default)
 - [Holding the audio device](audio.md#holding-the-audio-device)
+- [A song follows the output device](audio.md#a-song-follows-the-output-device)
 - [The machine sleeps when it leaves the screen](audio.md#the-machine-sleeps-when-it-leaves-the-screen)
 - [The machine asks Android for the sound, and gives it back](audio.md#the-machine-asks-android-for-the-sound-and-gives-it-back)
 - [Choosing the audio output device](audio.md#choosing-the-audio-output-device)
