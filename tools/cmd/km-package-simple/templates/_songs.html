@@ -8,6 +8,12 @@
     {% endif %}
   </div>
   <p class="hint">{{ "songs-shift-hint"|t }}</p>
+  {# The pager is drawn above the list and below it, because a page is taller than a window. #}
+  <nav class="pager">
+    {% if let Some(previous) = previous %}<a href="/?page={{ previous }}">{{ "page-previous"|t }}</a>{% endif %}
+    <span>{{ range }}</span>
+    {% if let Some(next) = next %}<a href="/?page={{ next }}">{{ "page-next"|t }}</a>{% endif %}
+  </nav>
   <table>
     <thead>
       <tr>

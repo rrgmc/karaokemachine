@@ -29,11 +29,20 @@
     const values = { from, to: index };
     // The box has toggled by the time this runs, and the whole run follows it.
     if (box.checked) values.keep = "on";
-    htmx.ajax("POST", `/songs/keep?page=${songs.dataset.page}`, {
-      target: "#songs",
-      swap: "outerHTML",
-      values,
-    });
+    // The new list goes in above the old one before the old one is taken out. A browser keeps a
+    // focused box in view through that, and the page ends at its foot. So the box gives the focus
+    // up, and the box drawn in its place takes it back without scrolling.
+    box.blur();
+    htmx
+      .ajax("POST", `/songs/keep?page=${songs.dataset.page}`, {
+        target: "#songs",
+        swap: "outerHTML",
+        values,
+      })
+      .then(() => {
+        const redrawn = document.querySelector(`input[name="keep"][data-index="${index}"]`);
+        if (redrawn) redrawn.focus({ preventScroll: true });
+      });
   });
 })();
 
