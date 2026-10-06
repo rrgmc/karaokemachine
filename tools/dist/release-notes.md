@@ -4,16 +4,18 @@ for search, queueing and control.
 
 ## What changed
 
-- **The machine runs on a Meta Quest**, on a screen that hangs in the room with the room still
-  behind it. Grab the screen to move it, and it comes back to the same place on the next launch.
-- **An LRC file beside an MP3 of the same name is a song.** A file that times each word gets the
-  word-by-word highlight, and one that times only its lines lights each line whole.
-- **Who may do what, in four levels.** Out of the box a phone with no code queues songs and does not
-  interrupt them. A code from the owner gives a guest the skip buttons.
-- **A folder becomes a package without the curation tool.** KM Simple Package reads a folder, lists
-  its songs, and writes packages marked *uncurated*.
-- **The admin Sound tab sets when the words light up**, up to half a second either way, for a
-  television that shows its picture late.
+- **A song carries on when its headphones disconnect.** It moves to the device the system now uses
+  and keeps its position.
+- **Words written all in capitals are drawn in sentence case**, which is easier to read at singing
+  speed. Packages already built draw the new case.
+- **More songs get a guide melody.** The search finds a melody doubled in harmony, and one timed
+  loosely against its words.
+- **A MIDI file takes its title from the file name where its own title is not one.** That covers a
+  track named `Piano` and an eight-letter abbreviation.
+- **The package builder's song list shows each song's first words**, in a column a box turns on.
+- **KM Simple Package leaves out every song below 8 with one button.** It stays where you are when
+  you keep a song or leave it out.
+- **Every song links to a YouTube search**, in the package builder and on the remote.
 
 ## Which file to download
 
