@@ -17,7 +17,7 @@ use std::sync::Mutex;
 use anyhow::{Context, Result};
 use clap::{Args, Parser, Subcommand};
 use km_song::{LineInference, LyricGranularity, ParseOptions, Song, WordEnds};
-use km_suitability::{Abstention, Analysis, MelodyOutcome};
+use km_suitability::{Abstention, Analysis, MelodyOutcome, Thresholds};
 
 #[derive(Parser)]
 #[command(
@@ -83,6 +83,13 @@ struct ScanArgs {
     /// been applied to. Without it the report says what the machine will draw.
     #[arg(long)]
     as_written: bool,
+    /// Write one line for every song here, saying which melody channel was found or why none was.
+    ///
+    /// The lines are sorted by path, so two runs over one folder compare line by line. That
+    /// comparison is how a change to melody detection is measured: which songs gained a channel,
+    /// and which moved from one channel to another.
+    #[arg(long)]
+    melodies: Option<PathBuf>,
 }
 
 /// The corpus run behind the lyric-preview heuristic.
@@ -417,6 +424,8 @@ struct Stats {
     /// multiple has to sit below where a file's own breaks land and above its within-line steps.
     marked_break_multiple: BTreeMap<String, usize>,
     failures: Vec<String>,
+    /// One line for each parsed file with its melody outcome, collected only on request.
+    melodies: Vec<String>,
 }
 
 /// Parse options for a sweep, honoring the parser by default and the file alone on request.
@@ -497,9 +506,17 @@ impl Stats {
                 .extend(examples);
         }
         self.failures.extend(other.failures);
+        self.melodies.extend(other.melodies);
     }
 
-    fn record(&mut self, path: &Path, bytes: &[u8], examples: usize, as_written: bool) {
+    fn record(
+        &mut self,
+        path: &Path,
+        bytes: &[u8],
+        examples: usize,
+        as_written: bool,
+        list_melodies: bool,
+    ) {
         self.files += 1;
 
         // A corpus this size will contain files that break assumptions; one bad file must not end
@@ -549,6 +566,9 @@ impl Stats {
         self.total_syllables += song.lyrics.syllable_count() as u64;
 
         let analysis = Analysis::of(&song);
+        if list_melodies {
+            self.melodies.push(melody_line(path, &song, &analysis));
+        }
         match &analysis.melody {
             MelodyOutcome::Found(melody) => {
                 *self
@@ -723,6 +743,33 @@ impl Stats {
     }
 }
 
+/// One song's melody outcome as a tab-separated line: the path, the outcome, and the evidence.
+fn melody_line(path: &Path, song: &Song, analysis: &Analysis) -> String {
+    match &analysis.melody {
+        MelodyOutcome::Found(melody) => {
+            let on_words = analysis
+                .channels
+                .iter()
+                .find(|stats| stats.channel == melody.channel)
+                .map_or(0.0, |stats| {
+                    km_suitability::melody::notes_on_the_words(song, stats, &Thresholds::default())
+                });
+            format!(
+                "{}\tchannel {}\tmonophony {:.2}\talignment {:.2}\t{:?}\tnotes on words {:.2}",
+                path.display(),
+                melody.channel,
+                melody.monophony,
+                melody.lyric_alignment,
+                melody.signals,
+                on_words
+            )
+        }
+        MelodyOutcome::Abstained { abstained } => {
+            format!("{}\tnone\t{}", path.display(), abstention_name(*abstained))
+        }
+    }
+}
+
 fn abstention_name(abstention: Abstention) -> &'static str {
     match abstention {
         Abstention::NoCandidates => "no candidates (no non-drum notes)",
@@ -816,7 +863,13 @@ fn scan(args: &ScanArgs) -> Result<()> {
                     let mut stats = Stats::default();
                     for path in chunk {
                         match std::fs::read(path) {
-                            Ok(bytes) => stats.record(path, &bytes, args.examples, args.as_written),
+                            Ok(bytes) => stats.record(
+                                path,
+                                &bytes,
+                                args.examples,
+                                args.as_written,
+                                args.melodies.is_some(),
+                            ),
                             Err(error) => {
                                 stats.files += 1;
                                 stats.failed += 1;
@@ -855,6 +908,21 @@ fn scan(args: &ScanArgs) -> Result<()> {
         eprintln!(
             "\nwrote {} failure line(s) to {}",
             stats.failures.len(),
+            path.display()
+        );
+    }
+
+    if let Some(path) = &args.melodies {
+        let mut lines = stats.melodies.clone();
+        lines.sort();
+        let mut file =
+            std::fs::File::create(path).with_context(|| format!("creating {}", path.display()))?;
+        for line in &lines {
+            writeln!(file, "{line}")?;
+        }
+        eprintln!(
+            "\nwrote {} melody line(s) to {}",
+            lines.len(),
             path.display()
         );
     }

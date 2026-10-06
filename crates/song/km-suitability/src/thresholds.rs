@@ -13,6 +13,20 @@ pub struct Thresholds {
     /// A sung line is monophonic. Allowing a little slack absorbs overlapping note-offs from
     /// sloppy sequencing without admitting actual chords.
     pub melody_min_monophony: f32,
+    /// The same minimum for a channel that pairs with the words: the syllables land on its notes
+    /// at [`Self::melody_min_lyric_alignment`] or better, and its notes start on syllables at
+    /// [`Self::melody_min_notes_on_words`] or better.
+    ///
+    /// A sung line is often doubled a third below through a chorus, and the doubling sits on the
+    /// melody's own channel. The pairing is what lets the floor drop, so the lower floor admits no
+    /// channel on its texture alone.
+    pub melody_min_monophony_aligned: f32,
+    /// Least share of a channel's notes, among those played while the words run, that must start
+    /// within [`Self::note_align_window_ms`] of a syllable for the lower monophony floor to apply.
+    ///
+    /// A busy part has a note near every syllable because it plays everywhere, and few of its
+    /// notes start on one. A sung line starts most of its notes on a syllable.
+    pub melody_min_notes_on_words: f32,
     /// Minimum syllable-to-note alignment for alignment alone to qualify a channel.
     pub melody_min_lyric_alignment: f32,
     /// How far ahead of the runner-up the winner must score. Below this, detection abstains.
@@ -118,6 +132,8 @@ impl Default for Thresholds {
     fn default() -> Self {
         Self {
             melody_min_monophony: 0.90,
+            melody_min_monophony_aligned: 0.60,
+            melody_min_notes_on_words: 0.70,
             melody_min_lyric_alignment: 0.70,
             melody_margin: 1.5,
             note_align_window_ms: 60,

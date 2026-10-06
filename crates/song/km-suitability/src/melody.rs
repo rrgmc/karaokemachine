@@ -69,8 +69,8 @@ pub struct MelodyEvidence {
     pub lyric_alignment: f32,
     /// Fraction of sounding time with at most one note.
     pub monophony: f32,
-    /// Whether the channel passed the gates [`detect`] applies before it weighs anything: one note
-    /// at a time, inside singing range, sounding while the words are sung, and something beyond
+    /// Whether the channel passed the gates [`detect`] applies before it weighs anything: one
+    /// line, inside singing range, sounding while the words are sung, and something beyond
     /// monophony tying it to the singing.
     pub eligible: bool,
 }
@@ -154,7 +154,35 @@ struct Candidate {
 }
 
 /// Attempts to identify the melody channel.
+///
+/// A line doubled on its own channel is weighed first, and it is claimed only when it wins
+/// outright. Where it merely ties a single-voice line, the field without it decides, so admitting
+/// a doubled line takes no channel away from a song.
 pub fn detect(song: &Song, channels: &[ChannelStats], thresholds: &Thresholds) -> MelodyOutcome {
+    let with_doubled = decide(song, channels, thresholds, Voices::Doubled);
+    if with_doubled.is_found() {
+        return with_doubled;
+    }
+    decide(song, channels, thresholds, Voices::Single)
+}
+
+/// How many voices a candidate channel may carry.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Voices {
+    /// One note at a time, to [`Thresholds::melody_min_monophony`].
+    Single,
+    /// The same, or a line the words land on down to
+    /// [`Thresholds::melody_min_monophony_aligned`].
+    Doubled,
+}
+
+/// Applies the gates and the margin to the channels `voices` admits.
+fn decide(
+    song: &Song,
+    channels: &[ChannelStats],
+    thresholds: &Thresholds,
+    voices: Voices,
+) -> MelodyOutcome {
     let eligible: Vec<&ChannelStats> = channels
         .iter()
         .filter(|stats| stats.channel != DRUM_CHANNEL && stats.note_count > 0)
@@ -179,7 +207,10 @@ pub fn detect(song: &Song, channels: &[ChannelStats], thresholds: &Thresholds) -
     let monophonic: Vec<&ChannelStats> = eligible
         .iter()
         .copied()
-        .filter(|stats| stats.monophony >= thresholds.melody_min_monophony)
+        .filter(|stats| match voices {
+            Voices::Single => stats.monophony >= thresholds.melody_min_monophony,
+            Voices::Doubled => plays_one_line(song, stats, &sung_ms, thresholds),
+        })
         .collect();
 
     if monophonic.is_empty() {
@@ -288,7 +319,7 @@ pub fn rank(
         .filter(|stats| stats.channel != DRUM_CHANNEL && stats.note_count > 0)
         .map(|stats| {
             let candidate = score(song, stats, &sung_ms, thresholds);
-            let gated = stats.monophony >= thresholds.melody_min_monophony
+            let gated = plays_one_line(song, stats, &sung_ms, thresholds)
                 && thresholds.is_vocal_range(stats.median_key, stats.vocal_key_fraction)
                 && plays_under_the_words(song, stats, &syllable_ms, thresholds)
                 && (candidate.lyric_alignment >= thresholds.melody_min_lyric_alignment
@@ -352,6 +383,26 @@ fn score(song: &Song, stats: &ChannelStats, sung_ms: &[u32], thresholds: &Thresh
         lyric_alignment: alignment,
         monophony: stats.monophony,
     }
+}
+
+/// Whether a channel plays one line, which a melody does.
+///
+/// A channel that pairs with the words answers to a lower floor, because a sung line is often
+/// doubled a third below on its own channel. Pairing is asked both ways. The syllables must land
+/// on its notes, and its notes must start on syllables, which a busy guitar part under the singing
+/// does not. A track name does not lower the floor: a part named `Lead` that plays chords is still
+/// chords.
+fn plays_one_line(
+    song: &Song,
+    stats: &ChannelStats,
+    sung_ms: &[u32],
+    thresholds: &Thresholds,
+) -> bool {
+    stats.monophony >= thresholds.melody_min_monophony
+        || (stats.monophony >= thresholds.melody_min_monophony_aligned
+            && lyric_alignment(song, stats, sung_ms, thresholds)
+                >= thresholds.melody_min_lyric_alignment
+            && notes_on_the_words(song, stats, thresholds) >= thresholds.melody_min_notes_on_words)
 }
 
 /// Fraction of sung points that have a note onset on this channel close enough to be the sung note.
@@ -427,6 +478,47 @@ fn plays_under_the_words(
             syllable_ms,
             thresholds.melody_presence_window_ms,
         ) >= thresholds.melody_min_lyric_presence
+}
+
+/// Fraction of a channel's notes, among those played while the words run, that start on a syllable.
+///
+/// The other half of lyric alignment. A busy part puts a note near every syllable by playing
+/// everywhere, and most of its notes then start on no syllable. A sung line starts most of its
+/// notes on one. Notes before the first syllable and after the last are left out, because a melody
+/// that also plays the introduction is still the melody.
+pub fn notes_on_the_words(song: &Song, stats: &ChannelStats, thresholds: &Thresholds) -> f32 {
+    let syllable_ms: Vec<u32> = song
+        .lyrics
+        .syllable_ticks()
+        .into_iter()
+        .map(|tick| song.tempo_map.tick_to_ms(tick))
+        .collect();
+    notes_within(song, stats, &syllable_ms, thresholds.note_align_window_ms)
+}
+
+/// Fraction of the onsets between the first and last of `points_ms` with a point within `window`.
+fn notes_within(song: &Song, stats: &ChannelStats, points_ms: &[u32], window: u32) -> f32 {
+    let (Some(&first), Some(&last)) = (points_ms.iter().min(), points_ms.iter().max()) else {
+        return 0.0;
+    };
+    let mut sorted = points_ms.to_vec();
+    sorted.sort_unstable();
+    let (mut played, mut matched) = (0usize, 0usize);
+    for &tick in &stats.onset_ticks {
+        let onset = song.tempo_map.tick_to_ms(tick);
+        if onset.saturating_add(window) < first || onset > last.saturating_add(window) {
+            continue;
+        }
+        played += 1;
+        if nearest_distance(&sorted, onset) <= window {
+            matched += 1;
+        }
+    }
+    if played == 0 {
+        0.0
+    } else {
+        matched as f32 / played as f32
+    }
 }
 
 /// Fraction of syllables with a note onset on this channel within `window` milliseconds.
@@ -629,6 +721,71 @@ mod tests {
             .find(|row| row.channel == 1)
             .expect("the echo is ranked");
         assert!(!echo.eligible);
+    }
+
+    #[test]
+    fn a_melody_doubled_in_thirds_on_its_own_channel_is_found() {
+        let bytes = testing::harmonised_melody();
+        let outcome = analyze(&bytes);
+        let melody = outcome.channel().expect("the words land on every note");
+        assert_eq!(melody.channel, 0);
+        assert!(
+            melody.monophony < Thresholds::default().melody_min_monophony,
+            "the fixture must sit under the single-voice floor, and measured {}",
+            melody.monophony
+        );
+        assert!(ranked(&bytes)[0].eligible);
+    }
+
+    #[test]
+    fn a_name_does_not_excuse_a_second_voice() {
+        let bytes = testing::harmonised_part_off_the_words();
+        assert_eq!(
+            analyze(&bytes),
+            MelodyOutcome::Abstained {
+                abstained: Abstention::NothingMonophonic
+            }
+        );
+        let part = ranked(&bytes)
+            .into_iter()
+            .find(|row| row.channel == 0)
+            .expect("the part is ranked");
+        assert!(part.signals.contains(&MelodySignal::TrackName));
+        assert!(!part.eligible);
+    }
+
+    #[test]
+    fn a_busy_part_with_a_note_on_every_syllable_keeps_the_single_voice_floor() {
+        let bytes = testing::busy_part_under_the_words();
+        let part = ranked(&bytes)
+            .into_iter()
+            .find(|row| row.channel == 0)
+            .expect("the part is ranked");
+        assert!(part.lyric_alignment > 0.9, "a note lands on every syllable");
+        assert!(!part.eligible);
+        assert_eq!(
+            analyze(&bytes),
+            MelodyOutcome::Abstained {
+                abstained: Abstention::NothingMonophonic
+            }
+        );
+    }
+
+    /// The doubled line wins or the single-voice field decides, so no song loses a channel.
+    #[test]
+    fn a_doubled_line_that_only_ties_leaves_the_single_voice_answer_standing() {
+        let thresholds = Thresholds::default();
+        for (name, build) in testing::FIXTURES {
+            let song = Song::parse(&build(), &ParseOptions::default()).expect("fixture parses");
+            let channels = channel::measure(&song, &thresholds);
+            let single = decide(&song, &channels, &thresholds, Voices::Single);
+            if single.is_found() {
+                assert!(
+                    detect(&song, &channels, &thresholds).is_found(),
+                    "{name}: a channel found among single voices was lost"
+                );
+            }
+        }
     }
 
     #[test]

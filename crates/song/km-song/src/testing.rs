@@ -1671,6 +1671,92 @@ pub fn letter_typed_lyrics() -> Vec<u8> {
     ])
 }
 
+/// A melody named `Melody` with one note in four doubled a third below, over chords.
+///
+/// The doubling sits on the melody's own channel, as a sequencer writes a chorus sung in thirds,
+/// so the channel sounds two notes for a quarter of its time. Every syllable lands on a note and
+/// every note starts on a syllable.
+pub fn harmonised_melody() -> Vec<u8> {
+    doubled_part(b"Harmonised Melody", b"Melody", 0, 1)
+}
+
+/// The same doubled part under words that run half a beat late.
+///
+/// The name is all that ties the part to the singing, and a name does not excuse a second voice.
+pub fn harmonised_part_off_the_words() -> Vec<u8> {
+    doubled_part(b"Harmonised Part Off The Words", b"Lead", 240, 1)
+}
+
+/// A guitar playing four notes to a syllable, with one note in four doubled.
+///
+/// A note falls on every syllable because the part plays everywhere, and three notes in four
+/// start on no syllable.
+pub fn busy_part_under_the_words() -> Vec<u8> {
+    doubled_part(b"Busy Part Under The Words", b"Guitar", 0, 4)
+}
+
+/// A part on channel 0 with every fourth note doubled a third below, under thirty-two syllables.
+///
+/// `words_delay` moves every syllable later by that many ticks, and `notes_per_syllable` divides
+/// the beat each syllable takes.
+fn doubled_part(title: &[u8], name: &[u8], words_delay: u32, notes_per_syllable: u32) -> Vec<u8> {
+    const VERSE: [&str; 8] = [
+        "two ", "of ", "us ", "can ", "sing ", "it ", "in ", "thirds/",
+    ];
+    const KEYS: [u8; 8] = [64, 66, 67, 69, 71, 69, 67, 66];
+    const LINES: u32 = 4;
+    const BEAT: u32 = 480;
+
+    let mut conductor = TrackWriter::new();
+    conductor.track_name(0, title).tempo(0, TEMPO_120);
+
+    let mut words = TrackWriter::new();
+    words.track_name(0, b"Words");
+    for line in 0..LINES {
+        for (i, syllable) in VERSE.into_iter().enumerate() {
+            let delta = if line == 0 && i == 0 {
+                words_delay
+            } else {
+                BEAT
+            };
+            words.lyric(delta, syllable.as_bytes());
+        }
+    }
+
+    let mut part = TrackWriter::new();
+    part.track_name(0, name).program_change(0, 0, 73);
+    let length = BEAT / notes_per_syllable;
+    for note in 0..LINES * 8 * notes_per_syllable {
+        let key = KEYS[(note / notes_per_syllable) as usize % KEYS.len()];
+        if note % 4 == 3 {
+            part.note_on(0, 0, key, 100);
+            part.note_on(0, 0, key - 4, 90);
+            part.note_off(length, 0, key);
+            part.note_off(0, 0, key - 4);
+        } else {
+            part.note(0, 0, key, 100, length);
+        }
+    }
+
+    let mut chords = TrackWriter::new();
+    chords.track_name(0, b"Piano").program_change(0, 1, 0);
+    for _ in 0..LINES * 4 {
+        chords.note_on(0, 1, 48, 80);
+        chords.note_on(0, 1, 52, 80);
+        chords.note_on(0, 1, 55, 80);
+        chords.note_off(960, 1, 48);
+        chords.note_off(0, 1, 52);
+        chords.note_off(0, 1, 55);
+    }
+
+    smf(vec![
+        conductor.finish(),
+        part.finish(),
+        words.finish(),
+        chords.finish(),
+    ])
+}
+
 /// A file whose transcription credit is inside the *track name* the title comes from.
 ///
 /// The credit filter partitions `@T` lines and deliberately does not reach here: a file with no Soft
@@ -2099,6 +2185,12 @@ pub const FIXTURES: &[Fixture] = &[
     ("melody_and_accompaniment.mid", melody_and_accompaniment),
     ("melody_on_channel_fifteen.mid", melody_on_channel_fifteen),
     ("letter_typed_lyrics.mid", letter_typed_lyrics),
+    ("harmonised_melody.mid", harmonised_melody),
+    (
+        "harmonised_part_off_the_words.mid",
+        harmonised_part_off_the_words,
+    ),
+    ("busy_part_under_the_words.mid", busy_part_under_the_words),
     ("legacy_encoded_lyrics.mid", legacy_encoded_lyrics),
     ("smpte_timed.mid", smpte_timed),
     ("ambiguous_melody.mid", ambiguous_melody),

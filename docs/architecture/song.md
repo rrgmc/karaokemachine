@@ -282,6 +282,20 @@ alignment then counts line starts in place of syllables, and the presence gate s
 syllables. The decision is
 [`Words typed one letter at a time are aligned by their line starts`](../decisions/songs.md#words-typed-one-letter-at-a-time-are-aligned-by-their-line-starts).
 
+**A channel that pairs with the words passes the monophony gate at a lower floor.**
+`plays_one_line` admits a channel down to `melody_min_monophony_aligned` (60%) when two things hold.
+Its lyric alignment reaches `melody_min_lyric_alignment`, and `notes_on_the_words` reaches
+`melody_min_notes_on_words` (70%). `rank` marks a paired channel `eligible`. The decision is
+[`A melody doubled on its own channel is still the melody`](../decisions/songs.md#a-melody-doubled-on-its-own-channel-is-still-the-melody).
+
+**`detect` runs `decide` twice.** The first run admits paired channels, and its answer stands only
+when it finds a melody. Otherwise the run over single-voice channels answers, abstention reason
+included.
+
+**`km-lyrics scan --melodies <file>` writes one line for each song**, with the channel found or the
+reason none was. Two runs over one folder compare line by line. That comparison counts the songs
+that gain, lose or move a channel.
+
 All thresholds live in one module so they can be revised from evidence, and `km-pack reanalyze`
 recomputes a package after a revision.
 

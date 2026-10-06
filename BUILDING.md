@@ -1944,6 +1944,7 @@ with the machine switched off.
 cargo km-lyrics dump song.kar                            # parsed timeline + analysis
 cargo run --release -p km-lyrics -- scan /path/to/corpus             # formats, encodings, line widths
 cargo run --release -p km-lyrics -- scan /path/to/corpus --as-written # the same, before a run is re-broken
+cargo run --release -p km-lyrics -- scan /path/to/corpus --melodies out.tsv # each song's melody channel, to compare two builds
 cargo run --release -p km-lyrics -- preview /path/to/corpus --limit 30000
 cargo run --release -p km-cdg --example stills -- song.cdg [--at 12,45,90 --scale 4]
 cargo run --release -p km-cdg --example scan -- /path/to/corpus

@@ -365,6 +365,32 @@ ahead of the singing fails the 70% on line starts too, and abstains as it did.
 with a melody rose from 24% to 62%. Abstentions for no supporting evidence fell from 57% to 16%, and
 ambiguous ones rose from 5% to 8%.
 
+## A melody doubled on its own channel is still the melody
+
+**A sequencer often writes a chorus sung in thirds onto the melody's channel.** The channel then
+sounds two notes for part of the song. One corpus file names its guide track `Melody`, lands 97% of
+its syllables on it, and doubles three sections of it. The channel is one voice for 79% of its
+sounding time, under the 90% a candidate needs, so the song had no guide-melody toggle.
+
+**So a channel that pairs with the words is a candidate down to 60% one voice.** Pairing is asked
+both ways, at 60 ms. At least 70% of the syllables land on one of its notes. At least 70% of its
+notes, among those played while the words run, start on a syllable.
+
+**The second half keeps a busy part out.** A strummed guitar plays everywhere, so a note falls near
+every syllable, and most of its notes start on none. Two corpus files show it: with the first half
+alone, detection claimed a guitar in each, at 31% and 49% of notes on a syllable.
+
+**A track name does not lower the floor.** A part named `Lead` that plays chords is still chords.
+
+**A doubled line is claimed only when it wins outright.** Detection weighs the field with doubled
+lines in it. Where that field finds no clear winner, the field of single-voice lines decides. A
+doubled line that ties a single-voice melody therefore takes no channel away from the song.
+
+**Measured over 8,779 corpus files from four collections**, the share with a melody rose from 44.1%
+to 47.6%. No song lost its channel, and 0.15% moved to another channel. Each of those moved to a
+track named for the melody or the voice, away from a guitar or a flute doubling it. Nothing was
+measured under 60%, where a channel carries two voices nearly throughout.
+
 ## A file's own name for its lyric track outranks how long the track is
 
 **`Words` wins, even when another text track holds more.** A second text track is a second timing of

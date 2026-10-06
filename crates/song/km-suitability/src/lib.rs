@@ -54,7 +54,7 @@ pub use crate::thresholds::Thresholds;
 /// does not.
 ///
 /// **A bump adds an entry to [`REVISIONS`] saying which rows it can change.**
-pub const ANALYSIS_REVISION: u32 = 10;
+pub const ANALYSIS_REVISION: u32 = 11;
 
 /// Which stored rows one revision of the analysis can answer differently.
 ///
@@ -152,6 +152,12 @@ pub const REVISIONS: &[Revision] = &[
     Revision {
         number: 10,
         reach: Reach::LyricLinesAtLeast(1),
+    },
+    // A melody doubled on its own channel is a candidate when it pairs with the words. Pairing
+    // needs a syllable, so a song with none is answered as before.
+    Revision {
+        number: 11,
+        reach: Reach::SyllablesAtLeast(1),
     },
 ];
 
@@ -292,7 +298,7 @@ mod tests {
         }
 
         assert_eq!(
-            digest, 10_158_108_493_564_367_928,
+            digest, 1_739_666_878_894_906_484,
             "the analysis of the fixtures has changed, so a corpus scanned by an older build no \
              longer agrees with this one. Bump km_suitability::ANALYSIS_REVISION and put the new \
              digest here; a scan then re-reads what that build decided and nothing else."
