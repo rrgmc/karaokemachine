@@ -1584,6 +1584,69 @@ pub fn melody_on_channel_fifteen() -> Vec<u8> {
     ])
 }
 
+/// Words typed one letter to an event at a constant rate, over an unnamed melody on channel 0.
+///
+/// Each line starts on a melody note and its letters follow every 80 ticks, so a note lands on
+/// every line start and on few of the letters. Channel 1 repeats the melody 300 ticks late, as an
+/// echo does: it is as monophonic and as singable, and it lands on no line start.
+pub fn letter_typed_lyrics() -> Vec<u8> {
+    const LINES: [&str; 2] = ["hold on little girl", "show me what he did"];
+    const LINE_TICKS: u32 = 1_920;
+    const LETTER_TICKS: u32 = 80;
+
+    let mut conductor = TrackWriter::new();
+    conductor.track_name(0, b"Letter Typed").tempo(0, TEMPO_120);
+
+    let mut words = TrackWriter::new();
+    words.track_name(0, b"Words");
+    let mut rest = 0;
+    for line in 0..10 {
+        let text = LINES[line % LINES.len()];
+        for (i, letter) in text.bytes().enumerate() {
+            words.lyric(if i == 0 { rest } else { LETTER_TICKS }, &[letter]);
+        }
+        words.lyric(LETTER_TICKS, b"\r\n");
+        rest = LINE_TICKS - LETTER_TICKS * text.len() as u32;
+    }
+
+    let mut part_a = TrackWriter::new();
+    part_a.track_name(0, b"Part A").program_change(0, 0, 90);
+    let mut part_b = TrackWriter::new();
+    part_b.track_name(0, b"Part B").program_change(0, 1, 82);
+    for line in 0..10 {
+        for (i, key) in [64u8, 66, 68, 69].into_iter().enumerate() {
+            let gap = if i == 0 { 20 } else { 100 };
+            part_a.note(if line == 0 && i == 0 { 0 } else { gap }, 0, key, 100, 400);
+            part_b.note(
+                if line == 0 && i == 0 { 300 } else { gap },
+                1,
+                key,
+                100,
+                400,
+            );
+        }
+    }
+
+    let mut chords = TrackWriter::new();
+    chords.track_name(0, b"Piano").program_change(0, 2, 0);
+    for _ in 0..20 {
+        chords.note_on(0, 2, 48, 80);
+        chords.note_on(0, 2, 52, 80);
+        chords.note_on(0, 2, 55, 80);
+        chords.note_off(960, 2, 48);
+        chords.note_off(0, 2, 52);
+        chords.note_off(0, 2, 55);
+    }
+
+    smf(vec![
+        conductor.finish(),
+        words.finish(),
+        part_a.finish(),
+        part_b.finish(),
+        chords.finish(),
+    ])
+}
+
 /// A file whose transcription credit is inside the *track name* the title comes from.
 ///
 /// The credit filter partitions `@T` lines and deliberately does not reach here: a file with no Soft
@@ -2007,6 +2070,7 @@ pub const FIXTURES: &[Fixture] = &[
     ("track_without_end_of_track.mid", track_without_end_of_track),
     ("melody_and_accompaniment.mid", melody_and_accompaniment),
     ("melody_on_channel_fifteen.mid", melody_on_channel_fifteen),
+    ("letter_typed_lyrics.mid", letter_typed_lyrics),
     ("legacy_encoded_lyrics.mid", legacy_encoded_lyrics),
     ("smpte_timed.mid", smpte_timed),
     ("ambiguous_melody.mid", ambiguous_melody),

@@ -36,6 +36,13 @@ pub struct Thresholds {
     pub melody_min_lyric_presence: f32,
     /// Channel 4 in 1-based terms, the common karaoke convention, used only as a tiebreaker.
     pub conventional_melody_channel: u8,
+    /// Least share of a file's syllables that must be one Latin letter for its words to count as
+    /// typed one letter to an event, and its alignment to be measured on line starts.
+    pub letter_typed_share: f32,
+    /// Fewest syllables a file needs before that share is judged.
+    pub letter_typed_min_syllables: usize,
+    /// Fewest lines a letter-typed file needs for its line starts to stand in for its syllables.
+    pub letter_typed_min_lines: usize,
 
     /// Lowest note still plausibly sung.
     pub vocal_key_min: u8,
@@ -118,6 +125,9 @@ impl Default for Thresholds {
             melody_min_lyric_presence: 0.5,
             // Channel 4, 1-based.
             conventional_melody_channel: 3,
+            letter_typed_share: 0.90,
+            letter_typed_min_syllables: 32,
+            letter_typed_min_lines: 8,
 
             // G2 to C6: below a bass voice and above a soprano respectively.
             vocal_key_min: 43,

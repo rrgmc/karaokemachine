@@ -73,6 +73,7 @@ it are the same entry. How the thing is built is [`ARCHITECTURE.md`](../ARCHITEC
 - [How much lyric counts as a song](songs.md#how-much-lyric-counts-as-a-song)
 - [How long a song is sung for](songs.md#how-long-a-song-is-sung-for)
 - [A channel named for the melody must play while the words are sung](songs.md#a-channel-named-for-the-melody-must-play-while-the-words-are-sung)
+- [Words typed one letter at a time are aligned by their line starts](songs.md#words-typed-one-letter-at-a-time-are-aligned-by-their-line-starts)
 - [Suitability, for a song that was made to be sung to](songs.md#suitability-for-a-song-that-was-made-to-be-sung-to)
 - [Song language](songs.md#song-language)
 - [Song tags](songs.md#song-tags)
