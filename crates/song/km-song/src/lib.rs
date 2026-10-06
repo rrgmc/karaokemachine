@@ -40,7 +40,7 @@ pub use crate::redact::{MASK, contact_spans, redact};
 pub use crate::tempo::{TempoMap, Timebase};
 pub use crate::timeline::{
     COMFORTABLE_LINE_CHARS, LineInference, LyricGranularity, LyricLine, LyricTimeline,
-    RUNAWAY_LINE_CHARS, SYLLABLE_DIVIDER, Syllable, WordEnds,
+    RUNAWAY_LINE_CHARS, SYLLABLE_DIVIDER, Syllable, WordEnds, preview_of, preview_of_plain_text,
 };
 
 use crate::karaoke::{MetaText, MetaTextKind};
