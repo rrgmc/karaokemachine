@@ -4770,8 +4770,7 @@ mod tests {
             .expect("read");
         assert_eq!(saved.len(), 1);
         assert_eq!(saved[0].name, "Brasil");
-        // The box was ticked on the first page, and `offset=0` is how a saved query says so.
-        assert_eq!(saved[0].query, "language=pt&sort=updated&offset=0");
+        assert_eq!(saved[0].query, "language=pt&sort=updated");
     }
 
     /// Every sentence the saved strip says is a toast, the save box's included.
@@ -4876,7 +4875,7 @@ mod tests {
             .saved_filters()
             .expect("read");
         assert_eq!(still.len(), 1, "and write nothing while it asks");
-        assert_eq!(still[0].query, "kind=video&offset=0");
+        assert_eq!(still[0].query, "kind=video");
     }
 
     /// …and the replacement writes what the confirmation promised, not the bar as it now stands.
@@ -5086,13 +5085,12 @@ mod tests {
         assert_eq!(held.query, "language=pt&favorited=out");
     }
 
-    /// **The page comes or does not come by what the row already held.**
+    /// **A rewrite stores the page on screen, whatever the row held.**
     ///
-    /// A chip has nowhere to put the save box's *keep the page* tick, so the rule is read off the
-    /// filter being rewritten: one saved as a place stays a place, and one saved as a question is
-    /// not turned into a place by being brought up to date.
+    /// The button means *make this name mean what is on screen now*. A filter saved without a page
+    /// was rewritten without one, and the press read as a write that did not happen.
     #[tokio::test]
-    async fn rewriting_keeps_a_saved_filter_the_kind_of_filter_it_was() {
+    async fn rewriting_a_saved_filter_stores_the_page_on_screen() {
         let (_corpus, state) = two_folders("saved-rewrite-page");
         state.remember_songs_filter("language=pt&offset=150".to_owned());
         post(
@@ -5117,16 +5115,18 @@ mod tests {
         .await;
 
         assert_eq!(saved_named(&state, "Place").query, "language=pt&offset=800");
-        assert_eq!(saved_named(&state, "Question").query, "language=pt");
+        assert_eq!(
+            saved_named(&state, "Question").query,
+            "language=pt&offset=800"
+        );
     }
 
-    /// A place saved on the first page is still a place.
+    /// A filter saved on the first page takes a later page, and the first page again.
     ///
-    /// The top of the list is spelled as no `offset` at all in a live address, so a filter saved
-    /// there with the box ticked read as a question and every rewrite took its page off. The same
-    /// spelling turned a place into a question the first time it was rewritten from the top.
+    /// The top of the list is spelled as no `offset` at all, so a row written there holds none.
+    /// A rule that read the row for its page took the page off every later rewrite.
     #[tokio::test]
-    async fn a_place_saved_on_the_first_page_is_rewritten_with_its_page() {
+    async fn a_filter_saved_on_the_first_page_is_rewritten_with_its_page() {
         let (_corpus, state) = two_folders("saved-rewrite-first-page");
         state.remember_songs_filter("language=pt".to_owned());
         post(
@@ -5136,35 +5136,35 @@ mod tests {
         )
         .await;
         let place = only_saved(&state).id;
-        assert_eq!(only_saved(&state).query, "language=pt&offset=0");
+        assert_eq!(only_saved(&state).query, "language=pt");
 
         state.remember_songs_filter("language=pt&offset=150".to_owned());
         post(&state, &format!("/songs/saved-filters/{place}/update"), "").await;
         assert_eq!(only_saved(&state).query, "language=pt&offset=150");
 
-        // Back at the top and rewritten there: the page it holds is the first, and it holds one.
+        // Back at the top and rewritten there: the page it holds is the first.
         state.remember_songs_filter("language=pt".to_owned());
         post(&state, &format!("/songs/saved-filters/{place}/update"), "").await;
-        assert_eq!(only_saved(&state).query, "language=pt&offset=0");
+        assert_eq!(only_saved(&state).query, "language=pt");
 
         state.remember_songs_filter("language=pt&offset=50".to_owned());
         post(&state, &format!("/songs/saved-filters/{place}/update"), "").await;
         assert_eq!(only_saved(&state).query, "language=pt&offset=50");
     }
 
-    /// A whole-corpus place is `offset=0` alone, and its link opens the first page.
+    /// A whole-corpus filter saved at the top is the empty query, and its link opens the first page.
     #[tokio::test]
-    async fn a_first_page_place_restores_to_the_first_page() {
+    async fn a_first_page_filter_restores_to_the_first_page() {
         let (_corpus, state) = a_corpus_of("saved-first-page", 120);
         let (status, _) = get(&state, "/songs/rows?").await;
         assert_eq!(status, axum::http::StatusCode::OK);
         post(&state, "/songs/saved-filters", "saved_name=Top&keep_page=1").await;
-        assert_eq!(only_saved(&state).query, "offset=0");
+        assert_eq!(only_saved(&state).query, "");
 
-        let (status, html) = get(&state, "/songs?offset=0").await;
+        let (status, html) = get(&state, "/songs?").await;
         assert_eq!(status, axum::http::StatusCode::OK);
         assert!(html.contains("page 1 of 3 (120 songs)"), "{html}");
-        assert!(html.contains(r#"href="/songs?offset=0""#), "{html}");
+        assert!(html.contains(r#"href="/songs?""#), "{html}");
     }
 
     /// The chip opens for renaming and closes again, and neither touches the row.
