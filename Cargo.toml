@@ -52,6 +52,7 @@ members = [
     "tools/cmd/km-carols",
     "tools/cmd/km-package-builder",
     "tools/cmd/km-package-simple",
+    "tools/cmd/km-site-pack",
     # The working session's own, and `tools/dev/` for the reason above: the directory says what the
     # thing is for. This one is never staged and never shipped -- `ALL_APPS` in tools/dist/bin.sh is
     # an explicit list and does not name it -- but it is a member all the same, so `cargo km-lint`
@@ -293,6 +294,9 @@ km-machine-ios = { path = "crates/machine/km-machine-ios" }
 # builds the same manifests from the same files. Two tools disagreeing about what a manifest holds
 # is a defect nobody would notice until a package behaved oddly on the machine.
 km-pack = { path = "tools/cmd/km-pack" }
+# The crawl, the download and the unpacking are a library, so a page can run them as the command
+# does. Its own binary is the one caller.
+km-site-pack = { path = "tools/cmd/km-site-pack" }
 # What more than one crate's tests need. Taken as a dev-dependency only; nothing that ships links it.
 km-testkit = { path = "tools/dev/km-testkit" }
 
@@ -592,6 +596,11 @@ form_urlencoded = "1.2.2"
 # Percent-encoding outside a form: a cookie value, a query parameter that must keep `+` as a plus sign,
 # and RFC 8187's `filename*`. Each caller names its own `AsciiSet`. Already in the tree through axum.
 percent-encoding = "2.3.2"
+# Resolving a link against the page it was found on, in `km-site-pack` and nowhere else. A relative
+# `href` with `..`, a query and a non-ASCII name is the whole of what that tool reads. Resolution
+# written by hand is where a crawler leaves the site it was given. Already in the tree through
+# `reqwest`, so naming it compiles nothing new.
+url = "2.5.8"
 # Test-only: `km-catalog`'s fold test decomposes every Latin letter, the way a file name written on
 # macOS spells it, and holds `km_song::text::fold` to the search index on the result.
 unicode-normalization = "0.1.24"
