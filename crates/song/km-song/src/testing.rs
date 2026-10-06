@@ -1695,6 +1695,56 @@ pub fn busy_part_under_the_words() -> Vec<u8> {
     doubled_part(b"Busy Part Under The Words", b"Guitar", 0, 4)
 }
 
+/// Words timed by hand over an unnamed melody: each syllable leads its own note by 80 to 160 ticks.
+///
+/// At this tempo that is 83 to 167 ms, so no syllable is within the alignment window of a note
+/// and every syllable has one note of its own nearby. Channel 1 is as monophonic and as singable,
+/// and plays four notes to each syllable, so most of its notes have no syllable near them.
+pub fn loosely_timed_words() -> Vec<u8> {
+    const VERSE: [&str; 8] = [
+        "tap ", "it ", "in ", "by ", "hand ", "and ", "run ", "ahead/",
+    ];
+    const KEYS: [u8; 8] = [64, 66, 67, 69, 71, 69, 67, 66];
+    const LEADS: [u32; 4] = [100, 160, 80, 140];
+    const LINES: usize = 4;
+    const STEP: u32 = 960;
+
+    let mut conductor = TrackWriter::new();
+    conductor
+        .track_name(0, b"Loosely Timed Words")
+        .tempo(0, TEMPO_120);
+
+    let mut words = TrackWriter::new();
+    words.track_name(0, b"Words");
+    let mut previous = 0;
+    for index in 0..LINES * VERSE.len() {
+        let at = STEP * (index as u32 + 1) - LEADS[index % LEADS.len()];
+        words.lyric(at - previous, VERSE[index % VERSE.len()].as_bytes());
+        previous = at;
+    }
+
+    let mut part_a = TrackWriter::new();
+    part_a.track_name(0, b"Part A").program_change(0, 0, 73);
+    for index in 0..LINES * VERSE.len() {
+        let rest = if index == 0 { STEP } else { STEP - 480 };
+        part_a.note(rest, 0, KEYS[index % KEYS.len()], 100, 480);
+    }
+
+    let mut part_b = TrackWriter::new();
+    part_b.track_name(0, b"Part B").program_change(0, 1, 26);
+    for index in 0..LINES * VERSE.len() * 4 {
+        let rest = if index == 0 { STEP } else { 40 };
+        part_b.note(rest, 1, KEYS[index % KEYS.len()], 90, 200);
+    }
+
+    smf(vec![
+        conductor.finish(),
+        words.finish(),
+        part_a.finish(),
+        part_b.finish(),
+    ])
+}
+
 /// A part on channel 0 with every fourth note doubled a third below, under thirty-two syllables.
 ///
 /// `words_delay` moves every syllable later by that many ticks, and `notes_per_syllable` divides
@@ -2191,6 +2241,7 @@ pub const FIXTURES: &[Fixture] = &[
         harmonised_part_off_the_words,
     ),
     ("busy_part_under_the_words.mid", busy_part_under_the_words),
+    ("loosely_timed_words.mid", loosely_timed_words),
     ("legacy_encoded_lyrics.mid", legacy_encoded_lyrics),
     ("smpte_timed.mid", smpte_timed),
     ("ambiguous_melody.mid", ambiguous_melody),

@@ -22,6 +22,8 @@ pub enum MelodySignal {
     TrackName,
     /// Note onsets line up with the lyric syllables.
     LyricAlignment,
+    /// Each syllable has a note of its own nearby, where the words are timed too loosely to align.
+    NotePerSyllable,
     /// The channel plays one note at a time.
     Monophonic,
     /// The notes sit in a range a person could sing.
@@ -257,10 +259,7 @@ fn decide(
 
     // Anything with no supporting evidence beyond being monophonic is not a candidate. A bass line
     // is monophonic too.
-    candidates.retain(|candidate| {
-        candidate.lyric_alignment >= thresholds.melody_min_lyric_alignment
-            || candidate.signals.contains(&MelodySignal::TrackName)
-    });
+    candidates.retain(is_tied_to_the_singing);
 
     if candidates.is_empty() {
         return MelodyOutcome::Abstained {
@@ -322,8 +321,7 @@ pub fn rank(
             let gated = plays_one_line(song, stats, &sung_ms, thresholds)
                 && thresholds.is_vocal_range(stats.median_key, stats.vocal_key_fraction)
                 && plays_under_the_words(song, stats, &syllable_ms, thresholds)
-                && (candidate.lyric_alignment >= thresholds.melody_min_lyric_alignment
-                    || candidate.signals.contains(&MelodySignal::TrackName));
+                && is_tied_to_the_singing(&candidate);
             MelodyEvidence {
                 channel: candidate.channel,
                 evidence: evidence_of(candidate.score),
@@ -359,6 +357,15 @@ fn score(song: &Song, stats: &ChannelStats, sung_ms: &[u32], thresholds: &Thresh
         }
     }
 
+    // Asked only where alignment did not answer. A channel the words land on closely also pairs
+    // with them loosely, and counting that twice would move every margin already measured.
+    if alignment < thresholds.melody_min_lyric_alignment
+        && has_a_note_for_each_syllable(song, stats, thresholds)
+    {
+        score += 2.0;
+        signals.push(MelodySignal::NotePerSyllable);
+    }
+
     if stats.track_names.iter().any(|name| is_melody_name(name)) {
         score += 3.0;
         signals.push(MelodySignal::TrackName);
@@ -383,6 +390,45 @@ fn score(song: &Song, stats: &ChannelStats, sung_ms: &[u32], thresholds: &Thresh
         lyric_alignment: alignment,
         monophony: stats.monophony,
     }
+}
+
+/// Whether anything beyond monophony ties a candidate to the singing.
+fn is_tied_to_the_singing(candidate: &Candidate) -> bool {
+    candidate.signals.iter().any(|signal| {
+        matches!(
+            signal,
+            MelodySignal::LyricAlignment | MelodySignal::TrackName | MelodySignal::NotePerSyllable
+        )
+    })
+}
+
+/// Whether a channel has one note for each syllable, however loosely the two are timed.
+///
+/// Words timed by hand run ahead of the notes or behind them by more than the alignment window
+/// allows, and each syllable still has its own note. Both halves are asked at
+/// [`Thresholds::note_pairing_window_ms`]: nearly every syllable has a note, and nearly every note
+/// played while the words run has a syllable. A wide window alone matches any busy part, and the
+/// second half is what fails one.
+///
+/// Words typed one letter to an event are left out. Their letters come at a constant rate, so
+/// they sit near the notes of any part.
+fn has_a_note_for_each_syllable(
+    song: &Song,
+    stats: &ChannelStats,
+    thresholds: &Thresholds,
+) -> bool {
+    if is_letter_typed(song, thresholds) {
+        return false;
+    }
+    let syllable_ms: Vec<u32> = song
+        .lyrics
+        .syllable_ticks()
+        .into_iter()
+        .map(|tick| song.tempo_map.tick_to_ms(tick))
+        .collect();
+    let window = thresholds.note_pairing_window_ms;
+    syllables_within(song, stats, &syllable_ms, window) >= thresholds.melody_min_note_pairing
+        && notes_within(song, stats, &syllable_ms, window) >= thresholds.melody_min_note_pairing
 }
 
 /// Whether a channel plays one line, which a melody does.
@@ -769,6 +815,46 @@ mod tests {
                 abstained: Abstention::NothingMonophonic
             }
         );
+    }
+
+    #[test]
+    fn words_timed_loosely_find_the_channel_with_a_note_for_each_syllable() {
+        let bytes = testing::loosely_timed_words();
+        let outcome = analyze(&bytes);
+        let melody = outcome.channel().expect("each syllable has its own note");
+        assert_eq!(
+            melody.channel, 0,
+            "channel 1 plays four notes to a syllable"
+        );
+        assert!(melody.signals.contains(&MelodySignal::NotePerSyllable));
+        assert!(!melody.signals.contains(&MelodySignal::LyricAlignment));
+        assert!(melody.lyric_alignment < 0.1);
+
+        let busy = ranked(&bytes)
+            .into_iter()
+            .find(|row| row.channel == 1)
+            .expect("the busy part is ranked");
+        assert!(!busy.signals.contains(&MelodySignal::NotePerSyllable));
+        assert!(!busy.eligible);
+    }
+
+    #[test]
+    fn a_channel_the_words_align_with_is_not_also_counted_as_paired() {
+        let outcome = analyze(&testing::melody_and_accompaniment());
+        let melody = outcome.channel().expect("the melody is found");
+        assert!(melody.signals.contains(&MelodySignal::LyricAlignment));
+        assert!(!melody.signals.contains(&MelodySignal::NotePerSyllable));
+    }
+
+    #[test]
+    fn letters_at_a_constant_rate_pair_with_no_channel() {
+        for row in ranked(&testing::letter_typed_lyrics()) {
+            assert!(
+                !row.signals.contains(&MelodySignal::NotePerSyllable),
+                "channel {} was paired with letters",
+                row.channel
+            );
+        }
     }
 
     /// The doubled line wins or the single-voice field decides, so no song loses a channel.

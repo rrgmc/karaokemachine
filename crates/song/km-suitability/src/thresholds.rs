@@ -34,6 +34,17 @@ pub struct Thresholds {
     /// How close a note onset must be to a syllable to count as the note being sung, in
     /// milliseconds. Wide enough for human sequencing, tight enough not to match everything.
     pub note_align_window_ms: u32,
+    /// How close a syllable and its own note must be for the two to count as a pair, in
+    /// milliseconds.
+    ///
+    /// Words timed by hand sit up to a fifth of a second from their notes. The window is wider
+    /// than both alignment windows, so it is asked both ways and at
+    /// [`Self::melody_min_note_pairing`].
+    pub note_pairing_window_ms: u32,
+    /// Least share of syllables with a note inside [`Self::note_pairing_window_ms`], and least
+    /// share of the notes played while the words run with a syllable inside it, for a channel to
+    /// count as having one note for each syllable.
+    pub melody_min_note_pairing: f32,
     /// How close a note onset must be to a syllable for the channel to count as playing while it is
     /// sung, in milliseconds.
     ///
@@ -137,6 +148,8 @@ impl Default for Thresholds {
             melody_min_lyric_alignment: 0.70,
             melody_margin: 1.5,
             note_align_window_ms: 60,
+            note_pairing_window_ms: 250,
+            melody_min_note_pairing: 0.90,
             melody_presence_window_ms: 1_000,
             melody_min_lyric_presence: 0.5,
             // Channel 4, 1-based.

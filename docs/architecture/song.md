@@ -292,6 +292,17 @@ Its lyric alignment reaches `melody_min_lyric_alignment`, and `notes_on_the_word
 when it finds a melody. Otherwise the run over single-voice channels answers, abstention reason
 included.
 
+**One note for each syllable is evidence where alignment is not.** `has_a_note_for_each_syllable`
+asks two shares at `note_pairing_window_ms` (250 ms), each against `melody_min_note_pairing` (90%).
+They are the syllables with a note, and the notes played while the words run with a syllable. `score`
+asks it only below `melody_min_lyric_alignment`, adds 2.0 and reports
+`MelodySignal::NotePerSyllable`. `is_tied_to_the_singing` accepts that signal beside alignment and a
+track name. A letter-typed file never earns it.
+
+**`sung_line` still hands such a channel to the sync component.** Pairing at 250 ms says nothing
+about 120 ms, so the question stays open. The decision is
+[`One note for each syllable ties a channel to words timed loosely`](../decisions/songs.md#one-note-for-each-syllable-ties-a-channel-to-words-timed-loosely).
+
 **`km-lyrics scan --melodies <file>` writes one line for each song**, with the channel found or the
 reason none was. Two runs over one folder compare line by line. That comparison counts the songs
 that gain, lose or move a channel.

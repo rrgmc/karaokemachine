@@ -391,6 +391,36 @@ to 47.6%. No song lost its channel, and 0.15% moved to another channel. Each of 
 track named for the melody or the voice, away from a guitar or a flute doubling it. Nothing was
 measured under 60%, where a channel carries two voices nearly throughout.
 
+## One note for each syllable ties a channel to words timed loosely
+
+**Words tapped in by hand sit near their notes and not on them.** One corpus file holds a flute line
+with 443 notes under 440 syllables, in one unnamed track. Every syllable has a note of its own within
+190 ms. Only 27% have one within the 60 ms that alignment asks for, so detection abstained as
+`no_supporting_evidence`.
+
+**So a channel with one note for each syllable has evidence of its own.** Two shares are asked at
+250 ms, and each must reach 90%. They are the syllables that have a note, and the notes played while
+the words run that have a syllable. The signal is `note_per_syllable`.
+
+**The second share is what makes a wide window safe.** At 250 ms a busy part has a note near every
+syllable. Most of its notes have no syllable near them, so it fails.
+
+**It is asked only where alignment does not answer.** A channel the words land on closely also pairs
+with them loosely, and counting both would move every margin already measured. It weighs less than a
+track name, so a named rival wins or the song stays ambiguous.
+
+**A file typed one letter to an event never earns it.** Its letters come at a constant rate, so they
+sit near the notes of any part.
+
+**The sync component still measures such a channel.** Lyric alignment at 60 ms settles the 120 ms
+question by construction, and pairing at 250 ms does not. Words half a beat from a melody pair with
+it, and they are still badly timed.
+
+**Measured over the same 8,779 corpus files**, the share with a melody rose from 47.6% to 48.3%. No
+song lost its channel and none moved. Three quarters of the channels gained are channel 4, where
+karaoke files put the melody by convention. One gained song in six drops below a suitability of 10,
+because its words miss the 120 ms window on the melody now found.
+
 ## A file's own name for its lyric track outranks how long the track is
 
 **`Words` wins, even when another text track holds more.** A second text track is a second timing of
