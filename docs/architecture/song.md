@@ -282,6 +282,31 @@ alignment then counts line starts in place of syllables, and the presence gate s
 syllables. The decision is
 [`Words typed one letter at a time are aligned by their line starts`](../decisions/songs.md#words-typed-one-letter-at-a-time-are-aligned-by-their-line-starts).
 
+**A channel that pairs with the words passes the monophony gate at a lower floor.**
+`plays_one_line` admits a channel down to `melody_min_monophony_aligned` (60%) when two things hold.
+Its lyric alignment reaches `melody_min_lyric_alignment`, and `notes_on_the_words` reaches
+`melody_min_notes_on_words` (70%). `rank` marks a paired channel `eligible`. The decision is
+[`A melody doubled on its own channel is still the melody`](../decisions/songs.md#a-melody-doubled-on-its-own-channel-is-still-the-melody).
+
+**`detect` runs `decide` twice.** The first run admits paired channels, and its answer stands only
+when it finds a melody. Otherwise the run over single-voice channels answers, abstention reason
+included.
+
+**One note for each syllable is evidence where alignment is not.** `has_a_note_for_each_syllable`
+asks two shares at `note_pairing_window_ms` (250 ms), each against `melody_min_note_pairing` (90%).
+They are the syllables with a note, and the notes played while the words run with a syllable. `score`
+asks it only below `melody_min_lyric_alignment`, adds 2.0 and reports
+`MelodySignal::NotePerSyllable`. `is_tied_to_the_singing` accepts that signal beside alignment and a
+track name. A letter-typed file never earns it.
+
+**`sung_line` still hands such a channel to the sync component.** Pairing at 250 ms says nothing
+about 120 ms, so the question stays open. The decision is
+[`One note for each syllable ties a channel to words timed loosely`](../decisions/songs.md#one-note-for-each-syllable-ties-a-channel-to-words-timed-loosely).
+
+**`km-lyrics scan --melodies <file>` writes one line for each song**, with the channel found or the
+reason none was. Two runs over one folder compare line by line. That comparison counts the songs
+that gain, lose or move a channel.
+
 All thresholds live in one module so they can be revised from evidence, and `km-pack reanalyze`
 recomputes a package after a revision.
 
