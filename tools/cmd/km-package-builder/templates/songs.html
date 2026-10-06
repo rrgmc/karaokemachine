@@ -60,7 +60,12 @@
     <label class="view"><input type="checkbox" name="filename" value="1" {% if query.filename %}checked{% endif %}
            title="{{ "songs-show-filenames-title"|t }}"> {{ "songs-show-filenames"|t }}</label>
 
-    {# The second view box, beside the first because the two are the same kind of thing: neither
+    {# The line the song book prints for each song, as a column of its own. A view box like the two
+       around it: it narrows nothing, and it is turned on to check a book before one is printed. #}
+    <label class="view"><input type="checkbox" name="firstwords" value="1" {% if query.firstwords %}checked{% endif %}
+           title="{{ "songs-show-first-words-title"|t }}"> {{ "songs-show-first-words"|t }}</label>
+
+    {# Another view box, beside the first because the two are the same kind of thing: neither
        narrows the list, both cost the title column width, and both are turned on for a pass rather
        than left on. What it shows is what the analysis had to say against each song -- the chips a
        song's own page lists under `Warnings`, on the row, so a folder full of files timed a line at

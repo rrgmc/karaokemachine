@@ -2868,6 +2868,60 @@ fn the_discard_pile_is_counted_as_the_list_of_it_is_filtered() {
     );
 }
 
+/// A browse row carries the line the song book prints, by the rule a build prints it with.
+///
+/// A leading banner is skipped. A song with no words has no line, and neither has one whose words
+/// are not drawn, whether a person said so or the analysis did. A person's answer wins both ways.
+#[test]
+fn a_browse_row_carries_the_first_words_the_book_prints() {
+    let hiding = format!(
+        r#"[{{"code":"{}","message":"m"}}]"#,
+        km_pack::word_hiding_warning_codes()[0]
+    );
+    let mut db = Db::open_in_memory(Path::new("/corpus")).expect("open");
+    let file = |id: &str, lyrics: Option<&str>, warnings: &str| {
+        scanned_file(id, Some(id), &format!("folder/{id}.kar"), |song| {
+            song.lyrics = lyrics.map(ToOwned::to_owned);
+            song.suitability.warnings = warnings.to_owned();
+        })
+    };
+    let words = "www.example.com\n\nTempo perdido\nE que tudo mais";
+    add_all(
+        &mut db,
+        vec![
+            file("sung", Some(words), "[]"),
+            file("instrumental", None, "[]"),
+            file("hidden-by-hand", Some(words), "[]"),
+            file("hidden-by-analysis", Some(words), &hiding),
+            file("shown-by-hand", Some(words), &hiding),
+        ],
+    );
+    db.conn
+        .execute_batch(
+            "UPDATE songs SET lyrics_hidden = 1 WHERE id = 'hidden-by-hand';
+             UPDATE songs SET lyrics_hidden = 0 WHERE id = 'shown-by-hand';",
+        )
+        .expect("override");
+
+    let (rows, _) = db.songs_page(&Filter::default()).expect("page");
+    let first_words = |id: &str| {
+        rows.iter()
+            .find(|row| row.id == id)
+            .unwrap_or_else(|| panic!("{id} is on the page"))
+            .first_words
+            .as_deref()
+    };
+    assert_eq!(first_words("sung"), Some("Tempo perdido"));
+    assert_eq!(first_words("instrumental"), None);
+    assert_eq!(first_words("hidden-by-hand"), None);
+    assert_eq!(first_words("hidden-by-analysis"), None);
+    assert_eq!(first_words("shown-by-hand"), Some("Tempo perdido"));
+
+    // The single-row route reads the same columns, so a redrawn row keeps its cell.
+    let alone = db.song_row("sung").expect("row");
+    assert_eq!(alone.first_words.as_deref(), Some("Tempo perdido"));
+}
+
 /// A page asks for one row more than it shows, and that spare row is what says *next*.
 ///
 /// The count it replaces was `SELECT COUNT(*)` over the filtered corpus on **every page turn**,

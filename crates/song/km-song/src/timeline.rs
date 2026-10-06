@@ -236,34 +236,63 @@ impl LyricTimeline {
     ///   so a file carrying none at all yields *one* `LyricLine` holding the entire song — and the
     ///   corpus has those. Without a cut, a manifest would gain kilobytes for one such file.
     pub fn preview(&self, limit: usize) -> Vec<String> {
-        let mut out = Vec::with_capacity(limit);
-        let mut skipped = 0usize;
-        for line in &self.lines {
-            if out.len() == limit {
-                break;
-            }
-            let text = line.text();
-            let trimmed = text.trim();
-            // Blank lines never count against the skip budget: they are not a classifier's guess.
-            if trimmed.is_empty() {
-                continue;
-            }
-            // `contact_redacted` first, for the same reason `km_suitability` reads it first: the
-            // masking has already run by the time anyone asks, so a telephone line that arrives here
-            // as `0**17 —` no longer trips the digit rule that used to skip it, and the business
-            // card this bound exists to hide would become the preview. Measured on the fixture, not
-            // reasoned about — `km-lyrics preview` reported exactly that before the flag was added.
-            if out.is_empty()
-                && skipped < PREVIEW_MAX_SKIP
-                && (line.contact_redacted || crate::looks_like_a_banner(trimmed))
-            {
-                skipped += 1;
-                continue;
-            }
-            out.push(truncate(trimmed, PREVIEW_MAX_CHARS));
-        }
-        out
+        preview_of(
+            self.lines
+                .iter()
+                .map(|line| (line.text(), line.contact_redacted)),
+            limit,
+        )
     }
+}
+
+/// [`LyricTimeline::preview`] over lines that are text and a flag, which is where its rule lives.
+///
+/// The flag is [`LyricLine::contact_redacted`]. A free function because a caller holding stored text
+/// has no timeline to ask, and a second copy of the rule would drift from the one a package is
+/// built with.
+pub fn preview_of<T: AsRef<str>>(
+    lines: impl IntoIterator<Item = (T, bool)>,
+    limit: usize,
+) -> Vec<String> {
+    let mut out = Vec::with_capacity(limit);
+    let mut skipped = 0usize;
+    for (text, contact_redacted) in lines {
+        if out.len() == limit {
+            break;
+        }
+        let trimmed = text.as_ref().trim();
+        // Blank lines never count against the skip budget: they are not a classifier's guess.
+        if trimmed.is_empty() {
+            continue;
+        }
+        // `contact_redacted` first, for the same reason `km_suitability` reads it first: the
+        // masking has already run by the time anyone asks, so a telephone line that arrives here
+        // as `0**17 —` no longer trips the digit rule that used to skip it, and the business
+        // card this bound exists to hide would become the preview. Measured on the fixture, not
+        // reasoned about — `km-lyrics preview` reported exactly that before the flag was added.
+        if out.is_empty()
+            && skipped < PREVIEW_MAX_SKIP
+            && (contact_redacted || crate::looks_like_a_banner(trimmed))
+        {
+            skipped += 1;
+            continue;
+        }
+        out.push(truncate(trimmed, PREVIEW_MAX_CHARS));
+    }
+    out
+}
+
+/// [`LyricTimeline::preview`] over what [`LyricTimeline::plain_text`] wrote.
+///
+/// **Stored text carries the mask and not the flag**, so a line holding [`crate::MASK`] stands for a
+/// redacted one. A sung line that holds an em dash of its own is therefore skipped here where the
+/// timeline keeps it, and only among the leading lines the skip budget covers.
+pub fn preview_of_plain_text(text: &str, limit: usize) -> Vec<String> {
+    preview_of(
+        text.split('\n')
+            .map(|line| (line, line.contains(crate::MASK))),
+        limit,
+    )
 }
 
 /// How many leading lines [`LyricTimeline::preview`] will skip before giving up on the idea.
@@ -1530,6 +1559,26 @@ mod tests {
             ticks_to_ms,
         );
         assert_eq!(timeline.preview(2), vec!["Tempo perdido"]);
+    }
+
+    /// Stored text holds the mask and no flag, and its preview is still the timeline's.
+    #[test]
+    fn stored_text_previews_as_the_timeline_it_came_from() {
+        let timeline = build_timeline(
+            vec![
+                raw(0, "A. Sequencer", LineBreak::None),
+                raw(480, "0**17 3463-1150", LineBreak::Line),
+                raw(960, "someone@example.com", LineBreak::Line),
+                raw(1440, "Tempo perdido", LineBreak::Line),
+                raw(1920, "E que tudo mais", LineBreak::Line),
+            ],
+            inference(),
+            ticks_to_ms,
+        );
+        let stored = timeline.plain_text();
+        assert_eq!(preview_of_plain_text(&stored, 2), timeline.preview(2));
+        assert_eq!(preview_of_plain_text(&stored, 1), vec!["Tempo perdido"]);
+        assert!(preview_of_plain_text("", 1).is_empty());
     }
 
     #[test]

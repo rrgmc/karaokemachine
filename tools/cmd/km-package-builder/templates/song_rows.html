@@ -1,4 +1,4 @@
-{# The two view boxes are classes on this block and never flags on a row -- see `SongRows`. Composed
+{# The three view boxes are classes on this block and never flags on a row -- see `SongRows`. Composed
    in Rust rather than as two `{% if %}`s here, because a second one would have to know whether the
    first had already written the attribute and the space between the names. #}
 <div id="rows"{% if !block_class().is_empty() %} class="{{ block_class() }}"{% endif %}
@@ -15,6 +15,7 @@
       <th><input type="checkbox" class="select-all" title="{{ "songs-select-all-title"|t }}"></th>
       <th>{{ "column-artist"|t }}</th>
       <th>{{ "column-title"|t }}</th>
+      <th class="firstwords">{{ "column-first-words"|t }}</th>
       <th>{{ "column-language"|t }}</th>
       <th class="num">{{ "column-length"|t }}</th>
       <th class="num">{{ "column-suitability"|t }}</th>

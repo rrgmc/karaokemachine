@@ -455,7 +455,7 @@ pub struct FilterQuery {
     /// **A string and not the presence flag `unpackaged` beside it**, because the control's own
     /// vocabulary is [`DeletedFilter`]'s and a third arm would otherwise need a second parameter.
     ///
-    /// **A filter, unlike the two view boxes below**: it changes which songs match, so it is not in
+    /// **A filter, unlike the three view boxes below**: it changes which songs match, so it is not in
     /// `ui.js`'s `KEEPS_THE_PAGE`, it does not survive *clear all*, and turning it on starts again
     /// at the top of the list.
     #[serde(default)]
@@ -473,6 +473,12 @@ pub struct FilterQuery {
     /// [`Self::warnings`], off by default, surviving a page turn and *clear all*.
     #[serde(default)]
     warnings: Option<String>,
+    /// Not a filter either: whether each row shows the line the song book prints for the song.
+    ///
+    /// The third box, and the same shape as the two above: a presence key read through
+    /// [`Self::first_words`], off by default, surviving a page turn and *clear all*.
+    #[serde(default)]
+    firstwords: Option<String>,
     #[serde(default)]
     sort: String,
     #[serde(default)]
@@ -574,6 +580,14 @@ impl FilterQuery {
     /// unticked checkbox sends — so this is one line and no marker field is needed.
     fn warnings(&self) -> bool {
         self.warnings.is_some()
+    }
+
+    /// Whether each row shows the line the song book prints for the song.
+    ///
+    /// Off by default, because the column takes its width from Title and Artist and the pass it
+    /// serves is checking a book before it is printed.
+    fn first_words(&self) -> bool {
+        self.firstwords.is_some()
     }
 
     /// The tags being narrowed by, with `add_tag` merged in — folded, sorted, de-duplicated.
@@ -710,6 +724,7 @@ impl FilterQuery {
             unpackaged: self.unpackaged.is_some(),
             filename: self.filenames(),
             warnings: self.warnings(),
+            firstwords: self.first_words(),
             sort: Sort::parse(&self.sort).as_str().to_owned(),
         }
     }
@@ -910,7 +925,7 @@ impl FilterQuery {
         }
     }
 
-    /// The query with every narrowing filter gone and the two view settings kept.
+    /// The query with every narrowing filter gone and the three view settings kept.
     fn only_view(&self) -> String {
         let mut parts = Vec::new();
         if !self.sort.is_empty() {
@@ -925,6 +940,9 @@ impl FilterQuery {
         // the filters has nothing to say about it.
         if self.warnings() {
             parts.push("warnings=1".to_owned());
+        }
+        if self.first_words() {
+            parts.push("firstwords=1".to_owned());
         }
         parts.join("&")
     }
@@ -1029,6 +1047,9 @@ impl FilterQuery {
         // The other view box, same shape and for the same reason.
         if self.warnings() && dropped != "warnings" {
             parts.push("warnings=1".to_owned());
+        }
+        if self.first_words() && dropped != "firstwords" {
+            parts.push("firstwords=1".to_owned());
         }
         if offset > 0 {
             parts.push(format!("offset={offset}"));
@@ -1265,6 +1286,7 @@ async fn rows_for(state: &State, query: &FilterQuery) -> Result<SongRows, DbErro
         scanning: state.scan_running(),
         show_filename: query.filenames(),
         show_warnings: query.warnings(),
+        show_first_words: query.first_words(),
         // After the rest, because it counts what is in there and reads whether a scan is running.
         range: String::new(),
     };
@@ -8623,6 +8645,7 @@ mod tests {
             copies: "2-10".to_owned(),
             added: "7d".to_owned(),
             filename: Some("1".to_owned()),
+            firstwords: Some("1".to_owned()),
             sort: "title".to_owned(),
             ..FilterQuery::default()
         }
@@ -9348,9 +9371,32 @@ mod tests {
         assert!(!FilterQuery::default().only_view().contains("warnings"));
     }
 
+    /// The first-words box is the third of the kind: not a filter, and it survives both.
+    #[test]
+    fn the_first_words_box_is_not_a_filter_and_survives_paging_and_clearing() {
+        let on = FilterQuery {
+            firstwords: Some("1".to_owned()),
+            q: "jobim".to_owned(),
+            ..FilterQuery::default()
+        };
+        assert!(on.first_words());
+        assert!(on.to_form(&[], &[]).firstwords);
+        assert_eq!(on.to_filter().deleted, DeletedFilter::Live);
+
+        let next = on.with_offset(100, 4200);
+        assert!(next.contains("firstwords=1"), "{next}");
+        let cleared = on.only_view();
+        assert!(cleared.contains("firstwords=1"), "{cleared}");
+        assert!(!cleared.contains("q="), "{cleared}");
+
+        let off = FilterQuery::default().with_offset(100, 4200);
+        assert!(!off.contains("firstwords"), "{off}");
+        assert!(!FilterQuery::default().only_view().contains("firstwords"));
+    }
+
     /// *Only deleted* is a filter, so it travels, it draws a chip, and *clear all* takes it off.
     ///
-    /// **The last assertion is the one worth having.** The two view boxes beside it survive a clear
+    /// **The last assertion is the one worth having.** The three view boxes beside it survive a clear
     /// because they narrow nothing; this one narrows to a list holding none of the corpus, and
     /// somebody who has just pressed *clear all* must not be handed the discard pile.
     #[test]

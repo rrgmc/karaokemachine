@@ -588,16 +588,23 @@ second colors it. A song in nothing but working lists is in lists, and filed in 
 appended last in `browse_columns`, so no existing index into the row moves. It is its own subquery
 rather than a narrowing of the first, because the row needs both numbers.
 
-**The two view boxes are classes on `#rows`, not flags on the row.** Every row's markup carries the
-file name and the warning chips. `#rows.filenames .filename` and `#rows.warnings .song-warning`
-reveal them. A bool threaded down would also have to reach the fragment routes, which never see the
-browse query. A row would then lose both the moment anybody scored it.
+**The three view boxes are classes on `#rows`, not flags on the row.** Every row's markup carries the
+file name, the warning chips and the first-words cell. `#rows.filenames .filename`,
+`#rows.warnings .song-warning` and `#rows.firstwords .firstwords` reveal them. A bool threaded down
+would also have to reach the fragment routes, which never see the browse query. A row would then
+lose all three the moment anybody scored it.
 
-`SongRows::block_class` joins the names in Rust rather than as two conditionals in the markup. The
+`SongRows::block_class` joins the names in Rust rather than as conditionals in the markup. The
 second conditional would have to know whether the first had opened the attribute and owed a space.
 That is a rule about HTML syntax, living in a template. `browse_columns` selects `s.warnings` on every
 page, whether or not the box is ticked. The reason is the one that keeps the name always in the
 markup.
+
+**The first-words cell is derived in `song_row`, and no column stores it.** `browse_columns` selects
+a prefix of `s.lyrics` and `s.lyrics_hidden` on every page. `first_words` in `db/sql.rs` gives the
+line `km_song::preview_of_plain_text` returns, or none where the hand answer or the warnings hide
+the words. The prefix bounds the read for a file with no break markers, whose whole song is one
+line. The four tables that include `song_row.html` each carry the `<th>`, and only `#rows` shows it.
 
 ### Two rules that are walked into repeatedly
 

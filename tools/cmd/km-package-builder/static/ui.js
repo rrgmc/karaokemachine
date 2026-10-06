@@ -363,8 +363,8 @@
   // an offset into the old set points nowhere in the new one -- at best somewhere arbitrary, at worst
   // past the end, which is an empty list with a working "previous" button.
   //
-  // Two controls in that bar change nothing about which songs match. `sort` reorders them and
-  // `filename` only decides whether a chip is drawn, so page four still means a real page four.
+  // Some controls in that bar change nothing about which songs match. `sort` reorders them, and the
+  // three view boxes only decide what a row shows, so page four still means a real page four.
   //
   // *Title from file name* keeps its page for a plainer reason: it touches no filter at all. It
   // writes the ticked rows and redraws the list they are in, so the page being read is still the page
@@ -377,7 +377,7 @@
   // takes a button out of service with nothing said anywhere.
 
   // The controls whose change leaves the page number meaning what it meant.
-  const KEEPS_THE_PAGE = ["sort", "filename", "warnings"];
+  const KEEPS_THE_PAGE = ["sort", "filename", "firstwords", "warnings"];
 
   // A form that writes rather than filters keeps its page however it was pressed, and says so in its
   // own markup with `data-keeps-the-page`. An attribute rather than a list of ids here: a third such
