@@ -283,8 +283,8 @@ receiving this folder get to play*. Getting the same answer to both was the mist
   could not have applied to is a demand, not a default.
 - **The marker goes on the declined build** (`-no-video`, `no-video/` for the `.deb`). Two builds of
   one version must not overwrite each other, and `--zip` must not clobber a zip already sent to
-  somebody. `km-lyrics` and `km-wallpaper-pack` never carry it: naming a choice they were never
-  offered would be a lie in a folder name.
+  somebody. `km-lyrics`, `km-site-pack` and `km-wallpaper-pack` never carry it: naming a choice
+  they were never offered would be a lie in a folder name.
 
 **Four DLLs, not seven, and the list is derived rather than guessed.** `ffmpeg-next` is taken with
 `codec`, `format` and `software-resampling`, so avdevice, avfilter and swscale are never linked. The

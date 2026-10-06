@@ -216,6 +216,8 @@ tools/                     # six folders and nothing loose -- see "How things he
     km-pack/               # lib: the packaging pipeline, shared with km-package-builder
                            # bin: build/inspect/validate .kmpkg packages (runs km-suitability)
     km-lyrics/             # CLI: dump a parsed lyric timeline + analysis as JSON (debugging)
+    km-site-pack/          # lib: crawl one site, download its song files, open its archives
+                           # bin: the same, then a package through km-pack's describe and build
     km-package-builder/    # the curation tool: a local web server over a folder of source files,
                            # with a Fluent catalog of its own in i18n/
     km-package-simple/     # the folder packager: km-pack's describe and build behind one page,

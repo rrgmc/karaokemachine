@@ -461,11 +461,14 @@ tool brings back.
 once, as [`A downloadable song pack`](#a-downloadable-song-pack) sets out, and a site rarely states
 the status of any of them. The tool cannot judge that, and it does not try.
 
-Five constraints hold the tool where it is:
+Six constraints hold the tool where it is:
 
-- **It follows pages on the host it was given and no other.** A song file may sit on a second host,
+- **It reads pages inside the folder of the address it was given and nowhere else.** One host often
+  holds many unrelated sites, each in a folder of its own. A song file may sit on a second host,
   because a page often links its files from a file store.
 - **It honours `robots.txt`**, and no flag turns that off.
+- **It waits between two requests**, half a second unless told otherwise. A site that asks for a
+  longer wait in its `robots.txt` gets it, up to thirty seconds.
 - **It asks as itself.** The user agent is the program's name and version. A site that answers only
   a browser is reported as one, and the tool stops there.
 - **It writes no source address** into the description, the listing or the package.
