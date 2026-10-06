@@ -82,6 +82,11 @@ fn resolve(value: &str, base: &Url) -> Option<Url> {
     if value.is_empty() || value.starts_with('#') {
         return None;
     }
+    // A script builds an address out of quoted pieces, and each piece reads as an attribute here.
+    // No address a person links holds a quote or a brace.
+    if value.contains(['"', '\'', '{', '}', '<', '>']) {
+        return None;
+    }
     let mut url = base.join(&value).ok()?;
     if !matches!(url.scheme(), "http" | "https") {
         return None;
@@ -192,6 +197,15 @@ mod tests {
                 "http://127.0.0.1:8000/songs/one.kar",
             ]
         );
+    }
+
+    #[test]
+    fn a_piece_of_script_text_is_not_an_address() {
+        let found = links(
+            r#"<script>a.src = "'http://127.0.0.1/x.js'"; b.href="" + here + "view=mobile";</script>
+               <a href="real.kar">x</a>"#,
+        );
+        assert_eq!(found, ["http://127.0.0.1:8000/songs/real.kar"]);
     }
 
     #[test]
