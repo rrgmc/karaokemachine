@@ -93,6 +93,16 @@ fn a_file_written_in_capitals_parses_to_sentence_case() {
 }
 
 #[test]
+fn a_credit_in_both_cases_keeps_its_capitals_and_the_song_loses_its_own() {
+    let song = parse(&testing::shouted_lyrics_with_a_credit());
+
+    assert_eq!(song.lyrics.line_count(), 4);
+    assert_eq!(song.lyrics.lines[0].text(), "By Ann");
+    assert_eq!(song.lyrics.lines[1].text(), "Twinkle twinkle little star");
+    assert_eq!(song.lyrics.lines[3].text(), "Up above the world so high");
+}
+
+#[test]
 fn a_file_that_marks_no_word_ends_parses_with_narrow_dividers() {
     let song = parse(&testing::word_ends_unmarked());
 
