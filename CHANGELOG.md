@@ -11,8 +11,32 @@ Entries are written for somebody who has the machine. Why any of it is the way i
 
 ## [Unreleased]
 
+## [1.20.0] - 2026-10-06
+
+### Added
+
+- **The package builder's song list shows each song's first words.** Tick *show first words* for a
+  column with the line the song book prints. The similar-names and same-words pages open with it
+  ticked, so two files matched as one song can be told apart at a glance.
+- **KM Simple Package leaves out every song below 8 with one button.** It sits beside the song
+  count and covers every page. A song with no suitability stays in, and you can keep any song again
+  by hand.
+
 ### Changed
 
+- **Words written all in capitals are drawn in sentence case.** A screen of capitals is hard to read
+  at singing speed. A credit line that keeps both cases stays as the file wrote it. Packages already
+  built draw the new case.
+- **A MIDI file takes its title from the file name where its own title is not one.** That covers a
+  track named for an instrument, such as `Piano` or `BASS`, and an eight-letter abbreviation of the
+  file name.
+- **More songs get a guide melody.** The search finds a melody doubled in harmony, and one timed
+  loosely against its words. It also finds one in a file that types its words a letter at a time.
+- **Every song links to a YouTube search**, in the package builder and on the remote. The search
+  takes the title of a song with no artist, and the file name of one with no title.
+- **A saved filter in the package builder keeps its page.** It opens where it was saved, and the
+  rewrite button on its chip stores the page on screen.
+- **The rewrite button on a saved filter asks first.** One misclick replaced a saved position.
 - **KM Simple Package shows the page links above the song list as well as below it.**
 
 ### Fixed
@@ -22,6 +46,7 @@ Entries are written for somebody who has the machine. Why any of it is the way i
   silent until it was restarted.
 - **KM Simple Package stays where you are when you keep a song or leave it out.** The page jumped
   to its foot on every click of a box.
+- **A saved filter opens on songs when the list has shrunk.** It came back as an empty page.
 
 ## [1.19.0] - 2026-10-02
 
