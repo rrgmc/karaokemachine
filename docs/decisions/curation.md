@@ -2243,16 +2243,10 @@ one colour over both leaves the bar saying them in one voice. The accent, rather
 its own, because the chip is a link pressed to go somewhere. That is what the accent means on every
 other page.
 
-**The rewrite keeps the filter the kind of filter it was.** The save box has a *keep the page* tick,
-and a chip has nowhere to put one. So the answer is read off the rewritten row: a query carrying an
-`offset=` is a place somebody works from and is rewritten with one. A query without is a question,
-and stays a question. Offering the box on a chip would ask, on every rewrite, a question that was
-settled when the name was given.
-
-**A saved place says its page outright, and the first page is `offset=0`.** A live address spells
-the top of the list as no `offset` at all. A stored row cannot, because the pair is the only record
-that the box was ticked. Without it, a place saved at the top reads as a question, and every rewrite
-takes its page off. Restoring loses nothing: `offset=0` is the first page to every route.
+**The rewrite stores the page on screen, whatever the row holds.** The button means *make this name
+mean what is on screen now*, and the page is part of what is on screen. A rewrite that leaves the
+page behind reads as a write that did not happen, and the chip shows nothing that explains it. The
+save box, with *keep the page* unticked, writes a filter that opens at the top.
 
 **A saved query holds no count.** The remembered filter carries the count its last full render made.
 A name is kept for months, and that count would be the corpus as it stood on the day of the save.
