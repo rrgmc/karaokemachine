@@ -638,6 +638,12 @@ route writes the canonical query string into `State::songs_filter` before it ans
 therefore already holds the exact string the address bar shows, `offset` clamped and all. That makes
 *the count reads the bar* vacuous here, and the `duplicate_field` hazard unreachable.
 
+The stored string differs from the remembered one in two pairs. A filter saved with *keep the page*
+always holds an `offset=`, and `with_page` writes `offset=0` for the first page. `keeps_page` reads
+that pair when a chip rewrites its row. `without_total` takes `total=` off, because `GET /songs`
+remembers the filter with its count. `rows_for` counts again when a carried count leaves the page
+empty.
+
 What it costs is a dependency. A route that re-renders `#rows` without writing the filter down would
 leave this saving a page nobody is on. Six routes redraw the rows: `GET /songs`, `GET /songs/rows`,
 `POST /songs/titles-from-filename`, `POST /songs/fix-name-case`,

@@ -4770,7 +4770,8 @@ mod tests {
             .expect("read");
         assert_eq!(saved.len(), 1);
         assert_eq!(saved[0].name, "Brasil");
-        assert_eq!(saved[0].query, "language=pt&sort=updated");
+        // The box was ticked on the first page, and `offset=0` is how a saved query says so.
+        assert_eq!(saved[0].query, "language=pt&sort=updated&offset=0");
     }
 
     /// Every sentence the saved strip says is a toast, the save box's included.
@@ -4875,7 +4876,7 @@ mod tests {
             .saved_filters()
             .expect("read");
         assert_eq!(still.len(), 1, "and write nothing while it asks");
-        assert_eq!(still[0].query, "kind=video");
+        assert_eq!(still[0].query, "kind=video&offset=0");
     }
 
     /// …and the replacement writes what the confirmation promised, not the bar as it now stands.
@@ -5117,6 +5118,53 @@ mod tests {
 
         assert_eq!(saved_named(&state, "Place").query, "language=pt&offset=800");
         assert_eq!(saved_named(&state, "Question").query, "language=pt");
+    }
+
+    /// A place saved on the first page is still a place.
+    ///
+    /// The top of the list is spelled as no `offset` at all in a live address, so a filter saved
+    /// there with the box ticked read as a question and every rewrite took its page off. The same
+    /// spelling turned a place into a question the first time it was rewritten from the top.
+    #[tokio::test]
+    async fn a_place_saved_on_the_first_page_is_rewritten_with_its_page() {
+        let (_corpus, state) = two_folders("saved-rewrite-first-page");
+        state.remember_songs_filter("language=pt".to_owned());
+        post(
+            &state,
+            "/songs/saved-filters",
+            "saved_name=Place&keep_page=1",
+        )
+        .await;
+        let place = only_saved(&state).id;
+        assert_eq!(only_saved(&state).query, "language=pt&offset=0");
+
+        state.remember_songs_filter("language=pt&offset=150".to_owned());
+        post(&state, &format!("/songs/saved-filters/{place}/update"), "").await;
+        assert_eq!(only_saved(&state).query, "language=pt&offset=150");
+
+        // Back at the top and rewritten there: the page it holds is the first, and it holds one.
+        state.remember_songs_filter("language=pt".to_owned());
+        post(&state, &format!("/songs/saved-filters/{place}/update"), "").await;
+        assert_eq!(only_saved(&state).query, "language=pt&offset=0");
+
+        state.remember_songs_filter("language=pt&offset=50".to_owned());
+        post(&state, &format!("/songs/saved-filters/{place}/update"), "").await;
+        assert_eq!(only_saved(&state).query, "language=pt&offset=50");
+    }
+
+    /// A whole-corpus place is `offset=0` alone, and its link opens the first page.
+    #[tokio::test]
+    async fn a_first_page_place_restores_to_the_first_page() {
+        let (_corpus, state) = a_corpus_of("saved-first-page", 120);
+        let (status, _) = get(&state, "/songs/rows?").await;
+        assert_eq!(status, axum::http::StatusCode::OK);
+        post(&state, "/songs/saved-filters", "saved_name=Top&keep_page=1").await;
+        assert_eq!(only_saved(&state).query, "offset=0");
+
+        let (status, html) = get(&state, "/songs?offset=0").await;
+        assert_eq!(status, axum::http::StatusCode::OK);
+        assert!(html.contains("page 1 of 3 (120 songs)"), "{html}");
+        assert!(html.contains(r#"href="/songs?offset=0""#), "{html}");
     }
 
     /// The chip opens for renaming and closes again, and neither touches the row.
@@ -6132,6 +6180,49 @@ mod tests {
             "offset=50&total=60",
             "and what is written down is the page being shown"
         );
+    }
+
+    /// …and a count carried in the address does not decide where the end is.
+    ///
+    /// The nav's Songs link and a bare `/songs` both carry the count the last render made. Rows
+    /// taken out since leave that count too large, and the last page it names can be as empty as
+    /// the one asked for.
+    #[tokio::test]
+    async fn a_page_above_the_end_is_counted_again_under_a_carried_total() {
+        let (_corpus, state) = a_corpus_of("page-past-a-stale-total", 60);
+
+        let (status, html) = get(&state, "/songs?offset=100&total=200").await;
+        assert_eq!(status, axum::http::StatusCode::OK);
+        assert!(html.contains("page 2 of 2 (60 songs)"), "{html}");
+        assert_eq!(state.songs_filter(), "offset=50&total=60");
+    }
+
+    /// A saved filter holds no count, whichever route last wrote the filter down.
+    ///
+    /// A full page load writes the filter down with the count it made, and a named filter is kept
+    /// for months. The count would be the corpus as it stood on the day of the save.
+    #[tokio::test]
+    async fn a_saved_filter_holds_no_count() {
+        let (_corpus, state) = a_corpus_of("saved-no-count", 120);
+        let (status, _) = get(&state, "/songs?sort=title&offset=50").await;
+        assert_eq!(status, axum::http::StatusCode::OK);
+        assert_eq!(state.songs_filter(), "sort=title&offset=50&total=120");
+
+        post(
+            &state,
+            "/songs/saved-filters",
+            "saved_name=Place&keep_page=1",
+        )
+        .await;
+        post(&state, "/songs/saved-filters", "saved_name=Question").await;
+        assert_eq!(saved_named(&state, "Place").query, "sort=title&offset=50");
+        assert_eq!(saved_named(&state, "Question").query, "sort=title");
+
+        let (status, _) = get(&state, "/songs?sort=title&offset=100").await;
+        assert_eq!(status, axum::http::StatusCode::OK);
+        let place = saved_named(&state, "Place").id;
+        post(&state, &format!("/songs/saved-filters/{place}/update"), "").await;
+        assert_eq!(saved_named(&state, "Place").query, "sort=title&offset=100");
     }
 
     // -- a page is drawn while the corpus is being written to ------------------------------------
