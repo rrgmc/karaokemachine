@@ -656,6 +656,31 @@ orders a corpus by how much is wrong with each file, and it is built from these 
 second control over the parts would offer a curator two answers to one question. This shows what the
 number is made of on the rows the number already ranked.
 
+## The first words, in the browse list
+
+**A third box, after the file-name one, adds a column holding the line the song book prints for each
+song.** The book prints the first line of a song's words beside its title. A sequencer's banner or a
+wrong opening line in that cell is otherwise found on a printed page.
+
+**A column and not a chip**, because it is a sentence. A title cell holding one would wrap on every
+row. The column sits after Title, where the book puts it.
+
+**The line is derived when the row is read, from what the database already holds.** A build takes
+the first line `LyricTimeline::preview` returns, and none for a song whose words are not drawn. The
+database holds the words as text, the person's answer on hiding them, and the analysis's warnings.
+`km_song::preview_of_plain_text` applies the build's rule to that text. So the column needs no scan
+and no schema change, and it shows a line for every song the database holds words for.
+
+**The stored text has the mask and not the flag that says a line was redacted.** A leading line
+holding the mask counts as a redacted one. A sung opening line with an em dash of its own is skipped
+here, where the book keeps it.
+
+**Empty where the book prints nothing**: an instrumental, and a song whose words are hidden. A
+person's answer on hiding wins over the analysis in both directions, as it does in a build.
+
+Like the two boxes beside it, it narrows nothing. It keeps the page, survives *clear all*, and is
+not persisted.
+
 ## Copies, in the song row
 
 **Hovering a title lists every folder the song sits in, headed by how many there are.** Showing only
@@ -2079,8 +2104,8 @@ reach whatever row had moved into its place.
 ## What keeps the page you are on
 
 **Anything that leaves the list meaning what it meant; a change to which songs are in it starts again
-at the top.** Sorting reorders the same songs and the file-name box only decides whether a chip is
-drawn, so page four still means a real page four. Every other control in that bar changes which songs
+at the top.** Sorting reorders the same songs and the three view boxes only decide what a row
+shows, so page four still means a real page four. Every other control in that bar changes which songs
 match, and an offset into the old set points at nothing in the new one. On a narrowing it points past
 the end, which is an empty list with a working *previous* button, and reads as the tool being broken.
 
@@ -2565,7 +2590,7 @@ songs being curated; this one chooses which of two lists is on the page. A delet
 rating, a filing and a package that nobody means any more. Mixing the two would put rows into
 every count and every page that none of the other controls can say anything useful about. It is a
 filter and not a view: it changes which songs match, so turning it on starts again at the top.
-*Clear all* takes it off, where the two view boxes survive one.
+*Clear all* takes it off, where the three view boxes survive one.
 
 **The scan does not read a deleted song's files, and `--force` does not reach them.** Every other
 skip in a scan is an optimisation: the file would be read to arrive at the row already stored. A

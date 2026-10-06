@@ -181,6 +181,7 @@ it are the same entry. How the thing is built is [`ARCHITECTURE.md`](../ARCHITEC
 - [A song with no title](curation.md#a-song-with-no-title)
 - [File names in the browse list](curation.md#file-names-in-the-browse-list)
 - [What the analysis found wrong, in the browse list](curation.md#what-the-analysis-found-wrong-in-the-browse-list)
+- [The first words, in the browse list](curation.md#the-first-words-in-the-browse-list)
 - [Copies, in the song row](curation.md#copies-in-the-song-row)
 - [When a song was last edited](curation.md#when-a-song-was-last-edited)
 - [When a song was added](curation.md#when-a-song-was-added)

@@ -372,7 +372,15 @@ pub(super) fn browse_columns() -> String {
          --
          -- A boolean and not `deleted_at`: the row says *thrown away* and the date belongs to the
          -- song's own page.
-         (s.deleted_at IS NOT NULL) AS deleted",
+         (s.deleted_at IS NOT NULL) AS deleted,
+         -- The start of the words and the person's answer on hiding them, which together with the
+         -- warnings above give the line the song book prints. Appended, for the reason above, and
+         -- selected always for the warnings' reason.
+         --
+         -- **A prefix and not the column**: the line wanted is among the first nine, and a file
+         -- with no break markers stores the whole song as one.
+         substr(s.lyrics, 1, {WORDS_HEAD_CHARS}) AS words_head,
+         s.lyrics_hidden",
         eff_title("s."),
         eff_artist("s."),
         title_is_filename("s."),
@@ -380,9 +388,39 @@ pub(super) fn browse_columns() -> String {
     )
 }
 
+/// How much of a song's words a browse row reads to find its first line.
+///
+/// A preview skips at most [`km_song::PREVIEW_MAX_SKIP`] leading lines and cuts the one it keeps to
+/// [`km_song::PREVIEW_MAX_CHARS`], and a banner line is short.
+const WORDS_HEAD_CHARS: usize = 4096;
+
+/// The line the song book prints for a song, from what the database holds of it.
+///
+/// **The package's own rule, asked of stored values.** A build writes no preview for a song whose
+/// words are not drawn, and decides that from the person's answer where there is one and from the
+/// analysis's warnings where there is none.
+fn first_words(words_head: Option<&str>, hidden: Option<bool>, warnings: &str) -> Option<String> {
+    let words = words_head?;
+    let hidden = hidden.unwrap_or_else(|| {
+        let warnings: Vec<StoredWarning> = serde_json::from_str(warnings).unwrap_or_default();
+        km_pack::warnings_hide_words(warnings.iter().map(|warning| warning.code.as_str()))
+    });
+    if hidden {
+        return None;
+    }
+    km_song::preview_of_plain_text(words, 1).pop()
+}
+
 pub(super) fn song_row(row: &Row<'_>) -> rusqlite::Result<SongRow> {
     let kind = SongKind::from_str(&row.get::<_, String>(13)?);
+    let warnings: String = row.get(19)?;
+    let first_words = first_words(
+        row.get::<_, Option<String>>(21)?.as_deref(),
+        row.get::<_, Option<bool>>(22)?,
+        &warnings,
+    );
     Ok(SongRow {
+        first_words,
         // Filled by `fill_tags` over a whole page, or by `song_row` for one; a join here would
         // multiply rows and break the `limit + 1` the paging leans on.
         tags: Vec::new(),
@@ -420,7 +458,7 @@ pub(super) fn song_row(row: &Row<'_>) -> rusqlite::Result<SongRow> {
         permanent_count: row.get::<_, i64>(16)? as u32,
         duplicate_of: row.get(17)?,
         has_words: row.get::<_, i64>(18)? != 0,
-        warnings: row.get(19)?,
+        warnings,
         deleted: row.get::<_, i64>(20)? != 0,
     })
 }

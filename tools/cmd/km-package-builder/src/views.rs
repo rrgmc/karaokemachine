@@ -419,19 +419,23 @@ pub struct SongRows {
     /// markup already, and a row redrawn on its own has to inherit the answer from where it lands
     /// rather than lose it.
     pub show_warnings: bool,
+    /// Whether the block is asked to show the line the song book prints for each song.
+    ///
+    /// A class on `#rows` for the reason above: the cell is in every row's markup already.
+    pub show_first_words: bool,
     /// Which page of rows this is, out of how many, as the pager says it. Set by [`Self::say_range`].
     pub range: String,
 }
 
 impl SongRows {
-    /// The classes on `#rows`, which are the two view boxes and nothing else.
+    /// The classes on `#rows`, which are the three view boxes and nothing else.
     ///
-    /// **Composed here rather than as two conditionals in the markup.** The second one would have
+    /// **Composed here rather than as conditionals in the markup.** The second one would have
     /// to know whether the first had already opened the attribute and whether a separating space
-    /// was owed, which is a rule about HTML syntax living in a template; a third box later would
-    /// have to know it about both.
+    /// was owed, which is a rule about HTML syntax living in a template, and the third would have
+    /// to know it about both.
     ///
-    /// Empty when neither is on, which is what the markup tests for: a bare `class=""` on every
+    /// Empty when none is on, which is what the markup tests for: a bare `class=""` on every
     /// page would be an attribute that says nothing.
     pub fn block_class(&self) -> String {
         let mut classes = Vec::new();
@@ -440,6 +444,9 @@ impl SongRows {
         }
         if self.show_warnings {
             classes.push("warnings");
+        }
+        if self.show_first_words {
+            classes.push("firstwords");
         }
         classes.join(" ")
     }
@@ -1026,12 +1033,14 @@ pub struct FilterForm {
     pub unpackaged: bool,
     /// Whether the list is what has been thrown away rather than the corpus.
     pub deleted: bool,
-    /// Whether each row shows its file name beside its title. One of the two boxes in this form
+    /// Whether each row shows its file name beside its title. One of the three boxes in this form
     /// that narrow nothing; they are here because they are set while browsing and have to survive a
     /// page turn.
     pub filename: bool,
-    /// Whether each row shows what the analysis had to say against the song. The other one.
+    /// Whether each row shows what the analysis had to say against the song. The second.
     pub warnings: bool,
+    /// Whether each row shows the line the song book prints for the song. The third.
+    pub firstwords: bool,
     /// Sort key.
     pub sort: String,
 }
@@ -3548,6 +3557,7 @@ mod tests {
             artist: artist.map(ToOwned::to_owned),
             language: Some("pt".to_owned()),
             warnings: "[]".to_owned(),
+            first_words: None,
             tags: Vec::new(),
             hint: None,
             artist_title: String::new(),
@@ -3612,6 +3622,7 @@ mod tests {
             scanning: false,
             show_filename: false,
             show_warnings: false,
+            show_first_words: false,
             range: String::new(),
         };
         rows.say_range(km_locale::Locale::English, 50);
@@ -5089,6 +5100,52 @@ mod tests {
             .in_english()
             .expect("render");
         assert!(alone.contains(">no_lyrics<"), "{alone}");
+    }
+
+    /// The first words are a cell in every row, and a class on the block shows the column.
+    ///
+    /// The class comes last, so the two boxes before it compose as they did.
+    #[test]
+    fn first_words_are_shown_by_a_class_on_the_block_and_not_by_the_row() {
+        let mut song = row("Corcovado", Some("Tom Jobim"), "Brasil/CORCOVAD.kar");
+        song.first_words = Some("Um cantinho, um violão".to_owned());
+
+        let off = rows(vec![song.clone()]).in_english().expect("render");
+        assert!(!off.contains("id=\"rows\" class="), "{off}");
+
+        let mut asked = rows(vec![song.clone()]);
+        asked.show_first_words = true;
+        let on = asked.in_english().expect("render");
+        assert!(on.contains("id=\"rows\" class=\"firstwords\""), "{on}");
+
+        let mut all = rows(vec![song.clone()]);
+        all.show_filename = true;
+        all.show_warnings = true;
+        all.show_first_words = true;
+        let html = all.in_english().expect("render");
+        assert!(
+            html.contains("id=\"rows\" class=\"filenames warnings firstwords\""),
+            "{html}"
+        );
+
+        let cell = "<td class=\"firstwords\">Um cantinho, um violão</td>";
+        for html in [&off, &on] {
+            assert!(html.contains(cell), "{html}");
+            assert!(
+                html.contains("<th class=\"firstwords\">First words</th>"),
+                "{html}"
+            );
+        }
+        let alone = SongRowFragment::new(song, false, Choice::languages_in(&[], None))
+            .in_english()
+            .expect("render");
+        assert!(alone.contains(cell), "{alone}");
+
+        // A song the book prints no line for keeps the cell, so the columns stay in step.
+        let none = rows(vec![row("Wave", None, "Brasil/WAVE.kar")])
+            .in_english()
+            .expect("render");
+        assert!(none.contains("<td class=\"firstwords\"></td>"), "{none}");
     }
 
     /// A column that is not a warning list draws no chips rather than failing the page.
