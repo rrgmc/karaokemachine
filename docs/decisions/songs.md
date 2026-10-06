@@ -345,6 +345,26 @@ a note. The rest carried the fault the rule answers: well-timed words marked dow
 those files rise by two or three points. Where a riff was the runner-up, removing it let eight songs
 abstaining as ambiguous find a melody aligned with 76% or more of the words.
 
+## Words typed one letter at a time are aligned by their line starts
+
+**Some files send each letter as its own lyric event, at a constant rate.** Only the start of a line
+is timed against the music in such a file. A melody that starts every line lands on about a third of
+the letters, below the 70% that alignment asks for. Such a file rarely names its tracks, so detection
+abstains as `no_supporting_evidence` on a song whose melody is plain to hear.
+
+**So lyric alignment counts line starts in such a file.** A file qualifies when 90% of at least 32
+syllables are one Latin letter, and it places at least 8 lines itself. A line start that the machine
+inferred is not a timing point. One Han character or one kana to an event is a sung syllable, so the
+rule reads Latin letters only.
+
+**The other gates do not change.** A candidate is still monophonic, in singing range, and present
+under half the syllables, and it still beats the runner-up by 1.5 times. A file whose lines start
+ahead of the singing fails the 70% on line starts too, and abstains as it did.
+
+**Measured over 1,308 corpus files from one collection that types its words this way**, the share
+with a melody rose from 24% to 62%. Abstentions for no supporting evidence fell from 57% to 16%, and
+ambiguous ones rose from 5% to 8%.
+
 ## A file's own name for its lyric track outranks how long the track is
 
 **`Words` wins, even when another text track holds more.** A second text track is a second timing of

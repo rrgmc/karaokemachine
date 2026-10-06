@@ -274,6 +274,13 @@ beat off a real melody still pass. `rank` applies the same test to `eligible`.
 The rule and its measurement are the decision
 [`A channel named for the melody must play while the words are sung`](../decisions/songs.md#a-channel-named-for-the-melody-must-play-while-the-words-are-sung).
 
+**Line starts align a file that types one letter to an event.** `is_letter_typed` asks for
+`letter_typed_share` (90%) of at least `letter_typed_min_syllables` (32) syllables to be one Latin
+letter. It also asks for `letter_typed_min_lines` (8) lines that the file placed itself. Lyric
+alignment then counts line starts in place of syllables, and the presence gate still counts
+syllables. The decision is
+[`Words typed one letter at a time are aligned by their line starts`](../decisions/songs.md#words-typed-one-letter-at-a-time-are-aligned-by-their-line-starts).
+
 All thresholds live in one module so they can be revised from evidence, and `km-pack reanalyze`
 recomputes a package after a revision.
 

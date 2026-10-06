@@ -39,7 +39,8 @@ pub struct MelodyChannel {
     pub confidence: f32,
     /// Which signals fired, so a borderline call can be audited.
     pub signals: Vec<MelodySignal>,
-    /// Fraction of syllables with a note onset on this channel.
+    /// Fraction of syllables with a note onset on this channel, or of line starts where the words
+    /// are typed one letter to an event.
     pub lyric_alignment: f32,
     /// Fraction of sounding time with at most one note.
     pub monophony: f32,
@@ -63,7 +64,8 @@ pub struct MelodyEvidence {
     pub evidence: f32,
     /// Which signals fired.
     pub signals: Vec<MelodySignal>,
-    /// Fraction of syllables with a note onset on this channel.
+    /// Fraction of syllables with a note onset on this channel, or of line starts where the words
+    /// are typed one letter to an event.
     pub lyric_alignment: f32,
     /// Fraction of sounding time with at most one note.
     pub monophony: f32,
@@ -172,6 +174,7 @@ pub fn detect(song: &Song, channels: &[ChannelStats], thresholds: &Thresholds) -
         .into_iter()
         .map(|tick| song.tempo_map.tick_to_ms(tick))
         .collect();
+    let sung_ms = sung_points_ms(song, thresholds);
 
     let monophonic: Vec<&ChannelStats> = eligible
         .iter()
@@ -218,7 +221,7 @@ pub fn detect(song: &Song, channels: &[ChannelStats], thresholds: &Thresholds) -
 
     let mut candidates: Vec<Candidate> = present
         .iter()
-        .map(|stats| score(song, stats, &syllable_ms, thresholds))
+        .map(|stats| score(song, stats, &sung_ms, thresholds))
         .collect();
 
     // Anything with no supporting evidence beyond being monophonic is not a candidate. A bass line
@@ -278,12 +281,13 @@ pub fn rank(
         .into_iter()
         .map(|tick| song.tempo_map.tick_to_ms(tick))
         .collect();
+    let sung_ms = sung_points_ms(song, thresholds);
 
     let mut ranked: Vec<MelodyEvidence> = channels
         .iter()
         .filter(|stats| stats.channel != DRUM_CHANNEL && stats.note_count > 0)
         .map(|stats| {
-            let candidate = score(song, stats, &syllable_ms, thresholds);
+            let candidate = score(song, stats, &sung_ms, thresholds);
             let gated = stats.monophony >= thresholds.melody_min_monophony
                 && thresholds.is_vocal_range(stats.median_key, stats.vocal_key_fraction)
                 && plays_under_the_words(song, stats, &syllable_ms, thresholds)
@@ -312,16 +316,11 @@ pub fn rank(
 /// The weights are relative, not absolute: only their ordering and the margin between candidates
 /// matter. Lyric alignment dominates because it is the only signal that actually ties a channel to
 /// the singing; the channel-number convention is a tiebreaker and never enough on its own.
-fn score(
-    song: &Song,
-    stats: &ChannelStats,
-    syllable_ms: &[u32],
-    thresholds: &Thresholds,
-) -> Candidate {
+fn score(song: &Song, stats: &ChannelStats, sung_ms: &[u32], thresholds: &Thresholds) -> Candidate {
     let mut signals = Vec::new();
     let mut score = 0.0f32;
 
-    let alignment = lyric_alignment(song, stats, syllable_ms, thresholds);
+    let alignment = lyric_alignment(song, stats, sung_ms, thresholds);
     if alignment > 0.0 {
         score += 4.0 * alignment;
         if alignment >= thresholds.melody_min_lyric_alignment {
@@ -355,14 +354,60 @@ fn score(
     }
 }
 
-/// Fraction of syllables that have a note onset on this channel close enough to be the sung note.
+/// Fraction of sung points that have a note onset on this channel close enough to be the sung note.
 fn lyric_alignment(
     song: &Song,
     stats: &ChannelStats,
-    syllable_ms: &[u32],
+    sung_ms: &[u32],
     thresholds: &Thresholds,
 ) -> f32 {
-    syllables_within(song, stats, syllable_ms, thresholds.note_align_window_ms)
+    syllables_within(song, stats, sung_ms, thresholds.note_align_window_ms)
+}
+
+/// The lyric timing points a sung note is expected on, in milliseconds.
+///
+/// Every syllable start, except in a file typed one letter to an event. Such a file spaces its
+/// letters at a constant rate, so only the start of each line was timed against the music, and a
+/// melody that lands on every line start lands on a third of the letters.
+fn sung_points_ms(song: &Song, thresholds: &Thresholds) -> Vec<u32> {
+    let ticks = if is_letter_typed(song, thresholds) {
+        song.lyrics
+            .lines
+            .iter()
+            .map(|line| line.start_tick)
+            .collect()
+    } else {
+        song.lyrics.syllable_ticks()
+    };
+    ticks
+        .into_iter()
+        .map(|tick| song.tempo_map.tick_to_ms(tick))
+        .collect()
+}
+
+/// Whether the words are typed one letter to an event, with line starts the file placed itself.
+///
+/// A line start somebody inferred is no timing point, and a handful of lines is too few to tell a
+/// melody from a part that happens to start with them, so both fall back to the syllables.
+fn is_letter_typed(song: &Song, thresholds: &Thresholds) -> bool {
+    let lyrics = &song.lyrics;
+    if !lyrics.lines_are_marked || lyrics.line_count() < thresholds.letter_typed_min_lines {
+        return false;
+    }
+    let (mut judged, mut letters) = (0usize, 0usize);
+    for syllable in lyrics.lines.iter().flat_map(|line| &line.syllables) {
+        let mut chars = syllable.text.trim().chars();
+        let Some(first) = chars.next() else {
+            continue;
+        };
+        judged += 1;
+        // Latin only. One Han character or one kana to an event is a syllable sung on its own note.
+        if chars.next().is_none() && u32::from(first) < 0x0250 {
+            letters += 1;
+        }
+    }
+    judged >= thresholds.letter_typed_min_syllables
+        && letters as f32 >= judged as f32 * thresholds.letter_typed_share
 }
 
 /// Whether a channel sounds while the words are sung, which a melody must.
@@ -566,6 +611,24 @@ mod tests {
         let outcome = analyze(&testing::melody_on_channel_fifteen());
         let melody = outcome.channel().expect("channel 15 is still a channel");
         assert_eq!(melody.channel, 15);
+    }
+
+    #[test]
+    fn words_typed_a_letter_at_a_time_are_aligned_by_their_line_starts() {
+        // Neither part is named, so alignment is the only evidence, and the letters give either
+        // part about a fifth of it. The line starts separate the tune from its echo.
+        let bytes = testing::letter_typed_lyrics();
+        let outcome = analyze(&bytes);
+        let melody = outcome.channel().expect("the melody starts every line");
+        assert_eq!(melody.channel, 0, "channel 1 is the echo");
+        assert!(melody.signals.contains(&MelodySignal::LyricAlignment));
+        assert!(melody.lyric_alignment > 0.9);
+
+        let echo = ranked(&bytes)
+            .into_iter()
+            .find(|row| row.channel == 1)
+            .expect("the echo is ranked");
+        assert!(!echo.eligible);
     }
 
     #[test]
