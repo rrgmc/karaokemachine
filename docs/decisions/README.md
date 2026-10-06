@@ -485,6 +485,7 @@ it are the same entry. How the thing is built is [`ARCHITECTURE.md`](../ARCHITEC
 - [Which source `km-admin` opens on, and what a key of your own changes](repository.md#which-source-km-admin-opens-on-and-what-a-key-of-your-own-changes)
 - [Where a key somebody typed into a page lives](repository.md#where-a-key-somebody-typed-into-a-page-lives)
 - [Nothing downloads](repository.md#nothing-downloads)
+- [A person names the site a song file is fetched from](repository.md#a-person-names-the-site-a-song-file-is-fetched-from)
 - [What the README may show of a catalog](repository.md#what-the-readme-may-show-of-a-catalog)
 - [What a published picture says about the build it was taken from](repository.md#what-a-published-picture-says-about-the-build-it-was-taken-from)
 - [Which wallpaper the published pictures are taken over](repository.md#which-wallpaper-the-published-pictures-are-taken-over)

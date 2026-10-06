@@ -442,6 +442,46 @@ things sit on the asked-for side of it:
   bring back is material somebody chose, on terms that are that person's to accept.
 - **The Windows installer fetches Microsoft's WebView2 bootstrapper when it is absent, and nothing
   else, ever** — `What setup fetches` in [`distribution.md`](distribution.md).
+- **`km-site-pack` fetches song files from an address a person types**, and
+  [`A person names the site a song file is fetched from`](#a-person-names-the-site-a-song-file-is-fetched-from)
+  holds its terms.
+
+## A person names the site a song file is fetched from
+
+**`km-site-pack` fetches song files only when a person runs it, and only from the address that person
+types.** It is a packager's tool, on the asked-for side of the line
+[`Nothing downloads`](#nothing-downloads) draws. The machine never runs it, and nothing runs it on a
+timer.
+
+**The project names no site.** No address is compiled in, listed in a document or offered as a
+default. A test serves an invented site from the loopback address. The project mirrors no file the
+tool brings back.
+
+**The terms of what comes back are that person's to accept.** A karaoke MIDI is several works at
+once, as [`A downloadable song pack`](#a-downloadable-song-pack) sets out, and a site rarely states
+the status of any of them. The tool cannot judge that, and it does not try.
+
+Five constraints hold the tool where it is:
+
+- **It follows pages on the host it was given and no other.** A song file may sit on a second host,
+  because a page often links its files from a file store.
+- **It honours `robots.txt`**, and no flag turns that off.
+- **It asks as itself.** The user agent is the program's name and version. A site that answers only
+  a browser is reported as one, and the tool stops there.
+- **It writes no source address** into the description, the listing or the package.
+  [`A package says nothing about the machine that built it`](packaging.md#a-package-says-nothing-about-the-machine-that-built-it)
+  is the same rule from the other side.
+- **Every package it builds is uncurated**, and says so wherever
+  [`An uncurated package says so everywhere but the television`](packaging.md#an-uncurated-package-says-so-everywhere-but-the-television)
+  has one say it.
+
+**A file the server sends is from a stranger.** Its name is reduced to a plain file name before
+anything is written, and an archive entry is written under its base name only. A size limit bounds
+each page, each file and each archive.
+
+**A file with no words stays in the folder and out of the package.** Some hosts accept only the
+`.mid` extension, so a karaoke file often carries it. The tool therefore takes `.mid` and `.midi` as
+well as `.kar`, and the words decide which of them is a song.
 
 ## What the README may show of a catalog
 
