@@ -77,6 +77,11 @@ async fn a_folder_becomes_an_uncurated_package_with_the_changes_made_on_the_page
         "{page}"
     );
     assert!(!page.contains(r#"class="suitability none""#), "{page}");
+    assert_eq!(
+        page.matches(r#"<nav class="pager">"#).count(),
+        2,
+        "the pager is above the list and below it: {page}"
+    );
     assert!(
         page.contains(r##"hx-target="#browse-out_dir" hx-swap="innerHTML""##),
         "the output folder offers a picker of its own: {page}"

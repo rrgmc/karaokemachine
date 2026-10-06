@@ -11,6 +11,15 @@ Entries are written for somebody who has the machine. Why any of it is the way i
 
 ## [Unreleased]
 
+### Changed
+
+- **KM Simple Package shows the page links above the song list as well as below it.**
+
+### Fixed
+
+- **KM Simple Package stays where you are when you keep a song or leave it out.** The page jumped
+  to its foot on every click of a box.
+
 ## [1.19.0] - 2026-10-02
 
 ### Added
