@@ -126,7 +126,7 @@ Name: "builder"; Description: "KM Package Builder -- turns a folder of songs int
 Name: "simple"; Description: "KM Simple Package -- makes a package straight from a folder, in one step"; Types: full
 Name: "remote"; Description: "KM Remote -- search and queue from this computer"; Types: full
 Name: "assets"; Description: "KM Admin -- find pictures and instrument banks for the machine"; Types: full
-Name: "tools"; Description: "Command-line tools (km-pack, km-lyrics, km-wallpaper-pack)"; Types: full
+Name: "tools"; Description: "Command-line tools (km-pack, km-lyrics, km-site-pack, km-wallpaper-pack)"; Types: full
 
 [Tasks]
 ; Ticked by default: the three command-line tools are useless if they cannot be typed, and the two
@@ -162,6 +162,7 @@ Source: "{#Payload}\km-remote.exe";      DestDir: "{app}"; Components: remote;  
 Source: "{#Payload}\km-admin.exe";      DestDir: "{app}"; Components: assets;  Flags: ignoreversion
 Source: "{#Payload}\km-pack.exe";            DestDir: "{app}"; Components: tools;   Flags: ignoreversion
 Source: "{#Payload}\km-lyrics.exe";          DestDir: "{app}"; Components: tools;   Flags: ignoreversion
+Source: "{#Payload}\km-site-pack.exe";       DestDir: "{app}"; Components: tools;   Flags: ignoreversion
 Source: "{#Payload}\km-wallpaper-pack.exe";     DestDir: "{app}"; Components: tools;   Flags: ignoreversion
 
 ; -- the instrument bank, the wallpapers and the font ---------------------------------------------

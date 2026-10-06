@@ -755,7 +755,7 @@ tasks:
       - '"{{.SH}}" tools/platform/linux/tarball.sh {{if .NO_VIDEO}}--no-video{{end}} {{if .VERBOSE}}--verbose{{end}} {{.CLI_ARGS}}'
 
   dist:tools:
-    desc: 'Stage the command-line tools -- all seven, or `task dist:tools -- km-pack km-lyrics` (NO_VIDEO=1 ZIP=1 VERBOSE=1)'
+    desc: 'Stage the command-line tools -- all eight, or `task dist:tools -- km-pack km-lyrics` (NO_VIDEO=1 ZIP=1 VERBOSE=1)'
     cmds:
       - '"{{.SH}}" tools/dist/cmd.sh {{if .NO_VIDEO}}--no-video{{end}} {{if .ZIP}}--zip{{end}} {{if .VERBOSE}}--verbose{{end}} {{.CLI_ARGS}}'
 
