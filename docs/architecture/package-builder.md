@@ -604,7 +604,12 @@ markup.
 a prefix of `s.lyrics` and `s.lyrics_hidden` on every page. `first_words` in `db/sql.rs` gives the
 line `km_song::preview_of_plain_text` returns, or none where the hand answer or the warnings hide
 the words. The prefix bounds the read for a file with no break markers, whose whole song is one
-line. The four tables that include `song_row.html` each carry the `<th>`, and only `#rows` shows it.
+line. The four tables that include `song_row.html` each carry the `<th>`. `#rows` shows it on the
+browse list, and `#hits` shows it on the two matching pages.
+
+**On the matching pages the box travels with the narrowing.** `SimilarQuery` reads `firstwords` and
+`SimilarNarrowing::first_words` remembers it, true in both constructors. The hits templates put the
+class on `#hits`, so a change of the box redraws the list through the bar's own `hx-get`.
 
 ### Two rules that are walked into repeatedly
 

@@ -1,4 +1,6 @@
-<div id="hits">
+{# The class shows the first-words cell every row carries, as `#rows.firstwords` does on the Songs
+   page. On the block and not the row, so a row swapped back in after an edit inherits it. #}
+<div id="hits"{% if show_first_words %} class="firstwords"{% endif %}>
 <div id="action-result"></div>
 
 {% if !searched %}

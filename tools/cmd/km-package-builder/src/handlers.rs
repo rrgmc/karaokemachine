@@ -1472,6 +1472,8 @@ pub struct SimilarQuery {
     copies: Option<String>,
     /// `all` for every version of a recording. A checkbox, so the bar sends nothing when it is clear.
     versions: Option<String>,
+    /// Present when the first-words column is asked for. A checkbox, as `versions` is.
+    firstwords: Option<String>,
 }
 
 /// Which of the two matching pages a query is being settled for.
@@ -1503,6 +1505,9 @@ impl SimilarQuery {
             versions: fields
                 .has("versions")
                 .then(|| fields.text("versions").to_owned()),
+            firstwords: fields
+                .has("firstwords")
+                .then(|| fields.text("firstwords").to_owned()),
         }
     }
 
@@ -1531,6 +1536,7 @@ impl SimilarQuery {
             &self.granularity,
             &self.copies,
             &self.versions,
+            &self.firstwords,
         ]
         .iter()
         .any(|field| field.is_some());
@@ -1541,6 +1547,7 @@ impl SimilarQuery {
                 granularity: self.granularity().to_owned(),
                 copies: self.copies().to_owned(),
                 versions: self.versions().as_str().to_owned(),
+                first_words: self.first_words(),
             };
             match page {
                 Page::Names => state.remember_similar_narrowing(asked),
@@ -1556,8 +1563,14 @@ impl SimilarQuery {
             self.granularity = Some(remembered.granularity);
             self.copies = Some(remembered.copies);
             self.versions = Some(remembered.versions);
+            self.firstwords = remembered.first_words.then(|| "1".to_owned());
         }
         self
+    }
+
+    /// Whether the list draws the first-words column.
+    fn first_words(&self) -> bool {
+        self.firstwords.is_some()
     }
 
     fn suitability(&self) -> &str {
@@ -1608,6 +1621,7 @@ impl SimilarQuery {
             granularity: self.granularity().to_owned(),
             copies: CopiesFilter::parse(self.copies()).as_str().to_owned(),
             versions: self.versions().as_str().to_owned(),
+            firstwords: self.first_words(),
             ..FilterForm::default()
         }
     }
@@ -1686,6 +1700,7 @@ async fn similar_for(state: &State, query: &SimilarQuery) -> Result<SimilarHits,
     Ok(SimilarHits {
         hits,
         searched,
+        show_first_words: query.first_words(),
         ratings: crate::views::rating_choices(),
         languages: crate::views::Choice::languages_in(&present, None),
         all_languages: Vec::new(),
@@ -1776,6 +1791,7 @@ async fn similar_words_for(
         hits,
         indexed,
         comparable,
+        show_first_words: query.first_words(),
         ratings: crate::views::rating_choices(),
         languages: crate::views::Choice::languages_in(&present, None),
         all_languages: Vec::new(),

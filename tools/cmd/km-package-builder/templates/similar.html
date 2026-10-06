@@ -80,6 +80,14 @@
     <label><input type="checkbox" name="versions" value="all" {% if query.every_version() %}checked{% endif %}
            title="{{ "songs-every-version-title"|t }}"> {{ "songs-every-version"|t }}</label>
   </div>
+
+  {# The Songs bar's box under its own name, and ticked when the page opens: the opening line is
+     what tells two files of one song apart. It narrows nothing. A cleared box sends nothing, and
+     the selects above still send their fields, so the bar is still the one speaking. #}
+  <div class="band">
+    <label class="view"><input type="checkbox" name="firstwords" value="1" {% if query.firstwords %}checked{% endif %}
+           title="{{ "songs-show-first-words-title"|t }}"> {{ "songs-show-first-words"|t }}</label>
+  </div>
 </form>
 </div>
 
