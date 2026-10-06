@@ -236,34 +236,63 @@ impl LyricTimeline {
     ///   so a file carrying none at all yields *one* `LyricLine` holding the entire song — and the
     ///   corpus has those. Without a cut, a manifest would gain kilobytes for one such file.
     pub fn preview(&self, limit: usize) -> Vec<String> {
-        let mut out = Vec::with_capacity(limit);
-        let mut skipped = 0usize;
-        for line in &self.lines {
-            if out.len() == limit {
-                break;
-            }
-            let text = line.text();
-            let trimmed = text.trim();
-            // Blank lines never count against the skip budget: they are not a classifier's guess.
-            if trimmed.is_empty() {
-                continue;
-            }
-            // `contact_redacted` first, for the same reason `km_suitability` reads it first: the
-            // masking has already run by the time anyone asks, so a telephone line that arrives here
-            // as `0**17 —` no longer trips the digit rule that used to skip it, and the business
-            // card this bound exists to hide would become the preview. Measured on the fixture, not
-            // reasoned about — `km-lyrics preview` reported exactly that before the flag was added.
-            if out.is_empty()
-                && skipped < PREVIEW_MAX_SKIP
-                && (line.contact_redacted || crate::looks_like_a_banner(trimmed))
-            {
-                skipped += 1;
-                continue;
-            }
-            out.push(truncate(trimmed, PREVIEW_MAX_CHARS));
-        }
-        out
+        preview_of(
+            self.lines
+                .iter()
+                .map(|line| (line.text(), line.contact_redacted)),
+            limit,
+        )
     }
+}
+
+/// [`LyricTimeline::preview`] over lines that are text and a flag, which is where its rule lives.
+///
+/// The flag is [`LyricLine::contact_redacted`]. A free function because a caller holding stored text
+/// has no timeline to ask, and a second copy of the rule would drift from the one a package is
+/// built with.
+pub fn preview_of<T: AsRef<str>>(
+    lines: impl IntoIterator<Item = (T, bool)>,
+    limit: usize,
+) -> Vec<String> {
+    let mut out = Vec::with_capacity(limit);
+    let mut skipped = 0usize;
+    for (text, contact_redacted) in lines {
+        if out.len() == limit {
+            break;
+        }
+        let trimmed = text.as_ref().trim();
+        // Blank lines never count against the skip budget: they are not a classifier's guess.
+        if trimmed.is_empty() {
+            continue;
+        }
+        // `contact_redacted` first, for the same reason `km_suitability` reads it first: the
+        // masking has already run by the time anyone asks, so a telephone line that arrives here
+        // as `0**17 —` no longer trips the digit rule that used to skip it, and the business
+        // card this bound exists to hide would become the preview. Measured on the fixture, not
+        // reasoned about — `km-lyrics preview` reported exactly that before the flag was added.
+        if out.is_empty()
+            && skipped < PREVIEW_MAX_SKIP
+            && (contact_redacted || crate::looks_like_a_banner(trimmed))
+        {
+            skipped += 1;
+            continue;
+        }
+        out.push(truncate(trimmed, PREVIEW_MAX_CHARS));
+    }
+    out
+}
+
+/// [`LyricTimeline::preview`] over what [`LyricTimeline::plain_text`] wrote.
+///
+/// **Stored text carries the mask and not the flag**, so a line holding [`crate::MASK`] stands for a
+/// redacted one. A sung line that holds an em dash of its own is therefore skipped here where the
+/// timeline keeps it, and only among the leading lines the skip budget covers.
+pub fn preview_of_plain_text(text: &str, limit: usize) -> Vec<String> {
+    preview_of(
+        text.split('\n')
+            .map(|line| (line, line.contains(crate::MASK))),
+        limit,
+    )
 }
 
 /// How many leading lines [`LyricTimeline::preview`] will skip before giving up on the idea.
@@ -914,11 +943,21 @@ const SHOUTED_MIN_LETTERS: usize = 20;
 /// letters. `km-suitability` reads a chord's root as a capital, and a chart must reach it unchanged.
 const SHOUTED_MIN_WORD: usize = 5;
 
-/// Rewrites a timeline written entirely in capitals into sentence case.
+/// The share of a timeline's cased letters, in percent, that lowercase must stay under for
+/// [`recase_shouted`] to judge the timeline written in capitals.
 ///
-/// A file with no lowercase letter anywhere says nothing with its capitals, so every letter becomes
-/// lowercase and the first letter of each line becomes a capital. A file with one lowercase letter
-/// chose its capitals and is left alone, a line of capitals inside it included.
+/// A file sung in capitals can open with a credit card in both cases, and the card is under 7% of
+/// its letters in 6,000 files sampled from the local corpus. A duet that gives one singer the
+/// capitals starts at 9.6% there.
+const SHOUTED_MAX_LOWERCASE_PERCENT: usize = 8;
+
+/// Rewrites a timeline written in capitals into sentence case.
+///
+/// A file whose letters are nearly all capitals says nothing with them, so each line written in
+/// capitals becomes lowercase and its first letter becomes a capital. A line is written in capitals
+/// when its capitals outnumber its lowercase letters. A line in both cases is a credit, and it is
+/// left alone. A file at or over [`SHOUTED_MAX_LOWERCASE_PERCENT`] chose its capitals and is left
+/// alone, a line of capitals inside it included.
 ///
 /// **No name and no pronoun gets its capital back**, because telling one from a word takes a
 /// dictionary of the song's language. See `Words written all in capitals are drawn in sentence case`.
@@ -928,12 +967,13 @@ const SHOUTED_MIN_WORD: usize = 5;
 /// as the file wrote it.
 fn recase_shouted(lines: &mut [LyricLine]) {
     let mut capitals = 0usize;
+    let mut lowercase = 0usize;
     let mut run = 0usize;
     let mut longest_run = 0usize;
     for line in lines.iter() {
         for ch in line.syllables.iter().flat_map(|s| s.text.chars()) {
             if ch.is_lowercase() {
-                return;
+                lowercase += 1;
             }
             if ch.is_uppercase() {
                 capitals += 1;
@@ -951,8 +991,19 @@ fn recase_shouted(lines: &mut [LyricLine]) {
     if capitals < SHOUTED_MIN_LETTERS || longest_run < SHOUTED_MIN_WORD {
         return;
     }
+    if lowercase * 100 >= (capitals + lowercase) * SHOUTED_MAX_LOWERCASE_PERCENT {
+        return;
+    }
 
     for line in lines {
+        let (mut line_capitals, mut line_lowercase) = (0usize, 0usize);
+        for ch in line.syllables.iter().flat_map(|s| s.text.chars()) {
+            line_capitals += usize::from(ch.is_uppercase());
+            line_lowercase += usize::from(ch.is_lowercase());
+        }
+        if line_capitals <= line_lowercase {
+            continue;
+        }
         let mut line_has_its_capital = false;
         for syllable in &mut line.syllables {
             let lowered = syllable.text.to_lowercase();
@@ -1051,10 +1102,27 @@ mod tests {
     }
 
     #[test]
-    fn a_timeline_with_one_lowercase_letter_keeps_its_capitals() {
-        let timeline = lines_of(&["TWINKLE TWINKLE LITTLE STAR", "how I WONDER"]);
+    fn a_timeline_that_writes_both_cases_keeps_its_capitals() {
+        let timeline = lines_of(&["TWINKLE TWINKLE LITTLE STAR", "how I wonder"]);
         assert_eq!(timeline.lines[0].text(), "TWINKLE TWINKLE LITTLE STAR");
-        assert_eq!(timeline.lines[1].text(), "how I WONDER");
+        assert_eq!(timeline.lines[1].text(), "how I wonder");
+    }
+
+    #[test]
+    fn a_credit_in_both_cases_does_not_keep_a_timeline_in_capitals() {
+        let timeline = lines_of(&[
+            "By Ann",
+            "TWINKLE TWINKLE LITTLE STAR",
+            "HOW I WONDER WHAT YOU ARE",
+            "UP ABOVE THE WORLD SO HIGH",
+            "LIKE A DIAMOND IN THE SKY",
+            "CORAÇãO DE PAPEL",
+        ]);
+        // The credit holds more lowercase letters than capitals, so it is not a shouted line.
+        assert_eq!(timeline.lines[0].text(), "By Ann");
+        assert_eq!(timeline.lines[1].text(), "Twinkle twinkle little star");
+        // A stray lowercase letter does not make a line of capitals a credit.
+        assert_eq!(timeline.lines[5].text(), "Coração de papel");
     }
 
     #[test]
@@ -1530,6 +1598,26 @@ mod tests {
             ticks_to_ms,
         );
         assert_eq!(timeline.preview(2), vec!["Tempo perdido"]);
+    }
+
+    /// Stored text holds the mask and no flag, and its preview is still the timeline's.
+    #[test]
+    fn stored_text_previews_as_the_timeline_it_came_from() {
+        let timeline = build_timeline(
+            vec![
+                raw(0, "A. Sequencer", LineBreak::None),
+                raw(480, "0**17 3463-1150", LineBreak::Line),
+                raw(960, "someone@example.com", LineBreak::Line),
+                raw(1440, "Tempo perdido", LineBreak::Line),
+                raw(1920, "E que tudo mais", LineBreak::Line),
+            ],
+            inference(),
+            ticks_to_ms,
+        );
+        let stored = timeline.plain_text();
+        assert_eq!(preview_of_plain_text(&stored, 2), timeline.preview(2));
+        assert_eq!(preview_of_plain_text(&stored, 1), vec!["Tempo perdido"]);
+        assert!(preview_of_plain_text("", 1).is_empty());
     }
 
     #[test]

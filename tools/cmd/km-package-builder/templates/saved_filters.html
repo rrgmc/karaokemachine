@@ -38,7 +38,7 @@
   <form id="save-filter" hx-post="/songs/saved-filters"
         hx-target="#saved-filter-result" hx-swap="innerHTML">
     <input name="saved_name" placeholder="{{ "saved-name-placeholder"|t }}" size="22" required>
-    {# Ticked, because the page is part of where somebody was — see `The page comes back too` in
+    {# Ticked, because the page is part of where somebody was — see `The page is part of it` in
        `docs/decisions/curation.md`. Untick it for a filter that names a question rather than a
        place, which should open at the top however deep the corpus was being read when it was
        saved. #}

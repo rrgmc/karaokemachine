@@ -455,7 +455,7 @@ pub struct FilterQuery {
     /// **A string and not the presence flag `unpackaged` beside it**, because the control's own
     /// vocabulary is [`DeletedFilter`]'s and a third arm would otherwise need a second parameter.
     ///
-    /// **A filter, unlike the two view boxes below**: it changes which songs match, so it is not in
+    /// **A filter, unlike the three view boxes below**: it changes which songs match, so it is not in
     /// `ui.js`'s `KEEPS_THE_PAGE`, it does not survive *clear all*, and turning it on starts again
     /// at the top of the list.
     #[serde(default)]
@@ -473,6 +473,12 @@ pub struct FilterQuery {
     /// [`Self::warnings`], off by default, surviving a page turn and *clear all*.
     #[serde(default)]
     warnings: Option<String>,
+    /// Not a filter either: whether each row shows the line the song book prints for the song.
+    ///
+    /// The third box, and the same shape as the two above: a presence key read through
+    /// [`Self::first_words`], off by default, surviving a page turn and *clear all*.
+    #[serde(default)]
+    firstwords: Option<String>,
     #[serde(default)]
     sort: String,
     #[serde(default)]
@@ -574,6 +580,14 @@ impl FilterQuery {
     /// unticked checkbox sends — so this is one line and no marker field is needed.
     fn warnings(&self) -> bool {
         self.warnings.is_some()
+    }
+
+    /// Whether each row shows the line the song book prints for the song.
+    ///
+    /// Off by default, because the column takes its width from Title and Artist and the pass it
+    /// serves is checking a book before it is printed.
+    fn first_words(&self) -> bool {
+        self.firstwords.is_some()
     }
 
     /// The tags being narrowed by, with `add_tag` merged in — folded, sorted, de-duplicated.
@@ -710,6 +724,7 @@ impl FilterQuery {
             unpackaged: self.unpackaged.is_some(),
             filename: self.filenames(),
             warnings: self.warnings(),
+            firstwords: self.first_words(),
             sort: Sort::parse(&self.sort).as_str().to_owned(),
         }
     }
@@ -910,7 +925,7 @@ impl FilterQuery {
         }
     }
 
-    /// The query with every narrowing filter gone and the two view settings kept.
+    /// The query with every narrowing filter gone and the three view settings kept.
     fn only_view(&self) -> String {
         let mut parts = Vec::new();
         if !self.sort.is_empty() {
@@ -925,6 +940,9 @@ impl FilterQuery {
         // the filters has nothing to say about it.
         if self.warnings() {
             parts.push("warnings=1".to_owned());
+        }
+        if self.first_words() {
+            parts.push("firstwords=1".to_owned());
         }
         parts.join("&")
     }
@@ -1029,6 +1047,9 @@ impl FilterQuery {
         // The other view box, same shape and for the same reason.
         if self.warnings() && dropped != "warnings" {
             parts.push("warnings=1".to_owned());
+        }
+        if self.first_words() && dropped != "firstwords" {
+            parts.push("firstwords=1".to_owned());
         }
         if offset > 0 {
             parts.push(format!("offset={offset}"));
@@ -1205,8 +1226,18 @@ async fn rows_for(state: &State, query: &FilterQuery) -> Result<SongRows, DbErro
     // hand-typed offset land here too.
     //
     // Costs a second query, and only in the case that would otherwise draw nothing. Backwards only:
-    // a carried `total` that a scan has left behind can put the last page *after* the empty one, and
     // one empty page is enough.
+    //
+    // **An empty page under a carried `total` is counted again first.** A count that a scan has
+    // left behind puts the last page at or after the empty one, and then nothing here moves. The
+    // nav's Songs link, a bookmark and a stored query written with a count all carry one.
+    let total = match carried {
+        Some(_) if songs.is_empty() => {
+            let counting = query.to_filter();
+            state.reading(move |db| db.song_count(&counting)).await?
+        }
+        _ => total,
+    };
     let last_page = total.saturating_sub(1) / PAGE_SIZE * PAGE_SIZE;
     let (songs, has_more, offset) = if songs.is_empty() && total > 0 && last_page < offset {
         let mut filter = query.to_filter();
@@ -1255,6 +1286,7 @@ async fn rows_for(state: &State, query: &FilterQuery) -> Result<SongRows, DbErro
         scanning: state.scan_running(),
         show_filename: query.filenames(),
         show_warnings: query.warnings(),
+        show_first_words: query.first_words(),
         // After the rest, because it counts what is in there and reads whether a scan is running.
         range: String::new(),
     };
@@ -1440,6 +1472,8 @@ pub struct SimilarQuery {
     copies: Option<String>,
     /// `all` for every version of a recording. A checkbox, so the bar sends nothing when it is clear.
     versions: Option<String>,
+    /// Present when the first-words column is asked for. A checkbox, as `versions` is.
+    firstwords: Option<String>,
 }
 
 /// Which of the two matching pages a query is being settled for.
@@ -1471,6 +1505,9 @@ impl SimilarQuery {
             versions: fields
                 .has("versions")
                 .then(|| fields.text("versions").to_owned()),
+            firstwords: fields
+                .has("firstwords")
+                .then(|| fields.text("firstwords").to_owned()),
         }
     }
 
@@ -1499,6 +1536,7 @@ impl SimilarQuery {
             &self.granularity,
             &self.copies,
             &self.versions,
+            &self.firstwords,
         ]
         .iter()
         .any(|field| field.is_some());
@@ -1509,6 +1547,7 @@ impl SimilarQuery {
                 granularity: self.granularity().to_owned(),
                 copies: self.copies().to_owned(),
                 versions: self.versions().as_str().to_owned(),
+                first_words: self.first_words(),
             };
             match page {
                 Page::Names => state.remember_similar_narrowing(asked),
@@ -1524,8 +1563,14 @@ impl SimilarQuery {
             self.granularity = Some(remembered.granularity);
             self.copies = Some(remembered.copies);
             self.versions = Some(remembered.versions);
+            self.firstwords = remembered.first_words.then(|| "1".to_owned());
         }
         self
+    }
+
+    /// Whether the list draws the first-words column.
+    fn first_words(&self) -> bool {
+        self.firstwords.is_some()
     }
 
     fn suitability(&self) -> &str {
@@ -1576,6 +1621,7 @@ impl SimilarQuery {
             granularity: self.granularity().to_owned(),
             copies: CopiesFilter::parse(self.copies()).as_str().to_owned(),
             versions: self.versions().as_str().to_owned(),
+            firstwords: self.first_words(),
             ..FilterForm::default()
         }
     }
@@ -1654,6 +1700,7 @@ async fn similar_for(state: &State, query: &SimilarQuery) -> Result<SimilarHits,
     Ok(SimilarHits {
         hits,
         searched,
+        show_first_words: query.first_words(),
         ratings: crate::views::rating_choices(),
         languages: crate::views::Choice::languages_in(&present, None),
         all_languages: Vec::new(),
@@ -1744,6 +1791,7 @@ async fn similar_words_for(
         hits,
         indexed,
         comparable,
+        show_first_words: query.first_words(),
         ratings: crate::views::rating_choices(),
         languages: crate::views::Choice::languages_in(&present, None),
         all_languages: Vec::new(),
@@ -3116,11 +3164,25 @@ async fn saved_strip(state: &State) -> Result<crate::views::SavedFilters, DbErro
 /// On the string rather than through a [`FilterQuery`] round trip, for the reason
 /// `without_missing_favorite` gives: a parse and a [`FilterQuery::rebuild`] would make this a second
 /// place that has to know every key, and one left out is a filter that silently disappears. `total`
-/// needs no arm — what is written down is `rebuild(offset, "", None)`, which never carries one.
+/// is [`without_total`]'s, which every saved query has been through before it reaches here.
 fn without_page(query: &str) -> String {
     query
         .split('&')
         .filter(|pair| !pair.starts_with("offset="))
+        .collect::<Vec<_>>()
+        .join("&")
+}
+
+/// The same query with the count taken off.
+///
+/// **A saved query holds no count.** [`songs`] writes the filter down with the total it has just
+/// counted, which is right for a link followed minutes later and wrong for a name kept for months:
+/// the count would be the corpus as it stood on the day of the save. [`rows_for`] counts for itself
+/// when the address carries none.
+fn without_total(query: &str) -> String {
+    query
+        .split('&')
+        .filter(|pair| !pair.starts_with("total="))
         .collect::<Vec<_>>()
         .join("&")
 }
@@ -3163,7 +3225,7 @@ pub async fn save_filter(
     let query = match confirmed {
         true => fields.text("saved_query").to_owned(),
         false => {
-            let live = state.songs_filter();
+            let live = without_total(&state.songs_filter());
             match fields.has("keep_page") {
                 true => live,
                 false => without_page(&live),
@@ -3246,10 +3308,11 @@ fn saved_filter_failed(said: String) -> Response {
 /// The write destroys the query the name held, and nothing brings it back. It is not the save
 /// box's fragment, because the button is drawn on the row it writes: there is no second row to show.
 ///
-/// **The page comes or does not come by what the row already holds.** The save box has a *keep the
-/// page* tick and a chip has nowhere to put one, so the answer is read off the filter being
-/// rewritten: one that carries an `offset=` is a place somebody works from and is rewritten with
-/// one, and one that does not is a question and stays a question.
+/// **The page on screen is written with the filter, whatever the row holds.** The button means
+/// *make this name mean what is on screen now*, and the page is part of what is on screen. A row
+/// saved without a page gains one here, because a rewrite that left the page behind reads as a
+/// write that did not happen. The save box with *keep the page* unticked is what writes a filter
+/// that opens at the top.
 ///
 /// The live filter comes from [`State::songs_filter`] rather than from the body, for the reason
 /// [`save_filter`] gives at length.
@@ -3257,18 +3320,14 @@ pub async fn update_saved_filter(
     AxumState(state): AxumState<State>,
     UrlPath(id): UrlPath<i64>,
 ) -> Response {
-    let live = state.songs_filter();
+    let live = without_total(&state.songs_filter());
     let now = crate::scan::timestamp();
     let written = state
         .blocking(move |db| {
             let Some(existing) = db.saved_filter(id)? else {
                 return Ok(None);
             };
-            let query = match existing.query.contains("offset=") {
-                true => live,
-                false => without_page(&live),
-            };
-            let written = db.update_saved_filter(id, &query, &now)?;
+            let written = db.update_saved_filter(id, &live, &now)?;
             Ok(written.then_some(existing.name))
         })
         .await;
@@ -8602,6 +8661,7 @@ mod tests {
             copies: "2-10".to_owned(),
             added: "7d".to_owned(),
             filename: Some("1".to_owned()),
+            firstwords: Some("1".to_owned()),
             sort: "title".to_owned(),
             ..FilterQuery::default()
         }
@@ -9327,9 +9387,32 @@ mod tests {
         assert!(!FilterQuery::default().only_view().contains("warnings"));
     }
 
+    /// The first-words box is the third of the kind: not a filter, and it survives both.
+    #[test]
+    fn the_first_words_box_is_not_a_filter_and_survives_paging_and_clearing() {
+        let on = FilterQuery {
+            firstwords: Some("1".to_owned()),
+            q: "jobim".to_owned(),
+            ..FilterQuery::default()
+        };
+        assert!(on.first_words());
+        assert!(on.to_form(&[], &[]).firstwords);
+        assert_eq!(on.to_filter().deleted, DeletedFilter::Live);
+
+        let next = on.with_offset(100, 4200);
+        assert!(next.contains("firstwords=1"), "{next}");
+        let cleared = on.only_view();
+        assert!(cleared.contains("firstwords=1"), "{cleared}");
+        assert!(!cleared.contains("q="), "{cleared}");
+
+        let off = FilterQuery::default().with_offset(100, 4200);
+        assert!(!off.contains("firstwords"), "{off}");
+        assert!(!FilterQuery::default().only_view().contains("firstwords"));
+    }
+
     /// *Only deleted* is a filter, so it travels, it draws a chip, and *clear all* takes it off.
     ///
-    /// **The last assertion is the one worth having.** The two view boxes beside it survive a clear
+    /// **The last assertion is the one worth having.** The three view boxes beside it survive a clear
     /// because they narrow nothing; this one narrows to a list holding none of the corpus, and
     /// somebody who has just pressed *clear all* must not be handed the discard pile.
     #[test]

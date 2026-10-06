@@ -98,9 +98,10 @@ rule claims without hunting for the divider in text the rule has already rewritt
 keeps this one narrow is a script. Han, kana, Hangul, Thai, Lao, Khmer and Myanmar write without
 spaces on purpose, and one character of any of them leaves the file joined.
 
-**A file may write every word in capitals, and `recase_shouted` is the last step of
+**A file may sing every word in capitals, and `recase_shouted` is the last step of
 `build_timeline`.** It needs the finished lines, because the capital it puts back is the first
-letter of each one. It rewrites `Syllable::text` syllable by syllable, after the redaction, whose
+letter of each one. It also judges each line by its own letters, so a credit in both cases keeps
+its case. It rewrites `Syllable::text` syllable by syllable, after the redaction, whose
 spans are byte offsets into the text as the file wrote it. The decision is
 [`Words written all in capitals are drawn in sentence case`](../decisions/songs.md#words-written-all-in-capitals-are-drawn-in-sentence-case).
 
@@ -273,6 +274,38 @@ beat off a real melody still pass. `rank` applies the same test to `eligible`.
 
 The rule and its measurement are the decision
 [`A channel named for the melody must play while the words are sung`](../decisions/songs.md#a-channel-named-for-the-melody-must-play-while-the-words-are-sung).
+
+**Line starts align a file that types one letter to an event.** `is_letter_typed` asks for
+`letter_typed_share` (90%) of at least `letter_typed_min_syllables` (32) syllables to be one Latin
+letter. It also asks for `letter_typed_min_lines` (8) lines that the file placed itself. Lyric
+alignment then counts line starts in place of syllables, and the presence gate still counts
+syllables. The decision is
+[`Words typed one letter at a time are aligned by their line starts`](../decisions/songs.md#words-typed-one-letter-at-a-time-are-aligned-by-their-line-starts).
+
+**A channel that pairs with the words passes the monophony gate at a lower floor.**
+`plays_one_line` admits a channel down to `melody_min_monophony_aligned` (60%) when two things hold.
+Its lyric alignment reaches `melody_min_lyric_alignment`, and `notes_on_the_words` reaches
+`melody_min_notes_on_words` (70%). `rank` marks a paired channel `eligible`. The decision is
+[`A melody doubled on its own channel is still the melody`](../decisions/songs.md#a-melody-doubled-on-its-own-channel-is-still-the-melody).
+
+**`detect` runs `decide` twice.** The first run admits paired channels, and its answer stands only
+when it finds a melody. Otherwise the run over single-voice channels answers, abstention reason
+included.
+
+**One note for each syllable is evidence where alignment is not.** `has_a_note_for_each_syllable`
+asks two shares at `note_pairing_window_ms` (250 ms), each against `melody_min_note_pairing` (90%).
+They are the syllables with a note, and the notes played while the words run with a syllable. `score`
+asks it only below `melody_min_lyric_alignment`, adds 2.0 and reports
+`MelodySignal::NotePerSyllable`. `is_tied_to_the_singing` accepts that signal beside alignment and a
+track name. A letter-typed file never earns it.
+
+**`sung_line` still hands such a channel to the sync component.** Pairing at 250 ms says nothing
+about 120 ms, so the question stays open. The decision is
+[`One note for each syllable ties a channel to words timed loosely`](../decisions/songs.md#one-note-for-each-syllable-ties-a-channel-to-words-timed-loosely).
+
+**`km-lyrics scan --melodies <file>` writes one line for each song**, with the channel found or the
+reason none was. Two runs over one folder compare line by line. That comparison counts the songs
+that gain, lose or move a channel.
 
 All thresholds live in one module so they can be revised from evidence, and `km-pack reanalyze`
 recomputes a package after a revision.

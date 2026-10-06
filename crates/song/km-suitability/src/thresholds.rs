@@ -13,6 +13,20 @@ pub struct Thresholds {
     /// A sung line is monophonic. Allowing a little slack absorbs overlapping note-offs from
     /// sloppy sequencing without admitting actual chords.
     pub melody_min_monophony: f32,
+    /// The same minimum for a channel that pairs with the words: the syllables land on its notes
+    /// at [`Self::melody_min_lyric_alignment`] or better, and its notes start on syllables at
+    /// [`Self::melody_min_notes_on_words`] or better.
+    ///
+    /// A sung line is often doubled a third below through a chorus, and the doubling sits on the
+    /// melody's own channel. The pairing is what lets the floor drop, so the lower floor admits no
+    /// channel on its texture alone.
+    pub melody_min_monophony_aligned: f32,
+    /// Least share of a channel's notes, among those played while the words run, that must start
+    /// within [`Self::note_align_window_ms`] of a syllable for the lower monophony floor to apply.
+    ///
+    /// A busy part has a note near every syllable because it plays everywhere, and few of its
+    /// notes start on one. A sung line starts most of its notes on a syllable.
+    pub melody_min_notes_on_words: f32,
     /// Minimum syllable-to-note alignment for alignment alone to qualify a channel.
     pub melody_min_lyric_alignment: f32,
     /// How far ahead of the runner-up the winner must score. Below this, detection abstains.
@@ -20,6 +34,17 @@ pub struct Thresholds {
     /// How close a note onset must be to a syllable to count as the note being sung, in
     /// milliseconds. Wide enough for human sequencing, tight enough not to match everything.
     pub note_align_window_ms: u32,
+    /// How close a syllable and its own note must be for the two to count as a pair, in
+    /// milliseconds.
+    ///
+    /// Words timed by hand sit up to a fifth of a second from their notes. The window is wider
+    /// than both alignment windows, so it is asked both ways and at
+    /// [`Self::melody_min_note_pairing`].
+    pub note_pairing_window_ms: u32,
+    /// Least share of syllables with a note inside [`Self::note_pairing_window_ms`], and least
+    /// share of the notes played while the words run with a syllable inside it, for a channel to
+    /// count as having one note for each syllable.
+    pub melody_min_note_pairing: f32,
     /// How close a note onset must be to a syllable for the channel to count as playing while it is
     /// sung, in milliseconds.
     ///
@@ -36,6 +61,13 @@ pub struct Thresholds {
     pub melody_min_lyric_presence: f32,
     /// Channel 4 in 1-based terms, the common karaoke convention, used only as a tiebreaker.
     pub conventional_melody_channel: u8,
+    /// Least share of a file's syllables that must be one Latin letter for its words to count as
+    /// typed one letter to an event, and its alignment to be measured on line starts.
+    pub letter_typed_share: f32,
+    /// Fewest syllables a file needs before that share is judged.
+    pub letter_typed_min_syllables: usize,
+    /// Fewest lines a letter-typed file needs for its line starts to stand in for its syllables.
+    pub letter_typed_min_lines: usize,
 
     /// Lowest note still plausibly sung.
     pub vocal_key_min: u8,
@@ -111,13 +143,20 @@ impl Default for Thresholds {
     fn default() -> Self {
         Self {
             melody_min_monophony: 0.90,
+            melody_min_monophony_aligned: 0.60,
+            melody_min_notes_on_words: 0.70,
             melody_min_lyric_alignment: 0.70,
             melody_margin: 1.5,
             note_align_window_ms: 60,
+            note_pairing_window_ms: 250,
+            melody_min_note_pairing: 0.90,
             melody_presence_window_ms: 1_000,
             melody_min_lyric_presence: 0.5,
             // Channel 4, 1-based.
             conventional_melody_channel: 3,
+            letter_typed_share: 0.90,
+            letter_typed_min_syllables: 32,
+            letter_typed_min_lines: 8,
 
             // G2 to C6: below a bass voice and above a soprano respectively.
             vocal_key_min: 43,

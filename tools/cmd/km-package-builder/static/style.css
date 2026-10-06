@@ -436,6 +436,14 @@ td.tick { white-space: nowrap; }
 .song-warning { display: none; }
 #rows.warnings .song-warning { display: inline-block; }
 
+/* The line the song book prints for a song, on the same switch again. A column and not a chip,
+   because it is a sentence and a title cell holding one would wrap. Every list draws the cell. The
+   browse list shows it from `#rows`, and the two matching pages from `#hits`. */
+td.firstwords, th.firstwords { display: none; }
+#rows.firstwords td.firstwords, #rows.firstwords th.firstwords,
+#hits.firstwords td.firstwords, #hits.firstwords th.firstwords { display: table-cell; }
+td.firstwords { color: var(--dim); }
+
 /* Panels ----------------------------------------------------------------- */
 
 .panel {

@@ -54,7 +54,7 @@ pub use crate::thresholds::Thresholds;
 /// does not.
 ///
 /// **A bump adds an entry to [`REVISIONS`] saying which rows it can change.**
-pub const ANALYSIS_REVISION: u32 = 8;
+pub const ANALYSIS_REVISION: u32 = 12;
 
 /// Which stored rows one revision of the analysis can answer differently.
 ///
@@ -140,6 +140,30 @@ pub const REVISIONS: &[Revision] = &[
     Revision {
         number: 8,
         reach: Reach::LyricLinesAtLeast(1),
+    },
+    // Words typed one letter to an event are aligned with a melody by their line starts, and no
+    // file below `Thresholds::letter_typed_min_syllables` syllables is judged for it.
+    Revision {
+        number: 9,
+        reach: Reach::SyllablesAtLeast(32),
+    },
+    // Words sung in capitals behind a credit in both cases are stored in sentence case. Only a file
+    // with a lyric line has words to rewrite, and the rewrite moves no line.
+    Revision {
+        number: 10,
+        reach: Reach::LyricLinesAtLeast(1),
+    },
+    // A melody doubled on its own channel is a candidate when it pairs with the words. Pairing
+    // needs a syllable, so a song with none is answered as before.
+    Revision {
+        number: 11,
+        reach: Reach::SyllablesAtLeast(1),
+    },
+    // One note for each syllable ties a channel to the singing where the words are timed loosely.
+    // A song with no syllable has nothing to pair.
+    Revision {
+        number: 12,
+        reach: Reach::SyllablesAtLeast(1),
     },
 ];
 
@@ -280,7 +304,7 @@ mod tests {
         }
 
         assert_eq!(
-            digest, 1_843_990_205_700_313_786,
+            digest, 18_146_095_506_973_595_849,
             "the analysis of the fixtures has changed, so a corpus scanned by an older build no \
              longer agrees with this one. Bump km_suitability::ANALYSIS_REVISION and put the new \
              digest here; a scan then re-reads what that build decided and nothing else."

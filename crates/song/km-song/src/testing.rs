@@ -503,6 +503,30 @@ pub fn shouted_lyrics() -> Vec<u8> {
     smf(vec![track.finish()])
 }
 
+/// Lyrics sung in capitals behind a credit line written in both cases.
+///
+/// The credit holds four lowercase letters of the file's seventy-one, which is under the share
+/// that leaves a file alone.
+pub fn shouted_lyrics_with_a_credit() -> Vec<u8> {
+    let mut track = TrackWriter::new();
+    track
+        .track_name(0, b"Capitals")
+        .tempo(0, TEMPO_120)
+        .lyric(0, b"By ")
+        .lyric(240, b"Ann/");
+    for line in [
+        "TWINKLE TWINKLE LITTLE STAR/",
+        "HOW I WONDER WHAT YOU ARE/",
+        "UP ABOVE THE WORLD SO HIGH",
+    ] {
+        for word in line.split_inclusive(' ') {
+            track.lyric(240, word.as_bytes());
+        }
+    }
+
+    smf(vec![track.finish()])
+}
+
 /// A playable file with no lyrics whatsoever, which must still parse.
 pub fn instrumental() -> Vec<u8> {
     let mut track = TrackWriter::new();
@@ -1584,6 +1608,205 @@ pub fn melody_on_channel_fifteen() -> Vec<u8> {
     ])
 }
 
+/// Words typed one letter to an event at a constant rate, over an unnamed melody on channel 0.
+///
+/// Each line starts on a melody note and its letters follow every 80 ticks, so a note lands on
+/// every line start and on few of the letters. Channel 1 repeats the melody 300 ticks late, as an
+/// echo does: it is as monophonic and as singable, and it lands on no line start.
+pub fn letter_typed_lyrics() -> Vec<u8> {
+    const LINES: [&str; 2] = ["hold on little girl", "show me what he did"];
+    const LINE_TICKS: u32 = 1_920;
+    const LETTER_TICKS: u32 = 80;
+
+    let mut conductor = TrackWriter::new();
+    conductor.track_name(0, b"Letter Typed").tempo(0, TEMPO_120);
+
+    let mut words = TrackWriter::new();
+    words.track_name(0, b"Words");
+    let mut rest = 0;
+    for line in 0..10 {
+        let text = LINES[line % LINES.len()];
+        for (i, letter) in text.bytes().enumerate() {
+            words.lyric(if i == 0 { rest } else { LETTER_TICKS }, &[letter]);
+        }
+        words.lyric(LETTER_TICKS, b"\r\n");
+        rest = LINE_TICKS - LETTER_TICKS * text.len() as u32;
+    }
+
+    let mut part_a = TrackWriter::new();
+    part_a.track_name(0, b"Part A").program_change(0, 0, 90);
+    let mut part_b = TrackWriter::new();
+    part_b.track_name(0, b"Part B").program_change(0, 1, 82);
+    for line in 0..10 {
+        for (i, key) in [64u8, 66, 68, 69].into_iter().enumerate() {
+            let gap = if i == 0 { 20 } else { 100 };
+            part_a.note(if line == 0 && i == 0 { 0 } else { gap }, 0, key, 100, 400);
+            part_b.note(
+                if line == 0 && i == 0 { 300 } else { gap },
+                1,
+                key,
+                100,
+                400,
+            );
+        }
+    }
+
+    let mut chords = TrackWriter::new();
+    chords.track_name(0, b"Piano").program_change(0, 2, 0);
+    for _ in 0..20 {
+        chords.note_on(0, 2, 48, 80);
+        chords.note_on(0, 2, 52, 80);
+        chords.note_on(0, 2, 55, 80);
+        chords.note_off(960, 2, 48);
+        chords.note_off(0, 2, 52);
+        chords.note_off(0, 2, 55);
+    }
+
+    smf(vec![
+        conductor.finish(),
+        words.finish(),
+        part_a.finish(),
+        part_b.finish(),
+        chords.finish(),
+    ])
+}
+
+/// A melody named `Melody` with one note in four doubled a third below, over chords.
+///
+/// The doubling sits on the melody's own channel, as a sequencer writes a chorus sung in thirds,
+/// so the channel sounds two notes for a quarter of its time. Every syllable lands on a note and
+/// every note starts on a syllable.
+pub fn harmonised_melody() -> Vec<u8> {
+    doubled_part(b"Harmonised Melody", b"Melody", 0, 1)
+}
+
+/// The same doubled part under words that run half a beat late.
+///
+/// The name is all that ties the part to the singing, and a name does not excuse a second voice.
+pub fn harmonised_part_off_the_words() -> Vec<u8> {
+    doubled_part(b"Harmonised Part Off The Words", b"Lead", 240, 1)
+}
+
+/// A guitar playing four notes to a syllable, with one note in four doubled.
+///
+/// A note falls on every syllable because the part plays everywhere, and three notes in four
+/// start on no syllable.
+pub fn busy_part_under_the_words() -> Vec<u8> {
+    doubled_part(b"Busy Part Under The Words", b"Guitar", 0, 4)
+}
+
+/// Words timed by hand over an unnamed melody: each syllable leads its own note by 80 to 160 ticks.
+///
+/// At this tempo that is 83 to 167 ms, so no syllable is within the alignment window of a note
+/// and every syllable has one note of its own nearby. Channel 1 is as monophonic and as singable,
+/// and plays four notes to each syllable, so most of its notes have no syllable near them.
+pub fn loosely_timed_words() -> Vec<u8> {
+    const VERSE: [&str; 8] = [
+        "tap ", "it ", "in ", "by ", "hand ", "and ", "run ", "ahead/",
+    ];
+    const KEYS: [u8; 8] = [64, 66, 67, 69, 71, 69, 67, 66];
+    const LEADS: [u32; 4] = [100, 160, 80, 140];
+    const LINES: usize = 4;
+    const STEP: u32 = 960;
+
+    let mut conductor = TrackWriter::new();
+    conductor
+        .track_name(0, b"Loosely Timed Words")
+        .tempo(0, TEMPO_120);
+
+    let mut words = TrackWriter::new();
+    words.track_name(0, b"Words");
+    let mut previous = 0;
+    for index in 0..LINES * VERSE.len() {
+        let at = STEP * (index as u32 + 1) - LEADS[index % LEADS.len()];
+        words.lyric(at - previous, VERSE[index % VERSE.len()].as_bytes());
+        previous = at;
+    }
+
+    let mut part_a = TrackWriter::new();
+    part_a.track_name(0, b"Part A").program_change(0, 0, 73);
+    for index in 0..LINES * VERSE.len() {
+        let rest = if index == 0 { STEP } else { STEP - 480 };
+        part_a.note(rest, 0, KEYS[index % KEYS.len()], 100, 480);
+    }
+
+    let mut part_b = TrackWriter::new();
+    part_b.track_name(0, b"Part B").program_change(0, 1, 26);
+    for index in 0..LINES * VERSE.len() * 4 {
+        let rest = if index == 0 { STEP } else { 40 };
+        part_b.note(rest, 1, KEYS[index % KEYS.len()], 90, 200);
+    }
+
+    smf(vec![
+        conductor.finish(),
+        words.finish(),
+        part_a.finish(),
+        part_b.finish(),
+    ])
+}
+
+/// A part on channel 0 with every fourth note doubled a third below, under thirty-two syllables.
+///
+/// `words_delay` moves every syllable later by that many ticks, and `notes_per_syllable` divides
+/// the beat each syllable takes.
+fn doubled_part(title: &[u8], name: &[u8], words_delay: u32, notes_per_syllable: u32) -> Vec<u8> {
+    const VERSE: [&str; 8] = [
+        "two ", "of ", "us ", "can ", "sing ", "it ", "in ", "thirds/",
+    ];
+    const KEYS: [u8; 8] = [64, 66, 67, 69, 71, 69, 67, 66];
+    const LINES: u32 = 4;
+    const BEAT: u32 = 480;
+
+    let mut conductor = TrackWriter::new();
+    conductor.track_name(0, title).tempo(0, TEMPO_120);
+
+    let mut words = TrackWriter::new();
+    words.track_name(0, b"Words");
+    for line in 0..LINES {
+        for (i, syllable) in VERSE.into_iter().enumerate() {
+            let delta = if line == 0 && i == 0 {
+                words_delay
+            } else {
+                BEAT
+            };
+            words.lyric(delta, syllable.as_bytes());
+        }
+    }
+
+    let mut part = TrackWriter::new();
+    part.track_name(0, name).program_change(0, 0, 73);
+    let length = BEAT / notes_per_syllable;
+    for note in 0..LINES * 8 * notes_per_syllable {
+        let key = KEYS[(note / notes_per_syllable) as usize % KEYS.len()];
+        if note % 4 == 3 {
+            part.note_on(0, 0, key, 100);
+            part.note_on(0, 0, key - 4, 90);
+            part.note_off(length, 0, key);
+            part.note_off(0, 0, key - 4);
+        } else {
+            part.note(0, 0, key, 100, length);
+        }
+    }
+
+    let mut chords = TrackWriter::new();
+    chords.track_name(0, b"Piano").program_change(0, 1, 0);
+    for _ in 0..LINES * 4 {
+        chords.note_on(0, 1, 48, 80);
+        chords.note_on(0, 1, 52, 80);
+        chords.note_on(0, 1, 55, 80);
+        chords.note_off(960, 1, 48);
+        chords.note_off(0, 1, 52);
+        chords.note_off(0, 1, 55);
+    }
+
+    smf(vec![
+        conductor.finish(),
+        part.finish(),
+        words.finish(),
+        chords.finish(),
+    ])
+}
+
 /// A file whose transcription credit is inside the *track name* the title comes from.
 ///
 /// The credit filter partitions `@T` lines and deliberately does not reach here: a file with no Soft
@@ -1991,6 +2214,10 @@ pub const FIXTURES: &[Fixture] = &[
     ("unmarked_lyrics.mid", unmarked_lyrics),
     ("underscore_spacing.mid", underscore_spacing),
     ("shouted_lyrics.mid", shouted_lyrics),
+    (
+        "shouted_lyrics_with_a_credit.mid",
+        shouted_lyrics_with_a_credit,
+    ),
     ("instrumental.mid", instrumental),
     ("untitled_instrumental.mid", untitled_instrumental),
     ("tempo_change.mid", tempo_change),
@@ -2007,6 +2234,14 @@ pub const FIXTURES: &[Fixture] = &[
     ("track_without_end_of_track.mid", track_without_end_of_track),
     ("melody_and_accompaniment.mid", melody_and_accompaniment),
     ("melody_on_channel_fifteen.mid", melody_on_channel_fifteen),
+    ("letter_typed_lyrics.mid", letter_typed_lyrics),
+    ("harmonised_melody.mid", harmonised_melody),
+    (
+        "harmonised_part_off_the_words.mid",
+        harmonised_part_off_the_words,
+    ),
+    ("busy_part_under_the_words.mid", busy_part_under_the_words),
+    ("loosely_timed_words.mid", loosely_timed_words),
     ("legacy_encoded_lyrics.mid", legacy_encoded_lyrics),
     ("smpte_timed.mid", smpte_timed),
     ("ambiguous_melody.mid", ambiguous_melody),

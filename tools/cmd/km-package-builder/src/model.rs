@@ -620,6 +620,11 @@ pub struct SongRow {
     /// and an UltraStar song hold `[]`: nothing analyzes them, so there is nothing to have gone
     /// wrong.
     pub warnings: String,
+    /// The line the song book prints for this song, and `None` where it prints none.
+    ///
+    /// A build's own preview rule over the stored words: `None` for a song with no words and for
+    /// one whose words are not drawn.
+    pub first_words: Option<String>,
     /// Whether somebody threw this song away.
     ///
     /// **A row that says so is what makes the deleted list readable.** Browsing hides these, so a
@@ -1510,6 +1515,7 @@ mod tests {
             duplicate_of: None,
             has_words: false,
             warnings: "[]".to_owned(),
+            first_words: None,
             path: path.to_owned(),
             paths: paths.to_owned(),
             from_filename: false,

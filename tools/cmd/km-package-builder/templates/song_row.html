@@ -106,6 +106,10 @@
          title="{{ warning.message }}">{{ warning.code }}</span>{% endfor %}
     </td>
     {% endif %}
+    {# The line the song book prints for this song. Drawn on every row and shown by
+       `#rows.firstwords` in style.css, as the chips above are and for their reason. Outside the
+       branch above, so a row being renamed keeps it. #}
+    <td class="firstwords">{% match song.first_words %}{% when Some with (words) %}{{ words }}{% when None %}{% endmatch %}</td>
     <td class="lang">
       {% if choosing_language %}
       <form class="row" hx-post="/songs/{{ song.id }}/language?as=row"

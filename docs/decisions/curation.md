@@ -656,6 +656,37 @@ orders a corpus by how much is wrong with each file, and it is built from these 
 second control over the parts would offer a curator two answers to one question. This shows what the
 number is made of on the rows the number already ranked.
 
+## The first words, in the browse list
+
+**A third box, after the file-name one, adds a column holding the line the song book prints for each
+song.** The book prints the first line of a song's words beside its title. A sequencer's banner or a
+wrong opening line in that cell is otherwise found on a printed page.
+
+**A column and not a chip**, because it is a sentence. A title cell holding one would wrap on every
+row. The column sits after Title, where the book puts it.
+
+**The line is derived when the row is read, from what the database already holds.** A build takes
+the first line `LyricTimeline::preview` returns, and none for a song whose words are not drawn. The
+database holds the words as text, the person's answer on hiding them, and the analysis's warnings.
+`km_song::preview_of_plain_text` applies the build's rule to that text. So the column needs no scan
+and no schema change, and it shows a line for every song the database holds words for.
+
+**The stored text has the mask and not the flag that says a line was redacted.** A leading line
+holding the mask counts as a redacted one. A sung opening line with an em dash of its own is skipped
+here, where the book keeps it.
+
+**Empty where the book prints nothing**: an instrumental, and a song whose words are hidden. A
+person's answer on hiding wins over the analysis in both directions, as it does in a build.
+
+Like the two boxes beside it, it narrows nothing. It keeps the page, survives *clear all*, and is
+not persisted.
+
+**The two matching pages carry the same box, and there it opens ticked.** A match is a second file
+of a song or the same song under another name. The opening line confirms a match that a garbled name
+leaves in doubt. The browse list opens with the column off, because there it costs width on every
+row. That pass is made once, before a book is printed. Each matching page remembers the box with its
+narrowing controls for the run.
+
 ## Copies, in the song row
 
 **Hovering a title lists every folder the song sits in, headed by how many there are.** Showing only
@@ -2079,8 +2110,8 @@ reach whatever row had moved into its place.
 ## What keeps the page you are on
 
 **Anything that leaves the list meaning what it meant; a change to which songs are in it starts again
-at the top.** Sorting reorders the same songs and the file-name box only decides whether a chip is
-drawn, so page four still means a real page four. Every other control in that bar changes which songs
+at the top.** Sorting reorders the same songs and the three view boxes only decide what a row
+shows, so page four still means a real page four. Every other control in that bar changes which songs
 match, and an offset into the old set points at nothing in the new one. On a narrowing it points past
 the end, which is an empty list with a working *previous* button, and reads as the tool being broken.
 
@@ -2141,6 +2172,11 @@ song, and coming back, land on the row it was opened from.
 **A page above the end of the corpus is answered with the last page.** A scan can take rows out
 from under somebody who is still paging. An offset past the end is an empty list under a working
 *previous* button. A bookmark, a saved filter and a hand-typed address land there the same way.
+
+**An empty page under a carried count is counted again.** A paging link carries the count its page
+made, so the next page does not pay for it twice. The Songs tab and a bookmark carry it for longer,
+and a scan can leave it too large. The last page it names is then as empty as the one asked for.
+The second count is paid only where the page would otherwise draw nothing.
 
 **An address with no `?` at all is answered with the filter; `/songs?` is answered with the corpus.**
 Everything that means *the songs page* and has no filter to state sends a bare `/songs`. That is
@@ -2238,11 +2274,14 @@ one colour over both leaves the bar saying them in one voice. The accent, rather
 its own, because the chip is a link pressed to go somewhere. That is what the accent means on every
 other page.
 
-**The rewrite keeps the filter the kind of filter it was.** The save box has a *keep the page* tick,
-and a chip has nowhere to put one. So the answer is read off the rewritten row: a query carrying an
-`offset=` is a place somebody works from and is rewritten with one. A query without is a question,
-and stays a question. Offering the box on a chip would ask, on every rewrite, a question that was
-settled when the name was given.
+**The rewrite stores the page on screen, whatever the row holds.** The button means *make this name
+mean what is on screen now*, and the page is part of what is on screen. A rewrite that leaves the
+page behind reads as a write that did not happen, and the chip shows nothing that explains it. The
+save box, with *keep the page* unticked, writes a filter that opens at the top.
+
+**A saved query holds no count.** The remembered filter carries the count its last full render made.
+A name is kept for months, and that count would be the corpus as it stood on the day of the save.
+The save takes it off, and the restored page counts for itself.
 
 **Renaming refuses a name that is taken, where saving replaces one.** The two are the same act
 pointed opposite ways. A save writes a *query somebody is looking at* into a name, so both queries
@@ -2256,8 +2295,8 @@ wrapping row and a name being typed anywhere else would move every chip after it
 because the order is the fold of the name. So a rename can carry a chip past its neighbors, and a
 redrawn chip alone would sit in the position its old name earned.
 
-**The page comes back by default, and a box lets somebody leave it out.** *The page comes back too*
-in the section above is the whole argument: page sixteen of one favorite is a place in a morning's
+**The page comes back by default, and a box lets somebody leave it out.** *The page is part of it*
+in the section above is the whole argument. Page sixteen of one favorite is a place in a morning's
 work. The box is for the other kind, a filter naming a *question* rather than a place. That kind
 should open at the top, however deep the corpus was being read when it was saved.
 
@@ -2557,7 +2596,7 @@ songs being curated; this one chooses which of two lists is on the page. A delet
 rating, a filing and a package that nobody means any more. Mixing the two would put rows into
 every count and every page that none of the other controls can say anything useful about. It is a
 filter and not a view: it changes which songs match, so turning it on starts again at the top.
-*Clear all* takes it off, where the two view boxes survive one.
+*Clear all* takes it off, where the three view boxes survive one.
 
 **The scan does not read a deleted song's files, and `--force` does not reach them.** Every other
 skip in a scan is an optimisation: the file would be read to arrive at the row already stored. A
