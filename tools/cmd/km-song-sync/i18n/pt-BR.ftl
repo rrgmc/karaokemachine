@@ -13,7 +13,7 @@ home-no-machine = A máquina de karaokê não foi encontrada ao lado deste progr
 
 words-label = A letra
 words-placeholder = Um verso da música em cada linha. Deixe uma linha vazia entre as estrofes.
-words-hint = Um hífen divide a palavra em sílabas: ka-ra-o-ke são quatro toques. Digite - para um hífen que é cantado. Sem a marca, a música usa o arquivo de texto ao lado dela, ou a letra que ela já tem.
+words-hint = Um hífen divide a palavra em sílabas: ka-ra-o-ke são quatro toques. Digite \- para um hífen que é cantado. Sem a marca, a música usa o arquivo de texto ao lado dela, ou a letra que ela já tem.
 words-continue = A música já está marcada em parte: manter essas palavras como estão, e marcar só o resto
 words-use = Usar a letra desta caixa
 words-selected = Música:
