@@ -71,6 +71,7 @@
       <select name="copies" title="{{ "songs-copies-title"|t }}">
         <option value="" {% if query.copies_is("") %}selected{% endif %}>{{ "songs-any"|t }}</option>
         <option value="1" {% if query.copies_is("1") %}selected{% endif %}>1</option>
+        <option value="2+" {% if query.copies_is("2+") %}selected{% endif %}>{{ "songs-more-than-one"|t }}</option>
         <option value="2-10" {% if query.copies_is("2-10") %}selected{% endif %}>2&ndash;10</option>
         <option value="10+" {% if query.copies_is("10+") %}selected{% endif %}>{{ "songs-more-than-ten"|t }}</option>
       </select>

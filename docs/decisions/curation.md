@@ -2355,20 +2355,25 @@ Three routes redraw them, and a test holds each.
 
 ## What the browse bar's numeric filters offer
 
-**Bands that partition the column, never a ladder and never a union.**
+**Bands that partition the column, never a ladder. Copies adds one union, the opposite of `1`.**
 
 A `≥ N` ladder returns nested sets, so adjacent options show largely the same songs, and it has no
 upper edge. So **there is no way to ask for the bad files at all**. The one question a curator most
 wants answered on a fresh corpus is *what is broken here?* That is the one shape the control cannot
 make. **Suitability** is three bands, `8-10`, `5-7` and `<5`, which between them cover 0–10 and
-overlap nowhere. **Copies** is `1`, `2-10` and `more than 10`, which partition the column; `2 or
-more` is not a fourth bucket but the union of the two after it.
+overlap nowhere.
 
-What that costs the dropdown is precision. No option says exactly `≥ 9`, and none says *two or more*
-in one click. In both cases the capability sits somewhere else. **Sorting by suitability answers a
-threshold better than a threshold does**, because it shows where the cliff falls instead of asking
-somebody to guess. The *Duplicates* page is where "more than one copy" is the real question, and it
-links to exactly that.
+**Copies** is `1`, `more than 1`, `2-10` and `more than 10`. `1`, `2-10` and `more than 10`
+partition the column.
+
+**`more than 1` is the union of the two bands after it, and it sits directly after `1`.** A dedupe
+pass starts from *does this song have a duplicate*, and the two bands answer that only in two
+passes. It reads as the opposite of `1`, so the overlap with the bands is one a reader can hold. It
+is one option and not a ladder: no `more than 2` follows it.
+
+What the bands cost the suitability dropdown is precision. No option says exactly `≥ 9`. **Sorting
+by suitability answers a threshold better than a threshold does**, because it shows where the cliff
+falls instead of asking somebody to guess.
 
 **The `suitability` parameter takes any range, and the dropdown still offers the bands.**
 `suitability=2-5`, `suitability=9`, `suitability=7-` and `suitability=-4` are the four spellings, and
@@ -2389,12 +2394,10 @@ ends is that band. So `-4` and `0-4` ask one question, draw one chip, and are wr
 comparison, and that is the rule every band already follows. *Any* adds no clause and holds the whole
 corpus. `set` and `unset` on the personal score are what ask about a number that is missing.
 
-**`CopiesFilter::AtLeastTwo` is the one bucket the bar cannot show, and it is still spelled.** The
-dropdown does not offer it, being the union of the two below it rather than a fourth of them. The
-link from the Duplicates page needs it: a value defaulting to *any* would quietly answer
-*more than one copy* with the whole corpus. So it parses, it round-trips, and it draws a chip like
-every other filter. A filter narrowing the list with nothing on screen is the fault this row exists
-to prevent: a control disagreeing with the page it controls.
+**`CopiesFilter::AtLeastTwo` is `more than 1`, spelled `2+` in the address.** The Duplicates page
+links to the same value, and the select marks it. It parses, it round-trips, and it draws a chip
+like every other filter. A filter narrowing the list with nothing on screen is the fault this row
+exists to prevent: a control disagreeing with the page it controls.
 
 The parameter is `suitability` rather than `min_score`, because a name that says *minimum* above a
 control offering `<5` is a name that lies. An unknown key is ignored and reads as *any*, and no

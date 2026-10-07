@@ -436,7 +436,7 @@ pub struct FilterQuery {
     /// already absorbed it.
     #[serde(default)]
     add_tag: String,
-    /// How many copies on disk: `1` · `2-10` · `10+`, or empty for any.
+    /// How many copies on disk: `1` · `2+` · `2-10` · `10+`, or empty for any.
     ///
     /// **The `has copies` checkbox this replaced is no longer read**, and it went with the `2+`
     /// bucket rather than on its own: *two or more* was the only thing that checkbox could mean, so
@@ -1470,7 +1470,7 @@ pub struct SimilarQuery {
     kind: Option<String>,
     /// Lyric granularity: `syllablelevel` · `linelevel` · `none`.
     granularity: Option<String>,
-    /// How many copies on disk: `1` · `2-10` · `10+`.
+    /// How many copies on disk: `1` · `2+` · `2-10` · `10+`.
     copies: Option<String>,
     /// `all` for every version of a recording. A checkbox, so the bar sends nothing when it is clear.
     versions: Option<String>,
@@ -8987,9 +8987,8 @@ mod tests {
 
     /// `?copies=2+` narrows, and `?duplicates=1` does not.
     ///
-    /// **The two are not the same retired spelling.** `2+` is a real bucket the bar cannot show —
-    /// it is the union of the two below it rather than a fourth of them — and it parses because the
-    /// Duplicates page links to it, where *more than one copy* is the whole question. A link whose
+    /// **The two are not the same retired spelling.** `2+` is a bucket the bar offers and the
+    /// Duplicates page links to, where *more than one copy* is the whole question. A link whose
     /// value fell through to `Any` would quietly answer that with the entire corpus.
     ///
     /// `duplicates=1` is a checkbox with nothing left to fold onto, and **showing the whole corpus
@@ -9016,7 +9015,7 @@ mod tests {
         // The rest of the filter is untouched — only that one checkbox was retired.
         assert!(rebuilt.contains("folder=brasil"), "{rebuilt}");
 
-        // The three the bar itself offers are unaffected.
+        // The bands beside it are unaffected.
         let kept = FilterQuery::from_body("copies=2-10").expect("read it");
         assert_eq!(CopiesFilter::parse(&kept.copies), CopiesFilter::TwoToTen);
     }
@@ -9228,9 +9227,6 @@ mod tests {
             ("1", "one copy"),
             ("2-10", "2\u{2013}10 copies"),
             ("10+", "more than 10 copies"),
-            // The bucket the bar cannot show still gets a chip, because the Duplicates page links
-            // to it: a filter narrowing the list with nothing on screen saying so is the one thing
-            // the bar may not do, and a chip is how it says so.
             ("2+", "more than one copy"),
         ] {
             let chip = chip_for(
