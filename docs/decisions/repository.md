@@ -708,10 +708,11 @@ paragraph of the manual is whether an installed build can act on it. These are a
 - what an IDE does with `ffmpeg-sys-next`;
 - what GitHub bills for a macOS CI minute.
 
-**The README says what this is and where to go next.** It holds the description, one picture, the
-release link, a short start, and a table that links the manual. A reader on GitHub reaches the
-license and the list of documents on the second screen. A paragraph that says how to do something
-belongs in a chapter, and the README links that chapter.
+**The README says what this is and where to go next.** It holds the description, the main pictures,
+a list of features, the release link, a short start, and a table that links the manual. A feature
+is one line, and it links the chapter that explains it. A paragraph that says how to do something
+belongs in that chapter. The pictures are the ones `What it looks like` shows in the manual, with
+the same alt text.
 
 **The manual is [`docs/manual/`](../manual/), one chapter per file.** It covers installing, using,
 and the products an owner runs beside the machine. GitHub renders the folder, and the site renders
