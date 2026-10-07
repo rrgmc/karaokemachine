@@ -797,6 +797,33 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         render(&out_dir, name, &fonts, &theme, &frame, theme_dim())?;
     }
 
+    // A syllable-timed song over the same kind of solo: the sung line still lit by its wipe, and
+    // the cue filling toward the line that comes next.
+    let solo_song = Song::parse(&testing::words_around_a_solo(), &ParseOptions::default())?;
+    let solo_view = LyricView::for_ticks_per_quarter(solo_song.ticks_per_quarter.max(1));
+    let solo_info = SongInfo {
+        number: Some(km_songcode::SongCode::new(10_236)),
+        title: "A Syllable-Timed Song".to_owned(),
+        artist: Some("A MIDI File".to_owned()),
+        language: None,
+    };
+    let frame = playing(
+        &solo_info,
+        &solo_song.lyrics,
+        &solo_view,
+        14_200,
+        &empty_entry,
+        &solo_song,
+    );
+    render(
+        &out_dir,
+        "27c-syllable-timed-cue-after-a-solo",
+        &fonts,
+        &theme,
+        &frame,
+        theme_dim(),
+    )?;
+
     // Each connect-panel failure state, because a wrong URL on screen is worse than none.
     for (name, problem, bound) in [
         (

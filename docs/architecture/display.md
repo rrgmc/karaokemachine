@@ -930,11 +930,16 @@ timeline reports its current line as the last syllable at full progress once the
 `draw_wiped_line` then draws it whole in the sung color, so the renderer needed no mode of its own.
 The cost is one pass over the lines per frame, which is small beside drawing them.
 
-**Two fields on `VisibleLine` carry the rest, and both stay neutral for a syllable-timed song.**
-`opacity` fades the current line once its singing is over, before a long gap. `cue` is the fill of
-the lead-in bar over a line that starts after one. `brightened` moves the upcoming row from the
-upcoming color to the pending one, through `draw::mix`. `draw_lead_in_cue` draws that bar above the words,
-inside the row, so it stays in the band the wallpaper pack measures.
+**Three fields on `VisibleLine` carry the rest, and two stay neutral for a syllable-timed song.**
+`opacity` fades the current line once its singing is over, before a long gap. `brightened` moves the
+upcoming row from the upcoming color to the pending one, through `draw::mix`. Those two are the
+neutral ones. `cue` is the fill of the lead-in bar over a line that starts after a long gap, and
+every timeline gets it. `draw_lead_in_cue` draws that bar above the words, inside the row, so it
+stays in the band the wallpaper pack measures.
+
+**`sung_until` takes the mode, because the two kinds of line end differently.** A syllable-timed
+line's last syllable runs to the next line's start. `sung_until` therefore ends that line at the
+last syllable's start, and `gap_before` measures the gap from there.
 
 **The thresholds are beats, scaled by `for_ticks_per_quarter`**, as the lead-in is. A millisecond
 timeline's beat is half a second, so the hold is four seconds and the cue two. `CUE_BEATS` is

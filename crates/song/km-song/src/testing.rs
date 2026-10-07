@@ -415,6 +415,36 @@ pub fn lyric_events() -> Vec<u8> {
     smf(vec![conductor.finish(), track.finish()])
 }
 
+/// A syllable-timed song with a two-bar intro, two lines sung back to back, a solo, and a line
+/// after it.
+///
+/// The lines start at ticks 3,840, 5,760 and 14,880. The solo is sixteen beats from the last
+/// syllable before it, which is long enough for the display to count the singer back in.
+pub fn words_around_a_solo() -> Vec<u8> {
+    let mut conductor = TrackWriter::new();
+    conductor
+        .track_name(0, b"Around A Solo")
+        .tempo(0, TEMPO_120);
+
+    let mut track = TrackWriter::new();
+    track
+        .track_name(0, b"Vocal")
+        .lyric(3_840, b"/Here ")
+        .lyric(480, b"we ")
+        .lyric(480, b"go ")
+        .lyric(480, b"now")
+        .lyric(480, b"/straight ")
+        .lyric(480, b"on ")
+        .lyric(480, b"to ")
+        .lyric(480, b"this")
+        .lyric(7_680, b"/Back ")
+        .lyric(480, b"in ")
+        .lyric(480, b"we ")
+        .lyric(480, b"come");
+
+    smf(vec![conductor.finish(), track.finish()])
+}
+
 /// Lyrics on a track named `Words`, carried as plain text events with no Soft Karaoke header.
 pub fn named_text_track() -> Vec<u8> {
     let mut conductor = TrackWriter::new();
