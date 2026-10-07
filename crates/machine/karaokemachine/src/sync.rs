@@ -468,6 +468,37 @@ fn vocal_line_state(
     }
 }
 
+/// What the label at the head of the window says about the vocal line.
+fn vocal_label(
+    words: &Catalog,
+    choices: &[MelodyChoice],
+    choice: Option<usize>,
+    session: &Session,
+    silenced: bool,
+) -> String {
+    let state = vocal_line_state(
+        choice,
+        choices.len(),
+        session.stamped,
+        session.syllables.len(),
+    );
+    match state {
+        VocalLine::Chosen(chosen) => {
+            let channel = choices[chosen].label(words);
+            let key = if silenced {
+                "sync-vocal-label-silenced"
+            } else {
+                "sync-vocal-label"
+            };
+            words.msg_with(key, &[("channel", channel.as_str().into())])
+        }
+        VocalLine::Detecting => words.msg("sync-vocal-label-detecting"),
+        VocalLine::NotFound => words.msg("sync-vocal-label-not-found"),
+        VocalLine::NoChannel => words.msg("sync-vocal-label-no-channel"),
+    }
+    .into_owned()
+}
+
 /// When each tapped word starts, in milliseconds, which is what [`vocal_line_under`] reads.
 fn taps_ms(session: &Session, song: &Song) -> Vec<u32> {
     session.syllables[..session.stamped]
@@ -1590,27 +1621,7 @@ pub(crate) fn run(paths: &Paths, settings: &Settings, request: &Request) -> anyh
             &mode,
             &status,
         );
-        let vocal = match vocal_line_state(
-            choice,
-            choices.len(),
-            session.stamped,
-            session.syllables.len(),
-        ) {
-            VocalLine::Chosen(chosen) => {
-                let channel = choices[chosen].label(words);
-                let key = if silenced {
-                    "sync-vocal-label-silenced"
-                } else {
-                    "sync-vocal-label"
-                };
-                words
-                    .msg_with(key, &[("channel", channel.as_str().into())])
-                    .into_owned()
-            }
-            VocalLine::Detecting => t("sync-vocal-label-detecting"),
-            VocalLine::NotFound => t("sync-vocal-label-not-found"),
-            VocalLine::NoChannel => t("sync-vocal-label-no-channel"),
-        };
+        let vocal = vocal_label(words, &choices, choice, &session, silenced);
         screen.melody(&mut canvas, &mut cache, &fonts, &theme, &vocal, note_lit);
         // The machine's own count-in, at the machine's own length, so it reads as that cue does.
         let cue_from = |start_ms: u32| {
@@ -1746,16 +1757,9 @@ pub fn picture(picture: &Picture<'_>, out: &Path) -> anyhow::Result<()> {
         .iter()
         .map(|c| c.onsets.iter().map(|&t| ms(t)).collect())
         .collect();
-    let melody = vocal_line_under(&taps_ms, &onsets_ms).and_then(|found| choices.get(found));
-    let vocal = match melody {
-        Some(melody) => {
-            let channel = melody.label(words);
-            words
-                .msg_with("sync-vocal-label", &[("channel", channel.as_str().into())])
-                .into_owned()
-        }
-        None => words.msg("sync-vocal-label-none").into_owned(),
-    };
+    let choice = vocal_line_under(&taps_ms, &onsets_ms);
+    let melody = choice.and_then(|found| choices.get(found));
+    let vocal = vocal_label(words, &choices, choice, &session, false);
     let note_lit = melody.is_some_and(|m| m.onsets.binary_search(&tick).is_ok());
     let status = status_line(words, true, ms(tick), song.duration_ms(), 1.0, &session);
     let mode = words.msg("sync-mode-tapping");
@@ -2071,7 +2075,7 @@ impl Layout {
     ///
     /// It takes the colors of the machine's lead-in cue, so a person reads it as that cue. Nothing
     /// is drawn between cues, because a person tapping has the words to read.
-    fn cue(&self, canvas: &mut Screenful, theme: &Theme, fill: f32) {
+    fn cue<T: RenderTarget>(&self, canvas: &mut Canvas<T>, theme: &Theme, fill: f32) {
         let width = self.width * 0.4;
         let height = (self.height * 0.012).max(2.0).round();
         let left = ((self.width - width) / 2.0).round();
