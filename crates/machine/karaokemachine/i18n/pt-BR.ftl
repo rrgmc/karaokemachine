@@ -15,7 +15,9 @@ sync-channel = canal { $number }
 sync-channel-named = canal { $number } ({ $name })
 sync-vocal-label = Linha vocal: { $channel }
 sync-vocal-label-silenced = Linha vocal: { $channel }, silenciada
-sync-vocal-label-none = Linha vocal: não escolhida
+sync-vocal-label-detecting = Linha vocal: detectando pelas suas marcas
+sync-vocal-label-not-found = Linha vocal: nenhuma encontrada. M escolhe uma
+sync-vocal-label-no-channel = Linha vocal: este arquivo não tem canal com notas afinadas
 # A palavra selecionada dentro da linha, e onde ela começa.
 sync-selected-at = { $line }   em { $time }
 
@@ -38,6 +40,7 @@ sync-cleared = Todas as marcações foram apagadas. Aperte Enter para tocar, ou 
 sync-clear-undone = As marcações voltaram
 sync-review-so-far = Revisão das { $tapped } palavras marcadas até aqui. R volta a marcar
 sync-all-tapped = Todas as palavras marcadas. A música agora repete com o seu tempo, para conferir
+sync-all-tapped-no-vocal = Todas as palavras marcadas, e suas marcas não seguem nenhum canal. M escolhe a linha vocal
 sync-paused-tap = A música está pausada. Enter toca
 sync-word-ends = "{ $word }" termina aqui
 sync-end-refused = E termina uma palavra depois que ela começa, com a música tocando

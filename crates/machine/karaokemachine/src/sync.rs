@@ -29,7 +29,7 @@ use km_locale::{Catalog, Catalogs, Locale};
 use km_queue::Transport;
 use km_song::kar_write::{KarWords, join_words, split_words, synced_path, write_soft_karaoke};
 use km_song::timeline::{LineBreak, RawSyllable};
-use km_song::{LyricTimeline, ParseOptions, SYLLABLE_DIVIDER, Song, WordEnds};
+use km_song::{EventKind, LyricTimeline, ParseOptions, SYLLABLE_DIVIDER, Song, WordEnds};
 use sdl3::event::{Event as SdlEvent, WindowEvent};
 use sdl3::keyboard::{Keycode, Mod};
 use sdl3::pixels::Color;
@@ -60,6 +60,9 @@ const MESSAGE_FOR: Duration = Duration::from_secs(4);
 
 /// How long the melody mark stays lit after one of the chosen channel's notes starts.
 const NOTE_MARK_MS: u32 = 120;
+
+/// How long the vocal line is silent before the note after it is taken to start a line.
+const PHRASE_GAP_MS: u32 = 600;
 
 /// What the command line asked the editor for.
 #[derive(Debug, Clone)]
@@ -436,6 +439,74 @@ fn vocal_line_under(taps_ms: &[u32], channels_ms: &[Vec<u32>]) -> Option<usize> 
     scored.first().map(|&(index, _, _)| index)
 }
 
+/// What the editor knows about the vocal line, which is what its label says.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum VocalLine {
+    /// A person named this channel, or the taps did.
+    Chosen(usize),
+    /// A word is still untapped, so a tap can still point at a channel.
+    Detecting,
+    /// Every word is tapped and the taps follow no channel.
+    NotFound,
+    /// The file has no channel that plays pitched notes.
+    NoChannel,
+}
+
+/// The state is worked out from the taps each frame and stored nowhere, so a tap given back
+/// opens the detection again.
+fn vocal_line_state(
+    choice: Option<usize>,
+    channels: usize,
+    tapped: usize,
+    total: usize,
+) -> VocalLine {
+    match choice {
+        _ if channels == 0 => VocalLine::NoChannel,
+        Some(chosen) => VocalLine::Chosen(chosen),
+        None if tapped < total => VocalLine::Detecting,
+        None => VocalLine::NotFound,
+    }
+}
+
+/// What the label at the head of the window says about the vocal line.
+fn vocal_label(
+    words: &Catalog,
+    choices: &[MelodyChoice],
+    choice: Option<usize>,
+    session: &Session,
+    silenced: bool,
+) -> String {
+    let state = vocal_line_state(
+        choice,
+        choices.len(),
+        session.stamped,
+        session.syllables.len(),
+    );
+    match state {
+        VocalLine::Chosen(chosen) => {
+            let channel = choices[chosen].label(words);
+            let key = if silenced {
+                "sync-vocal-label-silenced"
+            } else {
+                "sync-vocal-label"
+            };
+            words.msg_with(key, &[("channel", channel.as_str().into())])
+        }
+        VocalLine::Detecting => words.msg("sync-vocal-label-detecting"),
+        VocalLine::NotFound => words.msg("sync-vocal-label-not-found"),
+        VocalLine::NoChannel => words.msg("sync-vocal-label-no-channel"),
+    }
+    .into_owned()
+}
+
+/// When each tapped word starts, in milliseconds, which is what [`vocal_line_under`] reads.
+fn taps_ms(session: &Session, song: &Song) -> Vec<u32> {
+    session.syllables[..session.stamped]
+        .iter()
+        .map(|s| song.tempo_map.tick_to_ms(s.tick))
+        .collect()
+}
+
 /// A channel the words can be snapped to.
 struct MelodyChoice {
     /// The MIDI channel, numbered from 0.
@@ -444,6 +515,99 @@ struct MelodyChoice {
     name: Option<String>,
     /// Where each of its notes starts, in order.
     onsets: Vec<u32>,
+    /// Where it comes in after a silence. See [`phrase_starts`].
+    phrases: Vec<Phrase>,
+}
+
+/// A place a channel comes in after a silence, in milliseconds.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct Phrase {
+    /// When the silence before it starts.
+    silent_from_ms: u32,
+    /// When its first note starts.
+    start_ms: u32,
+}
+
+/// When one note of a channel sounds, in milliseconds so that a silence is a length of time.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct Note {
+    start_ms: u32,
+    end_ms: u32,
+}
+
+/// Every channel's notes, each list in the order the notes start.
+///
+/// A key struck again while it sounds ends the note before it, as the engine plays it.
+fn notes_by_channel(song: &Song) -> [Vec<Note>; 16] {
+    let mut notes: [Vec<Note>; 16] = Default::default();
+    // Where the note sounding on a channel's key sits in that channel's list.
+    let mut sounding: std::collections::HashMap<(u8, u8), usize> = std::collections::HashMap::new();
+    for event in &song.events {
+        match event.kind {
+            EventKind::NoteOn { channel, key, .. } => {
+                let Some(list) = notes.get_mut(usize::from(channel)) else {
+                    continue;
+                };
+                let at = song.tempo_map.tick_to_ms(event.tick);
+                if let Some(before) = sounding.insert((channel, key), list.len()) {
+                    list[before].end_ms = at;
+                }
+                list.push(Note {
+                    start_ms: at,
+                    end_ms: u32::MAX,
+                });
+            }
+            EventKind::NoteOff { channel, key } => {
+                if let Some(index) = sounding.remove(&(channel, key)) {
+                    notes[usize::from(channel)][index].end_ms =
+                        song.tempo_map.tick_to_ms(event.tick);
+                }
+            }
+            _ => {}
+        }
+    }
+    // A note nothing ends sounds to the end of the song.
+    let end = song.duration_ms();
+    for ((channel, _), index) in sounding {
+        let note = &mut notes[usize::from(channel)][index];
+        note.end_ms = end.max(note.start_ms);
+    }
+    notes
+}
+
+/// Where the channel comes in after a silence of [`PHRASE_GAP_MS`], and where it first plays.
+///
+/// A sung line ends on a breath, so most of these are where a line of the words starts. It is a
+/// guess from the notes, and a held chord or a short breath makes it wrong.
+fn phrase_starts(notes: &[Note]) -> Vec<Phrase> {
+    let mut phrases = Vec::new();
+    // When the last of the notes so far stops sounding. The song opens on a silence.
+    let mut silent_from: Option<u32> = None;
+    for note in notes {
+        if silent_from.is_none_or(|end| note.start_ms >= end.saturating_add(PHRASE_GAP_MS)) {
+            phrases.push(Phrase {
+                silent_from_ms: silent_from.unwrap_or(0),
+                start_ms: note.start_ms,
+            });
+        }
+        silent_from = Some(silent_from.map_or(note.end_ms, |end| end.max(note.end_ms)));
+    }
+    phrases
+}
+
+/// How full the cue for the next phrase is at this moment, from 0 to 1, and `None` when no cue is
+/// up.
+///
+/// `cue_from` answers when a cue that ends at a phrase's start begins. The cue is full as the
+/// phrase starts, and it fills at one speed whatever the silence. It is up only inside the silence,
+/// so after a short one it comes up part full.
+fn cue_fill(phrases: &[Phrase], cue_from: impl Fn(u32) -> u32, now_ms: u32) -> Option<f32> {
+    let next = phrases.get(phrases.partition_point(|p| p.start_ms <= now_ms))?;
+    let from = cue_from(next.start_ms).min(next.start_ms);
+    if now_ms < from.max(next.silent_from_ms) {
+        return None;
+    }
+    Some((now_ms - from) as f32 / (next.start_ms - from).max(1) as f32)
 }
 
 impl MelodyChoice {
@@ -467,10 +631,15 @@ impl MelodyChoice {
 /// is likeliest is [`vocal_line_under`]'s question, and it asks the taps.
 fn melody_choices(song: &Song) -> Vec<MelodyChoice> {
     let thresholds = km_suitability::Thresholds::default();
+    let notes = notes_by_channel(song);
     let mut choices: Vec<MelodyChoice> = km_suitability::channel::measure(song, &thresholds)
         .into_iter()
         .filter(|s| s.note_count > 0 && s.channel != km_suitability::DRUM_CHANNEL)
         .map(|s| MelodyChoice {
+            phrases: notes
+                .get(usize::from(s.channel))
+                .map(|notes| phrase_starts(notes))
+                .unwrap_or_default(),
             channel: s.channel,
             name: s.track_names.first().cloned(),
             onsets: s.onset_ticks,
@@ -889,6 +1058,10 @@ pub(crate) fn run(paths: &Paths, settings: &Settings, request: &Request) -> anyh
     };
 
     let mut session = Session::new(syllables).with_tapped(already_tapped);
+    // Words that come with their timing are taps already made, so they are read as taps are.
+    if choice.is_none() {
+        choice = vocal_line_under(&taps_ms(&session, &song), &onsets_ms);
+    }
     // Tapping goes on from the word after the last one the file timed, with a run-up.
     if session.phase() == Phase::Tapping && already_tapped > 0 {
         let last = session.syllables[already_tapped - 1].tick;
@@ -1182,12 +1355,7 @@ pub(crate) fn run(paths: &Paths, settings: &Settings, request: &Request) -> anyh
                         // Only while nobody has chosen: a channel named by a person or found
                         // earlier is never replaced by a later guess.
                         if choice.is_none() {
-                            let taps_ms: Vec<u32> = session
-                                .tapped()
-                                .iter()
-                                .map(|s| song.tempo_map.tick_to_ms(s.tick))
-                                .collect();
-                            choice = vocal_line_under(&taps_ms, &onsets_ms);
+                            choice = vocal_line_under(&taps_ms(&session, &song), &onsets_ms);
                             if let Some(found) = choice {
                                 let channel = choices[found].label(words);
                                 say(words
@@ -1199,7 +1367,12 @@ pub(crate) fn run(paths: &Paths, settings: &Settings, request: &Request) -> anyh
                             }
                         }
                         if session.phase() == Phase::Review {
-                            say(t("sync-all-tapped"));
+                            // The last tap ends the detection, so the person is told how it ended.
+                            say(t(if choice.is_none() && !choices.is_empty() {
+                                "sync-all-tapped-no-vocal"
+                            } else {
+                                "sync-all-tapped"
+                            }));
                         }
                     } else {
                         say(t("sync-paused-tap"));
@@ -1448,21 +1621,18 @@ pub(crate) fn run(paths: &Paths, settings: &Settings, request: &Request) -> anyh
             &mode,
             &status,
         );
-        let vocal = match melody {
-            Some(melody) => {
-                let channel = melody.label(words);
-                let key = if silenced {
-                    "sync-vocal-label-silenced"
-                } else {
-                    "sync-vocal-label"
-                };
-                words
-                    .msg_with(key, &[("channel", channel.as_str().into())])
-                    .into_owned()
-            }
-            None => t("sync-vocal-label-none"),
-        };
+        let vocal = vocal_label(words, &choices, choice, &session, silenced);
         screen.melody(&mut canvas, &mut cache, &fonts, &theme, &vocal, note_lit);
+        // The machine's own count-in, at the machine's own length, so it reads as that cue does.
+        let cue_from = |start_ms: u32| {
+            let start = song.tempo_map.ms_to_tick(start_ms);
+            song.tempo_map
+                .tick_to_ms(start.saturating_sub(view.syllable_cue_ticks))
+        };
+        let now_ms = song.tempo_map.tick_to_ms(tick);
+        if let Some(fill) = melody.and_then(|m| cue_fill(&m.phrases, cue_from, now_ms)) {
+            screen.cue(&mut canvas, &theme, fill);
+        }
         if let Some((text, since)) = &message {
             if now.duration_since(*since) < MESSAGE_FOR {
                 screen.note(&mut canvas, &mut cache, &fonts, &theme, 0.12, text);
@@ -1587,16 +1757,9 @@ pub fn picture(picture: &Picture<'_>, out: &Path) -> anyhow::Result<()> {
         .iter()
         .map(|c| c.onsets.iter().map(|&t| ms(t)).collect())
         .collect();
-    let melody = vocal_line_under(&taps_ms, &onsets_ms).and_then(|found| choices.get(found));
-    let vocal = match melody {
-        Some(melody) => {
-            let channel = melody.label(words);
-            words
-                .msg_with("sync-vocal-label", &[("channel", channel.as_str().into())])
-                .into_owned()
-        }
-        None => words.msg("sync-vocal-label-none").into_owned(),
-    };
+    let choice = vocal_line_under(&taps_ms, &onsets_ms);
+    let melody = choice.and_then(|found| choices.get(found));
+    let vocal = vocal_label(words, &choices, choice, &session, false);
     let note_lit = melody.is_some_and(|m| m.onsets.binary_search(&tick).is_ok());
     let status = status_line(words, true, ms(tick), song.duration_ms(), 1.0, &session);
     let mode = words.msg("sync-mode-tapping");
@@ -1905,6 +2068,24 @@ impl Layout {
             (right - side * 1.5, top),
             &TextStyle::outlined(theme.text, theme, Align::Right),
         );
+    }
+
+    /// The count-in to the vocal line's next phrase: a bar that fills from the left, and is full
+    /// as the phrase starts.
+    ///
+    /// It takes the colors of the machine's lead-in cue, so a person reads it as that cue. Nothing
+    /// is drawn between cues, because a person tapping has the words to read.
+    fn cue<T: RenderTarget>(&self, canvas: &mut Canvas<T>, theme: &Theme, fill: f32) {
+        let width = self.width * 0.4;
+        let height = (self.height * 0.012).max(2.0).round();
+        let left = ((self.width - width) / 2.0).round();
+        let top = (self.height * 0.2).round();
+        canvas.set_blend_mode(BlendMode::Blend);
+        let track = theme.lyric_upcoming;
+        canvas.set_draw_color(Color::RGBA(track.r, track.g, track.b, 120));
+        let _ = canvas.fill_rect(FRect::new(left, top, width, height));
+        canvas.set_draw_color(theme.lyric_sung);
+        let _ = canvas.fill_rect(FRect::new(left, top, width * fill.clamp(0.0, 1.0), height));
     }
 
     /// The tapping screen: the line being tapped, with the one before it and the one after.
@@ -2227,6 +2408,146 @@ mod tests {
     fn a_few_taps_choose_nothing() {
         let sung: Vec<u32> = (0..30).map(|i| 10_000 + i * 1_000).collect();
         assert_eq!(vocal_line_under(&taps()[..5], &[sung]), None);
+    }
+
+    #[test]
+    fn the_vocal_line_is_being_detected_while_a_word_is_untapped() {
+        assert_eq!(vocal_line_state(None, 3, 0, 40), VocalLine::Detecting);
+        assert_eq!(vocal_line_state(None, 3, 39, 40), VocalLine::Detecting);
+    }
+
+    #[test]
+    fn the_vocal_line_is_not_found_only_when_every_word_is_tapped() {
+        assert_eq!(vocal_line_state(None, 3, 40, 40), VocalLine::NotFound);
+        // A tap given back opens the detection again.
+        assert_eq!(vocal_line_state(None, 3, 39, 40), VocalLine::Detecting);
+    }
+
+    #[test]
+    fn a_chosen_channel_is_the_vocal_line_however_many_words_are_tapped() {
+        assert_eq!(vocal_line_state(Some(1), 3, 0, 40), VocalLine::Chosen(1));
+        assert_eq!(vocal_line_state(Some(1), 3, 40, 40), VocalLine::Chosen(1));
+    }
+
+    #[test]
+    fn a_file_with_no_pitched_channel_has_nothing_to_detect() {
+        assert_eq!(vocal_line_state(None, 0, 0, 40), VocalLine::NoChannel);
+        assert_eq!(vocal_line_state(None, 0, 40, 40), VocalLine::NoChannel);
+    }
+
+    /// A song from channel events. The test file has 480 ticks to the quarter at 120, so a tick
+    /// is not a millisecond, and the tests ask the tempo map.
+    fn notes_of(events: &[(u32, [u8; 3])]) -> (Song, [Vec<Note>; 16]) {
+        let song = km_song::testing::parse(&km_song::testing::channel_events(events));
+        let notes = notes_by_channel(&song);
+        (song, notes)
+    }
+
+    #[test]
+    fn a_note_runs_from_its_note_on_to_its_note_off_on_its_own_channel() {
+        let (song, notes) = notes_of(&[
+            (0, [0x90, 60, 100]),
+            (0, [0x93, 72, 100]),
+            (480, [0x80, 60, 0]),
+            (960, [0x83, 72, 0]),
+        ]);
+        let ms = |tick| song.tempo_map.tick_to_ms(tick);
+        assert_eq!(notes[0], [note(0, ms(480))]);
+        assert_eq!(notes[3], [note(0, ms(960))]);
+    }
+
+    #[test]
+    fn a_note_on_at_velocity_zero_ends_a_note() {
+        let (song, notes) = notes_of(&[(0, [0x90, 60, 100]), (480, [0x90, 60, 0])]);
+        assert_eq!(notes[0].len(), 1);
+        assert_eq!(notes[0][0].end_ms, song.tempo_map.tick_to_ms(480));
+    }
+
+    #[test]
+    fn a_key_struck_again_while_it_sounds_ends_the_note_before_it() {
+        let (song, notes) = notes_of(&[
+            (0, [0x90, 60, 100]),
+            (240, [0x90, 60, 100]),
+            (480, [0x80, 60, 0]),
+        ]);
+        let ms = |tick| song.tempo_map.tick_to_ms(tick);
+        let spans: Vec<(u32, u32)> = notes[0].iter().map(|n| (n.start_ms, n.end_ms)).collect();
+        assert_eq!(spans, [(0, ms(240)), (ms(240), ms(480))]);
+    }
+
+    fn note(start_ms: u32, end_ms: u32) -> Note {
+        Note { start_ms, end_ms }
+    }
+
+    #[test]
+    fn a_phrase_starts_on_the_first_note_and_on_each_note_after_a_silence() {
+        let notes = [
+            note(1_000, 1_400),
+            // A breath too short to be the end of a line.
+            note(1_600, 2_000),
+            note(2_000, 2_500),
+            // Silent for exactly the gap.
+            note(2_500 + PHRASE_GAP_MS, 4_000),
+        ];
+        assert_eq!(
+            phrase_starts(&notes),
+            [phrase(0, 1_000), phrase(2_500, 2_500 + PHRASE_GAP_MS)]
+        );
+        assert!(phrase_starts(&[]).is_empty());
+    }
+
+    #[test]
+    fn a_note_held_under_shorter_ones_keeps_the_phrase_going() {
+        let notes = [
+            note(1_000, 5_000),
+            note(1_200, 1_400),
+            // Long after the short note, and while the first still sounds.
+            note(3_000, 3_200),
+            note(6_000, 6_500),
+        ];
+        assert_eq!(
+            phrase_starts(&notes),
+            [phrase(0, 1_000), phrase(5_000, 6_000)]
+        );
+    }
+
+    fn phrase(silent_from_ms: u32, start_ms: u32) -> Phrase {
+        Phrase {
+            silent_from_ms,
+            start_ms,
+        }
+    }
+
+    /// A cue four seconds long, as the machine's is at 120 beats a minute.
+    fn four_seconds(start_ms: u32) -> u32 {
+        start_ms.saturating_sub(4_000)
+    }
+
+    #[test]
+    fn the_cue_fills_over_its_length_and_is_gone_when_the_phrase_starts() {
+        let phrases = [phrase(10_000, 20_000)];
+        let at = |now| cue_fill(&phrases, four_seconds, now);
+        // Silent, and the cue is not due.
+        assert_eq!(at(15_999), None);
+        assert_eq!(at(16_000), Some(0.0));
+        assert_eq!(at(18_000), Some(0.5));
+        assert_eq!(at(19_999).map(|fill| fill > 0.99), Some(true));
+        assert_eq!(at(20_000), None);
+    }
+
+    #[test]
+    fn a_cue_before_a_short_silence_comes_up_part_full_when_the_singing_stops() {
+        // One second of silence before the phrase, inside a four second cue.
+        let phrases = [phrase(19_000, 20_000)];
+        let at = |now| cue_fill(&phrases, four_seconds, now);
+        assert_eq!(at(18_999), None);
+        assert_eq!(at(19_000), Some(0.75));
+    }
+
+    #[test]
+    fn the_cue_before_the_first_phrase_is_no_longer_than_the_song_so_far() {
+        let phrases = [phrase(0, 2_000)];
+        assert_eq!(cue_fill(&phrases, four_seconds, 1_000), Some(0.5));
     }
 
     /// A file's words come back as the editor wrote them: ticks, breaks, spacing and ends.

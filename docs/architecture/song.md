@@ -603,6 +603,9 @@ device and `StepSmoother`.
 | The review screen | `write_soft_karaoke` in memory, parsed, drawn by `km_display::draw` |
 | The channels a person steps through | `km_suitability::channel::measure`, in channel order |
 | The vocal line | `vocal_line_under`, from the taps |
+| What the vocal line's label says | `vocal_line_state`, from the choice and the count of taps |
+| Where the vocal line comes in after a silence | `phrase_starts`, over `notes_by_channel`, in milliseconds |
+| The count-in before one | `cue_fill`, over `LyricView::syllable_cue_ticks`, drawn by `Layout::cue` |
 | The words on screen | `i18n/en.ftl` and `i18n/pt-BR.ftl` in the machine's crate |
 
 **The lyric offset is the tap offset.** It measures how far the sound in the room trails the tick
@@ -624,6 +627,17 @@ The editor counts the taps with a note of the channel within 120 ms. It subtract
 channel's density reaches by chance, which is `1 - exp(-notes × window ÷ span)`. A channel needs
 70% of the taps and 0.25 above chance, and the highest above chance wins.
 
+**The label's state is worked out each frame and stored nowhere.** `vocal_line_state` answers
+`Detecting` while a word is untapped and `NotFound` when none is. A tap given back therefore opens
+the detection again with no code of its own. Words that come with their timing go through
+`vocal_line_under` once at open, because they are taps already made.
+
+**A silence is measured in milliseconds, from the song's own events.** `ChannelStats` holds where a
+note starts and not where it ends. `notes_by_channel` pairs each note-on with its note-off in one
+pass. `phrase_starts` keeps the latest end of the notes so far, so a note held under shorter ones
+keeps the phrase going. `cue_fill` takes the cue's length as a function, so the loop gives it the
+machine's length in ticks and the tests give it four seconds.
+
 **Silencing a channel is the engine's guide melody.** The engine silences the one channel a song is
 loaded with, so a channel chosen since the load loads the song again. `load_song` sends the
 position, the tempo and the transport after the load. A channel the taps chose loads nothing, so
@@ -639,8 +653,8 @@ the open faces cannot draw sets `TextCache::saw_cjk`, and the fonts open again o
 clears the text cache. The window is created here and not in `display::run_with`, whose setup
 belongs to a machine with a queue and a wallpaper.
 
-**The loop and its keys have no test.** The tests cover `Session`, `vocal_line_under`, the flags,
-the catalogs, the writer and the reader.
+**The loop and its keys have no test.** The tests cover `Session`, `vocal_line_under`, the label's
+states, the phrase starts and their cue, the flags, the catalogs, the writer and the reader.
 
 **`Layout` draws on any render target.** `sync::picture` draws the tapping screen into an
 off-screen surface, which is where the published picture comes from. See
