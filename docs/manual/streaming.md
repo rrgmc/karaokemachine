@@ -1,27 +1,53 @@
 # Watching it in another room
 
-**`--stream` sends the screen to an encoder instead of a television.** The machine opens no window. It
-serves the picture and the sound as one continuous HLS stream. The flag applies to one run only, and
-the machine refuses it together with `--headless`.
+The machine normally draws on the television it is plugged into. When the singing is in a room with a
+television and no machine, stream the screen there instead. The machine sends its picture and its
+sound over your network, and the other television plays them in a browser or a player.
 
-**Any player that follows a URL plays `http://<the machine>/stream/live.m3u8`**: a television's own
-player, VLC, Kodi or a set-top box. `http://<the machine>/watch/` shows the same stream on a page. A
-machine that does not stream serves neither.
+## Start the stream
 
-**The page runs under half a second behind, and a player on the playlist three or four.** The page
-takes the stream over a WebSocket where the browser can. Where it cannot, it plays the playlist.
+**Every install has a second launcher that starts the machine streaming**, with nothing to type. Its
+icon has a broadcast badge in the corner.
 
-**A launcher starts the stream with nothing to type.** It is a Start Menu entry on Windows, an action
-in the Linux desktop menu, and `KM Stream.app` on macOS. Its icon has a broadcast badge in the corner.
+| Platform | Where the launcher is |
+|---|---|
+| Windows | A Start Menu entry |
+| Linux | An action in the desktop menu |
+| macOS | `KM Stream.app` |
 
-**A streaming run shows an icon in the notification area on Windows and in the menu bar on macOS.**
-The icon names the address a phone can reach. Its *Remote*, *Watch* and *Setup* entries open the three
-pages the machine serves. It follows the address as the network changes.
+From a shell, `karaokemachine --stream` does the same. The flag applies to that run only, and the
+machine refuses it together with `--headless`.
 
-**The stream costs two things.** It runs behind the machine, so a pause lets the music continue that
-long. It also carries only the backing track, because the microphones go to a hardware mixer and
-never reach the machine.
+A streaming machine opens no window, because it sends the screen to an encoder instead of a
+television. On Windows it shows an icon in the notification area, and on macOS in the menu bar. The
+icon names the address a phone can reach, and it follows that address as the network changes. Its
+*Remote*, *Watch* and *Setup* entries open the three pages the machine serves.
 
-**An older television may stop to buffer.** On the page, open `/watch/?hls` to play the playlist
-instead. On the playlist, set `stream.segment_seconds` to `2` in `settings.json`, and it plays
-smoothly a few seconds further behind.
+## Open it on the other television
+
+You have two ways to watch, and both start from the machine's address.
+
+- **In a browser**, open `http://<the machine>/watch/`. The page runs under half a second behind the
+  machine.
+- **In a player**, open `http://<the machine>/stream/live.m3u8`. A television's own player, VLC, Kodi
+  or a set-top box plays it. A player runs three or four seconds behind.
+
+The page is faster because it takes the stream over a WebSocket where the browser can. Where the
+browser cannot, the page plays the playlist. A machine that does not stream serves neither address.
+
+Queue songs from a phone as usual. See [The remotes](remotes.md).
+
+## What a stream costs
+
+- **It runs behind the machine.** When you press pause, the music continues for that long before it
+  stops.
+- **It carries only the backing track.** The microphones go to a hardware mixer and never reach the
+  machine, so no voice is in the stream.
+
+## If the picture stops to buffer
+
+An older television may stop to buffer. The fix depends on how you watch.
+
+- **On the page**, open `/watch/?hls` to play the playlist instead.
+- **In a player**, set `stream.segment_seconds` to `2` in `settings.json`. The stream then plays
+  smoothly, a few seconds further behind.
