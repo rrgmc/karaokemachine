@@ -211,8 +211,8 @@ dist_detail "soundfont  $BANK_ID -> $BANK_NAME ($BANK_SIZE), offered and not req
 
 # Under a name the machine does not read, for a reason of its own: a new archive is unpacked over an
 # old folder, and a `settings.json` in it would replace the one somebody edited. A test in
-# crates/machine/karaokemachine/src/settings.rs holds the file to keys the machine has, at their
-# defaults.
+# crates/machine/karaokemachine/src/settings.rs holds the file to keys the machine has. Each is at
+# its default but `api.room_access`, which gives the room the control level.
 SETTINGS_EXAMPLE="settings.example.json"
 cp tools/dist/portable-settings.example.json "$OWN/$SETTINGS_EXAMPLE"
 
@@ -323,13 +323,19 @@ Changing the machine's settings
 The machine keeps its settings in data/karaokemachine/settings.json, and
 writes that file the first time it starts. To set things before then, copy
 settings.example.json in that folder to settings.json and edit the copy. It
-holds the settings people change most, each at its usual value:
+holds the settings people change most:
 
     machine.name         the name a phone shows for this machine
     machine.locale       the language of the screen: en or pt-BR
     api.bind             the address and port the machine listens on
+    api.room_access      what a phone may do with no code: view, queue or control
     display.fullscreen   true to fill the screen, false for a window
     package_dirs         more folders to read song packages from
+
+Each is at its usual value except api.room_access. The file sets it to
+control, so any phone on your network can skip a song, play one now and
+change the queue. The usual value is queue, which lets a phone add a song
+and nothing more. The machine's Admin pages ask for the password either way.
 
 Stop the machine before you edit settings.json. It writes the file again
 while it runs.

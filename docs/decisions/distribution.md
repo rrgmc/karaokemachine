@@ -723,9 +723,15 @@ that holds one.
 
 **The archive ships starter settings for the machine, and never a live settings file.** A new
 archive is unpacked over an old folder, and a `settings.json` in it would replace the one somebody
-edited. So `data/karaokemachine/settings.example.json` holds the settings people change most, at
-their defaults, and the folder's document says to copy it. A settings file ignores a key it does
-not know, so a test holds the starter file to keys the machine writes.
+edited. So `data/karaokemachine/settings.example.json` holds the settings people change most, and
+the folder's document says to copy it. A settings file ignores a key it does not know, so a test
+holds the starter file to keys the machine writes.
+
+**The starter file gives the room the control level, and every other key is at its default.** One
+person runs a portable copy for their own room, and expects a phone to skip a song and play one now.
+`api.room_access` is `control` there, the highest level a room can hold. The machine's own default
+stays `queue`, so only a person who copies the file gets the wider level. The admin level still
+needs the password.
 
 **Only the machine has a port in its settings.** The four tools take `--port` when they start, and
 the folder's document lists each one beside its default. A port setting in four more programs is
