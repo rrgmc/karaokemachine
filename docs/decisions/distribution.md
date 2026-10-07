@@ -754,16 +754,23 @@ case where a profile sits beside an executable, and
 **Windows and Linux, and not macOS.** A signed bundle cannot hold files that change, and a
 downloaded one runs from a read-only path until it is moved. `km-dirs` reads no marker there.
 
-**The archive holds every program in one form, and no `-console` twin.** `tools/dist/portable.sh`
-copies `dist/bin/<platform>` alone. A person opens this folder to double-click a program, and a twin
-beside each one doubles the names to choose from. The plain name answers `--help`, `--version` and
-`--show-paths` into a pipe, as
-[`The machine's console window`](#the-machines-console-window) says. The staging script refuses a
-folder that holds a twin.
+**There are two copies, and each holds every program in one form.** `tools/dist/portable.sh` copies
+`dist/bin/<platform>` into `dist/portable/<platform>`, and `dist/bin-console/<platform>` into
+`dist/portable-console/<platform>`. That is the pairing
+[`A folder with everything in it`](#a-folder-with-everything-in-it) makes. A person opens the first
+folder to double-click a program, and a twin beside each one doubles the names to choose from. The
+second is the copy to reach for when a program does not start, because its programs print to the
+console that started them. The staging script refuses a windowed copy that holds a twin, and a
+console copy that holds both forms of one program.
 
-**The marker goes into that folder and no other.** `dist/bin/<platform>` is the setup program's
-payload. `tools/dist/bin.sh` also empties it on every run, which would delete the `data/` folder of
-anybody working out of it.
+**The console copy is a folder, and no release carries it.** It has no archive, because an archive
+is the thing a release hands over. The plain name in the windowed copy answers `--help`, `--version`
+and `--show-paths` into a pipe, as [`The machine's console window`](#the-machines-console-window)
+says. So a person with the release has a way to ask.
+
+**The marker goes into those two folders and no other.** `dist/bin/<platform>` is the setup
+program's payload. `tools/dist/bin.sh` also empties both of its folders on every run, which would
+delete the `data/` folder of anybody working out of one.
 
 **On Linux every program is built in the image the tarball is built in.** `tools/dist/cmd.sh` builds
 the tools on the host, against the host's glibc and its ffmpeg. A folder cannot carry either. So
@@ -771,9 +778,9 @@ the tools on the host, against the host's glibc and its ffmpeg. A folder cannot 
 video link the LGPL ffmpeg in `lib/` beside them.
 
 **A release carries one for each of the two platforms**, named
-`karaokemachine-portable-<version>-<system>-<arch>`. The staging script proves the claim before it
-writes the archive: the machine's `--show-paths` must name `data/karaokemachine` for its settings,
-catalog and packages.
+`karaokemachine-portable-<version>-<system>-<arch>`. The staging script proves the claim of each
+copy before it writes the archive. The machine's `--show-paths` must name `data/karaokemachine` for
+its settings, catalog and packages.
 
 **The machine still listens on its usual port.** Two machines on one computer need two ports, and
 the folder's own document names `--api-bind`.

@@ -798,11 +798,13 @@ tasks:
     cmds:
       - '"{{.SH}}" tools/dist/bin.sh {{if .NO_VIDEO}}--no-video{{end}} {{if .ZIP}}--zip{{end}} {{if .VERBOSE}}--verbose{{end}} {{.CLI_ARGS}}'
 
-  # The portable copy: the folder above with a marker file in it, so every program keeps its files in
-  # a `data` folder beside itself. It runs tools/dist/bin.sh itself, so it is **not** part of
-  # `task dist` either. `task dist:portable -- --no-build` archives what is already gathered.
+  # The portable copy: each of the two folders above with a marker file in it, so every program keeps
+  # its files in a `data` folder beside itself. `dist/portable` takes the windowed folder and gets
+  # the archive, and `dist/portable-console` takes the console one. It runs tools/dist/bin.sh itself,
+  # so it is **not** part of `task dist` either. `task dist:portable -- --no-build` copies what is
+  # already gathered.
   dist:portable:
-    desc: 'Build the portable copy: every program, its files kept beside it (NO_VIDEO=1 VERBOSE=1)'
+    desc: 'Build the portable copy and its console form: every program, its files kept beside it (NO_VIDEO=1 VERBOSE=1)'
     platforms: [windows, linux]
     cmds:
       - '"{{.SH}}" tools/dist/portable.sh {{if .NO_VIDEO}}--no-video{{end}} {{if .VERBOSE}}--verbose{{end}} {{.CLI_ARGS}}'

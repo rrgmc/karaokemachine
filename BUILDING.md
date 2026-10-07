@@ -520,6 +520,7 @@ tools/dist/cmd.sh --no-video #   ...without the video feature; every script abov
 tools/dist/bin.sh              # one folder with every executable in it, instead of one per product
 tools/dist/bin.sh --no-build   #   ...gathering what is already staged, building nothing
 tools/dist/portable.sh         # the portable copy: that folder plus a marker, as a .zip or a .tar.gz
+                               #   ...and dist/portable-console, the console folder made portable
 tools/platform/linux/portable.sh        #   ...its Linux half, every tool built in Docker
 tools/platform/windows/installer.sh     # a Windows setup.exe: one installer, all seven products, per-user
 tools/platform/macos/installer.sh       # a macOS .pkg: one installer, all seven products, /Applications
@@ -577,7 +578,9 @@ line.
 
 **The portable copy is a carrier on Windows and on Linux.** `task dist:portable` stages it. It is
 every program in one folder, with a marker file that makes each keep its files in `data/` there.
-On Linux the whole folder is built in Docker, tools included. The rule is
+On Linux the whole folder is built in Docker, tools included. The same run stages
+`dist/portable-console/<platform>`, which holds the console form of each program. That folder has no
+archive and is not a carrier. The rule is
 [`A portable copy keeps its state beside its programs`](docs/decisions/distribution.md#a-portable-copy-keeps-its-state-beside-its-programs).
 
 **The macOS carrier is the notarized package**, which is why that row names
@@ -2159,7 +2162,7 @@ task dist:tools -- km-pack    # ...just these tools
 task dist:setup               # ...the setup program: one installer, every product
 task dist:setup:notarized     # ...that one signed and notarized, on macOS
 task dist:setup:remote        # ...the remote alone, in a small installer of its own
-task dist:portable            # ...the portable copy: every program, its files kept beside it
+task dist:portable            # ...the portable copy and its console form, files kept beside each
 task dist NO_VIDEO=1  ZIP=1  VERBOSE=1
 ```
 
@@ -2173,7 +2176,7 @@ task dist NO_VIDEO=1  ZIP=1  VERBOSE=1
 | `tools/platform/linux/tarball.sh` | a portable folder + `.tar.gz`, built in Docker |
 | `tools/dist/cmd.sh` | the six command-line tools, one folder each |
 | `tools/dist/bin.sh` | one folder with **every** executable in it |
-| `tools/dist/portable.sh` | the portable copy: that folder with a marker and a `data` folder, as a `.zip` or a `.tar.gz` |
+| `tools/dist/portable.sh` | the portable copy: that folder with a marker and a `data` folder, as a `.zip` or a `.tar.gz`, and the console folder made portable beside it |
 | `tools/platform/linux/portable.sh` | its Linux half: the tarball folder plus every tool, built in Docker |
 | `tools/platform/windows/installer.sh` | one Inno Setup program carrying all seven products |
 | `tools/platform/macos/installer.sh` | the same as a `.pkg` |
