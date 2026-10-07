@@ -162,6 +162,7 @@ async fn home(State(app): State<Arc<App>>, headers: HeaderMap) -> Response {
         &views::HomePage {
             chrome: views::Chrome::new(locale, app.windowed.load(Ordering::Relaxed)),
             machine,
+            languages: views::languages(),
             editor: views::editor(&state, None, words),
             browser: views::browser(listing, rows, machine, words),
         },
@@ -200,6 +201,11 @@ struct StartForm {
     resume: Option<String>,
     /// Present when the row's box is ticked.
     force: Option<String>,
+    /// The three names the panel asks for where the song states none. A field the panel holds
+    /// back posts nothing.
+    title: Option<String>,
+    artist: Option<String>,
+    language: Option<String>,
 }
 
 /// `POST /start`: open the editor on a song, and answer with the editor's state.
@@ -217,6 +223,9 @@ async fn start(
         pasted: form.use_words.is_some().then_some(form.words),
         resume: form.resume.is_some(),
         force: form.force.is_some(),
+        title: form.title,
+        artist: form.artist,
+        language: form.language,
     };
     // The checks read the song and the folder around it.
     let started = {

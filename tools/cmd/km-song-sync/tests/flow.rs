@@ -280,6 +280,53 @@ async fn a_start_that_makes_no_sense_is_refused_and_starts_nothing() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn a_typed_name_reaches_the_editor_only_where_the_song_states_none() {
+    let folder = Scratch::new("sync-flow-names");
+    let tune = folder.join("tune.mid");
+    let sung = folder.join("sung.kar");
+    std::fs::write(&tune, km_song::testing::instrumental()).expect("write");
+    std::fs::write(&sung, km_song::testing::soft_karaoke()).expect("write");
+    let launcher = Arc::new(Recorded::default());
+    let app = tool(&folder, Arc::clone(&launcher));
+
+    let page = get(&app, "/").await;
+    assert!(page.contains(r#"<input type="text" id="title" name="title""#));
+    assert!(page.contains(r#"<option value="pt">Portuguese</option>"#));
+    assert!(page.contains(r#"data-artist="""#), "{page}");
+
+    let typed = [
+        ("words", "la la"),
+        ("use_words", "on"),
+        ("artist", "  The Singers "),
+        ("language", "PT"),
+        ("title", " "),
+    ];
+    post(&app, "/start", &start_form(&tune, &typed)).await;
+    closed(&app).await;
+    let over_a_stated_title = [("title", "Another Name"), ("language", "no such code")];
+    post(&app, "/start", &start_form(&sung, &over_a_stated_title)).await;
+    closed(&app).await;
+
+    let launches = launcher.launches.lock().expect("the lock");
+    let named = args(&launches[0]);
+    assert!(named.contains(&"--sync-artist=The Singers".to_owned()));
+    assert!(named.contains(&"--sync-language=pt".to_owned()));
+    assert!(
+        !named.iter().any(|arg| arg.starts_with("--sync-title")),
+        "a blank field passes nothing: {named:?}"
+    );
+    let stated = args(&launches[1]);
+    assert!(
+        !stated.iter().any(|arg| arg.starts_with("--sync-title")),
+        "the song's own title stands: {stated:?}"
+    );
+    assert!(
+        !stated.iter().any(|arg| arg.starts_with("--sync-language")),
+        "{stated:?}"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn the_editors_own_refusal_reaches_the_page() {
     let folder = Scratch::new("sync-flow-failed");
     let sung = folder.join("sung.kar");

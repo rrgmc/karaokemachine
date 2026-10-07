@@ -35,9 +35,11 @@
     <td class="num">
       {# Select starts nothing. It hands the song to the words panel under the browser, which holds
          every choice and the Start button. The `data-` attributes are what the panel needs to know
-         about the song: whether a synced copy would be replaced, and whether it needs words. #}
+         about the song: whether a synced copy would be replaced, whether it needs words, and the
+         title, artist and language it states. An empty one is a name the panel asks for. #}
       {% if song.readable %}
       <button type="button" class="quiet" data-select="{{ song.path }}" data-name="{{ song.name }}"
+              data-title="{{ song.title }}" data-artist="{{ song.artist }}" data-language="{{ song.language }}"
               {% if song.out_exists %}data-out-exists{% endif %}
               {% if song.needs_words %}data-needs-words{% endif %}>{{ "action-select"|t }}</button>
       {% endif %}

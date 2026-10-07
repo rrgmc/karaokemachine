@@ -687,6 +687,12 @@ reads fills and stops the editor. Standard error is kept, because a refused star
 refused, and a stylesheet is no gate. The server checks the song, the machine, the words, the
 synced copy and the running editor.
 
+**`App::start` decides which names reach the editor.** It reads `rows::found` once, for what the
+song holds and for the title, artist and language it states. A typed value is kept only where the
+stated one is `None` and the value is not blank. A language is kept only when
+`km_kmpkg::Language::parse` knows its code. `launch::plan` writes each kept value as one
+`--sync-title=<value>` argument, so a value that starts with a hyphen is not read as a flag.
+
 **The page's tests start no process.** `tests/flow.rs` gives `App` a `Launcher` that records what it
 was asked to run. `launch::plan` is tested for both shapes on every platform.
 

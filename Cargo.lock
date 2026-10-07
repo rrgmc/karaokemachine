@@ -2853,6 +2853,7 @@ dependencies = [
  "km-console",
  "km-dirs",
  "km-folders",
+ "km-kmpkg",
  "km-locale",
  "km-logfile",
  "km-osopen",

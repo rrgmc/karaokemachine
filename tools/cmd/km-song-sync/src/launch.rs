@@ -22,6 +22,12 @@ pub struct Request {
     pub resume: bool,
     /// Replace the synced copy that exists.
     pub force: bool,
+    /// The title to write, where the song states none.
+    pub title: Option<String>,
+    /// The artist to write, where the song states none.
+    pub artist: Option<String>,
+    /// The language to write, where the song states none.
+    pub language: Option<String>,
     /// The data folder the machine reads its settings from, when not its own.
     pub data_dir: Option<PathBuf>,
 }
@@ -133,7 +139,7 @@ pub fn plan(machine: &Machine, request: &Request, scratch: &Path) -> Launch {
     }
 }
 
-/// The two flags that follow the words.
+/// The choices that follow the words.
 fn push_choices(args: &mut Vec<OsString>, request: &Request) {
     // The editor accepts `--sync-continue` only with words to continue with.
     if request.resume && request.words.is_some() {
@@ -141,6 +147,16 @@ fn push_choices(args: &mut Vec<OsString>, request: &Request) {
     }
     if request.force {
         args.push("--sync-force".into());
+    }
+    // One argument each, so a value that starts with a hyphen is not read as a flag.
+    for (flag, value) in [
+        ("--sync-title", &request.title),
+        ("--sync-artist", &request.artist),
+        ("--sync-language", &request.language),
+    ] {
+        if let Some(value) = value {
+            args.push(format!("{flag}={value}").into());
+        }
     }
 }
 
@@ -242,6 +258,9 @@ mod tests {
             words: Some("la la\n".to_owned()),
             resume: false,
             force: false,
+            title: None,
+            artist: None,
+            language: None,
             data_dir: None,
         }
     }
@@ -339,6 +358,31 @@ mod tests {
             }
         );
         assert_eq!(launch.said_in, Some(said));
+    }
+
+    #[test]
+    fn a_name_the_page_was_given_is_one_argument_after_the_other_choices() {
+        let named = Request {
+            force: true,
+            title: Some("-Tune".to_owned()),
+            artist: Some("The Singers".to_owned()),
+            language: Some("pt".to_owned()),
+            ..request()
+        };
+        let tail = [
+            "--sync-force",
+            "--sync-title=-Tune",
+            "--sync-artist=The Singers",
+            "--sync-language=pt",
+        ];
+
+        let binary = Machine::Binary(PathBuf::from("karaokemachine"));
+        let launch = plan(&binary, &named, Path::new("/scratch"));
+        assert_eq!(args(&launch)[4..], tail);
+
+        let bundle = Machine::Bundle(PathBuf::from("/Applications/Karaoke Machine.app"));
+        let launch = plan(&bundle, &named, Path::new("/scratch"));
+        assert_eq!(args(&launch)[11..], tail);
     }
 
     #[test]

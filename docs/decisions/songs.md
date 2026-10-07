@@ -1575,6 +1575,11 @@ somebody's own typing, so the editor says it is there and writes nothing.
 **The editor does not find words and does not split them.** It looks nothing up, and a syllable
 break is a hyphen somebody typed.
 
+**The title, the artist and the language are the song's own, unless a flag names one.**
+`--sync-title`, `--sync-artist` and `--sync-language` each replace what the song states. A song
+that states no title gets its file name, because a Soft Karaoke file has to hold one. A missing
+artist or language stays missing. The editor guesses none of the three.
+
 **The editor reads the machine's settings and writes none.** It plays through the bank and the
 device they name, in the language they name. Started on a folder with no settings, it leaves none.
 
@@ -1624,6 +1629,15 @@ the editor's flags give: only the person knows which they want.
 song and holds the words box, every choice about the start, and Start. A row holds the file name,
 the title, the artist and Select. Fifteen rows of buttons and boxes are harder to read than fifteen
 rows of songs, and the words belong beside the button that uses them.
+
+**The panel asks for the title, the artist and the language the song does not state.** A stated
+one is shown and cannot be changed there. The page puts words on a song and does not rename it. A missing one gets a field, and what a person enters goes to the
+editor as its flag. An empty field passes nothing. The server reads the song again at Start and
+drops a value for anything the song states.
+
+**The language is chosen from the list of codes, and the code is what the file holds.** A list
+cannot be mistyped. The machine reads a code in a karaoke file's language header before it tries
+the four-letter names, so the synced file needs no other spelling.
 
 **A synced copy that exists is replaced only when the panel's box says so.** The row names the
 copy, and the panel shows the box for a song that has one. Start waits for the tick, and the server

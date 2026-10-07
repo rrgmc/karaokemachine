@@ -38,6 +38,18 @@
     panel.toggleAttribute("data-selected", true);
     panel.toggleAttribute("data-out-exists", "outExists" in button.dataset);
     panel.toggleAttribute("data-needs-words", "needsWords" in button.dataset);
+    // A name the song states is shown, and its control is switched off so it posts nothing. A
+    // name it does not state gets the control, emptied when another song is selected.
+    let asks = false;
+    for (const field of ["title", "artist", "language"]) {
+      const stated = button.dataset[field] || "";
+      const control = document.getElementById(field);
+      panel.querySelector(`[data-stated="${field}"]`).textContent = stated;
+      control.hidden = control.disabled = stated !== "";
+      if (fresh || stated !== "") control.value = "";
+      if (stated === "") asks = true;
+    }
+    panel.toggleAttribute("data-asks-names", asks);
     if (fresh || !("outExists" in button.dataset)) force.checked = false;
   };
 

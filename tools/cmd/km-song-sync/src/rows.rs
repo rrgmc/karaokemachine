@@ -43,6 +43,8 @@ pub struct Row {
     pub title: Option<String>,
     /// The artist the file states.
     pub artist: Option<String>,
+    /// The language the file states, as the file spells it.
+    pub language: Option<String>,
     /// The name of the text file beside it that supplies its words, where there is one.
     pub sidecar: Option<String>,
     /// The name of the synced copy the editor writes.
@@ -122,12 +124,14 @@ pub struct Found {
     pub title: Option<String>,
     /// The artist the file states.
     pub artist: Option<String>,
+    /// The language the file states, as the file spells it.
+    pub language: Option<String>,
 }
 
 /// Reads `song` once, for what it holds and what it calls itself.
 ///
-/// The parse that says whether a file has words has read its title and artist already, so the page
-/// shows them at no further cost.
+/// The parse that says whether a file has words has read its title, artist and language already,
+/// so the page shows them at no further cost.
 #[must_use]
 pub fn found(song: &Path) -> Found {
     let parsed = std::fs::read(song)
@@ -138,6 +142,7 @@ pub fn found(song: &Path) -> Found {
             holds: Holds::NotMidi,
             title: None,
             artist: None,
+            language: None,
         };
     };
     let has_words = parsed
@@ -154,6 +159,7 @@ pub fn found(song: &Path) -> Found {
         },
         title: stated(parsed.meta.title),
         artist: stated(parsed.meta.artist),
+        language: stated(parsed.meta.language),
     }
 }
 
@@ -187,6 +193,7 @@ pub fn describe(files: &[km_folders::Folder]) -> Vec<Row> {
                 holds: found.holds,
                 title: found.title,
                 artist: found.artist,
+                language: found.language,
                 sidecar,
                 out_exists: out.exists(),
                 out: out
@@ -245,6 +252,8 @@ mod tests {
         assert!(!rows[0].out_exists);
 
         assert_eq!(rows[1].holds, Holds::NoWords);
+        assert_eq!(rows[1].artist, None, "a bare MIDI file states no artist");
+        assert_eq!(rows[1].language, None);
         assert_eq!(rows[1].sidecar.as_deref(), Some("Tune.TXT"));
         assert_eq!(rows[1].out, "tune.kar");
         assert!(rows[1].out_exists);

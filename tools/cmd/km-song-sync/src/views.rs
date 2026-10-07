@@ -77,10 +77,32 @@ pub struct HomePage {
     pub chrome: Chrome,
     /// Whether the machine was found. Without it nothing can be started.
     pub machine: bool,
+    /// Every language the panel offers for a song that states none.
+    pub languages: Vec<LanguageOption>,
     /// What the editor is doing.
     pub editor: EditorFragment,
     /// The file browser.
     pub browser: BrowserFragment,
+}
+
+/// One language the panel offers.
+pub struct LanguageOption {
+    /// The code the panel posts.
+    pub code: &'static str,
+    /// The language's name.
+    pub name: &'static str,
+}
+
+/// Every language a song can be given, in the order of their names.
+#[must_use]
+pub fn languages() -> Vec<LanguageOption> {
+    km_kmpkg::Language::by_name()
+        .into_iter()
+        .map(|language| LanguageOption {
+            code: language.code(),
+            name: language.name(),
+        })
+        .collect()
 }
 
 /// What the editor is doing, polled while it is open.
@@ -189,6 +211,8 @@ pub struct SongView {
     pub title: String,
     /// The artist the file states. Empty when it states none.
     pub artist: String,
+    /// The language the file states, by name where the table knows it. Empty when it states none.
+    pub language: String,
     /// What the row says under the name, as finished sentences.
     pub notes: Vec<String>,
     /// Whether the synced copy exists, which makes the words panel ask before it is replaced.
@@ -225,6 +249,13 @@ fn song(row: Row, words: &Catalog) -> SongView {
         // Data, not words: a title and an artist are the file's own, in its own language.
         title: row.title.unwrap_or_default(),
         artist: row.artist.unwrap_or_default(),
+        language: row
+            .language
+            .map(|stated| match km_kmpkg::Language::from_declared(&stated) {
+                Some(language) => language.name().to_owned(),
+                None => stated,
+            })
+            .unwrap_or_default(),
         notes,
         out_exists: row.out_exists,
         readable: row.holds != Holds::NotMidi,

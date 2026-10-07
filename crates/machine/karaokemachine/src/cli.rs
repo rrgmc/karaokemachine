@@ -445,7 +445,8 @@ struct SyncArgs {
     #[arg(long = "sync-artist", value_name = "ARTIST", requires = "song")]
     artist: Option<String>,
 
-    /// The language `--sync` writes, as four letters such as `ENGL`.
+    /// The language `--sync` writes: a code such as `en`, or four letters such as `ENGL`.
+    /// Defaults to the song's own.
     #[arg(long = "sync-language", value_name = "CODE", requires = "song")]
     language: Option<String>,
 

@@ -120,6 +120,11 @@ tr.selected td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
 /* The words panel shows a name once a song is selected, and says so until then. */
 #words[data-selected] #selected-none { display: none; }
 #selected-notes:empty { display: none; }
+/* The three names appear with a selected song. The hint is for a song that is asked for one. */
+#words:not([data-selected]) #names,
+#words:not([data-asks-names]) #names-hint { display: none; }
+.names { display: grid; grid-template-columns: max-content 1fr; gap: 0.35rem 0.75rem; align-items: center; }
+.names input { width: 100%; max-width: 28rem; }
 /* Replacing is asked only of a song whose synced copy exists. */
 #words:not([data-out-exists]) #replace { display: none; }
 

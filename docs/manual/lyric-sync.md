@@ -33,6 +33,10 @@ only. With the box unticked it uses the text file beside the song, which has the
 `.txt`, in any encoding. A song that has words already opens with them. A synced copy that is already there is replaced only
 when you tick the box that says so.
 
+**The page asks for the title, the artist and the language a song does not state.** What you enter
+goes into the synced file. A name the song states is shown and stays as it is. An empty title
+becomes the file name, and an empty artist or language stays empty.
+
 <p align="center">
 <img src="../images/song-sync-page.png" width="90%"
      alt="KM Song Sync in a browser: a folder of four MIDI files, each marked as having no words,
