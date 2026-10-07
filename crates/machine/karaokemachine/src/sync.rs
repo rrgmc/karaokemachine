@@ -11,6 +11,7 @@
 //! [`Session`] is the editing state and holds no window and no sound, so it is what the tests
 //! drive.
 
+use std::io::Read as _;
 use std::ops::Range;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -18,20 +19,22 @@ use std::time::{Duration, Instant};
 
 use anyhow::Context as _;
 use km_audio::audio::{Command, Load, SharedState};
-use km_audio::{Bank, OutputStream, SoundFontSource, TestToneSource};
+use km_audio::{AudioError, Bank, OutputStream, SoundFontSource, TestToneSource};
 use km_display::draw::{Background, Frame, Screen, SongInfo, draw};
 use km_display::lyrics::{LyricView, shift_ticks};
 use km_display::numbers::NumberEntry;
-use km_display::text::{Align, Fonts, TextCache, TextStyle, draw_text, measure_line};
+use km_display::text::{Align, Fonts, TextCache, TextError, TextStyle, draw_text, measure_line};
 use km_display::theme::Theme;
+use km_locale::{Catalog, Catalogs, Locale};
 use km_queue::Transport;
 use km_song::kar_write::{KarWords, split_words, write_soft_karaoke};
 use km_song::timeline::{LineBreak, RawSyllable};
 use km_song::{ParseOptions, Song};
-use sdl3::event::Event as SdlEvent;
+use sdl3::event::{Event as SdlEvent, WindowEvent};
 use sdl3::keyboard::{Keycode, Mod};
 use sdl3::pixels::Color;
 use sdl3::render::{BlendMode, Canvas, FRect};
+use sdl3::ttf::Sdl3TtfContext;
 use sdl3::video::{Window, WindowContext};
 
 use crate::display::StepSmoother;
@@ -390,11 +393,17 @@ struct MelodyChoice {
 }
 
 impl MelodyChoice {
-    fn label(&self) -> String {
+    /// The channel as a person names it, numbered from 1, with the track name the file gives it.
+    fn label(&self, words: &Catalog) -> String {
+        let number = i64::from(self.channel) + 1;
         match &self.name {
-            Some(name) => format!("channel {} ({name})", self.channel + 1),
-            None => format!("channel {}", self.channel + 1),
+            Some(name) => words.msg_with(
+                "sync-channel-named",
+                &[("number", number.into()), ("name", name.as_str().into())],
+            ),
+            None => words.msg_with("sync-channel", &[("number", number.into())]),
         }
+        .into_owned()
     }
 }
 
@@ -417,46 +426,178 @@ fn melody_choices(song: &Song) -> Vec<MelodyChoice> {
     choices
 }
 
-/// Opens the sound: the owner's bank, or the test tone when there is none to load.
-fn open_audio(paths: &Paths, settings: &Settings) -> anyhow::Result<OutputStream> {
-    let selected = crate::soundfont::resolve(paths, settings.audio.soundfont.as_deref());
-    let bank = crate::engine::resolve_soundfont(selected.path.as_deref(), paths)
-        .and_then(|path| Bank::load(&path).map_err(|error| error.to_string()));
-    let shared = Arc::new(SharedState::default());
-    let want = settings.audio.output_device.as_deref();
-    let stream = match &bank {
-        Ok(bank) => OutputStream::open(shared, want, |rate| SoundFontSource::from_bank(bank, rate)),
-        Err(reason) => {
-            tracing::warn!(%reason, "no SoundFont, so the song plays as a test tone");
-            OutputStream::open(shared, want, |rate| Ok(TestToneSource::new(rate)))
-        }
-    };
-    stream.context("no audio output")
+/// The editor's own words, one catalog per locale.
+///
+/// Compiled in, as the screen's catalog is, so a build cannot travel without them.
+static CATALOGS: Catalogs = Catalogs::new(
+    "sync",
+    &[
+        (Locale::English, include_str!("../i18n/en.ftl")),
+        (
+            Locale::BrazilianPortuguese,
+            include_str!("../i18n/pt-BR.ftl"),
+        ),
+    ],
+);
+
+/// The editor's messages for one locale, parsed once.
+fn messages(locale: Locale) -> &'static Catalog {
+    CATALOGS.get(locale)
 }
 
-/// Loads the song again with `channel` silenced, and puts it back where it was.
+/// The sound, which outlives any one open device.
+///
+/// A device can go away while a song plays. The stream is then dropped and opened again, and the
+/// bank and the state the position is read from stay.
+struct Sound {
+    /// The open stream, or `None` between a loss and the next successful open.
+    stream: Option<OutputStream>,
+    shared: Arc<SharedState>,
+    /// The owner's bank, parsed once. `None` plays the test tone.
+    bank: Option<Bank>,
+    /// The device named in settings, asked for again at each open.
+    want: Option<String>,
+    volume: f32,
+    /// The earliest moment the next open is tried.
+    retry_at: Instant,
+}
+
+impl Sound {
+    /// How long to wait between two attempts to open a device that is not there.
+    const RETRY_EVERY: Duration = Duration::from_secs(2);
+
+    /// Opens the sound: the owner's bank, or the test tone when there is none to load.
+    fn open(paths: &Paths, settings: &Settings) -> anyhow::Result<Self> {
+        let selected = crate::soundfont::resolve(paths, settings.audio.soundfont.as_deref());
+        let bank = crate::engine::resolve_soundfont(selected.path.as_deref(), paths)
+            .and_then(|path| Bank::load(&path).map_err(|error| error.to_string()));
+        if let Err(reason) = &bank {
+            tracing::warn!(%reason, "no SoundFont, so the song plays as a test tone");
+        }
+        let mut sound = Self {
+            stream: None,
+            shared: Arc::new(SharedState::default()),
+            bank: bank.ok(),
+            want: settings.audio.output_device.clone(),
+            volume: settings.audio.music_volume,
+            retry_at: Instant::now(),
+        };
+        sound.stream = Some(sound.open_stream().context("no audio output")?);
+        sound.send(Command::SetMusicVolume(sound.volume));
+        Ok(sound)
+    }
+
+    fn open_stream(&self) -> Result<OutputStream, AudioError> {
+        let shared = Arc::clone(&self.shared);
+        let want = self.want.as_deref();
+        match &self.bank {
+            Some(bank) => {
+                OutputStream::open(shared, want, |rate| SoundFontSource::from_bank(bank, rate))
+            }
+            None => OutputStream::open(shared, want, |rate| Ok(TestToneSource::new(rate))),
+        }
+    }
+
+    /// Sends a command to the open stream. With no stream there is nothing to hear it.
+    fn send(&mut self, command: Command) {
+        if let Some(stream) = &mut self.stream {
+            stream.send(command);
+        }
+    }
+
+    fn collect_retired(&mut self) {
+        if let Some(stream) = &mut self.stream {
+            stream.collect_retired();
+        }
+    }
+
+    /// Drops a stream that reported an error. Answers whether one was dropped.
+    fn drop_failed(&mut self) -> bool {
+        if self.stream.is_none() || !self.shared.stream_failed() {
+            return false;
+        }
+        self.shared.publish_lost();
+        self.stream = None;
+        true
+    }
+
+    /// Tries to open a stream when there is none. Answers whether one opened.
+    fn reopen(&mut self, now: Instant) -> bool {
+        if self.stream.is_some() || now < self.retry_at {
+            return false;
+        }
+        match self.open_stream() {
+            Ok(stream) => {
+                self.stream = Some(stream);
+                self.send(Command::SetMusicVolume(self.volume));
+                true
+            }
+            Err(error) => {
+                tracing::debug!(%error, "the audio output is still not there");
+                self.retry_at = now + Self::RETRY_EVERY;
+                false
+            }
+        }
+    }
+}
+
+/// Loads the song and puts it where it was, with `silence` as the channel that does not sound.
 ///
 /// The engine silences one channel, the one a song is loaded with as its guide melody. A load
 /// starts the song over, so the position, the tempo and the transport are sent after it.
-fn load_silencing(
-    stream: &mut OutputStream,
+fn load_song(
+    sound: &mut Sound,
     song: &Arc<Song>,
-    channel: u8,
+    silence: Option<u8>,
     at_ms: u32,
     playing: bool,
     tempo_ratio: f32,
 ) {
-    stream.send(Command::Load(Load::Midi {
+    sound.send(Command::Load(Load::Midi {
         song: Arc::clone(song),
-        melody_channel: Some(channel),
+        melody_channel: silence,
         fixes: km_fixes::ChannelFixes::default(),
     }));
-    stream.send(Command::SetMelodyEnabled(false));
-    stream.send(Command::SetTempoRatio(tempo_ratio));
-    stream.send(Command::SeekMs(at_ms));
+    sound.send(Command::SetMelodyEnabled(false));
+    sound.send(Command::SetTempoRatio(tempo_ratio));
+    sound.send(Command::SeekMs(at_ms));
     if playing {
-        stream.send(Command::Play);
+        sound.send(Command::Play);
     }
+}
+
+/// The fonts for a window of this height, from the owner's settings.
+fn open_fonts(
+    ttf: &Sdl3TtfContext,
+    settings: &Settings,
+    bundled: &Path,
+    with_cjk: bool,
+    theme: &Theme,
+    height: u32,
+) -> Result<Fonts, TextError> {
+    Fonts::discover(
+        ttf,
+        settings.display.font.as_deref(),
+        Some(bundled),
+        settings.display.font_cjk.as_deref(),
+        with_cjk,
+        theme,
+        height,
+    )
+}
+
+/// The typed words: a file, or standard input when the path is `-`.
+///
+/// Standard input is for a program that starts the editor with words it holds and has no file for.
+fn read_words(path: &Path) -> anyhow::Result<String> {
+    if path == Path::new("-") {
+        let mut typed = String::new();
+        std::io::stdin()
+            .read_to_string(&mut typed)
+            .context("reading the words from standard input")?;
+        return Ok(typed);
+    }
+    std::fs::read_to_string(path).with_context(|| format!("reading {}", path.display()))
 }
 
 /// Runs the editor until its window closes.
@@ -467,9 +608,7 @@ pub(crate) fn run(paths: &Paths, settings: &Settings, request: &Request) -> anyh
         Song::parse(&source, &ParseOptions::default())
             .with_context(|| format!("{} is not a MIDI file", request.song.display()))?,
     );
-    let typed = std::fs::read_to_string(&request.words)
-        .with_context(|| format!("reading {}", request.words.display()))?;
-    let syllables = split_words(&typed);
+    let syllables = split_words(&read_words(&request.words)?);
     anyhow::ensure!(
         !syllables.is_empty(),
         "{} holds no words",
@@ -518,9 +657,13 @@ pub(crate) fn run(paths: &Paths, settings: &Settings, request: &Request) -> anyh
         syllables: session.tapped(),
     };
 
+    let locale = settings.machine.locale();
+    let words = messages(locale);
+    let t = |key: &str| words.msg(key).into_owned();
+
     let choices = melody_choices(&song);
     // No channel is chosen until somebody names one or the taps point at one. A file with no words
-    // gives the ranking nothing to tie a channel to the singing with.
+    // gives a ranking nothing to tie a channel to the singing with.
     let mut choice: Option<usize> = request
         .melody_channel
         .and_then(|wanted| choices.iter().position(|c| c.channel + 1 == wanted));
@@ -537,14 +680,9 @@ pub(crate) fn run(paths: &Paths, settings: &Settings, request: &Request) -> anyh
         .tap_offset_ms
         .unwrap_or_else(|| settings.display.lyric_offset());
 
-    let mut stream = open_audio(paths, settings)?;
-    let state = Arc::clone(stream.state());
-    stream.send(Command::SetMusicVolume(settings.audio.music_volume));
-    stream.send(Command::Load(Load::Midi {
-        song: Arc::clone(&song),
-        melody_channel: None,
-        fixes: km_fixes::ChannelFixes::default(),
-    }));
+    let mut sound = Sound::open(paths, settings)?;
+    let state = Arc::clone(&sound.shared);
+    load_song(&mut sound, &song, None, 0, false, 1.0);
 
     let sdl = sdl3::init().map_err(|error| anyhow::anyhow!("SDL would not start: {error}"))?;
     let video = sdl
@@ -552,9 +690,13 @@ pub(crate) fn run(paths: &Paths, settings: &Settings, request: &Request) -> anyh
         .map_err(|error| anyhow::anyhow!("no video: {error}"))?;
     let ttf =
         sdl3::ttf::init().map_err(|error| anyhow::anyhow!("SDL_ttf would not start: {error}"))?;
+    let window_title = words
+        .msg_with("sync-window-title", &[("title", title.as_str().into())])
+        .into_owned();
     let mut window = video
-        .window(&format!("Lyric sync - {title}"), WINDOW.0, WINDOW.1)
+        .window(&window_title, WINDOW.0, WINDOW.1)
         .position_centered()
+        .resizable()
         .high_pixel_density()
         .build()?;
     km_display::set_window_icon(&mut window);
@@ -564,18 +706,13 @@ pub(crate) fn run(paths: &Paths, settings: &Settings, request: &Request) -> anyh
     let (width, height) = canvas.output_size().unwrap_or(WINDOW);
     let theme = Theme::default();
     let bundled = paths.asset(crate::settings::FONT_SUBPATH);
-    let fonts = Fonts::discover(
-        &ttf,
-        settings.display.font.as_deref(),
-        Some(&bundled),
-        settings.display.font_cjk.as_deref(),
-        false,
-        &theme,
-        height,
-    )
-    .map_err(|error| {
-        anyhow::anyhow!("no usable font: {error}. Set display.font in settings.json")
-    })?;
+    // Without CJK faces to start with, as the machine starts. They are opened when a word asks.
+    let mut with_cjk = false;
+    let mut fonts =
+        open_fonts(&ttf, settings, &bundled, with_cjk, &theme, height).map_err(|error| {
+            anyhow::anyhow!("no usable font: {error}. Set display.font in settings.json")
+        })?;
+    let mut font_sizes = crate::display::font_sizes_for(&theme, height);
     let mut events = sdl
         .event_pump()
         .map_err(|error| anyhow::anyhow!("no event pump: {error}"))?;
@@ -588,7 +725,7 @@ pub(crate) fn run(paths: &Paths, settings: &Settings, request: &Request) -> anyh
         language: None,
     };
     let entry = NumberEntry::new();
-    let screen = Layout {
+    let mut screen = Layout {
         width: width as f32,
         height: height as f32,
     };
@@ -608,10 +745,9 @@ pub(crate) fn run(paths: &Paths, settings: &Settings, request: &Request) -> anyh
     // Whether the vocal line is silenced, and which channel the loaded song can silence.
     let mut silenced = false;
     let mut silencing: Option<u8> = None;
-    let mut message: Option<(String, Instant)> = Some((
-        "Press Enter to start the song, then Space on each syllable".to_owned(),
-        Instant::now(),
-    ));
+    // Where the song was, and whether it played, when its device went away.
+    let mut lost: Option<(u32, bool)> = None;
+    let mut message: Option<(String, Instant)> = Some((t("sync-start"), Instant::now()));
 
     'frames: loop {
         let now = Instant::now();
@@ -623,19 +759,53 @@ pub(crate) fn run(paths: &Paths, settings: &Settings, request: &Request) -> anyh
         let phase = session.phase();
 
         let mut say = |text: String| message = Some((text, now));
-        let seek_to_ms = |stream: &mut OutputStream, ms: u32| {
-            stream.send(Command::SeekMs(ms));
-        };
+
+        // A device that went away takes the stream with it. The song goes back where it was once
+        // a device opens, playing if it was.
+        if sound.drop_failed() {
+            lost = Some((state.position_ms(), want_playing));
+            say(t("sync-no-audio"));
+        }
+        if let Some((at_ms, was_playing)) = lost
+            && sound.reopen(now)
+        {
+            let silence = silencing.filter(|_| silenced);
+            silencing = silence;
+            load_song(&mut sound, &song, silence, at_ms, was_playing, tempo_ratio);
+            lost = None;
+            say(t("sync-audio-back"));
+        }
 
         for event in events.poll_iter() {
             let (key, keymod, repeat) = match event {
                 SdlEvent::Quit { .. } => {
                     if session.dirty && !leaving {
                         leaving = true;
-                        say("Not saved. Ctrl+S saves, closing again leaves".to_owned());
+                        say(t("sync-unsaved-close"));
                         continue;
                     }
                     break 'frames;
+                }
+                SdlEvent::Window {
+                    win_event: WindowEvent::PixelSizeChanged(new_width, new_height),
+                    ..
+                } => {
+                    let new_height = new_height.max(1) as u32;
+                    screen.width = new_width.max(1) as f32;
+                    screen.height = new_height as f32;
+                    // The same seam the machine's resize goes through. A drag that moves no rounded
+                    // point size opens no font file.
+                    let wanted = crate::display::font_sizes_for(&theme, new_height);
+                    if wanted != font_sizes
+                        && let Ok(rebuilt) =
+                            open_fonts(&ttf, settings, &bundled, with_cjk, &theme, new_height)
+                    {
+                        fonts = rebuilt;
+                        font_sizes = wanted;
+                        // The cache's keys carry the address of the font that drew each string.
+                        cache.clear();
+                    }
+                    continue;
                 }
                 SdlEvent::KeyDown {
                     keycode: Some(key),
@@ -655,7 +825,7 @@ pub(crate) fn run(paths: &Paths, settings: &Settings, request: &Request) -> anyh
                 (_, Keycode::Escape) => {
                     if session.dirty && !leaving {
                         leaving = true;
-                        say("Not saved. Ctrl+S saves, Esc again leaves".to_owned());
+                        say(t("sync-unsaved-esc"));
                     } else {
                         break 'frames;
                     }
@@ -667,46 +837,58 @@ pub(crate) fn run(paths: &Paths, settings: &Settings, request: &Request) -> anyh
                     match saved {
                         Ok(()) => {
                             session.dirty = false;
-                            say(format!(
-                                "Saved {} of {} syllables to {}",
-                                session.stamped,
-                                session.syllables.len(),
-                                out.display()
-                            ));
+                            let file = out.display().to_string();
+                            say(words
+                                .msg_with(
+                                    "sync-saved",
+                                    &[
+                                        ("tapped", (session.stamped as i64).into()),
+                                        ("total", (session.syllables.len() as i64).into()),
+                                        ("file", file.as_str().into()),
+                                    ],
+                                )
+                                .into_owned());
                         }
-                        Err(error) => say(format!("Not saved: {error}")),
+                        Err(error) => {
+                            let reason = error.to_string();
+                            say(words
+                                .msg_with("sync-not-saved", &[("reason", reason.as_str().into())])
+                                .into_owned());
+                        }
                     }
                 }
                 (_, Keycode::Minus | Keycode::KpMinus) => {
                     tempo_ratio = (tempo_ratio - 0.05).max(0.5);
-                    stream.send(Command::SetTempoRatio(tempo_ratio));
+                    sound.send(Command::SetTempoRatio(tempo_ratio));
                 }
                 (_, Keycode::Equals | Keycode::Plus | Keycode::KpPlus) => {
                     tempo_ratio = (tempo_ratio + 0.05).min(1.5);
-                    stream.send(Command::SetTempoRatio(tempo_ratio));
+                    sound.send(Command::SetTempoRatio(tempo_ratio));
                 }
                 (_, Keycode::H) if !repeat => show_help = !show_help,
                 (_, Keycode::R) if !repeat => {
                     let all = session.stamped == session.syllables.len();
                     if session.stamped == 0 {
-                        say("Nothing is tapped yet, so there is nothing to review".to_owned());
+                        say(t("sync-nothing-to-review"));
                     } else if all {
-                        say("Every word is tapped, so no word is left to tap".to_owned());
+                        say(t("sync-all-tapped-already"));
                     } else if session.reviewing {
                         session.reviewing = false;
                         // Back to where the taps stopped, with a run-up to the next word.
                         let last = session.syllables[session.stamped - 1].tick;
                         let ms = song.tempo_map.tick_to_ms(last).saturating_sub(RUN_UP_MS);
-                        seek_to_ms(&mut stream, ms);
-                        say("Tapping again, from the next word".to_owned());
+                        sound.send(Command::SeekMs(ms));
+                        say(t("sync-tapping-again"));
                     } else {
                         session.reviewing = true;
                         session.selected = session.selected.min(session.stamped - 1);
                         preview_stale = true;
-                        say(format!(
-                            "Review of the {} words tapped so far. R goes back to tapping",
-                            session.stamped
-                        ));
+                        say(words
+                            .msg_with(
+                                "sync-review-so-far",
+                                &[("tapped", (session.stamped as i64).into())],
+                            )
+                            .into_owned());
                     }
                 }
                 (_, Keycode::M) if !choices.is_empty() => {
@@ -719,34 +901,39 @@ pub(crate) fn run(paths: &Paths, settings: &Settings, request: &Request) -> anyh
                         (Some(c), true) => (c + count - 1) % count,
                     };
                     choice = Some(next);
+                    let channel = choices[next].label(words);
                     if silenced {
                         // The silence follows the choice, so each press is heard.
                         silencing = Some(choices[next].channel);
-                        load_silencing(
-                            &mut stream,
+                        load_song(
+                            &mut sound,
                             &song,
-                            choices[next].channel,
+                            silencing,
                             state.position_ms(),
                             playing,
                             tempo_ratio,
                         );
-                        say(format!(
-                            "The vocal line is {}, and it is silenced",
-                            choices[next].label()
-                        ));
+                        say(words
+                            .msg_with(
+                                "sync-vocal-is-silenced",
+                                &[("channel", channel.as_str().into())],
+                            )
+                            .into_owned());
                     } else {
-                        say(format!(
-                            "The vocal line is {}. V silences it, to hear what is left",
-                            choices[next].label()
-                        ));
+                        say(words
+                            .msg_with("sync-vocal-is", &[("channel", channel.as_str().into())])
+                            .into_owned());
                     }
                 }
                 (_, Keycode::V) if !repeat => match choice {
-                    None => say("No vocal line is chosen. M picks the channel".to_owned()),
+                    None => say(t("sync-no-vocal")),
                     Some(chosen) if silenced => {
                         silenced = false;
-                        stream.send(Command::SetMelodyEnabled(true));
-                        say(format!("{} sounds again", choices[chosen].label()));
+                        sound.send(Command::SetMelodyEnabled(true));
+                        let channel = choices[chosen].label(words);
+                        say(words
+                            .msg_with("sync-sounds-again", &[("channel", channel.as_str().into())])
+                            .into_owned());
                     }
                     Some(chosen) => {
                         silenced = true;
@@ -754,22 +941,22 @@ pub(crate) fn run(paths: &Paths, settings: &Settings, request: &Request) -> anyh
                         // The engine silences the one channel a song was loaded with. A channel
                         // chosen since the load needs the song loaded again.
                         if silencing == Some(channel) {
-                            stream.send(Command::SetMelodyEnabled(false));
+                            sound.send(Command::SetMelodyEnabled(false));
                         } else {
                             silencing = Some(channel);
-                            load_silencing(
-                                &mut stream,
+                            load_song(
+                                &mut sound,
                                 &song,
-                                channel,
+                                silencing,
                                 state.position_ms(),
                                 playing,
                                 tempo_ratio,
                             );
                         }
-                        say(format!(
-                            "{} is silenced. V brings it back",
-                            choices[chosen].label()
-                        ));
+                        let channel = choices[chosen].label(words);
+                        say(words
+                            .msg_with("sync-silenced", &[("channel", channel.as_str().into())])
+                            .into_owned());
                     }
                 },
 
@@ -787,29 +974,21 @@ pub(crate) fn run(paths: &Paths, settings: &Settings, request: &Request) -> anyh
                                 .collect();
                             choice = vocal_line_under(&taps_ms, &onsets_ms);
                             if let Some(found) = choice {
-                                say(format!(
-                                    "Your taps follow {}, so it is the vocal line. M changes it",
-                                    choices[found].label()
-                                ));
+                                let channel = choices[found].label(words);
+                                say(words
+                                    .msg_with(
+                                        "sync-taps-follow",
+                                        &[("channel", channel.as_str().into())],
+                                    )
+                                    .into_owned());
                             }
                         }
                         if session.phase() == Phase::Review {
-                            say(
-                                "All words tapped. The song now repeats with your timing, to check"
-                                    .to_owned(),
-                            );
+                            say(t("sync-all-tapped"));
                         }
                     } else {
-                        say("The song is paused. Enter plays it".to_owned());
+                        say(t("sync-paused-tap"));
                     }
-                }
-                (Phase::Tapping, Keycode::Return | Keycode::KpEnter) => {
-                    want_playing = !playing;
-                    stream.send(if playing {
-                        Command::Pause
-                    } else {
-                        Command::Play
-                    });
                 }
                 (_, Keycode::E) if !repeat => {
                     // While tapping it is the word just tapped; in review, the selected one.
@@ -819,13 +998,21 @@ pub(crate) fn run(paths: &Paths, settings: &Settings, request: &Request) -> anyh
                     };
                     if playing && session.end_at(index, tick) {
                         preview_stale = true;
-                        say(format!(
-                            "\"{}\" ends here",
-                            session.syllables[index].text.trim()
-                        ));
+                        let word = session.syllables[index].text.trim().to_owned();
+                        say(words
+                            .msg_with("sync-word-ends", &[("word", word.as_str().into())])
+                            .into_owned());
                     } else {
-                        say("E ends a word after it starts, while the song plays".to_owned());
+                        say(t("sync-end-refused"));
                     }
+                }
+                (Phase::Tapping, Keycode::Return | Keycode::KpEnter) => {
+                    want_playing = !playing;
+                    sound.send(if playing {
+                        Command::Pause
+                    } else {
+                        Command::Play
+                    });
                 }
                 (Phase::Tapping, Keycode::Backspace) => {
                     preview_stale |= session.undo();
@@ -834,18 +1021,18 @@ pub(crate) fn run(paths: &Paths, settings: &Settings, request: &Request) -> anyh
                     let from = session.retap_line();
                     preview_stale = true;
                     let ms = song.tempo_map.tick_to_ms(from).saturating_sub(RUN_UP_MS);
-                    seek_to_ms(&mut stream, ms);
+                    sound.send(Command::SeekMs(ms));
                 }
                 (Phase::Tapping, Keycode::Left) => {
-                    seek_to_ms(&mut stream, state.position_ms().saturating_sub(SEEK_MS));
+                    sound.send(Command::SeekMs(state.position_ms().saturating_sub(SEEK_MS)));
                 }
                 (Phase::Tapping, Keycode::Right) => {
-                    seek_to_ms(&mut stream, state.position_ms().saturating_add(SEEK_MS));
+                    sound.send(Command::SeekMs(state.position_ms().saturating_add(SEEK_MS)));
                 }
 
                 (Phase::Review, Keycode::Space) if !repeat => {
                     want_playing = !playing;
-                    stream.send(if playing {
+                    sound.send(if playing {
                         Command::Pause
                     } else {
                         Command::Play
@@ -867,8 +1054,8 @@ pub(crate) fn run(paths: &Paths, settings: &Settings, request: &Request) -> anyh
                     let line = &session.lines[session.line_of(session.selected)];
                     let from = session.syllables[line.start].tick;
                     let ms = song.tempo_map.tick_to_ms(from).saturating_sub(RUN_UP_MS);
-                    seek_to_ms(&mut stream, ms);
-                    stream.send(Command::Play);
+                    sound.send(Command::SeekMs(ms));
+                    sound.send(Command::Play);
                     want_playing = true;
                 }
                 (Phase::Review, Keycode::N) => match choice.and_then(|c| choices.get(c)) {
@@ -878,17 +1065,23 @@ pub(crate) fn run(paths: &Paths, settings: &Settings, request: &Request) -> anyh
                             map.tick_to_ms(a).abs_diff(map.tick_to_ms(b)) <= SNAP_WINDOW_MS
                         });
                         preview_stale = true;
-                        say(format!(
-                            "{moved} words moved onto the notes of {}. Ctrl+Z takes it back",
-                            melody.label()
-                        ));
+                        let channel = melody.label(words);
+                        say(words
+                            .msg_with(
+                                "sync-snapped",
+                                &[
+                                    ("moved", (moved as i64).into()),
+                                    ("channel", channel.as_str().into()),
+                                ],
+                            )
+                            .into_owned());
                     }
-                    None => say("No vocal line is chosen. M picks the channel".to_owned()),
+                    None => say(t("sync-no-vocal")),
                 },
                 (Phase::Review, Keycode::Z) if ctrl => {
                     if session.undo_snap() {
                         preview_stale = true;
-                        say("The words are back where you tapped them".to_owned());
+                        say(t("sync-snap-undone"));
                     }
                 }
                 (Phase::Review, Keycode::Backspace) => {
@@ -904,8 +1097,8 @@ pub(crate) fn run(paths: &Paths, settings: &Settings, request: &Request) -> anyh
         if in_review && !was_in_review {
             let first = session.syllables[0].tick;
             let ms = song.tempo_map.tick_to_ms(first).saturating_sub(RUN_UP_MS);
-            stream.send(Command::SeekMs(ms));
-            stream.send(Command::Play);
+            sound.send(Command::SeekMs(ms));
+            sound.send(Command::Play);
             want_playing = true;
         }
         was_in_review = in_review;
@@ -914,16 +1107,16 @@ pub(crate) fn run(paths: &Paths, settings: &Settings, request: &Request) -> anyh
         let ended = state.songs_ended();
         if ended != ended_seen {
             ended_seen = ended;
-            if session.phase() == Phase::Review && want_playing {
-                stream.send(Command::Restart);
-                stream.send(Command::Play);
+            if in_review && want_playing {
+                sound.send(Command::Restart);
+                sound.send(Command::Play);
             } else {
                 want_playing = false;
             }
         }
-        stream.collect_retired();
+        sound.collect_retired();
 
-        if preview_stale && session.phase() == Phase::Review {
+        if preview_stale && in_review {
             preview = write_soft_karaoke(&source, &words_for(&session))
                 .ok()
                 .and_then(|bytes| Song::parse(&bytes, &ParseOptions::default()).ok());
@@ -939,20 +1132,39 @@ pub(crate) fn run(paths: &Paths, settings: &Settings, request: &Request) -> anyh
             let first = m.onsets.partition_point(|&onset| onset < since);
             m.onsets.get(first).is_some_and(|&onset| onset <= tick)
         });
-        let status = format!(
-            "{}   {} / {}   tempo {:.0}%   {} of {} tapped{}",
-            if playing { "Playing" } else { "Paused" },
-            clock(song.tempo_map.tick_to_ms(tick)),
-            clock(song.duration_ms()),
-            tempo_ratio * 100.0,
-            session.stamped,
-            session.syllables.len(),
-            if session.dirty { "   not saved" } else { "" },
-        );
+        let position = clock(song.tempo_map.tick_to_ms(tick));
+        let length = clock(song.duration_ms());
+        let transport = t(if playing {
+            "sync-playing"
+        } else {
+            "sync-paused"
+        });
+        let mut status = words
+            .msg_with(
+                "sync-status",
+                &[
+                    ("transport", transport.as_str().into()),
+                    ("position", position.as_str().into()),
+                    ("length", length.as_str().into()),
+                    (
+                        "tempo",
+                        i64::from((tempo_ratio * 100.0).round() as i32).into(),
+                    ),
+                    ("tapped", (session.stamped as i64).into()),
+                    ("total", (session.syllables.len() as i64).into()),
+                ],
+            )
+            .into_owned();
+        if session.dirty {
+            status = words
+                .msg_with("sync-status-unsaved", &[("status", status.as_str().into())])
+                .into_owned();
+        }
 
         match (session.phase(), &preview) {
             (Phase::Review, Some(shown)) => {
                 let frame = Frame {
+                    locale,
                     screen: Screen::Playing,
                     song: Some(&info),
                     timeline: Some(&shown.lyrics),
@@ -971,6 +1183,15 @@ pub(crate) fn run(paths: &Paths, settings: &Settings, request: &Request) -> anyh
                     &frame,
                     Background::default(),
                 );
+                let help_top = screen.help(
+                    &mut canvas,
+                    &mut cache,
+                    &fonts,
+                    &theme,
+                    words,
+                    &REVIEW_KEYS,
+                    show_help,
+                );
                 let selected = &session.syllables[session.selected];
                 let line = &session.lines[session.line_of(session.selected)];
                 let around: String = session.syllables[line.clone()]
@@ -984,14 +1205,7 @@ pub(crate) fn run(paths: &Paths, settings: &Settings, request: &Request) -> anyh
                         }
                     })
                     .collect();
-                let help_top = screen.help(
-                    &mut canvas,
-                    &mut cache,
-                    &fonts,
-                    &theme,
-                    &REVIEW_KEYS,
-                    show_help,
-                );
+                let time = clock(song.tempo_map.tick_to_ms(selected.tick));
                 // The selected word sits on the key list, wherever that ends.
                 let line_height = measure_line(&fonts.text, &["Ag"]).height;
                 screen.note(
@@ -1000,10 +1214,12 @@ pub(crate) fn run(paths: &Paths, settings: &Settings, request: &Request) -> anyh
                     &fonts,
                     &theme,
                     (help_top - line_height * 1.6) / screen.height,
-                    &format!(
-                        "{}   at {}",
-                        around.trim(),
-                        clock(song.tempo_map.tick_to_ms(selected.tick))
+                    &words.msg_with(
+                        "sync-selected-at",
+                        &[
+                            ("line", around.trim().into()),
+                            ("time", time.as_str().into()),
+                        ],
                     ),
                 );
             }
@@ -1016,32 +1232,41 @@ pub(crate) fn run(paths: &Paths, settings: &Settings, request: &Request) -> anyh
                     &mut cache,
                     &fonts,
                     &theme,
+                    words,
                     &TAPPING_KEYS,
                     show_help,
                 );
             }
         }
 
+        let mode = t(match session.phase() {
+            Phase::Tapping => "sync-mode-tapping",
+            Phase::Review => "sync-mode-review",
+        });
         screen.status(
             &mut canvas,
             &mut cache,
             &fonts,
             &theme,
             session.phase(),
+            &mode,
             &status,
         );
-        screen.melody(
-            &mut canvas,
-            &mut cache,
-            &fonts,
-            &theme,
-            &match melody {
-                Some(melody) if silenced => format!("Vocal line: {}, silenced", melody.label()),
-                Some(melody) => format!("Vocal line: {}", melody.label()),
-                None => "Vocal line: not chosen".to_owned(),
-            },
-            note_lit,
-        );
+        let vocal = match melody {
+            Some(melody) => {
+                let channel = melody.label(words);
+                let key = if silenced {
+                    "sync-vocal-label-silenced"
+                } else {
+                    "sync-vocal-label"
+                };
+                words
+                    .msg_with(key, &[("channel", channel.as_str().into())])
+                    .into_owned()
+            }
+            None => t("sync-vocal-label-none"),
+        };
+        screen.melody(&mut canvas, &mut cache, &fonts, &theme, &vocal, note_lit);
         if let Some((text, since)) = &message {
             if now.duration_since(*since) < MESSAGE_FOR {
                 screen.note(&mut canvas, &mut cache, &fonts, &theme, 0.12, text);
@@ -1050,9 +1275,31 @@ pub(crate) fn run(paths: &Paths, settings: &Settings, request: &Request) -> anyh
             }
         }
         canvas.present();
+
+        // A word the open faces cannot draw. The fonts are opened again on a CJK face, after the
+        // frame is on screen, as the machine does it. That frame shows boxes and the next does not.
+        if !with_cjk && cache.saw_cjk() {
+            with_cjk = true;
+            let height = screen.height as u32;
+            match open_fonts(&ttf, settings, &bundled, with_cjk, &theme, height) {
+                Ok(rebuilt) => {
+                    if !rebuilt.has_cjk() {
+                        tracing::warn!(
+                            "the words want CJK glyphs and no CJK font was found; \
+                             set display.font_cjk in settings.json"
+                        );
+                    }
+                    fonts = rebuilt;
+                    cache.clear();
+                }
+                Err(error) => {
+                    tracing::warn!(%error, "could not open the fonts again with a CJK face");
+                }
+            }
+        }
     }
 
-    stream.send(Command::Stop);
+    sound.send(Command::Stop);
     Ok(())
 }
 
@@ -1061,7 +1308,8 @@ fn clock(ms: u32) -> String {
     format!("{}:{:02}.{}", ms / 60_000, ms / 1_000 % 60, ms / 100 % 10)
 }
 
-/// One row of the key list: what its keys act on, then each key with what it does.
+/// One row of the key list: the message for what its keys act on, then each key cap with the
+/// message for what it does.
 type HelpRow = (&'static str, &'static [(&'static str, &'static str)]);
 
 /// The keys while syllables are still waiting for a tick.
@@ -1070,31 +1318,31 @@ type HelpRow = (&'static str, &'static [(&'static str, &'static str)]);
 /// longest entry of a row closes it, so it widens no column a shorter entry shares.
 const TAPPING_KEYS: [HelpRow; 3] = [
     (
-        "TAP",
+        "sync-row-tap",
         &[
-            ("Space", "next word"),
-            ("E", "end the word"),
-            ("Backspace", "undo"),
-            ("Up", "tap this line again"),
+            ("Space", "sync-key-next-word"),
+            ("E", "sync-key-end-word"),
+            ("Backspace", "sync-key-undo"),
+            ("Up", "sync-key-tap-line-again"),
         ],
     ),
     (
-        "SONG",
+        "sync-row-song",
         &[
-            ("Enter", "play / pause"),
-            ("Left Right", "5 s"),
-            ("-  +", "slower / faster"),
-            ("M", "next channel as the vocal line (Shift: previous)"),
-            ("V", "silence it"),
+            ("Enter", "sync-key-play-pause"),
+            ("Left Right", "sync-key-seek"),
+            ("-  +", "sync-key-tempo"),
+            ("V", "sync-key-silence"),
+            ("M", "sync-key-vocal-next"),
         ],
     ),
     (
-        "FILE",
+        "sync-row-file",
         &[
-            ("Ctrl+S", "save"),
-            ("Esc", "leave"),
-            ("H", "hide these keys"),
-            ("R", "review what is tapped so far"),
+            ("Ctrl+S", "sync-key-save"),
+            ("Esc", "sync-key-leave"),
+            ("H", "sync-key-hide-keys"),
+            ("R", "sync-key-review-so-far"),
         ],
     ),
 ];
@@ -1102,38 +1350,38 @@ const TAPPING_KEYS: [HelpRow; 3] = [
 /// The keys once every syllable has a tick.
 const REVIEW_KEYS: [HelpRow; 4] = [
     (
-        "WORD",
+        "sync-row-word",
         &[
-            ("Up Down", "select"),
-            ("E", "end here"),
-            ("Backspace", "undo"),
-            ("Left Right", "move 10 ms (Shift 50)"),
+            ("Up Down", "sync-key-select"),
+            ("E", "sync-key-end-here"),
+            ("Backspace", "sync-key-undo"),
+            ("Left Right", "sync-key-move"),
         ],
     ),
     (
-        "SONG",
+        "sync-row-song",
         &[
-            ("Space", "play / pause"),
-            ("Enter", "play this line"),
-            ("-  +", "slower / faster"),
+            ("Space", "sync-key-play-pause"),
+            ("Enter", "sync-key-play-line"),
+            ("-  +", "sync-key-tempo"),
         ],
     ),
-    // The two keys that work together sit together: one names the channel, the other uses it.
+    // The keys that work together sit together: one names the channel and the others use it.
     (
-        "NOTES",
+        "sync-row-notes",
         &[
-            ("M", "next channel as the vocal line (Shift: previous)"),
-            ("V", "silence it"),
-            ("N", "move the words onto its notes (Ctrl+Z undoes)"),
+            ("V", "sync-key-silence"),
+            ("M", "sync-key-vocal-next"),
+            ("N", "sync-key-snap"),
         ],
     ),
     (
-        "FILE",
+        "sync-row-file",
         &[
-            ("Ctrl+S", "save"),
-            ("Esc", "leave"),
-            ("H", "hide these keys"),
-            ("R", "back to tapping"),
+            ("Ctrl+S", "sync-key-save"),
+            ("Esc", "sync-key-leave"),
+            ("H", "sync-key-hide-keys"),
+            ("R", "sync-key-back-to-tapping"),
         ],
     ),
 ];
@@ -1170,12 +1418,14 @@ impl Layout {
 
     /// The key list along the foot of the window. Answers where its top edge is, so whatever sits
     /// above it knows how much room is left.
+    #[allow(clippy::too_many_arguments)]
     fn help(
         &self,
         canvas: &mut Screenful,
         cache: &mut Cache,
         fonts: &Fonts,
         theme: &Theme,
+        words: &Catalog,
         rows: &[HelpRow],
         shown: bool,
     ) -> f32 {
@@ -1191,14 +1441,8 @@ impl Layout {
             // Hidden, with the one key that brings it back.
             let top = foot - pitch;
             let hint = TextStyle::outlined(theme.text_dim, theme, Align::Right);
-            draw_text(
-                canvas,
-                cache,
-                font,
-                "H  keys",
-                (self.width * 0.98, top),
-                &hint,
-            );
+            let text = format!("H  {}", words.msg("sync-key-show-keys"));
+            draw_text(canvas, cache, font, &text, (self.width * 0.98, top), &hint);
             return top;
         }
 
@@ -1217,14 +1461,32 @@ impl Layout {
             self.height - top + pitch * 0.3,
         ));
 
+        // Every row worded once, so a width is measured on the words that are drawn.
+        let worded: Vec<(String, Vec<(&str, String)>)> = rows
+            .iter()
+            .map(|(name, keys)| {
+                (
+                    words.msg(name).into_owned(),
+                    keys.iter()
+                        .map(|(cap, action)| (*cap, words.msg(action).into_owned()))
+                        .collect(),
+                )
+            })
+            .collect();
+
         // The same columns in every row, each as wide as its widest entry. A window too narrow for
         // that lets each row keep its own widths, which is uneven and still readable.
-        let entry = |(key, action): &(&str, &str)| wide(key) + en + wide(action);
-        let label = rows.iter().map(|(name, _)| wide(name)).fold(0.0, f32::max) + en * 2.0;
-        let columns = rows.iter().map(|(_, keys)| keys.len()).max().unwrap_or(0);
+        let entry = |(cap, action): &(&str, String)| wide(cap) + en + wide(action);
+        let label = worded
+            .iter()
+            .map(|(name, _)| wide(name))
+            .fold(0.0, f32::max)
+            + en * 2.0;
+        let columns = worded.iter().map(|(_, keys)| keys.len()).max().unwrap_or(0);
         let widths: Vec<f32> = (0..columns)
             .map(|column| {
-                rows.iter()
+                worded
+                    .iter()
                     .filter_map(|(_, keys)| keys.get(column))
                     .map(entry)
                     .fold(0.0, f32::max)
@@ -1234,15 +1496,15 @@ impl Layout {
         let aligned =
             left + label + widths.iter().sum::<f32>() + gap * columns as f32 <= self.width * 0.98;
 
-        for (row, (name, keys)) in rows.iter().enumerate() {
+        for (row, (name, keys)) in worded.iter().enumerate() {
             let y = top + pitch * row as f32;
             draw_text(canvas, cache, font, name, (left, y), &dim);
             let mut x = left + label;
             for (column, pair) in keys.iter().enumerate() {
-                let (key, action) = pair;
+                let (cap, action) = pair;
                 let bright = TextStyle::outlined(theme.accent, theme, Align::Left);
-                let key_width = draw_text(canvas, cache, font, key, (x, y), &bright);
-                draw_text(canvas, cache, font, action, (x + key_width + en, y), &dim);
+                let cap_width = draw_text(canvas, cache, font, cap, (x, y), &bright);
+                draw_text(canvas, cache, font, action, (x + cap_width + en, y), &dim);
                 x += gap + if aligned { widths[column] } else { entry(pair) };
             }
         }
@@ -1250,6 +1512,7 @@ impl Layout {
     }
 
     /// The transport line at the head of the window.
+    #[allow(clippy::too_many_arguments)]
     fn status(
         &self,
         canvas: &mut Screenful,
@@ -1257,12 +1520,13 @@ impl Layout {
         fonts: &Fonts,
         theme: &Theme,
         phase: Phase,
+        mode: &str,
         text: &str,
     ) {
         // The mode in a color of its own, one for each, so a change of mode is seen and not read.
-        let (mode, color) = match phase {
-            Phase::Tapping => ("TAPPING", theme.accent),
-            Phase::Review => ("REVIEW", theme.accent_alt),
+        let color = match phase {
+            Phase::Tapping => theme.accent,
+            Phase::Review => theme.accent_alt,
         };
         let at = (self.width * 0.02, self.height * 0.02);
         let font = &fonts.small;
@@ -1285,7 +1549,7 @@ impl Layout {
         );
     }
 
-    /// The chosen melody channel, with a mark that lights on each of its notes.
+    /// The chosen vocal line, with a mark that lights on each of its notes.
     fn melody(
         &self,
         canvas: &mut Screenful,
@@ -1589,6 +1853,26 @@ mod tests {
     fn a_few_taps_choose_nothing() {
         let sung: Vec<u32> = (0..30).map(|i| 10_000 + i * 1_000).collect();
         assert_eq!(vocal_line_under(&taps()[..5], &[sung]), None);
+    }
+
+    /// Both locales hold the same keys, and every key the source names is one of them.
+    #[test]
+    fn the_catalogs_agree_and_hold_every_key_the_editor_asks_for() {
+        if let Err(fault) = km_locale::check_catalogs(messages) {
+            panic!("{fault}");
+        }
+        let english = messages(Locale::English);
+        let source = include_str!("sync.rs");
+        let mut asked = 0;
+        for piece in source.split('"').filter(|piece| piece.starts_with("sync-")) {
+            // The module name in `Catalogs::new` and a prefix in this test are not keys.
+            if piece == "sync-" {
+                continue;
+            }
+            asked += 1;
+            assert!(english.keys().contains(piece), "no message for {piece}");
+        }
+        assert!(asked > 40, "only {asked} keys found in the source");
     }
 
     #[test]

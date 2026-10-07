@@ -610,7 +610,7 @@ fn song_window_title(title: &str, artist: Option<&str>, base: &str) -> String {
 /// height change would leave those at the old screen's size. Width is deliberately absent and stays
 /// so: the ladder's sizes come from the height like every other face, and only the *choice* between
 /// them is about width — which `Fonts::fit_lyric` makes per line, per frame, opening nothing.
-fn font_sizes_for(theme: &Theme, height: u32) -> (u16, [u16; 3], u16, u16) {
+pub(crate) fn font_sizes_for(theme: &Theme, height: u32) -> (u16, [u16; 3], u16, u16) {
     (
         theme.lyric_px(height),
         theme.lyric_fallback_px(height),

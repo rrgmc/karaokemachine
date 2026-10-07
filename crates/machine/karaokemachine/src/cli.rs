@@ -314,49 +314,12 @@ struct Cli {
 
     // A window of its own rather than a mode of the machine: no catalog, no queue and no web
     // address, and the keys mean different things. See `src/sync.rs`.
-    /// Open the lyric sync editor on a MIDI file, in place of the machine.
-    ///
-    /// The song plays and you press Space as each syllable is sung. The words come from
-    /// `--sync-words`. The result is a new `.kar` file, and the MIDI file is not changed.
-    #[arg(long, value_name = "FILE", requires = "sync_words")]
-    sync: Option<PathBuf>,
-
-    /// The words for `--sync`, as a text file.
-    ///
-    /// One line of text is one line on screen, and an empty line starts a new page. A hyphen
-    /// splits a word into syllables: `ka-ra-o-ke` is tapped four times. Type `\-` for a hyphen
-    /// that is part of the word.
-    #[arg(long, value_name = "FILE", requires = "sync")]
-    sync_words: Option<PathBuf>,
-
-    /// Where `--sync` writes the `.kar` file. Defaults to the song's folder and name.
-    #[arg(long, value_name = "FILE", requires = "sync")]
-    sync_out: Option<PathBuf>,
-
-    /// Replace the `--sync` output file if it exists.
-    #[arg(long, requires = "sync")]
-    sync_force: bool,
-
-    /// The title `--sync` writes. Defaults to the song's own, or its file name.
-    #[arg(long, value_name = "TITLE", requires = "sync")]
-    sync_title: Option<String>,
-
-    /// The artist `--sync` writes. Defaults to the song's own.
-    #[arg(long, value_name = "ARTIST", requires = "sync")]
-    sync_artist: Option<String>,
-
-    /// The language `--sync` writes, as four letters such as `ENGL`.
-    #[arg(long, value_name = "CODE", requires = "sync")]
-    sync_language: Option<String>,
-
-    /// The MIDI channel, 1 to 16, that `--sync` moves syllables onto. `M` changes it in the editor.
-    #[arg(long, value_name = "CHANNEL", requires = "sync",
-          value_parser = clap::value_parser!(u8).range(1..=16))]
-    sync_melody_channel: Option<u8>,
-
-    /// Milliseconds `--sync` moves each tap by. Defaults to the lyric timing offset in settings.
-    #[arg(long, value_name = "MS", requires = "sync", allow_hyphen_values = true)]
-    sync_tap_offset_ms: Option<i16>,
+    //
+    // One group and one `cfg`, so a phone or a headset build offers none of these flags. The
+    // editor is tapped on a keyboard, and neither has one.
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    #[command(flatten)]
+    sync: SyncArgs,
 
     // On an appliance there is no browser and no screen, and the identifiers are not guessable, so
     // this is how you find one over SSH before you can send it.
@@ -427,6 +390,86 @@ struct Cli {
     /// the same thing for a machine nobody types a command line at.
     #[arg(short, long, action = clap::ArgAction::Count)]
     verbose: u8,
+}
+
+/// The lyric sync editor's flags.
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+#[derive(Debug, Clone, clap::Args)]
+struct SyncArgs {
+    /// Open the lyric sync editor on a MIDI file, in place of the machine.
+    ///
+    /// The song plays and you press Space as each word is sung. The words come from
+    /// `--sync-words`. The result is a new `.kar` file, and the MIDI file is not changed.
+    #[arg(long = "sync", value_name = "FILE", requires = "words")]
+    song: Option<PathBuf>,
+
+    // `-` is for a program that starts the editor with words it holds and has no file for.
+    /// The words for `--sync`, as a text file, or `-` to read them from standard input.
+    ///
+    /// One line of text is one line on screen, and an empty line starts a new page. A hyphen
+    /// splits a word into syllables: `ka-ra-o-ke` is tapped four times. Type `\-` for a hyphen
+    /// that is part of the word.
+    #[arg(
+        long = "sync-words",
+        value_name = "FILE",
+        requires = "song",
+        allow_hyphen_values = true
+    )]
+    words: Option<PathBuf>,
+
+    /// Where `--sync` writes the `.kar` file. Defaults to the song's folder and name.
+    #[arg(long = "sync-out", value_name = "FILE", requires = "song")]
+    out: Option<PathBuf>,
+
+    /// Replace the `--sync` output file if it exists.
+    #[arg(long = "sync-force", requires = "song")]
+    force: bool,
+
+    /// The title `--sync` writes. Defaults to the song's own, or its file name.
+    #[arg(long = "sync-title", value_name = "TITLE", requires = "song")]
+    title: Option<String>,
+
+    /// The artist `--sync` writes. Defaults to the song's own.
+    #[arg(long = "sync-artist", value_name = "ARTIST", requires = "song")]
+    artist: Option<String>,
+
+    /// The language `--sync` writes, as four letters such as `ENGL`.
+    #[arg(long = "sync-language", value_name = "CODE", requires = "song")]
+    language: Option<String>,
+
+    /// The MIDI channel, 1 to 16, that plays the vocal line. `M` changes it in the editor.
+    ///
+    /// Left out, the editor finds the channel from your taps.
+    #[arg(long = "sync-melody-channel", value_name = "CHANNEL", requires = "song",
+          value_parser = clap::value_parser!(u8).range(1..=16))]
+    melody_channel: Option<u8>,
+
+    /// Milliseconds `--sync` moves each tap by. Defaults to the lyric timing offset in settings.
+    #[arg(
+        long = "sync-tap-offset-ms",
+        value_name = "MS",
+        requires = "song",
+        allow_hyphen_values = true
+    )]
+    tap_offset_ms: Option<i16>,
+}
+
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+impl SyncArgs {
+    /// What the editor was asked for, or `None` when it was not asked for.
+    fn request(&self) -> Option<crate::sync::Request> {
+        Some(crate::sync::Request {
+            song: self.song.clone()?,
+            words: self.words.clone()?,
+            out: self.out.clone(),
+            title: self.title.clone(),
+            artist: self.artist.clone(),
+            language: self.language.clone(),
+            melody_channel: self.melody_channel,
+            tap_offset_ms: self.tap_offset_ms,
+            force: self.force,
+        })
+    }
 }
 
 impl Cli {
@@ -1036,27 +1079,17 @@ pub fn main(shell: Shell) -> anyhow::Result<()> {
         return write_song_book(&paths, out, cli.book_name.as_deref());
     }
 
-    let (mut settings, _) = Settings::load(&paths);
-
-    // After the settings, because the editor plays through the bank and the device they name.
+    // **Before `Settings::load`, for the reason `--song-book` is.** The editor plays through the
+    // bank and the device the settings name, so it reads them. It reads them without the load,
+    // which writes a `settings.json` where there is none: an editor pointed at a fresh
+    // `--data-dir` leaves no install behind.
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
-    if let (Some(song), Some(words)) = (&cli.sync, &cli.sync_words) {
-        return crate::sync::run(
-            &paths,
-            &settings,
-            &crate::sync::Request {
-                song: song.clone(),
-                words: words.clone(),
-                out: cli.sync_out.clone(),
-                title: cli.sync_title.clone(),
-                artist: cli.sync_artist.clone(),
-                language: cli.sync_language.clone(),
-                melody_channel: cli.sync_melody_channel,
-                tap_offset_ms: cli.sync_tap_offset_ms,
-                force: cli.sync_force,
-            },
-        );
+    if let Some(request) = cli.sync.request() {
+        let settings = peek_settings(&paths).unwrap_or_default();
+        return crate::sync::run(&paths, &settings, &request);
     }
+
+    let (mut settings, _) = Settings::load(&paths);
 
     if cli.list_audio_devices {
         let saved = settings.audio.output_device.as_deref();
@@ -2091,6 +2124,64 @@ mod tests {
     /// `None` case is pinned as well, because it is the one that carries meaning by *absence* — it
     /// is what leaves `display.fullscreen` in charge, and a refactor that turned the pair into two
     /// bools would lose it silently.
+    #[test]
+    fn the_sync_editor_needs_a_song_and_its_words_together() {
+        let parse = |flags: &[&str]| {
+            let mut args = vec!["karaokemachine"];
+            args.extend_from_slice(flags);
+            Cli::try_parse_from(args)
+        };
+        assert!(parse(&["--sync", "a.mid"]).is_err());
+        assert!(parse(&["--sync-words", "a.txt"]).is_err());
+        assert!(parse(&["--sync-out", "a.kar"]).is_err());
+        // No editor flag at all is the machine, with no request.
+        assert!(parse(&[]).unwrap().sync.request().is_none());
+
+        let cli = parse(&[
+            "--sync",
+            "a.mid",
+            "--sync-words",
+            "a.txt",
+            "--sync-out",
+            "b.kar",
+            "--sync-force",
+            "--sync-title",
+            "A Song",
+            "--sync-melody-channel",
+            "4",
+            "--sync-tap-offset-ms",
+            "-40",
+        ])
+        .unwrap();
+        let request = cli.sync.request().unwrap();
+        assert_eq!(request.song, PathBuf::from("a.mid"));
+        assert_eq!(request.words, PathBuf::from("a.txt"));
+        assert_eq!(request.out, Some(PathBuf::from("b.kar")));
+        assert!(request.force);
+        assert_eq!(request.title.as_deref(), Some("A Song"));
+        assert_eq!(request.melody_channel, Some(4));
+        assert_eq!(request.tap_offset_ms, Some(-40));
+    }
+
+    #[test]
+    fn the_sync_editor_takes_its_words_from_standard_input_and_refuses_a_channel_17() {
+        let cli = Cli::try_parse_from(["karaokemachine", "--sync", "a.mid", "--sync-words", "-"])
+            .unwrap();
+        assert_eq!(cli.sync.request().unwrap().words, PathBuf::from("-"));
+        assert!(
+            Cli::try_parse_from([
+                "karaokemachine",
+                "--sync",
+                "a.mid",
+                "--sync-words",
+                "a.txt",
+                "--sync-melody-channel",
+                "17",
+            ])
+            .is_err()
+        );
+    }
+
     #[test]
     fn fullscreen_and_windowed_are_one_override_and_cannot_both_be_given() {
         let asked = |argv: &[&str]| {
