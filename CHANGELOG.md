@@ -47,6 +47,14 @@ Entries are written for somebody who has the machine. Why any of it is the way i
   pause and is full when the line starts. A MIDI or `.kar` song shows it too, after its intro and
   after a solo of four bars or more.
 
+### Fixed
+
+- **The recommended instrument bank downloads again.** Its publisher replaced the file, and the
+  machine refused the new one. The machine now takes the publisher's current release.
+- **A bank download that fails says what to do.** The message on the screen tells you to try again
+  and then to update. The README of the installed and the portable copy says how to get the bank
+  yourself.
+
 ## [1.20.0] - 2026-10-06
 
 ### Added
