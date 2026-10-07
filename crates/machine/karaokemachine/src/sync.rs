@@ -594,7 +594,7 @@ pub(crate) fn run(paths: &Paths, settings: &Settings, request: &Request) -> anyh
                 (_, Keycode::M) if !choices.is_empty() => {
                     choice = (choice + 1) % choices.len();
                     say(format!(
-                        "N will snap words to {}. The sound does not change",
+                        "The vocal line is {}. The sound does not change",
                         choices[choice].label()
                     ));
                 }
@@ -686,16 +686,16 @@ pub(crate) fn run(paths: &Paths, settings: &Settings, request: &Request) -> anyh
                         });
                         preview_stale = true;
                         say(format!(
-                            "{moved} syllables moved onto notes of {}. Ctrl+Z takes it back",
+                            "{moved} words moved onto the notes of {}. Ctrl+Z takes it back",
                             melody.label()
                         ));
                     }
-                    None => say("No channel plays notes to snap to".to_owned()),
+                    None => say("No channel plays notes to move the words onto".to_owned()),
                 },
                 (Phase::Review, Keycode::Z) if ctrl => {
                     if session.undo_snap() {
                         preview_stale = true;
-                        say("The snap is taken back".to_owned());
+                        say("The words are back where you tapped them".to_owned());
                     }
                 }
                 (Phase::Review, Keycode::Backspace) => {
@@ -824,7 +824,7 @@ pub(crate) fn run(paths: &Paths, settings: &Settings, request: &Request) -> anyh
                 &mut cache,
                 &fonts,
                 &theme,
-                &format!("Snap to {}", melody.label()),
+                &format!("Vocal line: {}", melody.label()),
                 note_lit,
             );
         }
@@ -869,8 +869,8 @@ const TAPPING_KEYS: [HelpRow; 3] = [
         &[
             ("Enter", "play / pause"),
             ("Left Right", "5 s"),
-            ("M", "select channel to snap to"),
             ("-  +", "slower / faster"),
+            ("M", "pick the channel that plays the vocal line"),
         ],
     ),
     (
@@ -884,7 +884,7 @@ const TAPPING_KEYS: [HelpRow; 3] = [
 ];
 
 /// The keys once every syllable has a tick.
-const REVIEW_KEYS: [HelpRow; 3] = [
+const REVIEW_KEYS: [HelpRow; 4] = [
     (
         "WORD",
         &[
@@ -898,9 +898,16 @@ const REVIEW_KEYS: [HelpRow; 3] = [
         "SONG",
         &[
             ("Space", "play / pause"),
-            ("M", "select channel to snap to"),
-            ("-  +", "slower / faster"),
             ("Enter", "play this line"),
+            ("-  +", "slower / faster"),
+        ],
+    ),
+    // The two keys that work together sit together: one names the channel, the other uses it.
+    (
+        "NOTES",
+        &[
+            ("M", "pick the channel that plays the vocal line"),
+            ("N", "move the words onto its notes (Ctrl+Z undoes)"),
         ],
     ),
     (
@@ -909,7 +916,6 @@ const REVIEW_KEYS: [HelpRow; 3] = [
             ("Ctrl+S", "save"),
             ("Esc", "leave"),
             ("H", "hide these keys"),
-            ("N", "snap words to its notes (Ctrl+Z undoes)"),
         ],
     ),
 ];
