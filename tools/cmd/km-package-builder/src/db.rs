@@ -118,7 +118,7 @@ pub const DATABASE_NAME: &str = "km-package-builder.kmbuild";
 /// The scanner does not have to be taught to skip it: `scan` walks through `km_pack::collect_*`,
 /// which filter by extension, and `.kmpkg`, `.kmspec.yaml` and `.kmbackup.json` are none of the
 /// ones it collects.
-pub const DATA_SUBDIR: &str = "_kmbuild-data";
+pub const DATA_SUBDIR: &str = "_kmout";
 
 /// Where the tool writes what it produces, for a corpus rooted at `root`.
 ///

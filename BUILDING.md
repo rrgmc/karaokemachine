@@ -1883,7 +1883,7 @@ error rather than an empty index. The Open page's *Create here* is the other.
   *Import*. The Settings page has the same two buttons, and says how many songs carry anything.
   **Keep the file off the drive the corpus is on.**
 - **The flag takes a path verbatim; the Settings page's default carries the moment.**
-  `km-package-builder-20260909T140233Z.kmbackup.json` goes in `_kmbuild-data`, so a second backup
+  `km-package-builder-20260909T140233Z.kmbackup.json` goes in `_kmout`, so a second backup
   sits beside the first rather than replacing it. The restore box suggests the newest one it finds.
 - **`--restore` rejoins by the hash of a song's bytes, so scan first.** A song this folder has not
   indexed is listed rather than invented. It fills only what is blank unless `--overwrite` is passed,
