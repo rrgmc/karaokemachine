@@ -778,11 +778,7 @@ pub(crate) fn run(paths: &Paths, settings: &Settings, request: &Request) -> anyh
             m.onsets.get(first).is_some_and(|&onset| onset <= tick)
         });
         let status = format!(
-            "{}   {}   {} / {}   tempo {:.0}%   {} of {} tapped{}",
-            match session.phase() {
-                Phase::Tapping => "TAPPING",
-                Phase::Review => "REVIEW",
-            },
+            "{}   {} / {}   tempo {:.0}%   {} of {} tapped{}",
             if playing { "Playing" } else { "Paused" },
             clock(song.tempo_map.tick_to_ms(tick)),
             clock(song.duration_ms()),
@@ -864,7 +860,14 @@ pub(crate) fn run(paths: &Paths, settings: &Settings, request: &Request) -> anyh
             }
         }
 
-        screen.status(&mut canvas, &mut cache, &fonts, &theme, &status);
+        screen.status(
+            &mut canvas,
+            &mut cache,
+            &fonts,
+            &theme,
+            session.phase(),
+            &status,
+        );
         if let Some(melody) = melody {
             screen.melody(
                 &mut canvas,
@@ -1087,14 +1090,31 @@ impl Layout {
         cache: &mut Cache,
         fonts: &Fonts,
         theme: &Theme,
+        phase: Phase,
         text: &str,
     ) {
+        // The mode in a color of its own, one for each, so a change of mode is seen and not read.
+        let (mode, color) = match phase {
+            Phase::Tapping => ("TAPPING", theme.accent),
+            Phase::Review => ("REVIEW", theme.accent_alt),
+        };
+        let at = (self.width * 0.02, self.height * 0.02);
+        let font = &fonts.small;
+        let mode_width = draw_text(
+            canvas,
+            cache,
+            font,
+            mode,
+            at,
+            &TextStyle::outlined(color, theme, Align::Left),
+        );
+        let gap = measure_line(font, &["n"]).width * 3.0;
         draw_text(
             canvas,
             cache,
-            &fonts.small,
+            font,
             text,
-            (self.width * 0.02, self.height * 0.02),
+            (at.0 + mode_width + gap, at.1),
             &TextStyle::outlined(theme.text, theme, Align::Left),
         );
     }
