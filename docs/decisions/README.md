@@ -358,6 +358,7 @@ it are the same entry. How the thing is built is [`ARCHITECTURE.md`](../ARCHITEC
 - [Application icon](interface.md#application-icon)
 - [A badge says how the machine was started](interface.md#a-badge-says-how-the-machine-was-started)
 - [The simple package builder wears the builder's mark with a bolt](interface.md#the-simple-package-builder-wears-the-builders-mark-with-a-bolt)
+- [The song sync program wears the machine's mark with three beats](interface.md#the-song-sync-program-wears-the-machines-mark-with-three-beats)
 - [The on-screen number pad](interface.md#the-on-screen-number-pad)
 - [The transport strip names its keys](interface.md#the-transport-strip-names-its-keys)
 - [Nothing is drawn where a television will not show it](interface.md#nothing-is-drawn-where-a-television-will-not-show-it)
