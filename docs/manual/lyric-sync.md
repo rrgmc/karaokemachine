@@ -29,7 +29,8 @@ result of either is written to `song-synced.kar`, and `--sync-out` names another
 
 **KM Song Sync, `km-song-sync`, starts the editor from a page.** On the first tab, browse to the
 MIDI file and press Select. The second tab opens: paste the words into the box, and press Start.
-The first tab lists folders and MIDI files only.
+The first tab lists folders and MIDI files only. The buttons under the path box open your home
+folder, and on macOS your iCloud Drive and Dropbox folders.
 
 With the box unticked it uses the text file beside the song, which has the song's name and
 `.txt`, in any encoding. A song that has words already opens with them. A synced copy that is already there is replaced only

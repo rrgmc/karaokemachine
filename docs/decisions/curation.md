@@ -180,7 +180,7 @@ narrow columns are a fraction of the width of the table. A corpus pays one pass 
 
 ## Where the tool's own output goes
 
-**A `_kmbuild-data` folder inside the corpus, holding packages, descriptions and backups — and not
+**A `_kmout` folder inside the corpus, holding packages, descriptions and backups — and not
 the database.** Loose in the corpus root is tidy on a folder of forty songs and unusable on a large
 one. A package built last week is three files somewhere in the least navigable directory
 on the drive. The leading underscore sorts it away from the songs, because a corpus is somebody else's
@@ -341,6 +341,27 @@ dot-prefixed name is the portable half of the test, and Windows keeps the rest i
 is the only place `AppData` says what it is. This hides them from the *walk* and from nothing else.
 The path box opens a hidden folder by name, and a corpus already inside one still reopens from the
 recent list.
+
+## A folder browser offers home and the cloud folders in one press
+
+**Every folder browser draws a row of shortcuts under its trail, on every folder.** The row holds
+the home folder, and on macOS iCloud Drive and each storage provider's folder. The package
+builder's picker, the simple package builder's picker and the song sync page all draw it.
+
+**macOS keeps a cloud folder where a walk does not find it.** iCloud Drive is
+`Library/Mobile Documents/com~apple~CloudDocs` under home, and a provider's folder is under
+`Library/CloudStorage`. Finder hides `Library`, so nobody knows to walk into it. The provider's
+name in the home folder is a symlink, and the listing does not follow a symlink.
+
+**The row is found on the disk, and no provider is named in the code.** Each folder under
+`Library/CloudStorage` is one shortcut, under the name its provider gave it. A folder that is absent
+is a shortcut that is not drawn.
+
+**Windows and Linux get the home shortcut alone.** A provider's folder there is a plain folder under
+home, and the listing shows it.
+
+**A shortcut is a press and not a setting.** `km_folders::places` reads the row each time a browser
+is drawn, and no program stores it.
 
 ## Song identity in curation
 
@@ -2985,7 +3006,7 @@ corpus of video packages a build is tens of gigabytes, and a fortnight of rebuil
 meant to fill. It is accepted rather than answered, for two reasons:
 
 - holding two builds and being able to say which is which is the point
-- `_kmbuild-data` is the curator's own folder on a curation workstation rather than an appliance
+- `_kmout` is the curator's own folder on a curation workstation rather than an appliance
 
 A tool that deleted last week's build to save room would be deciding something the curator is
 better placed to decide.

@@ -95,6 +95,25 @@ fn args(launch: &Launch) -> Vec<String> {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn the_browser_offers_the_home_folder_in_one_press() {
+    let folder = Scratch::new("sync-flow-places");
+    let app = tool(&folder, Arc::default());
+
+    let home = km_folders::start().expect("a test run has a home folder");
+    let at = serde_urlencoded::to_string([("at", home.display().to_string())]).expect("encode");
+
+    let page = get(&app, "/").await;
+    assert!(page.contains(r#"<div class="places">"#), "{page}");
+    assert!(page.contains(">Home</button>"), "{page}");
+
+    let walked = get(&app, &format!("/browse?{at}")).await;
+    assert!(
+        walked.contains(r#"<div class="places">"#),
+        "the shortcuts stay on every folder: {walked}"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn the_page_lists_folders_and_midi_files_and_nothing_else() {
     let folder = Scratch::new("sync-flow-list");
     std::fs::create_dir_all(folder.join("more")).expect("making a test folder");

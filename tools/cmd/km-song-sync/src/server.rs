@@ -107,14 +107,18 @@ struct BrowseQuery {
     rows: Option<String>,
 }
 
-/// One folder read: its listing, and what each song on the page holds.
+/// One folder read: its listing, what each song on the page holds, and the shortcuts beside it.
 ///
-/// Both read the disk, so both run on a blocking thread. A folder that cannot be read is a listing
+/// All three read the disk, so all three run on a blocking thread. A folder that cannot be read is a listing
 /// with the reason on it.
 async fn read(
     app: &Arc<App>,
     query: &BrowseQuery,
-) -> Option<(km_folders::Listing, Vec<crate::rows::Row>)> {
+) -> Option<(
+    km_folders::Listing,
+    Vec<crate::rows::Row>,
+    Vec<km_folders::Place>,
+)> {
     let here = if query.drives.is_some() {
         None
     } else {
@@ -143,7 +147,7 @@ async fn read(
             app.remember_folder(here);
         }
         let rows = crate::rows::describe(&listing.files);
-        (listing, rows)
+        (listing, rows, km_folders::places())
     })
     .await
     .ok()
@@ -153,7 +157,7 @@ async fn read(
 async fn home(State(app): State<Arc<App>>, headers: HeaderMap) -> Response {
     let locale = locale_of(&app, &headers);
     let words = crate::words::messages(locale);
-    let Some((listing, rows)) = read(&app, &BrowseQuery::default()).await else {
+    let Some((listing, rows, places)) = read(&app, &BrowseQuery::default()).await else {
         return StatusCode::INTERNAL_SERVER_ERROR.into_response();
     };
     let machine = app.machine().is_some();
@@ -164,7 +168,7 @@ async fn home(State(app): State<Arc<App>>, headers: HeaderMap) -> Response {
             machine,
             languages: views::languages(),
             editor: views::editor(&state, None, words),
-            browser: views::browser(listing, rows, machine, words),
+            browser: views::browser(listing, rows, &places, machine, words),
         },
         locale,
     )
@@ -178,14 +182,17 @@ async fn browse(
 ) -> Response {
     let locale = locale_of(&app, &headers);
     let words = crate::words::messages(locale);
-    let Some((listing, rows)) = read(&app, &query).await else {
+    let Some((listing, rows, places)) = read(&app, &query).await else {
         return StatusCode::INTERNAL_SERVER_ERROR.into_response();
     };
     let machine = app.machine().is_some();
     if query.rows.is_some() {
         views::render(&views::browser_rows(listing, rows, machine, words), locale)
     } else {
-        views::render(&views::browser(listing, rows, machine, words), locale)
+        views::render(
+            &views::browser(listing, rows, &places, machine, words),
+            locale,
+        )
     }
 }
 

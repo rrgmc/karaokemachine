@@ -192,14 +192,15 @@ async fn folders(
         filter: query.filter.trim().to_owned(),
         offset: query.offset,
     };
-    let Ok(listing) = tokio::task::spawn_blocking(move || km_folders::list(&ask)).await else {
+    let read = move || (km_folders::list(&ask), km_folders::places());
+    let Ok((listing, places)) = tokio::task::spawn_blocking(read).await else {
         return StatusCode::INTERNAL_SERVER_ERROR.into_response();
     };
     let words = crate::words::messages(locale);
     if query.rows.is_some() {
         views::render(&views::folder_rows(listing, target, words), locale)
     } else {
-        views::render(&views::folders(listing, target, words), locale)
+        views::render(&views::folders(listing, &places, target, words), locale)
     }
 }
 

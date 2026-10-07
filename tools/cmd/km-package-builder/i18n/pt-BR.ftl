@@ -149,6 +149,8 @@ lyrics-none = Este arquivo não tem letra.
 
 open-top-title = o topo
 open-this-computer = este computador
+open-place-home = Pasta pessoal
+open-place-icloud = iCloud Drive
 open-this-folder = Abrir esta pasta
 open-create-database = Criar um banco de dados aqui
 open-folders-named = pastas chamadas

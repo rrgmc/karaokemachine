@@ -2589,6 +2589,28 @@ impl RecentView {
 pub struct OpenListing {
     /// Where we are and what is under it.
     pub listing: crate::browse::Listing,
+    /// The shortcuts: home, and the cloud folders a walk does not find.
+    pub places: Vec<km_folders::Folder>,
+}
+
+/// The picker's shortcuts under the names the page shows them by.
+pub fn named_places(
+    places: &[km_folders::Place],
+    locale: km_locale::Locale,
+) -> Vec<km_folders::Folder> {
+    let words = crate::words::messages(locale);
+    places
+        .iter()
+        .map(|place| km_folders::Folder {
+            name: match &place.name {
+                km_folders::PlaceName::Home => words.msg("open-place-home").into_owned(),
+                km_folders::PlaceName::ICloudDrive => words.msg("open-place-icloud").into_owned(),
+                // Data, not words: a provider's folder carries the name its provider gave it.
+                km_folders::PlaceName::Named(name) => name.clone(),
+            },
+            path: place.path.clone(),
+        })
+        .collect()
 }
 
 /// `GET /open/list?rows=1` — the folders and their pager, without the crumbs or the filter box.
@@ -6663,6 +6685,10 @@ mod tests {
                 total: 1,
                 ..Default::default()
             },
+            places: vec![km_folders::Folder {
+                name: "Dropbox".to_owned(),
+                path: r"D:\tunes\Dropbox".to_owned(),
+            }],
         };
         // **Two renders, because the page and the listing are two templates.** The same defect
         // reaches the recent list and the walker alike, so both have to be covered: the fragment

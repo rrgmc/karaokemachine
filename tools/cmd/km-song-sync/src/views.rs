@@ -174,6 +174,8 @@ pub struct BrowserFragment {
     pub parent: Option<String>,
     /// Why the listing is short, when it is.
     pub error: Option<String>,
+    /// The shortcuts: home, and the cloud folders a walk does not find.
+    pub places: Vec<km_folders::Folder>,
     /// The folders, the songs and their pager.
     pub rows: RowsFragment,
 }
@@ -265,11 +267,28 @@ fn song(row: Row, words: &Catalog) -> SongView {
     }
 }
 
+/// The shortcuts under the names the page shows them by.
+fn named(places: &[km_folders::Place], words: &Catalog) -> Vec<km_folders::Folder> {
+    places
+        .iter()
+        .map(|place| km_folders::Folder {
+            name: match &place.name {
+                km_folders::PlaceName::Home => words.msg("browse-place-home").into_owned(),
+                km_folders::PlaceName::ICloudDrive => words.msg("browse-place-icloud").into_owned(),
+                // Data, not words: a provider's folder carries the name its provider gave it.
+                km_folders::PlaceName::Named(name) => name.clone(),
+            },
+            path: place.path.clone(),
+        })
+        .collect()
+}
+
 /// The browser drawn from a listing and what was read about its songs.
 #[must_use]
 pub fn browser(
     listing: km_folders::Listing,
     rows: Vec<Row>,
+    places: &[km_folders::Place],
     machine: bool,
     words: &Catalog,
 ) -> BrowserFragment {
@@ -277,6 +296,7 @@ pub fn browser(
         here: listing.here.clone(),
         parent: listing.parent.clone(),
         error: listing.error.clone(),
+        places: named(places, words),
         rows: browser_rows(listing, rows, machine, words),
     }
 }
