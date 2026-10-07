@@ -1008,7 +1008,7 @@ pub struct FilterForm {
     pub language: String,
     /// The languages left out, as codes, sorted — what the hidden `language_not` field carries.
     pub language_not: Vec<km_kmpkg::Language>,
-    /// How many copies on disk: `1` · `2-10` · `10+`, or empty for any.
+    /// How many copies on disk: `1` · `2+` · `2-10` · `10+`, or empty for any.
     pub copies: String,
     /// How long ago the song was added: `1d` · `7d` · `30d` · `30d+`, or empty for any.
     pub added: String,
@@ -5752,6 +5752,47 @@ mod tests {
             "the label reached the markup raw: {html}"
         );
         assert!(!html.contains("min_score"), "the old key is gone: {html}");
+    }
+
+    /// The copies select offers *more than 1* directly after `1`, and marks it when it is in force.
+    ///
+    /// The Duplicates page links to `copies=2+`. A select reading *any* over that narrowed list
+    /// is a control disagreeing with the page it controls.
+    #[test]
+    fn the_copies_select_offers_more_than_one_after_one_and_marks_it() {
+        let page = |copies: &str| {
+            SongsPage {
+                chrome: chrome(),
+                rows: rows(vec![row("Corcovado", Some("Tom Jobim"), "a/CORCOVAD.kar")]),
+                favorites: Vec::new(),
+                packages: Vec::new(),
+                query: FilterForm {
+                    copies: copies.to_owned(),
+                    ..FilterForm::default()
+                },
+                chips: no_chips(),
+                saved: no_saved(),
+            }
+            .in_english()
+            .expect("render")
+        };
+
+        let html = page("2+");
+        assert!(
+            html.contains("<option value=\"2+\" selected>more than 1</option>"),
+            "{html}"
+        );
+        let one = html.find("<option value=\"1\"").expect("the 1 option");
+        let more = html.find("<option value=\"2+\"").expect("the 2+ option");
+        let band = html
+            .find("<option value=\"2-10\"")
+            .expect("the 2-10 option");
+        assert!(one < more && more < band, "{html}");
+
+        assert!(
+            page("").contains("<option value=\"2+\" >more than 1</option>"),
+            "unset, it is offered and not marked"
+        );
     }
 
     /// A range the address names is the fifth option, and the four bands are untouched.

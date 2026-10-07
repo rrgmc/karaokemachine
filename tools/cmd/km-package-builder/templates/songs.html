@@ -235,19 +235,19 @@
       </select>
     </label>
 
-    {# Replaced the `has copies` checkbox, which could only ever say *two or more*.
+    {# `1`, `2-10` and `more than 10` partition the column. `1` is what a folder looks like once a
+       dedupe pass has finished with it, `2-10` is an ordinary duplicate, and `more than 10` is
+       where to start when the pass has not run.
 
-       **`2 or more` was here and has gone**, for the same reason the suitability ladder above did:
-       it is not a fourth bucket, it is the union of the two below it, so picking it and picking
-       either of them showed overlapping lists and the dropdown had no shape a reader could hold.
-       What is left partitions the column -- `1` is what a folder looks like once a dedupe pass has
-       finished with it, `2-10` is an ordinary duplicate, and `more than 10` is where to start when
-       the pass has not run. The union arm survived for a while as something only the *Duplicates*
-       page could reach; that page has gone and so has it. #}
+       **`more than 1` is the union of the two below it, and it sits beside `1` as its opposite.**
+       *Does this song have a duplicate* is the question a dedupe pass starts from, and the two
+       bands answer it only in two passes. The Duplicates page links to the same value, so the
+       select shows what that link narrowed to. #}
     <label>{{ "songs-copies"|t }}
       <select name="copies" title="{{ "songs-copies-title"|t }}">
         <option value="" {% if query.copies_is("") %}selected{% endif %}>{{ "songs-any"|t }}</option>
         <option value="1" {% if query.copies_is("1") %}selected{% endif %}>1</option>
+        <option value="2+" {% if query.copies_is("2+") %}selected{% endif %}>{{ "songs-more-than-one"|t }}</option>
         <option value="2-10" {% if query.copies_is("2-10") %}selected{% endif %}>2&ndash;10</option>
         <option value="10+" {% if query.copies_is("10+") %}selected{% endif %}>{{ "songs-more-than-ten"|t }}</option>
       </select>

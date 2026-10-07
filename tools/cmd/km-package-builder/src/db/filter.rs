@@ -406,11 +406,10 @@ impl SuitabilityFilter {
 /// folder looks like once a dedupe pass has finished with it; *2–10* is an ordinary duplicate; *more
 /// than 10* is where to start when the pass has not run.
 ///
-/// **The bar's three buckets partition `file_count`, and `AtLeastTwo` is deliberately not among
-/// them.** It is the union of the two above it rather than a fourth bucket, so picking it and
-/// picking either of them return overlapping lists and the dropdown has no shape a reader could
-/// hold. It is a fourth arm nothing on the bar reaches, for the Duplicates page's *byte-identical
-/// copies* panel, which is the one place *more than one copy* is the whole question.
+/// **Three of the bar's buckets partition `file_count`, and `AtLeastTwo` is the union of two of
+/// them.** The bar offers it beside `One` as its opposite, because *does this song have a
+/// duplicate* is the question a dedupe pass starts from. The Duplicates page's *byte-identical
+/// copies* panel links to the same value.
 ///
 /// Every arm reads `songs.file_count`, which is a real column maintained by triggers on `files` — not
 /// the correlated `COUNT(*)` this filter's predecessor used. See the note on [`Sort::Copies`].
@@ -425,25 +424,21 @@ pub enum CopiesFilter {
     TwoToTen,
     /// More than ten.
     OverTen,
-    /// Two or more, which no dropdown on the bar offers — see the note above.
+    /// Two or more: the union of the two above — see the note on the type.
     AtLeastTwo,
 }
 
 impl CopiesFilter {
-    /// Reads the query parameter: `""` · `1` · `2-10` · `10+`.
+    /// Reads the query parameter: `""` · `1` · `2+` · `2-10` · `10+`.
     ///
-    /// Anything else is [`CopiesFilter::Any`], by the same rule the rest of the bar follows — `2+`
-    /// included, which no dropdown here can display. A link carrying one shows the whole corpus
-    /// rather than a bucket nothing can select, which is the lesser of the two wrongs: the
-    /// alternative is a select with nothing selected sitting above a narrowed list.
+    /// Anything else is [`CopiesFilter::Any`], by the same rule the rest of the bar follows. A
+    /// link carrying a value no option spells shows the whole corpus, which is the lesser of the
+    /// two wrongs: the alternative is a select with nothing selected sitting above a narrowed list.
     pub fn parse(value: &str) -> Self {
         match value {
             "1" => Self::One,
             "2-10" => Self::TwoToTen,
             "10+" => Self::OverTen,
-            // The one bucket the bar cannot show, and it parses because the Duplicates page links
-            // to it: *more than one copy* is that page's whole question, and a link whose value
-            // fell through to `Any` would quietly answer it with the entire corpus.
             "2+" => Self::AtLeastTwo,
             _ => Self::Any,
         }

@@ -5770,10 +5770,10 @@ fn the_copies_filter_buckets_songs_by_how_many_files_they_have() {
     assert_eq!(with(CopiesFilter::TwoToTen), ["three"]);
     assert_eq!(with(CopiesFilter::OverTen), ["eleven"]);
 
-    // The bar's three buckets partition the column between them, which is what retired the
-    // fourth: *2 or more* was `TwoToTen ∪ OverTen`, and offering a union beside its parts is a
-    // dropdown whose options overlap. It lived on as an arm only the Duplicates page could
-    // reach, and went with it.
+    // *More than 1* is `TwoToTen ∪ OverTen`, and it is the opposite of `One`.
+    assert_eq!(with(CopiesFilter::AtLeastTwo), ["eleven", "three"]);
+
+    // The other three partition the column between them.
     assert_eq!(
         [
             CopiesFilter::One,
@@ -5954,9 +5954,7 @@ fn an_unscored_song_falls_outside_every_band() {
 
 #[test]
 fn a_copies_filter_round_trips_through_the_query_string() {
-    // `2+` among them: the bar cannot show that bucket, but the Duplicates page links to it, so it
-    // has to survive a page turn like any other.
-    for value in ["", "1", "2-10", "10+", "2+"] {
+    for value in ["", "1", "2+", "2-10", "10+"] {
         assert_eq!(CopiesFilter::parse(value).as_str(), value, "{value:?}");
     }
 

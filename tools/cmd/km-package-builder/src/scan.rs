@@ -1966,11 +1966,9 @@ mod tests {
             titled.title
         );
 
-        // The duplicate is visible as two paths on one song — which is the whole of what the tool
-        // says about byte-identical files now that the Duplicates page has gone: an id *is* the hash
-        // of the bytes, so copies land on one row by construction and the count is a column on it.
-        // `2-10` is the bar's own bucket for that, where `AtLeastTwo` was a fourth arm only that page
-        // could reach.
+        // The duplicate is visible as two paths on one song. An id *is* the hash of the bytes, so
+        // copies land on one row by construction and the count is a column on it. `AtLeastTwo` is
+        // the bar's bucket for *has a duplicate*.
         let duplicated = guard
             .songs(&crate::db::Filter {
                 copies: crate::db::CopiesFilter::AtLeastTwo,

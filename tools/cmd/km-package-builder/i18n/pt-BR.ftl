@@ -824,6 +824,7 @@ songs-in-any-favorite = em alguma lista
 songs-in-filed-favorite = em lista definitiva, não de trabalho
 songs-in-no-favorite = em nenhuma lista
 songs-in-no-filed-favorite = em nenhuma lista definitiva, fora as de trabalho
+songs-more-than-one = mais de 1
 songs-more-than-ten = mais de 10
 songs-added = adicionada
 songs-added-title = quando uma varredura encontrou esta música pela primeira vez

@@ -840,6 +840,7 @@ songs-in-any-favorite = in any favorite
 songs-in-filed-favorite = in a filing, not a working list
 songs-in-no-favorite = in no favorite
 songs-in-no-filed-favorite = in no filing, working lists aside
+songs-more-than-one = more than 1
 songs-more-than-ten = more than 10
 songs-added = added
 songs-added-title = when a scan first found this song
