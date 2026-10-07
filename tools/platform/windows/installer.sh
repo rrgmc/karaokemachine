@@ -336,7 +336,7 @@ if [ -n "$appdata_posix" ] && [ -f "$pending_request" ]; then
 fi
 
 full="$scratch_root/full"
-install_to "$full""$(IFS=,; printf '%s' "${COMPONENTS[*]}")" || fail "the silent install failed"
+install_to "$full" "$(IFS=,; printf '%s' "${COMPONENTS[*]}")" || fail "the silent install failed"
 [ -f "$full/unins000.exe" ] || fail "no uninstaller in $full -- the install did not complete"
 
 # The exit status, not the output: what is being proved is that the process got as far as running its
