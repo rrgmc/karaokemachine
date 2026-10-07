@@ -3,7 +3,8 @@ name: CI
 # **One workflow, and one required check: `CI ok`.** Branch protection names a check, and a check
 # from a workflow that a path filter kept from starting never reports, so a pull request waiting on
 # it can never merge. Every job here therefore starts on every event, and the expensive ones skip
-# themselves when `changes` says nothing they read has moved. GitHub counts a skipped job as passed.
+# themselves on a pull request when `changes` says nothing they read has moved. GitHub counts a
+# skipped job as passed.
 #
 # | Job       | Runs on                         | Checks                                              |
 # |-----------|---------------------------------|-----------------------------------------------------|
@@ -48,31 +49,50 @@ env:
   CARGO_PROFILE_DEV_DEBUG: line-tables-only
 
 jobs:
-  # What moved. A schedule or a dispatch runs everything.
+  # What moved. Only a pull request is filtered: a push to `master`, a schedule and a dispatch run
+  # everything, so a file a rule wrongly let through is built minutes after its merge.
   #
-  # `code` is false only when every changed file is Markdown or under `docs/`: nothing the build
-  # reads lives there. The filter is written as exclusions, so a new directory is code until listed,
-  # and a move can only make a job run that could have skipped. `assets` is an inclusion and can
-  # fail open after a move of `tools/cmd/assets`; the weekly run is its backstop.
+  # `code` lists the areas no build job reads, as exclusions. A new directory is code until listed,
+  # and a move can only make a job run that could have skipped. `read` names the files inside those
+  # areas that a build job does read, and a change to one builds like code. `deps` is what
+  # `cargo deny` reads. `assets`, `read` and `deps` are inclusions and can fail open after a move;
+  # the push to `master` is their backstop.
+  #
+  # `tools/dev/check-ci-paths.sh` reads `code` and `read` from here and fails when Rust names a file
+  # that neither would build. It wants one pattern a line under `code`, and one brace list under
+  # `read`, with no comment between the patterns.
   changes:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
-      code: ${{ steps.filter.outputs.code == 'true' || (github.event_name != 'push' && github.event_name != 'pull_request') }}
-      assets: ${{ steps.filter.outputs.assets == 'true' || (github.event_name != 'push' && github.event_name != 'pull_request') }}
+      code: ${{ steps.filter.outputs.code == 'true' || steps.filter.outputs.read == 'true' || github.event_name != 'pull_request' }}
+      assets: ${{ steps.filter.outputs.assets == 'true' || github.event_name != 'pull_request' }}
+      deps: ${{ steps.filter.outputs.deps == 'true' || github.event_name != 'pull_request' }}
     steps:
       - uses: actions/checkout@v7
       - uses: dorny/paths-filter@v4
         id: filter
-        if: github.event_name == 'push' || github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request'
         with:
           # `every`: a file counts for a filter only when it matches all of that filter's patterns,
-          # which is what makes the two exclusions under `code` mean "neither".
+          # which is what makes the exclusions under `code` mean "none of these".
           predicate-quantifier: every
           filters: |
             code:
               - '!**/*.md'
               - '!docs/**'
+              - '!site/**'
+              - '!ports/**'
+              - '!tools/dev/**'
+              - '!tools/dist/**'
+              - '!tools/platform/**'
+              - '!tools/port/**'
+              - '!tools/setup/**'
+              - '!Taskfile.yml'
+            read:
+              - '{tools/dev/km-*/**,tools/dev/remote/**,tools/dist/portable-settings.example.json,tools/platform/linux/apt-deps.sh,tools/platform/linux/grub-appliance-edit.sh}'
+            deps:
+              - '{**/Cargo.toml,**/Cargo.lock,deny.toml,.cargo/**,rust-toolchain.toml,.github/workflows/ci.yml}'
             assets:
               - '{tools/cmd/assets/**,rust-toolchain.toml,.github/workflows/ci.yml}'
 
@@ -105,6 +125,7 @@ jobs:
           bash tools/dev/check-mdns.sh
           bash tools/dev/check-cargo-config.sh
           bash tools/dev/labels.sh check
+          bash tools/dev/check-ci-paths.sh
           bash tools/dev/check-prose.sh
 
       - name: Commit messages
@@ -212,7 +233,7 @@ jobs:
   # change that did not cause it. The schedule finds it within a week, and a dispatch finds it now.
   supply-chain:
     needs: changes
-    if: needs.changes.outputs.code == 'true'
+    if: needs.changes.outputs.deps == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:

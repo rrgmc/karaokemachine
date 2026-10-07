@@ -1508,13 +1508,37 @@ Branch protection names a check. A workflow that a path filter kept from startin
 a pull request waiting on it never merges. A job whose `if` is false reports as skipped, and a skip
 satisfies the requirement.
 
-**Exclusion decides what may skip.** The build jobs skip only when every changed file is
-Markdown or under `docs/`, and nothing the build reads is either. A new directory counts as code
-until it is listed. The one inclusion, the second workspace's own job, can fail open after a move.
-The weekly scheduled run of everything is its backstop.
+**A pull request builds only when it changes something a build job reads.** A full run is about
+seven minutes, and a change to a script or to the site needs none of it. The three build jobs skip
+when every changed file sits in a listed area. The areas are Markdown, `docs/`, `site/`, `ports/`
+and `Taskfile.yml`, and under `tools/` the folders `dev/`, `dist/`, `platform/`, `port/` and
+`setup/`. `guards` never skips, so the text checks and shellcheck read every pull request.
 
-**All three desktop platforms run on every pull request**, because a public repository's standard
-runners cost nothing. A fault found on the pull request is cheaper than one found in a release.
+**Exclusion decides what may skip.** The areas are written as exclusions in the `code` filter of
+`ci.yml`. A new directory counts as code until it is listed, and a move can only make a job run.
+
+**A file inside a skipped area that a build reads is named, and a change to it builds.** The `read`
+filter holds them. They are the two crates under `tools/dev/`, the page in `tools/dev/remote/`, the
+example settings file in `tools/dist/`, and two scripts in `tools/platform/linux/`. A test runs one
+script and the Linux job runs the other.
+
+**`task lint:ci` keeps `read` true.** `tools/dev/check-ci-paths.sh` reads both filters out of the
+workflow. It fails when Rust names a file in a skipped area that `read` does not hold. It fails when
+a build job runs such a script. It fails when a `read` pattern matches no tracked file, which is
+what a move leaves behind. It sees a string literal that starts with `../`, and cannot see a path
+built at run time.
+
+**`cargo deny` runs when a manifest or a lockfile moves.** The `deps` filter holds every
+`Cargo.toml` and `Cargo.lock`, `deny.toml`, `.cargo/`, `rust-toolchain.toml` and the workflow. No
+other file changes what the lockfiles let in.
+
+**A push to `master`, the weekly run and a dispatch skip nothing.** `read`, `deps` and the second
+workspace's `assets` are inclusions, and an inclusion can fail open. So can a path the check cannot
+see. The run on `master` follows each merge by minutes and builds whatever the rules let through.
+
+**All three desktop platforms run on every pull request that builds**, because a public
+repository's standard runners cost nothing. A fault found on the pull request is cheaper than one
+found in a release.
 **The video build runs on Linux, in `debian:13-slim`**, the base the appliance and the `.deb` are
 built on. So it compiles against the ffmpeg they link. Android and iOS are not built on a pull
 request. The release workflow builds them from a tag, as
