@@ -108,7 +108,7 @@ with a sentence beside each. Neither a cargo alias file nor a directory of scrip
 | `task test` | `cargo km-test`, video included; `task test:no-video` declines it |
 | `task lint` | `cargo km-lint` — clippy over every target, warnings denied, video included |
 | `task fmt` | formats both workspaces: this one's members, and the excluded `tools/cmd/assets` |
-| `task check` | `lint:local`, `lint:prose`, `lint:pin`, `lint:version`, `lint:mdns`, `lint:cargo`, `lint:labels`, `lint:ci`, `fmt:check`, `lint`, then `test` — the pass before a push |
+| `task check` | `lint:local`, `lint:prose`, `lint:pin`, `lint:version`, `lint:modes`, `lint:mdns`, `lint:cargo`, `lint:labels`, `lint:ci`, `fmt:check`, `lint`, then `test` — the pass before a push |
 | `task lint:local` | asserts no tracked file names a local path, address or person |
 | `task lint:prose` | asserts the prose this branch adds, and the messages it commits them in, state the rule rather than narrating it, and take the sentence shape |
 | `task lint:cargo` | asserts every value in `.cargo/config.toml` is a string, which is what a worktree can inherit without doubling it |

@@ -299,6 +299,15 @@ tasks:
     cmds:
       - '"{{.SH}}" tools/dev/check-version-pin.sh'
 
+  # A script that opens with a shebang is a program, and Linux starts one only when its mode allows
+  # it. Windows cannot show the fault, so a script written there reaches a Linux build with mode 644.
+  # This asserts every such file has mode 755 in git. The standing decision is `A script that opens
+  # with a shebang is executable` in docs/decisions/repository.md. Reads the index and says one line.
+  lint:modes:
+    desc: 'Check that every tracked file that opens with a shebang is executable'
+    cmds:
+      - '"{{.SH}}" tools/dev/check-script-modes.sh'
+
   # A daemon binds UDP `0.0.0.0:5353`, so one function opens every one of them and `KM_NO_MDNS`
   # means the same thing in every program. This asserts that function is still the only caller, and
   # that no test reaches for a watcher or a real locator. The standing decision is `KM_NO_MDNS
@@ -347,12 +356,13 @@ tasks:
   # `task build:no-video` is how you confirm the video-less tree still compiles. CI's `linux` job runs
   # the same build; its Windows and macOS jobs run the `-no-video` twins.
   check:
-    desc: 'The pass before a push -- local refs, prose, the two pins, the daemon, cargo config, issue labels, the CI paths, formatting, clippy, then the tests'
+    desc: 'The pass before a push -- local refs, prose, the two pins, script modes, the daemon, cargo config, issue labels, the CI paths, formatting, clippy, then the tests'
     cmds:
       - task: lint:local
       - task: lint:prose
       - task: lint:pin
       - task: lint:version
+      - task: lint:modes
       - task: lint:mdns
       - task: lint:cargo
       - task: lint:labels

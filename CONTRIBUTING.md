@@ -17,6 +17,7 @@ bash tools/dev/check-prose.sh --changed   # or: task lint:prose  — the lines t
 bash tools/dev/check-prose.sh --commits   # ...and the messages it adds them in
 tools/dev/check-toolchain-pin.sh     # or: task lint:pin
 tools/dev/check-version-pin.sh       # or: task lint:version
+tools/dev/check-script-modes.sh      # or: task lint:modes  — a script with a shebang is executable
 bash tools/dev/check-cargo-config.sh      # or: task lint:cargo  — every value a worktree can inherit
 bash tools/dev/labels.sh check            # or: task lint:labels — a label for every platform, program and path row
 bash tools/dev/check-ci-paths.sh          # or: task lint:ci     — a file a build job reads starts that job
