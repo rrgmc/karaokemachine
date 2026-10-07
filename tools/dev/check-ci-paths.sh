@@ -7,11 +7,14 @@
 # `.github/workflows/ci.yml` lets a pull request skip its build jobs when every changed file sits in
 # an area no build reads. The `code` filter lists those areas and the `read` filter names the files
 # inside them that a build does read. A file read from a skipped area and missing from `read` is a
-# change that merges untested. This fails on three faults:
+# change that merges untested. This fails on five faults:
 #
 #   - Rust names a file by relative path, the file is in a skipped area, and `read` does not hold it.
-#   - A build job runs a script that is in a skipped area, and `read` does not hold it.
+#   - A job other than `guards` runs a script that is in a skipped area, and `read` does not hold it.
 #   - A pattern in `read` matches no tracked file, which is what a move leaves behind.
+#   - A package depends on a program that `tools/dev/ci-scope.sh` lists as a leaf.
+#   - Rust outside a leaf program names a file inside it, and the leaf's entry does not name the
+#     reader's program.
 #
 # **It reads the two filters out of the workflow, so the list lives in one place.** It wants one
 # pattern a line under `code:`, and one brace list under `read:`.
@@ -114,6 +117,31 @@ crate_of() {
 
 found=0
 
+# **A leaf program is one no other package depends on**, and `ci-scope.sh` holds the list. A pull
+# request confined to leaves builds those packages alone, so a package that gained a dependent
+# would let that dependent merge untested. The root manifest is left out: `[workspace.dependencies]`
+# declares a path there and uses nothing.
+mapfile -t LEAVES < <(bash tools/dev/ci-scope.sh --leaves | tr -d '\r')
+if [ "${#LEAVES[@]}" -eq 0 ]; then
+  echo "check-ci-paths: tools/dev/ci-scope.sh names no leaf program." >&2
+  exit 2
+fi
+for entry in "${LEAVES[@]}"; do
+  leaf="${entry%% *}"
+  if [ ! -f "tools/cmd/$leaf/Cargo.toml" ]; then
+    printf 'tools/dev/ci-scope.sh: the leaf program %s has no tools/cmd/%s/Cargo.toml\n' "$leaf" "$leaf"
+    found=1
+    continue
+  fi
+  while IFS= read -r manifest; do
+    [ -z "$manifest" ] && continue
+    printf '%s: depends on %s, which tools/dev/ci-scope.sh lists as a leaf program\n' "$manifest" "$leaf"
+    found=1
+  done < <(git ls-files '*Cargo.toml' |
+    grep -vx -e 'Cargo.toml' -e "tools/cmd/$leaf/Cargo.toml" |
+    xargs grep -lE "^${leaf}[[:space:]]*(=|\.)" 2>/dev/null | tr -d '\r')
+done
+
 # One `grep` over every tracked Rust file. A literal is tried against the file's own folder, which
 # is where `include_str!` starts, and against its crate's folder, which is where a test starts.
 while IFS= read -r hit; do
@@ -137,6 +165,19 @@ while IFS= read -r hit; do
         found=1
         break
       fi
+      # A file inside a leaf, read from outside it: a change to the leaf alone would not build the
+      # reader, unless the leaf's entry names the reader's program.
+      for entry in "${LEAVES[@]}"; do
+        leaf="${entry%% *}"
+        [[ "$target" == "tools/cmd/$leaf/"* ]] || continue
+        reader="${file#tools/cmd/}"
+        reader="${reader%%/*}"
+        if [[ "$file" != tools/cmd/* ]] || [[ " $entry " != *" $reader "* ]]; then
+          printf '%s:%s: reads %s, inside the leaf program %s\n' "$file" "$number" "$target" "$leaf"
+          found=1
+          break 2
+        fi
+      done
     done
   done
 done < <(git ls-files -z '*.rs' | xargs -0 grep -nE '"(\.\./)+[^"]*"' 2>/dev/null | tr -d '\r')
@@ -174,6 +215,10 @@ check-ci-paths: a build job reads a file that a pull request can change without 
 
 Add the file to the `read` filter of the `changes` job in .github/workflows/ci.yml, or move it out
 of the areas the `code` filter skips. A `read` pattern that matches nothing names a file that moved.
+
+A program that another package depends on is not a leaf. Take it off the list in
+tools/dev/ci-scope.sh, and a change to it builds the whole workspace. A program that only reads a
+file out of a leaf's folder goes after the leaf's name in its entry there.
 WHY
   exit 1
 fi

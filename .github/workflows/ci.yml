@@ -61,10 +61,16 @@ jobs:
   # `tools/dev/check-ci-paths.sh` reads `code` and `read` from here and fails when Rust names a file
   # that neither would build. It wants one pattern a line under `code`, and one brace list under
   # `read`, with no comment between the patterns.
+  #
+  # `packages` narrows a build job to the leaf programs a pull request changed, and `video` is those
+  # programs' video features. Both are empty for the whole workspace. `tools/dev/ci-scope.sh` holds
+  # the rule and the list of leaves.
   changes:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
+      packages: ${{ steps.scope.outputs.packages }}
+      video: ${{ steps.scope.outputs.video }}
       code: ${{ steps.filter.outputs.code == 'true' || steps.filter.outputs.read == 'true' || github.event_name != 'pull_request' }}
       assets: ${{ steps.filter.outputs.assets == 'true' || github.event_name != 'pull_request' }}
       deps: ${{ steps.filter.outputs.deps == 'true' || github.event_name != 'pull_request' }}
@@ -77,6 +83,8 @@ jobs:
           # `every`: a file counts for a filter only when it matches all of that filter's patterns,
           # which is what makes the exclusions under `code` mean "none of these".
           predicate-quantifier: every
+          # The `code` files by name, for the scope step below.
+          list-files: json
           filters: |
             code:
               - '!**/*.md'
@@ -90,11 +98,21 @@ jobs:
               - '!tools/setup/**'
               - '!Taskfile.yml'
             read:
-              - '{tools/dev/km-*/**,tools/dev/remote/**,tools/dist/portable-settings.example.json,tools/platform/linux/apt-deps.sh,tools/platform/linux/grub-appliance-edit.sh}'
+              - '{tools/dev/km-*/**,tools/dev/remote/**,tools/dev/ci-scope.sh,tools/setup/features.sh,tools/dist/portable-settings.example.json,tools/platform/linux/apt-deps.sh,tools/platform/linux/grub-appliance-edit.sh}'
             deps:
               - '{**/Cargo.toml,**/Cargo.lock,deny.toml,.cargo/**,rust-toolchain.toml,.github/workflows/ci.yml}'
             assets:
               - '{tools/cmd/assets/**,rust-toolchain.toml,.github/workflows/ci.yml}'
+
+      # A change to a file under `read` builds the whole workspace, so the step is skipped and both
+      # outputs stay empty. The list reaches the script through the environment and never through
+      # the command line: a file name is text a pull request's author chose.
+      - name: Scope
+        id: scope
+        if: github.event_name == 'pull_request' && steps.filter.outputs.read != 'true'
+        env:
+          FILES: ${{ steps.filter.outputs.code_files }}
+        run: jq -r '.[]' <<< "$FILES" | bash tools/dev/ci-scope.sh >> "$GITHUB_OUTPUT"
 
   # The conventions `task check` runs locally, made unskippable. They read the same files on every
   # platform, so they run once. `check-prose.sh` reads the whole tree, and on a pull request the
@@ -183,8 +201,27 @@ jobs:
       - run: tools/platform/linux/apt-deps.sh --video
 
       # No separate build: `clippy --all-targets` type-checks every target and `cargo test` links them.
-      - run: cargo --locked km-lint
-      - run: cargo --locked km-test
+      # With `PACKAGES` set, the same two commands over those packages and their video features.
+      - name: Lint
+        env:
+          PACKAGES: ${{ needs.changes.outputs.packages }}
+          VIDEO: ${{ needs.changes.outputs.video }}
+        run: |
+          if [ -z "$PACKAGES" ]; then
+            cargo --locked km-lint
+          else
+            cargo --locked clippy $PACKAGES --all-targets ${VIDEO:+--features "$VIDEO"} -- -D warnings
+          fi
+      - name: Test
+        env:
+          PACKAGES: ${{ needs.changes.outputs.packages }}
+          VIDEO: ${{ needs.changes.outputs.video }}
+        run: |
+          if [ -z "$PACKAGES" ]; then
+            cargo --locked km-test
+          else
+            cargo --locked test $PACKAGES ${VIDEO:+--features "$VIDEO"}
+          fi
 
   desktop:
     needs: changes
@@ -202,8 +239,27 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           save-if: ${{ github.ref == 'refs/heads/master' }}
-      - run: cargo --locked km-lint-no-video
-      - run: cargo --locked km-test-no-video
+      # `bash` on both systems, so one line reads `PACKAGES` the same way on each.
+      - name: Lint
+        shell: bash
+        env:
+          PACKAGES: ${{ needs.changes.outputs.packages }}
+        run: |
+          if [ -z "$PACKAGES" ]; then
+            cargo --locked km-lint-no-video
+          else
+            cargo --locked clippy $PACKAGES --all-targets -- -D warnings
+          fi
+      - name: Test
+        shell: bash
+        env:
+          PACKAGES: ${{ needs.changes.outputs.packages }}
+        run: |
+          if [ -z "$PACKAGES" ]; then
+            cargo --locked km-test-no-video
+          else
+            cargo --locked test $PACKAGES
+          fi
 
   # A second workspace on purpose: its programs need TLS from reqwest and km-package-builder needs
   # reqwest to have none, and cargo unifies features across a workspace. Excluded from the main

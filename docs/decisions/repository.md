@@ -1520,13 +1520,29 @@ and `Taskfile.yml`, and under `tools/` the folders `dev/`, `dist/`, `platform/`,
 **A file inside a skipped area that a build reads is named, and a change to it builds.** The `read`
 filter holds them. They are the two crates under `tools/dev/`, the page in `tools/dev/remote/`, the
 example settings file in `tools/dist/`, and two scripts in `tools/platform/linux/`. A test runs one
-script and the Linux job runs the other.
+script and the Linux job runs the other. `tools/dev/ci-scope.sh` and `tools/setup/features.sh` are
+there too, because they decide what a scoped build compiles.
 
 **`task lint:ci` keeps `read` true.** `tools/dev/check-ci-paths.sh` reads both filters out of the
 workflow. It fails when Rust names a file in a skipped area that `read` does not hold. It fails when
 a build job runs such a script. It fails when a `read` pattern matches no tracked file, which is
 what a move leaves behind. It sees a string literal that starts with `../`, and cannot see a path
 built at run time.
+
+**A change confined to leaf programs is linted and tested in those programs alone.** A leaf is a
+program under `tools/cmd/` that no other package depends on, so nothing else can break when it
+changes. `tools/dev/ci-scope.sh` lists them and turns the changed paths into `-p` arguments. Any
+path outside a leaf means the whole workspace. On Linux the scoped commands carry those programs'
+own video features.
+
+**A program that reads a file out of a leaf's folder is checked with that leaf.** Two programs
+embed the copy of htmx that `km-package-builder` vendors, so a change there checks all three.
+`task lint:ci` fails when a package depends on a listed leaf. It also fails when Rust outside a
+leaf names a file inside it and the leaf's entry does not name that reader.
+
+**A library crate is not scoped.** A change under `crates/song` reaches playback, the machine and
+every tool. A computed set of affected packages would be most of the workspace, and a second place
+to be wrong.
 
 **`cargo deny` runs when a manifest or a lockfile moves.** The `deps` filter holds every
 `Cargo.toml` and `Cargo.lock`, `deny.toml`, `.cargo/`, `rust-toolchain.toml` and the workflow. No

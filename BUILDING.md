@@ -113,7 +113,7 @@ with a sentence beside each. Neither a cargo alias file nor a directory of scrip
 | `task lint:prose` | asserts the prose this branch adds, and the messages it commits them in, state the rule rather than narrating it, and take the sentence shape |
 | `task lint:cargo` | asserts every value in `.cargo/config.toml` is a string, which is what a worktree can inherit without doubling it |
 | `task lint:labels` | asserts every platform and program the bug form offers has a label in `tools/dev/labels.sh` |
-| `task lint:ci` | asserts every file a CI build job reads is a file whose change starts that job |
+| `task lint:ci` | asserts every file a CI build job reads is a file whose change starts that job, and every leaf program CI checks alone is still a leaf |
 | `task check:linux` | what CI's Linux job runs, in Docker, on this machine |
 | `task dist` | stages every release this platform can carry — the machine, then all eight tools |
 | `task run` | starts the staged machine, at whatever version this workspace is on, and hands the prompt back |
