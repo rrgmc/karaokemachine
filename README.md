@@ -609,6 +609,15 @@ A MIDI file with no words, or with words timed badly, gets them from the lyric s
 give it the song and the words as text, and you press Space as each word is sung. It writes a new
 `.kar` file and never changes the MIDI file.
 
+<p align="center">
+<img src="docs/images/sync-editor-tapping.png" width="90%"
+     alt="The lyric sync editor part-way through a carol: three lines of words, with the tapped
+words of the middle line in yellow, the next word in blue and the rest in white, a status line that
+reads Tapping, Playing, 34 of 229 tapped and not saved, the vocal line named as channel 1, and a
+list of keys along the foot of the window">
+<br><sub><b>The lyric sync editor.</b> Each press of Space gives the next word its time.</sub>
+</p>
+
 ```sh
 karaokemachine --sync song.mid --sync-words words.txt     # writes song.kar beside the song
 karaokemachine --sync song.kar                            # correct the words a file already has
@@ -624,6 +633,14 @@ press Select, paste the words into the box, and press Start. The page lists fold
 only. With the box unticked it uses the text file beside the song, which has the song's name and
 `.txt`, in any encoding. A song that has words already opens with them. A synced copy that is already there is replaced only
 when you tick the box that says so.
+
+<p align="center">
+<img src="docs/images/song-sync-page.png" width="90%"
+     alt="KM Song Sync in a browser: a folder of four MIDI files, each marked as having no words,
+with the first one selected, and under the list a box that holds the words of that carol with
+hyphens between the syllables, a ticked box that says to use them, and a Start button">
+<br><sub><b>KM Song Sync</b>, with a song selected and its words pasted.</sub>
+</p>
 
 **The words file** is plain text. One line is one line on screen, and an empty line starts a new
 page. A hyphen splits a word into syllables, so `ka-ra-o-ke` is tapped four times. Type `\-` for a

@@ -619,6 +619,19 @@ behind it, so the clip fabricates nothing.
 **The site's hero and its `og:image` stay `screen-playing.png`.** A link preview shows the first
 frame of an animation or nothing at all. The still is the better picture for that.
 
+**The two pictures of putting words on a MIDI file show the same carol.** `song-sync-page.png`
+holds a whole song's words in the page's box, and `sync-editor-tapping.png` shows three whole lines
+of them. Both publish more of a song than two lines caught mid-syllable, so the reason above reaches
+them. The folder the page lists holds carols from the pack and nothing else.
+
+**The carols in that folder have their words taken out.** The page is for a MIDI file with no
+words, and every song in the pack has them. `km_song::kar_write::without_words` removes what the
+writer of words removes, and the music stays as it was.
+
+**`tools/dev/sync-pictures.sh` takes both, and it chooses the folder the page lists.** The page
+prints that folder, as the package builder prints its own. The script gives the page a settings
+file of its own through `KM_SONG_SYNC_SETTINGS`.
+
 ## What a picture taken inside a headset may show
 
 **The machine's two panels on a bare wall, and nothing else of the room.** `headset-room.webp` is a
