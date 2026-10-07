@@ -620,10 +620,10 @@ A file saved before every word was tapped goes on from the next word with `--syn
 result of either is written to `song-synced.kar`, and `--sync-out` names another file.
 
 **KM Song Sync, `km-song-sync`, starts the editor from a page.** Browse to the MIDI file,
-paste the words into the box, and press Start. The page lists folders and MIDI files only. With the
-box unticked it uses the text file beside the song, which has the song's name and `.txt`, in any encoding.
-A song that has words already opens with them. A synced copy that is already there is replaced only
-when you tick the box on its row.
+press Select, paste the words into the box, and press Start. The page lists folders and MIDI files
+only. With the box unticked it uses the text file beside the song, which has the song's name and
+`.txt`, in any encoding. A song that has words already opens with them. A synced copy that is already there is replaced only
+when you tick the box that says so.
 
 **The words file** is plain text. One line is one line on screen, and an empty line starts a new
 page. A hyphen splits a word into syllables, so `ka-ra-o-ke` is tapped four times. Type `\-` for a

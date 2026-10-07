@@ -183,13 +183,15 @@ pub struct RowsFragment {
 pub struct SongView {
     /// The file's name.
     pub name: String,
-    /// Its path, which the Start button posts.
+    /// Its path, which Select hands to the words panel and Start posts.
     pub path: String,
-    /// The title and the artist the file states, as one line. Empty when it states neither.
-    pub called: String,
+    /// The title the file states. Empty when it states none.
+    pub title: String,
+    /// The artist the file states. Empty when it states none.
+    pub artist: String,
     /// What the row says under the name, as finished sentences.
     pub notes: Vec<String>,
-    /// Whether the synced copy exists, which puts a box on the row to say replace it.
+    /// Whether the synced copy exists, which makes the words panel ask before it is replaced.
     pub out_exists: bool,
     /// Whether the editor can open the file at all.
     pub readable: bool,
@@ -217,16 +219,12 @@ fn song(row: Row, words: &Catalog) -> SongView {
                 .into_owned(),
         );
     }
-    // Data, not words: a title and an artist are the file's own, in whatever language it is in.
-    let called = match (row.title, row.artist) {
-        (Some(title), Some(artist)) => format!("{title} \u{2013} {artist}"),
-        (Some(one), None) | (None, Some(one)) => one,
-        (None, None) => String::new(),
-    };
     SongView {
         name: row.name,
         path: row.path,
-        called,
+        // Data, not words: a title and an artist are the file's own, in its own language.
+        title: row.title.unwrap_or_default(),
+        artist: row.artist.unwrap_or_default(),
         notes,
         out_exists: row.out_exists,
         readable: row.holds != Holds::NotMidi,

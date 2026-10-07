@@ -259,7 +259,7 @@ async fn a_start_that_makes_no_sense_is_refused_and_starts_nothing() {
         ),
     )
     .await;
-    assert!(not_a_song.contains("not a MIDI file"), "{not_a_song}");
+    assert!(not_a_song.contains("Select a MIDI file"), "{not_a_song}");
 
     assert!(launcher.launches.lock().expect("the lock").is_empty());
     assert_eq!(app.lock().editor, Editor::Idle);
@@ -326,7 +326,7 @@ async fn without_the_machine_the_page_says_so_and_no_start_is_offered() {
     let page = get(&app, "/").await;
     assert!(page.contains("was not found beside this program"), "{page}");
     assert!(
-        page.contains(r#"<button type="submit" disabled>"#),
+        page.contains(r#"hx-swap="outerHTML" data-no-machine>"#),
         "{page}"
     );
 

@@ -1565,7 +1565,7 @@ device they name, in the language they name. Started on a folder with no setting
 
 ## The sync editor is started from a page that lists a folder's MIDI files
 
-**`km-song-sync` is a page with a words box and a file browser, and a Start button on each song.**
+**`km-song-sync` is a page with a file browser, a words box and a Start button.**
 The editor takes its words from a file or from standard input, and a person pastes them. A command
 line is a poor place to paste a song. The work stays the editor's:
 [`A MIDI file gets its words in a new file, from an editor a person taps`](#a-midi-file-gets-its-words-in-a-new-file-from-an-editor-a-person-taps).
@@ -1605,9 +1605,14 @@ its first byte.
 keeps the timing the song has and taps the rest. It is never ticked for the person, for the reason
 the editor's flags give: only the person knows which they want.
 
-**A synced copy that exists is replaced only when its row says so.** The row names the copy and
-carries a box. Start waits for the tick, and the server refuses a start without it. A second run on
-one song otherwise costs the first run's taps.
+**A row selects a song, and one panel under the browser starts it.** The panel names the selected
+song and holds the words box, every choice about the start, and Start. A row holds the file name,
+the title, the artist and Select. Fifteen rows of buttons and boxes are harder to read than fifteen
+rows of songs, and the words belong beside the button that uses them.
+
+**A synced copy that exists is replaced only when the panel's box says so.** The row names the
+copy, and the panel shows the box for a song that has one. Start waits for the tick, and the server
+refuses a start without it. A second run on one song otherwise costs the first run's taps.
 
 **One editor at a time.** Two would play through one audio device. The page says which song the
 editor is open on. It then says how the editor ended: the file it saved, nothing saved, or the

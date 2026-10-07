@@ -701,7 +701,8 @@ readme_km_song_sync() { # <file> <video: 1 or 0> <console twin: 1 or 0> <macOS b
 km-song-sync
 ============
 
-Put words on a MIDI file. Paste the words of a song, browse to its MIDI file, and press Start.
+Put words on a MIDI file. Browse to the file, press Select, paste the words of the song, and press
+Start.
 
 Start opens the karaoke machine's sync editor on that song. The song plays, and you press Space as
 each word is sung. The editor saves a new .kar file beside the song and never changes the song.
@@ -776,7 +777,7 @@ on the folder it was on last.
     --log-file               also write this run's log to a file
     -v, -vv                  say more
 
-A synced copy that is already there is replaced only when you tick the box on its row.
+A synced copy that is already there is replaced only when you tick the box that says so.
 
 Licenses
 --------

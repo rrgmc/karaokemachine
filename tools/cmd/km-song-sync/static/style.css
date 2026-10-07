@@ -110,19 +110,27 @@ button.link:hover { text-decoration: underline; }
 table { width: 100%; border-collapse: collapse; }
 td { padding: 0.35rem 0.4rem; border-top: 1px solid var(--line); vertical-align: top; }
 .num { text-align: right; white-space: nowrap; }
-.start { justify-content: flex-end; flex-wrap: nowrap; }
-.start label { color: var(--dim); }
 
-/* What the file calls itself, under the name it has on disk. */
-.called { font-weight: 600; }
+th { text-align: left; color: var(--dim); font-weight: 500; padding: 0.25rem 0.4rem; }
 
-/* A Start that would be refused is held here, and the server refuses it again. Three reasons: an
-   editor is open, the synced copy exists and its box is not ticked, or the song has no words of
-   its own or beside it and the words box is empty. */
-button:disabled,
-body:has(#editor[data-running]) .start button,
-.start:has(input[name="force"]:not(:checked)) button,
-body:not(.has-words) tr.needs-words .start button {
+/* The row whose song the words panel holds. */
+tr.selected td { background: var(--bg); }
+tr.selected td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
+
+/* The words panel shows a name once a song is selected, and says so until then. */
+#words[data-selected] #selected-none { display: none; }
+#selected-notes:empty { display: none; }
+/* Replacing is asked only of a song whose synced copy exists. */
+#words:not([data-out-exists]) #replace { display: none; }
+
+/* A Start that would be refused is held here, and the server refuses it again. Five reasons: no
+   song is selected, the machine is not there, an editor is open, the synced copy exists and
+   replacing it is not ticked, or the song needs words and the words box is not ticked. */
+#words:not([data-selected]) #start,
+#words[data-no-machine] #start,
+body:has(#editor[data-running]) #start,
+#words[data-out-exists]:has(#force:not(:checked)) #start,
+body:not(.has-words) #words[data-needs-words] #start {
     opacity: 0.4;
     pointer-events: none;
 }
