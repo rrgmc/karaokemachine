@@ -197,14 +197,16 @@ pub async fn open_list(AxumState(state): AxumState<State>, query: Query<OpenQuer
         offset: query.offset.unwrap_or(0),
     };
     let folders_only = query.rows.is_some();
-    match tokio::task::spawn_blocking(move || crate::browse::list(&ask)).await {
-        Ok(mut listing) if folders_only => {
+    let read = move || (crate::browse::list(&ask), km_folders::places());
+    match tokio::task::spawn_blocking(read).await {
+        Ok((mut listing, _)) if folders_only => {
             listing.say_range(state.locale());
             page(&OpenFolders { listing }, state.locale())
         }
-        Ok(mut listing) => {
+        Ok((mut listing, places)) => {
             listing.say_range(state.locale());
-            page(&OpenListing { listing }, state.locale())
+            let places = crate::views::named_places(&places, state.locale());
+            page(&OpenListing { listing, places }, state.locale())
         }
         Err(error) => failure(
             DbError::Rejected(

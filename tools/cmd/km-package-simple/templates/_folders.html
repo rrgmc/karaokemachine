@@ -17,6 +17,17 @@
     <button type="button" class="quiet" data-close="{{ target }}">{{ "action-close-browser"|t }}</button>
   </div>
 
+  {# One press from any folder. macOS keeps a cloud folder under `Library`, where a walk from home
+     does not find it. #}
+  {% if !places.is_empty() %}
+  <div class="places">
+    {% for place in places %}
+    <button type="button" class="quiet" hx-get="/folders?for={{ target }}&amp;at={{ place.path|urlencode }}"
+            hx-target="#browse-{{ target }}" title="{{ place.path }}">{{ place.name }}</button>
+    {% endfor %}
+  </div>
+  {% endif %}
+
   {% if let Some(error) = error %}
   <p class="error">{{ error }}</p>
   {% endif %}

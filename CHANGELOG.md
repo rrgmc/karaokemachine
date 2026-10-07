@@ -44,6 +44,9 @@ Entries are written for somebody who has the machine. Why any of it is the way i
   any folder you browse to. Paste a song's words into the box, tick it, select the song, and press
   Start. With the box unticked it uses the text file beside the song, saved in any encoding. It
   installs with the other tools on Windows, macOS and Linux, and it is in the portable copy.
+- **A folder browser has a shortcut to your home folder.** On macOS it also has one for iCloud
+  Drive, and one for each of Dropbox, Google Drive and OneDrive that is installed. KM Song Sync, the
+  curation tool and KM Simple Package all show them.
 
 ### Changed
 
