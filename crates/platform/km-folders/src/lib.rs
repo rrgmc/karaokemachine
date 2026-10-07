@@ -10,9 +10,9 @@
 //! interaction, and on Linux these tools run in a browser where a dialog has no window to belong to.
 //! See `How a corpus is opened` in `docs/decisions/curation.md`.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
-/// One folder in the listing.
+/// One folder in the listing, or one file.
 ///
 /// **Paths are carried as `String`s**, because that is what a template can render and what a query
 /// string can hold. `PathBuf` is neither `Display` nor escapable by askama, deliberately, since a
@@ -35,6 +35,10 @@ pub struct Listing {
     pub parent: Option<String>,
     /// Sub-folders, sorted by name: one page of them. See [`PAGE`].
     pub rows: Vec<Folder>,
+    /// The files the caller asked for, sorted by name: what the page has left after its folders.
+    ///
+    /// Empty from [`list`], which asks for none.
+    pub files: Vec<Folder>,
     /// Why the listing is short, when it is.
     pub error: Option<String>,
     /// What is being narrowed by, as it was typed.
@@ -84,6 +88,18 @@ pub const PAGE: usize = 100;
 /// **Gather, narrow, sort, and take the page.** A caller that asks something costly of each row asks
 /// it of the page it gets back, so a directory of thousands costs a hundred.
 pub fn list(ask: &Ask) -> Listing {
+    list_with(ask, |_| false)
+}
+
+/// [`list`], with the files `wanted_file` accepts listed after the folders.
+///
+/// **Folders and files are one sequence under one pager**, folders first, so a page turn walks
+/// through both and the count beside it covers both. The filter narrows a file by name as it
+/// narrows a folder. The drive list holds no files.
+///
+/// `wanted_file` sees a path and reads nothing: it runs for every file in the directory, where a
+/// costly question belongs to the page that comes back.
+pub fn list_with(ask: &Ask, wanted_file: impl Fn(&Path) -> bool) -> Listing {
     let Some(here) = ask.here.as_deref() else {
         return drives();
     };
@@ -105,6 +121,7 @@ pub fn list(ask: &Ask) -> Listing {
 
     let wanted = ask.filter.to_lowercase();
     let mut found: Vec<(String, PathBuf)> = Vec::new();
+    let mut files: Vec<(String, PathBuf)> = Vec::new();
     for entry in entries.flatten() {
         // `file_type` rather than `metadata`, so a symlink is reported as a symlink instead of being
         // followed. Following one is how a picker ends up in a cycle, or spends a minute waiting on a
@@ -112,7 +129,8 @@ pub fn list(ask: &Ask) -> Listing {
         let Ok(kind) = entry.file_type() else {
             continue;
         };
-        if !kind.is_dir() {
+        let path = entry.path();
+        if !kind.is_dir() && !(kind.is_file() && wanted_file(&path)) {
             continue;
         }
         let name = entry.file_name().to_string_lossy().into_owned();
@@ -122,14 +140,20 @@ pub fn list(ask: &Ask) -> Listing {
         if !wanted.is_empty() && !name.to_lowercase().contains(&wanted) {
             continue;
         }
-        found.push((name, entry.path()));
+        if kind.is_dir() {
+            found.push((name, path));
+        } else {
+            files.push((name, path));
+        }
     }
 
     // Case-insensitive, because a corpus folder is as likely to be `Brasil` as `brasil`. A picker
     // that sorts every capital ahead of every lower-case name is one nobody can scan.
     found.sort_by_key(|(name, _)| name.to_lowercase());
+    files.sort_by_key(|(name, _)| name.to_lowercase());
+    let folders = found.len();
 
-    listing.total = found.len();
+    listing.total = folders + files.len();
     // A page above the end draws the last one rather than nothing. An offset outlives the listing it
     // was written against: a folder is walked away from and come back to, and things are created
     // and deleted in it meanwhile.
@@ -144,14 +168,21 @@ pub fn list(ask: &Ask) -> Listing {
         listing.next = page_at(ask, listing.offset + PAGE);
     }
 
+    let row = |(name, path): (String, PathBuf)| Folder {
+        name,
+        path: path.display().to_string(),
+    };
     listing.rows = found
         .into_iter()
         .skip(listing.offset)
         .take(PAGE)
-        .map(|(name, path)| Folder {
-            name,
-            path: path.display().to_string(),
-        })
+        .map(row)
+        .collect();
+    listing.files = files
+        .into_iter()
+        .skip(listing.offset.saturating_sub(folders))
+        .take(PAGE - listing.rows.len())
+        .map(row)
         .collect();
     listing
 }
@@ -371,6 +402,67 @@ mod tests {
         assert_eq!(listing.total, 2, "the count is of what matched");
         // What was typed comes back, so the box redraws holding it.
         assert_eq!(listing.filter, "BRAS");
+    }
+
+    /// The files a caller asks for follow the folders, and the others stay out.
+    #[test]
+    fn asked_for_files_follow_the_folders() {
+        let scratch = Scratch::new("folders-with-files");
+        std::fs::create_dir_all(scratch.join("zebra")).expect("making a test folder");
+        for name in ["b.mid", "A.kar", "notes.txt", ".hidden.mid"] {
+            std::fs::write(scratch.join(name), b"").expect("writing a test file");
+        }
+        let songs = |path: &Path| path.extension().is_some_and(|e| e == "mid" || e == "kar");
+
+        let listing = list_with(
+            &Ask {
+                here: Some(scratch.to_path_buf()),
+                ..Ask::default()
+            },
+            songs,
+        );
+        let folders: Vec<&str> = listing.rows.iter().map(|r| r.name.as_str()).collect();
+        let files: Vec<&str> = listing.files.iter().map(|r| r.name.as_str()).collect();
+        assert_eq!(folders, ["zebra"]);
+        assert_eq!(files, ["A.kar", "b.mid"]);
+        assert_eq!(listing.total, 3, "the count covers folders and files");
+
+        let narrowed = list_with(
+            &Ask {
+                here: Some(scratch.to_path_buf()),
+                filter: "B.M".to_owned(),
+                ..Ask::default()
+            },
+            songs,
+        );
+        assert!(narrowed.rows.is_empty());
+        assert_eq!(narrowed.files.len(), 1, "the filter narrows files by name");
+    }
+
+    /// One pager walks the folders and then the files.
+    #[test]
+    fn a_page_turn_walks_from_folders_into_files() {
+        let scratch = folders("folders-then-files", PAGE - 10);
+        for number in 0..30 {
+            std::fs::write(scratch.join(format!("song-{number:04}.mid")), b"")
+                .expect("writing a test file");
+        }
+        let ask = |offset| Ask {
+            here: Some(scratch.to_path_buf()),
+            offset,
+            ..Ask::default()
+        };
+
+        let first = list_with(&ask(0), |_| true);
+        assert_eq!(first.rows.len(), PAGE - 10);
+        assert_eq!(first.files.len(), 10);
+        assert_eq!(first.total, PAGE + 20);
+        assert!(!first.next.is_empty());
+
+        let second = list_with(&ask(PAGE), |_| true);
+        assert!(second.rows.is_empty());
+        assert_eq!(second.files.len(), 20);
+        assert_eq!(second.files[0].name, "song-0010.mid");
     }
 
     /// The page turn carries the folder and the filter, or narrowing would end at the first page.
