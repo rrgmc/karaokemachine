@@ -9,7 +9,17 @@
 
 {{ editor|safe }}
 
+{# Two tabs, in the order the work is done: find the song, then give it words and start. Select on
+   a row opens the second. The editor's panel is above both, so what the editor is doing shows on
+   either. The page's script moves `aria-selected` and `hidden`, and nothing is fetched. #}
+<div class="tabs" role="tablist">
+  <button type="button" role="tab" id="tab-song" data-tab="song" aria-controls="pane-song" aria-selected="true">{{ "tab-song"|t }}</button>
+  <button type="button" role="tab" id="tab-words" data-tab="words" aria-controls="pane-words" aria-selected="false">{{ "tab-words"|t }}</button>
+</div>
+
+<section id="pane-song" role="tabpanel" aria-labelledby="tab-song">
 {{ browser|safe }}
+</section>
 
 {# The words panel: the song Select chose, every choice about starting it, and Start. Outside the
    browser and the editor's panel, which are what a press swaps, so what somebody pasted is still
@@ -20,6 +30,7 @@
 
    `data-selected`, `data-out-exists` and `data-needs-words` are set by the page's script from the
    row that was selected, and the stylesheet reads them to hold a Start the server would refuse. #}
+<section id="pane-words" role="tabpanel" aria-labelledby="tab-words" hidden>
 <form id="words" class="words" hx-post="/start" hx-target="#editor" hx-swap="outerHTML"{% if !machine %} data-no-machine{% endif %}>
   <input type="hidden" id="selected-song" name="song" value="">
   <p class="row">
@@ -28,6 +39,24 @@
     <span id="selected-none" class="hint">{{ "words-selected-none"|t }}</span>
   </p>
   <div id="selected-notes" class="hint"></div>
+
+  {# The title, artist and language the synced file is given. Each field starts as what the song
+     states, because a stated name is often wrong and is corrected here. A field left as it was, or
+     emptied, changes nothing: the server passes on only a name that differs from the song's own. #}
+  <div id="names" class="names">
+    <label for="title">{{ "names-title"|t }}</label>
+    <input type="text" id="title" name="title" autocomplete="off">
+    <label for="artist">{{ "names-artist"|t }}</label>
+    <input type="text" id="artist" name="artist" autocomplete="off">
+    <label for="language">{{ "names-language"|t }}</label>
+    <select id="language" name="language">
+      <option value="">{{ "names-language-none"|t }}</option>
+      {% for language in languages %}
+      <option value="{{ language.code }}">{{ language.name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <p id="names-hint" class="hint">{{ "names-hint"|t }}</p>
 
   <label><input type="checkbox" id="use-words" name="use_words"> {{ "words-use"|t }}</label>
   <textarea id="words-box" name="words" rows="8" spellcheck="false" aria-label="{{ "words-label"|t }}"
@@ -41,4 +70,5 @@
     <button type="button" class="quiet" data-clear="words-box">{{ "action-clear"|t }}</button>
   </div>
 </form>
+</section>
 {% endblock %}

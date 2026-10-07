@@ -77,10 +77,32 @@ pub struct HomePage {
     pub chrome: Chrome,
     /// Whether the machine was found. Without it nothing can be started.
     pub machine: bool,
+    /// Every language the panel offers for a song that states none.
+    pub languages: Vec<LanguageOption>,
     /// What the editor is doing.
     pub editor: EditorFragment,
     /// The file browser.
     pub browser: BrowserFragment,
+}
+
+/// One language the panel offers.
+pub struct LanguageOption {
+    /// The code the panel posts.
+    pub code: &'static str,
+    /// The language's name.
+    pub name: &'static str,
+}
+
+/// Every language a song can be given, in the order of their names.
+#[must_use]
+pub fn languages() -> Vec<LanguageOption> {
+    km_kmpkg::Language::by_name()
+        .into_iter()
+        .map(|language| LanguageOption {
+            code: language.code(),
+            name: language.name(),
+        })
+        .collect()
 }
 
 /// What the editor is doing, polled while it is open.
@@ -191,10 +213,14 @@ pub struct SongView {
     pub title: String,
     /// The artist the file states. Empty when it states none.
     pub artist: String,
+    /// The code of the language the file states. Empty when it states none the table knows.
+    pub language: String,
     /// What the row says under the name, as finished sentences.
     pub notes: Vec<String>,
     /// Whether the synced copy exists, which makes the words panel ask before it is replaced.
     pub out_exists: bool,
+    /// Whether the file has words of its own, which the Words column marks.
+    pub has_words: bool,
     /// Whether the editor can open the file at all.
     pub readable: bool,
     /// Whether the row needs words pasted, having none of its own and none beside it.
@@ -211,8 +237,8 @@ fn song(row: Row, words: &Catalog) -> SongView {
                 .msg_with("row-uses-text-file", &[("file", name.clone().into())])
                 .into_owned(),
         ),
-        (None, Holds::Words) => notes.push(words.msg("row-own-words").into_owned()),
-        (None, Holds::NoWords) => notes.push(words.msg("row-needs-words").into_owned()),
+        // Whether the song has words of its own is the row's Words column.
+        (None, Holds::Words | Holds::NoWords) => {}
     }
     if row.out_exists {
         notes.push(
@@ -227,8 +253,15 @@ fn song(row: Row, words: &Catalog) -> SongView {
         // Data, not words: a title and an artist are the file's own, in its own language.
         title: row.title.unwrap_or_default(),
         artist: row.artist.unwrap_or_default(),
+        language: row
+            .language
+            .as_deref()
+            .and_then(km_kmpkg::Language::from_declared)
+            .map(|language| language.code().to_owned())
+            .unwrap_or_default(),
         notes,
         out_exists: row.out_exists,
+        has_words: row.holds == Holds::Words,
         readable: row.holds != Holds::NotMidi,
         needs_words: row.holds == Holds::NoWords && row.sidecar.is_none(),
     }

@@ -35,6 +35,7 @@ desktop = ["dep:wry", "dep:tao", "dep:km-tray", "dep:km-webshell"]
 
 [dependencies]
 km-song = { workspace = true }
+km-kmpkg = { workspace = true }
 km-console = { workspace = true }
 km-osopen = { workspace = true }
 km-folders = { workspace = true }

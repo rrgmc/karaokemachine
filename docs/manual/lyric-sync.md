@@ -27,19 +27,23 @@ result of either is written to `song-synced.kar`, and `--sync-out` names another
 
 ## Start the editor from a page
 
-**KM Song Sync, `km-song-sync`, starts the editor from a page.** Browse to the MIDI file,
-press Select, paste the words into the box, and press Start. The page lists folders and MIDI files
-only. The buttons under the path box open your home folder, and on macOS your iCloud Drive and
-Dropbox folders.
+**KM Song Sync, `km-song-sync`, starts the editor from a page.** On the first tab, browse to the
+MIDI file and press Select. The second tab opens: paste the words into the box, and press Start.
+The first tab lists folders and MIDI files only. The buttons under the path box open your home
+folder, and on macOS your iCloud Drive and Dropbox folders.
 
 With the box unticked it uses the text file beside the song, which has the song's name and
 `.txt`, in any encoding. A song that has words already opens with them. A synced copy that is already there is replaced only
 when you tick the box that says so.
 
+**The page shows the title, the artist and the language of the selected song.** Change any of them,
+and the synced file holds what you entered. An empty field keeps what the song states. A song with
+no title gets its file name.
+
 <p align="center">
 <img src="../images/song-sync-page.png" width="90%"
-     alt="KM Song Sync in a browser: a folder of four MIDI files, each marked as having no words,
-with the first one selected, and under the list a box that holds the words of that carol with
+     alt="KM Song Sync in a browser, on its second tab: the file name of the selected carol,
+fields for its title, artist and language, a box that holds the words of that carol with
 hyphens between the syllables, a ticked box that says to use them, and a Start button">
 <br><sub><b>KM Song Sync</b>, with a song selected and its words pasted.</sub>
 </p>
@@ -57,8 +61,10 @@ Backspace takes back the last one. `E` ends a word before a pause, so its highli
 
 ## Review the timing
 
-Review plays the song with your words as the machine will draw them. It opens when the last
-word is tapped, and `R` opens it earlier. The arrow keys select a word and move it by 10 ms.
+Review plays the song with your words as the machine will draw them. `R` opens it. A banner says
+so when the last word is tapped, and `R` also opens it earlier.
+
+The arrow keys select a word and move it by 10 ms.
 `C` selects the word being sung. Ctrl+Shift+Backspace clears every tap, so you tap from the
 first word again. The same keys give the taps back until you tap a word.
 

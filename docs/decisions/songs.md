@@ -1518,7 +1518,11 @@ words are the only words.
 
 **The editor has two modes, and it names the one it is in.** Tapping gives each word a tick.
 Review plays the song with the words as the file will hold them, drawn by the machine's own
-screen. Review opens on the last tap, and `R` opens it on the words tapped so far.
+screen. `R` opens review, on every word or on the words tapped so far, and `R` goes back.
+
+**The last tap does not open review.** A banner says every word is tapped and names the key. The
+last tap is as often a mistake as any other, and on the tapping screen Backspace still takes it
+back. Words that arrive with every tick open in review, because they are there to be checked.
 
 **The person corrects a tap by ear and by the vocal line, and the editor guesses nothing about a
 word.** The arrow keys move one word by 10 ms. One key moves every word onto the nearest note of
@@ -1575,6 +1579,11 @@ somebody's own typing, so the editor says it is there and writes nothing.
 **The editor does not find words and does not split them.** It looks nothing up, and a syllable
 break is a hyphen somebody typed.
 
+**The title, the artist and the language are the song's own, unless a flag names one.**
+`--sync-title`, `--sync-artist` and `--sync-language` each replace what the song states. A song
+that states no title gets its file name, because a Soft Karaoke file has to hold one. A missing
+artist or language stays missing. The editor guesses none of the three.
+
 **The editor reads the machine's settings and writes none.** It plays through the bank and the
 device they name, in the language they name. Started on a folder with no settings, it leaves none.
 
@@ -1595,8 +1604,14 @@ path box takes any folder by name.
 `.kar`. The editor opens nothing else, and a row that cannot start is a row in the way.
 
 **A row shows the title and the artist the file states, under its file name.** A file name is often
-a number or a code, and the words to paste belong to a song somebody has to recognise. The page
-reads the files of one page only, so a folder of thousands costs fifteen reads.
+a number or a code, and the words to paste belong to a song somebody has to recognise. A listing
+with no search reads the files of one page only, so a folder of thousands costs fifteen reads.
+
+**The search finds a song by its file name, its title or its artist.** The name a person
+remembers is the song's, and the file is as often called a number. A search by title has to read
+every song in the folder. The program reads each one once and keeps its title and artist while it
+runs. The first search in a large folder is the slow one. The search finds a folder by its name
+only.
 
 **The words box wins when it is ticked, then the text file beside the song, then the song's own
 words.** The text file has the song's name and `.txt`. With neither, the editor opens the words the
@@ -1606,8 +1621,12 @@ song has, for correction. A song with no words anywhere needs the box.
 otherwise go to the next. Words put into an empty box set the tick, and the person can take it
 off. A ticked box that holds nothing is refused.
 
-**The box is under the browser, and a page holds fifteen rows.** A person finds the song first and
-pastes its words second. A short page keeps the box in the window.
+**The page has two tabs, in the order of the work.** The first holds the browser. The second
+holds the selected song, its names, the words box and Start. A person finds the song first and
+pastes its words second, and one tab at a time keeps each of them in the window. What the editor
+is doing shows above both tabs.
+
+**A page of the browser holds fifteen rows.** The page reads every file it lists.
 
 **An UltraStar file is not a page of words.** It is a `.txt` with timing in it, and it is a song in
 its own right.
@@ -1620,10 +1639,33 @@ its first byte.
 keeps the timing the song has and taps the rest. It is never ticked for the person, for the reason
 the editor's flags give: only the person knows which they want.
 
-**A row selects a song, and one panel under the browser starts it.** The panel names the selected
-song and holds the words box, every choice about the start, and Start. A row holds the file name,
-the title, the artist and Select. Fifteen rows of buttons and boxes are harder to read than fifteen
-rows of songs, and the words belong beside the button that uses them.
+**A row selects a song, and one panel on the second tab starts it.** Select opens that tab. The
+panel names the selected song and holds the words box, every choice about the start, and Start. A
+row holds the file name, the title, the artist, the words mark and Select. Fifteen rows of buttons
+and boxes are harder to read than fifteen rows of songs, and the words belong beside the button
+that uses them.
+
+**A column marks the songs that have words of their own, with a tick in the accent colour.** Most songs have them, and a sentence
+on every row hides the few that do not. A note under the file name is left for what is unusual. That is
+a text file that supplies the words, a synced copy that exists, or a file the editor cannot read.
+
+**The panel holds the title, the artist and the language, and each starts as the song states it.**
+A stated name is often wrong: a file name, a code, or the artist in the title's place. The synced
+file is a new file, so it is the place to put that right. A name that differs from the song's own
+goes to the editor as its flag.
+
+**A field left as it was passes nothing, and so does an empty one.** The song's own name then
+stands, and the editor copies it as the file spells it. The panel cannot remove a name. The server
+reads the song again at Start and makes the comparison itself.
+
+**The pager takes the accent colour, and it is above the rows and below them, on the right.**
+Select takes the same colour, on the same edge. A folder with more
+pages otherwise reads as one that ends on the fifteenth row. A page turn puts the top of the new
+rows in view, because the pager below leaves a person at the foot of the list.
+
+**The language is chosen from the list of codes, and the code is what the file holds.** A list
+cannot be mistyped. The machine reads a code in a karaoke file's language header before it tries
+the four-letter names, so the synced file needs no other spelling.
 
 **A synced copy that exists is replaced only when the panel's box says so.** The row names the
 copy, and the panel shows the box for a song that has one. Start waits for the tick, and the server

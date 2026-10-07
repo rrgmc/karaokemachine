@@ -69,8 +69,35 @@ button.quiet {
     border: 1px solid var(--line);
 }
 
-/* The words box, which every Start button reads. */
-.words { display: flex; flex-direction: column; gap: 0.35rem; margin: 1rem 0; }
+/* The two tabs. The open one takes the accent, and its lower edge joins the pane under it. */
+.tabs { display: flex; gap: 0.25rem; margin: 1rem 0 0; border-bottom: 1px solid var(--line); }
+.tabs button {
+    background: transparent;
+    color: var(--dim);
+    border: 1px solid transparent;
+    border-bottom: 0;
+    border-radius: 6px 6px 0 0;
+    padding: 0.5rem 1rem;
+    margin-bottom: -1px;
+}
+.tabs button[aria-selected="true"] {
+    background: var(--panel);
+    color: var(--accent);
+    border-color: var(--line);
+    font-weight: 600;
+}
+
+/* The words panel, which Start reads. */
+.words {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    margin: 0.75rem 0 1rem;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 0.75rem 1rem;
+}
 .words label { color: var(--text); }
 .words textarea { width: 100%; resize: vertical; }
 .words p { margin: 0; }
@@ -97,6 +124,7 @@ button.quiet {
 .crumbs form { flex-wrap: nowrap; }
 .places { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.5rem; }
 .picker .filter { margin-bottom: 0.5rem; color: var(--dim); }
+.picker .filter input { width: 20rem; max-width: 100%; }
 .folders { list-style: none; margin: 0 0 0.75rem; padding: 0; columns: 16rem; }
 .folders li { break-inside: avoid; }
 button.link {
@@ -114,6 +142,10 @@ td { padding: 0.35rem 0.4rem; border-top: 1px solid var(--line); vertical-align:
 
 th { text-align: left; color: var(--dim); font-weight: 500; padding: 0.25rem 0.4rem; }
 
+/* The Words column's mark: a tick in the accent, for a file that has words of its own. */
+.mark { text-align: center; white-space: nowrap; }
+.ticked { color: var(--accent); font-weight: 700; font-size: 1.1rem; line-height: 1; }
+
 /* The row whose song the words panel holds. */
 tr.selected td { background: var(--bg); }
 tr.selected td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
@@ -121,6 +153,12 @@ tr.selected td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
 /* The words panel shows a name once a song is selected, and says so until then. */
 #words[data-selected] #selected-none { display: none; }
 #selected-notes:empty { display: none; }
+/* The three names and their hint appear with a selected song. */
+#words:not([data-selected]) #names,
+#words:not([data-selected]) #names-hint { display: none; }
+.names { display: grid; grid-template-columns: max-content 1fr; gap: 0.35rem 0.75rem; align-items: center; }
+.names input { width: 100%; max-width: 28rem; }
+.names select { justify-self: start; }
 /* Replacing is asked only of a song whose synced copy exists. */
 #words:not([data-out-exists]) #replace { display: none; }
 
@@ -136,4 +174,22 @@ body:not(.has-words) #words[data-needs-words] #start {
     pointer-events: none;
 }
 
-.pager { display: flex; align-items: center; gap: 1rem; margin: 0.75rem 0 0; color: var(--dim); }
+/* The pager takes the accent, so a folder with more pages does not read as one that ends here. */
+.pager {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 1rem;
+    margin: 0.75rem 0 0;
+    padding-top: 0.6rem;
+    border-top: 1px solid var(--line);
+    font-weight: 600;
+}
+.pager.above {
+    margin: 0 0 0.75rem;
+    padding: 0 0 0.6rem;
+    border-top: 0;
+    border-bottom: 1px solid var(--line);
+}
+.pager button.quiet,
+button[data-select] { color: var(--accent); border-color: var(--accent); font-weight: 600; }

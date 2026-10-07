@@ -93,6 +93,8 @@ pub struct App {
     pub windowed: std::sync::atomic::AtomicBool,
     /// Where the pages are served, for the banner and the window.
     pub url: String,
+    /// The titles and artists a search has read.
+    pub names: crate::rows::Names,
 }
 
 /// What the page asks a start for.
@@ -106,6 +108,21 @@ pub struct Start {
     pub resume: bool,
     /// Replace the synced copy that exists.
     pub force: bool,
+    /// The title somebody typed.
+    pub title: Option<String>,
+    /// The artist somebody typed.
+    pub artist: Option<String>,
+    /// The language somebody chose, as its code.
+    pub language: Option<String>,
+}
+
+/// What somebody typed for a name, where it is a name and not the one the song states.
+///
+/// A blank field and an unchanged one both pass nothing, so the song's own name stands.
+fn given(stated: Option<&str>, typed: Option<String>) -> Option<String> {
+    let typed = typed?;
+    let typed = typed.trim();
+    (!typed.is_empty() && stated.map(str::trim) != Some(typed)).then(|| typed.to_owned())
 }
 
 impl App {
@@ -122,6 +139,7 @@ impl App {
             config,
             stop: Stop::default(),
             windowed: std::sync::atomic::AtomicBool::new(false),
+            names: crate::rows::Names::default(),
         })
     }
 
@@ -193,6 +211,9 @@ impl App {
     /// own.** A ticked box that holds nothing is refused, since somebody meant words to be there. Every check
     /// the page makes is made again here, because the folder may have changed under the page.
     ///
+    /// **A typed title, artist or language reaches the editor only where it differs from the
+    /// song's own.**
+    ///
     /// # Errors
     ///
     /// The catalog key of the sentence that says why not.
@@ -213,8 +234,9 @@ impl App {
             return Err("said-box-empty");
         }
         let words = pasted.or_else(|| crate::rows::words_beside(&song).map(|(_, words)| words));
+        let found = crate::rows::found(&song);
         if words.is_none() {
-            match crate::rows::holds(&song) {
+            match found.holds {
                 crate::rows::Holds::Words => {}
                 crate::rows::Holds::NoWords => return Err("said-no-words"),
                 crate::rows::Holds::NotMidi => return Err("said-not-midi"),
@@ -231,6 +253,22 @@ impl App {
             words,
             resume: start.resume,
             force: start.force,
+            title: given(found.title.as_deref(), start.title),
+            artist: given(found.artist.as_deref(), start.artist),
+            // Only a code from the table is passed on. The list on the page offers nothing else.
+            // The song's own language is compared as a code, because the song may spell it `ENGL`.
+            language: given(
+                found
+                    .language
+                    .as_deref()
+                    .and_then(km_kmpkg::Language::from_declared)
+                    .map(km_kmpkg::Language::code),
+                start
+                    .language
+                    .as_deref()
+                    .and_then(km_kmpkg::Language::parse)
+                    .map(|language| language.code().to_owned()),
+            ),
             data_dir: self.config.machine_data_dir.clone(),
         };
         let launch = crate::launch::plan(&machine, &request, &self.config.scratch);

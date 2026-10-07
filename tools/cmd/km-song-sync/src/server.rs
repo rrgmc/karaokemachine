@@ -141,7 +141,11 @@ async fn read(
     };
     let app = Arc::clone(app);
     tokio::task::spawn_blocking(move || {
-        let listing = km_folders::list_with(&ask, PAGE_ROWS, crate::rows::is_song);
+        // The filter narrows a song by its file name, and by the title and artist it states.
+        let listing =
+            km_folders::list_matching(&ask, PAGE_ROWS, crate::rows::is_song, |song, wanted| {
+                app.names.hold(song, wanted)
+            });
         // A folder that was read is where the browser is. One that was not is a wrong turn.
         if let (Some(here), None) = (&ask.here, &listing.error) {
             app.remember_folder(here);
@@ -166,6 +170,7 @@ async fn home(State(app): State<Arc<App>>, headers: HeaderMap) -> Response {
         &views::HomePage {
             chrome: views::Chrome::new(locale, app.windowed.load(Ordering::Relaxed)),
             machine,
+            languages: views::languages(),
             editor: views::editor(&state, None, words),
             browser: views::browser(listing, rows, &places, machine, words),
         },
@@ -207,6 +212,10 @@ struct StartForm {
     resume: Option<String>,
     /// Present when the row's box is ticked.
     force: Option<String>,
+    /// The three names the panel holds, each starting as the song's own.
+    title: Option<String>,
+    artist: Option<String>,
+    language: Option<String>,
 }
 
 /// `POST /start`: open the editor on a song, and answer with the editor's state.
@@ -224,6 +233,9 @@ async fn start(
         pasted: form.use_words.is_some().then_some(form.words),
         resume: form.resume.is_some(),
         force: form.force.is_some(),
+        title: form.title,
+        artist: form.artist,
+        language: form.language,
     };
     // The checks read the song and the folder around it.
     let started = {

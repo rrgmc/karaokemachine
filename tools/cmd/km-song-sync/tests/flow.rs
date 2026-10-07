@@ -134,7 +134,7 @@ async fn the_page_lists_folders_and_midi_files_and_nothing_else() {
         "{page}"
     );
     assert!(
-        page.contains("Uses the words in tune.txt,"),
+        page.contains("Uses the words in tune.txt."),
         "the row names the text file beside the song: {page}"
     );
     assert!(page.contains("Has words already"), "{page}");
@@ -150,6 +150,21 @@ async fn the_page_lists_folders_and_midi_files_and_nothing_else() {
     assert!(narrowed.contains(">sung.kar<"), "{narrowed}");
     assert!(!narrowed.contains(">tune.mid<"), "{narrowed}");
     assert!(narrowed.trim_start().starts_with(r#"<div id="rows""#));
+
+    // The fixture states `Twinkle Twinkle` by `The Test Fixtures`, and its file name holds neither.
+    for stated in ["twinkle", "TEST+FIX"] {
+        let by_what_it_states = get(
+            &app,
+            &format!(
+                "/browse?rows=1&filter={stated}&at={}",
+                start_form(&folder, &[]).trim_start_matches("song=")
+            ),
+        )
+        .await;
+        assert!(by_what_it_states.contains(">sung.kar<"), "{stated}");
+        assert!(!by_what_it_states.contains(">tune.mid<"), "{stated}");
+        assert!(!by_what_it_states.contains(">more<"), "{stated}");
+    }
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -296,6 +311,64 @@ async fn a_start_that_makes_no_sense_is_refused_and_starts_nothing() {
     closed(&app).await;
     let launches = launcher.launches.lock().expect("the lock");
     assert!(args(&launches[0]).contains(&"--sync-force".to_owned()));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_typed_name_reaches_the_editor_only_where_it_differs_from_the_songs_own() {
+    let folder = Scratch::new("sync-flow-names");
+    let tune = folder.join("tune.mid");
+    let sung = folder.join("sung.kar");
+    std::fs::write(&tune, km_song::testing::instrumental()).expect("write");
+    std::fs::write(&sung, km_song::testing::soft_karaoke()).expect("write");
+    let launcher = Arc::new(Recorded::default());
+    let app = tool(&folder, Arc::clone(&launcher));
+
+    let page = get(&app, "/").await;
+    assert!(page.contains(r#"<input type="text" id="title" name="title""#));
+    assert!(page.contains(r#"<option value="pt">Portuguese</option>"#));
+    assert!(
+        page.contains(r#"data-artist="" data-language="""#),
+        "{page}"
+    );
+    assert!(
+        page.contains(r#"data-artist="The Test Fixtures" data-language="en""#),
+        "the fields start from what the song states: {page}"
+    );
+
+    let typed = [
+        ("words", "la la"),
+        ("use_words", "on"),
+        ("artist", "  The Singers "),
+        ("language", "PT"),
+        ("title", " "),
+    ];
+    post(&app, "/start", &start_form(&tune, &typed)).await;
+    closed(&app).await;
+    // The page posts every field. Two are as the song states them, and one is corrected.
+    let corrected = [
+        ("title", "Twinkle Twinkle"),
+        ("artist", "The Real Singers"),
+        ("language", "en"),
+    ];
+    post(&app, "/start", &start_form(&sung, &corrected)).await;
+    closed(&app).await;
+
+    let launches = launcher.launches.lock().expect("the lock");
+    let named = args(&launches[0]);
+    assert!(named.contains(&"--sync-artist=The Singers".to_owned()));
+    assert!(named.contains(&"--sync-language=pt".to_owned()));
+    assert!(
+        !named.iter().any(|arg| arg.starts_with("--sync-title")),
+        "a blank field passes nothing: {named:?}"
+    );
+    let stated = args(&launches[1]);
+    assert!(stated.contains(&"--sync-artist=The Real Singers".to_owned()));
+    assert!(
+        !stated
+            .iter()
+            .any(|arg| arg.starts_with("--sync-title") || arg.starts_with("--sync-language")),
+        "a name left as the song states it passes nothing: {stated:?}"
+    );
 }
 
 #[tokio::test(flavor = "multi_thread")]

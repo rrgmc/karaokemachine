@@ -115,8 +115,7 @@ struct Session {
     before_snap: Option<Vec<u32>>,
     /// What the last clear took, until a new tap makes it too late to give back.
     before_clear: Option<Cleared>,
-    /// Whether review was asked for while words are still waiting. Review needs no asking once
-    /// every word is tapped.
+    /// Whether review was asked for. `R` asks, and so do words that arrive with every tick.
     reviewing: bool,
 }
 
@@ -154,11 +153,20 @@ impl Session {
     fn with_tapped(mut self, tapped: usize) -> Self {
         self.stamped = tapped.min(self.syllables.len());
         self.selected = self.stamped.saturating_sub(1);
+        // Words that arrive with every tick are there to be checked, so they open in review.
+        self.reviewing = self.all_tapped();
         self
     }
 
+    /// Whether every syllable has a tick.
+    fn all_tapped(&self) -> bool {
+        self.stamped == self.syllables.len()
+    }
+
+    /// Review is asked for and never arrived at: the last tap leaves the tapping screen up, where
+    /// that tap can still be taken back.
     fn phase(&self) -> Phase {
-        if self.stamped == self.syllables.len() || (self.reviewing && self.stamped > 0) {
+        if self.reviewing && self.stamped > 0 {
             Phase::Review
         } else {
             Phase::Tapping
@@ -1255,18 +1263,22 @@ pub(crate) fn run(paths: &Paths, settings: &Settings, request: &Request) -> anyh
                 }
                 (_, Keycode::H) if !repeat => show_help = !show_help,
                 (_, Keycode::R) if !repeat => {
-                    let all = session.stamped == session.syllables.len();
                     if session.stamped == 0 {
                         say(t("sync-nothing-to-review"));
-                    } else if all {
-                        say(t("sync-all-tapped-already"));
                     } else if session.reviewing {
                         session.reviewing = false;
                         // Back to where the taps stopped, with a run-up to the next word.
                         let last = session.syllables[session.stamped - 1].tick;
                         let ms = song.tempo_map.tick_to_ms(last).saturating_sub(RUN_UP_MS);
                         sound.send(Command::SeekMs(ms));
-                        say(t("sync-tapping-again"));
+                        // With every word tapped the banner says where things stand.
+                        if !session.all_tapped() {
+                            say(t("sync-tapping-again"));
+                        }
+                    } else if session.all_tapped() {
+                        session.reviewing = true;
+                        preview_stale = true;
+                        say(t("sync-review-all"));
                     } else {
                         session.reviewing = true;
                         session.selected = session.selected.min(session.stamped - 1);
@@ -1366,13 +1378,10 @@ pub(crate) fn run(paths: &Paths, settings: &Settings, request: &Request) -> anyh
                                     .into_owned());
                             }
                         }
-                        if session.phase() == Phase::Review {
-                            // The last tap ends the detection, so the person is told how it ended.
-                            say(t(if choice.is_none() && !choices.is_empty() {
-                                "sync-all-tapped-no-vocal"
-                            } else {
-                                "sync-all-tapped"
-                            }));
+                        // The last tap ends the detection, so the person is told when it found
+                        // nothing. The banner says the rest.
+                        if session.all_tapped() && choice.is_none() && !choices.is_empty() {
+                            say(t("sync-all-tapped-no-vocal"));
                         }
                     } else {
                         say(t("sync-paused-tap"));
@@ -1633,12 +1642,18 @@ pub(crate) fn run(paths: &Paths, settings: &Settings, request: &Request) -> anyh
         if let Some(fill) = melody.and_then(|m| cue_fill(&m.phrases, cue_from, now_ms)) {
             screen.cue(&mut canvas, &theme, fill);
         }
-        if let Some((text, since)) = &message {
-            if now.duration_since(*since) < MESSAGE_FOR {
-                screen.note(&mut canvas, &mut cache, &fonts, &theme, 0.12, text);
-            } else {
-                message = None;
-            }
+        if let Some((_, since)) = &message
+            && now.duration_since(*since) >= MESSAGE_FOR
+        {
+            message = None;
+        }
+        // The banner stays for as long as every word is tapped and review is not open. A message
+        // takes its place for the few seconds it shows.
+        if let Some((text, _)) = &message {
+            screen.note(&mut canvas, &mut cache, &fonts, &theme, 0.12, text);
+        } else if session.phase() == Phase::Tapping && session.all_tapped() {
+            let text = t("sync-all-tapped");
+            screen.banner(&mut canvas, &mut cache, &fonts, &theme, 0.12, &text);
         }
         canvas.present();
 
@@ -1912,6 +1927,37 @@ impl Layout {
         );
     }
 
+    /// A centered line of small text on a bar of the accent colour, at this fraction of the
+    /// height. It is for a state that waits on a key, where a note is for something that passed.
+    fn banner<T: RenderTarget, C>(
+        &self,
+        canvas: &mut Canvas<T>,
+        cache: &mut TextCache<C>,
+        fonts: &Fonts,
+        theme: &Theme,
+        at: f32,
+        text: &str,
+    ) {
+        let size = measure_line(&fonts.text, &[text]);
+        let pad = size.height * 0.6;
+        let top = self.height * at - pad * 0.5;
+        canvas.set_draw_color(theme.accent);
+        let _ = canvas.fill_rect(FRect::new(
+            (self.width - size.width) / 2.0 - pad,
+            top,
+            size.width + pad * 2.0,
+            size.height + pad,
+        ));
+        draw_text(
+            canvas,
+            cache,
+            &fonts.text,
+            text,
+            (self.width / 2.0, self.height * at),
+            &TextStyle::plain(theme.background, Align::Center),
+        );
+    }
+
     /// The key list along the foot of the window. Answers where its top edge is, so whatever sits
     /// above it knows how much room is left.
     #[allow(clippy::too_many_arguments)]
@@ -2171,17 +2217,30 @@ mod tests {
     }
 
     #[test]
-    fn taps_fill_the_syllables_in_order_and_the_last_one_opens_review() {
+    fn taps_fill_the_syllables_in_order_and_the_last_one_waits_for_review_to_be_asked() {
         let mut s = session("la la\nla");
         assert_eq!(s.lines, [0..2, 2..3]);
         s.tap(100);
         s.tap(200);
-        assert_eq!(s.phase(), Phase::Tapping);
+        assert!(!s.all_tapped());
         s.tap(300);
-        assert_eq!(s.phase(), Phase::Review);
+        assert!(s.all_tapped());
+        assert_eq!(
+            s.phase(),
+            Phase::Tapping,
+            "the last tap can still be taken back"
+        );
         assert_eq!(ticks(&s), [100, 200, 300]);
         s.tap(400);
         assert_eq!(ticks(&s), [100, 200, 300]);
+        s.reviewing = true;
+        assert_eq!(s.phase(), Phase::Review);
+    }
+
+    #[test]
+    fn words_that_arrive_with_every_tick_open_in_review() {
+        assert_eq!(session("a b").with_tapped(2).phase(), Phase::Review);
+        assert_eq!(session("a b").with_tapped(1).phase(), Phase::Tapping);
     }
 
     #[test]
@@ -2286,6 +2345,7 @@ mod tests {
         assert!(s.end_at(0, 150));
         s.tap(200);
         s.selected = 1;
+        s.reviewing = true;
         assert_eq!(s.phase(), Phase::Review);
         assert!(s.clear());
         assert_eq!(s.phase(), Phase::Tapping);
@@ -2305,6 +2365,7 @@ mod tests {
         s.tap(200);
         s.selected = 1;
         s.dirty = false;
+        s.reviewing = true;
         assert!(s.clear());
         assert!(s.undo_clear());
         assert_eq!(s.phase(), Phase::Review);

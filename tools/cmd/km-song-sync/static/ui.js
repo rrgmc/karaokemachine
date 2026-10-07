@@ -1,4 +1,5 @@
-// The words panel: the song Select chose, the words box, and the tick that says to use the box.
+// The two tabs, and the words panel: the song Select chose, the words box, and the tick that says
+// to use the box.
 //
 // The panel's `data-` attributes say what the stylesheet has to know to hold a Start the server
 // would refuse: whether a song is selected, whether its synced copy exists, and whether it needs
@@ -38,15 +39,41 @@
     panel.toggleAttribute("data-selected", true);
     panel.toggleAttribute("data-out-exists", "outExists" in button.dataset);
     panel.toggleAttribute("data-needs-words", "needsWords" in button.dataset);
+    // A press of Select starts each name as what the song states. A redraw of the rows keeps
+    // what somebody has typed since.
+    if (fresh) {
+      for (const field of ["title", "artist", "language"]) {
+        document.getElementById(field).value = button.dataset[field] || "";
+      }
+    }
     if (fresh || !("outExists" in button.dataset)) force.checked = false;
   };
 
+  // A page turn puts the top of the new rows in view. The rows are also drawn again when the
+  // editor closes, and that redraw moves nothing.
+  let turned = false;
+
+  // Opens one of the two tabs.
+  const open = (which) => {
+    for (const tab of document.querySelectorAll("[data-tab]")) {
+      const on = tab.dataset.tab === which;
+      tab.setAttribute("aria-selected", on);
+      document.getElementById(tab.getAttribute("aria-controls")).hidden = !on;
+    }
+  };
+
   document.body.addEventListener("click", (event) => {
+    if (event.target.closest(".pager button")) turned = true;
+    const tab = event.target.closest("[data-tab]");
+    if (tab) {
+      open(tab.dataset.tab);
+      return;
+    }
     const select = event.target.closest("[data-select]");
     if (select) {
       show(select, true);
-      panel.scrollIntoView({ behavior: "smooth", block: "start" });
-      box.focus({ preventScroll: true });
+      open("words");
+      box.focus();
       return;
     }
     if (!event.target.closest("[data-clear]")) return;
@@ -60,6 +87,10 @@
   // The rows are drawn again when the editor closes and on a page turn. The selected song's row
   // may say something new by then, such as a synced copy that now exists.
   document.body.addEventListener("htmx:afterSwap", () => {
+    if (turned) {
+      turned = false;
+      document.getElementById("rows")?.scrollIntoView({ block: "start" });
+    }
     if (!song.value) return;
     const again = [...document.querySelectorAll("[data-select]")].find(
       (button) => button.dataset.select === song.value,
