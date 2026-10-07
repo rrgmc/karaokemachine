@@ -241,8 +241,7 @@ async fn bind(port: u16) -> Result<tokio::net::TcpListener> {
 /// Starts the tracing subscriber, with a file beside the console when one was asked for.
 fn init_logging(cli: &Cli) -> Option<km_logfile::LogFile> {
     let wanted = km_logfile::asked_for(cli.log_file);
-    let dir = km_dirs::for_app("km-package-simple")
-        .map(|dirs| dirs.data.join(km_logfile::SUBDIR));
+    let dir = km_dirs::for_app("km-package-simple").map(|dirs| dirs.data.join(km_logfile::SUBDIR));
     let (file, failure) = match dir
         .as_ref()
         .filter(|_| wanted)

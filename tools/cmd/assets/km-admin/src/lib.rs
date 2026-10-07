@@ -333,8 +333,8 @@ fn resolve_data_dir(cli: &Cli) -> Result<PathBuf> {
     if let Some(dir) = &cli.data_dir {
         return Ok(dir.clone());
     }
-    let dirs = km_dirs::for_app(APP_DIR)
-        .context("no data directory on this platform; pass --data-dir")?;
+    let dirs =
+        km_dirs::for_app(APP_DIR).context("no data directory on this platform; pass --data-dir")?;
     Ok(dirs.data)
 }
 
