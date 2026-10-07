@@ -227,6 +227,22 @@ impl Session {
         true
     }
 
+    /// Takes back every tap and every end, so tapping starts at the first word.
+    fn clear(&mut self) -> bool {
+        if self.stamped == 0 {
+            return false;
+        }
+        for syllable in &mut self.syllables[..self.stamped] {
+            syllable.end_tick = None;
+        }
+        self.stamped = 0;
+        self.selected = 0;
+        self.reviewing = false;
+        self.dirty = true;
+        self.before_snap = None;
+        true
+    }
+
     /// Takes back every tap in the line being tapped, or in the one before it when this line has
     /// none. Answers the tick the line before that ended on, which is where to play from.
     fn retap_line(&mut self) -> u32 {
@@ -1218,6 +1234,16 @@ pub(crate) fn run(paths: &Paths, settings: &Settings, request: &Request) -> anyh
                         say(t("sync-snap-undone"));
                     }
                 }
+                // Two modifiers, because one stray key must not take a whole song's taps.
+                (Phase::Review, Keycode::Backspace) if ctrl && shift => {
+                    if !repeat && session.clear() {
+                        preview_stale = true;
+                        sound.send(Command::Pause);
+                        sound.send(Command::SeekMs(0));
+                        want_playing = false;
+                        say(t("sync-cleared"));
+                    }
+                }
                 (Phase::Review, Keycode::Backspace) => {
                     preview_stale |= session.undo();
                 }
@@ -1517,6 +1543,7 @@ const REVIEW_KEYS: [HelpRow; 4] = [
             ("Esc", "sync-key-leave"),
             ("H", "sync-key-hide-keys"),
             ("R", "sync-key-back-to-tapping"),
+            ("Ctrl+Shift+Backspace", "sync-key-clear"),
         ],
     ),
 ];
@@ -1897,6 +1924,25 @@ mod tests {
             s.select_at(tick);
             assert_eq!(s.selected, selected, "at tick {tick}");
         }
+    }
+
+    #[test]
+    fn clearing_takes_back_every_tap_and_end_and_opens_tapping() {
+        let mut s = session("a b");
+        assert!(!s.clear());
+        s.tap(100);
+        assert!(s.end_at(0, 150));
+        s.tap(200);
+        s.selected = 1;
+        assert_eq!(s.phase(), Phase::Review);
+        assert!(s.clear());
+        assert_eq!(s.phase(), Phase::Tapping);
+        assert_eq!((s.stamped, s.selected), (0, 0));
+        assert!(
+            s.syllables
+                .iter()
+                .all(|syllable| syllable.end_tick.is_none())
+        );
     }
 
     #[test]
