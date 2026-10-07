@@ -445,6 +445,10 @@ folders, which no environment variable redirects. So proving it would mean writi
 into the developer's own install, and their next start would fetch 262 MiB. The build asserts
 instead that the generated file exists and names the row the table marks `recommended`.
 
+**The negative half reads `%APPDATA%` before the install as well as after.** A request already
+pending there belongs to the developer's own install. `onlyifdoesntexist` means no install writes
+over it, so the round trip prints that it did not check, and carries on.
+
 **The installer itself signs nothing, and a release is unsigned.** When `SIGNPATH_API_TOKEN` is
 set, the release workflow signs around the installer in two SignPath rounds. It stages `dist/bin/windows` and the remote's folder with `tools/dist/bin.sh` and
 `tools/dist/cmd.sh km-remote`, and has our own `.exe` files signed in place. It then runs both

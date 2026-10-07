@@ -323,8 +323,20 @@ fail() { echo "installer: $*" >&2; exit 1; }
 
 # ---- everything, and prove it runs -------------------------------------------------------------
 
+# Read before the first install, because the assertion below is about what the install wrote. A
+# machine that already holds a pending request holds it for its owner's own install.
+#
+# `cygpath -u` because %APPDATA% arrives as a Windows path with backslashes and `test -f` is given it
+# literally; the same conversion `host_path` does in the other direction.
+appdata_posix="$(cygpath -u "${APPDATA:-}" 2>/dev/null || printf '%s' "${APPDATA:-}")"
+pending_request="$appdata_posix/karaokemachine/config/first-run-soundfont.json"
+request_was_pending=0
+if [ -n "$appdata_posix" ] && [ -f "$pending_request" ]; then
+  request_was_pending=1
+fi
+
 full="$scratch_root/full"
-install_to "$full" "$(IFS=,; printf '%s' "${COMPONENTS[*]}")" || fail "the silent install failed"
+install_to "$full""$(IFS=,; printf '%s' "${COMPONENTS[*]}")" || fail "the silent install failed"
 [ -f "$full/unins000.exe" ] || fail "no uninstaller in $full -- the install did not complete"
 
 # The exit status, not the output: what is being proved is that the process got as far as running its
@@ -350,11 +362,12 @@ find "$full/assets" -name '*.sf2' 2>/dev/null | grep -q . \
 # writing into the developer's own install. The bank the machine would fetch is covered by
 # `firstrun`'s tests instead.
 #
-# `cygpath -u` because %APPDATA% arrives as a Windows path with backslashes and `test -f` is given it
-# literally; the same conversion `host_path` does in the other direction.
-appdata_posix="$(cygpath -u "${APPDATA:-}" 2>/dev/null || printf '%s' "${APPDATA:-}")"
-if [ -n "$appdata_posix" ] \
-  && [ -f "$appdata_posix/karaokemachine/config/first-run-soundfont.json" ]; then
+# **A request that was pending before the install proves nothing either way.** The entry is
+# `onlyifdoesntexist`, so no install writes over it, ticked or not. The round trip says so and
+# carries on, because a file the owner's own install left is not a fault in this one.
+if [ "$request_was_pending" -eq 1 ]; then
+  echo "   a first-start SoundFont request was already pending in %APPDATA% -- not checked"
+elif [ -n "$appdata_posix" ] && [ -f "$pending_request" ]; then
   fail "an install with /TASKS=\"\" left a first-start SoundFont request in %APPDATA%"
 fi
 
