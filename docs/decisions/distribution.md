@@ -2639,9 +2639,14 @@ work. That is the thing somebody then holds down. See
 **A GitHub release page uses the register that
 [`What a user reads is written in plain application language`](foundations.md#what-a-user-reads-is-written-in-plain-application-language)
 gives an operator.** That is a sentence or two, consequence first, for somebody choosing a file to
-download. It names each asset and what that asset
-is for, and says what the platform will do about an unsigned build. It gives the steps a reader
-follows.
+download. It names each asset and what that asset is for.
+
+**The page warns only where a download fails without a step, and the manual holds the rest.**
+Windows refuses an unsigned setup program until the reader clicks past a warning. iOS installs an
+`.ipa` only after the reader signs it. The page states those two and links the manual's
+`Installing` and iOS chapters. What macOS, Android, a Meta Quest and Linux say about a download
+stops nobody, and it is the same at every release. A manual chapter is where a reader looks for it
+after the download.
 
 The reasoning behind any of it belongs in `docs/` and in the comments beside the code. A person
 reading a release page has already decided to try this. Every sentence that argues with them is
@@ -2745,7 +2750,7 @@ secrets, the Android release keystore. The SignPath token that
 published notarized or not at all, and notarizing takes two Developer ID certificates and an Apple
 account, which stay on the Mac rather than in the repository's secrets. So the workflow runs
 `release.sh --platforms windows,linux,android,quest,ios --elsewhere macos`: the page names the packages
-and says how they are signed from its first draft, and the Mac adds them with
+from its first draft, and the Mac adds them with
 `bash tools/dist/release.sh --add --platforms macos`, which `task release:macos` runs after building
 both. The draft is published once both halves are on it.
 
