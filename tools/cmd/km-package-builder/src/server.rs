@@ -2090,6 +2090,8 @@ mod tests {
         assert_eq!(status, axum::http::StatusCode::OK);
         assert!(html.contains(r#"href="/folders?path=brasil/""#), "{html}");
         assert!(html.contains(r#"href="/songs?folder=ingles/""#), "{html}");
+        // Each row carries the mean the same scan left with the tree.
+        assert!(html.contains(r#"<span class="suitability "#), "{html}");
     }
 
     /// The body the filter bar actually submits, with the tags set to what is asked for.

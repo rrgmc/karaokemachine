@@ -25,6 +25,9 @@ Entries are written for somebody who has the machine. Why any of it is the way i
   you name and downloads the `.kar`, `.mid` and `.midi` files they link. It opens `.zip` archives,
   and builds a package from the songs that have words. It honours the site's `robots.txt` and waits
   between requests.
+- **The curation tool's Folders page shows each folder's average suitability.** The average covers
+  the same songs as the count beside it. It appears after the next scan that changes a file, and a
+  dash stands in until then.
 
 ## [1.20.0] - 2026-10-06
 

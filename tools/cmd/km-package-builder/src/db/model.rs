@@ -77,6 +77,8 @@ pub struct FolderNode {
     pub path: String,
     /// Distinct songs anywhere beneath it.
     pub song_count: u32,
+    /// The mean suitability of those songs, or `None` when none of them has one.
+    pub suitability: Option<f64>,
 }
 
 impl FolderNode {

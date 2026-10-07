@@ -20,13 +20,14 @@
     <tr>
       <th>{{ "folders-folder"|t }}</th>
       <th class="num" title="{{ "folders-songs-title"|t }}">{{ "favorites-songs"|t }}</th>
+      <th class="num" title="{{ "folders-suitability-title"|t }}">{{ "column-suitability"|t }}</th>
       <th></th>
     </tr>
   </thead>
   <tbody>
     {% if !path.is_empty() %}
     <tr>
-      <td colspan="3"><a href="/folders?path={{ parent }}">&larr; {{ "folders-up"|t }}</a></td>
+      <td colspan="4"><a href="/folders?path={{ parent }}">&larr; {{ "folders-up"|t }}</a></td>
     </tr>
     {% endif %}
     {% for folder in folders %}
@@ -39,6 +40,7 @@
         {% endif %}
       </td>
       <td class="num">{{ folder.song_count }}</td>
+      <td class="num"><span class="suitability {{ crate::views::mean_suitability_class(folder.suitability) }}">{% match folder.suitability %}{% when Some with (mean) %}{{ "{:.1}"|format(mean) }}{% when None %}&mdash;{% endmatch %}</span></td>
       <td>
         <span class="row">
           {% if !folder.is_files_here() %}
