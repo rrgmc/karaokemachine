@@ -145,7 +145,7 @@ Name: "desktopicon"; Description: "Create a desktop shortcut for KaraokeMachine"
 ; **This installer does not download the bank; it writes down that you asked for it.** The machine
 ; fetches it on its first start, from the pinned URL against the pinned digest, with a line on the
 ; television saying how far it has got -- so an install stays as fast and as offline-safe as it was,
-; and a 261.9 MiB file does not have to travel inside a 30 MiB carrier. See `Offering the recommended
+; and a 261.7 MiB file does not have to travel inside a 30 MiB carrier. See `Offering the recommended
 ; bank at install time` in docs/decisions/distribution.md.
 ;
 ; Ticked by default, unlike `desktopicon`: the bundled bank is the one thing about a fresh install

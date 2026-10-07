@@ -1469,6 +1469,15 @@ row. `beneath` cannot be a sum of children, because the count is of distinct *so
 files one recording in several folders. `rebuild_folders` therefore walks `files` ordered by `song_id`, and
 tallies once per song. The set held in memory is one song's ancestors, not one folder's songs.
 
+**The same tally carries each folder's mean suitability.** The pass joins `songs` for `browsable`, so
+`suitability` comes from a row it already reads. A tally holds the songs, how many have a
+suitability, and their sum. `direct_suitability` and `beneath_suitability` store the two means, NULL
+where no song has one. The page reads them in the two seeks it already makes.
+
+**A suitability that changes does not move the marker.** A re-analysis that finishes rebuilds the
+tree in its tail. One stopped before its tail leaves the means as the last rebuild wrote them, until
+the next scan that finishes. Marking the tree stale there would put a whole pass on the next visit.
+
 **Derived tables must not answer for a corpus that has moved on.** A scan that finishes rebuilds the
 tree as its last pass, and a stopped scan does not. The Folders page compares a cheap marker with the
 one stored at the last rebuild, and rebuilds when they differ. **The staleness check has to be

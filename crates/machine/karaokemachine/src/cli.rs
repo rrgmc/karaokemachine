@@ -199,7 +199,7 @@ struct Cli {
     #[arg(long, conflicts_with = "set_soundfont")]
     clear_soundfont: bool,
 
-    // What the tick box in the Windows setup program and the macOS package write, so a 261.9 MiB
+    // What the tick box in the Windows setup program and the macOS package write, so a 261.7 MiB
     // bank does not travel inside a carrier or hold up an install.
     /// Download this sound bank at the next start and use it, then exit.
     ///
@@ -1033,7 +1033,7 @@ pub fn main(shell: Shell) -> anyhow::Result<()> {
 
         // **A bank a setup program asked for and the machine has not fetched yet**, printed only
         // while there is one. It is the answer to a question nothing else here can be asked: a first
-        // start that is about to spend several minutes downloading 261.9 MiB looks, from outside,
+        // start that is about to spend several minutes downloading 261.7 MiB looks, from outside,
         // like a machine doing nothing in particular. Naming the file is also the way to call it off
         // — deleting it is the undo, and it is not a path anybody would guess.
         if let Some(request) = crate::firstrun::read(&paths) {

@@ -706,7 +706,7 @@ struct FirstRun {
     /// `None` covers both "there was no request" and "it is finished", which is what makes
     /// [`Machine::settle_first_run_soundfont`] free on every ordinary poll.
     fetching: Option<String>,
-    /// The percentage last put on the television, so a 261.9 MiB download does not rewrite it
+    /// The percentage last put on the television, so a 261.7 MiB download does not rewrite it
     /// twenty times a second.
     announced: Option<u8>,
     /// The next sentence for the display to draw, if there is one.

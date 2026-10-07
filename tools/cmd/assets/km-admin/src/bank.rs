@@ -261,11 +261,7 @@ async fn stream_to_file(
             // The file goes, in `download` — a complete download that failed its digest is not a
             // partial one to resume, it is bytes of unknown provenance, and the one cleanup path
             // covers it for the same reason it covers the rest.
-            let want = digest::wanted(pinned);
-            return Err(format!(
-                "the download does not match the digest this bank is pinned to — expected {want}, \
-                 got {got}. Nothing was kept."
-            ));
+            return Err(digest::mismatch(pinned, &got, "Nothing was kept."));
         }
     }
     Ok(())

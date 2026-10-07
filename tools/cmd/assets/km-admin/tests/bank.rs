@@ -85,7 +85,7 @@ async fn a_body_that_does_not_match_the_digest_is_not_kept() {
         .await
         .expect_err("the digest must refuse it");
     assert!(
-        refusal.contains("digest"),
+        refusal.contains("not the file this version expects"),
         "it should say why, not just fail: {refusal}"
     );
     assert_eq!(

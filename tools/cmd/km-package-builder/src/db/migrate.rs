@@ -12,7 +12,7 @@ use super::*;
 /// The schema this build writes and understands, stamped into `PRAGMA user_version`.
 ///
 /// Bump this and add an arm to [`step_to`] in the same change. The number keeps counting.
-pub(super) const SCHEMA_VERSION: u32 = 20;
+pub(super) const SCHEMA_VERSION: u32 = 21;
 
 /// The oldest schema this build opens. Everything from here to [`SCHEMA_VERSION`] is an arm of
 /// [`step_to`].
@@ -140,6 +140,18 @@ fn step_to(conn: &Connection, version: u32) -> Result<(), DbError> {
         // this tool made from its own songs carries anyway.
         20 => {
             conn.execute_batch("ALTER TABLE packages ADD COLUMN flags INTEGER NOT NULL DEFAULT 0")?;
+            Ok(())
+        }
+        // The mean suitability of a folder's songs. NULL on every row, which the page draws as a
+        // dash, and the scan that next rebuilds the tree fills them.
+        //
+        // **The tree is not marked stale here.** Marking it would put a whole pass over `files` on
+        // the first visit to the Folders page, and a dash costs nobody a wait.
+        21 => {
+            conn.execute_batch(
+                "ALTER TABLE folders ADD COLUMN direct_suitability REAL;
+                 ALTER TABLE folders ADD COLUMN beneath_suitability REAL",
+            )?;
             Ok(())
         }
         _ => Err(DbError::Rejected(format!(

@@ -465,6 +465,7 @@ folders-none-link = scanned
 folders-none-tail = yet.
 folders-folder = Folder
 folders-songs-title = Distinct songs anywhere beneath it, not files
+folders-suitability-title = Average automatic suitability of those songs, 0-10
 folders-up = up
 folders-files-here = files here
 folders-browse = Browse

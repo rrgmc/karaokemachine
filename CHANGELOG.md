@@ -20,11 +20,15 @@ Entries are written for somebody who has the machine. Why any of it is the way i
   note saying what goes in it.
 - **The portable copy says how to set it up.** Rename one file to have the machine download the
   recommended instrument bank on its next start. A starter settings file shows the settings people
-  change most, and the folder's README lists each program's port.
+  change most, and the folder's README lists each program's port. That file lets any phone on your
+  network skip a song, play one now and change the queue.
 - **A site's song files become a package in one command.** `km-site-pack` reads the pages of a site
   you name and downloads the `.kar`, `.mid` and `.midi` files they link. It opens `.zip` archives,
   and builds a package from the songs that have words. It honours the site's `robots.txt` and waits
   between requests.
+- **The curation tool's Folders page shows each folder's average suitability.** The average covers
+  the same songs as the count beside it. It appears after the next scan that changes a file, and a
+  dash stands in until then.
 - **A lyric sync editor puts words on a MIDI file.** `karaokemachine --sync song.mid --sync-words
   words.txt` plays the song while you press Space on each word. It writes a new `.kar` and never
   changes the MIDI file. Review shows the words as the machine draws them. There you can move a word,
@@ -41,6 +45,20 @@ Entries are written for somebody who has the machine. Why any of it is the way i
 - **A word can end before the pause after it.** A karaoke file that marks the end of a word with an
   empty event stops that word's highlight there. The highlight does not creep through the pause to
   the next word.
+
+### Changed
+
+- **Every song counts you back in after a break.** A bar above the next line fills during a long
+  pause and is full when the line starts. A MIDI or `.kar` song shows it too, after its intro and
+  after a solo of four bars or more.
+
+### Fixed
+
+- **The recommended instrument bank downloads again.** Its publisher replaced the file, and the
+  machine refused the new one. The machine now takes the publisher's current release.
+- **A bank download that fails says what to do.** The message on the screen tells you to try again
+  and then to update. The README of the installed and the portable copy says how to get the bank
+  yourself.
 
 ## [1.20.0] - 2026-10-06
 

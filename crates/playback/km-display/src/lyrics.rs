@@ -49,7 +49,7 @@ pub struct VisibleLine {
     pub opacity: f32,
     /// How far the lead-in cue has filled, 0.0 to 1.0, for a line about to start after a long gap.
     ///
-    /// Only a line-timed song has one. See [`LyricView::cue_ticks`].
+    /// A line of any timed song has one. See [`LyricView::cue_ticks`].
     pub cue: Option<f32>,
     /// How far an upcoming line-timed line has brightened toward the pending color, 0.0 to 1.0.
     ///
@@ -84,9 +84,9 @@ impl LyricFrame {
 ///
 /// **A line-timed song is drawn a line at a time.** Its file says when each line starts and nothing
 /// about the words inside it, so the whole line lights at its start rather than being wiped across
-/// at a speed the file never gave. Three thresholds serve that mode only; a song timed by the
-/// syllable keeps its wipe and ignores them. See `A line-timed song lights a line at a time` in
-/// `docs/decisions/interface.md`.
+/// at a speed the file never gave. The hold, the fade and the brightening serve that mode only; a
+/// song timed by the syllable keeps its wipe and ignores them. **The cue serves every song.** See
+/// `A line-timed song lights a line at a time` in `docs/decisions/interface.md`.
 #[derive(Debug, Clone, Copy)]
 pub struct LyricView {
     /// How long before a line starts it appears, in ticks.
@@ -102,11 +102,21 @@ pub struct LyricView {
     pub fade_ticks: u32,
     /// How long the lead-in cue takes to fill before a line-timed line starts, in ticks.
     pub cue_ticks: u32,
-    /// How long a gap has to be before a line-timed line for it to fade out and cue in, in ticks.
+    /// How long the lead-in cue takes to fill before a syllable-timed line starts, in ticks.
     ///
-    /// Between two lines sung back to back a cue would flicker, and a line fading for a breath would
-    /// read as a fault.
+    /// A line-timed song's beat is a nominal half second. A syllable-timed song's beat is the
+    /// music's own, and at a fast tempo one bar of it is over before a singer has read the cue.
+    pub syllable_cue_ticks: u32,
+    /// How long a gap has to be before a line for it to cue in, in ticks.
+    ///
+    /// The line-timed line before that gap fades out. Between two lines sung back to back a cue
+    /// would flicker, and a line fading for a breath would read as a fault.
     pub cue_min_gap_ticks: u32,
+    /// How long a gap has to be before a syllable-timed line for it to cue in, in ticks.
+    ///
+    /// Longer than [`Self::cue_min_gap_ticks`], because this gap counts from the start of the last
+    /// syllable sung. A held note and a breath fill a bar or two of it in an ordinary verse.
+    pub syllable_cue_min_gap_ticks: u32,
     /// How long the upcoming line-timed line takes to brighten before it starts, in ticks.
     ///
     /// The upcoming line is dim so the eye knows which line is live. Two lines sung back to back get
@@ -130,14 +140,24 @@ const FADE_BEATS: u32 = 1;
 /// Beats the lead-in cue takes to fill: one bar, which is how a count-in is felt.
 const CUE_BEATS: u32 = 4;
 
+/// Beats the lead-in cue takes to fill in a syllable-timed song: two bars.
+const SYLLABLE_CUE_BEATS: u32 = 8;
+
 /// Beats the upcoming line-timed line takes to brighten before it starts.
 const BRIGHTEN_BEATS: u32 = 2;
 
-/// Beats of gap before a line-timed line that earn a fade and a cue.
+/// Beats of gap before a line that earn a cue, and a fade for the line-timed line before it.
 const CUE_MIN_GAP_BEATS: u32 = 6;
 
+/// Beats between a syllable-timed line's last syllable and the next line that earn a cue: four
+/// bars.
+///
+/// A break that long is a solo. A shorter one is a held note and a rest, and a cue on every one of
+/// those is noise.
+const SYLLABLE_CUE_MIN_GAP_BEATS: u32 = 16;
+
 // A cued line has to be on screen already, or the cue fills under nothing.
-const _: () = assert!(CUE_BEATS <= LEAD_IN_BEATS);
+const _: () = assert!(CUE_BEATS <= LEAD_IN_BEATS && SYLLABLE_CUE_BEATS <= LEAD_IN_BEATS);
 
 impl Default for LyricView {
     fn default() -> Self {
@@ -155,7 +175,9 @@ impl LyricView {
             hold_ticks: beat * LINE_HOLD_BEATS,
             fade_ticks: beat * FADE_BEATS,
             cue_ticks: beat * CUE_BEATS,
+            syllable_cue_ticks: beat * SYLLABLE_CUE_BEATS,
             cue_min_gap_ticks: beat * CUE_MIN_GAP_BEATS,
+            syllable_cue_min_gap_ticks: beat * SYLLABLE_CUE_MIN_GAP_BEATS,
             brighten_ticks: beat * BRIGHTEN_BEATS,
         }
     }
@@ -191,10 +213,12 @@ impl LyricView {
                 }
                 (true, true) => (None, 0.0),
             };
-            let (opacity, cue, brightened) = if line_timed {
+            // **Every song is cued in after a long gap.** The cue asks only when a line starts, and
+            // a file timed by the syllable knows that as exactly as a line-timed one.
+            let cue = self.cue(timeline, index, tick, line_timed);
+            let (opacity, brightened) = if line_timed {
                 (
                     self.opacity(timeline, index, tick),
-                    self.cue(timeline, index, tick),
                     if is_current {
                         0.0
                     } else {
@@ -202,7 +226,7 @@ impl LyricView {
                     },
                 )
             } else {
-                (1.0, None, 0.0)
+                (1.0, 0.0)
             };
             lines.push(VisibleLine {
                 index,
@@ -228,26 +252,36 @@ impl LyricView {
         }
     }
 
-    /// The tick a line-timed line's singing ends by.
+    /// The tick a line's singing ends by.
     ///
     /// **The file's own end where it gave one**: a blank line in an LRC file, or the last line's hold.
     /// Otherwise the line ran to the next one's start, which says nothing about when the singing
-    /// stopped, and [`Self::hold_ticks`] stands in for it.
-    fn sung_until(&self, timeline: &LyricTimeline, index: usize) -> u32 {
+    /// stopped. For a line-timed line [`Self::hold_ticks`] stands in for it.
+    ///
+    /// **A syllable-timed line ends where its last syllable starts.** That syllable runs to the next
+    /// line's start too, and its own start is the last moment the file placed.
+    fn sung_until(&self, timeline: &LyricTimeline, index: usize, line_timed: bool) -> u32 {
         let line = &timeline.lines[index];
         match timeline.lines.get(index + 1) {
-            Some(next) if line.end_tick >= next.start_tick => line
-                .end_tick
-                .min(line.start_tick.saturating_add(self.hold_ticks)),
+            Some(next) if line.end_tick >= next.start_tick => {
+                let stand_in = if line_timed {
+                    line.start_tick.saturating_add(self.hold_ticks)
+                } else {
+                    line.syllables
+                        .last()
+                        .map_or(line.start_tick, |syllable| syllable.start_tick)
+                };
+                line.end_tick.min(stand_in)
+            }
             _ => line.end_tick,
         }
     }
 
-    /// The silence before a line-timed line, in ticks: from the song's start for the first line.
-    fn gap_before(&self, timeline: &LyricTimeline, index: usize) -> u32 {
+    /// The silence before a line, in ticks: from the song's start for the first line.
+    fn gap_before(&self, timeline: &LyricTimeline, index: usize, line_timed: bool) -> u32 {
         let start = timeline.lines[index].start_tick;
         match index.checked_sub(1) {
-            Some(previous) => start.saturating_sub(self.sung_until(timeline, previous)),
+            Some(previous) => start.saturating_sub(self.sung_until(timeline, previous, line_timed)),
             None => start,
         }
     }
@@ -257,11 +291,11 @@ impl LyricView {
     /// Full until its singing ends. **It fades only before a long gap**: a line followed at once by
     /// the next is replaced before a fade could be seen, and one fading over a breath looks broken.
     fn opacity(&self, timeline: &LyricTimeline, index: usize, tick: u32) -> f32 {
-        let sung_until = self.sung_until(timeline, index);
+        let sung_until = self.sung_until(timeline, index, true);
         let long_gap_follows = timeline
             .lines
             .get(index + 1)
-            .is_none_or(|_| self.gap_before(timeline, index + 1) >= self.cue_min_gap_ticks);
+            .is_none_or(|_| self.gap_before(timeline, index + 1, true) >= self.cue_min_gap_ticks);
         if tick <= sung_until || !long_gap_follows {
             return 1.0;
         }
@@ -269,19 +303,31 @@ impl LyricView {
         (1.0 - faded).clamp(0.0, 1.0)
     }
 
-    /// How far a line-timed line's lead-in cue has filled at `tick`, if it has one.
+    /// How far a line's lead-in cue has filled at `tick`, if it has one.
     ///
-    /// **The cue ends exactly on the line's start**, the one moment the file knows. Only a line after
-    /// a long gap has one, the song's first line included: coming back in after a break is what a
-    /// singer misses.
-    fn cue(&self, timeline: &LyricTimeline, index: usize, tick: u32) -> Option<f32> {
+    /// **The cue ends exactly on the line's start**, a moment every timed file knows. Only a line
+    /// after a long gap has one, the song's first line included: coming back in after a break is what
+    /// a singer misses.
+    fn cue(
+        &self,
+        timeline: &LyricTimeline,
+        index: usize,
+        tick: u32,
+        line_timed: bool,
+    ) -> Option<f32> {
         let start = timeline.lines[index].start_tick;
-        let from = start.saturating_sub(self.cue_ticks);
-        if tick >= start || tick < from || self.gap_before(timeline, index) < self.cue_min_gap_ticks
-        {
+        // **The first line's gap is the intro**, which no held note fills, so a syllable-timed
+        // song's intro earns a cue as soon as it is long enough to hold the whole of one.
+        let (cue_ticks, min_gap) = match (line_timed, index) {
+            (true, _) => (self.cue_ticks, self.cue_min_gap_ticks),
+            (false, 0) => (self.syllable_cue_ticks, self.syllable_cue_ticks),
+            (false, _) => (self.syllable_cue_ticks, self.syllable_cue_min_gap_ticks),
+        };
+        let from = start.saturating_sub(cue_ticks);
+        if tick >= start || tick < from || self.gap_before(timeline, index, line_timed) < min_gap {
             return None;
         }
-        Some(((tick - from) as f32 / self.cue_ticks.max(1) as f32).clamp(0.0, 1.0))
+        Some(((tick - from) as f32 / cue_ticks.max(1) as f32).clamp(0.0, 1.0))
     }
 
     /// How far an upcoming line-timed line has brightened at `tick`.
@@ -865,6 +911,71 @@ mod tests {
             halfway.lines[0].brightened, 0.0,
             "the current line has none"
         );
+    }
+
+    /// The start ticks of [`testing::words_around_a_solo`]'s three lines.
+    const SOLO_LINE_STARTS: [u32; 4] = [3_840, 5_760, 18_720, 24_000];
+
+    #[test]
+    fn a_syllable_timed_line_after_a_solo_is_cued_in_and_the_cue_ends_on_its_start() {
+        let lyrics = timeline(&testing::words_around_a_solo());
+        assert_eq!(
+            lyrics
+                .lines
+                .iter()
+                .map(|l| l.start_tick)
+                .collect::<Vec<_>>(),
+            SOLO_LINE_STARTS
+        );
+        let view = view();
+        let after = SOLO_LINE_STARTS[2];
+        let early = view.frame(&lyrics, after - view.syllable_cue_ticks - 1);
+        assert!(early.lines.iter().all(|line| line.cue.is_none()));
+
+        let halfway = view.frame(&lyrics, after - view.syllable_cue_ticks / 2);
+        let next = halfway
+            .lines
+            .iter()
+            .find(|line| line.index == 2)
+            .expect("the line after the solo is on screen");
+        let cue = next.cue.expect("cued");
+        assert!((cue - 0.5).abs() < 0.01, "{cue}");
+        // The cue is all it gains: the sung line stays lit and the next one does not brighten.
+        let sung = halfway.current().expect("current");
+        assert_eq!((sung.index, sung.opacity), (1, 1.0));
+        assert!(halfway.lines.iter().all(|line| line.brightened == 0.0));
+
+        let started = view.frame(&lyrics, after);
+        let current = started.current().expect("current");
+        assert_eq!((current.index, current.cue), (2, None));
+    }
+
+    #[test]
+    fn a_syllable_timed_songs_first_line_is_cued_in_after_the_intro() {
+        let lyrics = timeline(&testing::words_around_a_solo());
+        let view = view();
+        let frame = view.frame(&lyrics, SOLO_LINE_STARTS[0] - view.syllable_cue_ticks / 4);
+        let first = frame.current().expect("the first line waits");
+        assert_eq!(first.index, 0);
+        assert!(first.cue.is_some_and(|cue| cue > 0.7));
+    }
+
+    #[test]
+    fn a_syllable_timed_line_after_a_held_note_and_a_rest_has_no_cue() {
+        let lyrics = timeline(&testing::words_around_a_solo());
+        let view = view();
+        // Two bars lie between the last syllable and this line, which is a pause and not a solo.
+        let frame = view.frame(&lyrics, SOLO_LINE_STARTS[3] - view.syllable_cue_ticks / 2);
+        assert!(frame.lines.iter().any(|line| line.index == 3));
+        assert!(frame.lines.iter().all(|line| line.cue.is_none()));
+    }
+
+    #[test]
+    fn a_syllable_timed_line_sung_back_to_back_has_no_cue() {
+        let lyrics = timeline(&testing::words_around_a_solo());
+        let frame = view().frame(&lyrics, SOLO_LINE_STARTS[1] - 1);
+        assert_eq!(frame.lines[1].index, 1);
+        assert!(frame.lines.iter().all(|line| line.cue.is_none()));
     }
 
     #[test]

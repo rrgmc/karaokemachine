@@ -3380,7 +3380,18 @@ mod tests {
         );
     }
 
-    /// Copying the starter file changes nothing until somebody edits it.
+    /// The room level is the one value the starter file moves, and it is a level a room can hold.
+    /// The API reads `admin` there as `control`, so the word would promise what nobody gets.
+    #[test]
+    fn the_portable_starter_file_gives_the_room_the_control_level() {
+        let example: Settings =
+            serde_json::from_str(PORTABLE_EXAMPLE).expect("the starter file is a settings file");
+        assert_eq!(example.api.room_access, km_api::Access::Control);
+        assert!(example.api.room_access.is_room_level());
+        assert_ne!(example.api.room_access, Settings::default().api.room_access);
+    }
+
+    /// Every other key in the starter file is at its default.
     #[test]
     fn the_portable_starter_file_holds_the_defaults() {
         let example: Settings =

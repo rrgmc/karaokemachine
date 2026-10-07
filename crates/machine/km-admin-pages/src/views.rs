@@ -451,7 +451,7 @@ pub struct BankRow {
     /// `why_not_removable`, which is not the same question — a `debug.soundfonts` slot is not
     /// bundled and is not removable either, so branching on this one offers it a button that refuses.
     pub bundled: bool,
-    /// How large it is, already rendered — `261.9 MiB`.
+    /// How large it is, already rendered — `261.7 MiB`.
     pub size: String,
     /// Why this bank's file is not the machine's to delete, or `None` if it is.
     ///

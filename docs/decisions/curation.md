@@ -55,6 +55,16 @@ beneath it.** A folder links to the songs list narrowed by `?folder=`, and a son
 to the songs beside it. A corpus arrives sorted into folders by whoever collected it, so a folder is
 how somebody sees what a new batch of files brought. No title, artist or tag filter says that.
 
+**Each folder also shows the mean suitability of the songs it counts.** A count says how much a
+folder holds, and the mean says whether it is worth working through. The mean weighs each distinct
+song once, so it describes the songs the count beside it counts. A song with no suitability is in the
+count and not in the mean, and a folder with none shows a dash.
+
+**The mean is stored with the tree and never computed for a page.** The pass that counts a folder's
+songs already reads each song's row, so the mean costs the scan one addition for each song. A tree
+that holds no means shows a dash until a scan rebuilds it. Rebuilding it for the page would put a
+whole pass over every file on a visit.
+
 **A scan that writes something rebuilds the tree before it finishes.** The rebuild is a whole pass
 over every file, measured at thirteen minutes over a whole corpus. It holds the writing connection,
 so a star clicked meanwhile is refused. That is paid at the end of a scan, which is already a long

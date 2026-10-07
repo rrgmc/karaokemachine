@@ -612,32 +612,35 @@ impl Db {
         let mut out = Vec::new();
         // The bucket first, so a folder's own files are read before its subfolders — the order a
         // sorted group-by would give, because the empty segment sorts before every name.
-        let direct: Option<i64> = self
+        let direct: Option<(i64, Option<f64>)> = self
             .conn
             .query_row(
-                "SELECT direct FROM folders WHERE path = ?1",
+                "SELECT direct, direct_suitability FROM folders WHERE path = ?1",
                 [prefix],
-                |row| row.get(0),
+                |row| Ok((row.get(0)?, row.get(1)?)),
             )
             .optional()?;
-        if let Some(direct) = direct
+        if let Some((direct, suitability)) = direct
             && direct > 0
         {
             out.push(FolderNode {
                 name: String::new(),
                 path: prefix.to_owned(),
                 song_count: direct as u32,
+                suitability,
             });
         }
 
-        let mut statement = self
-            .conn
-            .prepare("SELECT name, path, beneath FROM folders WHERE parent = ?1 ORDER BY name")?;
+        let mut statement = self.conn.prepare(
+            "SELECT name, path, beneath, beneath_suitability FROM folders
+             WHERE parent = ?1 ORDER BY name",
+        )?;
         let rows = statement.query_map([prefix], |row| {
             Ok(FolderNode {
                 name: row.get(0)?,
                 path: row.get(1)?,
                 song_count: row.get::<_, i64>(2)? as u32,
+                suitability: row.get(3)?,
             })
         })?;
         for row in rows {
@@ -716,27 +719,29 @@ impl Db {
         use std::collections::{HashMap, HashSet};
         const CHECK_EVERY: u32 = 4096;
 
-        let mut direct: HashMap<String, u32> = HashMap::new();
-        let mut beneath: HashMap<String, u32> = HashMap::new();
+        let mut direct: HashMap<String, FolderTally> = HashMap::new();
+        let mut beneath: HashMap<String, FolderTally> = HashMap::new();
         {
             let mut statement = self.conn.prepare(&folder_pass_sql())?;
             let mut rows = statement.query([])?;
 
             let mut song: Option<String> = None;
+            let mut suitability: Option<u8> = None;
             let mut here: HashSet<String> = HashSet::new();
             let mut above: HashSet<String> = HashSet::new();
 
             // Counted when the song changes rather than per row, so six copies of one song in one
-            // folder are one song in it.
+            // folder are one song in it, and weigh once in its mean.
             let tally = |here: &mut HashSet<String>,
                          above: &mut HashSet<String>,
-                         direct: &mut HashMap<String, u32>,
-                         beneath: &mut HashMap<String, u32>| {
+                         suitability: Option<u8>,
+                         direct: &mut HashMap<String, FolderTally>,
+                         beneath: &mut HashMap<String, FolderTally>| {
                 for folder in here.drain() {
-                    *direct.entry(folder).or_default() += 1;
+                    direct.entry(folder).or_default().add(suitability);
                 }
                 for folder in above.drain() {
-                    *beneath.entry(folder).or_default() += 1;
+                    beneath.entry(folder).or_default().add(suitability);
                 }
             };
 
@@ -750,8 +755,15 @@ impl Db {
                 let id: String = row.get(0)?;
                 let path: String = row.get(1)?;
                 if song.as_deref() != Some(id.as_str()) {
-                    tally(&mut here, &mut above, &mut direct, &mut beneath);
+                    tally(
+                        &mut here,
+                        &mut above,
+                        suitability,
+                        &mut direct,
+                        &mut beneath,
+                    );
                     song = Some(id);
+                    suitability = row.get(2)?;
                 }
                 let folder = parent_folder(&path);
                 here.insert(folder.to_owned());
@@ -759,7 +771,13 @@ impl Db {
                     above.insert(ancestor);
                 }
             }
-            tally(&mut here, &mut above, &mut direct, &mut beneath);
+            tally(
+                &mut here,
+                &mut above,
+                suitability,
+                &mut direct,
+                &mut beneath,
+            );
         }
 
         // Every folder that holds files directly is also a folder something is beneath, so `beneath`
@@ -768,16 +786,20 @@ impl Db {
         transaction.execute("DELETE FROM folders", [])?;
         {
             let mut insert = transaction.prepare(
-                "INSERT INTO folders(path, parent, name, direct, beneath)
-                 VALUES (?1, ?2, ?3, ?4, ?5)",
+                "INSERT INTO folders(
+                     path, parent, name, direct, beneath, direct_suitability, beneath_suitability)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
             )?;
             for (path, under) in &beneath {
+                let own = direct.get(path).copied().unwrap_or_default();
                 insert.execute(params![
                     path,
                     parent_of(path),
                     folder_name(path),
-                    direct.get(path).copied().unwrap_or(0),
-                    *under,
+                    own.songs,
+                    under.songs,
+                    own.mean(),
+                    under.mean(),
                 ])?;
             }
         }
@@ -1683,6 +1705,32 @@ impl Db {
     }
 }
 
+/// What one folder holds, as the folder pass adds it up.
+#[derive(Debug, Clone, Copy, Default)]
+struct FolderTally {
+    /// Distinct songs.
+    songs: u32,
+    /// How many of them have a suitability.
+    rated: u32,
+    /// The sum of those suitabilities.
+    sum: u64,
+}
+
+impl FolderTally {
+    fn add(&mut self, suitability: Option<u8>) {
+        self.songs += 1;
+        if let Some(suitability) = suitability {
+            self.rated += 1;
+            self.sum += u64::from(suitability);
+        }
+    }
+
+    /// The mean over the songs that have a suitability, or `None` when none has.
+    fn mean(&self) -> Option<f64> {
+        (self.rated > 0).then(|| self.sum as f64 / f64::from(self.rated))
+    }
+}
+
 /// The rows the folder tree is counted from, in song order.
 ///
 /// Joined to `songs` for `browsable`, which is what the folder's own list is drawn through. A count
@@ -1691,7 +1739,7 @@ impl Db {
 pub(super) fn folder_pass_sql() -> String {
     let browsable = browsable("s.");
     format!(
-        "SELECT f.song_id, f.path FROM files f
+        "SELECT f.song_id, f.path, s.suitability FROM files f
          JOIN songs s ON s.id = f.song_id
          WHERE f.song_id IS NOT NULL AND {browsable} ORDER BY f.song_id",
     )
