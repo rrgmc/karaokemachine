@@ -30,8 +30,8 @@
 # ** The manual is `docs/manual/`, rendered by mdBook into `docs/` beside the landing page. ** The
 # chapters are flat in that folder so that `../images/x.png` names one picture in both renderings:
 # `docs/images/` on GitHub, and the staged `images/` here. A chapter in a subfolder would need a
-# second `../` on the site only. `site/book.toml` configures the book and `site/manual.css` gives it
-# the landing page's palette. The book root is staged rather than `site/` itself, so that the
+# second `../` on the site only. `site/book.toml` configures the book, which keeps mdBook's own
+# layout and light theme. The book root is staged rather than `site/` itself, so that the
 # favicon comes out of `icon/` like the landing page's and is not committed a second time.
 #
 # ** Nothing here needs a Rust toolchain. ** No cargo, no rustc, not even for the platform check
@@ -85,7 +85,7 @@ done
 # -- what has to be here ---------------------------------------------------------------------------
 
 for f in "${PAGES[@]/#/site/}" site/style.css icon/icon-32.png icon/icon-512.png \
-         site/book.toml site/manual.css "$MANUAL/SUMMARY.md" "$MANUAL/README.md"; do
+         site/book.toml "$MANUAL/SUMMARY.md" "$MANUAL/README.md"; do
   [ -f "$f" ] || { echo "$DIST_SCRIPT: missing $f" >&2; exit 1; }
 done
 
@@ -186,7 +186,7 @@ dist_detail "icons     favicon.png + icon-512.png from icon/"
 dist_step "building the manual into $OUT/docs"
 dist_clear "$BOOK"
 mkdir -p "$BOOK/theme"
-cp site/book.toml site/manual.css "$BOOK/"
+cp site/book.toml "$BOOK/"
 cp icon/icon-32.png "$BOOK/theme/favicon.png"
 
 # `src` is relative to the book root, and `--dest-dir` to the folder this runs in.

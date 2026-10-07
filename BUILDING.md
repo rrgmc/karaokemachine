@@ -2102,8 +2102,8 @@ bash tools/dist/site.sh -v             # ...naming every file it staged
 One hand-written page per language, `site/index.html` and `site/style.css`, staged with the
 pictures out of `docs/images/` and a favicon out of `icon/`. **The manual is `docs/manual/`, which
 mdBook renders into `dist/site/docs`.** `tools/setup/fetch-mdbook.sh` pins the mdBook version and
-its checksum, and the script uses that copy and no other. `site/book.toml` configures the book, and
-`site/manual.css` gives it the landing page's colors.
+its checksum, and the script uses that copy and no other. `site/book.toml` configures the book, which
+keeps mdBook's own layout and light theme.
 
 **A chapter is one file directly in `docs/manual/`, named in `SUMMARY.md`.** The script refuses a
 chapter in a subfolder, because `../images/` then misses the pictures on the site. It also refuses a

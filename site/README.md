@@ -28,7 +28,6 @@ bash tools/dist/site.sh            # just stage it
 | `pt-BR/index.html` | the same page in Brazilian Portuguese, served at `/pt-BR/`, reaching the stylesheet and the pictures as `../` |
 | `style.css` | the landing pages' only stylesheet, shared by both. No webfont, no CDN, no external request of any kind |
 | `book.toml` | mdBook's configuration for the manual. Its `src` is `docs/manual/` |
-| `manual.css` | the manual's colors, each copied from a custom property at the top of `style.css` |
 
 The script stages everything else in the published folder: `images/` from `docs/images/`,
 `favicon.png` and `icon-512.png` from [`icon/`](../icon), `docs/` from the manual, and a `.nojekyll`.
@@ -69,8 +68,8 @@ a page nothing stages reaches no reader and breaks nothing that would say so.
   `../images/x.png`, which resolves on GitHub and on the site alike. `tools/dist/site.sh` refuses a
   chapter in a subfolder, a chapter `SUMMARY.md` does not name, and any mdBook warning. It holds the
   book to the landing pages' rules: no absolute path, no external request, every relative link lands.
-- **`manual.css` follows `style.css`.** A color that changes at the top of `style.css` changes in
-  `manual.css` in the same commit, because mdBook's stylesheet cannot read the landing page's.
+- **The manual keeps mdBook's own layout and light theme.** It is read as a document, and the landing
+  page is what carries the machine's colors. No stylesheet here reaches the book.
 - **The hero shows `icon-512.png`**, beside the wordmark the icon's amber `M` is taken from. It is
   the one mark the page may name. It and `favicon.png` are the only icons `tools/dist/site.sh`
   stages, and a link with nothing behind it fails the build. Another would mean editing the script

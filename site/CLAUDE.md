@@ -15,5 +15,5 @@ apart in their sections, their pictures or their links out. **The manual is Engl
 breaks `../images/` on the site, and the script refuses one.
 
 The palette is copied from `Theme::default()`, and the page's one download link is the release page
-rather than a file. `manual.css` repeats that palette for the book. All of these are invariants, and
+rather than a file. The manual keeps mdBook's own light theme. All of these are invariants, and
 they are in [`README.md`](README.md).

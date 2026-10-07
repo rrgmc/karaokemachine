@@ -14,8 +14,8 @@ src = "../docs/manual"
 site-url = "/karaokemachine/docs/"
 git-repository-url = "https://github.com/rrgmc/karaokemachine"
 edit-url-template = "https://github.com/rrgmc/karaokemachine/edit/master/docs/manual/{path}"
-# The machine's screen is dark and so is every picture of it.
-default-theme = "navy"
-preferred-dark-theme = "navy"
-additional-css = ["manual.css"]
+# mdBook's own layout and its light theme, for a reader with a light or a dark system alike. A manual
+# is read as a document, and the landing page is what carries the machine's colors.
+default-theme = "light"
+preferred-dark-theme = "light"
 no-section-label = true
