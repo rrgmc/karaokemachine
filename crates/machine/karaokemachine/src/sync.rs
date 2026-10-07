@@ -319,6 +319,54 @@ fn nearest(sorted: &[u32], to: u32) -> Option<u32> {
     }
 }
 
+/// How many taps the editor waits for before it reads a vocal line out of them.
+const GUESS_AFTER_TAPS: usize = 24;
+
+/// Which channel the taps follow, when one does.
+///
+/// A tap follows a channel when one of its notes starts within [`SNAP_WINDOW_MS`] of the tap. A
+/// busy part has a note near every moment, so each channel is judged on how far it beats the share
+/// its own density would reach by chance. The answer is `None` unless most taps land on a
+/// channel, well above chance.
+///
+/// **This is the editor's own measure, and not `km_suitability::melody::detect`.** That one asks
+/// for a note on each syllable, and a person tapping whole words gives it one tap for several notes.
+fn vocal_line_under(taps_ms: &[u32], channels_ms: &[Vec<u32>]) -> Option<usize> {
+    let (&first, &last) = (taps_ms.first()?, taps_ms.last()?);
+    if taps_ms.len() < GUESS_AFTER_TAPS {
+        return None;
+    }
+    let from = first.saturating_sub(SNAP_WINDOW_MS);
+    let to = last.saturating_add(SNAP_WINDOW_MS);
+    let span = (to - from).max(1) as f32;
+
+    let mut scored: Vec<(usize, f32, f32)> = channels_ms
+        .iter()
+        .enumerate()
+        .map(|(index, onsets)| {
+            let hits = taps_ms
+                .iter()
+                .filter(|&&tap| {
+                    nearest(onsets, tap).is_some_and(|onset| onset.abs_diff(tap) <= SNAP_WINDOW_MS)
+                })
+                .count();
+            let hit = hits as f32 / taps_ms.len() as f32;
+            let notes =
+                onsets.partition_point(|&o| o <= to) - onsets.partition_point(|&o| o < from);
+            // Notes scattered at random would cover this share of the span with their windows.
+            // Windows overlap, so the share approaches one and never passes it.
+            let covered = notes as f32 * 2.0 * SNAP_WINDOW_MS as f32 / span;
+            let chance = 1.0 - (-covered).exp();
+            (index, hit, hit - chance)
+        })
+        .collect();
+    // A sung line is often doubled on a second channel, and either serves. Among the channels the
+    // taps follow, the one more taps land on is the one a snap can use for more words.
+    scored.retain(|&(_, hit, lead)| hit >= 0.7 && lead >= 0.25);
+    scored.sort_by(|a, b| b.1.total_cmp(&a.1).then(b.2.total_cmp(&a.2)));
+    scored.first().map(|&(index, _, _)| index)
+}
+
 /// Where the output goes when nobody said: beside the song, with the karaoke extension.
 fn default_out(song: &Path) -> PathBuf {
     let beside = song.with_extension("kar");
@@ -442,10 +490,20 @@ pub(crate) fn run(paths: &Paths, settings: &Settings, request: &Request) -> anyh
     };
 
     let choices = melody_choices(&song);
-    let mut choice = request
+    // No channel is chosen until somebody names one or the taps point at one. A file with no words
+    // gives the ranking nothing to tie a channel to the singing with.
+    let mut choice: Option<usize> = request
         .melody_channel
-        .and_then(|wanted| choices.iter().position(|c| c.channel + 1 == wanted))
-        .unwrap_or(0);
+        .and_then(|wanted| choices.iter().position(|c| c.channel + 1 == wanted));
+    let onsets_ms: Vec<Vec<u32>> = choices
+        .iter()
+        .map(|c| {
+            c.onsets
+                .iter()
+                .map(|&t| song.tempo_map.tick_to_ms(t))
+                .collect()
+        })
+        .collect();
     let offset_ms = request
         .tap_offset_ms
         .unwrap_or_else(|| settings.display.lyric_offset());
@@ -620,10 +678,11 @@ pub(crate) fn run(paths: &Paths, settings: &Settings, request: &Request) -> anyh
                     }
                 }
                 (_, Keycode::M) if !choices.is_empty() => {
-                    choice = (choice + 1) % choices.len();
+                    let next = choice.map_or(0, |c| (c + 1) % choices.len());
+                    choice = Some(next);
                     say(format!(
                         "The vocal line is {}. The sound does not change",
-                        choices[choice].label()
+                        choices[next].label()
                     ));
                 }
 
@@ -631,6 +690,22 @@ pub(crate) fn run(paths: &Paths, settings: &Settings, request: &Request) -> anyh
                     if playing {
                         session.tap(tick);
                         preview_stale = true;
+                        // Only while nobody has chosen: a channel named by a person or found
+                        // earlier is never replaced by a later guess.
+                        if choice.is_none() {
+                            let taps_ms: Vec<u32> = session
+                                .tapped()
+                                .iter()
+                                .map(|s| song.tempo_map.tick_to_ms(s.tick))
+                                .collect();
+                            choice = vocal_line_under(&taps_ms, &onsets_ms);
+                            if let Some(found) = choice {
+                                say(format!(
+                                    "Your taps follow {}, so it is the vocal line. M changes it",
+                                    choices[found].label()
+                                ));
+                            }
+                        }
                         if session.phase() == Phase::Review {
                             say(
                                 "All words tapped. The song now repeats with your timing, to check"
@@ -709,7 +784,7 @@ pub(crate) fn run(paths: &Paths, settings: &Settings, request: &Request) -> anyh
                     stream.send(Command::Play);
                     want_playing = true;
                 }
-                (Phase::Review, Keycode::N) => match choices.get(choice) {
+                (Phase::Review, Keycode::N) => match choice.and_then(|c| choices.get(c)) {
                     Some(melody) => {
                         let map = &song.tempo_map;
                         let moved = session.snap(&melody.onsets, |a, b| {
@@ -721,7 +796,7 @@ pub(crate) fn run(paths: &Paths, settings: &Settings, request: &Request) -> anyh
                             melody.label()
                         ));
                     }
-                    None => say("No channel plays notes to move the words onto".to_owned()),
+                    None => say("No vocal line is chosen. M picks the channel".to_owned()),
                 },
                 (Phase::Review, Keycode::Z) if ctrl => {
                     if session.undo_snap() {
@@ -769,7 +844,7 @@ pub(crate) fn run(paths: &Paths, settings: &Settings, request: &Request) -> anyh
         }
 
         cache.begin_frame();
-        let melody = choices.get(choice);
+        let melody = choice.and_then(|c| choices.get(c));
         let note_lit = melody.is_some_and(|m| {
             let since = song
                 .tempo_map
@@ -868,16 +943,17 @@ pub(crate) fn run(paths: &Paths, settings: &Settings, request: &Request) -> anyh
             session.phase(),
             &status,
         );
-        if let Some(melody) = melody {
-            screen.melody(
-                &mut canvas,
-                &mut cache,
-                &fonts,
-                &theme,
-                &format!("Vocal line: {}", melody.label()),
-                note_lit,
-            );
-        }
+        screen.melody(
+            &mut canvas,
+            &mut cache,
+            &fonts,
+            &theme,
+            &match melody {
+                Some(melody) => format!("Vocal line: {}", melody.label()),
+                None => "Vocal line: not chosen".to_owned(),
+            },
+            note_lit,
+        );
         if let Some((text, since)) = &message {
             if now.duration_since(*since) < MESSAGE_FOR {
                 screen.note(&mut canvas, &mut cache, &fonts, &theme, 0.12, text);
@@ -1374,6 +1450,43 @@ mod tests {
             default_out(Path::new("a/song.kar")),
             Path::new("a/song-synced.kar")
         );
+    }
+
+    /// Thirty taps a second apart, each 40 ms late.
+    fn taps() -> Vec<u32> {
+        (0..30).map(|i| 10_000 + i * 1_000 + 40).collect()
+    }
+
+    #[test]
+    fn the_channel_the_taps_land_on_is_the_vocal_line() {
+        let sung: Vec<u32> = (0..30).map(|i| 10_000 + i * 1_000).collect();
+        // A bass on the off-beats, which no tap is near.
+        let bass: Vec<u32> = (0..30).map(|i| 10_500 + i * 1_000).collect();
+        assert_eq!(vocal_line_under(&taps(), &[bass, sung]), Some(1));
+    }
+
+    #[test]
+    fn a_busy_part_is_near_every_tap_and_is_not_chosen_for_it() {
+        // A note every 100 ms is within reach of any tap at all.
+        let busy: Vec<u32> = (0..400).map(|i| 5_000 + i * 100).collect();
+        assert_eq!(vocal_line_under(&taps(), std::slice::from_ref(&busy)), None);
+        // Beside it, the line the taps were made to is still found.
+        let sung: Vec<u32> = (0..30).map(|i| 10_000 + i * 1_000).collect();
+        assert_eq!(vocal_line_under(&taps(), &[busy, sung]), Some(1));
+    }
+
+    #[test]
+    fn of_two_channels_the_taps_follow_the_one_more_taps_land_on_is_chosen() {
+        let sung: Vec<u32> = (0..30).map(|i| 10_000 + i * 1_000).collect();
+        // A doubling that rests for the last five words.
+        let doubled = sung[..25].to_vec();
+        assert_eq!(vocal_line_under(&taps(), &[doubled, sung]), Some(1));
+    }
+
+    #[test]
+    fn a_few_taps_choose_nothing() {
+        let sung: Vec<u32> = (0..30).map(|i| 10_000 + i * 1_000).collect();
+        assert_eq!(vocal_line_under(&taps()[..5], &[sung]), None);
     }
 
     #[test]
