@@ -193,6 +193,10 @@ fn words_events(words: &KarWords) -> Vec<(u32, Event)> {
             LineBreak::None => syllable.text.clone(),
         };
         placed.push((syllable.tick, text(&written)));
+        // An event with no bytes is how a file says a word stops. See `karaoke::collect_raws`.
+        if let Some(end) = syllable.end_tick.filter(|&end| end > syllable.tick) {
+            placed.push((end, text("")));
+        }
     }
     placed
 }
@@ -285,6 +289,24 @@ mod tests {
         let ticks: Vec<u32> = song.lyrics.syllable_ticks();
         let want: Vec<u32> = words.syllables.iter().map(|s| s.tick).collect();
         assert_eq!(ticks, want);
+    }
+
+    #[test]
+    fn a_syllable_given_an_end_reads_back_ending_there() {
+        let mut words = timed("one two\nthree", 480);
+        // "two" closes its line at tick 960, and "three" does not start until 1440.
+        words.syllables[1].end_tick = Some(1_100);
+        let out = write_soft_karaoke(&testing::instrumental(), &words).unwrap();
+        let song = testing::parse(&out);
+
+        let first = &song.lyrics.lines[0];
+        assert_eq!(first.text(), "one two");
+        assert_eq!(first.syllables[1].start_tick, 960);
+        assert_eq!(first.syllables[1].end_tick, 1_100);
+        assert_eq!(first.end_tick, 1_100);
+        // A syllable with no end still runs to the next one.
+        assert_eq!(first.syllables[0].end_tick, 960);
+        assert_eq!(song.lyrics.syllable_count(), 3);
     }
 
     #[test]

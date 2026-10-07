@@ -143,28 +143,69 @@ impl Session {
             .unwrap_or(self.lines.len().saturating_sub(1))
     }
 
+    /// The earliest tick this syllable may hold: where the one before it starts, or ends.
+    fn floor_of(&self, index: usize) -> u32 {
+        index.checked_sub(1).map_or(0, |i| {
+            let before = &self.syllables[i];
+            before
+                .end_tick
+                .map_or(before.tick, |end| end.max(before.tick))
+        })
+    }
+
+    /// The latest tick this syllable may hold: its own end, or where the next one starts.
+    fn ceiling_of(&self, index: usize) -> u32 {
+        let next = if index + 1 < self.stamped {
+            self.syllables[index + 1].tick
+        } else {
+            u32::MAX
+        };
+        self.syllables[index]
+            .end_tick
+            .map_or(next, |end| end.min(next))
+    }
+
     /// Gives the next syllable this tick. A tap never lands before the one in front of it.
     fn tap(&mut self, tick: u32) {
-        let floor = self
-            .stamped
-            .checked_sub(1)
-            .map_or(0, |i| self.syllables[i].tick);
+        let floor = self.floor_of(self.stamped);
         let Some(next) = self.syllables.get_mut(self.stamped) else {
             return;
         };
         next.tick = tick.max(floor);
+        next.end_tick = None;
         self.stamped += 1;
         self.selected = self.stamped - 1;
         self.dirty = true;
         self.before_snap = None;
     }
 
-    /// Takes back the last tap.
-    fn undo(&mut self) -> bool {
-        if self.stamped == 0 {
+    /// Says where a tapped syllable stops being sung, so its highlight does not run on through the
+    /// pause after it. The end stays after the syllable's start and before the next syllable.
+    fn end_at(&mut self, index: usize, tick: u32) -> bool {
+        if index >= self.stamped || tick <= self.syllables[index].tick {
             return false;
         }
-        self.stamped -= 1;
+        let ceiling = if index + 1 < self.stamped {
+            self.syllables[index + 1].tick
+        } else {
+            u32::MAX
+        };
+        if ceiling <= self.syllables[index].tick {
+            return false;
+        }
+        self.syllables[index].end_tick = Some(tick.min(ceiling));
+        self.dirty = true;
+        true
+    }
+
+    /// Takes back the last thing tapped: the last syllable's end when it has one, or its tap.
+    fn undo(&mut self) -> bool {
+        let Some(last) = self.stamped.checked_sub(1) else {
+            return false;
+        };
+        if self.syllables[last].end_tick.take().is_none() {
+            self.stamped = last;
+        }
         self.dirty = true;
         self.before_snap = None;
         true
@@ -180,6 +221,9 @@ impl Session {
         }
         let start = self.lines[line].start;
         if start < self.stamped {
+            for syllable in &mut self.syllables[start..self.stamped] {
+                syllable.end_tick = None;
+            }
             self.stamped = start;
             self.dirty = true;
             self.before_snap = None;
@@ -202,15 +246,8 @@ impl Session {
         if self.selected >= self.stamped {
             return;
         }
-        let floor = self
-            .selected
-            .checked_sub(1)
-            .map_or(0, |i| self.syllables[i].tick);
-        let ceiling = if self.selected + 1 < self.stamped {
-            self.syllables[self.selected + 1].tick
-        } else {
-            u32::MAX
-        };
+        let floor = self.floor_of(self.selected);
+        let ceiling = self.ceiling_of(self.selected).max(floor);
         let tick = tick.clamp(floor, ceiling);
         if self.syllables[self.selected].tick != tick {
             self.syllables[self.selected].tick = tick;
@@ -229,13 +266,13 @@ impl Session {
             .map(|s| s.tick)
             .collect();
         let mut moved = 0;
-        for index in 0..self.stamped {
-            let tick = before[index];
+        for (index, &tick) in before.iter().enumerate() {
             let Some(onset) = nearest(onsets, tick) else {
                 break;
             };
-            let floor = index.checked_sub(1).map_or(0, |i| self.syllables[i].tick);
-            let ceiling = before.get(index + 1).copied().unwrap_or(u32::MAX);
+            // The next syllable has not moved yet, so its tick here is the one it was tapped at.
+            let floor = self.floor_of(index);
+            let ceiling = self.ceiling_of(index);
             if onset != tick && near(tick, onset) && (floor..=ceiling).contains(&onset) {
                 self.syllables[index].tick = onset;
                 moved += 1;
@@ -576,6 +613,22 @@ pub(crate) fn run(paths: &Paths, settings: &Settings, request: &Request) -> anyh
                         Command::Play
                     });
                 }
+                (_, Keycode::E) if !repeat => {
+                    // While tapping it is the word just tapped; in review, the selected one.
+                    let index = match phase {
+                        Phase::Tapping => session.stamped.saturating_sub(1),
+                        Phase::Review => session.selected,
+                    };
+                    if playing && session.end_at(index, tick) {
+                        preview_stale = true;
+                        say(format!(
+                            "\"{}\" ends here",
+                            session.syllables[index].text.trim()
+                        ));
+                    } else {
+                        say("E ends a word after it starts, while the song plays".to_owned());
+                    }
+                }
                 (Phase::Tapping, Keycode::Backspace) => {
                     preview_stale |= session.undo();
                 }
@@ -739,7 +792,7 @@ pub(crate) fn run(paths: &Paths, settings: &Settings, request: &Request) -> anyh
                     &fonts,
                     &theme,
                     "Space play/pause   Up/Down select   Left/Right move 10 ms (Shift 50)   \
-                     Enter play the line   N snap to notes   M melody   -/+ tempo   Ctrl+S save   Esc leave",
+                     Enter play the line   E end the word   N snap to notes   M melody   -/+ tempo   Ctrl+S save   Esc leave",
                 );
             }
             _ => {
@@ -751,7 +804,7 @@ pub(crate) fn run(paths: &Paths, settings: &Settings, request: &Request) -> anyh
                     &mut cache,
                     &fonts,
                     &theme,
-                    "Enter play/pause   Space tap   Backspace undo   Up tap the line again   \
+                    "Enter play/pause   Space tap   E end the word   Backspace undo   Up tap the line again   \
                      Left/Right seek 5 s   M melody   -/+ tempo   Ctrl+S save   Esc leave",
                 );
             }
@@ -826,14 +879,34 @@ impl Layout {
         theme: &Theme,
         text: &str,
     ) {
-        draw_text(
-            canvas,
-            cache,
-            &fonts.small,
-            text,
-            (self.width / 2.0, self.height * 0.93),
-            &TextStyle::outlined(theme.text_dim, theme, Align::Center),
-        );
+        // The keys are separated by three spaces, and a line breaks only between two keys.
+        let limit = self.width * 0.94;
+        let mut lines: Vec<String> = Vec::new();
+        for key in text.split("   ").map(str::trim).filter(|k| !k.is_empty()) {
+            match lines.last_mut() {
+                Some(line)
+                    if measure_line(&fonts.small, &[&format!("{line}   {key}")]).width <= limit =>
+                {
+                    line.push_str("   ");
+                    line.push_str(key);
+                }
+                _ => lines.push(key.to_owned()),
+            }
+        }
+        // Stacked upward from the foot, so one line sits where three would end.
+        let pitch = measure_line(&fonts.small, &["Ag"]).height * 1.25;
+        let foot = self.height * 0.95;
+        for (row, line) in lines.iter().enumerate() {
+            let above = (lines.len() - 1 - row) as f32;
+            draw_text(
+                canvas,
+                cache,
+                &fonts.small,
+                line,
+                (self.width / 2.0, foot - pitch * above),
+                &TextStyle::outlined(theme.text_dim, theme, Align::Center),
+            );
+        }
     }
 
     /// The transport line at the head of the window.
@@ -991,6 +1064,45 @@ mod tests {
         s.tap(100);
         assert!(s.undo());
         assert_eq!(s.stamped, 0);
+    }
+
+    #[test]
+    fn a_word_is_ended_after_its_start_and_the_next_tap_comes_after_the_end() {
+        let mut s = session("la la la");
+        s.tap(100);
+        // Not before the word starts, and not on a word nobody has tapped.
+        assert!(!s.end_at(0, 100));
+        assert!(!s.end_at(1, 500));
+        assert!(s.end_at(0, 300));
+        assert_eq!(s.syllables[0].end_tick, Some(300));
+        s.tap(250);
+        assert_eq!(ticks(&s), [100, 300]);
+        // An end set in review stops at the next word.
+        s.tap(600);
+        assert!(s.end_at(1, 900));
+        assert_eq!(s.syllables[1].end_tick, Some(600));
+    }
+
+    #[test]
+    fn undo_takes_back_an_end_before_it_takes_back_the_tap() {
+        let mut s = session("la la");
+        s.tap(100);
+        s.end_at(0, 300);
+        assert!(s.undo());
+        assert_eq!((s.stamped, s.syllables[0].end_tick), (1, None));
+        assert!(s.undo());
+        assert_eq!(s.stamped, 0);
+    }
+
+    #[test]
+    fn a_moved_syllable_stays_before_its_own_end() {
+        let mut s = session("a b");
+        s.tap(100);
+        s.end_at(0, 200);
+        s.tap(400);
+        s.selected = 0;
+        s.move_selected(350);
+        assert_eq!(ticks(&s), [200, 400]);
     }
 
     #[test]

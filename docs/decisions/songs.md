@@ -1520,5 +1520,11 @@ by 10 ms. One key moves every syllable onto the nearest note of a channel the pe
 120 ms, and keeps the words in order. Melody detection abstains on a file with no words, so the
 person chooses the channel.
 
+**A word can be given an end, and a file says so with an event that holds no bytes.** A lyric event
+has no length, so the last word before a pause is wiped across the whole pause. `E` in the editor
+marks where the word stops. The writer puts a text event with no bytes at that tick. `km-song` reads such an event
+as the end of the syllable before it, in any file. Another player draws nothing
+for it.
+
 **The editor does not find words and does not split them.** It looks nothing up, and a syllable
 break is a hyphen somebody typed.
