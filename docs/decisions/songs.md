@@ -1518,7 +1518,11 @@ words are the only words.
 
 **The editor has two modes, and it names the one it is in.** Tapping gives each word a tick.
 Review plays the song with the words as the file will hold them, drawn by the machine's own
-screen. Review opens on the last tap, and `R` opens it on the words tapped so far.
+screen. `R` opens review, on every word or on the words tapped so far, and `R` goes back.
+
+**The last tap does not open review.** A banner says every word is tapped and names the key. The
+last tap is as often a mistake as any other, and on the tapping screen Backspace still takes it
+back. Words that arrive with every tick open in review, because they are there to be checked.
 
 **The person corrects a tap by ear and by the vocal line, and the editor guesses nothing about a
 word.** The arrow keys move one word by 10 ms. One key moves every word onto the nearest note of

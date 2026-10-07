@@ -61,8 +61,10 @@ Backspace takes back the last one. `E` ends a word before a pause, so its highli
 
 ## Review the timing
 
-Review plays the song with your words as the machine will draw them. It opens when the last
-word is tapped, and `R` opens it earlier. The arrow keys select a word and move it by 10 ms.
+Review plays the song with your words as the machine will draw them. `R` opens it. A banner says
+so when the last word is tapped, and `R` also opens it earlier.
+
+The arrow keys select a word and move it by 10 ms.
 `C` selects the word being sung. Ctrl+Shift+Backspace clears every tap, so you tap from the
 first word again. The same keys give the taps back until you tap a word.
 
