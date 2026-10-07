@@ -26,5 +26,21 @@ the singer who asked for each">
 **Every install also has a second launcher, which starts the machine streaming.** See
 [Watching it in another room](streaming.md).
 
-**Windows shows *"Windows protected your PC"* when you open a setup program**, because the Windows
-downloads are not signed. Click **More info**, then **Run anyway**.
+## What each system asks
+
+- **Windows** shows *"Windows protected your PC"* when you open a setup program, because the Windows
+  downloads are not signed. Click **More info**, then **Run anyway**.
+- **macOS** asks nothing. Both packages carry Apple's signature and notarization, so a double-click
+  opens Installer.
+- **Android** asks you to allow installation from this source. The project's own key signs both
+  APKs, so each version installs over the one before it. **A device that holds an APK signed with a
+  different key must uninstall it first**, and Android reports that as a refusal. Export the remote's
+  favorites from its share page before, and import them after.
+- **A Meta Quest** lists the application under *Unknown Sources* and shows no name beside its icon.
+  That name comes from Meta's store, and a sideloaded application has no entry there. Songs reach
+  the headset as they reach a phone: open a `.kmpkg` from its Files application, or push one over a
+  cable.
+- **Debian and Ubuntu** report that a `.deb` installed by path is unsigned. The tarballs are
+  unsigned too.
+- **An iPhone or an iPad** installs no unsigned application. You sign both `.ipa` files yourself,
+  and [On an iPhone or an iPad](ios.md) has the steps.
