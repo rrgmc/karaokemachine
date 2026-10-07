@@ -180,7 +180,7 @@ narrow columns are a fraction of the width of the table. A corpus pays one pass 
 
 ## Where the tool's own output goes
 
-**A `_kmbuild-data` folder inside the corpus, holding packages, descriptions and backups — and not
+**A `_kmout` folder inside the corpus, holding packages, descriptions and backups — and not
 the database.** Loose in the corpus root is tidy on a folder of forty songs and unusable on a large
 one. A package built last week is three files somewhere in the least navigable directory
 on the drive. The leading underscore sorts it away from the songs, because a corpus is somebody else's
@@ -2985,7 +2985,7 @@ corpus of video packages a build is tens of gigabytes, and a fortnight of rebuil
 meant to fill. It is accepted rather than answered, for two reasons:
 
 - holding two builds and being able to say which is which is the point
-- `_kmbuild-data` is the curator's own folder on a curation workstation rather than an appliance
+- `_kmout` is the curator's own folder on a curation workstation rather than an appliance
 
 A tool that deleted last week's build to save room would be deciding something the curator is
 better placed to decide.
