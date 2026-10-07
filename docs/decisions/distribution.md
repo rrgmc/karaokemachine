@@ -162,7 +162,7 @@ anybody rebuilding this for a distribution, and it is not what a release carries
 
 ## The desktop tools are a package of their own, which the machine recommends
 
-**`karaokemachine-tools` carries `km-package-builder`, `km-package-simple`, `km-remote` and
+**`karaokemachine-tools` carries `km-package-builder`, `km-package-simple`, `km-song-sync`, `km-remote` and
 `km-admin`, and `karaokemachine` Recommends it.** Without it, Linux would be the one platform where
 the tools could not be installed at all. Windows has a setup program, and macOS has one `.pkg` for
 every product. A folder to unpack is not an answer on a system with a package manager.

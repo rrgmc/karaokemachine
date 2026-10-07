@@ -798,6 +798,7 @@ one that runs second takes it.
 ## The macOS bundles
 
 `Karaoke Machine.app`, `KM Stream.app`, `KM Package Builder.app`, `KM Simple Package.app`,
+`KM Song Sync.app`,
 `KM Remote.app` and `KM Admin.app`.
 
 **Why a bundle rather than the bare binary.** A bare Mach-O is a terminal program. It has no icon in
@@ -936,7 +937,7 @@ honestly rather than pretending.
 
 ### A second package, from a manifest that is not the machine's
 
-`deb.sh --tools` builds `karaokemachine-tools` — `km-package-builder`, `km-package-simple`,
+`deb.sh --tools` builds `karaokemachine-tools` — `km-package-builder`, `km-package-simple`, `km-song-sync`,
 `km-remote` and `km-admin` in one package the machine Recommends, per
 [`The desktop tools are a package of their own`](../decisions/distribution.md#the-desktop-tools-are-a-package-of-their-own-which-the-machine-recommends).
 It shares `deb-in-container.sh` with the machine because it shares everything around the build: the

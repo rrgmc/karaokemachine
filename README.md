@@ -576,6 +576,10 @@ show the mark.
 `km-site-pack` downloads the song files a site links and builds a package from them.
 `km-wallpaper-pack` builds a wallpaper set from pictures the lyrics stay readable over.
 
+**KM Song Sync, `km-song-sync`, puts words on a MIDI file that has none.** Paste the words, choose
+the file, and tap each word as it is sung.
+[Putting words on a MIDI file](#putting-words-on-a-midi-file) has the rest.
+
 ```sh
 # Curation: a local web server at http://127.0.0.1:8178. Browse, search the lyrics themselves,
 # rate, fix names, group duplicates, and pick songs into packages. Only `--init` creates the
@@ -614,6 +618,12 @@ karaokemachine --sync song.kar --sync-words words.txt --sync-continue   # go on 
 **A file that has words** opens in review when you give no words file, so you can fix its timing.
 A file saved before every word was tapped goes on from the next word with `--sync-continue`. The
 result of either is written to `song-synced.kar`, and `--sync-out` names another file.
+
+**KM Song Sync, `km-song-sync`, starts the editor from a page.** Paste the words into the box,
+browse to the MIDI file, and press Start. The page lists folders and MIDI files only. With the box
+empty it uses the text file beside the song, which has the song's name and `.txt`, in any encoding.
+A song that has words already opens with them. A synced copy that is already there is replaced only
+when you tick the box on its row.
 
 **The words file** is plain text. One line is one line on screen, and an empty line starts a new
 page. A hyphen splits a word into syllables, so `ka-ra-o-ke` is tapped four times. Type `\-` for a
