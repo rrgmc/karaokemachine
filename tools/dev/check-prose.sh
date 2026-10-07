@@ -40,8 +40,8 @@
 # **The whole-tree form reads the sentence shapes over `prose-converted.txt` alone.** The code
 # comments are what it reaches next, and a third of the sentences in them are longer than the limit,
 # so reading those now would fail every branch and teach a session to skip the gate. A file converts,
-# it joins that list, and CI reads it whole from then on. A branch's own added lines are read
-# wherever they land.
+# it joins that list, and every form reads it whole from then on, `--changed` included. In a file
+# outside the list, `--changed` reads the lines a branch added.
 
 set -uo pipefail
 
@@ -356,15 +356,23 @@ if [ "$FILES_MODE" -eq 1 ]; then
     # are mostly Fluent templates, where a line is markup and a sentence counter would report the
     # markup; naming a page is what makes it prose. A catalog of program strings is read like a
     # document, because every word in one is a word somebody reads.
+    #
+    # **A converted file is read whole in `--changed` too, and the scope is why.** A hit carries the
+    # line its sentence or paragraph starts on. A sentence added to the end of a paragraph makes a
+    # hit on the paragraph's first line, which the branch did not add, and the scope drops it. CI
+    # reads the file whole and reports it. A converted file holds no backlog, so every hit in one
+    # belongs to the branch.
+    sentence_scope="$scope"
+    converted "$file" && sentence_scope=""
     case "$file" in
       *.md)
         if [ "$CHANGED" -eq 1 ] || converted "$file"; then
-          sentence_scan "$file" "$scope" file "$file"
+          sentence_scan "$file" "$sentence_scope" file "$file"
         fi
         ;;
       *.html)
         if converted "$file"; then
-          sentence_scan "$file" "$scope" file "$file" page
+          sentence_scan "$file" "$sentence_scope" file "$file" page
         fi
         ;;
       # **A catalog is the words inside a program, and the decision reaches those.** It is read whole
@@ -372,7 +380,7 @@ if [ "$FILES_MODE" -eq 1 ]; then
       # reads on a screen rather than a line of markup.
       *.ftl)
         if [ "$CHANGED" -eq 1 ] || converted "$file"; then
-          sentence_scan "$file" "$scope" file "$file" ftl
+          sentence_scan "$file" "$sentence_scope" file "$file" ftl
         fi
         ;;
     esac
