@@ -163,6 +163,45 @@ pub fn found(song: &Path) -> Found {
     }
 }
 
+/// The title and artist of every song a search has read, so a folder is read once.
+///
+/// **A search by title reads every song in the folder**, which the page's own fifteen rows never
+/// ask for. The first search in a folder pays for that, and each later one is a lookup. A file
+/// that changed is read again.
+#[derive(Debug, Default)]
+pub struct Names(std::sync::Mutex<HashMap<PathBuf, (Option<std::time::SystemTime>, String)>>);
+
+impl Names {
+    /// Whether the title or the artist `song` states holds `wanted`, which is in lower case.
+    #[must_use]
+    pub fn hold(&self, song: &Path, wanted: &str) -> bool {
+        let modified = std::fs::metadata(song)
+            .and_then(|meta| meta.modified())
+            .ok();
+        let lock = || {
+            self.0
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+        };
+        if let Some((read_at, names)) = lock().get(song)
+            && *read_at == modified
+        {
+            return names.contains(wanted);
+        }
+        // The file is read with the lock released, so two searches do not wait on one disk read.
+        let found = found(song);
+        let names = format!(
+            "{}\n{}",
+            found.title.unwrap_or_default(),
+            found.artist.unwrap_or_default()
+        )
+        .to_lowercase();
+        let holds = names.contains(wanted);
+        lock().insert(song.to_path_buf(), (modified, names));
+        holds
+    }
+}
+
 /// What `song` holds.
 #[must_use]
 pub fn holds(song: &Path) -> Holds {

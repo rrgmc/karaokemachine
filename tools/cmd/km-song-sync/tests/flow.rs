@@ -150,6 +150,21 @@ async fn the_page_lists_folders_and_midi_files_and_nothing_else() {
     assert!(narrowed.contains(">sung.kar<"), "{narrowed}");
     assert!(!narrowed.contains(">tune.mid<"), "{narrowed}");
     assert!(narrowed.trim_start().starts_with(r#"<div id="rows""#));
+
+    // The fixture states `Twinkle Twinkle` by `The Test Fixtures`, and its file name holds neither.
+    for stated in ["twinkle", "TEST+FIX"] {
+        let by_what_it_states = get(
+            &app,
+            &format!(
+                "/browse?rows=1&filter={stated}&at={}",
+                start_form(&folder, &[]).trim_start_matches("song=")
+            ),
+        )
+        .await;
+        assert!(by_what_it_states.contains(">sung.kar<"), "{stated}");
+        assert!(!by_what_it_states.contains(">tune.mid<"), "{stated}");
+        assert!(!by_what_it_states.contains(">more<"), "{stated}");
+    }
 }
 
 #[tokio::test(flavor = "multi_thread")]

@@ -124,6 +124,7 @@ button.quiet {
 .crumbs form { flex-wrap: nowrap; }
 .places { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.5rem; }
 .picker .filter { margin-bottom: 0.5rem; color: var(--dim); }
+.picker .filter input { width: 20rem; max-width: 100%; }
 .folders { list-style: none; margin: 0 0 0.75rem; padding: 0; columns: 16rem; }
 .folders li { break-inside: avoid; }
 button.link {

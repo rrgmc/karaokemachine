@@ -102,6 +102,20 @@ pub fn list(ask: &Ask) -> Listing {
 /// `wanted_file` sees a path and reads nothing: it runs for every file in the directory, where a
 /// costly question belongs to the page that comes back.
 pub fn list_with(ask: &Ask, page: usize, wanted_file: impl Fn(&Path) -> bool) -> Listing {
+    list_matching(ask, page, wanted_file, |_, _| false)
+}
+
+/// [`list_with`], where the filter also keeps a file that `also_matches` accepts.
+///
+/// A file's name is tried first. `also_matches` sees the file and the filter in lower case, and it
+/// runs only for a file whose name the filter turned away. **It may read the file**, so it runs
+/// for every such file in the directory, and a caller that passes one remembers its answers.
+pub fn list_matching(
+    ask: &Ask,
+    page: usize,
+    wanted_file: impl Fn(&Path) -> bool,
+    also_matches: impl Fn(&Path, &str) -> bool,
+) -> Listing {
     let page = page.max(1);
     let Some(here) = ask.here.as_deref() else {
         return drives();
@@ -140,7 +154,10 @@ pub fn list_with(ask: &Ask, page: usize, wanted_file: impl Fn(&Path) -> bool) ->
         if !worth_showing(&entry, &name) {
             continue;
         }
-        if !wanted.is_empty() && !name.to_lowercase().contains(&wanted) {
+        if !wanted.is_empty()
+            && !name.to_lowercase().contains(&wanted)
+            && !(kind.is_file() && also_matches(&path, &wanted))
+        {
             continue;
         }
         if kind.is_dir() {

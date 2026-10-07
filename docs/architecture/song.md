@@ -667,7 +667,8 @@ holds no editor. It starts `karaokemachine --sync` as a child and waits for it.
 
 | Piece | Where it comes from |
 |---|---|
-| The folders and the songs of a folder | `km_folders::list_with`, with `rows::is_song` choosing the files |
+| The folders and the songs of a folder | `km_folders::list_matching`, with `rows::is_song` choosing the files |
+| A search by title or artist | `rows::Names`, which reads a song once and is asked only for a file whose name did not match |
 | The shortcuts under the path box | `km_folders::places`, named by `views::named` |
 | What a row says about a song | `rows::describe`, for the page's songs only |
 | The synced copy's name | `km_song::kar_write::synced_path`, which the editor calls too |

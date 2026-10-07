@@ -141,7 +141,11 @@ async fn read(
     };
     let app = Arc::clone(app);
     tokio::task::spawn_blocking(move || {
-        let listing = km_folders::list_with(&ask, PAGE_ROWS, crate::rows::is_song);
+        // The filter narrows a song by its file name, and by the title and artist it states.
+        let listing =
+            km_folders::list_matching(&ask, PAGE_ROWS, crate::rows::is_song, |song, wanted| {
+                app.names.hold(song, wanted)
+            });
         // A folder that was read is where the browser is. One that was not is a wrong turn.
         if let (Some(here), None) = (&ask.here, &listing.error) {
             app.remember_folder(here);

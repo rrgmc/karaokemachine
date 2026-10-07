@@ -93,6 +93,8 @@ pub struct App {
     pub windowed: std::sync::atomic::AtomicBool,
     /// Where the pages are served, for the banner and the window.
     pub url: String,
+    /// The titles and artists a search has read.
+    pub names: crate::rows::Names,
 }
 
 /// What the page asks a start for.
@@ -137,6 +139,7 @@ impl App {
             config,
             stop: Stop::default(),
             windowed: std::sync::atomic::AtomicBool::new(false),
+            names: crate::rows::Names::default(),
         })
     }
 

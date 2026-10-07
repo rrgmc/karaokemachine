@@ -1600,8 +1600,14 @@ path box takes any folder by name.
 `.kar`. The editor opens nothing else, and a row that cannot start is a row in the way.
 
 **A row shows the title and the artist the file states, under its file name.** A file name is often
-a number or a code, and the words to paste belong to a song somebody has to recognise. The page
-reads the files of one page only, so a folder of thousands costs fifteen reads.
+a number or a code, and the words to paste belong to a song somebody has to recognise. A listing
+with no search reads the files of one page only, so a folder of thousands costs fifteen reads.
+
+**The search finds a song by its file name, its title or its artist.** The name a person
+remembers is the song's, and the file is as often called a number. A search by title has to read
+every song in the folder. The program reads each one once and keeps its title and artist while it
+runs. The first search in a large folder is the slow one. The search finds a folder by its name
+only.
 
 **The words box wins when it is ticked, then the text file beside the song, then the song's own
 words.** The text file has the song's name and `.txt`. With neither, the editor opens the words the
