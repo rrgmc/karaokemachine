@@ -580,7 +580,7 @@ POST
 #
 # **This package downloads nothing, and that sentence is the whole design.** `What setup fetches` in
 # docs/decisions/distribution.md says the macOS package "fetches nothing, ever", and it still does
-# not: the recommended bank is 261.9 MiB, which is eight times the shipped tree, so what the tick box
+# not: the recommended bank is 261.7 MiB, which is eight times the shipped tree, so what the tick box
 # leaves behind is a *request*. `crates/machine/karaokemachine/src/firstrun.rs` reads it on the
 # machine's first start and fetches the bank there, with a line on the television saying how far it
 # has got and two more starts to try again on.

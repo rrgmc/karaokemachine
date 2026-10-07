@@ -130,7 +130,7 @@ pub struct CatalogBank {
     ///
     /// It is deliberately separate from [`CatalogBank::rank`], which is an ordering. A rank of 2
     /// says "shown first among the offers"; this says "we think you want this one", and the two
-    /// would not always coincide — the recommended bank is a 261.9 MiB download, and a future list
+    /// would not always coincide — the recommended bank is a 261.7 MiB download, and a future list
     /// might reasonably put something smaller at the top while still recommending it.
     ///
     /// **The terms stay printed beside it**, as they are on every other row; see `Where a bank may

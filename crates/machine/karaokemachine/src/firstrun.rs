@@ -1,7 +1,7 @@
 //! The bank a setup program was told to fetch, honored the first time the machine starts.
 //!
 //! A tick box in the Windows setup program and the macOS `.pkg` offers to download the recommended
-//! bank — 261.9 MiB, which is eight times the bundled one and far too much to put inside a carrier.
+//! bank — 261.7 MiB, which is eight times the bundled one and far too much to put inside a carrier.
 //! Neither installer downloads it: they write this file, and the machine does the fetching on its
 //! first start with [`crate::fetch`], which already verifies the digest and refuses a bank that will
 //! not play.

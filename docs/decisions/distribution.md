@@ -915,7 +915,7 @@ fetches nothing, ever.** There is no WebView2 analogue to fetch, because `WKWebV
 operating system. The next carrier has to argue its way past this row too.
 
 **The instrument-bank tick box does not change this, and that is why the tick box has the shape it
-has.** `Offering the recommended bank at install time` adds a 261.9 MiB download to what a fresh
+has.** `Offering the recommended bank at install time` adds a 261.7 MiB download to what a fresh
 install ends up with. It adds nothing at all to what setup fetches. Both carriers write two lines of
 JSON naming the bank, and the machine downloads it on its first start.
 
@@ -930,7 +930,7 @@ start, fetches it through the downloader it already has, and chooses it.
 measurably not the best available.** GeneralUser GS is 30.9 MiB and shipped because it can be. The
 bank survey found three of fifteen redistributable, and
 [`soundfont-banks.conf`](../../crates/machine/km-banks/data/soundfont-banks.conf) carries the terms
-row by row. ColomboGMGS2 is 261.9 MiB. It was judged the best of the sixty-eight measured, and it is
+row by row. ColomboGMGS2 is 261.7 MiB. It was judged the best of the sixty-eight measured, and it is
 [`recommended`](repository.md#which-banks-the-machine-offers) on its row. Without this it arrives
 only for people who already knew instrument banks were a thing they could have an opinion about.
 

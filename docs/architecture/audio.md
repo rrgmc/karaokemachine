@@ -850,7 +850,7 @@ debug build**, whose `libkm_app.so` is 227 MB against a release one's 11.8 MB.
 |---|---|---|---|
 | GeneralUser GS, bundled | 30.8 MiB | 158.7 MB | — |
 | Aspirin 160 GMGS | 15.9 MiB | 143.3 MB | 0.39 s |
-| ColomboGMGS2 Vanilla | 261.9 MiB | 394.9 MB | 3.75 s |
+| ColomboGMGS2 Vanilla | 261.7 MiB | 394.9 MB | 3.75 s |
 | SGM v2.01 GuitsPlusBass | 300.8 MiB | 427.9 MB | 4.38 s |
 
 **Resident memory is the bank's file size plus about 125 MB**, which is what "sample data is held as
@@ -858,7 +858,7 @@ debug build**, whose `libkm_app.so` is 227 MB against a release one's 11.8 MB.
 nothing was killed, and no swap was refused.
 
 **The transient is both banks at once, and it is the number that matters.** Switching between the two
-largest peaked at **674.2 MB**. That is 261.9 MiB to 300.8 MiB, the worst case the offered nine can
+largest peaked at **674.2 MB**. That is 261.7 MiB to 300.8 MiB, the worst case the offered nine can
 produce. `Bank::load` runs on the control thread while the old bank is still live inside the audio
 callback. So a swap is never cheaper than the sum of the two.
 
@@ -896,7 +896,7 @@ thousands of records is tens of thousands of reads straight at the operating sys
 
 **It costs about 23%.** Four swaps each between the two largest banks, same build, same device:
 
-| | to 261.9 MiB | to 300.8 MiB |
+| | to 261.7 MiB | to 300.8 MiB |
 |---|---|---|
 | bare `File` | 0.907, 0.928 s | 1.008, 1.006 s |
 | `BufReader`, 64 KiB | 1.189, 1.128 s | 1.231, 1.187 s |

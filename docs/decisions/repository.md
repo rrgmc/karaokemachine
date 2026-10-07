@@ -256,7 +256,7 @@ which is why it is a mark on a full row rather than a shorter list.
 
 **Exactly one, and a test holds it.** A second recommendation is not a stronger one; it is a list, and
 the other eight rows are already that. It is a separate field from `rank` because they answer
-different questions: an ordering, and a suggestion. The recommended bank is a 261.9 MiB download.
+different questions: an ordering, and a suggestion. The recommended bank is a 261.7 MiB download.
 That is exactly the case where a future list might reasonably put something smaller first while
 still recommending it.
 
