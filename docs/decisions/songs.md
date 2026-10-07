@@ -1635,7 +1635,7 @@ row holds the file name, the title, the artist, the words mark and Select. Fifte
 and boxes are harder to read than fifteen rows of songs, and the words belong beside the button
 that uses them.
 
-**A column marks the songs that have words of their own.** Most songs have them, and a sentence
+**A column marks the songs that have words of their own, with a tick in the accent colour.** Most songs have them, and a sentence
 on every row hides the few that do not. A note under the file name is left for what is unusual. That is
 a text file that supplies the words, a synced copy that exists, or a file the editor cannot read.
 
