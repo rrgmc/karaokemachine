@@ -106,6 +106,9 @@ struct Session {
     dirty: bool,
     /// The ticks as they stood before the last snap, for taking it back.
     before_snap: Option<Vec<u32>>,
+    /// Whether review was asked for while words are still waiting. Review needs no asking once
+    /// every word is tapped.
+    reviewing: bool,
 }
 
 impl Session {
@@ -124,11 +127,12 @@ impl Session {
             selected: 0,
             dirty: false,
             before_snap: None,
+            reviewing: false,
         }
     }
 
     fn phase(&self) -> Phase {
-        if self.stamped == self.syllables.len() {
+        if self.stamped == self.syllables.len() || (self.reviewing && self.stamped > 0) {
             Phase::Review
         } else {
             Phase::Tapping
@@ -591,6 +595,29 @@ pub(crate) fn run(paths: &Paths, settings: &Settings, request: &Request) -> anyh
                     stream.send(Command::SetTempoRatio(tempo_ratio));
                 }
                 (_, Keycode::H) if !repeat => show_help = !show_help,
+                (_, Keycode::R) if !repeat => {
+                    let all = session.stamped == session.syllables.len();
+                    if session.stamped == 0 {
+                        say("Nothing is tapped yet, so there is nothing to review".to_owned());
+                    } else if all {
+                        say("Every word is tapped, so no word is left to tap".to_owned());
+                    } else if session.reviewing {
+                        session.reviewing = false;
+                        // Back to where the taps stopped, with a run-up to the next word.
+                        let last = session.syllables[session.stamped - 1].tick;
+                        let ms = song.tempo_map.tick_to_ms(last).saturating_sub(RUN_UP_MS);
+                        seek_to_ms(&mut stream, ms);
+                        say("Tapping again, from the next word".to_owned());
+                    } else {
+                        session.reviewing = true;
+                        session.selected = session.selected.min(session.stamped - 1);
+                        preview_stale = true;
+                        say(format!(
+                            "Review of the {} words tapped so far. R goes back to tapping",
+                            session.stamped
+                        ));
+                    }
+                }
                 (_, Keycode::M) if !choices.is_empty() => {
                     choice = (choice + 1) % choices.len();
                     say(format!(
@@ -886,6 +913,7 @@ const TAPPING_KEYS: [HelpRow; 3] = [
             ("Ctrl+S", "save"),
             ("Esc", "leave"),
             ("H", "hide these keys"),
+            ("R", "review what is tapped so far"),
         ],
     ),
 ];
@@ -923,6 +951,7 @@ const REVIEW_KEYS: [HelpRow; 4] = [
             ("Ctrl+S", "save"),
             ("Esc", "leave"),
             ("H", "hide these keys"),
+            ("R", "back to tapping"),
         ],
     ),
 ];
@@ -1176,6 +1205,18 @@ mod tests {
         assert_eq!(ticks(&s), [100, 200, 300]);
         s.tap(400);
         assert_eq!(ticks(&s), [100, 200, 300]);
+    }
+
+    #[test]
+    fn review_can_be_asked_for_once_a_word_is_tapped_and_ends_with_the_last_undo() {
+        let mut s = session("la la la");
+        s.reviewing = true;
+        assert_eq!(s.phase(), Phase::Tapping);
+        s.tap(100);
+        assert_eq!(s.phase(), Phase::Review);
+        assert_eq!(ticks(&s), [100]);
+        s.undo();
+        assert_eq!(s.phase(), Phase::Tapping);
     }
 
     #[test]
