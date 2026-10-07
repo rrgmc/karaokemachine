@@ -656,6 +656,10 @@ belongs to a machine with a queue and a wallpaper.
 **The loop and its keys have no test.** The tests cover `Session`, `vocal_line_under`, the label's
 states, the phrase starts and their cue, the flags, the catalogs, the writer and the reader.
 
+**`Layout` draws on any render target.** `sync::picture` draws the tapping screen into an
+off-screen surface, which is where the published picture comes from. See
+[The README's pictures](assets.md#the-readmes-pictures).
+
 ### The page that starts it
 
 `km-song-sync` is `tools/cmd/km-song-sync`, a loopback page in the shape of `km-package-simple`. It

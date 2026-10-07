@@ -1648,6 +1648,10 @@ folder. The file is removed when the editor closes.
 **It remembers the language and the folder its browser was on, and nothing else.** No song path, no
 words and no path to the machine reach its settings file.
 
+**`KM_SONG_SYNC_SETTINGS` names the settings file for one run.** A scripted run browses a folder
+that is not its owner's, and that folder must not become the one the next run opens. The variable
+set and empty remembers nothing. `tools/dev/sync-pictures.sh` sets it.
+
 **Another site's page cannot press Start.** `POST /start` starts a program, so the rule in
 [`A page on another site cannot press this tool's buttons`](curation.md#a-page-on-another-site-cannot-press-this-tools-buttons)
 holds here with more at stake.

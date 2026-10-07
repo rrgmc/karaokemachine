@@ -438,6 +438,7 @@ cargo km-banner            # the Android TV banner; needs icon-128.png first
 cargo km-preview           # every screen to target/preview
 tools/dev/screenshots.sh   # the eight pictures in docs/images that README.md shows
 tools/dev/screen-animation.sh  # the ninth, screen-singing.webp: a carol sung, animated
+tools/dev/sync-pictures.sh # the song sync page and the lyric sync editor, on a carol
 tools/dev/promo-video.sh   # the promotional video, into dist/promo; needs Node with Playwright
 ```
 
@@ -1815,7 +1816,8 @@ cargo km-song-sync -- --machine-exe <FILE>      # a machine that is not beside t
 It serves `http://127.0.0.1:8182/`, or any free port when that one is taken. It starts
 `karaokemachine --sync` on the song whose Start is pressed, and looks for the machine beside its
 own executable first. `--machine-data-dir <DIR>` hands the editor a data folder other than the
-machine's own. See
+machine's own. `KM_SONG_SYNC_SETTINGS=<FILE>` keeps the page's settings in another file for one
+run, and empty remembers nothing. See
 [`The sync editor is started from a page that lists a folder's MIDI files`](docs/decisions/songs.md#the-sync-editor-is-started-from-a-page-that-lists-a-folders-midi-files).
 
 ## The site packager

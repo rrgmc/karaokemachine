@@ -3,10 +3,11 @@
 One hand-written page per language — `index.html`, `pt-BR/index.html` and one `style.css` — published
 by GitHub Actions to **<https://rrgmc.github.io/karaokemachine/>**.
 
-**Opening either page from this folder shows broken images.** The nine pictures live in
+**Opening either page from this folder shows broken images.** The pictures live in
 [`docs/images/`](../docs/images), which
-[`tools/dev/screenshots.sh`](../tools/dev/screenshots.sh) and
-[`tools/dev/screen-animation.sh`](../tools/dev/screen-animation.sh) regenerate; a second tracked copy would be
+[`tools/dev/screenshots.sh`](../tools/dev/screenshots.sh),
+[`tools/dev/screen-animation.sh`](../tools/dev/screen-animation.sh) and
+[`tools/dev/sync-pictures.sh`](../tools/dev/sync-pictures.sh) regenerate; a second tracked copy would be
 a second thing to keep right. `tools/dist/site.sh` assembles the pages and their pictures into one
 folder and is what CI runs, so previewing through it previews exactly what gets published.
 
