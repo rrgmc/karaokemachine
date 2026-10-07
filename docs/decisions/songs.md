@@ -1535,14 +1535,15 @@ point at a channel, so the detection has failed only when no word is left. The l
 was found and names `M`. A file with no pitched channel says so from the start. Words that come
 with their timing are taps already made, and the editor reads them once when it opens.
 
-**A mark shows where the vocal line comes in after a silence, four seconds ahead of the song.** A
-person taps the first word of a line late when the first sign of it is its sound. The vocal line is
-silent for 600 ms or more before most sung lines, so the note after such a silence gets a mark. The
-marks move left onto a line that marks the song, in both modes.
+**A bar counts in to the vocal line wherever it comes in after a silence.** A person taps the first
+word of a line late when the first sign of it is its sound. The vocal line is silent for 600 ms or
+more before most sung lines, so the note after such a silence gets a cue. The bar is the machine's
+lead-in cue: the same colors, two bars of the music long, and full as the note starts. It is up
+only inside the silence, so after a short one it comes up part full.
 
-**The editor draws one mark for a line and none for a note.** A person tapping reads the words, and
-a mark for every note is more than they can read beside them. The silence is a guess from the notes
-and needs no better: a wrong mark costs a glance.
+**The editor draws one cue for a line and nothing for a note.** A person tapping reads the words,
+and a mark for every note is more than they can read beside them. The silence is a guess from the
+notes and needs no better: a wrong cue costs a glance.
 
 **`V` silences the vocal line, because the ear is the test.** A song with the voice missing proves
 the choice, and a mark that lights on each note does not.

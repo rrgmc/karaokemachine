@@ -62,10 +62,6 @@ const MESSAGE_FOR: Duration = Duration::from_secs(4);
 /// How long the melody mark stays lit after one of the chosen channel's notes starts.
 const NOTE_MARK_MS: u32 = 120;
 
-/// How much of the vocal line the chart shows ahead of the song, and how much behind it.
-const CHART_AHEAD_MS: u32 = 4_000;
-const CHART_BEHIND_MS: u32 = 1_000;
-
 /// How long the vocal line is silent before the note after it is taken to start a line.
 const PHRASE_GAP_MS: u32 = 600;
 
@@ -489,8 +485,17 @@ struct MelodyChoice {
     name: Option<String>,
     /// Where each of its notes starts, in order.
     onsets: Vec<u32>,
-    /// Where it comes in after a silence, in milliseconds. See [`phrase_starts`].
-    phrases_ms: Vec<u32>,
+    /// Where it comes in after a silence. See [`phrase_starts`].
+    phrases: Vec<Phrase>,
+}
+
+/// A place a channel comes in after a silence, in milliseconds.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct Phrase {
+    /// When the silence before it starts.
+    silent_from_ms: u32,
+    /// When its first note starts.
+    start_ms: u32,
 }
 
 /// When one note of a channel sounds, in milliseconds so that a silence is a length of time.
@@ -544,32 +549,35 @@ fn notes_by_channel(song: &Song) -> [Vec<Note>; 16] {
 ///
 /// A sung line ends on a breath, so most of these are where a line of the words starts. It is a
 /// guess from the notes, and a held chord or a short breath makes it wrong.
-fn phrase_starts(notes: &[Note]) -> Vec<u32> {
-    let mut starts = Vec::new();
-    // When the last of the notes so far stops sounding.
+fn phrase_starts(notes: &[Note]) -> Vec<Phrase> {
+    let mut phrases = Vec::new();
+    // When the last of the notes so far stops sounding. The song opens on a silence.
     let mut silent_from: Option<u32> = None;
     for note in notes {
         if silent_from.is_none_or(|end| note.start_ms >= end.saturating_add(PHRASE_GAP_MS)) {
-            starts.push(note.start_ms);
+            phrases.push(Phrase {
+                silent_from_ms: silent_from.unwrap_or(0),
+                start_ms: note.start_ms,
+            });
         }
         silent_from = Some(silent_from.map_or(note.end_ms, |end| end.max(note.end_ms)));
     }
-    starts
+    phrases
 }
 
-/// Where the song is across the chart's width, as a fraction of it.
-const CHART_NOW: f32 = CHART_BEHIND_MS as f32 / (CHART_BEHIND_MS + CHART_AHEAD_MS) as f32;
-
-/// The phrase starts the chart shows at this moment, each as a fraction of the chart's width.
-fn marks_in_view(starts: &[u32], now_ms: u32) -> impl Iterator<Item = f32> {
-    let from = now_ms.saturating_sub(CHART_BEHIND_MS);
-    let to = now_ms.saturating_add(CHART_AHEAD_MS);
-    let first = starts.partition_point(|&start| start < from);
-    let last = starts.partition_point(|&start| start <= to);
-    let span = (CHART_BEHIND_MS + CHART_AHEAD_MS) as f32;
-    starts[first..last]
-        .iter()
-        .map(move |&start| CHART_NOW + (start as f32 - now_ms as f32) / span)
+/// How full the cue for the next phrase is at this moment, from 0 to 1, and `None` when no cue is
+/// up.
+///
+/// `cue_from` answers when a cue that ends at a phrase's start begins. The cue is full as the
+/// phrase starts, and it fills at one speed whatever the silence. It is up only inside the silence,
+/// so after a short one it comes up part full.
+fn cue_fill(phrases: &[Phrase], cue_from: impl Fn(u32) -> u32, now_ms: u32) -> Option<f32> {
+    let next = phrases.get(phrases.partition_point(|p| p.start_ms <= now_ms))?;
+    let from = cue_from(next.start_ms).min(next.start_ms);
+    if now_ms < from.max(next.silent_from_ms) {
+        return None;
+    }
+    Some((now_ms - from) as f32 / (next.start_ms - from).max(1) as f32)
 }
 
 impl MelodyChoice {
@@ -598,7 +606,7 @@ fn melody_choices(song: &Song) -> Vec<MelodyChoice> {
         .into_iter()
         .filter(|s| s.note_count > 0 && s.channel != km_suitability::DRUM_CHANNEL)
         .map(|s| MelodyChoice {
-            phrases_ms: notes
+            phrases: notes
                 .get(usize::from(s.channel))
                 .map(|notes| phrase_starts(notes))
                 .unwrap_or_default(),
@@ -1625,8 +1633,15 @@ pub(crate) fn run(paths: &Paths, settings: &Settings, request: &Request) -> anyh
             VocalLine::NoChannel => t("sync-vocal-label-no-channel"),
         };
         screen.melody(&mut canvas, &mut cache, &fonts, &theme, &vocal, note_lit);
-        if let Some(melody) = melody {
-            screen.chart(&mut canvas, &theme, melody, song.tempo_map.tick_to_ms(tick));
+        // The machine's own count-in, at the machine's own length, so it reads as that cue does.
+        let cue_from = |start_ms: u32| {
+            let start = song.tempo_map.ms_to_tick(start_ms);
+            song.tempo_map
+                .tick_to_ms(start.saturating_sub(view.syllable_cue_ticks))
+        };
+        let now_ms = song.tempo_map.tick_to_ms(tick);
+        if let Some(fill) = melody.and_then(|m| cue_fill(&m.phrases, cue_from, now_ms)) {
+            screen.cue(&mut canvas, &theme, fill);
         }
         if let Some((text, since)) = &message {
             if now.duration_since(*since) < MESSAGE_FOR {
@@ -1939,36 +1954,22 @@ impl Layout {
         );
     }
 
-    /// A mark for each place the vocal line comes in after a silence, moving left onto a line
-    /// that marks the song.
+    /// The count-in to the vocal line's next phrase: a bar that fills from the left, and is full
+    /// as the phrase starts.
     ///
-    /// One mark is one line of the words about to start, and nothing else is drawn. A mark for
-    /// each note gives a person more to read than they can while tapping.
-    fn chart(&self, canvas: &mut Screenful, theme: &Theme, melody: &MelodyChoice, now_ms: u32) {
-        let (left, top) = (self.width * 0.02, self.height * 0.19);
-        let (width, side) = (self.width * 0.96, self.height * 0.025);
-        let thin = (self.height * 0.004).max(2.0);
-
-        canvas.set_draw_color(theme.text_dim);
-        let _ = canvas.fill_rect(FRect::new(
-            left + CHART_NOW * width - thin * 0.5,
-            top - side * 0.5,
-            thin,
-            side * 2.0,
-        ));
-        for across in marks_in_view(&melody.phrases_ms, now_ms) {
-            canvas.set_draw_color(if across < CHART_NOW {
-                dim(theme.accent)
-            } else {
-                theme.accent
-            });
-            let _ = canvas.fill_rect(FRect::new(
-                left + across * width - side * 0.5,
-                top,
-                side,
-                side,
-            ));
-        }
+    /// It takes the colors of the machine's lead-in cue, so a person reads it as that cue. Nothing
+    /// is drawn between cues, because a person tapping has the words to read.
+    fn cue(&self, canvas: &mut Screenful, theme: &Theme, fill: f32) {
+        let width = self.width * 0.4;
+        let height = (self.height * 0.012).max(2.0).round();
+        let left = ((self.width - width) / 2.0).round();
+        let top = (self.height * 0.2).round();
+        canvas.set_blend_mode(BlendMode::Blend);
+        let track = theme.lyric_upcoming;
+        canvas.set_draw_color(Color::RGBA(track.r, track.g, track.b, 120));
+        let _ = canvas.fill_rect(FRect::new(left, top, width, height));
+        canvas.set_draw_color(theme.lyric_sung);
+        let _ = canvas.fill_rect(FRect::new(left, top, width * fill.clamp(0.0, 1.0), height));
     }
 
     /// The tapping screen: the line being tapped, with the one before it and the one after.
@@ -2372,7 +2373,10 @@ mod tests {
             // Silent for exactly the gap.
             note(2_500 + PHRASE_GAP_MS, 4_000),
         ];
-        assert_eq!(phrase_starts(&notes), [1_000, 2_500 + PHRASE_GAP_MS]);
+        assert_eq!(
+            phrase_starts(&notes),
+            [phrase(0, 1_000), phrase(2_500, 2_500 + PHRASE_GAP_MS)]
+        );
         assert!(phrase_starts(&[]).is_empty());
     }
 
@@ -2385,23 +2389,49 @@ mod tests {
             note(3_000, 3_200),
             note(6_000, 6_500),
         ];
-        assert_eq!(phrase_starts(&notes), [1_000, 6_000]);
+        assert_eq!(
+            phrase_starts(&notes),
+            [phrase(0, 1_000), phrase(5_000, 6_000)]
+        );
+    }
+
+    fn phrase(silent_from_ms: u32, start_ms: u32) -> Phrase {
+        Phrase {
+            silent_from_ms,
+            start_ms,
+        }
+    }
+
+    /// A cue four seconds long, as the machine's is at 120 beats a minute.
+    fn four_seconds(start_ms: u32) -> u32 {
+        start_ms.saturating_sub(4_000)
     }
 
     #[test]
-    fn the_chart_holds_the_phrases_inside_its_window_and_one_starting_now_is_on_its_line() {
-        let starts = [
-            8_000,
-            9_500,
-            10_000,
-            10_000 + CHART_AHEAD_MS,
-            10_001 + CHART_AHEAD_MS,
-        ];
-        let marks: Vec<f32> = marks_in_view(&starts, 10_000).collect();
-        assert_eq!(marks.len(), 3);
-        assert!(marks[0] < CHART_NOW);
-        assert!((marks[1] - CHART_NOW).abs() < 1e-6);
-        assert!((marks[2] - 1.0).abs() < 1e-6);
+    fn the_cue_fills_over_its_length_and_is_gone_when_the_phrase_starts() {
+        let phrases = [phrase(10_000, 20_000)];
+        let at = |now| cue_fill(&phrases, four_seconds, now);
+        // Silent, and the cue is not due.
+        assert_eq!(at(15_999), None);
+        assert_eq!(at(16_000), Some(0.0));
+        assert_eq!(at(18_000), Some(0.5));
+        assert_eq!(at(19_999).map(|fill| fill > 0.99), Some(true));
+        assert_eq!(at(20_000), None);
+    }
+
+    #[test]
+    fn a_cue_before_a_short_silence_comes_up_part_full_when_the_singing_stops() {
+        // One second of silence before the phrase, inside a four second cue.
+        let phrases = [phrase(19_000, 20_000)];
+        let at = |now| cue_fill(&phrases, four_seconds, now);
+        assert_eq!(at(18_999), None);
+        assert_eq!(at(19_000), Some(0.75));
+    }
+
+    #[test]
+    fn the_cue_before_the_first_phrase_is_no_longer_than_the_song_so_far() {
+        let phrases = [phrase(0, 2_000)];
+        assert_eq!(cue_fill(&phrases, four_seconds, 1_000), Some(0.5));
     }
 
     /// A file's words come back as the editor wrote them: ticks, breaks, spacing and ends.

@@ -643,9 +643,9 @@ and `M` changes it. `V` silences it, so you hear whether the tune is gone. `N` m
 onto its notes. The top right corner says the editor is detecting it while a word is untapped. It
 says none was found only when every word is tapped.
 
-**Square marks under the status line show a line of the words coming.** Each mark is a place where
-the vocal line comes in after a silence. The marks move left onto a line that marks the song, four
-seconds ahead of it.
+**A bar under the status line counts in to a line of the words.** It fills while the vocal line is
+silent, and it is full as the vocal line comes in. It is the bar the machine draws before a line
+after a long pause.
 
 The key list at the foot of the window names every key, and `H` hides it. Ctrl+S saves. Ctrl+T writes
 the words as a `.txt` beside the song, when no such file is there. The editor
