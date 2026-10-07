@@ -152,9 +152,59 @@ impl TextDecoder {
     }
 }
 
+/// A UTF-16 file, re-encoded as UTF-8, where its byte-order mark says it is one.
+///
+/// Windows editors save text files this way, and no byte scanner here reads UTF-16.
+pub(crate) fn from_utf16(bytes: &[u8]) -> Option<Vec<u8>> {
+    let encoding = match bytes {
+        [0xFF, 0xFE, ..] => encoding_rs::UTF_16LE,
+        [0xFE, 0xFF, ..] => encoding_rs::UTF_16BE,
+        _ => return None,
+    };
+    let (text, _) = encoding.decode_with_bom_removal(bytes);
+    Some(text.into_owned().into_bytes())
+}
+
+/// Reads a whole text file as words, whatever a text editor saved it in.
+///
+/// A byte-order mark decides first, for UTF-16 and for UTF-8. Without one the whole file decides
+/// once, as a MIDI file's lyrics do. Every line ends in a line feed, so a reader of the text meets
+/// one kind of line ending.
+#[must_use]
+pub fn decode_text_file(bytes: &[u8]) -> String {
+    let transcoded = from_utf16(bytes);
+    let bytes = transcoded.as_deref().unwrap_or(bytes);
+    let bytes = bytes.strip_prefix(b"\xEF\xBB\xBF").unwrap_or(bytes);
+    let text = TextDecoder::resolve(&[bytes], None).decode(bytes);
+    text.replace("\r\n", "\n").replace('\r', "\n")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_text_file_reads_the_same_in_every_encoding_an_editor_saves() {
+        let words = "Olá, coração\nsegunda linha\n";
+        let mut utf8_bom = b"\xEF\xBB\xBF".to_vec();
+        utf8_bom.extend_from_slice(words.as_bytes());
+        let mut utf16: Vec<u8> = vec![0xFF, 0xFE];
+        utf16.extend(words.encode_utf16().flat_map(u16::to_le_bytes));
+        let (legacy, _, _) = WINDOWS_1252.encode(words);
+
+        assert_eq!(decode_text_file(words.as_bytes()), words);
+        assert_eq!(decode_text_file(&utf8_bom), words);
+        assert_eq!(decode_text_file(&utf16), words);
+        assert_eq!(decode_text_file(&legacy), words);
+    }
+
+    #[test]
+    fn a_text_file_ends_every_line_in_a_line_feed() {
+        assert_eq!(
+            decode_text_file(b"one\r\ntwo\rthree\n"),
+            "one\ntwo\nthree\n"
+        );
+    }
 
     #[test]
     fn ascii_is_treated_as_utf8_without_detection() {

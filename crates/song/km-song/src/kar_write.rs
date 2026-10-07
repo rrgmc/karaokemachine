@@ -7,6 +7,8 @@
 //! **The music is not touched.** Every event that is not karaoke text leaves with the bytes it
 //! arrived with, through [`crate::smf`].
 
+use std::path::{Path, PathBuf};
+
 use crate::karaoke::KaraokeFlavor;
 use crate::smf::{self, Event, SmfError};
 use crate::timeline::{LineBreak, RawSyllable};
@@ -100,6 +102,21 @@ pub fn write_soft_karaoke(source: &[u8], words: &KarWords) -> Result<Vec<u8>, Ka
         return Err(KarWriteError::NotReadBack);
     }
     Ok(out)
+}
+
+/// Where a song's synced copy goes when nobody names a place: beside it, with the karaoke extension.
+///
+/// A song that already has that extension gets `-synced` on its name, so the copy is never the
+/// song. A program listing songs asks here, and marks the copies that exist as the editor would
+/// find them.
+#[must_use]
+pub fn synced_path(song: &Path) -> PathBuf {
+    let beside = song.with_extension("kar");
+    if beside != song {
+        return beside;
+    }
+    let stem = song.file_stem().unwrap_or_default().to_string_lossy();
+    song.with_file_name(format!("{stem}-synced.kar"))
 }
 
 /// Splits typed words into syllables, every one at tick zero.
@@ -216,6 +233,18 @@ mod tests {
     use super::*;
     use crate::timeline::WordEnds;
     use crate::{EventKind, TimedEvent, testing};
+
+    #[test]
+    fn the_synced_copy_goes_beside_the_song_and_is_never_the_song() {
+        assert_eq!(
+            synced_path(Path::new("a/song.mid")),
+            Path::new("a/song.kar")
+        );
+        assert_eq!(
+            synced_path(Path::new("a/song.kar")),
+            Path::new("a/song-synced.kar")
+        );
+    }
 
     fn timed(typed: &str, step: u32) -> KarWords {
         let mut syllables = split_words(typed);
