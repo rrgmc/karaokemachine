@@ -127,8 +127,9 @@ dist/portable/<platform>/karaokemachine-portable-<version>-<system>-<arch>.tar.g
 
 `tools/dist/portable.sh` builds it, and `task dist:portable` runs that.
 
-- **It copies the two folders above into one**, the console folder first and the windowed one over
-  it. A release signs the windowed folder's copy of a single-form program, so that copy must win.
+- **It copies `dist/bin/<platform>` and not `dist/bin-console/<platform>`.** The windowed folder
+  holds every program and is the one a release signs. The script fails when a `-console` twin is in
+  the staged folder.
 - **It adds `karaokemachine-portable.txt`**, which `km-dirs` reads beside the executable. The script
   spells the name a second time, and its own check fails when the two disagree.
 - **It makes `data/karaokemachine/packages`, `soundfonts` and `wallpapers`**, each holding a

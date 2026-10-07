@@ -22,8 +22,9 @@
 # **It gathers rather than builds.** tools/dist/bin.sh stages both folders and proves each program
 # starts. This script copies them, so no fact about a product is written here a second time.
 #
-# **Both forms of a program are here.** The windowed form is the one to double-click, and the
-# console form is the one that prints. A portable copy has no second folder to reach for.
+# **One form of each program is here, the one `dist/bin/<platform>` holds.** A `-console` twin
+# doubles the names in a folder a person opens to double-click one. The plain name still answers
+# `--help`, `--version` and `--show-paths` into a pipe.
 #
 # **Windows and Linux.** A macOS bundle cannot hold files that change, so `km-dirs` reads no marker
 # there and this script refuses the platform.
@@ -43,7 +44,7 @@ while [ $# -gt 0 ]; do
   case "$1" in
     --no-video) VIDEO=0 ;;
     --no-build) BUILD=0 ;;
-    # One folder that already holds every program, in place of the two tools/dist/bin.sh gathers.
+    # One folder that already holds every program, in place of the one tools/dist/bin.sh gathers.
     # tools/platform/linux/portable-in-container.sh passes the folder it built.
     --from)
       shift
@@ -90,19 +91,14 @@ if [ "$BUILD" -eq 1 ]; then
 fi
 
 BIN="dist/bin/$PLATFORM"
-CONSOLE="dist/bin-console/$PLATFORM"
-if [ -n "$FROM" ]; then BIN="$FROM"; CONSOLE="$FROM"; fi
-for dir in "$BIN" "$CONSOLE"; do
-  if [ ! -f "$dir/README.txt" ]; then
-    echo "dist-portable: $dir is not gathered." >&2
-    echo "               build it with: tools/dist/bin.sh" >&2
-    exit 1
-  fi
-done
+if [ -n "$FROM" ]; then BIN="$FROM"; fi
+if [ ! -f "$BIN/README.txt" ]; then
+  echo "dist-portable: $BIN is not gathered." >&2
+  echo "               build it with: tools/dist/bin.sh" >&2
+  exit 1
+fi
 
-MACHINE="$CONSOLE/karaokemachine-console$EXT"
-[ -f "$MACHINE" ] || MACHINE="$CONSOLE/karaokemachine$EXT"
-VERSION="$(dist_version "$MACHINE")"
+VERSION="$(dist_version "$BIN/karaokemachine$EXT")"
 
 # The system ahead of the architecture, which is the rule every file on a release page keeps.
 #
@@ -120,10 +116,7 @@ dist_step "staging $OUT"
 mkdir -p "$OUT"
 dist_clear "$OUT"
 
-# The console folder first and the windowed one over it. A file in both is the same file, because
-# tools/dist/bin.sh gathered both from one staged build. A release signs the windowed folder's
-# copy of a single-form program, so that folder goes last.
-cp -R "$CONSOLE"/. "$OUT"/
+# The windowed folder alone. It holds every program, and it is the folder a release signs.
 cp -R "$BIN"/. "$OUT"/
 
 # The tarball's `install.sh` registers the machine in the home directory, which a portable copy
@@ -252,14 +245,6 @@ HEAD
       *) [ -z "$EXT" ] && printf '    %s\n' "$base" ;;
     esac
   done
-  if [ -n "$EXT" ]; then
-    cat <<'BODY'
-
-Where a program has two names, the plain one opens a window and the one
-ending in -console prints to a terminal. Use the plain one. Use the -console
-one when a program does not start and you want to read why.
-BODY
-  fi
   cat <<'BODY'
 
 Where your files are
@@ -408,8 +393,8 @@ if [ -n "$FROM" ]; then
     }
   done
 fi
-PROBE="karaokemachine-console$EXT"
-[ -f "$OUT/$PROBE" ] || PROBE="karaokemachine$EXT"
+# The plain name answers into a pipe whatever its subsystem, so the program asked is the one shipped.
+PROBE="karaokemachine$EXT"
 if [ "$PLATFORM" = windows ]; then
   SHOWN="$(cd "$OUT" && PATH="/c/Windows/System32:/c/Windows" "./$PROBE" --show-paths 2>&1)" || {
     echo "dist-portable: $PROBE --show-paths did not run." >&2; exit 1; }
@@ -434,6 +419,11 @@ if [ -n "$(find "$SCRATCH" -type f 2>/dev/null)" ]; then
   fail=1
 fi
 rm -rf "$SCRATCH"
+TWINS="$(cd "$OUT" && find . -maxdepth 1 -name '*-console*' | LC_ALL=C sort | tr '\n' ' ')"
+if [ -n "$TWINS" ]; then
+  echo "dist-portable: $OUT holds a console twin: $TWINS" >&2
+  fail=1
+fi
 # The archive carries the five files written above and nothing a run left behind. A live request
 # among them would make every copy download a bank nobody asked for, and a live settings file would
 # replace the one in a folder it is unpacked over.

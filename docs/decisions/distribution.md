@@ -754,9 +754,12 @@ case where a profile sits beside an executable, and
 **Windows and Linux, and not macOS.** A signed bundle cannot hold files that change, and a
 downloaded one runs from a read-only path until it is moved. `km-dirs` reads no marker there.
 
-**The archive holds every program in both forms.** `tools/dist/portable.sh` copies
-`dist/bin/<platform>` and `dist/bin-console/<platform>` into one folder. A portable copy has no
-second folder to reach for when a program does not start.
+**The archive holds every program in one form, and no `-console` twin.** `tools/dist/portable.sh`
+copies `dist/bin/<platform>` alone. A person opens this folder to double-click a program, and a twin
+beside each one doubles the names to choose from. The plain name answers `--help`, `--version` and
+`--show-paths` into a pipe, as
+[`The machine's console window`](#the-machines-console-window) says. The staging script refuses a
+folder that holds a twin.
 
 **The marker goes into that folder and no other.** `dist/bin/<platform>` is the setup program's
 payload. `tools/dist/bin.sh` also empties it on every run, which would delete the `data/` folder of
