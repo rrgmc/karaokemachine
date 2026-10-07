@@ -218,11 +218,17 @@ fn run_process(launch: &Launch) -> std::io::Result<Ended> {
 
 /// The sentence the machine gives for refusing to start, where its output holds one.
 ///
-/// The machine ends a refused start with `Error:` and the reason on one line.
+/// The machine ends a refused start with `Error:` and the reason on one line. Its argument parser
+/// rejects a command line with `error:` and the reason, and usage lines follow that say nothing
+/// about this start.
 #[must_use]
 pub fn refusal_in(said: &str) -> Option<String> {
     said.lines()
-        .find_map(|line| line.trim().strip_prefix("Error: "))
+        .find_map(|line| {
+            let line = line.trim();
+            line.strip_prefix("Error: ")
+                .or_else(|| line.strip_prefix("error: "))
+        })
         .map(|reason| reason.trim().to_owned())
 }
 
@@ -342,6 +348,17 @@ mod tests {
             Some("song.kar exists; pass --sync-force to replace it".to_owned())
         );
         assert_eq!(refusal_in("a warning\n"), None);
+    }
+
+    #[test]
+    fn a_rejected_command_line_is_the_parsers_reason_and_not_its_usage_lines() {
+        let said = "error: unexpected argument '--sync' found\n\n\
+                    Usage: karaokemachine [OPTIONS]\n\n\
+                    For more information, try '--help'.\n";
+        assert_eq!(
+            refusal_in(said),
+            Some("unexpected argument '--sync' found".to_owned())
+        );
     }
 
     #[test]
