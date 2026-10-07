@@ -2653,6 +2653,17 @@ typed at the point of upload. A release page is exactly where a local drive name
 travel furthest. `tools/dist/release.sh` substitutes this run's version and the carol pack's name
 into it, so the tracked file states no version of its own.
 
+**The body opens with one linked file per platform, and that file is the full package.** Seven
+rows name the setup program, the `.deb`, the tarball, the two machine APKs and the machine `.ipa`.
+A reader who wants the machine on one system chooses among seven links and not among fifteen
+files. The portable copies, the remote on its own, the tools package and the carol pack stay in
+the full table below it.
+
+**A release body can link an asset, where the site and the manual cannot.** An asset's name
+carries the version. `release.sh` substitutes the version into the body on every run, so each link
+names the tag it is published under. A linked row leaves the body with its platform, as a plain
+row does.
+
 **A release page names the assets it carries, and nothing else about the tree.** The
 `chore(release):` commit body is written for somebody who has the source in front of them. It names
 files that mean nothing to a reader who has a download.

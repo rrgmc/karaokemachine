@@ -1,6 +1,6 @@
 # Installing
 
-**The downloads are on the [release page](https://github.com/rrgmc/karaokemachine/releases)**, one
+**The downloads are on the [release page](https://github.com/rrgmc/karaokemachine/releases/latest)**, one
 file per platform. The carol package is a separate download beside them. To build from source, see
 [`BUILDING.md`](https://github.com/rrgmc/karaokemachine/blob/master/BUILDING.md).
 

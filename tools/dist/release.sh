@@ -54,7 +54,9 @@
 # they read through `git ls-files`. A body typed at the point of upload is read by neither.
 #
 # `@VERSION@` and `@CAROLS@` are substituted from this run, so the file itself carries no version
-# number and no asset name that a rebuild can change.
+# number and no asset name that a rebuild can change. The same substitution is what lets the body
+# link an asset: the short list it opens with names one full package per platform, each by its URL
+# under this run's tag.
 #
 # **Both APKs are called `app-release.apk`**, one per Gradle project, which is the reason renaming is
 # a step and not a convenience: two files of one name cannot both be assets, and a `.deb` that is
@@ -456,11 +458,12 @@ awk -v selected="$PLATFORMS $ELSEWHERE" -v omitted="$omitted_globs" '
     return 0
   }
   # A row naming a carrier of a platform this run skipped. The first cell is a file name when it
-  # holds a dot, which is the same test the check below the render makes.
+  # holds a dot, which is the same test the check below the render makes. The short list at the top
+  # of the body links each name to its asset, so the cell is the name alone or the name as a link.
   function row_is_omitted(line,   name, i, n, g) {
-    if (line !~ /^\| `[^`]*\.[A-Za-z0-9]*` \|/) return 0
+    if (line !~ /^\| \[?`[^`]*\.[A-Za-z0-9]*`(\]\([^)]*\))? \|/) return 0
     name = line
-    sub(/^\| `/, "", name)
+    sub(/^\| \[?`/, "", name)
     sub(/`.*$/, "", name)
     n = split(omitted, g, "|")
     for (i = 1; i <= n; i++) if (g[i] != "" && name ~ "^" glob2re(g[i]) "$") return 1
@@ -505,8 +508,8 @@ fi
 # Both directions are checked, because the two failures read nothing alike to somebody choosing a
 # download and cost the same to catch here.
 #
-# A row's first cell is a file name when it holds a dot. The carol pack is named in the prose under
-# the table rather than in it, and the first direction is what covers it.
+# A row's first cell is a file name when it holds a dot, linked or not. The carol pack is named in
+# the prose under the table rather than in it, and the first direction is what covers it.
 #
 # **A row naming an `--elsewhere` carrier is not a mismatch**: its file is the one `--add` uploads.
 # The match is a glob for the reason the omitted rows' is, and `case` is bash's own glob match.
@@ -538,7 +541,7 @@ while read -r named; do
     mismatch=$((mismatch + 1))
   fi
 done <<EOF
-$(sed -n 's/^| `\([^`]*\.[A-Za-z0-9]*\)` |.*/\1/p' "$NOTES")
+$(sed -n 's/^| \[\{0,1\}`\([^`]*\.[A-Za-z0-9]*\)`\(\]([^)]*)\)\{0,1\} |.*/\1/p' "$NOTES")
 EOF
 
 if [ "$mismatch" -gt 0 ]; then
