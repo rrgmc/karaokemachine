@@ -42,6 +42,7 @@ body:
         - The remote (KM Remote)
         - km-package-builder
         - km-package-simple
+        - km-song-sync
         - km-admin
         - km-pack or another command-line tool
         - The HTTP API
