@@ -58,15 +58,39 @@ impl Settings {
     }
 }
 
-/// Where the settings file lives: the platform's per-user configuration folder.
+/// The environment variable that says where this run's settings live.
+///
+/// A scripted run must be able to say that the settings are not its owner's. A picture taken of
+/// the page is one, and the folder it browses would otherwise become the folder the next run
+/// opens. Set and empty means remember nothing.
+pub const ENV_VAR: &str = "KM_SONG_SYNC_SETTINGS";
+
+/// Where the settings file lives: where [`ENV_VAR`] says, or the platform's per-user
+/// configuration folder.
 #[must_use]
 pub fn default_path() -> Option<PathBuf> {
-    km_dirs::for_app("km-song-sync").map(|dirs| dirs.config.join("settings.json"))
+    path_for(std::env::var_os(ENV_VAR).as_deref())
+}
+
+/// The settings file for what [`ENV_VAR`] holds. `None` is a run that remembers nothing.
+fn path_for(named: Option<&std::ffi::OsStr>) -> Option<PathBuf> {
+    match named {
+        Some(named) if named.is_empty() => None,
+        Some(named) => Some(PathBuf::from(named)),
+        None => km_dirs::for_app("km-song-sync").map(|dirs| dirs.config.join("settings.json")),
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_named_file_is_the_settings_file_and_an_empty_name_remembers_nothing() {
+        let named = std::ffi::OsStr::new("/tunes/karaoke/settings.json");
+        assert_eq!(path_for(Some(named)), Some(PathBuf::from(named)));
+        assert_eq!(path_for(Some(std::ffi::OsStr::new(""))), None);
+    }
 
     #[test]
     fn settings_round_trip_and_a_bad_file_is_a_fresh_start() {
