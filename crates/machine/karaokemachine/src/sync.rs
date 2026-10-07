@@ -31,7 +31,7 @@ use km_song::{ParseOptions, Song};
 use sdl3::event::Event as SdlEvent;
 use sdl3::keyboard::{Keycode, Mod};
 use sdl3::pixels::Color;
-use sdl3::render::{Canvas, FRect};
+use sdl3::render::{BlendMode, Canvas, FRect};
 use sdl3::video::{Window, WindowContext};
 
 use crate::display::StepSmoother;
@@ -512,6 +512,7 @@ pub(crate) fn run(paths: &Paths, settings: &Settings, request: &Request) -> anyh
     let mut want_playing = false;
     let mut ended_seen = state.songs_ended();
     let mut leaving = false;
+    let mut show_help = true;
     let mut message: Option<(String, Instant)> = Some((
         "Press Enter to start the song, then Space on each syllable".to_owned(),
         Instant::now(),
@@ -589,6 +590,7 @@ pub(crate) fn run(paths: &Paths, settings: &Settings, request: &Request) -> anyh
                     tempo_ratio = (tempo_ratio + 0.05).min(1.5);
                     stream.send(Command::SetTempoRatio(tempo_ratio));
                 }
+                (_, Keycode::H) if !repeat => show_help = !show_help,
                 (_, Keycode::M) if !choices.is_empty() => {
                     choice = (choice + 1) % choices.len();
                     say(format!("Snap follows {}", choices[choice].label()));
@@ -774,25 +776,27 @@ pub(crate) fn run(paths: &Paths, settings: &Settings, request: &Request) -> anyh
                         }
                     })
                     .collect();
+                let help_top = screen.help(
+                    &mut canvas,
+                    &mut cache,
+                    &fonts,
+                    &theme,
+                    &REVIEW_KEYS,
+                    show_help,
+                );
+                // The selected word sits on the key list, wherever that ends.
+                let line_height = measure_line(&fonts.text, &["Ag"]).height;
                 screen.note(
                     &mut canvas,
                     &mut cache,
                     &fonts,
                     &theme,
-                    0.80,
+                    (help_top - line_height * 1.6) / screen.height,
                     &format!(
                         "{}   at {}",
                         around.trim(),
                         clock(song.tempo_map.tick_to_ms(selected.tick))
                     ),
-                );
-                screen.help(
-                    &mut canvas,
-                    &mut cache,
-                    &fonts,
-                    &theme,
-                    "Space play/pause   Up/Down select   Left/Right move 10 ms (Shift 50)   \
-                     Enter play the line   E end the word   N snap to notes   M melody   -/+ tempo   Ctrl+S save   Esc leave",
                 );
             }
             _ => {
@@ -804,8 +808,8 @@ pub(crate) fn run(paths: &Paths, settings: &Settings, request: &Request) -> anyh
                     &mut cache,
                     &fonts,
                     &theme,
-                    "Enter play/pause   Space tap   E end the word   Backspace undo   Up tap the line again   \
-                     Left/Right seek 5 s   M melody   -/+ tempo   Ctrl+S save   Esc leave",
+                    &TAPPING_KEYS,
+                    show_help,
                 );
             }
         }
@@ -840,6 +844,73 @@ fn clock(ms: u32) -> String {
     format!("{}:{:02}.{}", ms / 60_000, ms / 1_000 % 60, ms / 100 % 10)
 }
 
+/// One row of the key list: what its keys act on, then each key with what it does.
+type HelpRow = (&'static str, &'static [(&'static str, &'static str)]);
+
+/// The keys while syllables are still waiting for a tick.
+///
+/// The keys pressed on every word come first, the transport second and the rare ones last. The
+/// longest entry of a row closes it, so it widens no column a shorter entry shares.
+const TAPPING_KEYS: [HelpRow; 3] = [
+    (
+        "TAP",
+        &[
+            ("Space", "next word"),
+            ("E", "end the word"),
+            ("Backspace", "undo"),
+            ("Up", "tap this line again"),
+        ],
+    ),
+    (
+        "SONG",
+        &[
+            ("Enter", "play / pause"),
+            ("Left Right", "5 s"),
+            ("M", "melody channel"),
+            ("-  +", "slower / faster"),
+        ],
+    ),
+    (
+        "FILE",
+        &[
+            ("Ctrl+S", "save"),
+            ("Esc", "leave"),
+            ("H", "hide these keys"),
+        ],
+    ),
+];
+
+/// The keys once every syllable has a tick.
+const REVIEW_KEYS: [HelpRow; 3] = [
+    (
+        "WORD",
+        &[
+            ("Up Down", "select"),
+            ("E", "end here"),
+            ("Backspace", "undo"),
+            ("Left Right", "move 10 ms (Shift 50)"),
+        ],
+    ),
+    (
+        "SONG",
+        &[
+            ("Space", "play / pause"),
+            ("M", "melody channel"),
+            ("-  +", "slower / faster"),
+            ("Enter", "play this line"),
+        ],
+    ),
+    (
+        "FILE",
+        &[
+            ("Ctrl+S", "save"),
+            ("Esc", "leave"),
+            ("H", "hide these keys"),
+            ("N", "snap to melody (Ctrl+Z undoes)"),
+        ],
+    ),
+];
+
 type Screenful = Canvas<Window>;
 type Cache = TextCache<WindowContext>;
 
@@ -870,43 +941,85 @@ impl Layout {
         );
     }
 
-    /// The key list along the foot of the window.
+    /// The key list along the foot of the window. Answers where its top edge is, so whatever sits
+    /// above it knows how much room is left.
     fn help(
         &self,
         canvas: &mut Screenful,
         cache: &mut Cache,
         fonts: &Fonts,
         theme: &Theme,
-        text: &str,
-    ) {
-        // The keys are separated by three spaces, and a line breaks only between two keys.
-        let limit = self.width * 0.94;
-        let mut lines: Vec<String> = Vec::new();
-        for key in text.split("   ").map(str::trim).filter(|k| !k.is_empty()) {
-            match lines.last_mut() {
-                Some(line)
-                    if measure_line(&fonts.small, &[&format!("{line}   {key}")]).width <= limit =>
-                {
-                    line.push_str("   ");
-                    line.push_str(key);
-                }
-                _ => lines.push(key.to_owned()),
-            }
-        }
-        // Stacked upward from the foot, so one line sits where three would end.
-        let pitch = measure_line(&fonts.small, &["Ag"]).height * 1.25;
-        let foot = self.height * 0.95;
-        for (row, line) in lines.iter().enumerate() {
-            let above = (lines.len() - 1 - row) as f32;
+        rows: &[HelpRow],
+        shown: bool,
+    ) -> f32 {
+        let font = &fonts.small;
+        let wide = |text: &str| measure_line(font, &[text]).width;
+        let en = wide("n");
+        let pitch = measure_line(font, &["Ag"]).height * 1.3;
+        let left = self.width * 0.02;
+        let foot = self.height * 0.98;
+        let dim = TextStyle::outlined(theme.text_dim, theme, Align::Left);
+
+        if !shown {
+            // Hidden, with the one key that brings it back.
+            let top = foot - pitch;
+            let hint = TextStyle::outlined(theme.text_dim, theme, Align::Right);
             draw_text(
                 canvas,
                 cache,
-                &fonts.small,
-                line,
-                (self.width / 2.0, foot - pitch * above),
-                &TextStyle::outlined(theme.text_dim, theme, Align::Center),
+                font,
+                "H  keys",
+                (self.width * 0.98, top),
+                &hint,
             );
+            return top;
         }
+
+        let top = foot - pitch * rows.len() as f32;
+        canvas.set_blend_mode(BlendMode::Blend);
+        canvas.set_draw_color(Color::RGBA(
+            theme.background.r,
+            theme.background.g,
+            theme.background.b,
+            200,
+        ));
+        let _ = canvas.fill_rect(FRect::new(
+            0.0,
+            top - pitch * 0.3,
+            self.width,
+            self.height - top + pitch * 0.3,
+        ));
+
+        // The same columns in every row, each as wide as its widest entry. A window too narrow for
+        // that lets each row keep its own widths, which is uneven and still readable.
+        let entry = |(key, action): &(&str, &str)| wide(key) + en + wide(action);
+        let label = rows.iter().map(|(name, _)| wide(name)).fold(0.0, f32::max) + en * 2.0;
+        let columns = rows.iter().map(|(_, keys)| keys.len()).max().unwrap_or(0);
+        let widths: Vec<f32> = (0..columns)
+            .map(|column| {
+                rows.iter()
+                    .filter_map(|(_, keys)| keys.get(column))
+                    .map(entry)
+                    .fold(0.0, f32::max)
+            })
+            .collect();
+        let gap = en * 3.0;
+        let aligned =
+            left + label + widths.iter().sum::<f32>() + gap * columns as f32 <= self.width * 0.98;
+
+        for (row, (name, keys)) in rows.iter().enumerate() {
+            let y = top + pitch * row as f32;
+            draw_text(canvas, cache, font, name, (left, y), &dim);
+            let mut x = left + label;
+            for (column, pair) in keys.iter().enumerate() {
+                let (key, action) = pair;
+                let bright = TextStyle::outlined(theme.accent, theme, Align::Left);
+                let key_width = draw_text(canvas, cache, font, key, (x, y), &bright);
+                draw_text(canvas, cache, font, action, (x + key_width + en, y), &dim);
+                x += gap + if aligned { widths[column] } else { entry(pair) };
+            }
+        }
+        top
     }
 
     /// The transport line at the head of the window.
