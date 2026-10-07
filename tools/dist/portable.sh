@@ -207,6 +207,15 @@ REQUEST="first-run-soundfont.json"
 printf '{\n  "bank": "%s"\n}\n' "$BANK_ID" > "$OWN/$REQUEST.example"
 dist_detail "soundfont  $BANK_ID -> $BANK_NAME ($BANK_SIZE), offered and not requested"
 
+# -- the settings somebody is most likely to change ---------------------------------------------------
+
+# Under a name the machine does not read, for a reason of its own: a new archive is unpacked over an
+# old folder, and a `settings.json` in it would replace the one somebody edited. A test in
+# crates/machine/karaokemachine/src/settings.rs holds the file to keys the machine has, at their
+# defaults.
+SETTINGS_EXAMPLE="settings.example.json"
+cp tools/dist/portable-settings.example.json "$OWN/$SETTINGS_EXAMPLE"
+
 cat > "$OWN/wallpapers/README.txt" <<'TEXT'
 Your own background pictures go here.
 
@@ -308,13 +317,41 @@ data/karaokemachine/soundfonts, and then uses it.
 BODY
   cat <<'BODY'
 
-Two machines on one computer
-----------------------------
+Changing the machine's settings
+-------------------------------
 
-The machine listens on port 8177. If an installed machine is running too,
-start this one on another port:
+The machine keeps its settings in data/karaokemachine/settings.json, and
+writes that file the first time it starts. To set things before then, copy
+settings.example.json in that folder to settings.json and edit the copy. It
+holds the settings people change most, each at its usual value:
 
-    karaokemachine --api-bind 8277
+    machine.name         the name a phone shows for this machine
+    machine.locale       the language of the screen: en or pt-BR
+    api.bind             the address and port the machine listens on
+    display.fullscreen   true to fill the screen, false for a window
+    package_dirs         more folders to read song packages from
+
+Stop the machine before you edit settings.json. It writes the file again
+while it runs.
+
+Ports
+-----
+
+Each program serves its pages on a port of its own. The machine takes its
+port from api.bind in settings.json. The others take --port when you start
+them:
+
+    karaokemachine       8177   api.bind, or --api-bind 8277 for one run
+    km-package-builder   8178   km-package-builder --port 8278
+    km-remote            8179   km-remote --port 8279
+    km-admin             8180   km-admin --port 8280
+    km-package-simple    8181   km-package-simple --port 8281
+
+If an installed machine is running on this computer too, give this one
+another port. A program that sends songs to the machine has to be told the
+machine's address when it is not the usual one, with --machine:
+
+    km-remote --machine 127.0.0.1:8277
 
 Getting rid of it
 -----------------
@@ -391,12 +428,13 @@ if [ -n "$(find "$SCRATCH" -type f 2>/dev/null)" ]; then
   fail=1
 fi
 rm -rf "$SCRATCH"
-# The archive carries the four files written above and nothing a run left behind. A live request
-# among them would make every copy download a bank nobody asked for.
+# The archive carries the five files written above and nothing a run left behind. A live request
+# among them would make every copy download a bank nobody asked for, and a live settings file would
+# replace the one in a folder it is unpacked over.
 LEFT="$(cd "$OUT/$DATA" && find . -type f | LC_ALL=C sort | tr '\n' ' ')"
-WANT="./karaokemachine/$REQUEST.example ./karaokemachine/packages/README.txt ./karaokemachine/soundfonts/README.txt ./karaokemachine/wallpapers/README.txt "
+WANT="./karaokemachine/$REQUEST.example ./karaokemachine/packages/README.txt ./karaokemachine/$SETTINGS_EXAMPLE ./karaokemachine/soundfonts/README.txt ./karaokemachine/wallpapers/README.txt "
 if [ "$LEFT" != "$WANT" ]; then
-  echo "dist-portable: $OUT/$DATA does not hold exactly its four files: $LEFT" >&2
+  echo "dist-portable: $OUT/$DATA does not hold exactly its five files: $LEFT" >&2
   fail=1
 fi
 if [ "$fail" -ne 0 ]; then

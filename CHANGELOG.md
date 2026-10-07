@@ -17,8 +17,10 @@ Entries are written for somebody who has the machine. Why any of it is the way i
   Every program is in it, and each keeps its settings and songs in the `data` folder inside. It
   reads and writes nothing in your user profile, so it runs beside an installed copy without
   changing it. The `packages`, `soundfonts` and `wallpapers` folders are there already, each with a
-  note saying what goes in it. Rename one file to have the machine download the recommended
-  instrument bank on its next start.
+  note saying what goes in it.
+- **The portable copy says how to set it up.** Rename one file to have the machine download the
+  recommended instrument bank on its next start. A starter settings file shows the settings people
+  change most, and the folder's README lists each program's port.
 
 ## [1.20.0] - 2026-10-06
 

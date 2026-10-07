@@ -721,6 +721,16 @@ requires, and the folder's document says so. A live request in the archive would
 download a quarter of a gigabyte on its first start. The staging script refuses to write an archive
 that holds one.
 
+**The archive ships starter settings for the machine, and never a live settings file.** A new
+archive is unpacked over an old folder, and a `settings.json` in it would replace the one somebody
+edited. So `data/karaokemachine/settings.example.json` holds the settings people change most, at
+their defaults, and the folder's document says to copy it. A settings file ignores a key it does
+not know, so a test holds the starter file to keys the machine writes.
+
+**Only the machine has a port in its settings.** The four tools take `--port` when they start, and
+the folder's document lists each one beside its default. A port setting in four more programs is
+new behaviour, and a second machine on one computer is the case that needs a port moved.
+
 **A flag still wins.** `--data-dir` names its own folder in a portable copy as it does anywhere,
 and so do the `KM_PACKAGE_BUILDER_*` variables.
 

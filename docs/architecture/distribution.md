@@ -137,7 +137,10 @@ dist/portable/<platform>/karaokemachine-portable-<version>-<system>-<arch>.tar.g
 - **It proves the claim before it writes the archive.** The machine's `--show-paths` must say
   `portable   yes`, and must name `data/karaokemachine` for its settings, catalog and packages. On
   Linux the home directory points at an empty folder, which must stay empty. The `data` folder must
-  then hold the four files the script wrote and nothing a run left behind.
+  then hold the five files the script wrote and nothing a run left behind.
+- **It copies `tools/dist/portable-settings.example.json` to `settings.example.json`** in the
+  machine's folder. Two tests in `crates/machine/karaokemachine/src/settings.rs` read that tracked
+  file: every key is one the machine writes, and every value is the default.
 - **It writes `first-run-soundfont.json.example`** beside where `settings.json` goes, naming the
   recommended row from `tools/setup/soundfont-banks.sh`. `firstrun.rs` reads the file only under
   its own name, so the request waits for a rename.

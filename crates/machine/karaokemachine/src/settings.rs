@@ -3339,4 +3339,57 @@ mod tests {
             "a shipped machine must not advertise an escape hatch it is not using: {json}"
         );
     }
+
+    /// The starter file a portable copy ships, as `tools/dist/portable.sh` copies it.
+    const PORTABLE_EXAMPLE: &str =
+        include_str!("../../../../tools/dist/portable-settings.example.json");
+
+    /// Every key in `example` that `defaults` does not have, as dotted paths.
+    fn keys_missing_from(
+        example: &serde_json::Value,
+        defaults: &serde_json::Value,
+        at: &str,
+    ) -> Vec<String> {
+        let (Some(example), Some(defaults)) = (example.as_object(), defaults.as_object()) else {
+            return Vec::new();
+        };
+        let mut missing = Vec::new();
+        for (key, value) in example {
+            let path = format!("{at}{key}");
+            match defaults.get(key) {
+                Some(found) => missing.extend(keys_missing_from(value, found, &format!("{path}."))),
+                None => missing.push(path),
+            }
+        }
+        missing
+    }
+
+    /// A settings file ignores a key it does not know, so a misspelt key in the starter file would
+    /// ship and do nothing. Every key there must be one the machine writes.
+    #[test]
+    fn the_portable_starter_file_names_only_keys_the_machine_has() {
+        let example: serde_json::Value =
+            serde_json::from_str(PORTABLE_EXAMPLE).expect("the starter file is JSON");
+        // An empty `package_dirs` is left out of a written file, so one folder makes the key show.
+        let mut full = Settings::default();
+        full.package_dirs.push(PathBuf::from("songs"));
+        let written = serde_json::to_value(full).expect("settings serialize");
+        assert_eq!(
+            keys_missing_from(&example, &written, ""),
+            Vec::<String>::new()
+        );
+    }
+
+    /// Copying the starter file changes nothing until somebody edits it.
+    #[test]
+    fn the_portable_starter_file_holds_the_defaults() {
+        let example: Settings =
+            serde_json::from_str(PORTABLE_EXAMPLE).expect("the starter file is a settings file");
+        let defaults = Settings::default();
+        assert_eq!(example.machine.name, defaults.machine.name);
+        assert_eq!(example.machine.locale, defaults.machine.locale);
+        assert_eq!(example.api.bind, defaults.api.bind);
+        assert_eq!(example.display.fullscreen, defaults.display.fullscreen);
+        assert_eq!(example.package_dirs, defaults.package_dirs);
+    }
 }
