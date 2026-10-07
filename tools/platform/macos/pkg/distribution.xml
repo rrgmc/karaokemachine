@@ -56,6 +56,7 @@
         <line choice="machine"/>
         <line choice="builder"/>
         <line choice="simple"/>
+        <line choice="sync"/>
         <line choice="remote"/>
         <line choice="admin"/>
         <line choice="tools"/>
@@ -78,6 +79,11 @@
             description="Makes a package straight from a folder of songs, in one step. Its packages are marked uncurated.">
         <pkg-ref id="com.rrgmc.karaokemachine.simple"/>
     </choice>
+    <choice id="sync" visible="true" start_selected="true" start_enabled="true"
+            title="KM Song Sync"
+            description="Puts words on a MIDI file: paste the words, choose the file, and tap them in the machine's sync editor. Needs KaraokeMachine.">
+        <pkg-ref id="com.rrgmc.karaokemachine.sync"/>
+    </choice>
     <choice id="remote" visible="true" start_selected="true" start_enabled="true"
             title="KM Remote"
             description="Search and queue from this computer, with your own copy of the song list.">
@@ -88,13 +94,13 @@
             description="Finds pictures and instrument banks for the machine, and sends them to it.">
         <pkg-ref id="com.rrgmc.karaokemachine.admin"/>
     </choice>
-    <!-- All eight commands, not four: on macOS the two package builders, the remote and Assets each have a
+    <!-- All nine commands, not four: on macOS the two package builders, song sync, the remote and Assets each have a
          terminal form as well as an application, and this is the tick that installs it. That is a
          real difference from Windows, where one tick gives both because everything lands in one
          folder. -->
     <choice id="tools" visible="true" start_selected="true" start_enabled="true"
             title="Command-line tools"
-            description="km-pack, km-lyrics, km-site-pack, km-wallpaper-pack, and the terminal forms of the two package builders, the remote and Assets. Installed in /usr/local/bin.">
+            description="km-pack, km-lyrics, km-site-pack, km-wallpaper-pack, and the terminal forms of the two package builders, song sync, the remote and Assets. Installed in /usr/local/bin.">
         <pkg-ref id="com.rrgmc.karaokemachine.tools"/>
     </choice>
     <!-- **The one choice that installs no files.** Its component package is built with pkgbuild's
@@ -126,6 +132,8 @@
              auth="Root" onConclusion="None">#karaokemachine-builder.pkg</pkg-ref>
     <pkg-ref id="com.rrgmc.karaokemachine.simple" version="@VERSION@"
              auth="Root" onConclusion="None">#karaokemachine-simple.pkg</pkg-ref>
+    <pkg-ref id="com.rrgmc.karaokemachine.sync" version="@VERSION@"
+             auth="Root" onConclusion="None">#karaokemachine-sync.pkg</pkg-ref>
     <pkg-ref id="com.rrgmc.karaokemachine.remote" version="@VERSION@"
              auth="Root" onConclusion="None">#karaokemachine-remote.pkg</pkg-ref>
     <pkg-ref id="com.rrgmc.karaokemachine.admin" version="@VERSION@"

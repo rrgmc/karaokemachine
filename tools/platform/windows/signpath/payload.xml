@@ -20,6 +20,7 @@
         <include path="karaokemachine.exe"/>
         <include path="km-package-builder.exe"/>
         <include path="km-package-simple.exe"/>
+        <include path="km-song-sync.exe"/>
         <include path="km-remote.exe"/>
         <include path="km-admin.exe"/>
         <include path="km-pack.exe"/>
@@ -36,6 +37,7 @@
         <include path="karaokemachine-console.exe"/>
         <include path="km-package-builder-console.exe"/>
         <include path="km-package-simple-console.exe"/>
+        <include path="km-song-sync-console.exe"/>
         <include path="km-remote-console.exe"/>
         <include path="km-admin-console.exe"/>
         <for-each>
