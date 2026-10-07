@@ -66,8 +66,8 @@ const NOTE_MARK_MS: u32 = 120;
 const CHART_AHEAD_MS: u32 = 4_000;
 const CHART_BEHIND_MS: u32 = 1_000;
 
-/// The fewest keys the chart's height spans, so a part of two notes does not fill it.
-const CHART_KEYS: u8 = 13;
+/// How long the vocal line is silent before the note after it is taken to start a line.
+const PHRASE_GAP_MS: u32 = 600;
 
 /// What the command line asked the editor for.
 #[derive(Debug, Clone)]
@@ -489,20 +489,15 @@ struct MelodyChoice {
     name: Option<String>,
     /// Where each of its notes starts, in order.
     onsets: Vec<u32>,
-    /// Its notes with their lengths and keys, in the order they start.
-    notes: Vec<Note>,
-    /// The lowest and the highest key it plays.
-    keys: (u8, u8),
-    /// How long its longest note sounds.
-    longest_ms: u32,
+    /// Where it comes in after a silence, in milliseconds. See [`phrase_starts`].
+    phrases_ms: Vec<u32>,
 }
 
-/// One note of a channel, in milliseconds so that a change of tempo does not bend the chart.
+/// When one note of a channel sounds, in milliseconds so that a silence is a length of time.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct Note {
     start_ms: u32,
     end_ms: u32,
-    key: u8,
 }
 
 /// Every channel's notes, each list in the order the notes start.
@@ -525,7 +520,6 @@ fn notes_by_channel(song: &Song) -> [Vec<Note>; 16] {
                 list.push(Note {
                     start_ms: at,
                     end_ms: u32::MAX,
-                    key,
                 });
             }
             EventKind::NoteOff { channel, key } => {
@@ -546,38 +540,36 @@ fn notes_by_channel(song: &Song) -> [Vec<Note>; 16] {
     notes
 }
 
-/// The notes the chart shows at this moment: those that sound, or start, inside its window.
+/// Where the channel comes in after a silence of [`PHRASE_GAP_MS`], and where it first plays.
 ///
-/// `longest_ms` is the channel's longest note. A note that started that long before the window
-/// can still sound inside it, and no earlier note can.
-fn notes_in_view(notes: &[Note], longest_ms: u32, now_ms: u32) -> impl Iterator<Item = &Note> {
-    let from = now_ms.saturating_sub(CHART_BEHIND_MS);
-    let to = now_ms.saturating_add(CHART_AHEAD_MS);
-    let first = notes.partition_point(|n| n.start_ms < from.saturating_sub(longest_ms));
-    let last = notes.partition_point(|n| n.start_ms <= to);
-    notes[first..last].iter().filter(move |n| n.end_ms >= from)
+/// A sung line ends on a breath, so most of these are where a line of the words starts. It is a
+/// guess from the notes, and a held chord or a short breath makes it wrong.
+fn phrase_starts(notes: &[Note]) -> Vec<u32> {
+    let mut starts = Vec::new();
+    // When the last of the notes so far stops sounding.
+    let mut silent_from: Option<u32> = None;
+    for note in notes {
+        if silent_from.is_none_or(|end| note.start_ms >= end.saturating_add(PHRASE_GAP_MS)) {
+            starts.push(note.start_ms);
+        }
+        silent_from = Some(silent_from.map_or(note.end_ms, |end| end.max(note.end_ms)));
+    }
+    starts
 }
 
 /// Where the song is across the chart's width, as a fraction of it.
 const CHART_NOW: f32 = CHART_BEHIND_MS as f32 / (CHART_BEHIND_MS + CHART_AHEAD_MS) as f32;
 
-/// Where a note sits in the chart: its left edge, top edge, width and height, as fractions of the
-/// chart. The highest key is the top row.
-fn note_box(note: &Note, now_ms: u32, keys: (u8, u8)) -> (f32, f32, f32, f32) {
+/// The phrase starts the chart shows at this moment, each as a fraction of the chart's width.
+fn marks_in_view(starts: &[u32], now_ms: u32) -> impl Iterator<Item = f32> {
+    let from = now_ms.saturating_sub(CHART_BEHIND_MS);
+    let to = now_ms.saturating_add(CHART_AHEAD_MS);
+    let first = starts.partition_point(|&start| start < from);
+    let last = starts.partition_point(|&start| start <= to);
     let span = (CHART_BEHIND_MS + CHART_AHEAD_MS) as f32;
-    let across = |ms: u32| {
-        let ahead = ms as f32 - now_ms as f32;
-        (CHART_NOW + ahead / span).clamp(0.0, 1.0)
-    };
-    let (left, right) = (across(note.start_ms), across(note.end_ms));
-
-    // A narrow part sits in the middle of the fewest rows the chart has.
-    let (low, high) = (i32::from(keys.0), i32::from(keys.1));
-    let rows = (high - low + 1).max(i32::from(CHART_KEYS));
-    let top_key = high + (rows - (high - low + 1)) / 2;
-    let row = (top_key - i32::from(note.key)).clamp(0, rows - 1);
-    let height = 1.0 / rows as f32;
-    (left, row as f32 * height, right - left, height)
+    starts[first..last]
+        .iter()
+        .map(move |&start| CHART_NOW + (start as f32 - now_ms as f32) / span)
 }
 
 impl MelodyChoice {
@@ -601,30 +593,18 @@ impl MelodyChoice {
 /// is likeliest is [`vocal_line_under`]'s question, and it asks the taps.
 fn melody_choices(song: &Song) -> Vec<MelodyChoice> {
     let thresholds = km_suitability::Thresholds::default();
-    let mut notes = notes_by_channel(song);
+    let notes = notes_by_channel(song);
     let mut choices: Vec<MelodyChoice> = km_suitability::channel::measure(song, &thresholds)
         .into_iter()
         .filter(|s| s.note_count > 0 && s.channel != km_suitability::DRUM_CHANNEL)
-        .map(|s| {
-            let notes = notes
-                .get_mut(usize::from(s.channel))
-                .map(std::mem::take)
-                .unwrap_or_default();
-            MelodyChoice {
-                channel: s.channel,
-                name: s.track_names.first().cloned(),
-                onsets: s.onset_ticks,
-                keys: (
-                    notes.iter().map(|n| n.key).min().unwrap_or(0),
-                    notes.iter().map(|n| n.key).max().unwrap_or(0),
-                ),
-                longest_ms: notes
-                    .iter()
-                    .map(|n| n.end_ms - n.start_ms)
-                    .max()
-                    .unwrap_or(0),
-                notes,
-            }
+        .map(|s| MelodyChoice {
+            phrases_ms: notes
+                .get(usize::from(s.channel))
+                .map(|notes| phrase_starts(notes))
+                .unwrap_or_default(),
+            channel: s.channel,
+            name: s.track_names.first().cloned(),
+            onsets: s.onset_ticks,
         })
         .collect();
     choices.sort_by_key(|choice| choice.channel);
@@ -1959,43 +1939,36 @@ impl Layout {
         );
     }
 
-    /// The vocal line's notes around this moment, moving left onto a line that marks the song.
+    /// A mark for each place the vocal line comes in after a silence, moving left onto a line
+    /// that marks the song.
     ///
-    /// A note is as long as it sounds and as high as its key, so the person sees a word coming
-    /// before they hear it.
+    /// One mark is one line of the words about to start, and nothing else is drawn. A mark for
+    /// each note gives a person more to read than they can while tapping.
     fn chart(&self, canvas: &mut Screenful, theme: &Theme, melody: &MelodyChoice, now_ms: u32) {
-        let (left, top) = (self.width * 0.02, self.height * 0.17);
-        let (width, height) = (self.width * 0.96, self.height * 0.08);
-        canvas.set_blend_mode(BlendMode::Blend);
-        canvas.set_draw_color(theme.panel);
-        let _ = canvas.fill_rect(FRect::new(left, top, width, height));
+        let (left, top) = (self.width * 0.02, self.height * 0.19);
+        let (width, side) = (self.width * 0.96, self.height * 0.025);
+        let thin = (self.height * 0.004).max(2.0);
 
-        // A short note keeps a width that can be seen, and two notes on one key keep a gap.
-        let least = (self.height * 0.004).max(2.0);
-        for note in notes_in_view(&melody.notes, melody.longest_ms, now_ms) {
-            let (x, y, w, h) = note_box(note, now_ms, melody.keys);
-            canvas.set_draw_color(if note.end_ms <= now_ms {
+        canvas.set_draw_color(theme.text_dim);
+        let _ = canvas.fill_rect(FRect::new(
+            left + CHART_NOW * width - thin * 0.5,
+            top - side * 0.5,
+            thin,
+            side * 2.0,
+        ));
+        for across in marks_in_view(&melody.phrases_ms, now_ms) {
+            canvas.set_draw_color(if across < CHART_NOW {
                 dim(theme.accent)
-            } else if note.start_ms <= now_ms {
-                theme.lyric_sung
             } else {
                 theme.accent
             });
             let _ = canvas.fill_rect(FRect::new(
-                left + x * width,
-                top + y * height,
-                (w * width - least * 0.5).max(least),
-                (h * height).max(least * 1.5),
+                left + across * width - side * 0.5,
+                top,
+                side,
+                side,
             ));
         }
-
-        canvas.set_draw_color(theme.text);
-        let _ = canvas.fill_rect(FRect::new(
-            left + CHART_NOW * width - least * 0.5,
-            top,
-            least,
-            height,
-        ));
     }
 
     /// The tapping screen: the line being tapped, with the one before it and the one after.
@@ -2362,22 +2335,8 @@ mod tests {
             (960, [0x83, 72, 0]),
         ]);
         let ms = |tick| song.tempo_map.tick_to_ms(tick);
-        assert_eq!(
-            notes[0],
-            [Note {
-                start_ms: 0,
-                end_ms: ms(480),
-                key: 60
-            }]
-        );
-        assert_eq!(
-            notes[3],
-            [Note {
-                start_ms: 0,
-                end_ms: ms(960),
-                key: 72
-            }]
-        );
+        assert_eq!(notes[0], [note(0, ms(480))]);
+        assert_eq!(notes[3], [note(0, ms(960))]);
     }
 
     #[test]
@@ -2399,53 +2358,50 @@ mod tests {
         assert_eq!(spans, [(0, ms(240)), (ms(240), ms(480))]);
     }
 
-    fn note(start_ms: u32, end_ms: u32, key: u8) -> Note {
-        Note {
-            start_ms,
-            end_ms,
-            key,
-        }
+    fn note(start_ms: u32, end_ms: u32) -> Note {
+        Note { start_ms, end_ms }
     }
 
     #[test]
-    fn the_chart_holds_the_notes_that_sound_or_start_inside_its_window() {
+    fn a_phrase_starts_on_the_first_note_and_on_each_note_after_a_silence() {
         let notes = [
-            // Over before the window opens.
-            note(1_000, 2_000, 60),
-            // Started long before, and still sounding.
-            note(3_000, 9_500, 62),
-            // Behind the song, inside the window.
-            note(9_200, 9_400, 64),
-            // Ahead of it.
-            note(12_000, 12_500, 65),
-            // Past the window.
-            note(14_500, 15_000, 67),
+            note(1_000, 1_400),
+            // A breath too short to be the end of a line.
+            note(1_600, 2_000),
+            note(2_000, 2_500),
+            // Silent for exactly the gap.
+            note(2_500 + PHRASE_GAP_MS, 4_000),
         ];
-        let seen: Vec<u8> = notes_in_view(&notes, 6_500, 10_000)
-            .map(|n| n.key)
-            .collect();
-        assert_eq!(seen, [62, 64, 65]);
+        assert_eq!(phrase_starts(&notes), [1_000, 2_500 + PHRASE_GAP_MS]);
+        assert!(phrase_starts(&[]).is_empty());
     }
 
     #[test]
-    fn a_note_starting_now_stands_on_the_charts_line_and_the_highest_key_is_on_top() {
-        // Two octaves, so the keys fill the height.
-        let keys = (48, 72);
-        let (left, top, width, height) = note_box(&note(10_000, 11_000, 72), 10_000, keys);
-        assert!((left - CHART_NOW).abs() < 1e-6);
-        assert_eq!(top, 0.0);
-        assert!((width - 0.2).abs() < 1e-6);
-        assert!((height - 1.0 / 25.0).abs() < 1e-6);
-        let (_, low_top, _, _) = note_box(&note(10_000, 11_000, 48), 10_000, keys);
-        assert!((low_top + height - 1.0).abs() < 1e-6);
+    fn a_note_held_under_shorter_ones_keeps_the_phrase_going() {
+        let notes = [
+            note(1_000, 5_000),
+            note(1_200, 1_400),
+            // Long after the short note, and while the first still sounds.
+            note(3_000, 3_200),
+            note(6_000, 6_500),
+        ];
+        assert_eq!(phrase_starts(&notes), [1_000, 6_000]);
     }
 
     #[test]
-    fn a_note_is_cut_at_the_charts_edges_and_a_narrow_part_sits_in_the_middle() {
-        let (left, top, width, height) = note_box(&note(0, 60_000, 60), 10_000, (60, 60));
-        assert_eq!((left, width), (0.0, 1.0));
-        // One key in thirteen rows: six rows above it.
-        assert!((top - 6.0 * height).abs() < 1e-6);
+    fn the_chart_holds_the_phrases_inside_its_window_and_one_starting_now_is_on_its_line() {
+        let starts = [
+            8_000,
+            9_500,
+            10_000,
+            10_000 + CHART_AHEAD_MS,
+            10_001 + CHART_AHEAD_MS,
+        ];
+        let marks: Vec<f32> = marks_in_view(&starts, 10_000).collect();
+        assert_eq!(marks.len(), 3);
+        assert!(marks[0] < CHART_NOW);
+        assert!((marks[1] - CHART_NOW).abs() < 1e-6);
+        assert!((marks[2] - 1.0).abs() < 1e-6);
     }
 
     /// A file's words come back as the editor wrote them: ticks, breaks, spacing and ends.

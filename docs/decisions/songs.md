@@ -1535,11 +1535,14 @@ point at a channel, so the detection has failed only when no word is left. The l
 was found and names `M`. A file with no pitched channel says so from the start. Words that come
 with their timing are taps already made, and the editor reads them once when it opens.
 
-**A chart shows the notes of the vocal line four seconds ahead of the song.** A person taps a word
-late when the first sign of it is its sound. The notes move left onto a line that marks the song,
-each as long as it sounds and as high as its key. The pitch lets a person match the marks to the
-tune they hear, which marks in one row do not. The chart shows in both modes, and in review a word
-that lights before or after its note is seen.
+**A mark shows where the vocal line comes in after a silence, four seconds ahead of the song.** A
+person taps the first word of a line late when the first sign of it is its sound. The vocal line is
+silent for 600 ms or more before most sung lines, so the note after such a silence gets a mark. The
+marks move left onto a line that marks the song, in both modes.
+
+**The editor draws one mark for a line and none for a note.** A person tapping reads the words, and
+a mark for every note is more than they can read beside them. The silence is a guess from the notes
+and needs no better: a wrong mark costs a glance.
 
 **`V` silences the vocal line, because the ear is the test.** A song with the voice missing proves
 the choice, and a mark that lights on each note does not.
