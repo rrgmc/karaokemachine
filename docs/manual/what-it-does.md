@@ -27,6 +27,15 @@
 - **A demo mode**, off by default: after a minute of quiet the machine plays songs by itself until
   somebody queues one.
 
+<p align="center">
+<img src="../images/screen-singing.webp" width="90%"
+     alt="Two lines of the carol Angels From the Realms of Glory sung on the playing screen: each
+syllable fills in amber as it is sung, the next line waits below in gray, and when the first line
+ends the one after the next takes its row">
+<br><sub><b>Singing.</b> Each syllable fills in time with the music, and the next line is already
+waiting.</sub>
+</p>
+
 **Remotes**
 
 - **The machine serves a remote at its own address.** Any phone on the network reaches it, with no

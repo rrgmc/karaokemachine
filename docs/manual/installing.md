@@ -15,6 +15,14 @@ file per platform. The carol package is a separate download beside them. To buil
 | **Meta Quest** | An APK of its own, which puts the machine on a screen hanging in the room with the room still behind it. The screen starts on your wall, and you move it and resize it by hand. The singer's queue hangs beside it. A button switches to an ordinary system window and back, once the queue is empty. |
 | **iPhone, iPad** | An `.ipa` for the machine and one for the remote, both **unsigned**. You sign them yourself with your own Apple ID. |
 
+<p align="center">
+<img src="../images/headset-room.webp" width="90%"
+     alt="The machine inside a Meta Quest: the playing screen hanging on a bare wall with the room
+still visible around it, and beside it a second panel showing the queue of six waiting songs with
+the singer who asked for each">
+<br><sub><b>In a Meta Quest</b>, the screen hangs on your wall and the queue hangs beside it.</sub>
+</p>
+
 **Every install also has a second launcher, which starts the machine streaming.** See
 [Watching it in another room](streaming.md).
 

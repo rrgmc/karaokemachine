@@ -35,6 +35,22 @@ key.** The function keys work without the strip, and each has a letter key that 
 | `Ctrl+Q` | | Stop the machine |
 | `Ctrl+1`–`Ctrl+9` | | Change to another SoundFont bank that `debug.soundfonts` names, to compare them |
 
+<table>
+<tr>
+<td width="50%"><img src="../images/screen-idle-connect.png" alt="The idle screen: a partly typed
+song number in blue, a disc in the corner counting the songs waiting, and a panel giving the
+machine's address on the network beside a QR code"></td>
+<td width="50%"><img src="../images/screen-queue.png" alt="The queue overlay drawn over a dimmed
+playing screen, listing four waiting songs by number and title with the singer who asked for each in
+blue at the right"></td>
+</tr>
+<tr>
+<td><sub><b>A song number, part typed.</b> <code>Enter</code> queues it, and <code>I</code> shows
+the address and QR code.</sub></td>
+<td><sub><b>The queue</b>, which <code>F6</code> or <code>Q</code> shows over the song.</sub></td>
+</tr>
+</table>
+
 **`T`** is for a machine that shares a screen with other windows. The machine remembers the setting.
 Some Linux desktops do not let an application place itself, and there the key does nothing.
 
