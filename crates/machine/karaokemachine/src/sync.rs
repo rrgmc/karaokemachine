@@ -604,7 +604,10 @@ pub(crate) fn run(paths: &Paths, settings: &Settings, request: &Request) -> anyh
                         session.tap(tick);
                         preview_stale = true;
                         if session.phase() == Phase::Review {
-                            say("Every syllable is tapped. Ctrl+S saves".to_owned());
+                            say(
+                                "All words tapped. The song now repeats with your timing, to check"
+                                    .to_owned(),
+                            );
                         }
                     } else {
                         say("The song is paused. Enter plays it".to_owned());
@@ -735,7 +738,11 @@ pub(crate) fn run(paths: &Paths, settings: &Settings, request: &Request) -> anyh
             m.onsets.get(first).is_some_and(|&onset| onset <= tick)
         });
         let status = format!(
-            "{}   {} / {}   tempo {:.0}%   {} of {} tapped{}",
+            "{}   {}   {} / {}   tempo {:.0}%   {} of {} tapped{}",
+            match session.phase() {
+                Phase::Tapping => "TAPPING",
+                Phase::Review => "REVIEW",
+            },
             if playing { "Playing" } else { "Paused" },
             clock(song.tempo_map.tick_to_ms(tick)),
             clock(song.duration_ms()),
