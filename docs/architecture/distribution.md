@@ -123,13 +123,17 @@ dist/bin-console/<platform>/   the console form; every single-form tool in both
 dist/portable/<platform>/karaokemachine-portable-<version>-<system>-<arch>/
 dist/portable/<platform>/karaokemachine-portable-<version>-<system>-<arch>.zip      Windows
 dist/portable/<platform>/karaokemachine-portable-<version>-<system>-<arch>.tar.gz   Linux
+dist/portable-console/<platform>/karaokemachine-portable-console-<version>-<system>-<arch>/
 ```
 
-`tools/dist/portable.sh` builds it, and `task dist:portable` runs that.
+`tools/dist/portable.sh` builds both, and `task dist:portable` runs that. One function,
+`stage_copy`, makes each copy, so every bullet below holds for both.
 
-- **It copies `dist/bin/<platform>` and not `dist/bin-console/<platform>`.** The windowed folder
-  holds every program and is the one a release signs. The script fails when a `-console` twin is in
-  the staged folder.
+- **`portable/` copies `dist/bin/<platform>` and `portable-console/` copies
+  `dist/bin-console/<platform>`.** The script fails when a `-console` twin is in the windowed copy,
+  and when the console copy holds both forms of one program. The console copy gets no archive.
+- **The console copy's document names the programs that copy holds.** The folder answers whether
+  there is a twin, so on Linux the two documents name the same programs.
 - **It adds `karaokemachine-portable.txt`**, which `km-dirs` reads beside the executable. The script
   spells the name a second time, and its own check fails when the two disagree.
 - **It makes `data/karaokemachine/packages`, `soundfonts` and `wallpapers`**, each holding a
@@ -147,7 +151,8 @@ dist/portable/<platform>/karaokemachine-portable-<version>-<system>-<arch>.tar.g
   recommended row from `tools/setup/soundfont-banks.sh`. `firstrun.rs` reads the file only under
   its own name, so the request waits for a rename.
 - **`--from <folder>` takes one folder that already holds every program.** The Linux half passes
-  the folder it built, and the script then starts each program with nothing inherited.
+  the folder it built, and the script then starts each program with nothing inherited. Both copies
+  are made from that one folder.
 
 **On Linux the folder is built in the tarball's image.** `tools/platform/linux/portable.sh` runs
 `tarball.sh`, then `portable-in-container.sh` in the same image and build volume. That script copies

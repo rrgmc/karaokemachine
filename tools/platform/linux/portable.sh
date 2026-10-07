@@ -9,6 +9,10 @@
 #
 #   dist/portable/linux/karaokemachine-portable-<version>-linux-<arch>/        the folder
 #   dist/portable/linux/karaokemachine-portable-<version>-linux-<arch>.tar.gz  the archive
+#   dist/portable-console/linux/karaokemachine-portable-console-<version>-linux-<arch>/
+#
+# **The second folder holds the same programs.** Nothing has two forms on Linux, and
+# tools/dist/portable.sh stages both copies on every platform it serves.
 #
 # **Every program is built in the image the tarball is built in.** A program links the glibc of the
 # system that built it, so tools built on the host would ask for a newer one than the machine does.
@@ -73,7 +77,8 @@ if ! docker image inspect "$IMAGE" >/dev/null 2>&1; then
 fi
 
 dist_step "portable copy"
-# `/src` is read-write because the folder and the archive go to `dist/portable/linux` inside it.
+# `/src` is read-write because the folders and the archive go to `dist/portable{,-console}/linux`
+# inside it.
 # The build writes to `/build`, as the tarball's does. KM_CHECKOUT: see the note in deb.sh.
 docker run --rm -i \
   -e "KM_VIDEO=$VIDEO" \
