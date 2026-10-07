@@ -701,6 +701,46 @@ BODY
       ;;
   esac
 }
+
+# How to put the recommended bank in place by hand, for a document a person reads after a download
+# failed. The address, the archive and the member come from the bank table, because a second copy of
+# an address is one that stays behind when the table moves. A bank somebody puts in the folder is
+# checked against no digest, so this route works when the publisher has replaced the file.
+dist_bank_by_hand() { # <where the .sf2 goes, as the document names it>
+  local where="$1" name id="" url="" archive="" member="" file=""
+  . tools/setup/soundfont-banks.sh
+  for name in $KM_BANKS; do
+    km_bank "$name"
+    [ "$SF_RECOMMENDED" = "1" ] || continue
+    id="$name"; url="$SF_URL"; archive="$SF_ARCHIVE"; member="$SF_MEMBER"; file="$SF_NAME"
+  done
+  if [ -z "$id" ] || [ -z "$url" ]; then
+    echo "dist_bank_by_hand: the table recommends no bank with an address to download from." >&2
+    return 1
+  fi
+  cat <<TEXT
+If the download fails, the machine says so on the screen and plays the bank it
+came with. You can then get the bank yourself:
+
+  1. Open this address in a browser:
+     $url
+TEXT
+  if [ -n "$archive" ]; then
+    cat <<TEXT
+  2. It downloads $archive. Open that archive and take
+     $member out of it.
+TEXT
+  else
+    cat <<TEXT
+  2. It downloads $file.
+TEXT
+  fi
+  cat <<TEXT
+  3. Put the .sf2 file in $where.
+  4. Start the machine and choose the bank on its Sound page.
+TEXT
+}
+
 dist_installed_readme() { # <platform: windows|macos> [product: all|km-remote]
   local product="${2:-all}"
   if [ "$product" = km-remote ]; then
@@ -861,6 +901,11 @@ KaraokeMachine fetches it the first time you start it, and plays it instead of t
 came in the box. It says so on the screen while it runs and needs no help from you. If it cannot --
 no network yet, most likely -- it tries again on the next two starts and then stops asking, and the
 machine plays the bundled bank in the meantime, which works perfectly well.
+
+TAIL
+  dist_bank_by_hand 'the folder named "soundfonts" beside your packages folder.
+     Make that folder if it is not there' || return 1
+  cat <<'TAIL'
 
 Nothing else is ever downloaded on your behalf: no songs, no updates.
 TAIL

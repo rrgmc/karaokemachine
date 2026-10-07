@@ -291,10 +291,10 @@ mod tests {
 
     #[test]
     fn a_row_is_a_key_flags_and_a_label() {
-        let rows = parse_rows("colombogmgs2\t\tColombo  261.9 MiB  cached\n").unwrap();
+        let rows = parse_rows("colombogmgs2\t\tColombo  261.7 MiB  cached\n").unwrap();
         assert_eq!(rows.len(), 1);
         assert_eq!(rows[0].key, "colombogmgs2");
-        assert_eq!(rows[0].label, "Colombo  261.9 MiB  cached");
+        assert_eq!(rows[0].label, "Colombo  261.7 MiB  cached");
         assert!(!rows[0].on);
     }
 

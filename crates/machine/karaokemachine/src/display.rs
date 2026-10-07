@@ -1100,7 +1100,7 @@ impl From<DropStatus> for Flashed {
 /// Drawn exactly like a dropped package and deliberately not folded into [`DropStatus`] — see
 /// [`crate::firstrun::Notice`]. The `Working` arm has no deadline for the same reason that one does
 /// not: a percentage that vanished halfway would leave the machine looking as though it had given
-/// up, and 261.9 MiB takes a while.
+/// up, and 261.7 MiB takes a while.
 impl From<crate::firstrun::Notice> for Flashed {
     fn from(notice: crate::firstrun::Notice) -> Self {
         match notice {

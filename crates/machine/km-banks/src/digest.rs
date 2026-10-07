@@ -101,6 +101,22 @@ pub fn matches(computed: &str, pinned: &str) -> bool {
     computed.eq_ignore_ascii_case(wanted(pinned))
 }
 
+/// The sentence for a download that is not the bytes its row pinned.
+///
+/// **The cause and the action come first, and the digests come last.** A television shows about the
+/// first hundred characters of a failure, and two sha256 values fill that width alone. A publisher
+/// who uploads a new release under the same name is the ordinary cause, and only a newer table
+/// answers it. `outcome` is the caller's own closing sentence, because a machine installs a bank and
+/// a desktop tool keeps one.
+pub fn mismatch(pinned: &str, got: &str, outcome: &str) -> String {
+    let want = wanted(pinned);
+    format!(
+        "the download is not the file this version expects: its publisher replaced it, or it \
+         arrived damaged. Try again, then update KaraokeMachine. {outcome} Expected {want}, got \
+         {got}."
+    )
+}
+
 /// Lowercase hex.
 pub fn hex(bytes: &[u8]) -> String {
     bytes.iter().map(|byte| format!("{byte:02x}")).collect()
@@ -151,11 +167,12 @@ pub fn extract_member(
         .flush()
         .map_err(|error| format!("could not write {}: {error}", out.display()))?;
 
-    if !digest.is_empty() && !matches(&hasher.finish(), digest) {
-        let _ = std::fs::remove_file(out);
-        return Err(format!(
-            "{member} does not match the digest this bank is pinned to. Nothing was installed."
-        ));
+    if !digest.is_empty() {
+        let got = hasher.finish();
+        if !matches(&got, digest) {
+            let _ = std::fs::remove_file(out);
+            return Err(mismatch(digest, &got, "Nothing was installed."));
+        }
     }
     Ok(())
 }
@@ -199,6 +216,21 @@ mod tests {
     fn hex_case_does_not_decide_whether_a_download_was_correct() {
         assert!(matches("ABCDEF", "abcdef"));
         assert!(matches("abcdef", "sha1:ABCDEF"));
+    }
+
+    #[test]
+    fn a_failed_pin_says_what_to_do_before_it_prints_a_digest() {
+        let sentence = mismatch("sha1:abc123", "def456", "Nothing was installed.");
+        let action = sentence.find("update KaraokeMachine").expect("the action");
+        let outcome = sentence
+            .find("Nothing was installed.")
+            .expect("the outcome");
+        let want = sentence.find("abc123").expect("the pinned digest");
+        // A screen that cuts the sentence short cuts the digests, never the action.
+        assert!(action < want, "{sentence}");
+        assert!(outcome < want, "{sentence}");
+        assert!(sentence.ends_with("got def456."), "{sentence}");
+        assert!(!sentence.contains("sha1:"), "{sentence}");
     }
 
     #[test]

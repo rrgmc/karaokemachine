@@ -182,7 +182,7 @@ dist_installed_readme windows > "$GENDIR/README.txt"
 
 # -- the bank the tick box offers -------------------------------------------------------------------
 #
-# The recommended bank is 261.9 MiB against a 30.9 MiB shipped tree, so it cannot travel in the
+# The recommended bank is 261.7 MiB against a 30.9 MiB shipped tree, so it cannot travel in the
 # carrier and it is far too much to download during an install. What the tick box writes is a
 # *request*: `crates/machine/karaokemachine/src/firstrun.rs` reads it on the machine's first start
 # and fetches the bank there, with a progress line on the television and two more starts to try

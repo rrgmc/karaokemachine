@@ -323,11 +323,7 @@ fn download(
         let got = hasher.finish();
         if !digest::matches(&got, digest) {
             let _ = std::fs::remove_file(part);
-            let want = digest::wanted(digest);
-            return Err(format!(
-                "the download does not match the digest this bank is pinned to — expected {want}, \
-                 got {got}. Nothing was installed."
-            ));
+            return Err(digest::mismatch(digest, &got, "Nothing was installed."));
         }
     }
     Ok(())

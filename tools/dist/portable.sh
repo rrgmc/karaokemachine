@@ -299,7 +299,9 @@ you ask. To ask, do one of these before you start the machine:
 
 The machine downloads the bank the next time it starts, into
 data/karaokemachine/soundfonts, and then uses it.
+
 BODY
+  dist_bank_by_hand "data/karaokemachine/soundfonts"
   cat <<'BODY'
 
 Changing the machine's settings
