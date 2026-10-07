@@ -712,6 +712,15 @@ gives, so the machine's `packages`, `soundfonts` and `wallpapers` sit one level 
 makes those three folders, each with a text file saying what goes in it. A person who unpacks the
 archive sees where a song package goes before the machine has run.
 
+**The recommended bank is offered, and nothing fetches it unasked.** A setup program has a tick box,
+and an archive has none. So the archive ships the request as
+`data/karaokemachine/first-run-soundfont.json.example`, a name the machine does not read. Renaming it
+is the asking that
+[`Offering the recommended bank at install time`](#offering-the-recommended-bank-at-install-time)
+requires, and the folder's document says so. A live request in the archive would make every copy
+download a quarter of a gigabyte on its first start. The staging script refuses to write an archive
+that holds one.
+
 **A flag still wins.** `--data-dir` names its own folder in a portable copy as it does anywhere,
 and so do the `KM_PACKAGE_BUILDER_*` variables.
 

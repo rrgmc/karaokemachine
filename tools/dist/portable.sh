@@ -176,7 +176,36 @@ choose it on the machine's Sound page.
 The machine already has one bank, in the assets folder beside the programs.
 A bank here is offered beside it. Banks the machine downloads are also kept
 here.
+
+The machine can download the bank it recommends, the first time it starts.
+The README.txt beside the programs says how to ask for that.
 TEXT
+
+# -- the bank a setup program's tick box offers -------------------------------------------------------
+
+# A zip has no tick box, so the request ships under a name the machine does not read. Renaming it
+# is the asking that `Nothing downloads` in docs/decisions/ wants before anything is fetched.
+# `crates/machine/karaokemachine/src/firstrun.rs` reads the renamed file on the next start.
+#
+# The row comes from the table, as tools/platform/windows/installer.sh takes it, and the concrete
+# id is written for that script's reason: the bank named in the document is the bank that arrives.
+. tools/setup/soundfont-banks.sh
+BANK_ID=""
+for name in $KM_BANKS; do
+  km_bank "$name"
+  [ "$SF_RECOMMENDED" = "1" ] || continue
+  BANK_ID="$name"
+  BANK_NAME="$SF_NAME"
+  BANK_SIZE="$SF_SIZE"
+  BANK_STATUS="$SF_STATUS"
+done
+if [ -z "$BANK_ID" ] || [ "$BANK_STATUS" = "manual" ]; then
+  echo "dist-portable: the table recommends no bank the machine can download." >&2
+  exit 1
+fi
+REQUEST="first-run-soundfont.json"
+printf '{\n  "bank": "%s"\n}\n' "$BANK_ID" > "$OWN/$REQUEST.example"
+dist_detail "soundfont  $BANK_ID -> $BANK_NAME ($BANK_SIZE), offered and not requested"
 
 cat > "$OWN/wallpapers/README.txt" <<'TEXT'
 Your own background pictures go here.
@@ -258,6 +287,26 @@ to read what happens without it.
 
 This copy does not register file types, so double-clicking a .kmpkg file does
 not open it. Put the file in data/karaokemachine/packages.
+BODY
+  cat <<BODY
+
+A better instrument bank
+------------------------
+
+The machine comes with one instrument bank. It recommends a larger one,
+$BANK_NAME, which is a download of $BANK_SIZE. Nothing is downloaded unless
+you ask. To ask, do one of these before you start the machine:
+
+  - In data/karaokemachine, rename $REQUEST.example to
+    $REQUEST.
+  - Or run this once:
+
+        karaokemachine --first-run-soundfont recommended
+
+The machine downloads the bank the next time it starts, into
+data/karaokemachine/soundfonts, and then uses it.
+BODY
+  cat <<'BODY'
 
 Two machines on one computer
 ----------------------------
@@ -342,11 +391,12 @@ if [ -n "$(find "$SCRATCH" -type f 2>/dev/null)" ]; then
   fail=1
 fi
 rm -rf "$SCRATCH"
-# The archive carries the three text files and nothing a run left behind.
-LEFT="$(cd "$OUT/$DATA" && find . -type f | sort | tr '\n' ' ')"
-WANT="./karaokemachine/packages/README.txt ./karaokemachine/soundfonts/README.txt ./karaokemachine/wallpapers/README.txt "
+# The archive carries the four files written above and nothing a run left behind. A live request
+# among them would make every copy download a bank nobody asked for.
+LEFT="$(cd "$OUT/$DATA" && find . -type f | LC_ALL=C sort | tr '\n' ' ')"
+WANT="./karaokemachine/$REQUEST.example ./karaokemachine/packages/README.txt ./karaokemachine/soundfonts/README.txt ./karaokemachine/wallpapers/README.txt "
 if [ "$LEFT" != "$WANT" ]; then
-  echo "dist-portable: $OUT/$DATA holds more than its three text files: $LEFT" >&2
+  echo "dist-portable: $OUT/$DATA does not hold exactly its four files: $LEFT" >&2
   fail=1
 fi
 if [ "$fail" -ne 0 ]; then
