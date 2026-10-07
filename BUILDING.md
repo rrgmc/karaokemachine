@@ -261,6 +261,7 @@ cargo run -p karaokemachine -- --frame-stats                # fps, frame times a
 cargo run -p karaokemachine -- --list-audio-devices         # output devices and their stable ids
 cargo run -p karaokemachine -- --song-book ./songbook.pdf   # every installed song, as a PDF to print
 cargo run -p karaokemachine -- --song-book ./songbook.pdf --book-name "Sitting room"
+cargo run -p karaokemachine -- --sync song.mid --sync-words words.txt   # tap words onto a MIDI file, write song.kar
 ```
 
 The `--song-book` flag is an end-user feature and is described in

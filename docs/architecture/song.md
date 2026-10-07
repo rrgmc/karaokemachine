@@ -545,6 +545,53 @@ The General MIDI names live in `km-fixes` for the reason `DRUM_CHANNEL` does. Th
 General MIDI. A crate whose dependencies are `km-song` and `serde` is where a fact of that kind costs
 nothing to reach.
 
+## Writing words into a MIDI file
+
+`Song` cannot be written back, because it keeps the channel voice events and drops the rest. Two
+modules in `km-song` write a file without going through it.
+
+| Module | What it does |
+|---|---|
+| `smf` | Splits a file into chunks and a track into events, each event its delta and its bytes. `drop_where` removes events and keeps every later tick. `track_at` builds a track from events at absolute ticks. `header_for` writes the track count, and makes a format 0 file format 1. |
+| `kar_write` | `split_words` turns typed text into syllables. `write_soft_karaoke` removes a file's karaoke text and adds a header track and a `Words` track. |
+
+**`smf` expands running status and interprets nothing else.** An event that nobody drops leaves with
+the bytes it arrived with. `midly`'s writer is not used, because a round trip through it loses the
+tail of a damaged track.
+
+**`write_soft_karaoke` removes three kinds of event.** They are every lyric event, every text event
+after tick zero, and every text event that opens with `@`. A text event at tick zero is a comment
+and stays. A track that `smf` cannot walk is copied whole.
+
+**The written file is parsed before it is returned.** The call fails when the words do not read
+back as Soft Karaoke, so a caller never holds a file the machine reads differently.
+
+**A word's first syllable carries a leading space.** A trailing space on every syllable is the shape
+`marks_no_word_ends` reads as a file with no word boundaries.
+
+`km-carols` uses `smf` for its pass over abc2midi output.
+
+### The editor that calls it
+
+`karaokemachine --sync` is `src/sync.rs` in the machine's crate. It is a loop of its own and builds
+no `Machine`, no API and no catalog. It is in that crate for the bank lookup, the fonts, the audio
+device and `StepSmoother`.
+
+| Piece | Where it comes from |
+|---|---|
+| The tick of a tap | `SharedState::position_ticks`, smoothed, then moved by `display.lyric_offset_ms` |
+| The review screen | `write_soft_karaoke` in memory, parsed, drawn by `km_display::draw` |
+| The channels to snap to | `km_suitability::channel::measure` and `melody::rank` |
+
+**The lyric offset is the tap offset.** It measures how far the sound in the room trails the tick
+the engine reports, which is the same distance a tap trails it by.
+
+**`Session` holds the words and their ticks and no window.** The tests drive it directly. A tap
+never lands before the one in front of it, and a move or a snap never carries a syllable past a
+neighbour.
+
+**The editor's own text is English in the source.** The machine's catalog does not hold it.
+
 ## Language, as a code
 
 `Language` is the whole ISO 639-1 list compiled in, plus `und` and `zxx`.

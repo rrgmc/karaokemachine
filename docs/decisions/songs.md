@@ -1495,3 +1495,30 @@ nothing measures it and its half is hand-set alone.
 
 The curation tool still shows them, because reading what the file says is
 how somebody judged it.
+
+## A MIDI file gets its words in a new file, from an editor a person taps
+
+**`karaokemachine --sync` times typed words to a MIDI file and writes a new `.kar`.** The song
+plays, and the person presses Space as each syllable is sung. The editor never writes the file it
+plays.
+
+**The fix is a file because the fault is in a file.** Missing words and bad sync are what
+[`A song's own defects are corrected at playback, and only from what the file says`](audio.md#a-songs-own-defects-are-corrected-at-playback-and-only-from-what-the-file-says)
+leaves to the file. A corrected `.kar` needs nothing new from the machine, the package format or
+`km-pack`, and it plays in any karaoke player.
+
+**The words come from a text file.** The machine draws no text box, and the words of a song are
+pasted far more often than they are typed. One line of text is one line on screen, an empty line
+opens a page, and a hyphen splits a word into syllables.
+
+**The output is Soft Karaoke.** It is the first convention `km-song` tries, and the one other
+players read. The editor removes the lyric events and the timed text the source held, so the new
+words are the only words.
+
+**The person corrects a tap by ear and by the melody, and the editor guesses nothing.** The arrow keys move one syllable
+by 10 ms. One key moves every syllable onto the nearest note of a channel the person chooses, within
+120 ms, and keeps the words in order. Melody detection abstains on a file with no words, so the
+person chooses the channel.
+
+**The editor does not find words and does not split them.** It looks nothing up, and a syllable
+break is a hyphen somebody typed.
