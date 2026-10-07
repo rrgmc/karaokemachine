@@ -130,7 +130,7 @@ claim() { # <basename of a top-level payload entry> -> prints the component, or 
     # Every bare executable and the libraries they share. `lib/` has to sit beside them: every one
     # of them was staged with `@executable_path/lib`, and splitting them across components would mean
     # either a second copy of those 15 MB or a package that cannot stand on its own.
-    km-pack|km-lyrics|km-wallpaper-pack|km-package-builder|km-package-simple|km-remote|km-admin|lib)
+    km-pack|km-lyrics|km-site-pack|km-wallpaper-pack|km-package-builder|km-package-simple|km-remote|km-admin|lib)
                                    printf 'tools'   ;;
     # The READMEs and this workspace's own license texts. `docs` is the hidden always-on component,
     # so these are installed whatever was ticked -- which for the licenses is not a convenience:
@@ -487,7 +487,7 @@ set -eu
 # /usr/local/bin/km-pack finds /usr/local/karaokemachine/lib. None of them reads anything
 # relative to its own path, which is the other half of why a symlink is enough here and is not
 # enough for the machine.
-for t in km-pack km-lyrics km-wallpaper-pack km-package-builder km-package-simple km-remote km-admin; do
+for t in km-pack km-lyrics km-site-pack km-wallpaper-pack km-package-builder km-package-simple km-remote km-admin; do
   ln -sfn "/usr/local/karaokemachine/$t" "/usr/local/bin/$t"
 done
 exit 0
@@ -927,7 +927,7 @@ tools_payload="$(payload_of tools)"
 # else's machine, where this array does not exist. Everywhere *here* shares one list, so the two
 # counts in the closing summary are read off it rather than typed. A typed count is a number three
 # separate places have to remember when a command is added, and they do not.
-TOOL_COMMANDS=(km-pack km-lyrics km-wallpaper-pack km-package-builder km-package-simple km-remote km-admin)
+TOOL_COMMANDS=(km-pack km-lyrics km-site-pack km-wallpaper-pack km-package-builder km-package-simple km-remote km-admin)
 for t in "${TOOL_COMMANDS[@]}"; do
   [ -f "$tools_payload/$t" ] || fail "$t was not packaged"
   ( cd "$tools_payload" && run "./$t" --version >/dev/null 2>&1 ) \
@@ -1156,7 +1156,7 @@ if [ "$INSTALL" -eq 1 ]; then
       && fail "$app.app was installed quarantined; the readme pane's claim is wrong"
   done
 
-  for c in karaokemachine km-pack km-lyrics km-wallpaper-pack \
+  for c in karaokemachine km-pack km-lyrics km-site-pack km-wallpaper-pack \
            km-package-builder km-package-simple km-remote km-admin; do
     [ -e "/usr/local/bin/$c" ] || fail "/usr/local/bin/$c was not created"
     ( PATH=/usr/bin:/bin "/usr/local/bin/$c" --version >/dev/null 2>&1 ) \
@@ -1180,7 +1180,7 @@ if [ "$INSTALL" -eq 1 ]; then
     [ -d "/Applications/$app.app" ] && fail "the uninstaller left /Applications/$app.app behind"
   done
   [ -d /usr/local/karaokemachine ] && fail "the uninstaller left /usr/local/karaokemachine behind"
-  for c in karaokemachine km-pack km-lyrics km-wallpaper-pack \
+  for c in karaokemachine km-pack km-lyrics km-site-pack km-wallpaper-pack \
            km-package-builder km-package-simple km-remote km-admin; do
     [ -e "/usr/local/bin/$c" ] && fail "the uninstaller left /usr/local/bin/$c behind"
   done

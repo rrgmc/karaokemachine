@@ -21,6 +21,10 @@ Entries are written for somebody who has the machine. Why any of it is the way i
 - **The portable copy says how to set it up.** Rename one file to have the machine download the
   recommended instrument bank on its next start. A starter settings file shows the settings people
   change most, and the folder's README lists each program's port.
+- **A site's song files become a package in one command.** `km-site-pack` reads the pages of a site
+  you name and downloads the `.kar`, `.mid` and `.midi` files they link. It opens `.zip` archives,
+  and builds a package from the songs that have words. It honours the site's `robots.txt` and waits
+  between requests.
 
 ## [1.20.0] - 2026-10-06
 

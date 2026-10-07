@@ -88,13 +88,13 @@
             description="Finds pictures and instrument banks for the machine, and sends them to it.">
         <pkg-ref id="com.rrgmc.karaokemachine.admin"/>
     </choice>
-    <!-- All seven commands, not three: on macOS the two package builders, the remote and Assets each have a
+    <!-- All eight commands, not four: on macOS the two package builders, the remote and Assets each have a
          terminal form as well as an application, and this is the tick that installs it. That is a
          real difference from Windows, where one tick gives both because everything lands in one
          folder. -->
     <choice id="tools" visible="true" start_selected="true" start_enabled="true"
             title="Command-line tools"
-            description="km-pack, km-lyrics, km-wallpaper-pack, and the terminal forms of the two package builders, the remote and Assets. Installed in /usr/local/bin.">
+            description="km-pack, km-lyrics, km-site-pack, km-wallpaper-pack, and the terminal forms of the two package builders, the remote and Assets. Installed in /usr/local/bin.">
         <pkg-ref id="com.rrgmc.karaokemachine.tools"/>
     </choice>
     <!-- **The one choice that installs no files.** Its component package is built with pkgbuild's

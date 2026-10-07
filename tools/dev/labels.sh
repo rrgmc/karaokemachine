@@ -96,6 +96,7 @@ admin|tools/cmd/assets/km-admin/
 tools|tools/cmd/km-pack/
 package-simple|tools/cmd/km-package-simple/
 tools|tools/cmd/km-lyrics/
+tools|tools/cmd/km-site-pack/
 tools|tools/cmd/km-carols/
 tools|tools/cmd/assets/km-wallpaper-pack/
 windows|tools/platform/windows/

@@ -758,7 +758,7 @@ anybody working out of it.
 
 **On Linux every program is built in the image the tarball is built in.** `tools/dist/cmd.sh` builds
 the tools on the host, against the host's glibc and its ffmpeg. A folder cannot carry either. So
-`tools/platform/linux/portable.sh` builds the seven tools in the container, and the three that read
+`tools/platform/linux/portable.sh` builds every tool in the container, and the three that read
 video link the LGPL ffmpeg in `lib/` beside them.
 
 **A release carries one for each of the two platforms**, named

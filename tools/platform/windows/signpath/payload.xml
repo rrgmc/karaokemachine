@@ -24,6 +24,7 @@
         <include path="km-admin.exe"/>
         <include path="km-pack.exe"/>
         <include path="km-lyrics.exe"/>
+        <include path="km-site-pack.exe"/>
         <include path="km-wallpaper-pack.exe"/>
         <for-each>
           <authenticode-sign/>

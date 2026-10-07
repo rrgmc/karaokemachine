@@ -149,7 +149,7 @@ dist/portable/<platform>/karaokemachine-portable-<version>-<system>-<arch>.tar.g
 
 **On Linux the folder is built in the tarball's image.** `tools/platform/linux/portable.sh` runs
 `tarball.sh`, then `portable-in-container.sh` in the same image and build volume. That script copies
-the tarball's staged folder and builds the seven tools beside it. The three that read video get the
+the tarball's staged folder and builds every tool beside it. The three that read video get the
 rpath `$ORIGIN/lib`, which is the machine's own `lib/`. `tools/dist/cmd.sh` is not used there,
 because it links the host's ffmpeg and the host's glibc.
 
@@ -323,8 +323,8 @@ receiving this folder get to play*. Getting the same answer to both was the mist
   could not have applied to is a demand, not a default.
 - **The marker goes on the declined build** (`-no-video`, `no-video/` for the `.deb`). Two builds of
   one version must not overwrite each other, and `--zip` must not clobber a zip already sent to
-  somebody. `km-lyrics` and `km-wallpaper-pack` never carry it: naming a choice they were never
-  offered would be a lie in a folder name.
+  somebody. `km-lyrics`, `km-site-pack` and `km-wallpaper-pack` never carry it: naming a choice
+  they were never offered would be a lie in a folder name.
 
 **Four DLLs, not seven, and the list is derived rather than guessed.** `ffmpeg-next` is taken with
 `codec`, `format` and `software-resampling`, so avdevice, avfilter and swscale are never linked. The

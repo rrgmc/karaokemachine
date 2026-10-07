@@ -54,6 +54,7 @@ replace.
 | `cargo km-pack` | `run -p km-pack --` |
 | `cargo km-pack-video` | …with `--features video` |
 | `cargo km-lyrics` | `run -p km-lyrics --` |
+| `cargo km-site-pack` | `run -p km-site-pack --` |
 | `cargo km-remote` | `run -p km-remote --` |
 | `cargo km-remote-desktop` | …with `--features desktop`, the windowed build |
 | `cargo km-carols` | `run -p km-carols --` |
@@ -111,7 +112,7 @@ with a sentence beside each. Neither a cargo alias file nor a directory of scrip
 | `task lint:cargo` | asserts every value in `.cargo/config.toml` is a string, which is what a worktree can inherit without doubling it |
 | `task lint:labels` | asserts every platform and program the bug form offers has a label in `tools/dev/labels.sh` |
 | `task check:linux` | what CI's Linux job runs, in Docker, on this machine |
-| `task dist` | stages every release this platform can carry — the machine, then all seven tools |
+| `task dist` | stages every release this platform can carry — the machine, then all eight tools |
 | `task run` | starts the staged machine, at whatever version this workspace is on, and hands the prompt back |
 | `task run:package-builder` | the same for the curation tool; `-- /path/to/songs` is forwarded |
 | `task run:remote` / `task run:assets` | the same for the other two products that are servers with a page |
@@ -508,7 +509,7 @@ tools/platform/linux/deb.sh --tools     # ...and karaokemachine-tools, the three
 tools/platform/linux/verify-deb.sh      # install that .deb in a clean container (--tools for the other)
 tools/platform/linux/tarball.sh         # a portable Linux folder + .tar.gz, built in Docker
 tools/platform/linux/verify-tarball.sh  # unpack and run it in a clean container (--image to pick one)
-tools/dist/cmd.sh            # all seven: km-pack, km-lyrics, km-package-builder,
+tools/dist/cmd.sh            # all eight: km-pack, km-lyrics, km-site-pack, km-package-builder,
                              #   km-package-simple, km-remote, km-admin, km-wallpaper-pack
 tools/dist/cmd.sh km-package-builder  #   ...or just one of them
 tools/dist/cmd.sh --no-video #   ...without the video feature; every script above takes this
@@ -830,6 +831,7 @@ workflow, is [`What CI runs`](CONTRIBUTING.md#what-ci-runs) in `CONTRIBUTING.md`
 | `crates/machine/karaokemachine` | The binary |
 | `tools/cmd/km-pack` | Packaging, as a library *and* a command |
 | `tools/cmd/km-lyrics` | Dump a parsed lyric timeline and analysis for one file, or scan a folder |
+| `tools/cmd/km-site-pack` | Fetch the song files a site links and build a package from them, as a library *and* a command |
 | `tools/cmd/km-package-builder` | The curation web tool: a folder of source files in, `.kmpkg` packages out |
 | `tools/cmd/km-package-simple` | The folder packager: one folder in, uncurated `.kmpkg` packages out, with no database |
 | `tools/cmd/assets/km-wallpaper-pack` | Builds a legibility-verified wallpaper pack. **In the second workspace** — `tools/cmd/assets` is `exclude`d from this one, see the note in `Cargo.toml` |
@@ -1796,6 +1798,27 @@ file with the language and the last folder. Every package it writes carries the 
 and a listing goes beside each one. See
 [`A package can be built straight from a folder`](docs/decisions/curation.md#a-package-can-be-built-straight-from-a-folder).
 
+## The site packager
+
+```sh
+cargo km-site-pack <address> ./songs            # read the site, fill the folder, build the package
+cargo km-site-pack <address> ./songs --dry-run  # list what a run would download
+cargo km-site-pack <address> ./songs --min-suitability 6 --delay-ms 2000
+cargo km-site-pack --from-folder ./songs        # no request: open the archives, build the package
+```
+
+It reads pages inside the folder of the address, two links deep unless `--depth` says otherwise. It
+downloads every `.kar`, `.mid` and `.midi` file they link, and opens each `.zip` for the same three.
+A file already in the folder is kept, so a stopped run carries on.
+
+The package and its `.kmspec.yaml` go to the folder's parent, or to `--out-dir`. A file with no words
+stays in the folder and out of the package. A folder of more than 999 songs becomes volumes.
+
+**The crate is a library as well as a command.** `km_site_pack::run` is the whole job, and `crawl`,
+`download`, `unpack` and `package` are its four stages. Each blocks, prints nothing, and reports
+through a callback that can stop it. See
+[`A person names the site a song file is fetched from`](docs/decisions/repository.md#a-person-names-the-site-a-song-file-is-fetched-from).
+
 ## The curation tool
 
 ```sh
@@ -2118,7 +2141,7 @@ task dist NO_VIDEO=1  ZIP=1  VERBOSE=1
 | `tools/dist/cmd.sh` | the six command-line tools, one folder each |
 | `tools/dist/bin.sh` | one folder with **every** executable in it |
 | `tools/dist/portable.sh` | the portable copy: that folder with a marker and a `data` folder, as a `.zip` or a `.tar.gz` |
-| `tools/platform/linux/portable.sh` | its Linux half: the tarball folder plus the seven tools, built in Docker |
+| `tools/platform/linux/portable.sh` | its Linux half: the tarball folder plus every tool, built in Docker |
 | `tools/platform/windows/installer.sh` | one Inno Setup program carrying all seven products |
 | `tools/platform/macos/installer.sh` | the same as a `.pkg` |
 | `tools/platform/windows/installer-remote.sh` | a second, small one carrying the remote alone |

@@ -2811,6 +2811,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "km-site-pack"
+version = "1.20.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "km-kmpkg",
+ "km-pack",
+ "km-song",
+ "km-songcode",
+ "km-testkit",
+ "percent-encoding",
+ "ureq",
+ "url",
+ "zip",
+]
+
+[[package]]
 name = "km-song"
 version = "1.20.0"
 dependencies = [

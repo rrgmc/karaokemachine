@@ -7,7 +7,7 @@
 # prefix). KM_VIDEO selects the optional video feature, and the default is 0 for the reason
 # tarball-in-container.sh gives.
 #
-# It gathers the machine's staged tarball folder, builds the seven tools beside it, and hands the
+# It gathers the machine's staged tarball folder, builds every tool beside it, and hands the
 # folder to tools/dist/portable.sh. That script adds the marker, the `data` folders and the
 # document, proves the claim and writes the archive.
 
@@ -24,10 +24,10 @@ VIDEO="${KM_VIDEO:-0}"
 FFPREFIX="/build/ffmpeg-lgpl/$FF_SRC_ID"
 T="${CARGO_TARGET_DIR:-/build/target}"
 
-# The same seven, and the same two facts about them, that tools/dist/cmd.sh keeps: which take
+# The same tools, and the same two facts about them, that tools/dist/cmd.sh keeps: which take
 # `video`, and which live in the second workspace. That script cannot be run here, because it
 # links the host's ffmpeg and stages one folder per tool.
-TOOLS=(km-pack km-lyrics km-package-builder km-package-simple km-remote km-admin km-wallpaper-pack)
+TOOLS=(km-pack km-lyrics km-site-pack km-package-builder km-package-simple km-remote km-admin km-wallpaper-pack)
 video_capable() { case "$1" in km-pack|km-package-builder|km-package-simple) return 0 ;; *) return 1 ;; esac; }
 tool_build_args() {
   case "$1" in

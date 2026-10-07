@@ -1,0 +1,33 @@
+[package]
+name = "km-site-pack"
+description = "Fetch the song files a site links, and build a package from them"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+# The package half. A folder becomes a description and a description becomes a package through
+# km-pack's own library, so this tool cannot build a package `km-pack build` would build differently.
+km-pack = { workspace = true }
+km-kmpkg = { workspace = true }
+km-songcode = { workspace = true }
+anyhow = { workspace = true }
+clap = { workspace = true }
+# The blocking client the machine fetches a bank with. It carries its own TLS, so it adds nothing to
+# the feature set `reqwest` is built with for the tools that talk to a machine.
+ureq = { workspace = true }
+# Resolves a link against the page it was found on, and spells a path a server will accept.
+url = { workspace = true }
+percent-encoding = { workspace = true }
+# Opens an archive a site offers its songs in.
+zip = { workspace = true }
+
+[dev-dependencies]
+km-testkit = { workspace = true }
+km-song = { workspace = true, features = ["testing"] }
