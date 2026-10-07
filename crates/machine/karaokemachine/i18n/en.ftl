@@ -15,7 +15,9 @@ sync-channel = channel { $number }
 sync-channel-named = channel { $number } ({ $name })
 sync-vocal-label = Vocal line: { $channel }
 sync-vocal-label-silenced = Vocal line: { $channel }, silenced
-sync-vocal-label-none = Vocal line: not chosen
+sync-vocal-label-detecting = Vocal line: detecting from your taps
+sync-vocal-label-not-found = Vocal line: none found. M picks one
+sync-vocal-label-no-channel = Vocal line: this file has no pitched channel
 # The selected word inside its line, and where it starts.
 sync-selected-at = { $line }   at { $time }
 
@@ -38,6 +40,7 @@ sync-cleared = Every tap is cleared. Press Enter to play, or Ctrl+Shift+Backspac
 sync-clear-undone = The taps are back
 sync-review-so-far = Review of the { $tapped } words tapped so far. R goes back to tapping
 sync-all-tapped = All words tapped. The song now repeats with your timing, to check
+sync-all-tapped-no-vocal = All words tapped, and your taps follow no channel. M picks the vocal line
 sync-paused-tap = The song is paused. Enter plays it
 sync-word-ends = "{ $word }" ends here
 sync-end-refused = E ends a word after it starts, while the song plays

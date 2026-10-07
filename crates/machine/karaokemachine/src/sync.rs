@@ -437,6 +437,43 @@ fn vocal_line_under(taps_ms: &[u32], channels_ms: &[Vec<u32>]) -> Option<usize> 
     scored.first().map(|&(index, _, _)| index)
 }
 
+/// What the editor knows about the vocal line, which is what its label says.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum VocalLine {
+    /// A person named this channel, or the taps did.
+    Chosen(usize),
+    /// A word is still untapped, so a tap can still point at a channel.
+    Detecting,
+    /// Every word is tapped and the taps follow no channel.
+    NotFound,
+    /// The file has no channel that plays pitched notes.
+    NoChannel,
+}
+
+/// The state is worked out from the taps each frame and stored nowhere, so a tap given back
+/// opens the detection again.
+fn vocal_line_state(
+    choice: Option<usize>,
+    channels: usize,
+    tapped: usize,
+    total: usize,
+) -> VocalLine {
+    match choice {
+        _ if channels == 0 => VocalLine::NoChannel,
+        Some(chosen) => VocalLine::Chosen(chosen),
+        None if tapped < total => VocalLine::Detecting,
+        None => VocalLine::NotFound,
+    }
+}
+
+/// When each tapped word starts, in milliseconds, which is what [`vocal_line_under`] reads.
+fn taps_ms(session: &Session, song: &Song) -> Vec<u32> {
+    session.syllables[..session.stamped]
+        .iter()
+        .map(|s| song.tempo_map.tick_to_ms(s.tick))
+        .collect()
+}
+
 /// A channel the words can be snapped to.
 struct MelodyChoice {
     /// The MIDI channel, numbered from 0.
@@ -890,6 +927,10 @@ pub(crate) fn run(paths: &Paths, settings: &Settings, request: &Request) -> anyh
     };
 
     let mut session = Session::new(syllables).with_tapped(already_tapped);
+    // Words that come with their timing are taps already made, so they are read as taps are.
+    if choice.is_none() {
+        choice = vocal_line_under(&taps_ms(&session, &song), &onsets_ms);
+    }
     // Tapping goes on from the word after the last one the file timed, with a run-up.
     if session.phase() == Phase::Tapping && already_tapped > 0 {
         let last = session.syllables[already_tapped - 1].tick;
@@ -1183,12 +1224,7 @@ pub(crate) fn run(paths: &Paths, settings: &Settings, request: &Request) -> anyh
                         // Only while nobody has chosen: a channel named by a person or found
                         // earlier is never replaced by a later guess.
                         if choice.is_none() {
-                            let taps_ms: Vec<u32> = session
-                                .tapped()
-                                .iter()
-                                .map(|s| song.tempo_map.tick_to_ms(s.tick))
-                                .collect();
-                            choice = vocal_line_under(&taps_ms, &onsets_ms);
+                            choice = vocal_line_under(&taps_ms(&session, &song), &onsets_ms);
                             if let Some(found) = choice {
                                 let channel = choices[found].label(words);
                                 say(words
@@ -1200,7 +1236,12 @@ pub(crate) fn run(paths: &Paths, settings: &Settings, request: &Request) -> anyh
                             }
                         }
                         if session.phase() == Phase::Review {
-                            say(t("sync-all-tapped"));
+                            // The last tap ends the detection, so the person is told how it ended.
+                            say(t(if choice.is_none() && !choices.is_empty() {
+                                "sync-all-tapped-no-vocal"
+                            } else {
+                                "sync-all-tapped"
+                            }));
                         }
                     } else {
                         say(t("sync-paused-tap"));
@@ -1469,9 +1510,14 @@ pub(crate) fn run(paths: &Paths, settings: &Settings, request: &Request) -> anyh
             &mode,
             &status,
         );
-        let vocal = match melody {
-            Some(melody) => {
-                let channel = melody.label(words);
+        let vocal = match vocal_line_state(
+            choice,
+            choices.len(),
+            session.stamped,
+            session.syllables.len(),
+        ) {
+            VocalLine::Chosen(chosen) => {
+                let channel = choices[chosen].label(words);
                 let key = if silenced {
                     "sync-vocal-label-silenced"
                 } else {
@@ -1481,7 +1527,9 @@ pub(crate) fn run(paths: &Paths, settings: &Settings, request: &Request) -> anyh
                     .msg_with(key, &[("channel", channel.as_str().into())])
                     .into_owned()
             }
-            None => t("sync-vocal-label-none"),
+            VocalLine::Detecting => t("sync-vocal-label-detecting"),
+            VocalLine::NotFound => t("sync-vocal-label-not-found"),
+            VocalLine::NoChannel => t("sync-vocal-label-no-channel"),
         };
         screen.melody(&mut canvas, &mut cache, &fonts, &theme, &vocal, note_lit);
         if let Some((text, since)) = &message {
@@ -2115,6 +2163,31 @@ mod tests {
     fn a_few_taps_choose_nothing() {
         let sung: Vec<u32> = (0..30).map(|i| 10_000 + i * 1_000).collect();
         assert_eq!(vocal_line_under(&taps()[..5], &[sung]), None);
+    }
+
+    #[test]
+    fn the_vocal_line_is_being_detected_while_a_word_is_untapped() {
+        assert_eq!(vocal_line_state(None, 3, 0, 40), VocalLine::Detecting);
+        assert_eq!(vocal_line_state(None, 3, 39, 40), VocalLine::Detecting);
+    }
+
+    #[test]
+    fn the_vocal_line_is_not_found_only_when_every_word_is_tapped() {
+        assert_eq!(vocal_line_state(None, 3, 40, 40), VocalLine::NotFound);
+        // A tap given back opens the detection again.
+        assert_eq!(vocal_line_state(None, 3, 39, 40), VocalLine::Detecting);
+    }
+
+    #[test]
+    fn a_chosen_channel_is_the_vocal_line_however_many_words_are_tapped() {
+        assert_eq!(vocal_line_state(Some(1), 3, 0, 40), VocalLine::Chosen(1));
+        assert_eq!(vocal_line_state(Some(1), 3, 40, 40), VocalLine::Chosen(1));
+    }
+
+    #[test]
+    fn a_file_with_no_pitched_channel_has_nothing_to_detect() {
+        assert_eq!(vocal_line_state(None, 0, 0, 40), VocalLine::NoChannel);
+        assert_eq!(vocal_line_state(None, 0, 40, 40), VocalLine::NoChannel);
     }
 
     /// A file's words come back as the editor wrote them: ticks, breaks, spacing and ends.
