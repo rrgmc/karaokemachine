@@ -296,7 +296,7 @@ open ports/machine/ios/KaraokeMachine.xcodeproj     # pick the device, press Run
 **To hand it to somebody else instead**, `IPA=1` packages the build as
 `dist/karaokemachine/ios/karaokemachine-<version>-ios-unsigned.ipa`, which they sign with their own
 Apple ID. It needs `RELEASE=1` and it keeps the video decoder.
-[`README.md`](README.md#installing) has the procedure they follow.
+[The manual](docs/manual/ios.md) has the procedure they follow.
 
 `DEVICE=1` skips the simulator slice, which is a whole second SDL and a whole second ffmpeg.
 `NO_VIDEO=1` leaves out the decoder and the four frameworks with it.
@@ -352,7 +352,7 @@ simulator.
 
 **To hand it to somebody else instead**, `IPA=1` packages the build as
 `dist/km-remote/ios/km-remote-<version>-ios-unsigned.ipa`, which they sign with their own Apple ID.
-It needs `RELEASE=1`. [`README.md`](README.md#installing) has the procedure they follow.
+It needs `RELEASE=1`. [The manual](docs/manual/ios.md) has the procedure they follow.
 
 ### What to know before it goes wrong
 

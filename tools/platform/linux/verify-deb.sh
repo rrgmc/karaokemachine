@@ -30,7 +30,7 @@
 #
 # **And it proves the appliance service ships disabled**, which is the claim with the widest blast
 # radius and was the one thing here nothing checked. `What the machine *is*, on Linux` in
-# docs/decisions/distribution.md turns on it, README.md now promises it to anybody installing the package, and the
+# docs/decisions/distribution.md turns on it, docs/manual/appliance.md promises it to anybody installing the package, and the
 # whole of what enforces it is a comment in debian/postinst saying not to enable -- one
 # `[package.metadata.deb.systemd-units]` section in Cargo.toml would have cargo-deb generate the
 # enable fragments, and nothing would have said so. The symptom is not subtle on the machine it

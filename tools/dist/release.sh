@@ -62,7 +62,7 @@
 #
 # **Both `.ipa`s say `unsigned` in the name, and that is the product rather than a lesser build of
 # it.** iOS has no signature this repository can put on a file a stranger installs, so the person
-# installing signs it with their own Apple ID; `README.md` is where that is written for them.
+# installing signs it with their own Apple ID; `docs/manual/ios.md` is where that is written for them.
 #
 # **The macOS row takes the notarized package and no other.** `tools/platform/macos/installer.sh`
 # writes the signed-only and the ad-hoc build into the same folder, under names ending in
