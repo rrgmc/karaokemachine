@@ -33,6 +33,7 @@
       <th>{{ "column-file"|t }}</th>
       <th>{{ "column-title"|t }}</th>
       <th>{{ "column-artist"|t }}</th>
+      <th class="mark">{{ "column-words"|t }}</th>
       <th></th>
     </tr>
   </thead>
@@ -47,6 +48,8 @@
     </td>
     <td>{{ song.title }}</td>
     <td>{{ song.artist }}</td>
+    {# A mark and not a control: it says the file has words of its own, and nothing ticks it. #}
+    <td class="mark">{% if song.has_words %}<span class="ticked" role="img" aria-label="{{ "row-own-words"|t }}" title="{{ "row-own-words"|t }}">&#x2713;</span>{% endif %}</td>
     <td class="num">
       {# Select starts nothing. It hands the song to the words panel under the browser, which holds
          every choice and the Start button. The `data-` attributes are what the panel needs to know

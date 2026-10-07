@@ -1631,11 +1631,13 @@ the editor's flags give: only the person knows which they want.
 
 **A row selects a song, and one panel on the second tab starts it.** Select opens that tab. The
 panel names the selected song and holds the words box, every choice about the start, and Start. A
-row holds the file name, the title, the artist and Select. Fifteen rows of buttons and boxes are
-harder to read than fifteen rows of songs, and the words belong beside the button that uses them.
+row holds the file name, the title, the artist, the words mark and Select. Fifteen rows of buttons
+and boxes are harder to read than fifteen rows of songs, and the words belong beside the button
+that uses them.
 
-**A row's note is a few words.** It says whether the song has words, and which text file supplies
-them. Most rows carry one, and the hint under the words box says what the tick changes.
+**A column marks the songs that have words of their own.** Most songs have them, and a sentence
+on every row hides the few that do not. A note under the file name is left for what is unusual. That is
+a text file that supplies the words, a synced copy that exists, or a file the editor cannot read.
 
 **The panel holds the title, the artist and the language, and each starts as the song states it.**
 A stated name is often wrong: a file name, a code, or the artist in the title's place. The synced

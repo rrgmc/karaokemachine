@@ -28,6 +28,7 @@ tab-words = 2. Words and start
 column-file = File
 column-title = Title
 column-artist = Artist
+column-words = Words
 action-clear = Clear
 
 action-start = Start
@@ -50,7 +51,6 @@ page-next = Next
 row-not-midi = This is not a MIDI file the editor can read.
 row-uses-text-file = Uses the words in { $file }.
 row-own-words = Has words already.
-row-needs-words = Has no words.
 row-output-exists = { $file } is already here.
 words-replace = Replace the synced file that is already there
 

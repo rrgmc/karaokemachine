@@ -140,6 +140,20 @@ td { padding: 0.35rem 0.4rem; border-top: 1px solid var(--line); vertical-align:
 
 th { text-align: left; color: var(--dim); font-weight: 500; padding: 0.25rem 0.4rem; }
 
+/* The Words column's mark: a ticked box in the accent, for a file that has words of its own. */
+.mark { text-align: center; white-space: nowrap; }
+.ticked {
+    display: inline-block;
+    width: 1.15rem;
+    height: 1.15rem;
+    line-height: 1.15rem;
+    border-radius: 3px;
+    background: var(--accent);
+    color: var(--accent-ink);
+    font-weight: 700;
+    font-size: 0.85rem;
+}
+
 /* The row whose song the words panel holds. */
 tr.selected td { background: var(--bg); }
 tr.selected td:first-child { box-shadow: inset 3px 0 0 var(--accent); }

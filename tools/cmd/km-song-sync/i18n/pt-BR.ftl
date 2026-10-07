@@ -28,6 +28,7 @@ tab-words = 2. Letra e início
 column-file = Arquivo
 column-title = Título
 column-artist = Artista
+column-words = Letra
 action-clear = Limpar
 
 action-start = Iniciar
@@ -50,7 +51,6 @@ page-next = Próxima
 row-not-midi = Este não é um arquivo MIDI que o editor consegue ler.
 row-uses-text-file = Usa a letra de { $file }.
 row-own-words = Já tem letra.
-row-needs-words = Não tem letra.
 row-output-exists = { $file } já está aqui.
 words-replace = Substituir o arquivo sincronizado que já existe
 
