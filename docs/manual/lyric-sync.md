@@ -40,7 +40,8 @@ becomes the file name, and an empty artist or language stays empty.
 <p align="center">
 <img src="../images/song-sync-page.png" width="90%"
      alt="KM Song Sync in a browser: a folder of four MIDI files, each marked as having no words,
-with the first one selected, and under the list a box that holds the words of that carol with
+with the first one selected, and under the list its title, an empty artist field, a language list,
+and a box that holds the words of that carol with
 hyphens between the syllables, a ticked box that says to use them, and a Start button">
 <br><sub><b>KM Song Sync</b>, with a song selected and its words pasted.</sub>
 </p>
