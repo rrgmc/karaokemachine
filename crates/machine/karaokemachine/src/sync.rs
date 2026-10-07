@@ -517,6 +517,7 @@ pub(crate) fn run(paths: &Paths, settings: &Settings, request: &Request) -> anyh
     let mut ended_seen = state.songs_ended();
     let mut leaving = false;
     let mut show_help = true;
+    let mut was_in_review = false;
     let mut message: Option<(String, Instant)> = Some((
         "Press Enter to start the song, then Space on each syllable".to_owned(),
         Instant::now(),
@@ -734,6 +735,18 @@ pub(crate) fn run(paths: &Paths, settings: &Settings, request: &Request) -> anyh
                 _ => {}
             }
         }
+
+        // Review opens on the first word, with a run-up, and playing. The song was wherever the
+        // taps left it, which is past everything there is to check.
+        let in_review = session.phase() == Phase::Review;
+        if in_review && !was_in_review {
+            let first = session.syllables[0].tick;
+            let ms = song.tempo_map.tick_to_ms(first).saturating_sub(RUN_UP_MS);
+            stream.send(Command::SeekMs(ms));
+            stream.send(Command::Play);
+            want_playing = true;
+        }
+        was_in_review = in_review;
 
         // A song that ran out. Review goes round again, and tapping waits for the person.
         let ended = state.songs_ended();
