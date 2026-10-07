@@ -374,6 +374,30 @@ through other tools, so the writer puts the quotes back on the way out. It is on
 general escaper, because **one code is the whole problem**. Of YAML 1.1's boolean spellings, `no` is
 the only one that is also an ISO 639-1 language.
 
+## A site's song files, fetched and packaged
+
+`tools/cmd/km-site-pack` is a library of four stages and a command over them. `crawl` lists the
+files a site links, `download` brings them into a folder, and `unpack` opens the archives.
+`package` calls `km_pack::describe` and `km_pack::build::build`, the two calls `km-package-simple`
+makes. So a package built from a site is the package `km-pack` builds from the same folder.
+
+| Choice | Reason |
+|---|---|
+| Blocking `ureq`, not `reqwest` | `ureq` carries its own TLS. TLS on `reqwest` would change the build of every tool that talks to a machine |
+| No HTML parser | Song sites are hand-written markup. The crawler reads `href` and `src` values and resolves them with `url` |
+| Pages stay inside the start address's folder | One host often holds many unrelated sites |
+| One request at a time, with a wait | A small site is served by a small host. `Crawl-delay` in `robots.txt` lengthens the wait |
+| A file is checked by its first bytes | A host that lost a file often sends a page with status 200 |
+| A name from outside becomes one plain file name | A URL segment and an archive entry are both a stranger's text |
+| Each stage reports through a callback and prints nothing | A page can run the stages the command runs |
+
+**What a run holds in memory is one file.** The largest is an archive, bounded at 256 MiB. An entry
+read out of an archive is bounded at 32 MiB, and one archive at 1 GiB unpacked.
+
+**A challenge page is recognized and reported.** A site behind a browser check answers 403 or 503
+with a challenge header or script. The crawl stops and names `--from-folder`, which packages a
+folder somebody filled with a browser.
+
 ## One bug that predates all of this
 
 Four commands called `read_song` for every entry. That fails for anything whose media lived beside

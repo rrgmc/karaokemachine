@@ -193,4 +193,10 @@ sweep karaokemachine-setup       "$VERSION" dist/setup/macos/*
 sweep km-remote-setup            "$VERSION" dist/setup/windows/*
 sweep km-remote-setup            "$VERSION" dist/setup/macos/*
 
+# The portable copy, `dist/portable/<platform>/karaokemachine-portable-<version>-<system>-<arch>`,
+# as a folder and as an archive. The loop above passes `portable` as the app, and these begin
+# `karaokemachine-portable-`.
+sweep karaokemachine-portable    "$VERSION" dist/portable/windows/*
+sweep karaokemachine-portable    "$VERSION" dist/portable/linux/*
+
 echo "dist-clean: $REMOVED older staged item(s); kept $VERSION"

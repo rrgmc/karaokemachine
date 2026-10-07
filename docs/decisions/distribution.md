@@ -690,6 +690,85 @@ bundle, so `--all` removes them (it does sweep the zips). And on Windows and mac
 are a second copy of a 31 MiB instrument bank. On Linux they are byte-identical, because nothing has
 two forms there. The report says so, rather than leaving it to look like a bug.
 
+## A portable copy keeps its state beside its programs
+
+**A folder holding `karaokemachine-portable.txt` is a portable copy, and every program in it keeps
+its files under `data/` there.** Nothing is read from the per-user directories and nothing is
+written to them. So a portable copy runs beside an installed one, and neither changes the other's
+settings, catalog, passwords or songs.
+
+**A marker file and not a second build.** The archive carries the marker and a setup program does
+not, so one set of executables serves both. A build with the per-user directories compiled out
+would hold the rule against somebody deleting the file. It would also build and sign every program
+a second time. Deleting the marker is a deliberate act, and the marker's own text says what it
+does.
+
+**One crate answers for every program.** `km-dirs` gives the three directories a program keeps its
+files in, and reads the marker beside the executable. `clippy.toml` refuses `ProjectDirs::from`
+anywhere else, in both workspaces. A rule of *never* holds only where one function gives the answer.
+
+**The layout is `data/<program>/`, with settings and data in one folder.** That is what `--data-dir`
+gives, so the machine's `packages`, `soundfonts` and `wallpapers` sit one level down. The archive
+makes those three folders, each with a text file saying what goes in it. A person who unpacks the
+archive sees where a song package goes before the machine has run.
+
+**The recommended bank is offered, and nothing fetches it unasked.** A setup program has a tick box,
+and an archive has none. So the archive ships the request as
+`data/karaokemachine/first-run-soundfont.json.example`, a name the machine does not read. Renaming it
+is the asking that
+[`Offering the recommended bank at install time`](#offering-the-recommended-bank-at-install-time)
+requires, and the folder's document says so. A live request in the archive would make every copy
+download a quarter of a gigabyte on its first start. The staging script refuses to write an archive
+that holds one.
+
+**The archive ships starter settings for the machine, and never a live settings file.** A new
+archive is unpacked over an old folder, and a `settings.json` in it would replace the one somebody
+edited. So `data/karaokemachine/settings.example.json` holds the settings people change most, at
+their defaults, and the folder's document says to copy it. A settings file ignores a key it does
+not know, so a test holds the starter file to keys the machine writes.
+
+**Only the machine has a port in its settings.** The four tools take `--port` when they start, and
+the folder's document lists each one beside its default. A port setting in four more programs is
+new behaviour, and a second machine on one computer is the case that needs a port moved.
+
+**A flag still wins.** `--data-dir` names its own folder in a portable copy as it does anywhere,
+and so do the `KM_PACKAGE_BUILDER_*` variables.
+
+**A portable copy that cannot write its folder stops and says so.** `km-dirs` names directories and
+creates none, so the failure belongs to the program that tried. It is never a return to the
+per-user directories.
+
+**It refuses `--register`.** Registering a file type writes to the per-user registry or the home
+directory. The Linux archive leaves `install.sh` out for the same reason.
+
+**The WebView2 profile moves with the rest**, to `data/<program>/cache/webview`. That is the one
+case where a profile sits beside an executable, and
+[`Where a webview keeps its profile`](interface.md#where-a-webview-keeps-its-profile) says why.
+
+**Windows and Linux, and not macOS.** A signed bundle cannot hold files that change, and a
+downloaded one runs from a read-only path until it is moved. `km-dirs` reads no marker there.
+
+**The archive holds every program in both forms.** `tools/dist/portable.sh` copies
+`dist/bin/<platform>` and `dist/bin-console/<platform>` into one folder. A portable copy has no
+second folder to reach for when a program does not start.
+
+**The marker goes into that folder and no other.** `dist/bin/<platform>` is the setup program's
+payload. `tools/dist/bin.sh` also empties it on every run, which would delete the `data/` folder of
+anybody working out of it.
+
+**On Linux every program is built in the image the tarball is built in.** `tools/dist/cmd.sh` builds
+the tools on the host, against the host's glibc and its ffmpeg. A folder cannot carry either. So
+`tools/platform/linux/portable.sh` builds every tool in the container, and the three that read
+video link the LGPL ffmpeg in `lib/` beside them.
+
+**A release carries one for each of the two platforms**, named
+`karaokemachine-portable-<version>-<system>-<arch>`. The staging script proves the claim before it
+writes the archive: the machine's `--show-paths` must name `data/karaokemachine` for its settings,
+catalog and packages.
+
+**The machine still listens on its usual port.** Two machines on one computer need two ports, and
+the folder's own document names `--api-bind`.
+
 ## A Windows setup program
 
 **One installer for all seven products, built with Inno Setup 6, installing per-user into
@@ -1428,7 +1507,7 @@ adds delay to it. So a headset is a practice device for one person, and it serve
 than the box under a television does.
 
 **A release carries this platform, and `quest` is its own word in `--platforms`.** The headset APK is
-a thirteenth carrier and the tag builds it beside the rest. It stays a word of its own rather than
+a carrier of its own and the tag builds it beside the rest. It stays a word of its own rather than
 folding into `android`. The two files install side by side, so somebody choosing a download is
 choosing between them.
 
@@ -2544,10 +2623,11 @@ files that mean nothing to a reader who has a download.
 - `karaokemachine-setup-<version>-macos-<arch>.pkg`
 - `karaokemachine-<version>-android.apk`
 - `karaokemachine-<version>-ios-unsigned.ipa`
+- `karaokemachine-portable-<version>-windows-x86_64.zip`
 - a `.deb` and a tarball, which carry Debian's own conventions
 
 **A release page is flat**, so the folder that says it in `dist/setup/windows/` and
-`dist/setup/macos/` is not there. A reader choosing between thirteen files has the filename and
+`dist/setup/macos/` is not there. A reader choosing between fifteen files has the filename and
 the sentence beside it.
 
 **The extension is not enough on its own.** A `.pkg` and an `.exe` each belong to one system, and
@@ -2563,9 +2643,9 @@ name the build gave it, so one name holds in `dist/`, in the documents and on th
 
 **`bash tools/dist/release.sh --platforms windows,linux,android,quest` names what a cut carries**, and the rows
 for every other platform leave the table, the count and the body's download table together. A run
-that names none carries all thirteen, which is the full release and the default.
+that names none carries all fifteen, which is the full release and the default.
 
-**No one desk machine builds all thirteen.** The two `.pkg` files and the two `.ipa` files are
+**No one desk machine builds all fifteen.** The two `.pkg` files and the two `.ipa` files are
 produced on a Mac and the rest are not. So a machine without one has four carriers it cannot stage,
 and a refusal it can do nothing about. Holding a release until every platform can be built on one
 computer waits on hardware rather than on the software being ready. The release workflow names its
@@ -2598,7 +2678,7 @@ the rows the first one wrote with it.
 
 ## CI builds the release, and a Mac adds its packages
 
-**A pushed `v*` tag runs `.github/workflows/release.yml`, which builds eleven of the thirteen carriers
+**A pushed `v*` tag runs `.github/workflows/release.yml`, which builds thirteen of the fifteen carriers
 and fills the draft release.** Each platform's job runs the same staging script a person types, and
 a last job runs `bash tools/dist/release.sh --upload` over what they staged. Publishing stays
 `gh release edit v<version> --draft=false`, typed by somebody who has opened the page.

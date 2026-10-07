@@ -193,10 +193,11 @@ impl Paths {
         }
 
         let (asset_dir, overlay_asset_dir) = Self::discover_asset_dirs();
-        match directories::ProjectDirs::from("", "", APP_NAME) {
+        // A portable copy answers with a folder beside the executable, and `km_dirs` decides that.
+        match km_dirs::for_app(APP_NAME) {
             Some(dirs) => Self {
-                config_dir: dirs.config_dir().to_path_buf(),
-                data_dir: dirs.data_dir().to_path_buf(),
+                config_dir: dirs.config,
+                data_dir: dirs.data,
                 asset_dir,
                 overlay_asset_dir,
                 extra_data_dir: None,

@@ -136,7 +136,7 @@ platform whose carrier is missing still stops the run. See
 
 ## 8. Publish
 
-Either way, the result is a **draft**. Somebody opens the page, sees all thirteen files on it, reads
+Either way, the result is a **draft**. Somebody opens the page, sees all fifteen files on it, reads
 it, and only then types this:
 
 ```sh

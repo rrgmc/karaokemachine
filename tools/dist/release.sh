@@ -16,11 +16,11 @@
 #   dist/release/<version>/            every asset under the name it is published as
 #   dist/release/<version>-notes.md    the body, rendered from tools/dist/release-notes.md
 #
-# **It gathers; it does not build.** Thirteen carriers, six build systems, three of them in Docker, one
+# **It gathers; it does not build.** Fifteen carriers, six build systems, three of them in Docker, one
 # needing a JDK and two a Mac: a script that ran all of them would be a release cut by whoever typed
 # one word, from artifacts nobody had looked at. So each row below names the command that produces
 # it, a missing artifact is reported by name rather than skipped, and the run stops. `BUILDING.md`
-# has the thirteen commands in order.
+# has the fifteen commands in order.
 #
 # **`--platforms` is for the release no one machine can cut.** The two `.pkg` files and the two
 # `.ipa` files are built on a Mac and the rest are not, so a machine without one has four carriers it
@@ -240,15 +240,20 @@ fi
 # **The macOS pattern ends at that glob rather than after it**, because what follows the architecture
 # on the other two packages is a signing marker. Both architectures the installer names end in a
 # digit and no marker does, so `[0-9]` is what keeps the ad-hoc build off a release page.
+#
+# **The two portable patterns end the same way**, and there the marker is `-no-video`. A release
+# carries the build that plays every kind of song.
 release_rows() {
   cat <<ROWS
 windows|dist/setup/windows|karaokemachine-setup-$VERSION-windows-*.exe|=|task dist:setup
 macos|dist/setup/macos|karaokemachine-setup-$VERSION-macos-*[0-9].pkg|=|task dist:setup:notarized
 windows|dist/setup/windows|km-remote-setup-$VERSION-windows-*.exe|=|task dist:setup:remote
+windows|dist/portable/windows|karaokemachine-portable-$VERSION-windows-*[0-9].zip|=|task dist:portable
 macos|dist/setup/macos|km-remote-setup-$VERSION-macos-*[0-9].pkg|=|task dist:setup:remote:notarized
 linux|dist/karaokemachine/linux|karaokemachine_$VERSION-1_*.deb|=|task dist:deb
 linux|dist/karaokemachine-tools/linux|karaokemachine-tools_$VERSION-1_*.deb|=|task dist:deb:tools
 linux|dist/karaokemachine/linux|karaokemachine-$VERSION-*.tar.gz|=|task dist:tarball
+linux|dist/portable/linux|karaokemachine-portable-$VERSION-linux-*[0-9].tar.gz|=|task dist:portable
 android|ports/machine/android/app/build/outputs/apk/flat/release|app-flat-release.apk|karaokemachine-$VERSION-android.apk|task build:android RELEASE=1
 android|ports/remote/android/app/build/outputs/apk/release|app-release.apk|km-remote-$VERSION-android.apk|task build:android:remote RELEASE=1
 quest|ports/machine/android/app/build/outputs/apk/headset/release|app-headset-release.apk|karaokemachine-$VERSION-quest.apk|task build:android:quest RELEASE=1

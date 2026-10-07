@@ -8,8 +8,8 @@ name: Release
 #
 # | Job     | Runs on        | Carriers                                                  |
 # |---------|----------------|-----------------------------------------------------------|
-# | windows | windows        | the setup program, and the remote's own                   |
-# | linux   | ubuntu, Docker | the machine's `.deb`, `karaokemachine-tools`, the tarball |
+# | windows | windows        | the setup program, the remote's own, the portable copy    |
+# | linux   | ubuntu, Docker | both `.deb` files, the tarball, the portable copy         |
 # | android | ubuntu         | the machine's APK, and the remote's                       |
 # | ios     | macos          | both unsigned `.ipa` files                                |
 # | carols  | ubuntu         | the carol pack                                            |
@@ -147,6 +147,7 @@ jobs:
           name: windows-payload-unsigned
           path: |
             dist/bin/windows/*.exe
+            dist/bin-console/windows/*-console.exe
             dist/km-remote/windows/km-remote-*/km-remote.exe
           if-no-files-found: error
           retention-days: 1
@@ -171,6 +172,15 @@ jobs:
 
       - run: bash tools/platform/windows/installer.sh --no-build
       - run: bash tools/platform/windows/installer-remote.sh --no-build
+
+      # After the programs are signed, so the archive carries the signed ones. A zip has no
+      # signature of its own, so it takes no part in the second round below.
+      - run: bash tools/dist/portable.sh --no-build
+      - uses: actions/upload-artifact@v7
+        with:
+          name: windows-portable
+          path: dist/portable/windows/*.zip
+          if-no-files-found: error
 
       - name: Upload the setup programs to sign
         id: setup
@@ -228,6 +238,8 @@ jobs:
       - run: bash tools/platform/linux/deb.sh
       - run: bash tools/platform/linux/deb.sh --tools
       - run: bash tools/platform/linux/tarball.sh
+      # Copies the tarball's folder and builds the tools beside it, in the same image and volume.
+      - run: bash tools/platform/linux/portable.sh --no-build
 
       - run: bash tools/platform/linux/verify-deb.sh
       - run: bash tools/platform/linux/verify-deb.sh --tools
@@ -241,6 +253,7 @@ jobs:
             dist/karaokemachine/linux/*.deb
             dist/karaokemachine/linux/*.tar.gz
             dist/karaokemachine-tools/linux/*.deb
+            dist/portable/linux/*.tar.gz
           if-no-files-found: error
 
   # **Signed with the release key or not built.** Without `KM_ANDROID_KEYSTORE` the build signs with
@@ -424,6 +437,10 @@ jobs:
         with:
           name: windows
           path: dist/setup/windows
+      - uses: actions/download-artifact@v8
+        with:
+          name: windows-portable
+          path: dist/portable/windows
       - uses: actions/download-artifact@v8
         with:
           name: linux

@@ -195,7 +195,7 @@ done
 # for a name this package does ship has to be said out loud: it is how somebody finds out that
 # /usr/local/bin/km-pack is Homebrew's, or somebody else's build, rather than assuming the uninstall
 # missed it. Anything taken above no longer exists, so this only ever speaks about what stayed.
-for name in karaokemachine km-pack km-lyrics km-wallpaper-pack \
+for name in karaokemachine km-pack km-lyrics km-site-pack km-wallpaper-pack \
             km-package-builder km-package-simple km-remote km-admin
 do
   entry="$BINDIR/$name"

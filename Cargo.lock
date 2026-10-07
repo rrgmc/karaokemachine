@@ -2212,7 +2212,6 @@ dependencies = [
  "async-trait",
  "axum",
  "clap",
- "directories",
  "getrandom 0.4.3",
  "jni 0.22.4",
  "km-admin-pages",
@@ -2223,6 +2222,7 @@ dependencies = [
  "km-catalog",
  "km-cdg",
  "km-console",
+ "km-dirs",
  "km-display",
  "km-ecapplog",
  "km-fixes",
@@ -2414,6 +2414,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "km-dirs"
+version = "1.20.0"
+dependencies = [
+ "directories",
+]
+
+[[package]]
 name = "km-display"
 version = "1.20.0"
 dependencies = [
@@ -2596,11 +2603,11 @@ dependencies = [
  "askama",
  "axum",
  "clap",
- "directories",
  "form_urlencoded",
  "km-api",
  "km-cdg",
  "km-console",
+ "km-dirs",
  "km-ecapplog",
  "km-fixes",
  "km-folders",
@@ -2643,8 +2650,8 @@ dependencies = [
  "askama",
  "axum",
  "clap",
- "directories",
  "km-console",
+ "km-dirs",
  "km-folders",
  "km-kmpkg",
  "km-locale",
@@ -2672,7 +2679,7 @@ dependencies = [
 name = "km-passwords"
 version = "1.20.0"
 dependencies = [
- "directories",
+ "km-dirs",
  "serde",
  "serde_json",
  "tracing",
@@ -2701,8 +2708,8 @@ version = "1.20.0"
 dependencies = [
  "anyhow",
  "clap",
- "directories",
  "km-console",
+ "km-dirs",
  "km-ecapplog",
  "km-logfile",
  "km-osopen",
@@ -2801,6 +2808,23 @@ dependencies = [
  "tokio",
  "tower",
  "tracing",
+]
+
+[[package]]
+name = "km-site-pack"
+version = "1.20.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "km-kmpkg",
+ "km-pack",
+ "km-song",
+ "km-songcode",
+ "km-testkit",
+ "percent-encoding",
+ "ureq",
+ "url",
+ "zip",
 ]
 
 [[package]]

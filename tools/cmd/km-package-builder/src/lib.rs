@@ -820,8 +820,8 @@ fn init_logging(cli: &Cli) -> Option<km_logfile::LogFile> {
 /// The qualifier is the one [`crate::recent`] and `desktop::webview_data_dir` already use, so this
 /// program has a single identity under `directories`.
 fn logs_dir() -> Option<PathBuf> {
-    let dirs = directories::ProjectDirs::from("", "", "km-package-builder")?;
-    Some(dirs.data_dir().join(km_logfile::SUBDIR))
+    let dirs = km_dirs::for_app("km-package-builder")?;
+    Some(dirs.data.join(km_logfile::SUBDIR))
 }
 
 /// `--backup` and `--restore`, which do their job and leave.
@@ -1010,6 +1010,14 @@ async fn start(cli: Cli, log_file: Option<km_logfile::LogFile>, shell: Shell) ->
     // `say` as everything else, so a `--register` run that was launched by double-clicking an
     // installer shortcut does not panic trying to print its result.
     if cli.register {
+        // Registering writes to the per-user registry or the home directory, and a portable copy
+        // changes nothing outside its own folder.
+        if km_dirs::is_portable() {
+            anyhow::bail!(
+                "this is a portable copy, and it changes nothing outside its own folder, \
+                 so it does not register file types"
+            );
+        }
         register::register()?;
         return Ok(Started::Done);
     }

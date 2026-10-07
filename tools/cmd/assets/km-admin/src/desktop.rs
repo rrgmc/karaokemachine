@@ -221,5 +221,5 @@ fn build_window(
 /// Under this program's own data directory, so a distributed folder does not grow one beside the
 /// executable.
 fn webview_data_dir() -> Option<std::path::PathBuf> {
-    directories::ProjectDirs::from("", "", "km-admin").map(|dirs| dirs.data_dir().join("webview"))
+    km_dirs::for_app("km-admin").map(|dirs| dirs.data.join("webview"))
 }

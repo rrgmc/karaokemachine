@@ -47,7 +47,7 @@ km-logfile = { workspace = true }
 km-locale = { workspace = true, features = ["askama"] }
 askama = { workspace = true }
 axum = { workspace = true }
-directories = { workspace = true }
+km-dirs = { workspace = true }
 tokio = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

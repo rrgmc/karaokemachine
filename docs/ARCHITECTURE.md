@@ -178,6 +178,9 @@ crates/
     km-folders/            # one page of the folders under a folder, for the folder pickers both
                            # package builders draw inside their pages. The listing only: the
                            # builder's "indexed" badge stays in the builder.
+    km-dirs/               # where a program keeps its files: the per-user directories, or the
+                           # `data` folder beside a portable copy. The one crate that names a
+                           # per-user directory, and `clippy.toml` holds the rest to that.
     km-androidlog/         # tracing events into logcat, the only place a line goes on a device.
                            # Takes a tag, because there are two Android applications.
     km-logfile/            # ...and the desktop counterpart: those same events into a file, for the
@@ -216,6 +219,8 @@ tools/                     # six folders and nothing loose -- see "How things he
     km-pack/               # lib: the packaging pipeline, shared with km-package-builder
                            # bin: build/inspect/validate .kmpkg packages (runs km-suitability)
     km-lyrics/             # CLI: dump a parsed lyric timeline + analysis as JSON (debugging)
+    km-site-pack/          # lib: crawl one site, download its song files, open its archives
+                           # bin: the same, then a package through km-pack's describe and build
     km-package-builder/    # the curation tool: a local web server over a folder of source files,
                            # with a Fluent catalog of its own in i18n/
     km-package-simple/     # the folder packager: km-pack's describe and build behind one page,

@@ -758,6 +758,14 @@ pub fn main(shell: Shell) -> anyhow::Result<()> {
     // machine that has never run. Somebody who registers before their first start should not have a
     // data directory made for them by it. Mirrors `km-package-builder`'s own ordering.
     if cli.register {
+        // Registering writes to the per-user registry or the home directory, and a portable copy
+        // changes nothing outside its own folder.
+        if km_dirs::is_portable() {
+            anyhow::bail!(
+                "this is a portable copy, and it changes nothing outside its own folder, \
+                 so it does not register file types"
+            );
+        }
         return crate::register::register();
     }
     if cli.unregister {
@@ -765,6 +773,11 @@ pub fn main(shell: Shell) -> anyhow::Result<()> {
     }
 
     if cli.show_paths {
+        // Said first, because it explains every path below it. `--data-dir` names its own folder,
+        // so a run given one is not described as portable.
+        if cli.data_dir.is_none() && km_dirs::is_portable() {
+            say("portable   yes — everything is kept in the data folder beside the programs");
+        }
         say(format!("settings   {}", paths.settings_file().display()));
         say(format!("catalog  {}", paths.library_file().display()));
         // The answer to "where do I put my songs?", which is why it is printed even before it
