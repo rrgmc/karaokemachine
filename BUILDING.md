@@ -108,11 +108,12 @@ with a sentence beside each. Neither a cargo alias file nor a directory of scrip
 | `task test` | `cargo km-test`, video included; `task test:no-video` declines it |
 | `task lint` | `cargo km-lint` — clippy over every target, warnings denied, video included |
 | `task fmt` | formats both workspaces: this one's members, and the excluded `tools/cmd/assets` |
-| `task check` | `lint:local`, `lint:prose`, `lint:pin`, `lint:version`, `lint:mdns`, `lint:cargo`, `lint:labels`, `fmt:check`, `lint`, then `test` — the pass before a push |
+| `task check` | `lint:local`, `lint:prose`, `lint:pin`, `lint:version`, `lint:mdns`, `lint:cargo`, `lint:labels`, `lint:ci`, `fmt:check`, `lint`, then `test` — the pass before a push |
 | `task lint:local` | asserts no tracked file names a local path, address or person |
 | `task lint:prose` | asserts the prose this branch adds, and the messages it commits them in, state the rule rather than narrating it, and take the sentence shape |
 | `task lint:cargo` | asserts every value in `.cargo/config.toml` is a string, which is what a worktree can inherit without doubling it |
 | `task lint:labels` | asserts every platform and program the bug form offers has a label in `tools/dev/labels.sh` |
+| `task lint:ci` | asserts every file a CI build job reads is a file whose change starts that job |
 | `task check:linux` | what CI's Linux job runs, in Docker, on this machine |
 | `task dist` | stages every release this platform can carry — the machine, then all eight tools |
 | `task run` | starts the staged machine, at whatever version this workspace is on, and hands the prompt back |
