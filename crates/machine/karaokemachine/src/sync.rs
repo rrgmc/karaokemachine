@@ -398,21 +398,23 @@ impl MelodyChoice {
     }
 }
 
-/// Every channel that plays notes and is not the drums, likeliest melody first.
+/// Every channel that plays notes and is not the drums, in channel order.
+///
+/// The order is the one a person steps through, so it is the one they can predict. Which channel
+/// is likeliest is [`vocal_line_under`]'s question, and it asks the taps.
 fn melody_choices(song: &Song) -> Vec<MelodyChoice> {
     let thresholds = km_suitability::Thresholds::default();
-    let stats = km_suitability::channel::measure(song, &thresholds);
-    let ranked = km_suitability::melody::rank(song, &stats, &thresholds);
-    ranked
-        .iter()
-        .filter_map(|evidence| stats.iter().find(|s| s.channel == evidence.channel))
+    let mut choices: Vec<MelodyChoice> = km_suitability::channel::measure(song, &thresholds)
+        .into_iter()
         .filter(|s| s.note_count > 0 && s.channel != km_suitability::DRUM_CHANNEL)
         .map(|s| MelodyChoice {
             channel: s.channel,
             name: s.track_names.first().cloned(),
-            onsets: s.onset_ticks.clone(),
+            onsets: s.onset_ticks,
         })
-        .collect()
+        .collect();
+    choices.sort_by_key(|choice| choice.channel);
+    choices
 }
 
 /// Opens the sound: the owner's bank, or the test tone when there is none to load.
@@ -708,7 +710,14 @@ pub(crate) fn run(paths: &Paths, settings: &Settings, request: &Request) -> anyh
                     }
                 }
                 (_, Keycode::M) if !choices.is_empty() => {
-                    let next = choice.map_or(0, |c| (c + 1) % choices.len());
+                    // Up the channel numbers, and down them with Shift.
+                    let count = choices.len();
+                    let next = match (choice, shift) {
+                        (None, false) => 0,
+                        (None, true) => count - 1,
+                        (Some(c), false) => (c + 1) % count,
+                        (Some(c), true) => (c + count - 1) % count,
+                    };
                     choice = Some(next);
                     if silenced {
                         // The silence follows the choice, so each press is heard.
@@ -1075,7 +1084,7 @@ const TAPPING_KEYS: [HelpRow; 3] = [
             ("Enter", "play / pause"),
             ("Left Right", "5 s"),
             ("-  +", "slower / faster"),
-            ("M", "pick the vocal line"),
+            ("M", "next channel as the vocal line (Shift: previous)"),
             ("V", "silence it"),
         ],
     ),
@@ -1113,7 +1122,7 @@ const REVIEW_KEYS: [HelpRow; 4] = [
     (
         "NOTES",
         &[
-            ("M", "pick the channel that plays the vocal line"),
+            ("M", "next channel as the vocal line (Shift: previous)"),
             ("V", "silence it"),
             ("N", "move the words onto its notes (Ctrl+Z undoes)"),
         ],
