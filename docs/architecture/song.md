@@ -678,7 +678,7 @@ holds no editor. It starts `karaokemachine --sync` as a child and waits for it.
 **`plan` has two shapes.** An executable gets `--sync-words -` and the words on standard input. A
 macOS bundle is started with `open -n -W -a`, and the words and the editor's refusal go through two
 files in the cache folder. `open` hides the exit status, so a refusal is a line that starts with
-`Error:`.
+`Error:`. The machine's argument parser writes `error:`, and that line is a refusal too.
 
 **The child's standard output is discarded.** The machine writes its log there, and a pipe nobody
 reads fills and stops the editor. Standard error is kept, because a refused start says why there.

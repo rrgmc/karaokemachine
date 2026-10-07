@@ -39,6 +39,19 @@ pub fn find(
     exe_dir: Option<&Path>,
     search: Option<&OsStr>,
 ) -> Option<Machine> {
+    let applications = cfg!(target_os = "macos").then(|| Path::new("/Applications"));
+    find_in(given, exe_dir, applications, search)
+}
+
+/// [`find`], with the folder that holds installed bundles named by the caller.
+///
+/// A test names none, so a machine installed on the computer that runs it is never found.
+fn find_in(
+    given: Option<&Path>,
+    exe_dir: Option<&Path>,
+    applications: Option<&Path>,
+    search: Option<&OsStr>,
+) -> Option<Machine> {
     if let Some(given) = given {
         return given.exists().then(|| of(given.to_path_buf()));
     }
@@ -54,8 +67,8 @@ pub fn find(
             places.push(folder.join(BUNDLE));
         }
     }
-    if cfg!(target_os = "macos") {
-        places.push(Path::new("/Applications").join(BUNDLE));
+    if let Some(applications) = applications {
+        places.push(applications.join(BUNDLE));
     }
     if let Some(search) = search {
         places.extend(std::env::split_paths(search).map(|dir| dir.join(&file)));
@@ -92,7 +105,7 @@ mod tests {
             std::fs::write(dir.join(machine_file()), b"").expect("writing a test file");
         }
 
-        let found = find(None, Some(&beside), Some(elsewhere.as_os_str()));
+        let found = find_in(None, Some(&beside), None, Some(elsewhere.as_os_str()));
         assert_eq!(found, Some(Machine::Binary(beside.join(machine_file()))));
     }
 
@@ -103,7 +116,7 @@ mod tests {
         std::fs::create_dir_all(&tools).expect("making a test folder");
         std::fs::write(scratch.join(machine_file()), b"").expect("writing a test file");
 
-        let found = find(None, Some(&tools), None);
+        let found = find_in(None, Some(&tools), None, None);
         assert_eq!(found, Some(Machine::Binary(scratch.join(machine_file()))));
     }
 
@@ -114,8 +127,20 @@ mod tests {
         std::fs::create_dir_all(&inside).expect("making a test folder");
         std::fs::create_dir_all(scratch.join(BUNDLE)).expect("making a test folder");
 
-        let found = find(None, Some(&inside), None);
+        let found = find_in(None, Some(&inside), None, None);
         assert_eq!(found, Some(Machine::Bundle(scratch.join(BUNDLE))));
+    }
+
+    #[test]
+    fn the_installed_bundle_is_found_after_the_places_beside_this_program() {
+        let scratch = Scratch::new("sync-machine-installed");
+        let applications = scratch.join("Applications");
+        let empty = scratch.join("empty");
+        std::fs::create_dir_all(applications.join(BUNDLE)).expect("making a test folder");
+        std::fs::create_dir_all(&empty).expect("making a test folder");
+
+        let found = find_in(None, Some(&empty), Some(&applications), None);
+        assert_eq!(found, Some(Machine::Bundle(applications.join(BUNDLE))));
     }
 
     #[test]
@@ -125,11 +150,14 @@ mod tests {
         let named = scratch.join("another");
         std::fs::write(&named, b"").expect("writing a test file");
 
-        let found = find(Some(&named), Some(scratch.path()), None);
+        let found = find_in(Some(&named), Some(scratch.path()), None, None);
         assert_eq!(found, Some(Machine::Binary(named)));
         // Somebody who names a machine means that one. Starting another would hide the mistake.
         let missing = scratch.join("not-there");
-        assert_eq!(find(Some(&missing), Some(scratch.path()), None), None);
+        assert_eq!(
+            find_in(Some(&missing), Some(scratch.path()), None, None),
+            None
+        );
     }
 
     #[test]
@@ -143,8 +171,8 @@ mod tests {
         std::fs::write(linked.join(machine_file()), b"").expect("writing a test file");
         let search = std::env::join_paths([&empty, &linked]).expect("joining the search path");
 
-        let found = find(None, Some(&empty), Some(&search));
+        let found = find_in(None, Some(&empty), None, Some(&search));
         assert_eq!(found, Some(Machine::Binary(linked.join(machine_file()))));
-        assert_eq!(find(None, Some(&empty), None), None);
+        assert_eq!(find_in(None, Some(&empty), None, None), None);
     }
 }
