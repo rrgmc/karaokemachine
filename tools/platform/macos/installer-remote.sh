@@ -102,27 +102,16 @@ if [ "$BUILD" -eq 1 ]; then
   printf '   staged in %s\n' "$(dist_elapsed "$staging_started")"
 fi
 
-# **Found rather than named, and exactly one.** `dist_staged_dir` takes the version, and the version
-# comes out of the bundle inside the folder, so the folder has to be resolved first. Two matches is an
-# error rather than a choice -- the shape `one_match` in tools/dist/release.sh uses.
+# **Named by the checkout's version, and never found by a glob.** The folder of an earlier version
+# stays under `dist/` until somebody sweeps it. A glob would then match two folders, and this
+# script has no reason to prefer either. `dist_manifest_version` reads the manifests, because the
+# folder comes before the bundle that could print a version.
 #
 # **The plain name only.** tools/dist/cmd.sh marks a *declined* build, so `-no-desktop` is a remote
 # with no window, and the window is the whole of what this carrier installs.
+# The empty suffix is how `dist_staged_dir` is told that.
 PARENT="$(dist_dir km-remote macos)"
-PAYLOAD=""
-for candidate in "$PARENT/km-remote-"*"-$(dist_host_triple)"; do
-  [ -d "$candidate" ] || continue
-  if [ -n "$PAYLOAD" ]; then
-    echo "installer-remote: two staged folders under $PARENT/:" >&2
-    echo "                  $(basename "$PAYLOAD") and $(basename "$candidate")" >&2
-    echo "                  Remove the one you do not want, or run tools/dist/clean.sh." >&2
-    exit 1
-  fi
-  PAYLOAD="$candidate"
-done
-
-if [ -z "$PAYLOAD" ]; then
-  echo "installer-remote: nothing staged under $PARENT/." >&2
+if ! PAYLOAD="$(dist_staged_dir km-remote macos "$(dist_manifest_version)" "")"; then
   if [ "$BUILD" -eq 0 ]; then
     echo "                  --no-build was given, so nothing was staged for it here either. Run" >&2
     echo "                  this script without it, or tools/dist/cmd.sh km-remote first." >&2
