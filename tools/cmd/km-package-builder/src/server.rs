@@ -2094,6 +2094,45 @@ mod tests {
         assert!(html.contains(r#"<span class="suitability "#), "{html}");
     }
 
+    /// A heading sorts the Folders page by its column, and the links within the page keep the order.
+    ///
+    /// `brasil/` holds two songs and `ingles/` one, so the count and the name disagree about which
+    /// comes first.
+    #[tokio::test]
+    async fn the_folders_page_sorts_by_the_column_asked_for() {
+        let (_corpus, state) = two_folders("folders-sort");
+        let brasil_leads = |html: &str| {
+            let at = |name: &str| html.find(&format!(r#"href="/songs?folder={name}/""#));
+            let (brasil, ingles) = (at("brasil").expect("brasil"), at("ingles").expect("ingles"));
+            brasil < ingles
+        };
+
+        let (_, by_name) = get(&state, "/folders").await;
+        assert!(brasil_leads(&by_name), "{by_name}");
+        assert!(
+            by_name.contains(r#"href="/folders?path=brasil/""#),
+            "{by_name}"
+        );
+
+        let (_, names_turned) = get(&state, "/folders?sort=name-desc").await;
+        assert!(!brasil_leads(&names_turned), "{names_turned}");
+
+        let (_, fewest) = get(&state, "/folders?sort=songs").await;
+        assert!(!brasil_leads(&fewest), "{fewest}");
+
+        let (_, most) = get(&state, "/folders?sort=songs-desc").await;
+        assert!(brasil_leads(&most), "{most}");
+        // Opening a folder keeps the order, and the heading in force offers the other direction.
+        assert!(
+            most.contains(r#"href="/folders?path=brasil/&#38;sort=songs-desc""#),
+            "{most}"
+        );
+        assert!(
+            most.contains(r#"href="/folders?path=&#38;sort=songs""#),
+            "{most}"
+        );
+    }
+
     /// The body the filter bar actually submits, with the tags set to what is asked for.
     ///
     /// Every control, including the empty ones — which is the shape that matters. A form submits all
