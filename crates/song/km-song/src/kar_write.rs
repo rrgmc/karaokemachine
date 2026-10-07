@@ -7,6 +7,8 @@
 //! **The music is not touched.** Every event that is not karaoke text leaves with the bytes it
 //! arrived with, through [`crate::smf`].
 
+use std::path::{Path, PathBuf};
+
 use crate::karaoke::KaraokeFlavor;
 use crate::smf::{self, Event, SmfError};
 use crate::timeline::{LineBreak, RawSyllable};
@@ -102,6 +104,21 @@ pub fn write_soft_karaoke(source: &[u8], words: &KarWords) -> Result<Vec<u8>, Ka
     Ok(out)
 }
 
+/// Where a song's synced copy goes when nobody names a place: beside it, with the karaoke extension.
+///
+/// A song that already has that extension gets `-synced` on its name, so the copy is never the
+/// song. A program listing songs asks here, and marks the copies that exist as the editor would
+/// find them.
+#[must_use]
+pub fn synced_path(song: &Path) -> PathBuf {
+    let beside = song.with_extension("kar");
+    if beside != song {
+        return beside;
+    }
+    let stem = song.file_stem().unwrap_or_default().to_string_lossy();
+    song.with_file_name(format!("{stem}-synced.kar"))
+}
+
 /// Splits typed words into syllables, every one at tick zero.
 ///
 /// One typed line is one sung line, and an empty line opens a page. A hyphen splits a word into
@@ -136,6 +153,34 @@ pub fn split_words(typed: &str) -> Vec<RawSyllable> {
         }
     }
     syllables
+}
+
+/// Writes syllables back as the text [`split_words`] reads.
+///
+/// One sung line is one line of text, and a page opens after an empty line. A syllable that goes on
+/// a word gets a hyphen before it, and a hyphen that is drawn is written `\-`. Reading the result
+/// gives the same words, lines and pages.
+#[must_use]
+pub fn join_words(syllables: &[RawSyllable]) -> String {
+    let mut typed = String::new();
+    let mut after_space = true;
+    for (index, syllable) in syllables.iter().enumerate() {
+        let text = syllable.text.trim();
+        let opens_a_word = after_space || syllable.text.starts_with(char::is_whitespace);
+        match syllable.break_before {
+            _ if index == 0 => {}
+            LineBreak::Page => typed.push_str("\n\n"),
+            LineBreak::Line => typed.push('\n'),
+            LineBreak::None if opens_a_word => typed.push(' '),
+            LineBreak::None => typed.push('-'),
+        }
+        typed.push_str(&text.replace('-', "\\-"));
+        after_space = syllable.text.ends_with(char::is_whitespace);
+    }
+    if !typed.is_empty() {
+        typed.push('\n');
+    }
+    typed
 }
 
 /// One typed word as its syllables.
@@ -216,6 +261,29 @@ mod tests {
     use super::*;
     use crate::timeline::WordEnds;
     use crate::{EventKind, TimedEvent, testing};
+
+    #[test]
+    fn the_synced_copy_goes_beside_the_song_and_is_never_the_song() {
+        assert_eq!(
+            synced_path(Path::new("a/song.mid")),
+            Path::new("a/song.kar")
+        );
+        assert_eq!(
+            synced_path(Path::new("a/song.kar")),
+            Path::new("a/song-synced.kar")
+        );
+    }
+
+    #[test]
+    fn words_written_back_read_as_the_same_words() {
+        let typed = "ka-ra-o-ke night\nwell\\-known song\n\nsecond page\n";
+        let syllables = split_words(typed);
+        assert_eq!(join_words(&syllables), typed);
+        assert_eq!(split_words(&join_words(&syllables)), syllables);
+        let dashes = split_words("a ---");
+        assert_eq!(split_words(&join_words(&dashes)), dashes);
+        assert_eq!(join_words(&[]), "");
+    }
 
     fn timed(typed: &str, step: u32) -> KarWords {
         let mut syllables = split_words(typed);

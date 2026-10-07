@@ -2,14 +2,14 @@
 #
 # Stages portable builds of the command-line tools.
 #
-#   tools/dist/cmd.sh                    # all eight
+#   tools/dist/cmd.sh                    # all nine
 #   tools/dist/cmd.sh km-pack            # just one, or any subset
 #   tools/dist/cmd.sh --zip              # also produce a .zip beside each folder
 #   tools/dist/cmd.sh --no-video         # build the video-capable tools without the `video` feature
 #   tools/dist/cmd.sh -v                 # watch the builds; quiet is the default
 #
 # **Quiet by default**, and this is the script it matters most in: with no arguments it runs
-# `cargo build --release` eight times. The phases, the per-tool reports and every warning are printed;
+# `cargo build --release` nine times. The phases, the per-tool reports and every warning are printed;
 # the compile streams are not. A step that fails replays everything it held back, so `-v` is for
 # watching a build rather than for diagnosing one afterwards.
 #
@@ -66,7 +66,7 @@ cd "$(dirname "$0")/../.."
 . tools/dist/common.sh
 DIST_SCRIPT=dist-tools
 
-ALL_TOOLS=(km-pack km-lyrics km-site-pack km-package-builder km-package-simple km-remote km-admin km-wallpaper-pack)
+ALL_TOOLS=(km-pack km-lyrics km-site-pack km-package-builder km-package-simple km-song-sync km-remote km-admin km-wallpaper-pack)
 
 # Which tools can be built with video, and which simply have no such feature. km-lyrics parses MIDI
 # text and never touches a container, so asking for `--features video` there is not a smaller build --
@@ -94,7 +94,7 @@ video_capable() { case "$1" in km-pack|km-package-builder|km-package-simple) ret
 # stays one file with no runtime dependency beyond libc.
 desktop_capable() {
   case "$1" in
-    km-package-builder|km-package-simple|km-remote|km-admin) [ "$PLATFORM" != "linux" ] ;;
+    km-package-builder|km-package-simple|km-song-sync|km-remote|km-admin) [ "$PLATFORM" != "linux" ] ;;
     *) return 1 ;;
   esac
 }
@@ -127,7 +127,7 @@ desktop_capable() {
 # See `bundle=` in the staging loop, which is where the two are actually combined.
 bundle_capable() {
   case "$1" in
-    km-package-builder|km-package-simple|km-remote|km-admin) [ "$PLATFORM" = "macos" ] ;;
+    km-package-builder|km-package-simple|km-song-sync|km-remote|km-admin) [ "$PLATFORM" = "macos" ] ;;
     *) return 1 ;;
   esac
 }
@@ -146,6 +146,7 @@ bundle_name()  {
   case "$1" in
     km-package-builder) printf 'KM Package Builder' ;;
     km-package-simple)  printf 'KM Simple Package' ;;
+    km-song-sync)       printf 'KM Song Sync' ;;
     km-remote)          printf 'KM Remote' ;;
     km-admin)           printf 'KM Admin' ;;
     *) echo "dist-tools: no bundle name for $1" >&2; exit 1 ;;
@@ -155,6 +156,7 @@ bundle_plist() {
   case "$1" in
     km-package-builder) printf 'tools/platform/macos/Info.package-builder.plist' ;;
     km-package-simple)  printf 'tools/platform/macos/Info.package-simple.plist' ;;
+    km-song-sync)       printf 'tools/platform/macos/Info.song-sync.plist' ;;
     km-remote)          printf 'tools/platform/macos/Info.remote.plist' ;;
     km-admin)           printf 'tools/platform/macos/Info.admin.plist' ;;
     *) echo "dist-tools: no bundle plist for $1" >&2; exit 1 ;;
@@ -164,6 +166,7 @@ bundle_icns()  {
   case "$1" in
     km-package-builder) printf 'icon/km-package-builder.icns' ;;
     km-package-simple)  printf 'icon/km-package-simple.icns' ;;
+    km-song-sync)       printf 'icon/km-song-sync.icns' ;;
     km-remote)          printf 'icon/km-remote.icns' ;;
     km-admin)           printf 'icon/km-admin.icns' ;;
     *) echo "dist-tools: no bundle icon for $1" >&2; exit 1 ;;
@@ -690,6 +693,96 @@ Licenses
 --------
 
 km-package-simple is MIT OR Apache-2.0, at your option; both texts are beside this file.
+README
+}
+
+readme_km_song_sync() { # <file> <video: 1 or 0> <console twin: 1 or 0> <macOS bundle: 1 or 0>
+  cat > "$1" <<'README'
+km-song-sync
+============
+
+Put words on a MIDI file. Browse to the file, press Select, paste the words of the song, and press
+Start.
+
+Start opens the karaoke machine's sync editor on that song. The song plays, and you press Space as
+each word is sung. The editor saves a new .kar file beside the song and never changes the song.
+
+The page lists folders and MIDI files: .mid, .midi and .kar. Leave the words box unticked to use the
+text file beside a song, which has the song's name and .txt. A song that has words already opens
+with them, for correction.
+
+This program needs the karaoke machine
+--------------------------------------
+
+The sync editor is part of the karaoke machine, and this folder does not hold the machine. An
+installed copy and a portable copy have the two side by side, and need nothing more. For this
+folder on its own, name the machine:
+
+    km-song-sync --machine-exe <the karaokemachine program>
+
+Without the machine the page still opens, and it says that nothing can be started.
+README
+  if [ "${3:-0}" -eq 1 ]; then
+    cat >> "$1" <<'README'
+
+If there is a km-song-sync-console.exe beside km-song-sync.exe, that is the same program with
+somewhere to print, for when you need to see why something did not start.
+README
+  fi
+  if [ "${4:-0}" -eq 1 ]; then
+    cat >> "$1" <<'README'
+
+The application beside this folder
+----------------------------------
+
+    KM Song Sync.app
+
+That bundle is this same program with a Dock icon and a window of its own. Double-click it. It
+looks for Karaoke Machine.app in the folder it is in, and then in /Applications.
+README
+    if ! dist_signing; then
+      cat >> "$1" <<'README'
+
+It is signed only ad-hoc, so on any Mac other than the one that built it macOS will refuse to open
+it until you clear the quarantine flag:
+
+    xattr -dr com.apple.quarantine "KM Song Sync.app"
+
+The first launch is also slow while macOS assesses it, and immediate afterwards.
+README
+    fi
+    cat >> "$1" <<'README'
+
+The km-song-sync executable in this folder is the same program for a terminal, and every command
+below is typed against it.
+README
+  fi
+  cat >> "$1" <<'README'
+
+Running it
+----------
+
+    km-song-sync
+    km-song-sync <folder>
+
+A build with a window opens one. Otherwise, open the address it prints -- http://127.0.0.1:8182/,
+or another port when that one is taken -- in a browser. The page opens on the folder you name, or
+on the folder it was on last.
+
+    --machine-exe FILE       the karaoke machine's program, when it is not beside this one
+    --machine-data-dir DIR   the data folder the editor reads the machine's settings from
+    --browser                show the page in your own browser rather than in a window
+    --open                   open the page in a browser once it is running
+    --port N                 the port to ask for first
+    --log-file               also write this run's log to a file
+    -v, -vv                  say more
+
+A synced copy that is already there is replaced only when you tick the box that says so.
+
+Licenses
+--------
+
+km-song-sync is MIT OR Apache-2.0, at your option; both texts are beside this file.
 README
 }
 
@@ -1648,6 +1741,19 @@ for d in "${staged[@]}"; do
         fi
       fi
       printf '    cd %s && ./%s%s <your karaoke folder>%s\n' "$d" "$exe" "$EXT" "$open" ;;
+    km-song-sync)
+      # The remote's two decisions again. A staged folder holds no machine, so the line names one.
+      exe="km-song-sync"
+      open=" --open"
+      if desktop_capable km-song-sync && [ "$DESKTOP" -eq 1 ]; then
+        if [ "$PLATFORM" = "windows" ]; then
+          exe="km-song-sync-console"
+        else
+          open=""
+        fi
+      fi
+      printf '    cd %s && ./%s%s --machine-exe <the karaokemachine program> <your karaoke folder>%s\n' \
+        "$d" "$exe" "$EXT" "$open" ;;
   esac
 done
 

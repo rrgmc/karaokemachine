@@ -67,6 +67,7 @@ machine|d4c5f9|program|The machine (karaokemachine)|The machine itself
 remote|d4c5f9|program|The remote (KM Remote)|The offline remote
 package-builder|d4c5f9|program|km-package-builder|The curation tool
 package-simple|d4c5f9|program|km-package-simple|The simple package builder
+song-sync|d4c5f9|program|km-song-sync|The page that starts the lyric sync editor
 admin|d4c5f9|program|km-admin|The picture and bank tool
 tools|d4c5f9|program|km-pack or another command-line tool|km-pack and the other command-line tools
 api|d4c5f9|program|The HTTP API|The HTTP API
@@ -95,6 +96,7 @@ package-builder|tools/cmd/km-package-builder/
 admin|tools/cmd/assets/km-admin/
 tools|tools/cmd/km-pack/
 package-simple|tools/cmd/km-package-simple/
+song-sync|tools/cmd/km-song-sync/
 tools|tools/cmd/km-lyrics/
 tools|tools/cmd/km-site-pack/
 tools|tools/cmd/km-carols/

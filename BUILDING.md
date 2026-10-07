@@ -51,6 +51,8 @@ replace.
 | `cargo km-package-simple` | `run -p km-package-simple --` |
 | `cargo km-package-simple-video` | …with `--features video` |
 | `cargo km-package-simple-desktop` | …with `--features desktop`, the windowed build |
+| `cargo km-song-sync` | `run -p km-song-sync --` |
+| `cargo km-song-sync-desktop` | …with `--features desktop`, the windowed build |
 | `cargo km-pack` | `run -p km-pack --` |
 | `cargo km-pack-video` | …with `--features video` |
 | `cargo km-lyrics` | `run -p km-lyrics --` |
@@ -510,8 +512,8 @@ tools/platform/linux/deb.sh --tools     # ...and karaokemachine-tools, the three
 tools/platform/linux/verify-deb.sh      # install that .deb in a clean container (--tools for the other)
 tools/platform/linux/tarball.sh         # a portable Linux folder + .tar.gz, built in Docker
 tools/platform/linux/verify-tarball.sh  # unpack and run it in a clean container (--image to pick one)
-tools/dist/cmd.sh            # all eight: km-pack, km-lyrics, km-site-pack, km-package-builder,
-                             #   km-package-simple, km-remote, km-admin, km-wallpaper-pack
+tools/dist/cmd.sh            # all nine: km-pack, km-lyrics, km-site-pack, km-package-builder,
+                             #   km-package-simple, km-song-sync, km-remote, km-admin, km-wallpaper-pack
 tools/dist/cmd.sh km-package-builder  #   ...or just one of them
 tools/dist/cmd.sh --no-video #   ...without the video feature; every script above takes this
 tools/dist/bin.sh              # one folder with every executable in it, instead of one per product
@@ -827,7 +829,7 @@ workflow, is [`What CI runs`](CONTRIBUTING.md#what-ci-runs) in `CONTRIBUTING.md`
 | `crates/remote/km-remote-core` | The offline remote as a library — the catalog mirror, the favorites, the machine client, discovery and the server. No command line, no data-directory guess, nothing that prints, no signal handler: the desktop, Android and iOS shells each supply those |
 | `crates/remote/km-remote` | The desktop shell over it: the standalone offline remote, in a window of its own on Windows and macOS |
 | `crates/platform/km-tray` | The icon in the OS icon bar for a tool that runs a web server — so a run with no window is still visible, and can still be closed. Shared by `km-package-builder` and `km-remote` |
-| `crates/platform/km-folders` | One page of the folders under a folder, for the in-page folder picker. Shared by `km-package-builder` and `km-package-simple` |
+| `crates/platform/km-folders` | One page of the folders under a folder, for the in-page folder picker. Shared by `km-package-builder`, `km-package-simple` and `km-song-sync`, which asks for a folder's MIDI files too |
 | `crates/platform/km-dirs` | Where a program keeps its files: the per-user directories, or the `data` folder beside a portable copy. Every program asks it, and `clippy.toml` refuses any other source |
 | `crates/machine/karaokemachine` | The binary |
 | `tools/cmd/km-pack` | Packaging, as a library *and* a command |
@@ -835,6 +837,7 @@ workflow, is [`What CI runs`](CONTRIBUTING.md#what-ci-runs) in `CONTRIBUTING.md`
 | `tools/cmd/km-site-pack` | Fetch the song files a site links and build a package from them, as a library *and* a command |
 | `tools/cmd/km-package-builder` | The curation web tool: a folder of source files in, `.kmpkg` packages out |
 | `tools/cmd/km-package-simple` | The folder packager: one folder in, uncurated `.kmpkg` packages out, with no database |
+| `tools/cmd/km-song-sync` | The page that starts the lyric sync editor: paste the words, browse to a MIDI file, press Start |
 | `tools/cmd/assets/km-wallpaper-pack` | Builds a legibility-verified wallpaper pack. **In the second workspace** — `tools/cmd/assets` is `exclude`d from this one, see the note in `Cargo.toml` |
 | `tools/dev/km-testkit` | What more than one crate's tests need: a scratch folder that removes itself, and a router driven with no socket. A dev-dependency only |
 
@@ -1798,6 +1801,22 @@ It serves `http://127.0.0.1:8181/`, or any free port when that one is taken. It 
 file with the language and the last folder. Every package it writes carries the `uncurated` flag,
 and a listing goes beside each one. See
 [`A package can be built straight from a folder`](docs/decisions/curation.md#a-package-can-be-built-straight-from-a-folder).
+
+## The song sync page
+
+```sh
+cargo build -p karaokemachine                   # the editor is the machine, so build it first
+cargo km-song-sync                              # the page opens on the folder it was on last
+cargo km-song-sync ./songs                      # ...or on this one
+cargo km-song-sync-desktop                      # ...in a window
+cargo km-song-sync -- --machine-exe <FILE>      # a machine that is not beside this program
+```
+
+It serves `http://127.0.0.1:8182/`, or any free port when that one is taken. It starts
+`karaokemachine --sync` on the song whose Start is pressed, and looks for the machine beside its
+own executable first. `--machine-data-dir <DIR>` hands the editor a data folder other than the
+machine's own. See
+[`The sync editor is started from a page that lists a folder's MIDI files`](docs/decisions/songs.md#the-sync-editor-is-started-from-a-page-that-lists-a-folders-midi-files).
 
 ## The site packager
 

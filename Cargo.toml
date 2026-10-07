@@ -53,6 +53,7 @@ members = [
     "tools/cmd/km-carols",
     "tools/cmd/km-package-builder",
     "tools/cmd/km-package-simple",
+    "tools/cmd/km-song-sync",
     "tools/cmd/km-site-pack",
     # The working session's own, and `tools/dev/` for the reason above: the directory says what the
     # thing is for. This one is never staged and never shipped -- `ALL_APPS` in tools/dist/bin.sh is

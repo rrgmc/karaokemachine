@@ -1,0 +1,66 @@
+[package]
+name = "km-song-sync"
+description = "Browse to a MIDI file, paste its words, and start the lyric sync editor on it"
+default-run = "km-song-sync"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+# A library with two binaries, in the arrangement `km-package-builder` and `km-remote` use:
+# `#![windows_subsystem]` belongs to a binary's root, and the windowed build and its console twin
+# disagree about it.
+[lib]
+name = "km_song_sync"
+path = "src/lib.rs"
+
+[[bin]]
+name = "km-song-sync"
+path = "src/main.rs"
+
+[[bin]]
+name = "km-song-sync-console"
+path = "src/bin/km-song-sync-console.rs"
+required-features = ["desktop"]
+
+[features]
+# A window of its own on Windows and macOS. Off in cargo, on when staging, never on Linux: `wry`
+# links libwebkit2gtk. See `The package builder's window` in docs/decisions/curation.md.
+desktop = ["dep:wry", "dep:tao", "dep:km-tray", "dep:km-webshell"]
+
+[dependencies]
+km-song = { workspace = true }
+km-console = { workspace = true }
+km-osopen = { workspace = true }
+km-folders = { workspace = true }
+km-logfile = { workspace = true }
+km-locale = { workspace = true, features = ["askama"] }
+askama = { workspace = true }
+axum = { workspace = true }
+km-dirs = { workspace = true }
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+serde_urlencoded = { workspace = true }
+clap = { workspace = true }
+anyhow = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+wry = { workspace = true, optional = true }
+tao = { workspace = true, optional = true }
+km-webshell = { workspace = true, optional = true }
+km-tray = { workspace = true, optional = true }
+
+[target.'cfg(windows)'.build-dependencies]
+winresource = { workspace = true }
+
+[dev-dependencies]
+km-testkit = { workspace = true, features = ["http"] }
+km-song = { workspace = true, features = ["testing"] }
+tower = { workspace = true }

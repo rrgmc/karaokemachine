@@ -262,6 +262,23 @@ the mark is byte-identical to the builder's.
 **Below 32 pixels the bolt is a blue corner rather than a glyph.** At that size it only has to say
 *not the builder*.
 
+## The song sync program wears the builder's mark with three beats
+
+**`km-song-sync` takes the package builder's blue and adds three beats.** Its short name is **KM
+Song Sync**, and that is what a Start Menu entry, a macOS bundle and a setup program call it.
+
+**It wears the builder's mark because it does the builder's kind of work.** It prepares a song
+file for the machine, on a page, before any singing. The machine's amber would say it plays songs.
+No hue is left to give it one of its own.
+
+**The beats are a badge, in the corner the bolt uses.** Three dots stand for syllables, and a
+stroke under the first marks the one a tap lands on. The badge tells this program from the builder
+and from the simple package builder, which can all sit in one taskbar. `km_display::icon`'s test
+holds that outside that corner the mark is byte-identical to the builder's.
+
+**Below 32 pixels the beats are a blue corner rather than a glyph.** At that size the badge only
+has to say *not the builder*.
+
 ## The on-screen number pad
 
 **Drawn only where there is no keyboard — every Android, televisions included — and

@@ -235,6 +235,12 @@ const ADMIN_TILE_SIZES: &[u32] = &[32, 256];
 /// is what the icon tests sample and the macOS menu bar takes.
 const SIMPLE_TILE_SIZES: &[u32] = &[32, 256];
 
+/// The loose sizes the song sync program needs.
+///
+/// The simple package builder's two, for the same readers: 32 is the favicon `km-song-sync` serves,
+/// and 256 is what the icon tests sample and the macOS menu bar takes.
+const SYNC_TILE_SIZES: &[u32] = &[32, 256];
+
 /// The loose sizes the streaming launcher's mark needs.
 ///
 /// **Not a fifth program, so not a fifth palette — the machine's own mark with a badge on it.** The
@@ -418,8 +424,9 @@ fn extended(from: (f32, f32), to: (f32, f32), amount: f32) -> (f32, f32) {
 ///
 /// **The hue says which family a program belongs to, and a badge says which member it is.** The
 /// four leads are four programs. [`Badge::Stream`] is the machine started one way rather than
-/// another, and [`Badge::Quick`] is the package builder's quick sibling. Neither takes a hue, because
-/// the theme has no hue left, and a hue would say the two have nothing in common with their family.
+/// another. [`Badge::Quick`] is the package builder's quick sibling, and [`Badge::Sync`] is the
+/// sibling that puts words on a song. None takes a hue, because the theme has no hue left, and a
+/// hue would say the program has nothing in common with its family.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Badge {
     /// Nothing. The mark as the four programs wear it.
@@ -428,6 +435,8 @@ enum Badge {
     Stream,
     /// A lightning bolt, for the simple package builder: a package in one step, from a folder.
     Quick,
+    /// Three beats and a mark under the first, for the program that starts the lyric sync editor.
+    Sync,
 }
 
 /// The badge, in the coordinates of the plate it sits on, like [`monogram`].
@@ -486,6 +495,28 @@ mod bolt {
     pub const WEIGHT: f32 = 0.030;
 }
 
+/// The song sync program's beats, in plate units like [`badge`], in the same corner.
+///
+/// **Three dots in a row and a short stroke under the first**, which is how a page of words shows
+/// the syllable a tap lands on. The dots are discs and the stroke is a capsule, so no rotation
+/// enters this file.
+///
+/// The row stays under the letters' baseline and inside the plate's rounded corner, whose curve
+/// starts at `1 - PLATE_RADIUS` on both axes.
+mod beats {
+    /// The centers of the three dots, from the left.
+    pub const DOTS: [(f32, f32); 3] = [(0.770, 0.855), (0.838, 0.855), (0.906, 0.855)];
+
+    /// The radius of a dot.
+    pub const DOT: f32 = 0.025;
+
+    /// The ends of the stroke under the first dot.
+    pub const UNDER: [(f32, f32); 2] = [(0.750, 0.925), (0.790, 0.925)];
+
+    /// Half the weight of that stroke.
+    pub const WEIGHT: f32 = 0.016;
+}
+
 /// Signed distance to the badge, in plate units. Negative inside.
 ///
 /// [`Badge::None`] is a distance nothing ever gets inside of rather than a branch in [`render`]:
@@ -499,6 +530,13 @@ fn badge_distance(q: (f32, f32), badge: Badge) -> f32 {
             return capsule(q, a, b, bolt::WEIGHT)
                 .min(capsule(q, b, c, bolt::WEIGHT))
                 .min(capsule(q, c, d, bolt::WEIGHT));
+        }
+        Badge::Sync => {
+            let [a, b] = beats::UNDER;
+            return beats::DOTS
+                .iter()
+                .map(|&dot| disc(q, dot, beats::DOT))
+                .fold(capsule(q, a, b, beats::WEIGHT), f32::min);
         }
         Badge::Stream => {}
     }
@@ -1441,6 +1479,49 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         })
         .collect();
     write(&icons.join("km-package-simple.icns"), &icns(&members)?)?;
+    written += 1;
+
+    // -- the song sync program --------------------------------------------------------------------
+    //
+    // **The package builder's blue with three beats on it.** The program prepares a song for the
+    // machine, as the builder does, so it wears the builder's mark. The badge tells it from the
+    // builder and from the simple package builder. A desktop program with a window, a menu bar icon
+    // and a macOS bundle, so it takes the simple package builder's shape.
+
+    for &size in SYNC_TILE_SIZES {
+        let path = icons.join(format!("km-song-sync-{size}.png"));
+        write(
+            &path,
+            &png(&render(
+                size,
+                &Layout::tile(size),
+                builder_lead(),
+                Badge::Sync,
+            ))?,
+        )?;
+        written += 1;
+    }
+
+    let members: Vec<RgbaImage> = ICO_SIZES
+        .iter()
+        .map(|&size| render(size, &Layout::tile(size), builder_lead(), Badge::Sync))
+        .collect();
+    write(&icons.join("km-song-sync.ico"), &ico(&members)?)?;
+    written += 1;
+
+    // macOS. `Info.song-sync.plist` names this file once, in `CFBundleIconFile`.
+    let members: Vec<(&[u8; 4], RgbaImage)> = ICNS_MEMBERS
+        .iter()
+        .map(|&(kind, size)| {
+            let layout = if size <= SMALL_UP_TO {
+                Layout::tile(size)
+            } else {
+                Layout::inset()
+            };
+            (kind, render(size, &layout, builder_lead(), Badge::Sync))
+        })
+        .collect();
+    write(&icons.join("km-song-sync.icns"), &icns(&members)?)?;
     written += 1;
 
     // -- the machine, started streaming -----------------------------------------------------------

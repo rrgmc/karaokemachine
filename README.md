@@ -576,6 +576,10 @@ show the mark.
 `km-site-pack` downloads the song files a site links and builds a package from them.
 `km-wallpaper-pack` builds a wallpaper set from pictures the lyrics stay readable over.
 
+**KM Song Sync, `km-song-sync`, puts words on a MIDI file that has none.** Paste the words, choose
+the file, and tap each word as it is sung.
+[Putting words on a MIDI file](#putting-words-on-a-midi-file) has the rest.
+
 ```sh
 # Curation: a local web server at http://127.0.0.1:8178. Browse, search the lyrics themselves,
 # rate, fix names, group duplicates, and pick songs into packages. Only `--init` creates the
@@ -615,6 +619,12 @@ karaokemachine --sync song.kar --sync-words words.txt --sync-continue   # go on 
 A file saved before every word was tapped goes on from the next word with `--sync-continue`. The
 result of either is written to `song-synced.kar`, and `--sync-out` names another file.
 
+**KM Song Sync, `km-song-sync`, starts the editor from a page.** Browse to the MIDI file,
+press Select, paste the words into the box, and press Start. The page lists folders and MIDI files
+only. With the box unticked it uses the text file beside the song, which has the song's name and
+`.txt`, in any encoding. A song that has words already opens with them. A synced copy that is already there is replaced only
+when you tick the box that says so.
+
 **The words file** is plain text. One line is one line on screen, and an empty line starts a new
 page. A hyphen splits a word into syllables, so `ka-ra-o-ke` is tapped four times. Type `\-` for a
 hyphen that belongs to the word.
@@ -631,7 +641,8 @@ first word again. The same keys give the taps back until you tap a word.
 and `M` changes it. `V` silences it, so you hear whether the tune is gone. `N` moves your words
 onto its notes.
 
-The key list at the foot of the window names every key, and `H` hides it. Ctrl+S saves. The editor
+The key list at the foot of the window names every key, and `H` hides it. Ctrl+S saves. Ctrl+T writes
+the words as a `.txt` beside the song, when no such file is there. The editor
 uses the machine's instrument bank, audio device and language, and writes no settings.
 
 ---

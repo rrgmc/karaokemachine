@@ -53,7 +53,7 @@ UNINSTALL_TEMPLATE=tools/platform/macos/uninstall.sh
 UNINSTALL_COMMAND=tools/platform/macos/uninstall.command
 
 PRODUCT=com.rrgmc.karaokemachine
-COMPONENTS=(machine builder simple remote admin tools docs)
+COMPONENTS=(machine builder simple sync remote admin tools docs)
 
 # **Payload-free components, which is why they are a second array rather than a sixth entry.**
 # Everything the list above drives is about files: `claim()` assigns each staged entry to one of
@@ -125,12 +125,13 @@ claim() { # <basename of a top-level payload entry> -> prints the component, or 
     "KM Stream.app") printf 'machine' ;;
     "KM Package Builder.app")  printf 'builder' ;;
     "KM Simple Package.app")   printf 'simple'  ;;
+    "KM Song Sync.app")        printf 'sync'    ;;
     "KM Remote.app")           printf 'remote'  ;;
     "KM Admin.app")            printf 'admin'   ;;
     # Every bare executable and the libraries they share. `lib/` has to sit beside them: every one
     # of them was staged with `@executable_path/lib`, and splitting them across components would mean
     # either a second copy of those 15 MB or a package that cannot stand on its own.
-    km-pack|km-lyrics|km-site-pack|km-wallpaper-pack|km-package-builder|km-package-simple|km-remote|km-admin|lib)
+    km-pack|km-lyrics|km-site-pack|km-wallpaper-pack|km-package-builder|km-package-simple|km-song-sync|km-remote|km-admin|lib)
                                    printf 'tools'   ;;
     # The READMEs and this workspace's own license texts. `docs` is the hidden always-on component,
     # so these are installed whatever was ticked -- which for the licenses is not a convenience:
@@ -167,7 +168,7 @@ excluded() { # <basename> -> prints why, or fails
 # Where each component's payload lands on the target.
 install_location() { # <component>
   case "$1" in
-    machine|builder|simple|remote|admin) printf '/Applications' ;;
+    machine|builder|simple|sync|remote|admin) printf '/Applications' ;;
     tools|docs)             printf '/usr/local/karaokemachine' ;;
   esac
 }
@@ -487,7 +488,7 @@ set -eu
 # /usr/local/bin/km-pack finds /usr/local/karaokemachine/lib. None of them reads anything
 # relative to its own path, which is the other half of why a symlink is enough here and is not
 # enough for the machine.
-for t in km-pack km-lyrics km-site-pack km-wallpaper-pack km-package-builder km-package-simple km-remote km-admin; do
+for t in km-pack km-lyrics km-site-pack km-wallpaper-pack km-package-builder km-package-simple km-song-sync km-remote km-admin; do
   ln -sfn "/usr/local/karaokemachine/$t" "/usr/local/bin/$t"
 done
 exit 0
@@ -688,7 +689,7 @@ for comp in "${COMPONENTS[@]}"; do
         --install-location "$(install_location "$comp")"
         --ownership recommended)
   case "$comp" in
-    machine|builder|simple|remote|admin)
+    machine|builder|simple|sync|remote|admin)
       pkg_component_plist "$STAGE/root/$comp" "$STAGE/plists/$comp.plist"
       args+=(--component-plist "$STAGE/plists/$comp.plist") ;;
   esac
@@ -888,7 +889,7 @@ done
 # PackageInfo -- it is the *list* of bundles that may move, and an empty one is what we want -- so
 # grepping for the word finds it on a correct package too. The attribute is the answer, and the empty
 # element is the corroboration: with relocation on, `<relocate>` carries a `<bundle id=.../>`.
-for comp in machine builder simple remote admin; do
+for comp in machine builder simple sync remote admin; do
   info="$EXPANDED/karaokemachine-$comp.pkg/PackageInfo"
   grep -q 'relocatable="false"' "$info" \
     || fail "$comp is still relocatable; BundleIsRelocatable did not take, so an .app somebody
@@ -927,7 +928,7 @@ tools_payload="$(payload_of tools)"
 # else's machine, where this array does not exist. Everywhere *here* shares one list, so the two
 # counts in the closing summary are read off it rather than typed. A typed count is a number three
 # separate places have to remember when a command is added, and they do not.
-TOOL_COMMANDS=(km-pack km-lyrics km-site-pack km-wallpaper-pack km-package-builder km-package-simple km-remote km-admin)
+TOOL_COMMANDS=(km-pack km-lyrics km-site-pack km-wallpaper-pack km-package-builder km-package-simple km-song-sync km-remote km-admin)
 for t in "${TOOL_COMMANDS[@]}"; do
   [ -f "$tools_payload/$t" ] || fail "$t was not packaged"
   ( cd "$tools_payload" && run "./$t" --version >/dev/null 2>&1 ) \
@@ -953,6 +954,7 @@ BUNDLE_STARTS=(
   "machine|KM Stream.app/Contents/MacOS/karaokemachine-stream|--show-paths|streaming launcher would not reach the machine beside it"
   "builder|KM Package Builder.app/Contents/MacOS/km-package-builder|--version|package builder would not start"
   "simple|KM Simple Package.app/Contents/MacOS/km-package-simple|--version|simple package builder would not start"
+  "sync|KM Song Sync.app/Contents/MacOS/km-song-sync|--version|song sync page would not start"
   "remote|KM Remote.app/Contents/MacOS/km-remote|--version|remote would not start"
   "admin|KM Admin.app/Contents/MacOS/km-admin|--version|admin tool would not start"
 )
@@ -1157,7 +1159,7 @@ if [ "$INSTALL" -eq 1 ]; then
   done
 
   for c in karaokemachine km-pack km-lyrics km-site-pack km-wallpaper-pack \
-           km-package-builder km-package-simple km-remote km-admin; do
+           km-package-builder km-package-simple km-song-sync km-remote km-admin; do
     [ -e "/usr/local/bin/$c" ] || fail "/usr/local/bin/$c was not created"
     ( PATH=/usr/bin:/bin "/usr/local/bin/$c" --version >/dev/null 2>&1 ) \
       || fail "/usr/local/bin/$c would not start"
@@ -1181,7 +1183,7 @@ if [ "$INSTALL" -eq 1 ]; then
   done
   [ -d /usr/local/karaokemachine ] && fail "the uninstaller left /usr/local/karaokemachine behind"
   for c in karaokemachine km-pack km-lyrics km-site-pack km-wallpaper-pack \
-           km-package-builder km-package-simple km-remote km-admin; do
+           km-package-builder km-package-simple km-song-sync km-remote km-admin; do
     [ -e "/usr/local/bin/$c" ] && fail "the uninstaller left /usr/local/bin/$c behind"
   done
   pkgutil --pkgs | grep -q "^$PRODUCT\." && fail "the uninstaller left receipts behind"

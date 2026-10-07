@@ -27,7 +27,7 @@ T="${CARGO_TARGET_DIR:-/build/target}"
 # The same tools, and the same two facts about them, that tools/dist/cmd.sh keeps: which take
 # `video`, and which live in the second workspace. That script cannot be run here, because it
 # links the host's ffmpeg and stages one folder per tool.
-TOOLS=(km-pack km-lyrics km-site-pack km-package-builder km-package-simple km-remote km-admin km-wallpaper-pack)
+TOOLS=(km-pack km-lyrics km-site-pack km-package-builder km-package-simple km-song-sync km-remote km-admin km-wallpaper-pack)
 video_capable() { case "$1" in km-pack|km-package-builder|km-package-simple) return 0 ;; *) return 1 ;; esac; }
 tool_build_args() {
   case "$1" in

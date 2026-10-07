@@ -1552,8 +1552,87 @@ knows which.
 **Going on from a file is refused when its words are not the start of the text.** The refusal names
 the first word that differs. Timing on the wrong words is worse than none.
 
+**Ctrl+T writes the words as text beside the song, and never over a file that is there.** The file
+has the song's name and `.txt`, in the form the editor reads. Words taken from a karaoke file, or
+pasted and never kept, are then a file a person can correct and tap again. A `.txt` that exists is
+somebody's own typing, so the editor says it is there and writes nothing.
+
 **The editor does not find words and does not split them.** It looks nothing up, and a syllable
 break is a hyphen somebody typed.
 
 **The editor reads the machine's settings and writes none.** It plays through the bank and the
 device they name, in the language they name. Started on a folder with no settings, it leaves none.
+
+## The sync editor is started from a page that lists a folder's MIDI files
+
+**`km-song-sync` is a page with a file browser, a words box and a Start button.**
+The editor takes its words from a file or from standard input, and a person pastes them. A command
+line is a poor place to paste a song. The work stays the editor's:
+[`A MIDI file gets its words in a new file, from an editor a person taps`](#a-midi-file-gets-its-words-in-a-new-file-from-an-editor-a-person-taps).
+
+**The browser opens where it was last.** A folder named on the command line wins. Then comes the
+folder the browser was on when the program closed, because a person works through one folder over
+several sittings. With neither, it opens on the folder the program was started in. A double-click
+starts a program in its own folder, which nobody chose, so the home folder is the last resort. A
+path box takes any folder by name.
+
+**It lists folders and MIDI files, and no other file.** A MIDI file is a `.mid`, a `.midi` or a
+`.kar`. The editor opens nothing else, and a row that cannot start is a row in the way.
+
+**A row shows the title and the artist the file states, under its file name.** A file name is often
+a number or a code, and the words to paste belong to a song somebody has to recognise. The page
+reads the files of one page only, so a folder of thousands costs fifteen reads.
+
+**The words box wins when it is ticked, then the text file beside the song, then the song's own
+words.** The text file has the song's name and `.txt`. With neither, the editor opens the words the
+song has, for correction. A song with no words anywhere needs the box.
+
+**A tick says the box is used, and text in the box does not.** Words left from one song would
+otherwise go to the next. Words put into an empty box set the tick, and the person can take it
+off. A ticked box that holds nothing is refused.
+
+**The box is under the browser, and a page holds fifteen rows.** A person finds the song first and
+pastes its words second. A short page keeps the box in the window.
+
+**An UltraStar file is not a page of words.** It is a `.txt` with timing in it, and it is a song in
+its own right.
+
+**The program decodes the text file and hands the editor UTF-8.** The editor reads UTF-8 only. A
+text editor saves UTF-16 or a legacy codepage as often, and such a file would stop the editor on
+its first byte.
+
+**Given words replace the song's own, and going on from them is asked for.** One box on the page
+keeps the timing the song has and taps the rest. It is never ticked for the person, for the reason
+the editor's flags give: only the person knows which they want.
+
+**A row selects a song, and one panel under the browser starts it.** The panel names the selected
+song and holds the words box, every choice about the start, and Start. A row holds the file name,
+the title, the artist and Select. Fifteen rows of buttons and boxes are harder to read than fifteen
+rows of songs, and the words belong beside the button that uses them.
+
+**A synced copy that exists is replaced only when the panel's box says so.** The row names the
+copy, and the panel shows the box for a song that has one. Start waits for the tick, and the server
+refuses a start without it. A second run on one song otherwise costs the first run's taps.
+
+**One editor at a time.** Two would play through one audio device. The page says which song the
+editor is open on. It then says how the editor ended: the file it saved, nothing saved, or the
+editor's own sentence for refusing.
+
+**Closing this program leaves an open editor alone.** The editor holds taps that are not saved yet.
+
+**The program finds the machine by where an install puts it, and holds no path to it.** It looks
+beside itself, one folder up, at the bundle beside its own bundle, and on the search path.
+`--machine-exe` and `KM_MACHINE_EXE` name it for a staged copy. Without the machine the browser
+still works, every Start is off, and the page says why.
+
+**On macOS the system starts the editor.** That is the rule
+[`A running server has an icon in the bar`](interface.md#a-running-server-has-an-icon-in-the-bar) gives for one bundle starting
+another. The system passes no standard input, so the words go through a file in the program's cache
+folder. The file is removed when the editor closes.
+
+**It remembers the language and the folder its browser was on, and nothing else.** No song path, no
+words and no path to the machine reach its settings file.
+
+**Another site's page cannot press Start.** `POST /start` starts a program, so the rule in
+[`A page on another site cannot press this tool's buttons`](curation.md#a-page-on-another-site-cannot-press-this-tools-buttons)
+holds here with more at stake.

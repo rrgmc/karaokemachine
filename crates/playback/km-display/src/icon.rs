@@ -422,6 +422,61 @@ mod tests {
         }
     }
 
+    /// The song sync program's mark: the package builder's, with three beats.
+    ///
+    /// **Not in [`ALL_MARKS`]**, for the stream mark's reason. It leads with the builder's blue,
+    /// because it prepares songs as the builder does, and the theme has no hue left.
+    const SYNC_MARK: &[u8] = include_bytes!("../../../../icon/km-song-sync-256.png");
+
+    /// The center of the middle beat.
+    const BEAT_MIDDLE: (u32, u32) = (181, 184);
+    /// Everything the beats can reach, as (left, top, right, bottom) inclusive.
+    ///
+    /// The drawing's own numbers with a few pixels of margin: the dots run from 0.770 to 0.906
+    /// across a plate covering 49 to 207 here, and the stroke under the first ends at 0.941 down.
+    const BEATS_BOX: (u32, u32, u32, u32) = (160, 176, 201, 203);
+
+    /// The sync mark is the builder's mark and three beats, and the beats are all of the difference.
+    ///
+    /// Somebody who sees both on one desktop has to read them as two tools of one family, so
+    /// nothing but the beats may move.
+    #[test]
+    fn the_sync_mark_is_the_builders_mark_and_three_beats() {
+        let sync = decode(SYNC_MARK, "song sync");
+        let builder = decode(ALL_MARKS[1].1, "package builder");
+
+        let sample = at(&sync, BEAT_MIDDLE);
+        assert_eq!(sample[3], 255, "a beat must be opaque");
+        assert!(
+            i32::from(sample[2]) > i32::from(sample[0]) + 60,
+            "a beat should be the accent blue the M is, and it is {sample:?}"
+        );
+        assert_ne!(
+            sample,
+            at(&builder, BEAT_MIDDLE),
+            "the beat is bare plate, exactly as it is on the builder's own mark"
+        );
+
+        let ratio = contrast(&sample, &at(&sync, PLATE));
+        assert!(
+            ratio >= 4.5,
+            "a beat is only {ratio:.2}:1 against the plate under it; the floor is 4.5:1"
+        );
+
+        let (left, top, right, bottom) = BEATS_BOX;
+        for (x, y, pixel) in sync.enumerate_pixels() {
+            if (left..=right).contains(&x) && (top..=bottom).contains(&y) {
+                continue;
+            }
+            assert_eq!(
+                pixel,
+                builder.get_pixel(x, y),
+                "the sync mark differs from the builder's at ({x}, {y}), which the beats do not \
+                 reach"
+            );
+        }
+    }
+
     /// WCAG relative luminance, from an RGBA pixel.
     ///
     /// The sRGB transfer function rather than the weighted-sum shortcut `theme.rs` uses for the

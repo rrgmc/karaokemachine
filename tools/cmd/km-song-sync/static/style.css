@@ -1,0 +1,138 @@
+/* km-song-sync's stylesheet: the package builder's dark palette, and only what this one page uses.
+   Compiled into the binary by `include_str!` in `src/server.rs`. */
+
+:root {
+    /* One palette, and it is dark, so the form controls are told dark too. */
+    color-scheme: dark;
+    --bg: #14161a;
+    --panel: #1c1f26;
+    --line: #2f343d;
+    --text: #e6e8ec;
+    --dim: #9aa1ad;
+    --accent: #6ea8fe;
+    --accent-ink: #0b1220;
+    --bad: #e26d6d;
+}
+
+* { box-sizing: border-box; }
+
+body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+.bar {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.5rem 1rem;
+    background: var(--panel);
+    border-bottom: 1px solid var(--line);
+}
+
+.brand { font-weight: 600; }
+.grow { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+
+main { padding: 1rem; max-width: 64rem; margin: 0 auto; }
+
+h1 { font-size: 1.25rem; margin: 0 0 0.75rem; }
+
+.row { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+
+.hint { color: var(--dim); }
+.error { color: var(--bad); }
+.mono { font-family: ui-monospace, "Cascadia Mono", Menlo, monospace; overflow-wrap: anywhere; }
+
+input, select, button, textarea { font: inherit; color: inherit; }
+
+input, select, textarea {
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 0.3rem 0.45rem;
+}
+
+button {
+    background: var(--accent);
+    color: var(--accent-ink);
+    border: 0;
+    border-radius: 4px;
+    padding: 0.4rem 0.9rem;
+    cursor: pointer;
+}
+
+button.quiet {
+    background: transparent;
+    color: var(--text);
+    border: 1px solid var(--line);
+}
+
+/* The words box, which every Start button reads. */
+.words { display: flex; flex-direction: column; gap: 0.35rem; margin: 1rem 0; }
+.words label { color: var(--text); }
+.words textarea { width: 100%; resize: vertical; }
+.words p { margin: 0; }
+
+/* What the editor is doing. It holds no sentence until something is started, and takes no room. */
+.editor:not(:has(p)) { display: none; }
+.editor {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 0.1rem 1rem;
+    margin: 1rem 0;
+}
+
+/* The file browser. */
+.picker {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 0.75rem 1rem;
+    margin: 0.75rem 0 1rem;
+}
+.crumbs { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.5rem; }
+.crumbs form { flex-wrap: nowrap; }
+.picker .filter { margin-bottom: 0.5rem; color: var(--dim); }
+.folders { list-style: none; margin: 0 0 0.75rem; padding: 0; columns: 16rem; }
+.folders li { break-inside: avoid; }
+button.link {
+    background: transparent;
+    color: var(--accent);
+    padding: 0.1rem 0;
+    text-align: left;
+    overflow-wrap: anywhere;
+}
+button.link:hover { text-decoration: underline; }
+
+table { width: 100%; border-collapse: collapse; }
+td { padding: 0.35rem 0.4rem; border-top: 1px solid var(--line); vertical-align: top; }
+.num { text-align: right; white-space: nowrap; }
+
+th { text-align: left; color: var(--dim); font-weight: 500; padding: 0.25rem 0.4rem; }
+
+/* The row whose song the words panel holds. */
+tr.selected td { background: var(--bg); }
+tr.selected td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
+
+/* The words panel shows a name once a song is selected, and says so until then. */
+#words[data-selected] #selected-none { display: none; }
+#selected-notes:empty { display: none; }
+/* Replacing is asked only of a song whose synced copy exists. */
+#words:not([data-out-exists]) #replace { display: none; }
+
+/* A Start that would be refused is held here, and the server refuses it again. Five reasons: no
+   song is selected, the machine is not there, an editor is open, the synced copy exists and
+   replacing it is not ticked, or the song needs words and the words box is not ticked. */
+#words:not([data-selected]) #start,
+#words[data-no-machine] #start,
+body:has(#editor[data-running]) #start,
+#words[data-out-exists]:has(#force:not(:checked)) #start,
+body:not(.has-words) #words[data-needs-words] #start {
+    opacity: 0.4;
+    pointer-events: none;
+}
+
+.pager { display: flex; align-items: center; gap: 1rem; margin: 0.75rem 0 0; color: var(--dim); }

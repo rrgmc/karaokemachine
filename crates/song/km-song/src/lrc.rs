@@ -9,7 +9,7 @@
 //! The result is a [`LyricTimeline`] whose ticks are milliseconds from the start of the audio, as an
 //! UltraStar file's is, so everything after this reader treats the two alike.
 
-use crate::encoding::TextDecoder;
+use crate::encoding::{TextDecoder, from_utf16};
 use crate::karaoke::clean_lyric_text;
 use crate::recording::{NOMINAL_BEAT_TICKS, split_lines};
 use crate::timeline::{LineBreak, LineInference, LyricTimeline, RawSyllable, build_timeline};
@@ -343,19 +343,6 @@ fn digits(written: &[u8]) -> Option<u32> {
         return None;
     }
     std::str::from_utf8(written).ok()?.parse().ok()
-}
-
-/// A UTF-16 file, re-encoded as UTF-8, where its byte-order mark says it is one.
-///
-/// Windows editors save LRC files this way, and none of the byte scanning above can read UTF-16.
-fn from_utf16(bytes: &[u8]) -> Option<Vec<u8>> {
-    let encoding = match bytes {
-        [0xFF, 0xFE, ..] => encoding_rs::UTF_16LE,
-        [0xFE, 0xFF, ..] => encoding_rs::UTF_16BE,
-        _ => return None,
-    };
-    let (text, _) = encoding.decode_with_bom_removal(bytes);
-    Some(text.into_owned().into_bytes())
 }
 
 #[cfg(test)]

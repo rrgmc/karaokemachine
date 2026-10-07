@@ -95,6 +95,7 @@ it are the same entry. How the thing is built is [`ARCHITECTURE.md`](../ARCHITEC
 - [A track named for a part names no song](songs.md#a-track-named-for-a-part-names-no-song)
 - [A song's words can be turned off, and three faults turn them off without being asked](songs.md#a-songs-words-can-be-turned-off-and-three-faults-turn-them-off-without-being-asked)
 - [A MIDI file gets its words in a new file, from an editor a person taps](songs.md#a-midi-file-gets-its-words-in-a-new-file-from-an-editor-a-person-taps)
+- [The sync editor is started from a page that lists a folder's MIDI files](songs.md#the-sync-editor-is-started-from-a-page-that-lists-a-folders-midi-files)
 
 ## [Song sources — video, MP3+G, UltraStar and LRC](song-sources.md)
 
@@ -358,6 +359,7 @@ it are the same entry. How the thing is built is [`ARCHITECTURE.md`](../ARCHITEC
 - [Application icon](interface.md#application-icon)
 - [A badge says how the machine was started](interface.md#a-badge-says-how-the-machine-was-started)
 - [The simple package builder wears the builder's mark with a bolt](interface.md#the-simple-package-builder-wears-the-builders-mark-with-a-bolt)
+- [The song sync program wears the builder's mark with three beats](interface.md#the-song-sync-program-wears-the-builders-mark-with-three-beats)
 - [The on-screen number pad](interface.md#the-on-screen-number-pad)
 - [The transport strip names its keys](interface.md#the-transport-strip-names-its-keys)
 - [Nothing is drawn where a television will not show it](interface.md#nothing-is-drawn-where-a-television-will-not-show-it)

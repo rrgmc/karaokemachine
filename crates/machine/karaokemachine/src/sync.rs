@@ -27,7 +27,7 @@ use km_display::text::{Align, Fonts, TextCache, TextError, TextStyle, draw_text,
 use km_display::theme::Theme;
 use km_locale::{Catalog, Catalogs, Locale};
 use km_queue::Transport;
-use km_song::kar_write::{KarWords, split_words, write_soft_karaoke};
+use km_song::kar_write::{KarWords, join_words, split_words, synced_path, write_soft_karaoke};
 use km_song::timeline::{LineBreak, RawSyllable};
 use km_song::{LyricTimeline, ParseOptions, SYLLABLE_DIVIDER, Song, WordEnds};
 use sdl3::event::{Event as SdlEvent, WindowEvent};
@@ -437,16 +437,6 @@ fn vocal_line_under(taps_ms: &[u32], channels_ms: &[Vec<u32>]) -> Option<usize> 
     scored.first().map(|&(index, _, _)| index)
 }
 
-/// Where the output goes when nobody said: beside the song, with the karaoke extension.
-fn default_out(song: &Path) -> PathBuf {
-    let beside = song.with_extension("kar");
-    if beside != song {
-        return beside;
-    }
-    let stem = song.file_stem().unwrap_or_default().to_string_lossy();
-    song.with_file_name(format!("{stem}-synced.kar"))
-}
-
 /// A channel the words can be snapped to.
 struct MelodyChoice {
     /// The MIDI channel, numbered from 0.
@@ -787,7 +777,7 @@ pub(crate) fn run(paths: &Paths, settings: &Settings, request: &Request) -> anyh
     let out = request
         .out
         .clone()
-        .unwrap_or_else(|| default_out(&request.song));
+        .unwrap_or_else(|| synced_path(&request.song));
     anyhow::ensure!(
         out != request.song,
         "the output is the song itself, which is never written"
@@ -1038,6 +1028,34 @@ pub(crate) fn run(paths: &Paths, settings: &Settings, request: &Request) -> anyh
                                 .into_owned());
                         }
                     }
+                }
+                (_, Keycode::T) if ctrl => {
+                    // The words as text, beside the song under its name. `create_new` refuses a
+                    // file that is there, so words somebody typed and kept are never replaced.
+                    let text_file = request.song.with_extension("txt");
+                    let file = text_file.display().to_string();
+                    let written = std::fs::OpenOptions::new()
+                        .write(true)
+                        .create_new(true)
+                        .open(&text_file)
+                        .and_then(|mut file| {
+                            use std::io::Write as _;
+                            file.write_all(join_words(&session.syllables).as_bytes())
+                        });
+                    say(match written {
+                        Ok(()) => words
+                            .msg_with("sync-words-saved", &[("file", file.as_str().into())])
+                            .into_owned(),
+                        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => words
+                            .msg_with("sync-words-exist", &[("file", file.as_str().into())])
+                            .into_owned(),
+                        Err(error) => {
+                            let reason = error.to_string();
+                            words
+                                .msg_with("sync-not-saved", &[("reason", reason.as_str().into())])
+                                .into_owned()
+                        }
+                    });
                 }
                 (_, Keycode::Minus | Keycode::KpMinus) => {
                     tempo_ratio = (tempo_ratio - 0.05).max(0.5);
@@ -1539,6 +1557,7 @@ const TAPPING_KEYS: [HelpRow; 3] = [
         "sync-row-file",
         &[
             ("Ctrl+S", "sync-key-save"),
+            ("Ctrl+T", "sync-key-save-words"),
             ("Esc", "sync-key-leave"),
             ("H", "sync-key-hide-keys"),
             ("R", "sync-key-review-so-far"),
@@ -1579,6 +1598,7 @@ const REVIEW_KEYS: [HelpRow; 4] = [
         "sync-row-file",
         &[
             ("Ctrl+S", "sync-key-save"),
+            ("Ctrl+T", "sync-key-save-words"),
             ("Esc", "sync-key-leave"),
             ("H", "sync-key-hide-keys"),
             ("R", "sync-key-back-to-tapping"),
@@ -2046,18 +2066,6 @@ mod tests {
         let moved = s.snap(&[100, 200], |_, _| true);
         assert_eq!(ticks(&s), [190, 200]);
         assert_eq!(moved, 1);
-    }
-
-    #[test]
-    fn the_output_goes_beside_the_song_and_is_never_the_song() {
-        assert_eq!(
-            default_out(Path::new("a/song.mid")),
-            Path::new("a/song.kar")
-        );
-        assert_eq!(
-            default_out(Path::new("a/song.kar")),
-            Path::new("a/song-synced.kar")
-        );
     }
 
     /// Thirty taps a second apart, each 40 ms late.

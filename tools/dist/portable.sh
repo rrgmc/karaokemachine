@@ -257,6 +257,7 @@ Where your files are
     data/km-remote                   the remote's songs list and favorites
     data/km-package-builder          the package builder's settings
     data/km-package-simple           the simple package tool's settings
+    data/km-song-sync                the song sync page's settings
     data/km-admin                    pictures and banks KM Admin downloaded
 
 The first three folders are made already, each with a text file that says
@@ -339,6 +340,7 @@ them:
     km-remote            8179   km-remote --port 8279
     km-admin             8180   km-admin --port 8280
     km-package-simple    8181   km-package-simple --port 8281
+    km-song-sync         8182   km-song-sync --port 8282
 
 If an installed machine is running on this computer too, give this one
 another port. A program that sends songs to the machine has to be told the

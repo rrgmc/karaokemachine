@@ -124,6 +124,7 @@ Name: "custom"; Description: "Choose what to install"; Flags: iscustom
 Name: "machine"; Description: "KaraokeMachine -- plays the songs"; Types: full machine; Flags: checkablealone
 Name: "builder"; Description: "KM Package Builder -- turns a folder of songs into a package"; Types: full
 Name: "simple"; Description: "KM Simple Package -- makes a package straight from a folder, in one step"; Types: full
+Name: "sync"; Description: "KM Song Sync -- puts words on a MIDI file, with the machine's sync editor"; Types: full
 Name: "remote"; Description: "KM Remote -- search and queue from this computer"; Types: full
 Name: "assets"; Description: "KM Admin -- find pictures and instrument banks for the machine"; Types: full
 Name: "tools"; Description: "Command-line tools (km-pack, km-lyrics, km-site-pack, km-wallpaper-pack)"; Types: full
@@ -158,6 +159,7 @@ Name: "soundfont"; Description: "Download the recommended instrument bank ({#Ban
 Source: "{#Payload}\karaokemachine.exe";     DestDir: "{app}"; Components: machine; Flags: ignoreversion
 Source: "{#Payload}\km-package-builder.exe"; DestDir: "{app}"; Components: builder; Flags: ignoreversion
 Source: "{#Payload}\km-package-simple.exe"; DestDir: "{app}"; Components: simple;  Flags: ignoreversion
+Source: "{#Payload}\km-song-sync.exe";      DestDir: "{app}"; Components: sync;    Flags: ignoreversion
 Source: "{#Payload}\km-remote.exe";      DestDir: "{app}"; Components: remote;  Flags: ignoreversion
 Source: "{#Payload}\km-admin.exe";      DestDir: "{app}"; Components: assets;  Flags: ignoreversion
 Source: "{#Payload}\km-pack.exe";            DestDir: "{app}"; Components: tools;   Flags: ignoreversion
@@ -293,6 +295,7 @@ Name: "{group}\KM Stream";                      Filename: "{app}\karaokemachine.
 Name: "{group}\Karaoke songs folder";           Filename: "{userappdata}\karaokemachine\data\packages"; Components: machine
 Name: "{group}\KM Package Builder"; Filename: "{app}\km-package-builder.exe"; Components: builder
 Name: "{group}\KM Simple Package";  Filename: "{app}\km-package-simple.exe";  Components: simple
+Name: "{group}\KM Song Sync";       Filename: "{app}\km-song-sync.exe";       Components: sync
 Name: "{group}\KM Remote";          Filename: "{app}\km-remote.exe";      Components: remote
 Name: "{group}\KM Admin";          Filename: "{app}\km-admin.exe";      Components: assets
 Name: "{group}\Read me first";                  Filename: "{app}\README.txt"
@@ -372,8 +375,8 @@ const
 { Shared with the remote's own setup program, which puts the same runtime behind the same window.
   The two sentences that differ are defines; the apostrophe in each is doubled because the text lands
   inside a Pascal string literal. }
-#define WebView2Need "The Package Builder, KM Simple Package and the Remote need Microsoft''s WebView2 runtime, which is not on this computer."
-#define WebView2Fallback "The Package Builder, KM Simple Package and the Remote will open their pages in your normal web browser instead of in a window of their own."
+#define WebView2Need "The Package Builder, KM Simple Package, KM Song Sync and the Remote need Microsoft''s WebView2 runtime, which is not on this computer."
+#define WebView2Fallback "The Package Builder, KM Simple Package, KM Song Sync and the Remote will open their pages in your normal web browser instead of in a window of their own."
 #include "webview2.iss"
 
 { Only the programs that put a webview in a window care. The machine draws with SDL and the
@@ -381,6 +384,7 @@ const
 function NeedsWebView2: Boolean;
 begin
   Result := (WizardIsComponentSelected('builder') or WizardIsComponentSelected('simple') or
+             WizardIsComponentSelected('sync') or
              WizardIsComponentSelected('remote')) and not WebView2Installed;
 end;
 
@@ -507,6 +511,7 @@ begin
            ExpandConstant('{userappdata}\karaokemachine') + #13#10 +
            ExpandConstant('{userappdata}\km-package-builder') + #13#10 +
            ExpandConstant('{userappdata}\km-package-simple') + #13#10 +
+           ExpandConstant('{userappdata}\km-song-sync') + #13#10 +
            ExpandConstant('{userappdata}\km-remote') + #13#10 +
            ExpandConstant('{userappdata}\km-admin') + #13#10#13#10 +
            'Any .kmbuild file in a folder of songs, and any .kmpkg package, has been left alone ' +
