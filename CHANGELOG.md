@@ -11,6 +11,8 @@ Entries are written for somebody who has the machine. Why any of it is the way i
 
 ## [Unreleased]
 
+## [1.21.0] - 2026-10-07
+
 ### Added
 
 - **A portable copy for Windows and Linux.** Unpack `karaokemachine-portable` anywhere and run it.
@@ -29,6 +31,8 @@ Entries are written for somebody who has the machine. Why any of it is the way i
 - **The curation tool's Folders page shows each folder's average suitability.** The average covers
   the same songs as the count beside it. It appears after the next scan that changes a file, and a
   dash stands in until then.
+- **The Folders page sorts by name, by songs or by suitability.** Click a column heading to sort by
+  it, and click it again to turn the order around.
 - **A lyric sync editor puts words on a MIDI file.** `karaokemachine --sync song.mid --sync-words
   words.txt` plays the song while you press Space on each word. It writes a new `.kar` and never
   changes the MIDI file. Review shows the words as the machine draws them. There you can move a word,
@@ -46,6 +50,8 @@ Entries are written for somebody who has the machine. Why any of it is the way i
   installs with the other tools on Windows, macOS and Linux, and it is in the portable copy.
 - **KM Song Sync sets a song's title, artist and language.** The page shows what the song states,
   and what you change goes into the synced file.
+- **KM Song Sync finds a song by its file name, title or artist.** A tick in the Words column marks
+  each song that has words.
 - **A folder browser has a shortcut to your home folder.** On macOS it also has one for iCloud
   Drive, and one for each of Dropbox, Google Drive and OneDrive that is installed. KM Song Sync, the
   curation tool and KM Simple Package all show them.
@@ -55,9 +61,8 @@ Entries are written for somebody who has the machine. Why any of it is the way i
 - **A word can end before the pause after it.** A karaoke file that marks the end of a word with an
   empty event stops that word's highlight there. The highlight does not creep through the pause to
   the next word.
-
-### Changed
-
+- **The curation tool writes its output into `_kmout`.** The folder is in your karaoke folder, and
+  it holds what the tool makes from your songs.
 - **Every song counts you back in after a break.** A bar above the next line fills during a long
   pause and is full when the line starts. A MIDI or `.kar` song shows it too, after its intro and
   after a solo of four bars or more.
