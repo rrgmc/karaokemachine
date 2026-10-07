@@ -512,8 +512,8 @@ tools/platform/linux/deb.sh --tools     # ...and karaokemachine-tools, the three
 tools/platform/linux/verify-deb.sh      # install that .deb in a clean container (--tools for the other)
 tools/platform/linux/tarball.sh         # a portable Linux folder + .tar.gz, built in Docker
 tools/platform/linux/verify-tarball.sh  # unpack and run it in a clean container (--image to pick one)
-tools/dist/cmd.sh            # all eight: km-pack, km-lyrics, km-site-pack, km-package-builder,
-                             #   km-package-simple, km-remote, km-admin, km-wallpaper-pack
+tools/dist/cmd.sh            # all nine: km-pack, km-lyrics, km-site-pack, km-package-builder,
+                             #   km-package-simple, km-song-sync, km-remote, km-admin, km-wallpaper-pack
 tools/dist/cmd.sh km-package-builder  #   ...or just one of them
 tools/dist/cmd.sh --no-video #   ...without the video feature; every script above takes this
 tools/dist/bin.sh              # one folder with every executable in it, instead of one per product

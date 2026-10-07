@@ -215,9 +215,10 @@ priority = "optional"
 # one release, and what this needs from it is a directory of libraries.
 depends = "karaokemachine, libc6 (>= 2.39), libgcc-s1 (>= 3.0)"
 extended-description = """\
-The four programs that prepare what a karaoke machine plays: km-package-builder \
+The five programs that prepare what a karaoke machine plays: km-package-builder \
 curates a folder of songs into packages, km-package-simple makes a package straight \
-from a folder in one step, km-admin fetches wallpapers and instrument banks, and \
+from a folder in one step, km-song-sync starts the lyric sync editor on a MIDI file, \
+km-admin fetches wallpapers and instrument banks, and \
 km-remote is the singer's remote for a machine that is not running. Each serves its \
 own page and opens it in your browser; none has a window of its own here."""
 assets = [
@@ -225,6 +226,7 @@ assets = [
     # names on PATH the way the machine's does.
     ["target/release/km-package-builder", "opt/karaokemachine/tools/km-package-builder", "755"],
     ["target/release/km-package-simple", "opt/karaokemachine/tools/km-package-simple", "755"],
+    ["target/release/km-song-sync", "opt/karaokemachine/tools/km-song-sync", "755"],
     ["target/release/km-remote", "opt/karaokemachine/tools/km-remote", "755"],
     ["target/release/km-admin", "opt/karaokemachine/tools/km-admin", "755"],
 ]
