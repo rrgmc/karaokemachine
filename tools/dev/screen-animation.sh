@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Regenerates docs/images/screen-singing.webp, the one animated picture README.md publishes.
+# Regenerates docs/images/screen-singing.webp, the one animated picture the manual publishes.
 #
 #   tools/dev/screen-animation.sh
 #

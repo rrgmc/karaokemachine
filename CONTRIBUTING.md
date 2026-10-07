@@ -224,8 +224,8 @@ not cause it. The weekly run finds it, and a dispatch finds it at once.
 compiles and links them. **Caches are saved from `master` only**, so pull requests read one cache per
 job rather than each writing their own into the repository's 10 GB.
 
-- **`pages.yml`** publishes the landing page when `site/`, its pictures, its favicon or
-  `tools/dist/site.sh` change. It has no `pull_request` trigger, because a pull request has no
+- **`pages.yml`** publishes the landing page and the manual when `site/`, `docs/manual/`, the
+  pictures, the favicon or a script that builds them change. It has no `pull_request` trigger, because a pull request has no
   deployment environment, and it is never a required check. It queues rather than cancels, because a
   cancelled deploy can leave the site part-published.
 - **`release.yml`** builds the release carriers from a pushed `v*` tag and fills the draft release.

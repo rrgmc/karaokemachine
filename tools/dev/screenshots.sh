@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Regenerates the pictures in docs/images that README.md publishes.
+# Regenerates the pictures in docs/images that the manual and README.md publish.
 #
 #   tools/dev/screenshots.sh              # everything this machine can do
 #   tools/dev/screenshots.sh --display    # the three SDL pictures only: no servers, no browser
@@ -439,7 +439,7 @@ if [ -z "$ENGLISH" ]; then
 fi
 # Not fatal, but it silently costs two pictures a feature: km-remote-pages draws the Language picker only
 # where there is more than one language to pick between, so an English-only catalog publishes a
-# browse page with the control missing and README.md's alt text stops being true. Counted against
+# browse page with the control missing and the manual's alt text stops being true. Counted against
 # the catalog total rather than asked for -- there is no languages endpoint on the API, and every
 # song has a language here because `--default-language` gave one to any the index did not name.
 ENGLISH_COUNT=$(printf '%s\n' $ENGLISH | grep -c . || true)
@@ -495,7 +495,7 @@ pick() {
 HERO_FILE='Dire_Straits-Sultans_of_Swing.kar'
 PLAYING=$(pick 'sultans%20of%20swing' 'the song playing')
 
-# `term:singer`, six of them, because README.md's alt text for remote-queue.png says six. One has no
+# `term:singer`, six of them, because the manual's alt text for remote-queue.png says six. One has no
 # singer on purpose: an anonymous queue entry looks different from a named one and both happen at a
 # party, so a picture showing only one of the two is showing half the feature.
 QUEUE_TERMS='superstition:Ana
@@ -678,7 +678,7 @@ if [ "$DO_WEB" = 1 ]; then
     sleep 12 # the scan is asynchronous; an empty table is not worth photographing
 
     echo "capturing"
-    # 500x540 for all four phone pictures so they line up in the README table. See the width floor above.
+    # 500x540 for all four phone pictures so they line up in the manual's table. See the width floor above.
     #
     # **`?language=en` on the two list pages, and it is doing two jobs at once.** It guarantees that
     # every row above the fold is English -- the catalog is not English-only, and a curated corpus
@@ -694,7 +694,7 @@ if [ "$DO_WEB" = 1 ]; then
     # `remote-browse.png` beside it is the point: a favorites mode where the machine's remote offers
     # the printed Book, the A–Z picker, and a star on every row. Both remotes carry three mode
     # buttons, so the count is not the difference; **the A–Z is a dropdown rather than a strip of
-    # letters**, which is what the alt text in README.md and site/index.html calls it.
+    # letters**, which is what the alt text in docs/manual/pictures.md and site/index.html calls it.
     # **The stars in frame are empty and that is expected** -- the three
     # songs starred just above are the party's, and they sort well past the visible rows of an
     # alphabetical list. What the picture shows is the star *column*, which the machine's own remote

@@ -21,7 +21,8 @@ The detail lives in the documents below, opened when needed.
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | what to run before a pull request, and the invariants |
 | [`docs/research/`](docs/research/) | investigations — findings, never commitments |
 | [`docs/HISTORY.md`](docs/HISTORY.md) | why this took eighteen years and then fourteen days |
-| [`README.md`](README.md) | for somebody who has the machine, not the source |
+| [`docs/manual/`](docs/manual/) | for somebody who has the machine, not the source — a chapter per file, and the site's `docs/` |
+| [`README.md`](README.md) | the front page: what it is, and where each of these is |
 
 ### Rules
 
@@ -37,7 +38,7 @@ The detail lives in the documents below, opened when needed.
 4. **Research notes are not decisions.** Nothing in one is committed until it appears in
    `docs/decisions/`.
 5. Do not create additional plan or status documents. This rule does not catch reference
-   documentation. `README.md`, `BUILDING.md`, `CONTRIBUTING.md`, the per-port READMEs,
+   documentation. `README.md`, `docs/manual/`, `BUILDING.md`, `CONTRIBUTING.md`, the per-port READMEs,
    `icon/README.md`, `docs/learning-rust.md` and `docs/HISTORY.md` say what *is* or *was* true, where
    a plan says what *will be*.
 6. **Prose states the rule and the reason, and never how the rule was arrived at.** No "used to", no

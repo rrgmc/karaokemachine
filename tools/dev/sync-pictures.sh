@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Regenerates the two pictures of putting words on a MIDI file that README.md publishes.
+# Regenerates the two pictures of putting words on a MIDI file that the manual publishes.
 #
 #   tools/dev/sync-pictures.sh              # both
 #   tools/dev/sync-pictures.sh --editor     # the editor's picture only: no server, no browser

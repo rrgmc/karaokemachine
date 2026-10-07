@@ -1352,8 +1352,8 @@ variables stops the job, because that is a configuration fault and not a choice.
 of its publisher and of the file. So a recipient can still see *"Windows protected your PC"* on a new
 version. It then names the publisher.
 
-**The README's [`Privacy`](../../README.md#privacy) section says what the programs send over the
-network.** SignPath Foundation asks for that statement, and it stays true whoever signs.
+**The manual's [`Privacy`](../manual/privacy.md) chapter says what the programs send over the
+network, and the README's [`Privacy`](../../README.md#privacy) section states the rule.** SignPath Foundation asks for that statement, and it stays true whoever signs.
 
 ## What a macOS bundle says it is for
 
@@ -1485,9 +1485,9 @@ one behind the macOS installer having no `--no-video`. A person who downloads on
 choosing a feature matrix. Neither a debug build nor a video-less one says what it is in the file
 name.
 
-**How to sign and install one belongs in [`README.md`](../../README.md#installing)**, not here. It is
+**How to sign and install one belongs in [the manual](../manual/ios.md)**, not here. It is
 the one carrier whose instructions are a procedure the recipient carries out, rather than a
-double-click. The README is the document written for somebody who has the machine rather than the
+double-click. The manual is the document written for somebody who has the machine rather than the
 source.
 
 ## What the machine *is*, on a headset

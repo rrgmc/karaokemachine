@@ -1,7 +1,8 @@
 # The website
 
-One hand-written page per language — `index.html`, `pt-BR/index.html` and one `style.css` — published
-by GitHub Actions to **<https://rrgmc.github.io/karaokemachine/>**.
+One hand-written page per language: `index.html`, `pt-BR/index.html` and one `style.css`. GitHub
+Actions publishes them to **<https://rrgmc.github.io/karaokemachine/>**. mdBook renders the manual
+from [`docs/manual/`](../docs/manual), and it goes beside them at `docs/`.
 
 **Opening either page from this folder shows broken images.** The pictures live in
 [`docs/images/`](../docs/images), which
@@ -12,6 +13,7 @@ a second thing to keep right. `tools/dist/site.sh` assembles the pages and their
 folder and is what CI runs, so previewing through it previews exactly what gets published.
 
 ```sh
+bash tools/setup/fetch-mdbook.sh   # once per machine: the pinned mdBook, into the asset cache
 bash tools/dist/site.sh --open     # stage into dist/site and open it
 bash tools/dist/site.sh            # just stage it
 ```
@@ -24,10 +26,12 @@ bash tools/dist/site.sh            # just stage it
 |---|---|
 | `index.html` | the page in English, served at the published root. No script, and every link out absolute to GitHub |
 | `pt-BR/index.html` | the same page in Brazilian Portuguese, served at `/pt-BR/`, reaching the stylesheet and the pictures as `../` |
-| `style.css` | the only stylesheet, shared by both pages. No webfont, no CDN, no external request of any kind |
+| `style.css` | the landing pages' only stylesheet, shared by both. No webfont, no CDN, no external request of any kind |
+| `book.toml` | mdBook's configuration for the manual. Its `src` is `docs/manual/` |
+| `manual.css` | the icon beside the manual's title, and nothing else |
 
 The script stages everything else in the published folder: `images/` from `docs/images/`,
-`favicon.png` and `icon-512.png` from [`icon/`](../icon), and a `.nojekyll`.
+`favicon.png` and `icon-512.png` from [`icon/`](../icon), `docs/` from the manual, and a `.nojekyll`.
 
 A language is a folder named for its tag, holding one whole page. Adding one is that page, one line
 in `PAGES` and one in `LANGS` at the top of `tools/dist/site.sh`, and nothing else. The stylesheet,
@@ -60,6 +64,14 @@ a page nothing stages reaches no reader and breaks nothing that would say so.
 
   The links out stay English, because the repository and the documents behind them are. The script
   cannot see a paragraph that fell behind in words, and reading both pages is what finds one.
+- **The manual is English, flat and generated from one source.** Its chapters are the files directly
+  in `docs/manual/`, and `SUMMARY.md` there orders them. A chapter reaches a picture as
+  `../images/x.png`, which resolves on GitHub and on the site alike. `tools/dist/site.sh` refuses a
+  chapter in a subfolder, a chapter `SUMMARY.md` does not name, and any mdBook warning. It holds the
+  book to the landing pages' rules: no absolute path, no external request, every relative link lands.
+- **The manual keeps mdBook's own layout and light theme.** It is read as a document, and the landing
+  page is what carries the machine's colors. `manual.css` adds the icon beside the title, reached
+  as `../icon-512.png`, and changes nothing else.
 - **The hero shows `icon-512.png`**, beside the wordmark the icon's amber `M` is taken from. It is
   the one mark the page may name. It and `favicon.png` are the only icons `tools/dist/site.sh`
   stages, and a link with nothing behind it fails the build. Another would mean editing the script

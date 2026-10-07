@@ -1,8 +1,8 @@
 # Building KaraokeMachine
 
 Everything about compiling, testing, packaging and releasing. If you only want to *use* a karaoke
-machine, [`README.md`](README.md) is the document you want — this one assumes you are going to build
-one.
+machine, [the manual](docs/manual/README.md) is the document you want. This one assumes you are
+going to build one.
 
 ---
 
@@ -268,7 +268,7 @@ cargo run -p karaokemachine -- --sync song.mid --sync-words words.txt   # tap wo
 ```
 
 The `--song-book` flag is an end-user feature and is described in
-[`README.md`](README.md#the-song-book) rather than here.
+[the manual](docs/manual/song-book.md) rather than here.
 
 The app is quiet by default: `info` and nothing per-frame. `-v` adds its own debug stream, `-vv` adds
 everybody's, and `RUST_LOG` overrides both. `logging.level` in `settings.json` says the same thing in
@@ -407,7 +407,7 @@ the workspace is unaffected either way.
 ## The other tools
 
 The packaging and curation commands, `km-package-builder` and `km-pack`, are how a catalog gets made.
-[`README.md`](README.md#getting-a-corpus-into-shape) documents them for their users. From a checkout
+[The manual](docs/manual/packaging.md) documents them for their users. From a checkout
 each has an alias in the table above, `cargo km-pkgbuild` and `cargo km-pack`, and those are the
 spelling to use. A `cargo run -p` typed from memory is the one that comes out wrong.
 
@@ -436,7 +436,7 @@ cargo km-wallpapers        # the built-in gradient set (NOT the stock-photo pack
 cargo km-icon              # four program marks, and the machine's again with the stream badge
 cargo km-banner            # the Android TV banner; needs icon-128.png first
 cargo km-preview           # every screen to target/preview
-tools/dev/screenshots.sh   # the eight pictures in docs/images that README.md shows
+tools/dev/screenshots.sh   # the eight pictures in docs/images that the manual shows
 tools/dev/screen-animation.sh  # the ninth, screen-singing.webp: a carol sung, animated
 tools/dev/sync-pictures.sh # the song sync page and the lyric sync editor, on a carol
 tools/dev/promo-video.sh   # the promotional video, into dist/promo; needs Node with Playwright
@@ -589,7 +589,7 @@ gathers neither.
 the app it has just compiled into `dist/<product>/ios/`, refusing a debug build and, for the machine,
 `--no-video`. There is no signed alternative: the decision is
 [`An iOS carrier is unsigned, and the person installing signs it`](docs/decisions/distribution.md#an-ios-carrier-is-unsigned-and-the-person-installing-signs-it),
-and [`README.md`](README.md#installing) is where a recipient is told how to sign one.
+and [the manual](docs/manual/ios.md) is where a recipient is told how to sign one.
 
 **On Windows there is also a setup program, and it is the one carrier that is not something you
 unpack.** `tools/platform/windows/installer.sh` builds
@@ -617,8 +617,8 @@ installers, so the two cannot describe removing the same product differently. Ea
 exclusion where its own carrier check would otherwise object: the payload-coverage check on Windows,
 and `excluded()` on macOS. Both round trips read the installed file.
 
-[`README.md`](README.md#installing) has what SmartScreen and Gatekeeper show the first person to run
-an unsigned build, and how to find the macOS uninstaller. Those are what a recipient sees rather than
+[The manual](docs/manual/installing.md) has what SmartScreen and Gatekeeper show the first person to
+run an unsigned build, and [how to find the macOS uninstaller](docs/manual/removing.md). Those are what a recipient sees rather than
 what a build does.
 
 **macOS has one too, and it is an Apple installer package.** `tools/platform/macos/installer.sh`
@@ -1386,6 +1386,7 @@ tools/setup/fetch-assets.sh --list       # the banks it knows about
 tools/setup/fetch-ffmpeg.sh              # ffmpeg + libclang           (task ffmpeg)
 tools/setup/fetch-ffmpeg.sh --homebrew   # macOS: Homebrew's GPL build instead of a pinned LGPL one
 bash tools/setup/fetch-abcmidi.sh             # for the carol pack          (task abcmidi)
+bash tools/setup/fetch-mdbook.sh              # for the site's manual       (task mdbook)
 task ffmpeg:android                      # the LGPL ffmpeg for both Android ABIs
 ```
 
@@ -2089,16 +2090,24 @@ Sixteen public-domain carols as one `.kmpkg`, **a separate download and never bu
 network once and `abc2midi`. The license gate is in code and **fails closed**. Each carol's own
 copyright line must say public domain in all four layers a hymn divides into.
 
-## The landing page
+## The landing page and the manual
 
 ```sh
+bash tools/setup/fetch-mdbook.sh       # once per machine                  (task mdbook)
 bash tools/dist/site.sh                # stage dist/site                   (task site)
 bash tools/dist/site.sh --open         # ...and open it                    (task site OPEN=1)
 bash tools/dist/site.sh -v             # ...naming every file it staged
 ```
 
-One hand-written page, `site/index.html` and `site/style.css`, staged with the nine pictures out
-of `docs/images/` and a favicon out of `icon/`. **`.github/workflows/pages.yml` runs this exact
+One hand-written page per language, `site/index.html` and `site/style.css`, staged with the
+pictures out of `docs/images/` and a favicon out of `icon/`. **The manual is `docs/manual/`, which
+mdBook renders into `dist/site/docs`.** `tools/setup/fetch-mdbook.sh` pins the mdBook version and
+its checksum, and the script uses that copy and no other. `site/book.toml` configures the book, which
+keeps mdBook's own layout and light theme.
+
+**A chapter is one file directly in `docs/manual/`, named in `SUMMARY.md`.** The script refuses a
+chapter in a subfolder, because `../images/` then misses the pictures on the site. It also refuses a
+chapter that `SUMMARY.md` does not name, because mdBook renders no page for it. **`.github/workflows/pages.yml` runs this exact
 script** and uploads what it produces, so a local preview and the published page come out of one
 code path. It publishes to <https://rrgmc.github.io/karaokemachine/>, and only once the repository
 is public — the workflow tests the repository's name *and* its visibility and skips otherwise.
@@ -2111,6 +2120,8 @@ It refuses three things that would otherwise be found only after publishing:
 - a picture the page names that `docs/images/` does not have;
 - an absolute path, the site being served under `/karaokemachine/`, so `/images/x.png` would 404;
 - anything the page would fetch from another server.
+
+The manual's pages pass the same three checks.
 
 ## Issue labels
 

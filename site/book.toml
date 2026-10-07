@@ -1,0 +1,23 @@
+# The manual, rendered by mdBook into `docs/` on the site.
+#
+# `tools/dist/site.sh` runs `mdbook build site --dest-dir <staged>/docs` with the version
+# `tools/setup/fetch-mdbook.sh` pins. The chapters are `docs/manual/*.md`, which GitHub renders too.
+
+[book]
+title = "KaraokeMachine"
+description = "Installing and using KaraokeMachine"
+language = "en"
+src = "../docs/manual"
+
+[output.html]
+# The page is served one segment down, and the 404 page is the one file that needs to be told.
+site-url = "/karaokemachine/docs/"
+git-repository-url = "https://github.com/rrgmc/karaokemachine"
+edit-url-template = "https://github.com/rrgmc/karaokemachine/edit/master/docs/manual/{path}"
+# mdBook's own layout and its light theme, for a reader with a light or a dark system alike. A manual
+# is read as a document, and the landing page is what carries the machine's colors.
+default-theme = "light"
+preferred-dark-theme = "light"
+# The icon beside the title, and nothing else.
+additional-css = ["manual.css"]
+no-section-label = true

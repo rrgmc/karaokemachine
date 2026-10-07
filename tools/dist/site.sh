@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Assembles the landing pages into one folder, ready to publish.
+# Assembles the landing pages and the manual into one folder, ready to publish.
 #
 #   bash tools/dist/site.sh                 # stage into dist/site
 #   bash tools/dist/site.sh --open          # ...and open it in a browser
@@ -21,16 +21,23 @@
 # ** The screenshots are staged, never committed twice. ** The English page asks for `images/*` and
 # the Portuguese one for `../images/*`, and this is what puts them there, out of `docs/images/`.
 # `tools/dev/screenshots.sh` regenerates the PNGs there, `tools/dev/screen-animation.sh` the one
-# WebP, and the README links them directly.
+# WebP, and the manual links them directly.
 # A second tracked copy would be 1.3 MB of PNG that goes stale the first time the pictures are
 # retaken, silently, in the one place nobody looks. The cost is that opening either page straight
 # from the checkout shows broken images; `site/README.md` says so in its first paragraph, and this
 # script is the answer.
 #
-# ** Nothing here needs a toolchain. ** No cargo, no rustc, not even for the platform check below --
-# `dist_platform` asks `rustc -vV` and is therefore deliberately not used. A checkout, a copy and a
-# browser is the whole dependency list, which is what lets the workflow be the cheapest in the
-# repository: no Rust setup step, no cache, well under a minute.
+# ** The manual is `docs/manual/`, rendered by mdBook into `docs/` beside the landing page. ** The
+# chapters are flat in that folder so that `../images/x.png` names one picture in both renderings:
+# `docs/images/` on GitHub, and the staged `images/` here. A chapter in a subfolder would need a
+# second `../` on the site only. `site/book.toml` configures the book, which keeps mdBook's own
+# layout and light theme, and `site/manual.css` puts the icon beside its title. The book root is staged rather than `site/` itself, so that the
+# favicon comes out of `icon/` like the landing page's and is not committed a second time.
+#
+# ** Nothing here needs a Rust toolchain. ** No cargo, no rustc, not even for the platform check
+# below -- `dist_platform` asks `rustc -vV` and is therefore deliberately not used. A checkout, one
+# pinned `mdbook` binary and a browser is the whole dependency list. `tools/setup/fetch-mdbook.sh`
+# fetches that binary into the asset cache, once per machine, and this script uses no other copy.
 #
 # ** The output is `dist/site/`, and that is a deliberate exception ** to the `dist/<app>/<platform>/`
 # layout `dist_dir` enforces and that "Where releases go" states as a rule. A web page has no
@@ -48,6 +55,12 @@ dist_assert_root
 
 OUT=dist/site
 OPEN=0
+
+# The manual's chapters, and the book root mdBook is run in. `MANUAL_SRC` is the first as the second
+# reaches it, because mdBook resolves `src` against the folder holding `book.toml`.
+MANUAL=docs/manual
+BOOK=dist/site-book
+MANUAL_SRC=../../docs/manual
 
 # The page, once per language, and the tag each one declares. A path here is relative to `site/` and
 # to the staged folder alike, so one name serves the source, the copy and the address a reader sees.
@@ -71,9 +84,38 @@ done
 
 # -- what has to be here ---------------------------------------------------------------------------
 
-for f in "${PAGES[@]/#/site/}" site/style.css icon/icon-32.png icon/icon-512.png; do
+for f in "${PAGES[@]/#/site/}" site/style.css icon/icon-32.png icon/icon-512.png \
+         site/book.toml site/manual.css "$MANUAL/SUMMARY.md" "$MANUAL/README.md"; do
   [ -f "$f" ] || { echo "$DIST_SCRIPT: missing $f" >&2; exit 1; }
 done
+
+# The pinned copy in the asset cache and no other, so two machines render the same markup.
+MDBOOK="$(bash tools/setup/fetch-mdbook.sh --path)"
+if [ ! -x "$MDBOOK" ]; then
+  cat >&2 <<MISSING
+$DIST_SCRIPT: the manual needs mdbook, and the pinned copy is not in the asset cache.
+
+  task mdbook         (or: tools/setup/fetch-mdbook.sh)
+
+That downloads one executable, verifies its checksum, and is needed once per machine.
+MISSING
+  exit 1
+fi
+
+# A chapter in a subfolder reaches the pictures on GitHub and misses them on the site.
+if [ -n "$(find "$MANUAL" -mindepth 1 -type d)" ]; then
+  echo "$DIST_SCRIPT: $MANUAL holds a subfolder, and the chapters are flat." >&2
+  echo "  \`../images/\` has to name the pictures from every chapter in both renderings." >&2
+  exit 1
+fi
+
+# A chapter the summary does not name is a page mdBook never renders, and nothing else says so.
+while IFS= read -r chapter; do
+  [ "$chapter" = "SUMMARY.md" ] && continue
+  grep -q "($chapter)" "$MANUAL/SUMMARY.md" && continue
+  echo "$DIST_SCRIPT: $MANUAL/$chapter is in no line of $MANUAL/SUMMARY.md, so it reaches no reader." >&2
+  exit 1
+done < <(find "$MANUAL" -maxdepth 1 -name '*.md' | sed "s|^$MANUAL/||" | LC_ALL=C sort)
 
 # The one mistake this arrangement exists to prevent, caught where it is made rather than months
 # later when the two copies have drifted. Once per language folder as well as at the root: a
@@ -84,7 +126,7 @@ for page in "${PAGES[@]}"; do
   d="${d#site/./}"; case "$d" in images) d="site/images" ;; esac
   [ -e "$d" ] || continue
   echo "$DIST_SCRIPT: $d exists, and the screenshots are staged rather than committed." >&2
-  echo "  They live in docs/images/ because README.md shows them too. Remove $d." >&2
+  echo "  They live in docs/images/ because the manual shows them too. Remove $d." >&2
   exit 1
 done
 
@@ -137,6 +179,32 @@ dist_detail "icons     favicon.png + icon-512.png from icon/"
 # branch" later and Jekyll starts eating files whose names begin with an underscore.
 : > "$OUT/.nojekyll"
 
+# -- the manual --------------------------------------------------------------------------------------
+
+# The book root is staged, and the chapters are read where they are. `theme/favicon.png` is the one
+# file mdBook takes from a theme folder here, and giving it the PNG alone drops mdBook's own SVG.
+dist_step "building the manual into $OUT/docs"
+dist_clear "$BOOK"
+mkdir -p "$BOOK/theme"
+cp site/book.toml site/manual.css "$BOOK/"
+cp icon/icon-32.png "$BOOK/theme/favicon.png"
+
+# `src` is relative to the book root, and `--dest-dir` to the folder this runs in.
+if ! MDBOOK_BOOK__SRC="$MANUAL_SRC" "$MDBOOK" build "$BOOK" --dest-dir "$OUT/docs" > "$BOOK/build.log" 2>&1; then
+  cat "$BOOK/build.log" >&2
+  echo "$DIST_SCRIPT: mdbook could not build the manual" >&2
+  exit 1
+fi
+# mdBook reports a link it could not follow as a warning and still exits 0.
+if grep -qiE 'warn|error' "$BOOK/build.log"; then
+  cat "$BOOK/build.log" >&2
+  echo "$DIST_SCRIPT: mdbook built the manual with a warning, and a warning here is a broken page" >&2
+  exit 1
+fi
+[ -f "$OUT/docs/index.html" ] || { echo "$DIST_SCRIPT: mdbook wrote no $OUT/docs/index.html" >&2; exit 1; }
+MANUAL_PAGES=$(find "$OUT/docs" -maxdepth 1 -name '*.html' | wc -l | tr -d ' ')
+dist_detail "manual    $MANUAL_PAGES pages from $MANUAL"
+
 # -- two things that fail only after publishing ------------------------------------------------------
 
 # ** An absolute path 404s here and nowhere else. ** The page is served at
@@ -151,6 +219,24 @@ if grep -Eqn '(src|href)="/' "${PAGES[@]/#/site/}" site/style.css; then
   exit 1
 fi
 
+# The manual is held to the same rule over what mdBook wrote. `404.html` is the exception by design:
+# a host serves it for an address at any depth, so it alone names the site's own path, which is
+# what `site-url` in `site/book.toml` is for.
+BOOK_HTML=()
+while IFS= read -r f; do
+  BOOK_HTML+=("$f")
+done < <(find "$OUT/docs" -name '*.html' ! -name '404.html' | LC_ALL=C sort)
+BOOK_TEXT=("${BOOK_HTML[@]}" "$OUT/docs/404.html")
+while IFS= read -r f; do
+  BOOK_TEXT+=("$f")
+done < <(find "$OUT/docs" -name '*.css' | LC_ALL=C sort)
+
+if grep -Eqn '(src|href)="/' "${BOOK_HTML[@]}"; then
+  echo "$DIST_SCRIPT: an absolute path in the manual -- it would 404 under /karaokemachine/:" >&2
+  grep -En '(src|href)="/' "${BOOK_HTML[@]}" | cut -c1-200 >&2
+  exit 1
+fi
+
 # ** No external request, ever. ** No web font, no CDN, no analytics. This is the check rather than
 # the promise: a product whose whole claim is that it works on a network with no internet on it
 # should not have a home page that fetches a stylesheet from somebody else, and that is exactly the
@@ -162,6 +248,13 @@ fi
 if grep -Eqn 'src="https?:|<link[^>]+href="https?:|url\(\s*["'"'"']?https?:' "${PAGES[@]/#/site/}" site/style.css; then
   echo "$DIST_SCRIPT: the page would fetch something from another server:" >&2
   grep -En 'src="https?:|<link[^>]+href="https?:|url\(\s*["'"'"']?https?:' "${PAGES[@]/#/site/}" site/style.css >&2
+  exit 1
+fi
+
+# mdBook carries its own fonts and scripts, and this is what proves a new version still does.
+if grep -Eqn 'src="https?:|<link[^>]+href="https?:|url\(\s*["'"'"']?https?:' "${BOOK_TEXT[@]}"; then
+  echo "$DIST_SCRIPT: the manual would fetch something from another server:" >&2
+  grep -En 'src="https?:|<link[^>]+href="https?:|url\(\s*["'"'"']?https?:' "${BOOK_TEXT[@]}" | cut -c1-200 >&2
   exit 1
 fi
 
@@ -205,6 +298,11 @@ check_links() {
 
 for page in "${PAGES[@]}"; do
   check_links "$page"
+done
+
+# A chapter's picture is `../images/x.png`, which only this staging puts within reach.
+for f in "${BOOK_HTML[@]}"; do
+  check_links "${f#"$OUT"/}"
 done
 
 if [ "$MISSING" -gt 0 ]; then
