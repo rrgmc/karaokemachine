@@ -44,6 +44,7 @@ pictures and the download are on the site,
   - [Text encodings and writing systems](#text-encodings-and-writing-systems)
   - [The HTTP API and the network](#the-http-api-and-the-network)
   - [Getting a corpus into shape](#getting-a-corpus-into-shape)
+  - [Putting words on a MIDI file](#putting-words-on-a-midi-file)
 - [Documentation](#documentation)
 - [License](#license)
 - [Privacy](#privacy)
@@ -597,6 +598,41 @@ km-lyrics dump ./song.kar
 km-site-pack <address> ./songs --dry-run        # list what a run would download
 km-site-pack <address> ./songs                  # download, then build the package beside ./songs
 ```
+
+### Putting words on a MIDI file
+
+A MIDI file with no words, or with words timed badly, gets them from the lyric sync editor. You
+give it the song and the words as text, and you press Space as each word is sung. It writes a new
+`.kar` file and never changes the MIDI file.
+
+```sh
+karaokemachine --sync song.mid --sync-words words.txt     # writes song.kar beside the song
+karaokemachine --sync song.kar                            # correct the words a file already has
+karaokemachine --sync song.kar --sync-words words.txt --sync-continue   # go on from a part-tapped file
+```
+
+**A file that has words** opens in review when you give no words file, so you can fix its timing.
+A file saved before every word was tapped goes on from the next word with `--sync-continue`. The
+result of either is written to `song-synced.kar`, and `--sync-out` names another file.
+
+**The words file** is plain text. One line is one line on screen, and an empty line starts a new
+page. A hyphen splits a word into syllables, so `ka-ra-o-ke` is tapped four times. Type `\-` for a
+hyphen that belongs to the word.
+
+**Tapping** gives each word its time. Enter plays and pauses, Space marks the next word, and
+Backspace takes back the last one. `E` ends a word before a pause, so its highlight stops there.
+
+**Review** plays the song with your words as the machine will draw them. It opens when the last
+word is tapped, and `R` opens it earlier. The arrow keys select a word and move it by 10 ms.
+`C` selects the word being sung. Ctrl+Shift+Backspace clears every tap, so you tap from the
+first word again. The same keys give the taps back until you tap a word.
+
+**The vocal line** is the channel that plays the sung tune. The editor finds it from your taps,
+and `M` changes it. `V` silences it, so you hear whether the tune is gone. `N` moves your words
+onto its notes.
+
+The key list at the foot of the window names every key, and `H` hides it. Ctrl+S saves. The editor
+uses the machine's instrument bank, audio device and language, and writes no settings.
 
 ---
 

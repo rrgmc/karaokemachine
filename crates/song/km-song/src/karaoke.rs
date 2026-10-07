@@ -1237,10 +1237,25 @@ fn collect_raws(
         .collect();
     let dialect = Dialect::of(taken.iter().map(|(_, text)| *text));
 
-    let mut raws = Vec::new();
+    let mut raws: Vec<RawSyllable> = Vec::new();
     let mut pending = LineBreak::None;
 
     for (tick, text) in taken {
+        // **An event with no bytes ends the syllable before it.** A lyric event has no length, so
+        // the last word before a pause is otherwise wiped slowly across the whole pause. An event
+        // that holds nothing draws nothing in any player, which leaves it free to carry this.
+        //
+        // Judged on the bytes, before anything is cleaned: padding and a harmonica tab also come to
+        // nothing, and neither is a statement about where a word stops.
+        if text.is_empty() {
+            if let Some(last) = raws.last_mut()
+                && last.end_tick.is_none()
+                && tick > last.tick
+            {
+                last.end_tick = Some(tick);
+            }
+            continue;
+        }
         // The tabs come off before anything reads a newline as a break, because here none is one.
         // An event that was nothing but a tab is left with nothing, and goes the way padding does.
         let untabbed;

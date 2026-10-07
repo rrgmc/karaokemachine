@@ -28,6 +28,24 @@ Entries are written for somebody who has the machine. Why any of it is the way i
 - **The curation tool's Folders page shows each folder's average suitability.** The average covers
   the same songs as the count beside it. It appears after the next scan that changes a file, and a
   dash stands in until then.
+- **A lyric sync editor puts words on a MIDI file.** `karaokemachine --sync song.mid --sync-words
+  words.txt` plays the song while you press Space on each word. It writes a new `.kar` and never
+  changes the MIDI file. Review shows the words as the machine draws them. There you can move a word,
+  end it before a pause, or move every word onto the notes of the vocal line. Without a words file
+  it opens the words a karaoke file already has, and `--sync-continue` goes on from a file saved
+  part-way.
+
+### Changed
+
+- **A word can end before the pause after it.** A karaoke file that marks the end of a word with an
+  empty event stops that word's highlight there. The highlight does not creep through the pause to
+  the next word.
+
+### Changed
+
+- **Every song counts you back in after a break.** A bar above the next line fills during a long
+  pause and is full when the line starts. A MIDI or `.kar` song shows it too, after its intro and
+  after a solo of four bars or more.
 
 ## [1.20.0] - 2026-10-06
 

@@ -25,12 +25,12 @@
 //!    musical *system* and a system is a whole phrase. See [`rewrap_lines`], which is where the
 //!    measurement behind that lives.
 //!
-//! **Running status is expanded on the way through.** It has to be: dropping an event that carries
-//! a status byte would silently change the meaning of every running-status event after it, which is
-//! the kind of corruption that plays almost correctly.
+//! The bytes are read and written by [`km_song::smf`], which leaves every event this pass does not
+//! name exactly as abc2midi wrote it.
 
 use anyhow::{Result, bail};
 use km_song::COMFORTABLE_LINE_CHARS;
+use km_song::smf::{Event, drop_where, emit_track, parse_track, split_chunks};
 
 /// The words abc2midi labels its tracks with, as ordinary text events.
 ///
@@ -115,147 +115,6 @@ fn soft_karaoke_headers(headers: &Headers) -> Vec<String> {
     ]
 }
 
-/// One MIDI event, with its status byte always present.
-#[derive(Debug, Clone)]
-struct Event {
-    delta: u32,
-    bytes: Vec<u8>,
-}
-
-impl Event {
-    /// A meta event of this type with this payload, at delta zero.
-    fn meta(kind: u8, payload: &[u8]) -> Self {
-        let mut bytes = vec![0xFF, kind];
-        push_vlq(&mut bytes, u32::try_from(payload.len()).unwrap_or(u32::MAX));
-        bytes.extend_from_slice(payload);
-        Self { delta: 0, bytes }
-    }
-
-    /// Whether this is a meta event of the given type.
-    fn is_meta(&self, kind: u8) -> bool {
-        self.bytes.first() == Some(&0xFF) && self.bytes.get(1) == Some(&kind)
-    }
-
-    /// A meta event's payload.
-    fn payload(&self) -> Option<&[u8]> {
-        if self.bytes.first() != Some(&0xFF) {
-            return None;
-        }
-        let mut at = 2;
-        let len = read_vlq(&self.bytes, &mut at).ok()?;
-        self.bytes.get(at..at + usize::try_from(len).ok()?)
-    }
-
-    /// Replaces a meta event's payload, keeping its type and its delta.
-    ///
-    /// The length is a variable-length quantity, so a payload that crosses 127 bytes changes the
-    /// event's size — which is why this rebuilds rather than writing in place.
-    fn set_payload(&mut self, payload: &[u8]) {
-        let Some(&kind) = self.bytes.get(1) else {
-            return;
-        };
-        let delta = self.delta;
-        *self = Self {
-            delta,
-            ..Self::meta(kind, payload)
-        };
-    }
-}
-
-/// Splits a standard MIDI file into its header chunk and its track chunks.
-fn split_chunks(bytes: &[u8]) -> Result<(Vec<u8>, Vec<&[u8]>)> {
-    if bytes.len() < 14 || &bytes[0..4] != b"MThd" {
-        bail!("not a standard MIDI file");
-    }
-    let header_len =
-        8 + usize::try_from(u32::from_be_bytes([bytes[4], bytes[5], bytes[6], bytes[7]]))?;
-    let mut at = header_len;
-    let mut chunks = Vec::new();
-    while at + 8 <= bytes.len() {
-        let len = usize::try_from(u32::from_be_bytes([
-            bytes[at + 4],
-            bytes[at + 5],
-            bytes[at + 6],
-            bytes[at + 7],
-        ]))?;
-        let body = bytes
-            .get(at + 8..at + 8 + len)
-            .ok_or_else(|| anyhow::anyhow!("truncated chunk at byte {at}"))?;
-        if &bytes[at..at + 4] == b"MTrk" {
-            chunks.push(body);
-        }
-        at += 8 + len;
-    }
-    if chunks.is_empty() {
-        bail!("no tracks");
-    }
-    Ok((bytes[..header_len].to_vec(), chunks))
-}
-
-/// Walks one track's bytes into events, expanding running status.
-fn parse_track(body: &[u8]) -> Result<Vec<Event>> {
-    let mut events = Vec::new();
-    let mut at = 0usize;
-    let mut running: Option<u8> = None;
-
-    while at < body.len() {
-        let delta = read_vlq(body, &mut at)?;
-        let Some(&first) = body.get(at) else { break };
-
-        let bytes = match first {
-            0xFF => {
-                let start = at;
-                at += 2;
-                let len = usize::try_from(read_vlq(body, &mut at)?)?;
-                at += len;
-                running = None;
-                slice(body, start, at)?
-            }
-            0xF0 | 0xF7 => {
-                let start = at;
-                at += 1;
-                let len = usize::try_from(read_vlq(body, &mut at)?)?;
-                at += len;
-                running = None;
-                slice(body, start, at)?
-            }
-            status if status >= 0x80 => {
-                running = Some(status);
-                let start = at;
-                at += 1 + data_len(status);
-                slice(body, start, at)?
-            }
-            _ => {
-                // Running status: the status byte is implied, so write it back out explicitly.
-                let Some(status) = running else {
-                    bail!("running status with no status byte")
-                };
-                let start = at;
-                at += data_len(status);
-                let mut bytes = vec![status];
-                bytes.extend_from_slice(&slice(body, start, at)?);
-                bytes
-            }
-        };
-        events.push(Event { delta, bytes });
-    }
-    Ok(events)
-}
-
-/// Re-emits a track as an `MTrk` chunk.
-fn emit_track(events: &[Event]) -> Vec<u8> {
-    let mut data = Vec::new();
-    for event in events {
-        push_vlq(&mut data, event.delta);
-        data.extend_from_slice(&event.bytes);
-    }
-    let mut chunk = Vec::with_capacity(data.len() + 8);
-    chunk.extend_from_slice(b"MTrk");
-    chunk.extend_from_slice(&u32::try_from(data.len()).unwrap_or(u32::MAX).to_be_bytes());
-    chunk.extend_from_slice(&data);
-    chunk
-}
-
 /// Whether the track carries this abc2midi label.
 fn has_annotation(events: &[Event], label: &str) -> bool {
     events
@@ -275,23 +134,15 @@ fn plays_channel(events: &[Event], channel: u8) -> bool {
 ///
 /// A dropped event's delta is added to the next one's, so nothing after it moves.
 fn drop_annotations(events: &mut Vec<Event>) {
-    let mut carried = 0u32;
-    events.retain_mut(|event| {
-        let junk = event.is_meta(0x01)
+    drop_where(events, |_, event| {
+        event.is_meta(0x01)
             && event.payload().is_some_and(|p| {
                 let text = String::from_utf8_lossy(p);
                 ANNOTATIONS.contains(&text.as_ref())
                     || text
                         .strip_prefix("X:")
                         .is_some_and(|n| n.bytes().all(|b| b.is_ascii_digit()))
-            });
-        if junk {
-            carried += event.delta;
-            return false;
-        }
-        event.delta += carried;
-        carried = 0;
-        true
+            })
     });
 }
 
@@ -524,54 +375,6 @@ fn rewrap_lines(events: &mut [Event], budget: usize) {
     }
 }
 
-/// How many data bytes a channel status takes.
-fn data_len(status: u8) -> usize {
-    match status & 0xF0 {
-        0xC0 | 0xD0 => 1,
-        _ => 2,
-    }
-}
-
-/// Copies a range, or reports the truncation.
-fn slice(body: &[u8], from: usize, to: usize) -> Result<Vec<u8>> {
-    body.get(from..to)
-        .map(<[u8]>::to_vec)
-        .ok_or_else(|| anyhow::anyhow!("event runs past the end of its track"))
-}
-
-/// Reads a variable-length quantity, advancing `at`.
-fn read_vlq(body: &[u8], at: &mut usize) -> Result<u32> {
-    let mut value = 0u32;
-    for _ in 0..4 {
-        let Some(&byte) = body.get(*at) else {
-            bail!("a length runs past the end of its track")
-        };
-        *at += 1;
-        value = (value << 7) | u32::from(byte & 0x7F);
-        if byte & 0x80 == 0 {
-            return Ok(value);
-        }
-    }
-    bail!("a variable-length quantity longer than four bytes")
-}
-
-/// Writes a variable-length quantity.
-fn push_vlq(out: &mut Vec<u8>, mut value: u32) {
-    let mut buffer = [0u8; 4];
-    let mut len = 0;
-    loop {
-        buffer[len] = u8::try_from(value & 0x7F).unwrap_or(0);
-        len += 1;
-        value >>= 7;
-        if value == 0 {
-            break;
-        }
-    }
-    for index in (0..len).rev() {
-        out.push(buffer[index] | if index == 0 { 0x00 } else { 0x80 });
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -792,30 +595,6 @@ mod tests {
         drop_annotations(&mut events);
         assert_eq!(events.len(), 1);
         assert_eq!(events[0].delta, 30);
-    }
-
-    /// The hazard the module header names: a dropped status byte must not orphan what follows.
-    #[test]
-    fn running_status_is_expanded() {
-        let mut data = Vec::new();
-        push_vlq(&mut data, 0);
-        data.extend_from_slice(&[0x90, 60, 100]);
-        push_vlq(&mut data, 5);
-        data.extend_from_slice(&[62, 100]); // running status
-        let events = parse_track(&data).unwrap();
-        assert_eq!(events.len(), 2);
-        assert_eq!(events[1].bytes, vec![0x90, 62, 100]);
-    }
-
-    #[test]
-    fn variable_length_quantities_round_trip() {
-        for value in [0u32, 1, 127, 128, 8192, 100_000, 0x0FFF_FFFF] {
-            let mut out = Vec::new();
-            push_vlq(&mut out, value);
-            let mut at = 0;
-            assert_eq!(read_vlq(&out, &mut at).unwrap(), value);
-            assert_eq!(at, out.len());
-        }
     }
 
     #[test]

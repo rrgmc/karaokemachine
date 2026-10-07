@@ -14,11 +14,13 @@
 //! See `docs/ARCHITECTURE.md` for the wider design.
 
 pub mod encoding;
+pub mod kar_write;
 pub mod karaoke;
 pub mod loudness;
 pub mod lrc;
 pub mod recording;
 pub mod redact;
+pub mod smf;
 pub mod spacing;
 pub mod tempo;
 #[cfg(feature = "testing")]
