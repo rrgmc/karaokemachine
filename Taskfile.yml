@@ -627,6 +627,13 @@ tasks:
     cmds:
       - '"{{.SH}}" tools/setup/fetch-abcmidi.sh {{if .FORCE}}--force{{end}} {{.CLI_ARGS}}'
 
+  # The program that renders `docs/manual/` for the site. Once per machine, into the asset cache,
+  # and `task site` uses that copy and no other, so every machine renders the same markup.
+  mdbook:
+    desc: 'Fetch the pinned mdbook into the asset cache, once per machine (FORCE=1)'
+    cmds:
+      - '"{{.SH}}" tools/setup/fetch-mdbook.sh {{if .FORCE}}--force{{end}} {{.CLI_ARGS}}'
+
   # -- listening to a different instrument bank ------------------------------------------------------
   #
   # **Not a once-per-machine step, unlike the two above, and not a release one either.** It is here
@@ -770,11 +777,12 @@ tasks:
     cmds:
       - '"{{.SH}}" tools/dist/carols.sh {{if .VERBOSE}}--verbose{{end}} {{if .KEEP_WORK}}--keep-work{{end}} {{.CLI_ARGS}}'
 
-  # The landing page. Assembles `site/` plus the README's screenshots and a favicon into `dist/site`,
-  # which is exactly what `.github/workflows/pages.yml` uploads -- so a local preview and the
-  # published page come out of one code path rather than two that can drift.
+  # The site. Assembles `site/`, the screenshots, a favicon and the manual out of `docs/manual/` into
+  # `dist/site`, which is exactly what `.github/workflows/pages.yml` uploads -- so a local preview
+  # and the published site come out of one code path rather than two that can drift. The manual
+  # needs `task mdbook` once.
   site:
-    desc: 'Stage the landing page into dist/site (OPEN=1 VERBOSE=1)'
+    desc: 'Stage the landing page and the manual into dist/site (OPEN=1 VERBOSE=1)'
     cmds:
       - '"{{.SH}}" tools/dist/site.sh {{if .OPEN}}--open{{end}} {{if .VERBOSE}}--verbose{{end}} {{.CLI_ARGS}}'
 
