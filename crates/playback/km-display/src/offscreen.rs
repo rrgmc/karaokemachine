@@ -211,6 +211,19 @@ impl Offscreen {
         self.canvas.present();
     }
 
+    /// Draws one frame with `paint`, which is handed the canvas and the text cache.
+    ///
+    /// For a screen that is not a [`Frame`]. The lyric sync editor draws its own furniture with
+    /// [`crate::text::draw_text`], and its picture is taken through here.
+    pub fn paint(
+        &mut self,
+        paint: impl FnOnce(&mut Canvas<Surface<'static>>, &mut TextCache<SurfaceContext<'static>>),
+    ) {
+        self.cache.begin_frame();
+        paint(&mut self.canvas, &mut self.cache);
+        self.canvas.present();
+    }
+
     /// Hands the drawn pixels to `f` as BGRA, without copying them.
     ///
     /// The bytes are the canvas's own surface, which is where the software renderer draws, so this

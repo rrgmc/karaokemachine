@@ -70,18 +70,7 @@ pub fn write_soft_karaoke(source: &[u8], words: &KarWords) -> Result<Vec<u8>, Ka
     if words.syllables.is_empty() {
         return Err(KarWriteError::NoWords);
     }
-    let (header, chunks) = smf::split_chunks(source)?;
-
-    let mut tracks: Vec<Vec<u8>> = Vec::with_capacity(chunks.len() + 2);
-    for chunk in &chunks {
-        match smf::parse_track(chunk) {
-            Ok(mut events) => {
-                smf::drop_where(&mut events, is_karaoke_text);
-                tracks.push(smf::emit_track(&events));
-            }
-            Err(_) => tracks.push(smf::emit_chunk(chunk)),
-        }
-    }
+    let (header, mut tracks) = music_of(source)?;
 
     tracks.push(smf::emit_track(&smf::track_at(
         HEADER_TRACK,
@@ -102,6 +91,35 @@ pub fn write_soft_karaoke(source: &[u8], words: &KarWords) -> Result<Vec<u8>, Ka
         return Err(KarWriteError::NotReadBack);
     }
     Ok(out)
+}
+
+/// Returns `source` with its karaoke text removed and its music as it was.
+///
+/// What [`write_soft_karaoke`] removes is what this removes. The result is the file a person has
+/// before the words are put on it.
+pub fn without_words(source: &[u8]) -> Result<Vec<u8>, KarWriteError> {
+    let (header, tracks) = music_of(source)?;
+    let mut out = smf::header_for(&header, tracks.len())?;
+    for track in &tracks {
+        out.extend_from_slice(track);
+    }
+    Ok(out)
+}
+
+/// The file's header and its tracks, each without its karaoke text.
+fn music_of(source: &[u8]) -> Result<(Vec<u8>, Vec<Vec<u8>>), KarWriteError> {
+    let (header, chunks) = smf::split_chunks(source)?;
+    let mut tracks: Vec<Vec<u8>> = Vec::with_capacity(chunks.len() + 2);
+    for chunk in &chunks {
+        match smf::parse_track(chunk) {
+            Ok(mut events) => {
+                smf::drop_where(&mut events, is_karaoke_text);
+                tracks.push(smf::emit_track(&events));
+            }
+            Err(_) => tracks.push(smf::emit_chunk(chunk)),
+        }
+    }
+    Ok((header, tracks))
 }
 
 /// Where a song's synced copy goes when nobody names a place: beside it, with the karaoke extension.
@@ -327,6 +345,22 @@ mod tests {
         let want: Vec<(String, LineBreak)> =
             want.iter().map(|(t, b)| ((*t).to_owned(), *b)).collect();
         assert_eq!(got, want);
+    }
+
+    #[test]
+    fn a_file_without_its_words_keeps_its_notes_and_holds_no_lyrics() {
+        let with_words =
+            write_soft_karaoke(&testing::instrumental(), &timed(TWINKLE, 120)).unwrap();
+        let sung = testing::parse(&with_words);
+        assert!(sung.lyrics.line_count() > 0);
+
+        let song = testing::parse(&without_words(&with_words).unwrap());
+        assert_eq!(song.lyrics.line_count(), 0);
+        assert_eq!(song.events.len(), sung.events.len());
+        assert_eq!(
+            song.duration_ms(),
+            testing::parse(&testing::instrumental()).duration_ms()
+        );
     }
 
     #[test]

@@ -33,9 +33,8 @@ use km_song::{LyricTimeline, ParseOptions, SYLLABLE_DIVIDER, Song, WordEnds};
 use sdl3::event::{Event as SdlEvent, WindowEvent};
 use sdl3::keyboard::{Keycode, Mod};
 use sdl3::pixels::Color;
-use sdl3::render::{BlendMode, Canvas, FRect};
+use sdl3::render::{BlendMode, Canvas, FRect, RenderTarget};
 use sdl3::ttf::Sdl3TtfContext;
-use sdl3::video::{Window, WindowContext};
 
 use crate::display::StepSmoother;
 use crate::settings::{Paths, Settings};
@@ -1349,34 +1348,14 @@ pub(crate) fn run(paths: &Paths, settings: &Settings, request: &Request) -> anyh
             let first = m.onsets.partition_point(|&onset| onset < since);
             m.onsets.get(first).is_some_and(|&onset| onset <= tick)
         });
-        let position = clock(song.tempo_map.tick_to_ms(tick));
-        let length = clock(song.duration_ms());
-        let transport = t(if playing {
-            "sync-playing"
-        } else {
-            "sync-paused"
-        });
-        let mut status = words
-            .msg_with(
-                "sync-status",
-                &[
-                    ("transport", transport.as_str().into()),
-                    ("position", position.as_str().into()),
-                    ("length", length.as_str().into()),
-                    (
-                        "tempo",
-                        i64::from((tempo_ratio * 100.0).round() as i32).into(),
-                    ),
-                    ("tapped", (session.stamped as i64).into()),
-                    ("total", (session.syllables.len() as i64).into()),
-                ],
-            )
-            .into_owned();
-        if session.dirty {
-            status = words
-                .msg_with("sync-status-unsaved", &[("status", status.as_str().into())])
-                .into_owned();
-        }
+        let status = status_line(
+            words,
+            playing,
+            song.tempo_map.tick_to_ms(tick),
+            song.duration_ms(),
+            tempo_ratio,
+            &session,
+        );
 
         match (session.phase(), &preview) {
             (Phase::Review, Some(shown)) => {
@@ -1520,6 +1499,142 @@ pub(crate) fn run(paths: &Paths, settings: &Settings, request: &Request) -> anyh
     Ok(())
 }
 
+/// The words of the transport line: the transport, the position, the tempo and the words tapped.
+fn status_line(
+    words: &Catalog,
+    playing: bool,
+    position_ms: u32,
+    length_ms: u32,
+    tempo_ratio: f32,
+    session: &Session,
+) -> String {
+    let transport = words.msg(if playing {
+        "sync-playing"
+    } else {
+        "sync-paused"
+    });
+    let position = clock(position_ms);
+    let length = clock(length_ms);
+    let status = words
+        .msg_with(
+            "sync-status",
+            &[
+                ("transport", transport.as_ref().into()),
+                ("position", position.as_str().into()),
+                ("length", length.as_str().into()),
+                (
+                    "tempo",
+                    i64::from((tempo_ratio * 100.0).round() as i32).into(),
+                ),
+                ("tapped", (session.stamped as i64).into()),
+                ("total", (session.syllables.len() as i64).into()),
+            ],
+        )
+        .into_owned();
+    if !session.dirty {
+        return status;
+    }
+    words
+        .msg_with("sync-status-unsaved", &[("status", status.as_str().into())])
+        .into_owned()
+}
+
+/// What a picture of the tapping screen is taken of.
+pub struct Picture<'a> {
+    /// The song, as the bytes of a MIDI file that holds its words with their timing.
+    pub song: &'a [u8],
+    /// The title, which the picture does not draw and a refusal names.
+    pub title: &'a str,
+    /// The line being tapped, counted from zero. Half of its words are tapped.
+    pub line: usize,
+    /// The picture's size in pixels.
+    pub size: (u32, u32),
+}
+
+/// A song's words as the text the editor takes, which is what Ctrl+T writes.
+pub fn words_as_typed(song: &Song) -> String {
+    join_words(&syllables_of(
+        &song.lyrics,
+        u32::from(song.ticks_per_quarter.max(1)),
+    ))
+}
+
+/// Writes a picture of the tapping screen part-way through a song, with no window and no sound.
+///
+/// The published picture of the editor comes from here. The taps are the song's own timing, given
+/// through [`Session::tap`], and the frame is drawn by the functions the window draws with.
+pub fn picture(picture: &Picture<'_>, out: &Path) -> anyhow::Result<()> {
+    let song = Song::parse(picture.song, &ParseOptions::default())
+        .with_context(|| format!("{} is not a MIDI file", picture.title))?;
+    let timed = syllables_of(&song.lyrics, u32::from(song.ticks_per_quarter.max(1)));
+    let mut session = Session::new(timed.clone());
+    let line = session
+        .lines
+        .get(picture.line)
+        .cloned()
+        .with_context(|| format!("{} has no line {}", picture.title, picture.line))?;
+    let tapped = line.start + line.len() / 2;
+    for syllable in &timed[..tapped] {
+        session.tap(syllable.tick);
+    }
+    let tick = timed[tapped.saturating_sub(1)].tick;
+
+    let words = messages(Locale::English);
+    let choices = melody_choices(&song);
+    let ms = |tick: u32| song.tempo_map.tick_to_ms(tick);
+    let taps_ms: Vec<u32> = session.tapped().iter().map(|s| ms(s.tick)).collect();
+    let onsets_ms: Vec<Vec<u32>> = choices
+        .iter()
+        .map(|c| c.onsets.iter().map(|&t| ms(t)).collect())
+        .collect();
+    let melody = vocal_line_under(&taps_ms, &onsets_ms).and_then(|found| choices.get(found));
+    let vocal = match melody {
+        Some(melody) => {
+            let channel = melody.label(words);
+            words
+                .msg_with("sync-vocal-label", &[("channel", channel.as_str().into())])
+                .into_owned()
+        }
+        None => words.msg("sync-vocal-label-none").into_owned(),
+    };
+    let note_lit = melody.is_some_and(|m| m.onsets.binary_search(&tick).is_ok());
+    let status = status_line(words, true, ms(tick), song.duration_ms(), 1.0, &session);
+    let mode = words.msg("sync-mode-tapping");
+
+    let _sdl = sdl3::init().map_err(|error| anyhow::anyhow!("SDL would not start: {error}"))?;
+    let ttf =
+        sdl3::ttf::init().map_err(|error| anyhow::anyhow!("SDL_ttf would not start: {error}"))?;
+    let theme = Theme::default();
+    let (width, height) = picture.size;
+    let fonts = Fonts::discover(&ttf, None, None, None, false, &theme, height)
+        .map_err(|error| anyhow::anyhow!("no usable font: {error}"))?;
+    let screen = Layout {
+        width: width as f32,
+        height: height as f32,
+    };
+    let mut offscreen = km_display::Offscreen::new(width, height)?;
+    offscreen.paint(|canvas, cache| {
+        canvas.set_draw_color(theme.background);
+        canvas.clear();
+        screen.tapping(canvas, cache, &fonts, &theme, &session);
+        screen.help(canvas, cache, &fonts, &theme, words, &TAPPING_KEYS, true);
+        screen.status(
+            canvas,
+            cache,
+            &fonts,
+            &theme,
+            Phase::Tapping,
+            &mode,
+            &status,
+        );
+        screen.melody(canvas, cache, &fonts, &theme, &vocal, note_lit);
+    });
+    offscreen
+        .to_image()?
+        .save(out)
+        .with_context(|| format!("writing {}", out.display()))
+}
+
 /// A position as minutes, seconds and tenths.
 fn clock(ms: u32) -> String {
     format!("{}:{:02}.{}", ms / 60_000, ms / 1_000 % 60, ms / 100 % 10)
@@ -1607,9 +1722,6 @@ const REVIEW_KEYS: [HelpRow; 4] = [
     ),
 ];
 
-type Screenful = Canvas<Window>;
-type Cache = TextCache<WindowContext>;
-
 /// Where the editor's own text goes, as fractions of the window.
 struct Layout {
     width: f32,
@@ -1618,10 +1730,10 @@ struct Layout {
 
 impl Layout {
     /// A centered line of small text at this fraction of the height.
-    fn note(
+    fn note<T: RenderTarget, C>(
         &self,
-        canvas: &mut Screenful,
-        cache: &mut Cache,
+        canvas: &mut Canvas<T>,
+        cache: &mut TextCache<C>,
         fonts: &Fonts,
         theme: &Theme,
         at: f32,
@@ -1640,10 +1752,10 @@ impl Layout {
     /// The key list along the foot of the window. Answers where its top edge is, so whatever sits
     /// above it knows how much room is left.
     #[allow(clippy::too_many_arguments)]
-    fn help(
+    fn help<T: RenderTarget, C>(
         &self,
-        canvas: &mut Screenful,
-        cache: &mut Cache,
+        canvas: &mut Canvas<T>,
+        cache: &mut TextCache<C>,
         fonts: &Fonts,
         theme: &Theme,
         words: &Catalog,
@@ -1734,10 +1846,10 @@ impl Layout {
 
     /// The transport line at the head of the window.
     #[allow(clippy::too_many_arguments)]
-    fn status(
+    fn status<T: RenderTarget, C>(
         &self,
-        canvas: &mut Screenful,
-        cache: &mut Cache,
+        canvas: &mut Canvas<T>,
+        cache: &mut TextCache<C>,
         fonts: &Fonts,
         theme: &Theme,
         phase: Phase,
@@ -1771,10 +1883,10 @@ impl Layout {
     }
 
     /// The chosen vocal line, with a mark that lights on each of its notes.
-    fn melody(
+    fn melody<T: RenderTarget, C>(
         &self,
-        canvas: &mut Screenful,
-        cache: &mut Cache,
+        canvas: &mut Canvas<T>,
+        cache: &mut TextCache<C>,
         fonts: &Fonts,
         theme: &Theme,
         text: &str,
@@ -1796,10 +1908,10 @@ impl Layout {
     }
 
     /// The tapping screen: the line being tapped, with the one before it and the one after.
-    fn tapping(
+    fn tapping<T: RenderTarget, C>(
         &self,
-        canvas: &mut Screenful,
-        cache: &mut Cache,
+        canvas: &mut Canvas<T>,
+        cache: &mut TextCache<C>,
         fonts: &Fonts,
         theme: &Theme,
         session: &Session,
