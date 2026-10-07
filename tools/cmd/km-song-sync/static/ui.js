@@ -38,22 +38,22 @@
     panel.toggleAttribute("data-selected", true);
     panel.toggleAttribute("data-out-exists", "outExists" in button.dataset);
     panel.toggleAttribute("data-needs-words", "needsWords" in button.dataset);
-    // A name the song states is shown, and its control is switched off so it posts nothing. A
-    // name it does not state gets the control, emptied when another song is selected.
-    let asks = false;
-    for (const field of ["title", "artist", "language"]) {
-      const stated = button.dataset[field] || "";
-      const control = document.getElementById(field);
-      panel.querySelector(`[data-stated="${field}"]`).textContent = stated;
-      control.hidden = control.disabled = stated !== "";
-      if (fresh || stated !== "") control.value = "";
-      if (stated === "") asks = true;
+    // A press of Select starts each name as what the song states. A redraw of the rows keeps
+    // what somebody has typed since.
+    if (fresh) {
+      for (const field of ["title", "artist", "language"]) {
+        document.getElementById(field).value = button.dataset[field] || "";
+      }
     }
-    panel.toggleAttribute("data-asks-names", asks);
     if (fresh || !("outExists" in button.dataset)) force.checked = false;
   };
 
+  // A page turn puts the top of the new rows in view. The rows are also drawn again when the
+  // editor closes, and that redraw moves nothing.
+  let turned = false;
+
   document.body.addEventListener("click", (event) => {
+    if (event.target.closest(".pager button")) turned = true;
     const select = event.target.closest("[data-select]");
     if (select) {
       show(select, true);
@@ -72,6 +72,10 @@
   // The rows are drawn again when the editor closes and on a page turn. The selected song's row
   // may say something new by then, such as a synced copy that now exists.
   document.body.addEventListener("htmx:afterSwap", () => {
+    if (turned) {
+      turned = false;
+      document.getElementById("rows")?.scrollIntoView({ block: "start" });
+    }
     if (!song.value) return;
     const again = [...document.querySelectorAll("[data-select]")].find(
       (button) => button.dataset.select === song.value,

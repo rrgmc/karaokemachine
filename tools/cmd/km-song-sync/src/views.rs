@@ -211,7 +211,7 @@ pub struct SongView {
     pub title: String,
     /// The artist the file states. Empty when it states none.
     pub artist: String,
-    /// The language the file states, by name where the table knows it. Empty when it states none.
+    /// The code of the language the file states. Empty when it states none the table knows.
     pub language: String,
     /// What the row says under the name, as finished sentences.
     pub notes: Vec<String>,
@@ -251,10 +251,9 @@ fn song(row: Row, words: &Catalog) -> SongView {
         artist: row.artist.unwrap_or_default(),
         language: row
             .language
-            .map(|stated| match km_kmpkg::Language::from_declared(&stated) {
-                Some(language) => language.name().to_owned(),
-                None => stated,
-            })
+            .as_deref()
+            .and_then(km_kmpkg::Language::from_declared)
+            .map(|language| language.code().to_owned())
             .unwrap_or_default(),
         notes,
         out_exists: row.out_exists,

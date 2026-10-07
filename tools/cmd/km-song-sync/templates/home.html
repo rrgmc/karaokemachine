@@ -18,7 +18,7 @@
    The tick says whether the box is used, and the box holding text does not. Words left in the box
    from the last song would otherwise go to the next one.
 
-   `data-selected`, `data-out-exists`, `data-needs-words` and `data-asks-names` are set by the page's script from the
+   `data-selected`, `data-out-exists` and `data-needs-words` are set by the page's script from the
    row that was selected, and the stylesheet reads them to hold a Start the server would refuse. #}
 <form id="words" class="words" hx-post="/start" hx-target="#editor" hx-swap="outerHTML"{% if !machine %} data-no-machine{% endif %}>
   <input type="hidden" id="selected-song" name="song" value="">
@@ -29,21 +29,21 @@
   </p>
   <div id="selected-notes" class="hint"></div>
 
-  {# The title, artist and language the synced file is given. A name the song states is shown and
-     cannot be changed, and its control is switched off so it posts nothing. A name the song does
-     not state gets the control, and the server passes it on only then. #}
+  {# The title, artist and language the synced file is given. Each field starts as what the song
+     states, because a stated name is often wrong and is corrected here. A field left as it was, or
+     emptied, changes nothing: the server passes on only a name that differs from the song's own. #}
   <div id="names" class="names">
     <label for="title">{{ "names-title"|t }}</label>
-    <span><b data-stated="title"></b><input type="text" id="title" name="title" autocomplete="off"></span>
+    <input type="text" id="title" name="title" autocomplete="off">
     <label for="artist">{{ "names-artist"|t }}</label>
-    <span><b data-stated="artist"></b><input type="text" id="artist" name="artist" autocomplete="off"></span>
+    <input type="text" id="artist" name="artist" autocomplete="off">
     <label for="language">{{ "names-language"|t }}</label>
-    <span><b data-stated="language"></b><select id="language" name="language">
+    <select id="language" name="language">
       <option value="">{{ "names-language-none"|t }}</option>
       {% for language in languages %}
       <option value="{{ language.code }}">{{ language.name }}</option>
       {% endfor %}
-    </select></span>
+    </select>
   </div>
   <p id="names-hint" class="hint">{{ "names-hint"|t }}</p>
 

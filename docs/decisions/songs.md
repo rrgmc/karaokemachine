@@ -1630,10 +1630,18 @@ song and holds the words box, every choice about the start, and Start. A row hol
 the title, the artist and Select. Fifteen rows of buttons and boxes are harder to read than fifteen
 rows of songs, and the words belong beside the button that uses them.
 
-**The panel asks for the title, the artist and the language the song does not state.** A stated
-one is shown and cannot be changed there. The page puts words on a song and does not rename it. A missing one gets a field, and what a person enters goes to the
-editor as its flag. An empty field passes nothing. The server reads the song again at Start and
-drops a value for anything the song states.
+**The panel holds the title, the artist and the language, and each starts as the song states it.**
+A stated name is often wrong: a file name, a code, or the artist in the title's place. The synced
+file is a new file, so it is the place to put that right. A name that differs from the song's own
+goes to the editor as its flag.
+
+**A field left as it was passes nothing, and so does an empty one.** The song's own name then
+stands, and the editor copies it as the file spells it. The panel cannot remove a name. The server
+reads the song again at Start and makes the comparison itself.
+
+**The pager takes the accent colour, and it is above the rows and below them.** A folder with more
+pages otherwise reads as one that ends on the fifteenth row. A page turn puts the top of the new
+rows in view, because the pager below leaves a person at the foot of the list.
 
 **The language is chosen from the list of codes, and the code is what the file holds.** A list
 cannot be mistyped. The machine reads a code in a karaoke file's language header before it tries

@@ -114,16 +114,13 @@ pub struct Start {
     pub language: Option<String>,
 }
 
-/// What somebody typed for a name, kept only where the song states none.
+/// What somebody typed for a name, where it is a name and not the one the song states.
 ///
-/// A stated name is the file's own and is never replaced from here.
-fn given(stated: Option<&String>, typed: Option<String>) -> Option<String> {
-    if stated.is_some() {
-        return None;
-    }
+/// A blank field and an unchanged one both pass nothing, so the song's own name stands.
+fn given(stated: Option<&str>, typed: Option<String>) -> Option<String> {
     let typed = typed?;
     let typed = typed.trim();
-    (!typed.is_empty()).then(|| typed.to_owned())
+    (!typed.is_empty() && stated.map(str::trim) != Some(typed)).then(|| typed.to_owned())
 }
 
 impl App {
@@ -211,7 +208,8 @@ impl App {
     /// own.** A ticked box that holds nothing is refused, since somebody meant words to be there. Every check
     /// the page makes is made again here, because the folder may have changed under the page.
     ///
-    /// **A typed title, artist or language reaches the editor only where the song states none.**
+    /// **A typed title, artist or language reaches the editor only where it differs from the
+    /// song's own.**
     ///
     /// # Errors
     ///
@@ -252,12 +250,22 @@ impl App {
             words,
             resume: start.resume,
             force: start.force,
-            title: given(found.title.as_ref(), start.title),
-            artist: given(found.artist.as_ref(), start.artist),
+            title: given(found.title.as_deref(), start.title),
+            artist: given(found.artist.as_deref(), start.artist),
             // Only a code from the table is passed on. The list on the page offers nothing else.
-            language: given(found.language.as_ref(), start.language)
-                .and_then(|code| km_kmpkg::Language::parse(&code))
-                .map(|language| language.code().to_owned()),
+            // The song's own language is compared as a code, because the song may spell it `ENGL`.
+            language: given(
+                found
+                    .language
+                    .as_deref()
+                    .and_then(km_kmpkg::Language::from_declared)
+                    .map(km_kmpkg::Language::code),
+                start
+                    .language
+                    .as_deref()
+                    .and_then(km_kmpkg::Language::parse)
+                    .map(|language| language.code().to_owned()),
+            ),
             data_dir: self.config.machine_data_dir.clone(),
         };
         let launch = crate::launch::plan(&machine, &request, &self.config.scratch);

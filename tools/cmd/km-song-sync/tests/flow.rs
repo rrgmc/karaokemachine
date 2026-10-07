@@ -280,7 +280,7 @@ async fn a_start_that_makes_no_sense_is_refused_and_starts_nothing() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn a_typed_name_reaches_the_editor_only_where_the_song_states_none() {
+async fn a_typed_name_reaches_the_editor_only_where_it_differs_from_the_songs_own() {
     let folder = Scratch::new("sync-flow-names");
     let tune = folder.join("tune.mid");
     let sung = folder.join("sung.kar");
@@ -292,7 +292,14 @@ async fn a_typed_name_reaches_the_editor_only_where_the_song_states_none() {
     let page = get(&app, "/").await;
     assert!(page.contains(r#"<input type="text" id="title" name="title""#));
     assert!(page.contains(r#"<option value="pt">Portuguese</option>"#));
-    assert!(page.contains(r#"data-artist="""#), "{page}");
+    assert!(
+        page.contains(r#"data-artist="" data-language="""#),
+        "{page}"
+    );
+    assert!(
+        page.contains(r#"data-artist="The Test Fixtures" data-language="en""#),
+        "the fields start from what the song states: {page}"
+    );
 
     let typed = [
         ("words", "la la"),
@@ -303,8 +310,13 @@ async fn a_typed_name_reaches_the_editor_only_where_the_song_states_none() {
     ];
     post(&app, "/start", &start_form(&tune, &typed)).await;
     closed(&app).await;
-    let over_a_stated_title = [("title", "Another Name"), ("language", "no such code")];
-    post(&app, "/start", &start_form(&sung, &over_a_stated_title)).await;
+    // The page posts every field. Two are as the song states them, and one is corrected.
+    let corrected = [
+        ("title", "Twinkle Twinkle"),
+        ("artist", "The Real Singers"),
+        ("language", "en"),
+    ];
+    post(&app, "/start", &start_form(&sung, &corrected)).await;
     closed(&app).await;
 
     let launches = launcher.launches.lock().expect("the lock");
@@ -316,13 +328,12 @@ async fn a_typed_name_reaches_the_editor_only_where_the_song_states_none() {
         "a blank field passes nothing: {named:?}"
     );
     let stated = args(&launches[1]);
+    assert!(stated.contains(&"--sync-artist=The Real Singers".to_owned()));
     assert!(
-        !stated.iter().any(|arg| arg.starts_with("--sync-title")),
-        "the song's own title stands: {stated:?}"
-    );
-    assert!(
-        !stated.iter().any(|arg| arg.starts_with("--sync-language")),
-        "{stated:?}"
+        !stated
+            .iter()
+            .any(|arg| arg.starts_with("--sync-title") || arg.starts_with("--sync-language")),
+        "a name left as the song states it passes nothing: {stated:?}"
     );
 }
 

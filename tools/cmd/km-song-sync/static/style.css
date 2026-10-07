@@ -120,11 +120,12 @@ tr.selected td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
 /* The words panel shows a name once a song is selected, and says so until then. */
 #words[data-selected] #selected-none { display: none; }
 #selected-notes:empty { display: none; }
-/* The three names appear with a selected song. The hint is for a song that is asked for one. */
+/* The three names and their hint appear with a selected song. */
 #words:not([data-selected]) #names,
-#words:not([data-asks-names]) #names-hint { display: none; }
+#words:not([data-selected]) #names-hint { display: none; }
 .names { display: grid; grid-template-columns: max-content 1fr; gap: 0.35rem 0.75rem; align-items: center; }
 .names input { width: 100%; max-width: 28rem; }
+.names select { justify-self: start; }
 /* Replacing is asked only of a song whose synced copy exists. */
 #words:not([data-out-exists]) #replace { display: none; }
 
@@ -140,4 +141,20 @@ body:not(.has-words) #words[data-needs-words] #start {
     pointer-events: none;
 }
 
-.pager { display: flex; align-items: center; gap: 1rem; margin: 0.75rem 0 0; color: var(--dim); }
+/* The pager takes the accent, so a folder with more pages does not read as one that ends here. */
+.pager {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin: 0.75rem 0 0;
+    padding-top: 0.6rem;
+    border-top: 1px solid var(--line);
+    font-weight: 600;
+}
+.pager.above {
+    margin: 0 0 0.75rem;
+    padding: 0 0 0.6rem;
+    border-top: 0;
+    border-bottom: 1px solid var(--line);
+}
+.pager button.quiet { color: var(--accent); border-color: var(--accent); font-weight: 600; }

@@ -3,6 +3,21 @@
    they narrowed. The block draws itself again when the editor closes: a synced copy is in the
    folder by then, and its row has to say so. #}
 <div id="rows" hx-get="/browse?rows=1&amp;{{ again }}" hx-trigger="editor-ended from:body" hx-swap="outerHTML">
+{# The pager is drawn above the rows and below them. The one above is seen before the list is
+   read, and the one below is where a person is when the list ends. #}
+{% if !range.is_empty() %}
+<nav class="pager above">
+  {% if !previous.is_empty() %}
+  <button type="button" class="quiet" hx-get="/browse?rows=1&amp;{{ previous }}"
+          hx-target="#rows" hx-swap="outerHTML">{{ "page-previous"|t }}</button>
+  {% endif %}
+  <span>{{ range }}</span>
+  {% if !next.is_empty() %}
+  <button type="button" class="quiet" hx-get="/browse?rows=1&amp;{{ next }}"
+          hx-target="#rows" hx-swap="outerHTML">{{ "page-next"|t }}</button>
+  {% endif %}
+</nav>
+{% endif %}
 {% if !folders.is_empty() %}
 <ul class="folders">
 {% for folder in folders %}
@@ -36,7 +51,7 @@
       {# Select starts nothing. It hands the song to the words panel under the browser, which holds
          every choice and the Start button. The `data-` attributes are what the panel needs to know
          about the song: whether a synced copy would be replaced, whether it needs words, and the
-         title, artist and language it states. An empty one is a name the panel asks for. #}
+         title, artist and language it states, which the panel's three fields start from. #}
       {% if song.readable %}
       <button type="button" class="quiet" data-select="{{ song.path }}" data-name="{{ song.name }}"
               data-title="{{ song.title }}" data-artist="{{ song.artist }}" data-language="{{ song.language }}"

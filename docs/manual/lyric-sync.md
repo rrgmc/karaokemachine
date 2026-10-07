@@ -33,14 +33,14 @@ only. With the box unticked it uses the text file beside the song, which has the
 `.txt`, in any encoding. A song that has words already opens with them. A synced copy that is already there is replaced only
 when you tick the box that says so.
 
-**The page asks for the title, the artist and the language a song does not state.** What you enter
-goes into the synced file. A name the song states is shown and stays as it is. An empty title
-becomes the file name, and an empty artist or language stays empty.
+**The page shows the title, the artist and the language of the selected song.** Change any of them,
+and the synced file holds what you entered. An empty field keeps what the song states. A song with
+no title gets its file name.
 
 <p align="center">
 <img src="../images/song-sync-page.png" width="90%"
      alt="KM Song Sync in a browser: a folder of four MIDI files, each marked as having no words,
-with the first one selected, and under the list its title, an empty artist field, a language list,
+with the first one selected, and under the list fields for its title, artist and language,
 and a box that holds the words of that carol with
 hyphens between the syllables, a ticked box that says to use them, and a Start button">
 <br><sub><b>KM Song Sync</b>, with a song selected and its words pasted.</sub>

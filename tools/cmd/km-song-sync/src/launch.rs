@@ -22,11 +22,11 @@ pub struct Request {
     pub resume: bool,
     /// Replace the synced copy that exists.
     pub force: bool,
-    /// The title to write, where the song states none.
+    /// The title to write in place of the song's own.
     pub title: Option<String>,
-    /// The artist to write, where the song states none.
+    /// The artist to write in place of the song's own.
     pub artist: Option<String>,
-    /// The language to write, where the song states none.
+    /// The language to write in place of the song's own.
     pub language: Option<String>,
     /// The data folder the machine reads its settings from, when not its own.
     pub data_dir: Option<PathBuf>,

@@ -201,8 +201,7 @@ struct StartForm {
     resume: Option<String>,
     /// Present when the row's box is ticked.
     force: Option<String>,
-    /// The three names the panel asks for where the song states none. A field the panel holds
-    /// back posts nothing.
+    /// The three names the panel holds, each starting as the song's own.
     title: Option<String>,
     artist: Option<String>,
     language: Option<String>,

@@ -195,7 +195,7 @@ EOF
   } >"$page"
 
   dist_step "capturing"
-  shot "$OUT/song-sync-page.png" 1440 1080 1 "file:///$page"
+  shot "$OUT/song-sync-page.png" 1440 1100 1 "file:///$page"
 }
 
 [ "$DO_PAGE" = 1 ] && page_picture
@@ -211,7 +211,7 @@ png_size() {
 
 echo
 echo "produced"
-for pair in "song-sync-page.png 1440x1080" "sync-editor-tapping.png 1920x1080"; do
+for pair in "song-sync-page.png 1440x1100" "sync-editor-tapping.png 1920x1080"; do
   f="$OUT/${pair% *}"
   want="${pair#* }"
   [ -f "$f" ] || continue
