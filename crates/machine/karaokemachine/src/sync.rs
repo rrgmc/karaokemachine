@@ -111,8 +111,19 @@ struct Session {
     dirty: bool,
     /// The ticks as they stood before the last snap, for taking it back.
     before_snap: Option<Vec<u32>>,
+    /// What the last clear took, until a new tap makes it too late to give back.
+    before_clear: Option<Cleared>,
     /// Whether review was asked for while words are still waiting. Review needs no asking once
     /// every word is tapped.
+    reviewing: bool,
+}
+
+/// The state a clear takes. The ticks themselves stay in the syllables past `stamped`.
+#[derive(Clone, Debug)]
+struct Cleared {
+    ends: Vec<Option<u32>>,
+    selected: usize,
+    dirty: bool,
     reviewing: bool,
 }
 
@@ -132,6 +143,7 @@ impl Session {
             selected: 0,
             dirty: false,
             before_snap: None,
+            before_clear: None,
             reviewing: false,
         }
     }
@@ -193,6 +205,7 @@ impl Session {
         self.selected = self.stamped - 1;
         self.dirty = true;
         self.before_snap = None;
+        self.before_clear = None;
     }
 
     /// Says where a tapped syllable stops being sung, so its highlight does not run on through the
@@ -227,19 +240,39 @@ impl Session {
         true
     }
 
-    /// Takes back every tap and every end, so tapping starts at the first word.
+    /// Takes back every tap and every end, so tapping starts at the first word. It keeps what it
+    /// took until the next tap.
     fn clear(&mut self) -> bool {
         if self.stamped == 0 {
             return false;
         }
-        for syllable in &mut self.syllables[..self.stamped] {
-            syllable.end_tick = None;
-        }
+        let tapped = &mut self.syllables[..self.stamped];
+        self.before_clear = Some(Cleared {
+            ends: tapped.iter_mut().map(|s| s.end_tick.take()).collect(),
+            selected: self.selected,
+            dirty: self.dirty,
+            reviewing: self.reviewing,
+        });
         self.stamped = 0;
         self.selected = 0;
         self.reviewing = false;
         self.dirty = true;
         self.before_snap = None;
+        true
+    }
+
+    /// Gives back what the last clear took, while no tap has come after it.
+    fn undo_clear(&mut self) -> bool {
+        let Some(cleared) = self.before_clear.take() else {
+            return false;
+        };
+        self.stamped = cleared.ends.len();
+        for (syllable, end) in self.syllables.iter_mut().zip(cleared.ends) {
+            syllable.end_tick = end;
+        }
+        self.selected = cleared.selected;
+        self.dirty = cleared.dirty;
+        self.reviewing = cleared.reviewing;
         true
     }
 
@@ -1014,6 +1047,22 @@ pub(crate) fn run(paths: &Paths, settings: &Settings, request: &Request) -> anyh
                     tempo_ratio = (tempo_ratio + 0.05).min(1.5);
                     sound.send(Command::SetTempoRatio(tempo_ratio));
                 }
+                // Two modifiers, because one stray key must not take a whole song's taps. The same
+                // keys give the taps back until a new one is made.
+                (_, Keycode::Backspace) if ctrl && shift => {
+                    if repeat {
+                        // A held key must not clear and give back in turn.
+                    } else if session.undo_clear() {
+                        preview_stale = true;
+                        say(t("sync-clear-undone"));
+                    } else if phase == Phase::Review && session.clear() {
+                        preview_stale = true;
+                        sound.send(Command::Pause);
+                        sound.send(Command::SeekMs(0));
+                        want_playing = false;
+                        say(t("sync-cleared"));
+                    }
+                }
                 (_, Keycode::H) if !repeat => show_help = !show_help,
                 (_, Keycode::R) if !repeat => {
                     let all = session.stamped == session.syllables.len();
@@ -1232,16 +1281,6 @@ pub(crate) fn run(paths: &Paths, settings: &Settings, request: &Request) -> anyh
                     if session.undo_snap() {
                         preview_stale = true;
                         say(t("sync-snap-undone"));
-                    }
-                }
-                // Two modifiers, because one stray key must not take a whole song's taps.
-                (Phase::Review, Keycode::Backspace) if ctrl && shift => {
-                    if !repeat && session.clear() {
-                        preview_stale = true;
-                        sound.send(Command::Pause);
-                        sound.send(Command::SeekMs(0));
-                        want_playing = false;
-                        say(t("sync-cleared"));
                     }
                 }
                 (Phase::Review, Keycode::Backspace) => {
@@ -1943,6 +1982,28 @@ mod tests {
                 .iter()
                 .all(|syllable| syllable.end_tick.is_none())
         );
+    }
+
+    #[test]
+    fn a_clear_is_given_back_whole_until_a_new_tap() {
+        let mut s = session("a b");
+        s.tap(100);
+        assert!(s.end_at(0, 150));
+        s.tap(200);
+        s.selected = 1;
+        s.dirty = false;
+        assert!(s.clear());
+        assert!(s.undo_clear());
+        assert_eq!(s.phase(), Phase::Review);
+        assert_eq!(ticks(&s), [100, 200]);
+        assert_eq!(s.syllables[0].end_tick, Some(150));
+        assert_eq!((s.selected, s.dirty), (1, false));
+        assert!(!s.undo_clear());
+
+        assert!(s.clear());
+        s.tap(500);
+        assert!(!s.undo_clear());
+        assert_eq!(s.stamped, 1);
     }
 
     #[test]
