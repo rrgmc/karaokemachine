@@ -25,6 +25,18 @@ Entries are written for somebody who has the machine. Why any of it is the way i
   you name and downloads the `.kar`, `.mid` and `.midi` files they link. It opens `.zip` archives,
   and builds a package from the songs that have words. It honours the site's `robots.txt` and waits
   between requests.
+- **A lyric sync editor puts words on a MIDI file.** `karaokemachine --sync song.mid --sync-words
+  words.txt` plays the song while you press Space on each word. It writes a new `.kar` and never
+  changes the MIDI file. Review shows the words as the machine draws them. There you can move a word,
+  end it before a pause, or move every word onto the notes of the vocal line. Without a words file
+  it opens the words a karaoke file already has, and `--sync-continue` goes on from a file saved
+  part-way.
+
+### Changed
+
+- **A word can end before the pause after it.** A karaoke file that marks the end of a word with an
+  empty event stops that word's highlight there. The highlight does not creep through the pause to
+  the next word.
 
 ## [1.20.0] - 2026-10-06
 

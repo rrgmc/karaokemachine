@@ -16,7 +16,7 @@ Two neighbors worth knowing before you start:
 
 | File | Covers |
 |---|---|
-| [`song.md`](architecture/song.md) | `km-song` parsing, encoding detection, `km-suitability` melody and the rubric, `km-fixes` per-song corrections, language as a code |
+| [`song.md`](architecture/song.md) | `km-song` parsing, encoding detection, writing words into a MIDI file, `km-suitability` melody and the rubric, `km-fixes` per-song corrections, language as a code |
 | [`audio.md`](architecture/audio.md) | `km-audio` synth and sequencer, the SoundFont, the queue/synth split, ALSA `dmix`, the audio period the display rides on |
 | [`packaging.md`](architecture/packaging.md) | `km-kmpkg`, `km-catalog`, how a package is really made, a package is one file |
 | [`package-builder.md`](architecture/package-builder.md) | the curation tool, the largest single area here |

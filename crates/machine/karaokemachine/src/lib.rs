@@ -69,6 +69,9 @@ mod soundfont;
 // ffmpeg, which is the same dependency the decoder beside it needs.
 #[cfg(feature = "video")]
 mod stream;
+// The lyric sync editor. A desk tool with a keyboard, so it is not built for a phone or a headset.
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+mod sync;
 // The icon in the bar, for a streaming run that has no window to be its face.
 mod timed;
 #[cfg(all(feature = "video", feature = "tray"))]
