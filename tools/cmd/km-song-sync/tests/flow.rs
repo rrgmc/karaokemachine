@@ -115,7 +115,7 @@ async fn the_page_lists_folders_and_midi_files_and_nothing_else() {
         "{page}"
     );
     assert!(
-        page.contains("Uses the words in tune.txt,"),
+        page.contains("Uses the words in tune.txt."),
         "the row names the text file beside the song: {page}"
     );
     assert!(page.contains("Has words already"), "{page}");

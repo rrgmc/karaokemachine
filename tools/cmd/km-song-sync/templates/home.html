@@ -9,7 +9,17 @@
 
 {{ editor|safe }}
 
+{# Two tabs, in the order the work is done: find the song, then give it words and start. Select on
+   a row opens the second. The editor's panel is above both, so what the editor is doing shows on
+   either. The page's script moves `aria-selected` and `hidden`, and nothing is fetched. #}
+<div class="tabs" role="tablist">
+  <button type="button" role="tab" id="tab-song" data-tab="song" aria-controls="pane-song" aria-selected="true">{{ "tab-song"|t }}</button>
+  <button type="button" role="tab" id="tab-words" data-tab="words" aria-controls="pane-words" aria-selected="false">{{ "tab-words"|t }}</button>
+</div>
+
+<section id="pane-song" role="tabpanel" aria-labelledby="tab-song">
 {{ browser|safe }}
+</section>
 
 {# The words panel: the song Select chose, every choice about starting it, and Start. Outside the
    browser and the editor's panel, which are what a press swaps, so what somebody pasted is still
@@ -20,6 +30,7 @@
 
    `data-selected`, `data-out-exists` and `data-needs-words` are set by the page's script from the
    row that was selected, and the stylesheet reads them to hold a Start the server would refuse. #}
+<section id="pane-words" role="tabpanel" aria-labelledby="tab-words" hidden>
 <form id="words" class="words" hx-post="/start" hx-target="#editor" hx-swap="outerHTML"{% if !machine %} data-no-machine{% endif %}>
   <input type="hidden" id="selected-song" name="song" value="">
   <p class="row">
@@ -59,4 +70,5 @@
     <button type="button" class="quiet" data-clear="words-box">{{ "action-clear"|t }}</button>
   </div>
 </form>
+</section>
 {% endblock %}

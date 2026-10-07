@@ -1611,8 +1611,12 @@ song has, for correction. A song with no words anywhere needs the box.
 otherwise go to the next. Words put into an empty box set the tick, and the person can take it
 off. A ticked box that holds nothing is refused.
 
-**The box is under the browser, and a page holds fifteen rows.** A person finds the song first and
-pastes its words second. A short page keeps the box in the window.
+**The page has two tabs, in the order of the work.** The first holds the browser. The second
+holds the selected song, its names, the words box and Start. A person finds the song first and
+pastes its words second, and one tab at a time keeps each of them in the window. What the editor
+is doing shows above both tabs.
+
+**A page of the browser holds fifteen rows.** The page reads every file it lists.
 
 **An UltraStar file is not a page of words.** It is a `.txt` with timing in it, and it is a song in
 its own right.
@@ -1625,10 +1629,13 @@ its first byte.
 keeps the timing the song has and taps the rest. It is never ticked for the person, for the reason
 the editor's flags give: only the person knows which they want.
 
-**A row selects a song, and one panel under the browser starts it.** The panel names the selected
-song and holds the words box, every choice about the start, and Start. A row holds the file name,
-the title, the artist and Select. Fifteen rows of buttons and boxes are harder to read than fifteen
-rows of songs, and the words belong beside the button that uses them.
+**A row selects a song, and one panel on the second tab starts it.** Select opens that tab. The
+panel names the selected song and holds the words box, every choice about the start, and Start. A
+row holds the file name, the title, the artist and Select. Fifteen rows of buttons and boxes are
+harder to read than fifteen rows of songs, and the words belong beside the button that uses them.
+
+**A row's note is a few words.** It says whether the song has words, and which text file supplies
+them. Most rows carry one, and the hint under the words box says what the tick changes.
 
 **The panel holds the title, the artist and the language, and each starts as the song states it.**
 A stated name is often wrong: a file name, a code, or the artist in the title's place. The synced
@@ -1639,7 +1646,8 @@ goes to the editor as its flag.
 stands, and the editor copies it as the file spells it. The panel cannot remove a name. The server
 reads the song again at Start and makes the comparison itself.
 
-**The pager takes the accent colour, and it is above the rows and below them.** A folder with more
+**The pager takes the accent colour, and it is above the rows and below them, on the right.**
+Select takes the same colour, on the same edge. A folder with more
 pages otherwise reads as one that ends on the fifteenth row. A page turn puts the top of the new
 rows in view, because the pager below leaves a person at the foot of the list.
 

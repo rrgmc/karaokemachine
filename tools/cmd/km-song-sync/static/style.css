@@ -69,8 +69,35 @@ button.quiet {
     border: 1px solid var(--line);
 }
 
-/* The words box, which every Start button reads. */
-.words { display: flex; flex-direction: column; gap: 0.35rem; margin: 1rem 0; }
+/* The two tabs. The open one takes the accent, and its lower edge joins the pane under it. */
+.tabs { display: flex; gap: 0.25rem; margin: 1rem 0 0; border-bottom: 1px solid var(--line); }
+.tabs button {
+    background: transparent;
+    color: var(--dim);
+    border: 1px solid transparent;
+    border-bottom: 0;
+    border-radius: 6px 6px 0 0;
+    padding: 0.5rem 1rem;
+    margin-bottom: -1px;
+}
+.tabs button[aria-selected="true"] {
+    background: var(--panel);
+    color: var(--accent);
+    border-color: var(--line);
+    font-weight: 600;
+}
+
+/* The words panel, which Start reads. */
+.words {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    margin: 0.75rem 0 1rem;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 0.75rem 1rem;
+}
 .words label { color: var(--text); }
 .words textarea { width: 100%; resize: vertical; }
 .words p { margin: 0; }
@@ -144,6 +171,7 @@ body:not(.has-words) #words[data-needs-words] #start {
 /* The pager takes the accent, so a folder with more pages does not read as one that ends here. */
 .pager {
     display: flex;
+    justify-content: flex-end;
     align-items: center;
     gap: 1rem;
     margin: 0.75rem 0 0;
@@ -157,4 +185,5 @@ body:not(.has-words) #words[data-needs-words] #start {
     border-top: 0;
     border-bottom: 1px solid var(--line);
 }
-.pager button.quiet { color: var(--accent); border-color: var(--accent); font-weight: 600; }
+.pager button.quiet,
+button[data-select] { color: var(--accent); border-color: var(--accent); font-weight: 600; }

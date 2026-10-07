@@ -8,7 +8,7 @@ language-picker = Language
 action-quit = Quit
 
 home-heading = Put words on a MIDI file
-home-intro = Find the MIDI file of a song and press Select. Paste its words in the box below, and press Start. The sync editor opens, and you tap each syllable in time with the music. The editor saves a new .kar file beside the song and never changes the song.
+home-intro = Find the MIDI file of a song and press Select. Then paste its words and press Start. The sync editor opens, and you tap each syllable in time with the music. The editor saves a new .kar file beside the song and never changes the song.
 home-no-machine = The karaoke machine was not found beside this program, so nothing can be started. Install the machine, or name it with --machine-exe.
 
 words-label = The words
@@ -17,12 +17,14 @@ words-hint = A hyphen splits a word into syllables: ka-ra-o-ke is four taps. Typ
 words-continue = The song is partly tapped already: keep those words as they are, and tap only the rest
 words-use = Use the words in this box
 words-selected = Song:
-words-selected-none = None selected. Press Select on a song above.
+words-selected-none = None selected. Press Select on a song in the first tab.
 names-title = Title
 names-artist = Artist
 names-language = Language
 names-language-none = No change
 names-hint = These go into the synced file. Change one the song states wrongly. An empty field keeps what the song states, and a song with no title gets its file name.
+tab-song = 1. Choose a song
+tab-words = 2. Words and start
 column-file = File
 column-title = Title
 column-artist = Artist
@@ -46,9 +48,9 @@ page-previous = Previous
 page-next = Next
 
 row-not-midi = This is not a MIDI file the editor can read.
-row-uses-text-file = Uses the words in { $file }, unless the box below is ticked.
-row-own-words = Has words already. The editor opens them for correction, unless the box below is ticked.
-row-needs-words = Has no words. Paste them in the box below.
+row-uses-text-file = Uses the words in { $file }.
+row-own-words = Has words already.
+row-needs-words = Has no words.
 row-output-exists = { $file } is already here.
 words-replace = Replace the synced file that is already there
 

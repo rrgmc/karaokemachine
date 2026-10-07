@@ -27,9 +27,11 @@ result of either is written to `song-synced.kar`, and `--sync-out` names another
 
 ## Start the editor from a page
 
-**KM Song Sync, `km-song-sync`, starts the editor from a page.** Browse to the MIDI file,
-press Select, paste the words into the box, and press Start. The page lists folders and MIDI files
-only. With the box unticked it uses the text file beside the song, which has the song's name and
+**KM Song Sync, `km-song-sync`, starts the editor from a page.** On the first tab, browse to the
+MIDI file and press Select. The second tab opens: paste the words into the box, and press Start.
+The first tab lists folders and MIDI files only.
+
+With the box unticked it uses the text file beside the song, which has the song's name and
 `.txt`, in any encoding. A song that has words already opens with them. A synced copy that is already there is replaced only
 when you tick the box that says so.
 
@@ -39,9 +41,8 @@ no title gets its file name.
 
 <p align="center">
 <img src="../images/song-sync-page.png" width="90%"
-     alt="KM Song Sync in a browser: a folder of four MIDI files, each marked as having no words,
-with the first one selected, and under the list fields for its title, artist and language,
-and a box that holds the words of that carol with
+     alt="KM Song Sync in a browser, on its second tab: the file name of the selected carol,
+fields for its title, artist and language, a box that holds the words of that carol with
 hyphens between the syllables, a ticked box that says to use them, and a Start button">
 <br><sub><b>KM Song Sync</b>, with a song selected and its words pasted.</sub>
 </p>
