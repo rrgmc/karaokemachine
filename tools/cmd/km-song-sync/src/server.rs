@@ -129,8 +129,13 @@ async fn read(
         filter: query.filter.trim().to_owned(),
         offset: query.offset,
     };
+    let app = Arc::clone(app);
     tokio::task::spawn_blocking(move || {
         let listing = km_folders::list_with(&ask, crate::rows::is_song);
+        // A folder that was read is where the browser is. One that was not is a wrong turn.
+        if let (Some(here), None) = (&ask.here, &listing.error) {
+            app.remember_folder(here);
+        }
         let rows = crate::rows::describe(&listing.files);
         (listing, rows)
     })

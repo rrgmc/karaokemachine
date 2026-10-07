@@ -14,7 +14,7 @@ fn attach_icon() {
         return;
     }
 
-    // The machine's amber with three beats. `crates/playback/km-display/examples/icon.rs` draws it.
+    // The package builder's blue with three beats. `crates/playback/km-display/examples/icon.rs` draws it.
     println!("cargo:rerun-if-changed=../../../icon/km-song-sync.ico");
 
     let mut resource = winresource::WindowsResource::new();

@@ -14,7 +14,7 @@ home-no-machine = A máquina de karaokê não foi encontrada ao lado deste progr
 words-label = A letra
 words-placeholder = Um verso da música em cada linha. Deixe uma linha vazia entre as estrofes.
 words-hint = Um hífen divide a palavra em sílabas: ka-ra-o-ke são quatro toques. Digite \- para um hífen que é cantado. Deixe a caixa vazia para usar o arquivo de texto ao lado da música, ou a letra que a música já tem.
-words-continue = Manter o tempo que a música já tem, e marcar só as palavras depois dele
+words-continue = A música já está marcada em parte: manter essas palavras como estão, e marcar só o resto
 action-clear = Limpar
 
 action-start = Iniciar

@@ -14,7 +14,7 @@ home-no-machine = The karaoke machine was not found beside this program, so noth
 words-label = The words
 words-placeholder = One line of the song on each line. Leave an empty line between verses.
 words-hint = A hyphen splits a word into syllables: ka-ra-o-ke is four taps. Type \- for a hyphen that is sung. Leave the box empty to use the text file beside a song, or the words the song already has.
-words-continue = Keep the timing the song already has, and tap only the words after it
+words-continue = The song is partly tapped already: keep those words as they are, and tap only the rest
 action-clear = Clear
 
 action-start = Start

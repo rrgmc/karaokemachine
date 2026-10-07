@@ -262,21 +262,22 @@ the mark is byte-identical to the builder's.
 **Below 32 pixels the bolt is a blue corner rather than a glyph.** At that size it only has to say
 *not the builder*.
 
-## The song sync program wears the machine's mark with three beats
+## The song sync program wears the builder's mark with three beats
 
-**`km-song-sync` takes the machine's amber and adds three beats.** Its short name is **KM Song
-Sync**, and that is what a Start Menu entry, a macOS bundle and a setup program call it.
+**`km-song-sync` takes the package builder's blue and adds three beats.** Its short name is **KM
+Song Sync**, and that is what a Start Menu entry, a macOS bundle and a setup program call it.
 
-**It wears the machine's mark because it starts the machine.** The program opens the lyric sync
-editor, which is the machine started another way. The streaming launcher wears the same mark for
-the same reason.
+**It wears the builder's mark because it does the builder's kind of work.** It prepares a song
+file for the machine, on a page, before any singing. The machine's amber would say it plays songs.
+No hue is left to give it one of its own.
 
-**The beats are a badge, in the corner the stream badge uses.** Three dots stand for syllables, and
-a stroke under the first marks the one a tap lands on. `km_display::icon`'s test holds that outside
-that corner the mark is byte-identical to the machine's.
+**The beats are a badge, in the corner the bolt uses.** Three dots stand for syllables, and a
+stroke under the first marks the one a tap lands on. The badge tells this program from the builder
+and from the simple package builder, which can all sit in one taskbar. `km_display::icon`'s test
+holds that outside that corner the mark is byte-identical to the builder's.
 
-**Below 32 pixels the beats are an amber corner rather than a glyph.** At that size the badge only
-has to say *not the plain machine*.
+**Below 32 pixels the beats are a blue corner rather than a glyph.** At that size the badge only
+has to say *not the builder*.
 
 ## The on-screen number pad
 

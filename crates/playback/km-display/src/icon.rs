@@ -422,10 +422,10 @@ mod tests {
         }
     }
 
-    /// The song sync program's mark: the machine's, with three beats.
+    /// The song sync program's mark: the package builder's, with three beats.
     ///
-    /// **Not in [`ALL_MARKS`]**, for the stream mark's reason. It leads with the machine's amber,
-    /// because the program starts the machine as the lyric sync editor.
+    /// **Not in [`ALL_MARKS`]**, for the stream mark's reason. It leads with the builder's blue,
+    /// because it prepares songs as the builder does, and the theme has no hue left.
     const SYNC_MARK: &[u8] = include_bytes!("../../../../icon/km-song-sync-256.png");
 
     /// The center of the middle beat.
@@ -436,25 +436,25 @@ mod tests {
     /// across a plate covering 49 to 207 here, and the stroke under the first ends at 0.941 down.
     const BEATS_BOX: (u32, u32, u32, u32) = (160, 176, 201, 203);
 
-    /// The sync mark is the machine's mark and three beats, and the beats are all of the difference.
+    /// The sync mark is the builder's mark and three beats, and the beats are all of the difference.
     ///
-    /// Somebody who sees both on one desktop has to read them as one machine started two ways, so
+    /// Somebody who sees both on one desktop has to read them as two tools of one family, so
     /// nothing but the beats may move.
     #[test]
-    fn the_sync_mark_is_the_machines_mark_and_three_beats() {
+    fn the_sync_mark_is_the_builders_mark_and_three_beats() {
         let sync = decode(SYNC_MARK, "song sync");
-        let machine = decode(ALL_MARKS[0].1, "machine");
+        let builder = decode(ALL_MARKS[1].1, "package builder");
 
         let sample = at(&sync, BEAT_MIDDLE);
         assert_eq!(sample[3], 255, "a beat must be opaque");
         assert!(
-            sample[0] > 140 && i32::from(sample[0]) > i32::from(sample[2]) + 100,
-            "a beat should be the sung-lyric amber the M is, and it is {sample:?}"
+            i32::from(sample[2]) > i32::from(sample[0]) + 60,
+            "a beat should be the accent blue the M is, and it is {sample:?}"
         );
         assert_ne!(
             sample,
-            at(&machine, BEAT_MIDDLE),
-            "the beat is bare plate, exactly as it is on the machine's own mark"
+            at(&builder, BEAT_MIDDLE),
+            "the beat is bare plate, exactly as it is on the builder's own mark"
         );
 
         let ratio = contrast(&sample, &at(&sync, PLATE));
@@ -470,8 +470,8 @@ mod tests {
             }
             assert_eq!(
                 pixel,
-                machine.get_pixel(x, y),
-                "the sync mark differs from the machine's at ({x}, {y}), which the beats do not \
+                builder.get_pixel(x, y),
+                "the sync mark differs from the builder's at ({x}, {y}), which the beats do not \
                  reach"
             );
         }

@@ -424,8 +424,8 @@ fn extended(from: (f32, f32), to: (f32, f32), amount: f32) -> (f32, f32) {
 ///
 /// **The hue says which family a program belongs to, and a badge says which member it is.** The
 /// four leads are four programs. [`Badge::Stream`] is the machine started one way rather than
-/// another, and [`Badge::Sync`] is the machine started as the lyric sync editor. [`Badge::Quick`] is
-/// the package builder's quick sibling. None takes a hue, because the theme has no hue left, and a
+/// another. [`Badge::Quick`] is the package builder's quick sibling, and [`Badge::Sync`] is the
+/// sibling that puts words on a song. None takes a hue, because the theme has no hue left, and a
 /// hue would say the program has nothing in common with its family.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Badge {
@@ -1483,10 +1483,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // -- the song sync program --------------------------------------------------------------------
     //
-    // **The machine's amber with three beats on it.** The program starts the machine as the lyric
-    // sync editor, so it wears the machine's mark. The badge tells it from the machine and from the
-    // streaming launcher. A desktop program with a window, a menu bar icon and a macOS bundle, so it
-    // takes the simple package builder's shape.
+    // **The package builder's blue with three beats on it.** The program prepares a song for the
+    // machine, as the builder does, so it wears the builder's mark. The badge tells it from the
+    // builder and from the simple package builder. A desktop program with a window, a menu bar icon
+    // and a macOS bundle, so it takes the simple package builder's shape.
 
     for &size in SYNC_TILE_SIZES {
         let path = icons.join(format!("km-song-sync-{size}.png"));
@@ -1495,7 +1495,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             &png(&render(
                 size,
                 &Layout::tile(size),
-                machine_lead(),
+                builder_lead(),
                 Badge::Sync,
             ))?,
         )?;
@@ -1504,7 +1504,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let members: Vec<RgbaImage> = ICO_SIZES
         .iter()
-        .map(|&size| render(size, &Layout::tile(size), machine_lead(), Badge::Sync))
+        .map(|&size| render(size, &Layout::tile(size), builder_lead(), Badge::Sync))
         .collect();
     write(&icons.join("km-song-sync.ico"), &ico(&members)?)?;
     written += 1;
@@ -1518,7 +1518,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             } else {
                 Layout::inset()
             };
-            (kind, render(size, &layout, machine_lead(), Badge::Sync))
+            (kind, render(size, &layout, builder_lead(), Badge::Sync))
         })
         .collect();
     write(&icons.join("km-song-sync.icns"), &icns(&members)?)?;

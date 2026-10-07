@@ -98,10 +98,10 @@ curation database. The theme has no hue left for it. The blue says it is the bui
 a lightning bolt in the same corner as the stream badge tells the two apart. Outside that corner it
 is byte-identical to `km-package-builder-*`, which a test holds.
 
-**An eighth mark carries a badge on the machine's amber.** `km-song-sync-*` is the song sync
-program, which starts the machine as the lyric sync editor. It wears the machine's mark, with three
-beats in the corner the stream badge uses. Outside that corner it is byte-identical to
-`karaokemachine-*`, which a test holds.
+**An eighth mark carries a badge on the package builder's blue too.** `km-song-sync-*` is the song sync
+program, which puts words on a MIDI file. It wears the builder's mark, with three
+beats in the corner the bolt uses. Outside that corner it is byte-identical to
+`km-package-builder-*`, which a test holds.
 
 There are **four** icons, and they are the same artwork under four palettes. The machine leads with
 the theme's sung-lyric amber and `km-package-builder` with its blue accent. `km-remote` leads with
@@ -205,7 +205,7 @@ system's, and a transparent pixel is a hole in it. The loose-size count did not 
 | `km-package-simple.ico` | `tools/cmd/km-package-simple/build.rs`, which puts it in the Windows executable. `km_webshell::with_icons` then reads it back out of the running process for the title bar and the taskbar |
 | `km-package-simple.icns` | `tools/dist/cmd.sh`, which puts it in `KM Simple Package.app/Contents/Resources`. Its name without the extension is what `tools/platform/macos/Info.package-simple.plist` holds in `CFBundleIconFile` |
 | `km-song-sync-32.png` | `tools/cmd/km-song-sync/src/server.rs`, as `ICON_PNG`: the favicon that tool's own page serves |
-| `km-song-sync-256.png` | `crates/playback/km-display/src/icon.rs`'s test, which checks it is the machine's mark with three beats and nothing else. `tools/cmd/km-song-sync/src/desktop.rs` hands it to `km-tray` for the **macOS menu bar**, on the same terms as the package builder's |
+| `km-song-sync-256.png` | `crates/playback/km-display/src/icon.rs`'s test, which checks it is the builder's mark with three beats and nothing else. `tools/cmd/km-song-sync/src/desktop.rs` hands it to `km-tray` for the **macOS menu bar**, on the same terms as the package builder's |
 | `km-song-sync.ico` | `tools/cmd/km-song-sync/build.rs`, which puts it in the Windows executable. `km_webshell::with_icons` then reads it back out of the running process for the title bar and the taskbar |
 | `km-song-sync.icns` | `tools/dist/cmd.sh`, which puts it in `KM Song Sync.app/Contents/Resources`. Its name without the extension is what `tools/platform/macos/Info.song-sync.plist` holds in `CFBundleIconFile` |
 | `karaokemachine-stream-16.png` … `-256.png` | `hicolor` again, under the name the desktop entry's stream action gives: the Debian package installs them and `crates/machine/karaokemachine/src/register.rs` compiles them in for `--register`. `-32.png` is also what `src/tray.rs` hands `km-tray` for the **macOS menu bar**, and `-256.png` is what `km_display::icon`'s test samples |

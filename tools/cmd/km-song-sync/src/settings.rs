@@ -1,5 +1,5 @@
-//! What this tool remembers between runs: the language it speaks and the last folder a song was
-//! started from.
+//! What this tool remembers between runs: the language it speaks and the folder its browser was
+//! on last.
 //!
 //! **A folder, never a file.** The rule the machine's `settings.json` follows reaches here too: a
 //! folder is where somebody keeps songs, and a file path is a fact about one song.
@@ -18,7 +18,7 @@ pub struct Settings {
     /// The language the pages speak, as a BCP 47 tag. Absent means the browser's.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub locale: Option<String>,
-    /// The folder of the song started last, where the browser opens when nothing else says.
+    /// The folder the browser was on last, where the next run opens.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub last_folder: Option<PathBuf>,
 }

@@ -23,7 +23,7 @@
     <string>km-song-sync</string>
     <!-- Without extension. macOS looks for `<this>.icns` in Contents/Resources.
 
-         The machine's amber with three beats. Written by
+         The package builder's blue with three beats. Written by
          crates/playback/km-display/examples/icon.rs and staged by tools/dist/cmd.sh. Renaming
          icon/km-song-sync.icns means changing this string with it. -->
     <key>CFBundleIconFile</key>

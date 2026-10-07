@@ -174,6 +174,19 @@ impl App {
         )
     }
 
+    /// Remembers the folder the browser is on, so the next run opens there.
+    ///
+    /// The folder, never a song: a settings file holds no path to one song. The file is written
+    /// only when the folder changed, because a page turn asks for the same folder again.
+    pub fn remember_folder(&self, folder: &Path) {
+        let mut inner = self.lock();
+        if inner.settings.last_folder.as_deref() == Some(folder) {
+            return;
+        }
+        inner.settings.last_folder = Some(folder.to_path_buf());
+        inner.settings.save(self.config.settings_path.as_deref());
+    }
+
     /// Starts the editor on a song, unless one is open or the start makes no sense.
     ///
     /// **Pasted words win, then the text file beside the song, then the song's own.** Every check
@@ -225,11 +238,6 @@ impl App {
                 return Err("said-busy");
             }
             inner.editor = Editor::Running { song: song.clone() };
-            // The folder, never the song: a settings file holds no path to one song.
-            if let Some(folder) = song.parent() {
-                inner.settings.last_folder = Some(folder.to_path_buf());
-                inner.settings.save(self.config.settings_path.as_deref());
-            }
         }
 
         let app = Arc::clone(self);
@@ -265,8 +273,8 @@ fn written_since(file: &Path, since: SystemTime) -> bool {
 /// The folder the browser opens on: the first of these that is a folder.
 ///
 /// * the folder named on the command line;
+/// * the folder the browser was on last;
 /// * the folder the program was started in, when somebody chose it;
-/// * the folder of the song started last;
 /// * the person's home folder.
 ///
 /// **A double-click chooses no folder.** It starts the program in its own folder or at the top of
@@ -281,7 +289,7 @@ pub fn start_folder(
     home: Option<&Path>,
 ) -> Option<PathBuf> {
     let chosen = current.filter(|dir| dir.parent().is_some() && Some(*dir) != exe_dir);
-    [named, chosen, last, home]
+    [named, last, chosen, home]
         .into_iter()
         .flatten()
         .find(|dir| dir.is_dir())
@@ -339,12 +347,11 @@ mod tests {
             start_folder(named, current, Some(&program), last, Some(&home))
         };
         assert_eq!(from(Some(&named), Some(&current), Some(&last)), Some(named));
-        assert_eq!(
-            from(None, Some(&current), Some(&last)),
-            Some(current.clone())
-        );
+        assert_eq!(from(None, Some(&current), None), Some(current.clone()));
+        // Where the browser was last wins over where the program was started.
+        assert_eq!(from(None, Some(&current), Some(&last)), Some(last.clone()));
         // Started by a double-click: in the program's own folder, or at the top of the disk.
-        assert_eq!(from(None, Some(&program), Some(&last)), Some(last.clone()));
+        assert_eq!(from(None, Some(&program), None), Some(home.clone()));
         assert_eq!(from(None, Some(root), Some(&last)), Some(last));
         assert_eq!(from(None, Some(&program), Some(&gone)), Some(home.clone()));
         assert_eq!(from(Some(&gone), None, None), Some(home));
