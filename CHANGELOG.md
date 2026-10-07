@@ -55,6 +55,8 @@ Entries are written for somebody who has the machine. Why any of it is the way i
 - **A folder browser has a shortcut to your home folder.** On macOS it also has one for iCloud
   Drive, and one for each of Dropbox, Google Drive and OneDrive that is installed. KM Song Sync, the
   curation tool and KM Simple Package all show them.
+- **The manual is on the website.** It has a chapter for each subject, a list of chapters beside the
+  page, and a search across all of them.
 
 ### Changed
 
