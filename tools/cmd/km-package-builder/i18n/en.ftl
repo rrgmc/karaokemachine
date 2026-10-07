@@ -152,6 +152,8 @@ lyrics-none = This file has no lyrics.
 
 open-top-title = the top
 open-this-computer = this computer
+open-place-home = Home
+open-place-icloud = iCloud Drive
 open-this-folder = Open this folder
 open-create-database = Create a database here
 open-folders-named = folders named

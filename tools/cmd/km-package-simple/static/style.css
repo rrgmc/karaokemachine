@@ -128,6 +128,7 @@ progress { width: 100%; max-width: 32rem; }
     margin: 0.75rem 0 1rem;
 }
 .crumbs { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.5rem; }
+.places { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.5rem; }
 .picker .filter { margin-bottom: 0.5rem; color: var(--dim); }
 .folders { list-style: none; margin: 0; padding: 0; columns: 16rem; }
 .folders li { break-inside: avoid; }

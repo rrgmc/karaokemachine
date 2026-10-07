@@ -22,6 +22,17 @@
   {% endmatch %}
 </div>
 
+{# One press from any folder. macOS keeps a cloud folder under `Library`, where a walk from home
+   does not find it. #}
+{% if !places.is_empty() %}
+<div class="places">
+  {% for place in places %}
+  <button class="crumb" hx-get="/open/list?at={{ place.path|urlencode }}"
+          hx-target="#listing" hx-swap="innerHTML" title="{{ place.path }}">{{ place.name }}</button>
+  {% endfor %}
+</div>
+{% endif %}
+
 {% match listing.error %}
 {% when Some with (reason) %}
   <p class="message error">{{ reason }}</p>

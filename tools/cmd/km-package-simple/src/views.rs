@@ -274,6 +274,8 @@ pub struct FoldersFragment {
     pub parent: Option<String>,
     /// Why the listing is short, when it is.
     pub error: Option<String>,
+    /// The shortcuts: home, and the cloud folders a walk does not find.
+    pub places: Vec<km_folders::Folder>,
     /// The folders and their pager.
     pub rows: FolderRows,
 }
@@ -296,14 +298,36 @@ pub struct FolderRows {
     pub next: String,
 }
 
+/// The shortcuts under the names the page shows them by.
+fn named(places: &[km_folders::Place], words: &Catalog) -> Vec<km_folders::Folder> {
+    places
+        .iter()
+        .map(|place| km_folders::Folder {
+            name: match &place.name {
+                km_folders::PlaceName::Home => words.msg("browse-place-home").into_owned(),
+                km_folders::PlaceName::ICloudDrive => words.msg("browse-place-icloud").into_owned(),
+                // Data, not words: a provider's folder carries the name its provider gave it.
+                km_folders::PlaceName::Named(name) => name.clone(),
+            },
+            path: place.path.clone(),
+        })
+        .collect()
+}
+
 /// The folder picker drawn from a listing.
 #[must_use]
-pub fn folders(listing: km_folders::Listing, target: PickFor, words: &Catalog) -> FoldersFragment {
+pub fn folders(
+    listing: km_folders::Listing,
+    places: &[km_folders::Place],
+    target: PickFor,
+    words: &Catalog,
+) -> FoldersFragment {
     FoldersFragment {
         target: target.id(),
         here: listing.here.clone(),
         parent: listing.parent.clone(),
         error: listing.error.clone(),
+        places: named(places, words),
         rows: folder_rows(listing, target, words),
     }
 }

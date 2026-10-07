@@ -291,6 +291,87 @@ pub fn start() -> Option<PathBuf> {
     directories::UserDirs::new().map(|dirs| dirs.home_dir().to_path_buf())
 }
 
+/// What a shortcut is called.
+///
+/// **Two of the three are words a caller translates**, so they are named here and spelled in the
+/// caller's catalog. A storage provider's folder carries the name its provider gave it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PlaceName {
+    /// The home folder.
+    Home,
+    /// iCloud Drive.
+    ICloudDrive,
+    /// A folder that has a name of its own.
+    Named(String),
+}
+
+/// A folder a picker offers in one press, from any folder it is on.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Place {
+    /// What to show.
+    pub name: PlaceName,
+    /// Where it goes.
+    pub path: String,
+}
+
+/// The shortcuts a picker draws beside its listing: home, and the cloud folders macOS keeps apart.
+///
+/// **macOS keeps a cloud folder where a walk does not find it.** iCloud Drive and every storage
+/// provider's folder sit under `Library`, which Finder hides, and the name in the home folder is a
+/// symlink, which [`list_with`] does not follow. On Windows and Linux a provider's folder is a
+/// plain folder under home, and the listing shows it.
+pub fn places() -> Vec<Place> {
+    let Some(home) = start() else {
+        return Vec::new();
+    };
+    #[cfg_attr(not(target_os = "macos"), allow(unused_mut))]
+    let mut places = vec![Place {
+        name: PlaceName::Home,
+        path: home.display().to_string(),
+    }];
+    #[cfg(target_os = "macos")]
+    places.extend(cloud_places(&home));
+    places
+}
+
+/// The cloud folders under a macOS home: iCloud Drive, then each storage provider's folder by name.
+///
+/// **A folder that is absent is a shortcut that is not drawn.** A machine with no iCloud Drive has
+/// no `com~apple~CloudDocs`, and one with no provider installed has no `CloudStorage`.
+#[cfg(any(target_os = "macos", test))]
+fn cloud_places(home: &Path) -> Vec<Place> {
+    let library = home.join("Library");
+    let mut places = Vec::new();
+
+    let icloud = library.join("Mobile Documents").join("com~apple~CloudDocs");
+    if icloud.is_dir() {
+        places.push(Place {
+            name: PlaceName::ICloudDrive,
+            path: icloud.display().to_string(),
+        });
+    }
+
+    let mut providers: Vec<(String, PathBuf)> = std::fs::read_dir(library.join("CloudStorage"))
+        .into_iter()
+        .flatten()
+        .flatten()
+        .filter(|entry| entry.file_type().is_ok_and(|kind| kind.is_dir()))
+        .map(|entry| {
+            (
+                entry.file_name().to_string_lossy().into_owned(),
+                entry.path(),
+            )
+        })
+        .filter(|(name, _)| !name.starts_with('.'))
+        .collect();
+    providers.sort_by_key(|(name, _)| name.to_lowercase());
+    places.extend(providers.into_iter().map(|(name, path)| Place {
+        name: PlaceName::Named(name),
+        path: path.display().to_string(),
+    }));
+    places
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -315,6 +396,49 @@ mod tests {
                 .expect("making a test folder");
         }
         scratch
+    }
+
+    #[test]
+    fn a_macos_home_offers_icloud_drive_and_each_storage_provider() {
+        let scratch = Scratch::new("places-cloud");
+        let home = scratch.join("home");
+        let library = home.join("Library");
+        let icloud = library.join("Mobile Documents").join("com~apple~CloudDocs");
+        let storage = library.join("CloudStorage");
+        for folder in [
+            icloud.clone(),
+            storage.join("OneDrive-Personal"),
+            storage.join("Dropbox"),
+            storage.join(".hidden"),
+        ] {
+            std::fs::create_dir_all(folder).expect("making a test folder");
+        }
+        std::fs::write(storage.join("a-file"), b"").expect("writing a test file");
+
+        let place = |name: PlaceName, path: PathBuf| Place {
+            name,
+            path: path.display().to_string(),
+        };
+        assert_eq!(
+            cloud_places(&home),
+            vec![
+                place(PlaceName::ICloudDrive, icloud),
+                place(
+                    PlaceName::Named("Dropbox".to_owned()),
+                    storage.join("Dropbox")
+                ),
+                place(
+                    PlaceName::Named("OneDrive-Personal".to_owned()),
+                    storage.join("OneDrive-Personal")
+                ),
+            ]
+        );
+    }
+
+    #[test]
+    fn a_home_with_no_cloud_folder_offers_none() {
+        let scratch = Scratch::new("places-none");
+        assert!(cloud_places(&scratch.join("home")).is_empty());
     }
 
     #[test]

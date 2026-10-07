@@ -1267,6 +1267,7 @@ button.forget:hover { color: var(--bad); border-color: var(--bad); }
     margin-right: auto;
 }
 button.crumb { padding: 0 0.4rem; }
+.places { display: flex; gap: 0.5rem; flex-wrap: wrap; padding: 0.4rem 0; }
 
 /* The walker's folders. A page of these is a hundred lines of one folder name each, so it scrolls
    inside its own panel rather than pushing the pager and the two lists above it off the screen. */
