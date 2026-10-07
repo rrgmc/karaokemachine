@@ -2110,8 +2110,8 @@ the machine counts the line as sung for a fixed hold of beats.
 reads as words the singer missed. A line followed at once by the next never fades, because a fade
 over a breath looks like a fault.
 
-**A line after a long gap is cued in, in every song.** A bar above it fills over a bar of music and
-is full exactly when the line starts. The song's first line after its intro has one too. The cued line is drawn in the
+**A line after a long gap is cued in, in every song.** A bar above it fills over a bar of music in
+a line-timed song, and is full exactly when the line starts. The song's first line after its intro has one too. The cued line is drawn in the
 pending color rather than dimmed, because the cue says it comes next.
 
 **The next line brightens as it comes.** It sits dimmed below the live one. Over the
@@ -2130,6 +2130,11 @@ shows which words are sung.
 **A syllable-timed line ends where its last syllable starts.** That syllable runs to the next
 line's start, so its end says nothing about when the singing stopped. The gap before the next line
 counts from that start.
+
+**That gap earns a cue at four bars, and the cue fills over two.** A held note and a rest fill a
+bar or two of the gap in an ordinary verse. A cue on each of those is noise. Four bars is a
+solo. A syllable-timed song's beat is the music's own, and one bar of a fast song is over before a
+singer reads the cue. The intro earns a cue at two bars, because no held note fills it.
 
 Whether a song is line-timed is the file's timing on average, as the suitability reads it.
 

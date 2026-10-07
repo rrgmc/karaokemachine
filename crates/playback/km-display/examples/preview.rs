@@ -811,7 +811,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         &solo_info,
         &solo_song.lyrics,
         &solo_view,
-        14_200,
+        18_000,
         &empty_entry,
         &solo_song,
     );

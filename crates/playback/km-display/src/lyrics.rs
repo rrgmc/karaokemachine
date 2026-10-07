@@ -100,13 +100,23 @@ pub struct LyricView {
     pub hold_ticks: u32,
     /// How long a line-timed line takes to fade once its singing is over, in ticks.
     pub fade_ticks: u32,
-    /// How long the lead-in cue takes to fill before a line starts, in ticks.
+    /// How long the lead-in cue takes to fill before a line-timed line starts, in ticks.
     pub cue_ticks: u32,
+    /// How long the lead-in cue takes to fill before a syllable-timed line starts, in ticks.
+    ///
+    /// A line-timed song's beat is a nominal half second. A syllable-timed song's beat is the
+    /// music's own, and at a fast tempo one bar of it is over before a singer has read the cue.
+    pub syllable_cue_ticks: u32,
     /// How long a gap has to be before a line for it to cue in, in ticks.
     ///
     /// The line-timed line before that gap fades out. Between two lines sung back to back a cue
     /// would flicker, and a line fading for a breath would read as a fault.
     pub cue_min_gap_ticks: u32,
+    /// How long a gap has to be before a syllable-timed line for it to cue in, in ticks.
+    ///
+    /// Longer than [`Self::cue_min_gap_ticks`], because this gap counts from the start of the last
+    /// syllable sung. A held note and a breath fill a bar or two of it in an ordinary verse.
+    pub syllable_cue_min_gap_ticks: u32,
     /// How long the upcoming line-timed line takes to brighten before it starts, in ticks.
     ///
     /// The upcoming line is dim so the eye knows which line is live. Two lines sung back to back get
@@ -130,14 +140,24 @@ const FADE_BEATS: u32 = 1;
 /// Beats the lead-in cue takes to fill: one bar, which is how a count-in is felt.
 const CUE_BEATS: u32 = 4;
 
+/// Beats the lead-in cue takes to fill in a syllable-timed song: two bars.
+const SYLLABLE_CUE_BEATS: u32 = 8;
+
 /// Beats the upcoming line-timed line takes to brighten before it starts.
 const BRIGHTEN_BEATS: u32 = 2;
 
 /// Beats of gap before a line that earn a cue, and a fade for the line-timed line before it.
 const CUE_MIN_GAP_BEATS: u32 = 6;
 
+/// Beats between a syllable-timed line's last syllable and the next line that earn a cue: four
+/// bars.
+///
+/// A break that long is a solo. A shorter one is a held note and a rest, and a cue on every one of
+/// those is noise.
+const SYLLABLE_CUE_MIN_GAP_BEATS: u32 = 16;
+
 // A cued line has to be on screen already, or the cue fills under nothing.
-const _: () = assert!(CUE_BEATS <= LEAD_IN_BEATS);
+const _: () = assert!(CUE_BEATS <= LEAD_IN_BEATS && SYLLABLE_CUE_BEATS <= LEAD_IN_BEATS);
 
 impl Default for LyricView {
     fn default() -> Self {
@@ -155,7 +175,9 @@ impl LyricView {
             hold_ticks: beat * LINE_HOLD_BEATS,
             fade_ticks: beat * FADE_BEATS,
             cue_ticks: beat * CUE_BEATS,
+            syllable_cue_ticks: beat * SYLLABLE_CUE_BEATS,
             cue_min_gap_ticks: beat * CUE_MIN_GAP_BEATS,
+            syllable_cue_min_gap_ticks: beat * SYLLABLE_CUE_MIN_GAP_BEATS,
             brighten_ticks: beat * BRIGHTEN_BEATS,
         }
     }
@@ -294,14 +316,18 @@ impl LyricView {
         line_timed: bool,
     ) -> Option<f32> {
         let start = timeline.lines[index].start_tick;
-        let from = start.saturating_sub(self.cue_ticks);
-        if tick >= start
-            || tick < from
-            || self.gap_before(timeline, index, line_timed) < self.cue_min_gap_ticks
-        {
+        // **The first line's gap is the intro**, which no held note fills, so a syllable-timed
+        // song's intro earns a cue as soon as it is long enough to hold the whole of one.
+        let (cue_ticks, min_gap) = match (line_timed, index) {
+            (true, _) => (self.cue_ticks, self.cue_min_gap_ticks),
+            (false, 0) => (self.syllable_cue_ticks, self.syllable_cue_ticks),
+            (false, _) => (self.syllable_cue_ticks, self.syllable_cue_min_gap_ticks),
+        };
+        let from = start.saturating_sub(cue_ticks);
+        if tick >= start || tick < from || self.gap_before(timeline, index, line_timed) < min_gap {
             return None;
         }
-        Some(((tick - from) as f32 / self.cue_ticks.max(1) as f32).clamp(0.0, 1.0))
+        Some(((tick - from) as f32 / cue_ticks.max(1) as f32).clamp(0.0, 1.0))
     }
 
     /// How far an upcoming line-timed line has brightened at `tick`.
@@ -888,7 +914,7 @@ mod tests {
     }
 
     /// The start ticks of [`testing::words_around_a_solo`]'s three lines.
-    const SOLO_LINE_STARTS: [u32; 3] = [3_840, 5_760, 14_880];
+    const SOLO_LINE_STARTS: [u32; 4] = [3_840, 5_760, 18_720, 24_000];
 
     #[test]
     fn a_syllable_timed_line_after_a_solo_is_cued_in_and_the_cue_ends_on_its_start() {
@@ -903,10 +929,10 @@ mod tests {
         );
         let view = view();
         let after = SOLO_LINE_STARTS[2];
-        let early = view.frame(&lyrics, after - view.cue_ticks - 1);
+        let early = view.frame(&lyrics, after - view.syllable_cue_ticks - 1);
         assert!(early.lines.iter().all(|line| line.cue.is_none()));
 
-        let halfway = view.frame(&lyrics, after - view.cue_ticks / 2);
+        let halfway = view.frame(&lyrics, after - view.syllable_cue_ticks / 2);
         let next = halfway
             .lines
             .iter()
@@ -928,10 +954,20 @@ mod tests {
     fn a_syllable_timed_songs_first_line_is_cued_in_after_the_intro() {
         let lyrics = timeline(&testing::words_around_a_solo());
         let view = view();
-        let frame = view.frame(&lyrics, SOLO_LINE_STARTS[0] - view.cue_ticks / 4);
+        let frame = view.frame(&lyrics, SOLO_LINE_STARTS[0] - view.syllable_cue_ticks / 4);
         let first = frame.current().expect("the first line waits");
         assert_eq!(first.index, 0);
         assert!(first.cue.is_some_and(|cue| cue > 0.7));
+    }
+
+    #[test]
+    fn a_syllable_timed_line_after_a_held_note_and_a_rest_has_no_cue() {
+        let lyrics = timeline(&testing::words_around_a_solo());
+        let view = view();
+        // Two bars lie between the last syllable and this line, which is a pause and not a solo.
+        let frame = view.frame(&lyrics, SOLO_LINE_STARTS[3] - view.syllable_cue_ticks / 2);
+        assert!(frame.lines.iter().any(|line| line.index == 3));
+        assert!(frame.lines.iter().all(|line| line.cue.is_none()));
     }
 
     #[test]

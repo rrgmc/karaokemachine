@@ -30,7 +30,7 @@ Entries are written for somebody who has the machine. Why any of it is the way i
 
 - **Every song counts you back in after a break.** A bar above the next line fills during a long
   pause and is full when the line starts. A MIDI or `.kar` song shows it too, after its intro and
-  after a solo.
+  after a solo of four bars or more.
 
 ## [1.20.0] - 2026-10-06
 

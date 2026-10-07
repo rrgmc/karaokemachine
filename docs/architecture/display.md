@@ -941,6 +941,10 @@ stays in the band the wallpaper pack measures.
 line's last syllable runs to the next line's start. `sung_until` therefore ends that line at the
 last syllable's start, and `gap_before` measures the gap from there.
 
+**A syllable-timed song has its own two cue thresholds.** `syllable_cue_min_gap_ticks` is sixteen
+beats and `syllable_cue_ticks` is eight. `cue` picks the pair by mode, and asks the first line for
+a gap of `syllable_cue_ticks` only.
+
 **The thresholds are beats, scaled by `for_ticks_per_quarter`**, as the lead-in is. A millisecond
 timeline's beat is half a second, so the hold is four seconds and the cue two. `CUE_BEATS` is
 asserted no longer than `LEAD_IN_BEATS` at compile time, because a cue on a line not yet shown
