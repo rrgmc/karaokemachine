@@ -1678,6 +1678,11 @@ profiles inside itself the first time each program in it is run. `dist/bin/<plat
 sharpest case, holding both of them side by side. An installed build is sharper still: a `{app}` under
 `C:\Program Files` has nowhere writable to put one at all.
 
+**A portable copy is the exception, and it is one on purpose.** Its rule is that nothing leaves its
+folder, so the profile goes to `data/<program>/cache/webview` there. The folder already holds
+everything else the programs write, and `km-dirs` gives that cache folder as it gives the rest. See
+[`A portable copy keeps its state beside its programs`](distribution.md#a-portable-copy-keeps-its-state-beside-its-programs).
+
 **`assets/` was the obvious parallel and is refused on the argument `Where packages live` already
 makes.** That tree ships with the build and is read-only where it counts. A browser profile is
 accumulating per-user state of exactly the kind that row moved out of it.

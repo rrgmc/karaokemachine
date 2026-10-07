@@ -178,6 +178,9 @@ crates/
     km-folders/            # one page of the folders under a folder, for the folder pickers both
                            # package builders draw inside their pages. The listing only: the
                            # builder's "indexed" badge stays in the builder.
+    km-dirs/               # where a program keeps its files: the per-user directories, or the
+                           # `data` folder beside a portable copy. The one crate that names a
+                           # per-user directory, and `clippy.toml` holds the rest to that.
     km-androidlog/         # tracing events into logcat, the only place a line goes on a device.
                            # Takes a tag, because there are two Android applications.
     km-logfile/            # ...and the desktop counterpart: those same events into a file, for the

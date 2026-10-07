@@ -24,10 +24,12 @@ for search, queueing and control.
 | `karaokemachine-setup-@VERSION@-windows-x86_64.exe` | Windows 10 or 11, 64-bit. One installer for every program, with a checkbox per part. It installs for your account only and does not ask for an administrator password. |
 | `karaokemachine-setup-@VERSION@-macos-aarch64.pkg` | macOS on Apple Silicon. The same seven programs behind six checkboxes. Applications go to `/Applications` and the command-line tools to `/usr/local/bin`. It asks for your administrator password once and downloads nothing. |
 | `km-remote-setup-@VERSION@-windows-x86_64.exe` | Windows 10 or 11, 64-bit — **the remote on its own**, for a computer that is not the karaoke machine. About 5 MB. The installer above already contains it; this one is for a computer that wants nothing else. |
+| `karaokemachine-portable-@VERSION@-windows-x86_64.zip` | Windows 10 or 11, 64-bit — **a portable copy**. Unzip it anywhere and run it. Every program is in it, and each keeps its settings and songs in the `data` folder inside. It reads and writes nothing in your user profile, so it runs beside an installed copy without touching it. |
 | `km-remote-setup-@VERSION@-macos-aarch64.pkg` | macOS on Apple Silicon — **the remote on its own**. KM Remote goes to `/Applications` and nothing is put on your `PATH`. |
 | `karaokemachine_@VERSION@-1_amd64.deb` | Debian 13 or later, amd64. Install it with `sudo apt install ./karaokemachine_@VERSION@-1_amd64.deb`. |
 | `karaokemachine-tools_@VERSION@-1_amd64.deb` | The package builder, the offline remote and the picture-and-bank tool, for the same Debian. Download it beside the one above and install both at once: `sudo apt install ./karaokemachine_@VERSION@-1_amd64.deb ./karaokemachine-tools_@VERSION@-1_amd64.deb`. A box under a television needs only the machine. |
 | `karaokemachine-@VERSION@-x86_64-unknown-linux-gnu.tar.gz` | Any other 64-bit Linux. Unpack it anywhere and run it. It includes the libraries it needs. |
+| `karaokemachine-portable-@VERSION@-linux-x86_64.tar.gz` | Any 64-bit Linux — **a portable copy**. Unpack it anywhere and run it. It holds the machine and every tool, and each keeps its settings and songs in the `data` folder inside. It reads and writes nothing in your home directory. |
 | `karaokemachine-@VERSION@-android.apk` | The machine on Android and Google TV. One file covers 32-bit and 64-bit ARM. |
 | `km-remote-@VERSION@-android.apk` | The remote, for a phone. It works when the machine is not reachable. One file covers both ARM architectures. |
 | `karaokemachine-@VERSION@-quest.apk` | The machine on a Meta Quest, on a screen that hangs in the room with the room still behind it. It installs beside the Android APK rather than over it. |
@@ -64,8 +66,8 @@ Each file answers for itself, and what a platform says about a download differs.
   push one over a cable.
 <!-- /platform -->
 <!-- platform: linux -->
-- **The two `.deb` files and the tarball** are unsigned, and apt reports this when you install a file
-  by path.
+- **The two `.deb` files and the two tarballs** are unsigned, and apt reports this when you install a
+  `.deb` by path.
 <!-- /platform -->
 
 <!-- platform: ios -->

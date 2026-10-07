@@ -514,6 +514,8 @@ tools/dist/cmd.sh km-package-builder  #   ...or just one of them
 tools/dist/cmd.sh --no-video #   ...without the video feature; every script above takes this
 tools/dist/bin.sh              # one folder with every executable in it, instead of one per product
 tools/dist/bin.sh --no-build   #   ...gathering what is already staged, building nothing
+tools/dist/portable.sh         # the portable copy: that folder plus a marker, as a .zip or a .tar.gz
+tools/platform/linux/portable.sh        #   ...its Linux half, every tool built in Docker
 tools/platform/windows/installer.sh     # a Windows setup.exe: one installer, all seven products, per-user
 tools/platform/macos/installer.sh       # a macOS .pkg: one installer, all seven products, /Applications
 tools/platform/windows/installer-remote.sh  # ...and the remote alone, about 5 MB, its own uninstaller
@@ -537,7 +539,7 @@ is
 [`A release page carries the platforms the machine cutting it can build`](docs/decisions/distribution.md#a-release-page-carries-the-platforms-the-machine-cutting-it-can-build).
 
 **A pushed `v*` tag runs all of this in CI, except the Mac's half.** `.github/workflows/release.yml`
-stages eleven of the thirteen carriers on hosted runners and runs
+stages thirteen of the fifteen carriers on hosted runners and runs
 `release.sh --upload --platforms windows,linux,android,quest,ios --elsewhere macos`. A Mac builds the two
 `.pkg` files, and `release.sh --add --platforms macos` adds them. [`RELEASE.md`](RELEASE.md) has the
 order.
@@ -567,6 +569,11 @@ builders, the offline remote and km-admin, and the machine Recommends it. It is 
 the machine's `.deb` rather than something `apt` fetches, there being no repository to fetch it
 from. `task dist:deb:tools` stages it, and the release page names both files in one `apt install`
 line.
+
+**The portable copy is a carrier on Windows and on Linux.** `task dist:portable` stages it. It is
+every program in one folder, with a marker file that makes each keep its files in `data/` there.
+On Linux the whole folder is built in Docker, tools included. The rule is
+[`A portable copy keeps its state beside its programs`](docs/decisions/distribution.md#a-portable-copy-keeps-its-state-beside-its-programs).
 
 **The macOS carrier is the notarized package**, which is why that row names
 `task dist:setup:notarized` and its pattern stops at the architecture. The signed-only and ad-hoc
@@ -819,6 +826,7 @@ workflow, is [`What CI runs`](CONTRIBUTING.md#what-ci-runs) in `CONTRIBUTING.md`
 | `crates/remote/km-remote` | The desktop shell over it: the standalone offline remote, in a window of its own on Windows and macOS |
 | `crates/platform/km-tray` | The icon in the OS icon bar for a tool that runs a web server — so a run with no window is still visible, and can still be closed. Shared by `km-package-builder` and `km-remote` |
 | `crates/platform/km-folders` | One page of the folders under a folder, for the in-page folder picker. Shared by `km-package-builder` and `km-package-simple` |
+| `crates/platform/km-dirs` | Where a program keeps its files: the per-user directories, or the `data` folder beside a portable copy. Every program asks it, and `clippy.toml` refuses any other source |
 | `crates/machine/karaokemachine` | The binary |
 | `tools/cmd/km-pack` | Packaging, as a library *and* a command |
 | `tools/cmd/km-lyrics` | Dump a parsed lyric timeline and analysis for one file, or scan a folder |
@@ -2095,6 +2103,7 @@ task dist:tools -- km-pack    # ...just these tools
 task dist:setup               # ...the setup program: one installer, every product
 task dist:setup:notarized     # ...that one signed and notarized, on macOS
 task dist:setup:remote        # ...the remote alone, in a small installer of its own
+task dist:portable            # ...the portable copy: every program, its files kept beside it
 task dist NO_VIDEO=1  ZIP=1  VERBOSE=1
 ```
 
@@ -2108,6 +2117,8 @@ task dist NO_VIDEO=1  ZIP=1  VERBOSE=1
 | `tools/platform/linux/tarball.sh` | a portable folder + `.tar.gz`, built in Docker |
 | `tools/dist/cmd.sh` | the six command-line tools, one folder each |
 | `tools/dist/bin.sh` | one folder with **every** executable in it |
+| `tools/dist/portable.sh` | the portable copy: that folder with a marker and a `data` folder, as a `.zip` or a `.tar.gz` |
+| `tools/platform/linux/portable.sh` | its Linux half: the tarball folder plus the seven tools, built in Docker |
 | `tools/platform/windows/installer.sh` | one Inno Setup program carrying all seven products |
 | `tools/platform/macos/installer.sh` | the same as a `.pkg` |
 | `tools/platform/windows/installer-remote.sh` | a second, small one carrying the remote alone |

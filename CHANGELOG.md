@@ -11,6 +11,14 @@ Entries are written for somebody who has the machine. Why any of it is the way i
 
 ## [Unreleased]
 
+### Added
+
+- **A portable copy for Windows and Linux.** Unpack `karaokemachine-portable` anywhere and run it.
+  Every program is in it, and each keeps its settings and songs in the `data` folder inside. It
+  reads and writes nothing in your user profile, so it runs beside an installed copy without
+  changing it. The `packages`, `soundfonts` and `wallpapers` folders are there already, each with a
+  note saying what goes in it.
+
 ## [1.20.0] - 2026-10-06
 
 ### Added
