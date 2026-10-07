@@ -55,6 +55,17 @@ task check
 
 **A failure stops the release.** Nothing below is worth doing over a tree that does not pass.
 
+```sh
+task release:bank
+```
+
+**This fetches the recommended instrument bank the way a fresh install does**, and checks it against
+the digests in the bank table. It downloads a few hundred megabytes. A failure stops the release
+too: correct the row in
+[`soundfont-banks.conf`](crates/machine/km-banks/data/soundfont-banks.conf), or move the
+recommendation. See
+[`The recommended bank is fetched before a release is tagged`](docs/decisions/distribution.md#the-recommended-bank-is-fetched-before-a-release-is-tagged).
+
 ## 5. Commit, merge, and tag
 
 One commit carrying the bump, the changelog and the notes, on a branch of its own. `master` takes
