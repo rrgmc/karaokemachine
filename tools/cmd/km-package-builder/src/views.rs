@@ -1386,6 +1386,22 @@ pub struct FoldersPage {
     /// The parent's path, `""` at the root. Empty string at the root means the "up" link is the root
     /// link, which is where it should go.
     pub parent: String,
+    /// What every link within the page appends to keep the order, `""` for the default order.
+    pub sort_suffix: String,
+    /// The Folder column's heading.
+    pub by_name: FolderHeading,
+    /// The Songs column's heading.
+    pub by_songs: FolderHeading,
+    /// The Suitability column's heading.
+    pub by_suitability: FolderHeading,
+}
+
+/// One sortable column heading on the Folders page.
+pub struct FolderHeading {
+    /// What the heading's link appends to sort by this column.
+    pub suffix: String,
+    /// The arrow that says this column is the order in force, and which way. Empty otherwise.
+    pub arrow: &'static str,
 }
 
 /// One `<option>`: its value and whether it is the one currently in force.

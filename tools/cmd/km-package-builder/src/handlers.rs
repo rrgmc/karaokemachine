@@ -4966,6 +4966,128 @@ pub async fn tidy_favorite(
 pub struct FolderQuery {
     #[serde(default)]
     path: String,
+    /// Which column orders the rows. See [`FolderSort::parse`].
+    #[serde(default)]
+    sort: String,
+}
+
+/// A column the Folders page sorts by.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum FolderColumn {
+    Name,
+    Songs,
+    Suitability,
+}
+
+/// The order of the Folders page's rows.
+///
+/// The rows are one level of the tree and are already in memory, so the order is applied to them
+/// rather than asked of the database.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct FolderSort {
+    column: FolderColumn,
+    descending: bool,
+}
+
+impl FolderSort {
+    /// By name, ascending: the order the database gives.
+    const DEFAULT: Self = Self {
+        column: FolderColumn::Name,
+        descending: false,
+    };
+
+    /// Reads a `sort` parameter. Anything this does not know is the default order.
+    fn parse(sort: &str) -> Self {
+        let (column, descending) = match sort.strip_suffix("-desc") {
+            Some(column) => (column, true),
+            None => (sort, false),
+        };
+        let column = match column {
+            "name" => FolderColumn::Name,
+            "songs" => FolderColumn::Songs,
+            "suitability" => FolderColumn::Suitability,
+            _ => return Self::DEFAULT,
+        };
+        Self { column, descending }
+    }
+
+    /// What a link appends to keep this order. Empty for the default, so a plain link stays plain.
+    fn suffix(self) -> String {
+        if self == Self::DEFAULT {
+            return String::new();
+        }
+        let column = match self.column {
+            FolderColumn::Name => "name",
+            FolderColumn::Songs => "songs",
+            FolderColumn::Suitability => "suitability",
+        };
+        let direction = if self.descending { "-desc" } else { "" };
+        format!("&sort={column}{direction}")
+    }
+
+    /// The heading of one column: where a click on it leads, and the arrow it carries.
+    ///
+    /// A click on the column in force turns it around. A click on another starts where that column
+    /// is most useful: names from the top of the alphabet, and the two numbers from the largest.
+    fn heading(self, column: FolderColumn) -> crate::views::FolderHeading {
+        let active = self.column == column;
+        let descending = if active {
+            !self.descending
+        } else {
+            column != FolderColumn::Name
+        };
+        let arrow = match (active, self.descending) {
+            (false, _) => "",
+            (true, false) => " \u{25b2}",
+            (true, true) => " \u{25bc}",
+        };
+        crate::views::FolderHeading {
+            suffix: Self { column, descending }.suffix(),
+            arrow,
+        }
+    }
+
+    /// Puts the rows in this order.
+    ///
+    /// The *files here* row stays first, because it is the folder itself and not one of its
+    /// children. A folder with no suitability goes last in both directions: it has no place on the
+    /// scale, and the top of the list is for the folders that do. The sort is stable, so folders
+    /// that tie stay in name order.
+    fn order(self, folders: &mut [crate::db::FolderNode]) {
+        let first = usize::from(
+            folders
+                .first()
+                .is_some_and(crate::db::FolderNode::is_files_here),
+        );
+        let Some(children) = folders.get_mut(first..) else {
+            return;
+        };
+        let turned = |ordering: std::cmp::Ordering| {
+            if self.descending {
+                ordering.reverse()
+            } else {
+                ordering
+            }
+        };
+        match self.column {
+            FolderColumn::Name => {
+                if self.descending {
+                    children.reverse();
+                }
+            }
+            FolderColumn::Songs => {
+                children.sort_by(|a, b| turned(a.song_count.cmp(&b.song_count)));
+            }
+            FolderColumn::Suitability => {
+                children.sort_by(|a, b| match (a.suitability, b.suitability) {
+                    (Some(a), Some(b)) => turned(a.total_cmp(&b)),
+                    (Some(_), None) => std::cmp::Ordering::Less,
+                    (None, Some(_)) => std::cmp::Ordering::Greater,
+                    (None, None) => std::cmp::Ordering::Equal,
+                });
+            }
+        }
+    }
 }
 
 /// `GET /folders`
@@ -5003,10 +5125,12 @@ pub async fn folders(
     }
 
     let listing = path.clone();
-    let folders = match state.reading(move |db| db.folders(&listing)).await {
+    let mut folders = match state.reading(move |db| db.folders(&listing)).await {
         Ok(folders) => folders,
         Err(error) => return failed_page(error, &state, "folders"),
     };
+    let sort = FolderSort::parse(&query.sort);
+    sort.order(&mut folders);
 
     let mut crumbs = Vec::new();
     let mut so_far = String::new();
@@ -5029,6 +5153,10 @@ pub async fn folders(
             folders,
             crumbs,
             parent,
+            sort_suffix: sort.suffix(),
+            by_name: sort.heading(FolderColumn::Name),
+            by_songs: sort.heading(FolderColumn::Songs),
+            by_suitability: sort.heading(FolderColumn::Suitability),
         },
         state.locale(),
     )
@@ -8412,6 +8540,63 @@ async fn load_song(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A folder order keeps *files here* first and an unrated folder last, in both directions.
+    #[test]
+    fn a_folder_order_keeps_files_here_first_and_the_unrated_last() {
+        let node = |name: &str, song_count, suitability| crate::db::FolderNode {
+            name: name.to_owned(),
+            path: format!("{name}/"),
+            song_count,
+            suitability,
+        };
+        let ordered = |sort: &str| {
+            let mut folders = vec![
+                node("", 9, Some(1.0)),
+                node("a", 5, Some(7.0)),
+                node("b", 8, None),
+                node("c", 5, Some(3.0)),
+            ];
+            FolderSort::parse(sort).order(&mut folders);
+            folders
+                .iter()
+                .map(|folder| folder.name.as_str())
+                .collect::<Vec<_>>()
+                .join(",")
+        };
+        assert_eq!(ordered(""), ",a,b,c");
+        assert_eq!(ordered("a-word-from-elsewhere"), ",a,b,c");
+        assert_eq!(ordered("name-desc"), ",c,b,a");
+        // Two folders tie on five songs, and stay in name order.
+        assert_eq!(ordered("songs"), ",a,c,b");
+        assert_eq!(ordered("songs-desc"), ",b,a,c");
+        assert_eq!(ordered("suitability"), ",c,a,b");
+        assert_eq!(ordered("suitability-desc"), ",a,c,b");
+    }
+
+    /// A link keeps the order it was drawn under, and the default order adds nothing to it.
+    #[test]
+    fn a_folder_order_writes_the_parameter_it_reads() {
+        assert_eq!(FolderSort::parse("").suffix(), "");
+        assert_eq!(FolderSort::parse("name").suffix(), "");
+        for sort in [
+            "name-desc",
+            "songs",
+            "songs-desc",
+            "suitability",
+            "suitability-desc",
+        ] {
+            assert_eq!(FolderSort::parse(sort).suffix(), format!("&sort={sort}"));
+        }
+        // The column in force turns around, and another starts from its largest.
+        let by_songs = FolderSort::parse("songs-desc");
+        assert_eq!(by_songs.heading(FolderColumn::Songs).suffix, "&sort=songs");
+        assert_eq!(
+            by_songs.heading(FolderColumn::Suitability).suffix,
+            "&sort=suitability-desc"
+        );
+        assert_eq!(by_songs.heading(FolderColumn::Name).suffix, "");
+    }
 
     /// The song page words every reason melody detection gives, from the code the scan stored.
     #[test]

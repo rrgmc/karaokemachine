@@ -4,7 +4,7 @@
 
 <h2>
   <a href="/folders">{{ "folders-all"|t }}</a>
-  {%- for crumb in crumbs %} / <a href="/folders?path={{ crumb.1 }}">{{ crumb.0 }}</a>{% endfor %}
+  {%- for crumb in crumbs %} / <a href="/folders?path={{ crumb.1 }}{{ sort_suffix }}">{{ crumb.0 }}</a>{% endfor %}
 </h2>
 
 {% if folders.is_empty() %}
@@ -18,16 +18,17 @@
 <table>
   <thead>
     <tr>
-      <th>{{ "folders-folder"|t }}</th>
-      <th class="num" title="{{ "folders-songs-title"|t }}">{{ "favorites-songs"|t }}</th>
-      <th class="num" title="{{ "folders-suitability-title"|t }}">{{ "column-suitability"|t }}</th>
+      {# Each heading sorts by its column, and the one in force carries the arrow. #}
+      <th><a href="/folders?path={{ path }}{{ by_name.suffix }}">{{ "folders-folder"|t }}</a>{{ by_name.arrow }}</th>
+      <th class="num" title="{{ "folders-songs-title"|t }}"><a href="/folders?path={{ path }}{{ by_songs.suffix }}">{{ "favorites-songs"|t }}</a>{{ by_songs.arrow }}</th>
+      <th class="num" title="{{ "folders-suitability-title"|t }}"><a href="/folders?path={{ path }}{{ by_suitability.suffix }}">{{ "column-suitability"|t }}</a>{{ by_suitability.arrow }}</th>
       <th></th>
     </tr>
   </thead>
   <tbody>
     {% if !path.is_empty() %}
     <tr>
-      <td colspan="4"><a href="/folders?path={{ parent }}">&larr; {{ "folders-up"|t }}</a></td>
+      <td colspan="4"><a href="/folders?path={{ parent }}{{ sort_suffix }}">&larr; {{ "folders-up"|t }}</a></td>
     </tr>
     {% endif %}
     {% for folder in folders %}
@@ -36,7 +37,7 @@
         {% if folder.is_files_here() %}
         <span class="dim">{{ "folders-files-here"|t }}</span>
         {% else %}
-        <a href="/folders?path={{ folder.path }}">{{ folder.name }}</a>
+        <a href="/folders?path={{ folder.path }}{{ sort_suffix }}">{{ folder.name }}</a>
         {% endif %}
       </td>
       <td class="num">{{ folder.song_count }}</td>
@@ -44,7 +45,7 @@
       <td>
         <span class="row">
           {% if !folder.is_files_here() %}
-          <a href="/folders?path={{ folder.path }}"><button type="button">{{ "folders-browse"|t }}</button></a>
+          <a href="/folders?path={{ folder.path }}{{ sort_suffix }}"><button type="button">{{ "folders-browse"|t }}</button></a>
           {% endif %}
           <a href="/songs?folder={% if folder.is_files_here() %}{{ path }}{% else %}{{ folder.path }}{% endif %}"><button
              type="button">{{ "folders-only-this"|t }}</button></a>
