@@ -4,7 +4,8 @@
     "locale": "en"
   },
   "api": {
-    "bind": "0.0.0.0:8177"
+    "bind": "0.0.0.0:8177",
+    "room_access": "control"
   },
   "display": {
     "fullscreen": false

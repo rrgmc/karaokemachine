@@ -127,8 +127,9 @@ dist/portable/<platform>/karaokemachine-portable-<version>-<system>-<arch>.tar.g
 
 `tools/dist/portable.sh` builds it, and `task dist:portable` runs that.
 
-- **It copies the two folders above into one**, the console folder first and the windowed one over
-  it. A release signs the windowed folder's copy of a single-form program, so that copy must win.
+- **It copies `dist/bin/<platform>` and not `dist/bin-console/<platform>`.** The windowed folder
+  holds every program and is the one a release signs. The script fails when a `-console` twin is in
+  the staged folder.
 - **It adds `karaokemachine-portable.txt`**, which `km-dirs` reads beside the executable. The script
   spells the name a second time, and its own check fails when the two disagree.
 - **It makes `data/karaokemachine/packages`, `soundfonts` and `wallpapers`**, each holding a
@@ -139,8 +140,9 @@ dist/portable/<platform>/karaokemachine-portable-<version>-<system>-<arch>.tar.g
   Linux the home directory points at an empty folder, which must stay empty. The `data` folder must
   then hold the five files the script wrote and nothing a run left behind.
 - **It copies `tools/dist/portable-settings.example.json` to `settings.example.json`** in the
-  machine's folder. Two tests in `crates/machine/karaokemachine/src/settings.rs` read that tracked
-  file: every key is one the machine writes, and every value is the default.
+  machine's folder. Three tests in `crates/machine/karaokemachine/src/settings.rs` read that tracked
+  file. Every key is one the machine writes, `api.room_access` is `control`, and every other value
+  is the default.
 - **It writes `first-run-soundfont.json.example`** beside where `settings.json` goes, naming the
   recommended row from `tools/setup/soundfont-banks.sh`. `firstrun.rs` reads the file only under
   its own name, so the request waits for a rename.
