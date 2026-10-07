@@ -44,8 +44,8 @@ android {
         // Must increase for every build that might be installed over an earlier one: 0.1.0 APKs
         // were installed on the Galaxy S23 and the Google TV Streamer during M8, and Android refuses
         // a downgrade or an equal versionCode outright.
-        versionCode = 23
-        versionName = '1.20.0'
+        versionCode = 24
+        versionName = '1.21.0'
         // No `abiFilters` here. The plugin joins a flavour's filters to these rather than replacing
         // them, so a filter here would reach both flavours whatever the headset names.
     }

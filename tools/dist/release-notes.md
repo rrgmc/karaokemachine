@@ -4,18 +4,19 @@ for search, queueing and control.
 
 ## What changed
 
-- **A song carries on when its headphones disconnect.** It moves to the device the system now uses
-  and keeps its position.
-- **Words written all in capitals are drawn in sentence case**, which is easier to read at singing
-  speed. Packages already built draw the new case.
-- **More songs get a guide melody.** The search finds a melody doubled in harmony, and one timed
-  loosely against its words.
-- **A MIDI file takes its title from the file name where its own title is not one.** That covers a
-  track named `Piano` and an eight-letter abbreviation.
-- **The package builder's song list shows each song's first words**, in a column a box turns on.
-- **KM Simple Package leaves out every song below 8 with one button.** It stays where you are when
-  you keep a song or leave it out.
-- **Every song links to a YouTube search**, in the package builder and on the remote.
+- **A portable copy for Windows and Linux.** Unpack it anywhere and run it. Every program keeps its
+  settings and songs in the `data` folder inside.
+- **A lyric sync editor puts words on a MIDI file.** The song plays while you press Space on each
+  word, and the editor writes a new `.kar`.
+- **KM Song Sync starts the editor from a page.** Browse to a folder, select a song, paste its words
+  and press Start.
+- **A site's song files become a package in one command**, with `km-site-pack`.
+- **Every song counts you back in after a break.** A bar above the next line fills during a long
+  pause and is full when the line starts.
+- **The curation tool's Folders page shows each folder's average suitability**, and sorts by name,
+  by songs or by suitability.
+- **The recommended instrument bank downloads again.** The machine takes the publisher's current
+  release.
 
 ## Which file to download
 
