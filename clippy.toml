@@ -1,0 +1,6 @@
+# A portable copy must never read or write the per-user directories, and `km-dirs` is the one
+# function that answers for it. See `A portable copy keeps its state beside its programs` in
+# docs/decisions/distribution.md.
+disallowed-methods = [
+    { path = "directories::ProjectDirs::from", reason = "ask km_dirs::for_app, which knows a portable copy" },
+]

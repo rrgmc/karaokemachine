@@ -2040,7 +2040,6 @@ dependencies = [
  "async-trait",
  "axum",
  "clap",
- "directories",
  "form_urlencoded",
  "futures-util",
  "image",
@@ -2048,6 +2047,7 @@ dependencies = [
  "km-api",
  "km-banks",
  "km-console",
+ "km-dirs",
  "km-ecapplog",
  "km-locale",
  "km-logfile",
@@ -2157,6 +2157,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "km-dirs"
+version = "1.20.0"
+dependencies = [
+ "directories",
+]
+
+[[package]]
 name = "km-ecapplog"
 version = "1.20.0"
 dependencies = [
@@ -2238,7 +2245,7 @@ version = "1.20.0"
 name = "km-passwords"
 version = "1.20.0"
 dependencies = [
- "directories",
+ "km-dirs",
  "serde",
  "serde_json",
  "tracing",

@@ -236,8 +236,8 @@ fn open_browser(url: &str) {
 /// the executable. `None` is wry's own default, and the window still opens.
 #[cfg(windows)]
 fn webview_data_dir() -> Option<std::path::PathBuf> {
-    let dirs = directories::ProjectDirs::from("", "", "km-package-simple")?;
-    let dir = dirs.cache_dir().join("webview");
+    let dirs = km_dirs::for_app("km-package-simple")?;
+    let dir = dirs.cache.join("webview");
     if let Err(error) = std::fs::create_dir_all(&dir) {
         tracing::debug!(%error, dir = %dir.display(), "no webview profile directory");
         return None;

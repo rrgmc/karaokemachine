@@ -438,6 +438,7 @@ it are the same entry. How the thing is built is [`ARCHITECTURE.md`](../ARCHITEC
 - [A font, in the tarball only](distribution.md#a-font-in-the-tarball-only)
 - [A CJK face is borrowed, never bundled, and opened only when asked for](distribution.md#a-cjk-face-is-borrowed-never-bundled-and-opened-only-when-asked-for)
 - [A folder with everything in it](distribution.md#a-folder-with-everything-in-it)
+- [A portable copy keeps its state beside its programs](distribution.md#a-portable-copy-keeps-its-state-beside-its-programs)
 - [A Windows setup program](distribution.md#a-windows-setup-program)
 - [What an installed build contains](distribution.md#what-an-installed-build-contains)
 - [An installed machine can be started streaming without a command line](distribution.md#an-installed-machine-can-be-started-streaming-without-a-command-line)

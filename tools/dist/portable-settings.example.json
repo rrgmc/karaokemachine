@@ -1,0 +1,13 @@
+{
+  "machine": {
+    "name": "KaraokeMachine",
+    "locale": "en"
+  },
+  "api": {
+    "bind": "0.0.0.0:8177"
+  },
+  "display": {
+    "fullscreen": false
+  },
+  "package_dirs": []
+}

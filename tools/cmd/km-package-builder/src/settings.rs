@@ -8,7 +8,7 @@
 //! the next.
 //!
 //! So it goes where `recent.json` already goes: the platform's config directory, via
-//! `directories::ProjectDirs`.
+//! `km_dirs`.
 //!
 //! **Failure to read is never an error.** A missing, unreadable or corrupt file means the built-in
 //! defaults, which is what a first run gets anyway. Refusing to start a curation tool because a
@@ -146,8 +146,8 @@ fn file_for(setting: Option<&std::ffi::OsStr>) -> Option<PathBuf> {
         Some(named) if named.is_empty() => None,
         Some(named) => Some(PathBuf::from(named)),
         None => {
-            let dirs = directories::ProjectDirs::from("", "", "km-package-builder")?;
-            Some(dirs.config_dir().join("settings.json"))
+            let dirs = km_dirs::for_app("km-package-builder")?;
+            Some(dirs.config.join("settings.json"))
         }
     }
 }

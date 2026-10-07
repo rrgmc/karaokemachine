@@ -167,7 +167,7 @@ serde_json = { workspace = true }
 # The seed for the wallpaper order. `km-display` takes a seed rather than drawing one, so that the
 # order it produces can be pinned by a test; this is where the real entropy comes in.
 getrandom = { workspace = true }
-directories = { workspace = true }
+km-dirs = { workspace = true }
 clap = { workspace = true }
 anyhow = { workspace = true }
 thiserror = { workspace = true }

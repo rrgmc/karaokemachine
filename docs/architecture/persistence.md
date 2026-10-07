@@ -3,9 +3,16 @@
 > Part of the [architecture notes](../ARCHITECTURE.md). Product decisions live in
 > [`docs/decisions/`](../decisions/); this file says how the thing is built.
 
-`directories` for platform config and data directories: `settings.json`, `library.sqlite`, a
+`km-dirs` gives the config and data directories: `settings.json`, `library.sqlite`, a
 `packages/` folder and a `soundfonts/` folder. **No list of registered package paths** — what a
 folder holds is what is installed.
+
+**`km-dirs` is the one crate that names a per-user directory.** It asks `directories` for the
+platform's answer, unless a file named `karaokemachine-portable.txt` sits beside the executable.
+Then every program's files go under `data/<program>/` there, with the cache in `cache/` inside it.
+Every program asks `km_dirs::for_app`, and `clippy.toml` refuses `ProjectDirs::from` anywhere else.
+It reads the marker on Windows and Linux only, and it creates no directory. The rule is
+[`A portable copy keeps its state beside its programs`](../decisions/distribution.md#a-portable-copy-keeps-its-state-beside-its-programs).
 
 `auditions/` sits beside them, and it is the one folder that is **scratch rather than storage**. A
 song uploaded through `debug/play-upload` is staged there so that it can play as an ordinary loose

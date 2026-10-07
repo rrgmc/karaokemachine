@@ -478,8 +478,8 @@ fn open_browser(url: &str) {
 fn webview_data_dir() -> Option<std::path::PathBuf> {
     // The qualifier `resolve_data_dir` already uses, so this program has one identity under
     // `directories` rather than two.
-    let dirs = directories::ProjectDirs::from("", "", "km-remote")?;
-    let dir = dirs.cache_dir().join("webview");
+    let dirs = km_dirs::for_app("km-remote")?;
+    let dir = dirs.cache.join("webview");
 
     // Created here rather than left to WebView2, so that a failure becomes this function's `None`
     // — a wry default, and a window — instead of a webview that will not build and a run that

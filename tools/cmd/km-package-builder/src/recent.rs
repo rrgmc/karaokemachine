@@ -7,7 +7,7 @@
 //! them, because the question is asked before one is chosen.
 //!
 //! So it goes where `km-app` and `km-remote` already put per-user state: the platform's config
-//! directory, via `directories::ProjectDirs`.
+//! directory, via `km_dirs`.
 //!
 //! Failure to read or write it is never an error. A missing, unreadable or corrupt list means the
 //! Open page shows no recents, which is exactly what it shows the first time anyway; refusing to
@@ -90,8 +90,8 @@ fn file_for(setting: Option<&std::ffi::OsStr>) -> Option<PathBuf> {
         Some(named) if named.is_empty() => None,
         Some(named) => Some(PathBuf::from(named)),
         None => {
-            let dirs = directories::ProjectDirs::from("", "", "km-package-builder")?;
-            Some(dirs.config_dir().join("recent.json"))
+            let dirs = km_dirs::for_app("km-package-builder")?;
+            Some(dirs.config.join("recent.json"))
         }
     }
 }

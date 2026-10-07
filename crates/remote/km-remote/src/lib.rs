@@ -472,9 +472,9 @@ fn resolve_data_dir(asked_for: Option<PathBuf>) -> Result<PathBuf> {
     if let Some(dir) = asked_for {
         return Ok(dir);
     }
-    let dirs = directories::ProjectDirs::from("", "", "km-remote")
+    let dirs = km_dirs::for_app("km-remote")
         .context("this platform has no data directory; pass --data-dir")?;
-    Ok(dirs.data_dir().to_path_buf())
+    Ok(dirs.data)
 }
 
 /// The aligned block a person reads once and then ignores.

@@ -2,7 +2,9 @@
 <!--
   SignPath artifact configuration `payload`: the programs a Windows setup installs, signed before
   Inno Setup compiles them. The release workflow uploads them from `dist/`, so the archive holds
-  `bin/windows/` and `km-remote/windows/km-remote-<version>-<triple>/`.
+  `bin/windows/`, `bin-console/windows/` and `km-remote/windows/km-remote-<version>-<triple>/`.
+
+  `bin-console/windows/` gives the console forms, which only the portable copy carries.
 
   Each program is named, and each must match exactly once. A program that a build stops producing
   then fails the signing request, and a new file in the folder is not signed until it is named here.
@@ -24,6 +26,18 @@
         <include path="km-lyrics.exe"/>
         <include path="km-site-pack.exe"/>
         <include path="km-wallpaper-pack.exe"/>
+        <for-each>
+          <authenticode-sign/>
+        </for-each>
+      </pe-file-set>
+    </directory>
+    <directory path="bin-console/windows">
+      <pe-file-set>
+        <include path="karaokemachine-console.exe"/>
+        <include path="km-package-builder-console.exe"/>
+        <include path="km-package-simple-console.exe"/>
+        <include path="km-remote-console.exe"/>
+        <include path="km-admin-console.exe"/>
         <for-each>
           <authenticode-sign/>
         </for-each>

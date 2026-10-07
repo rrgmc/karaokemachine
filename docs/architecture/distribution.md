@@ -117,6 +117,46 @@ dist/bin-console/<platform>/   the console form; every single-form tool in both
   script asks, and it decides what the generated README claims.
 - **Versionless folders, versioned archives**, so `clean.sh --old` can never take one.
 
+### The portable copy
+
+```
+dist/portable/<platform>/karaokemachine-portable-<version>-<system>-<arch>/
+dist/portable/<platform>/karaokemachine-portable-<version>-<system>-<arch>.zip      Windows
+dist/portable/<platform>/karaokemachine-portable-<version>-<system>-<arch>.tar.gz   Linux
+```
+
+`tools/dist/portable.sh` builds it, and `task dist:portable` runs that.
+
+- **It copies the two folders above into one**, the console folder first and the windowed one over
+  it. A release signs the windowed folder's copy of a single-form program, so that copy must win.
+- **It adds `karaokemachine-portable.txt`**, which `km-dirs` reads beside the executable. The script
+  spells the name a second time, and its own check fails when the two disagree.
+- **It makes `data/karaokemachine/packages`, `soundfonts` and `wallpapers`**, each holding a
+  `README.txt`. The machine reads a package, a bank or a picture by extension, so a text file there
+  is ignored.
+- **It proves the claim before it writes the archive.** The machine's `--show-paths` must say
+  `portable   yes`, and must name `data/karaokemachine` for its settings, catalog and packages. On
+  Linux the home directory points at an empty folder, which must stay empty. The `data` folder must
+  then hold the five files the script wrote and nothing a run left behind.
+- **It copies `tools/dist/portable-settings.example.json` to `settings.example.json`** in the
+  machine's folder. Two tests in `crates/machine/karaokemachine/src/settings.rs` read that tracked
+  file: every key is one the machine writes, and every value is the default.
+- **It writes `first-run-soundfont.json.example`** beside where `settings.json` goes, naming the
+  recommended row from `tools/setup/soundfont-banks.sh`. `firstrun.rs` reads the file only under
+  its own name, so the request waits for a rename.
+- **`--from <folder>` takes one folder that already holds every program.** The Linux half passes
+  the folder it built, and the script then starts each program with nothing inherited.
+
+**On Linux the folder is built in the tarball's image.** `tools/platform/linux/portable.sh` runs
+`tarball.sh`, then `portable-in-container.sh` in the same image and build volume. That script copies
+the tarball's staged folder and builds every tool beside it. The three that read video get the
+rpath `$ORIGIN/lib`, which is the machine's own `lib/`. `tools/dist/cmd.sh` is not used there,
+because it links the host's ffmpeg and the host's glibc.
+
+**The Windows archive is built after the programs are signed.** `release.yml` signs
+`dist/bin/windows` and the console twins in `dist/bin-console/windows` in one request, then runs
+`portable.sh --no-build`. A zip has no signature of its own.
+
 ### Where a wallpaper pack goes
 
 `km-display` reads a zip in the wallpaper folder as a folder of images, so a pack's natural home
