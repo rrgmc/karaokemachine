@@ -641,7 +641,8 @@ first word again. The same keys give the taps back until you tap a word.
 and `M` changes it. `V` silences it, so you hear whether the tune is gone. `N` moves your words
 onto its notes.
 
-The key list at the foot of the window names every key, and `H` hides it. Ctrl+S saves. The editor
+The key list at the foot of the window names every key, and `H` hides it. Ctrl+S saves. Ctrl+T writes
+the words as a `.txt` beside the song, when no such file is there. The editor
 uses the machine's instrument bank, audio device and language, and writes no settings.
 
 ---

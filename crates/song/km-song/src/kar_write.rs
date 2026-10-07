@@ -155,6 +155,34 @@ pub fn split_words(typed: &str) -> Vec<RawSyllable> {
     syllables
 }
 
+/// Writes syllables back as the text [`split_words`] reads.
+///
+/// One sung line is one line of text, and a page opens after an empty line. A syllable that goes on
+/// a word gets a hyphen before it, and a hyphen that is drawn is written `\-`. Reading the result
+/// gives the same words, lines and pages.
+#[must_use]
+pub fn join_words(syllables: &[RawSyllable]) -> String {
+    let mut typed = String::new();
+    let mut after_space = true;
+    for (index, syllable) in syllables.iter().enumerate() {
+        let text = syllable.text.trim();
+        let opens_a_word = after_space || syllable.text.starts_with(char::is_whitespace);
+        match syllable.break_before {
+            _ if index == 0 => {}
+            LineBreak::Page => typed.push_str("\n\n"),
+            LineBreak::Line => typed.push('\n'),
+            LineBreak::None if opens_a_word => typed.push(' '),
+            LineBreak::None => typed.push('-'),
+        }
+        typed.push_str(&text.replace('-', "\\-"));
+        after_space = syllable.text.ends_with(char::is_whitespace);
+    }
+    if !typed.is_empty() {
+        typed.push('\n');
+    }
+    typed
+}
+
 /// One typed word as its syllables.
 fn split_syllables(word: &str) -> Vec<String> {
     let mut parts = vec![String::new()];
@@ -244,6 +272,17 @@ mod tests {
             synced_path(Path::new("a/song.kar")),
             Path::new("a/song-synced.kar")
         );
+    }
+
+    #[test]
+    fn words_written_back_read_as_the_same_words() {
+        let typed = "ka-ra-o-ke night\nwell\\-known song\n\nsecond page\n";
+        let syllables = split_words(typed);
+        assert_eq!(join_words(&syllables), typed);
+        assert_eq!(split_words(&join_words(&syllables)), syllables);
+        let dashes = split_words("a ---");
+        assert_eq!(split_words(&join_words(&dashes)), dashes);
+        assert_eq!(join_words(&[]), "");
     }
 
     fn timed(typed: &str, step: u32) -> KarWords {

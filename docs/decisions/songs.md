@@ -1552,6 +1552,11 @@ knows which.
 **Going on from a file is refused when its words are not the start of the text.** The refusal names
 the first word that differs. Timing on the wrong words is worse than none.
 
+**Ctrl+T writes the words as text beside the song, and never over a file that is there.** The file
+has the song's name and `.txt`, in the form the editor reads. Words taken from a karaoke file, or
+pasted and never kept, are then a file a person can correct and tap again. A `.txt` that exists is
+somebody's own typing, so the editor says it is there and writes nothing.
+
 **The editor does not find words and does not split them.** It looks nothing up, and a syllable
 break is a hyphen somebody typed.
 
