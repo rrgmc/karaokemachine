@@ -29,7 +29,7 @@ use km_locale::{Catalog, Catalogs, Locale};
 use km_queue::Transport;
 use km_song::kar_write::{KarWords, join_words, split_words, synced_path, write_soft_karaoke};
 use km_song::timeline::{LineBreak, RawSyllable};
-use km_song::{LyricTimeline, ParseOptions, SYLLABLE_DIVIDER, Song, WordEnds};
+use km_song::{EventKind, LyricTimeline, ParseOptions, SYLLABLE_DIVIDER, Song, WordEnds};
 use sdl3::event::{Event as SdlEvent, WindowEvent};
 use sdl3::keyboard::{Keycode, Mod};
 use sdl3::pixels::Color;
@@ -61,6 +61,13 @@ const MESSAGE_FOR: Duration = Duration::from_secs(4);
 
 /// How long the melody mark stays lit after one of the chosen channel's notes starts.
 const NOTE_MARK_MS: u32 = 120;
+
+/// How much of the vocal line the chart shows ahead of the song, and how much behind it.
+const CHART_AHEAD_MS: u32 = 4_000;
+const CHART_BEHIND_MS: u32 = 1_000;
+
+/// The fewest keys the chart's height spans, so a part of two notes does not fill it.
+const CHART_KEYS: u8 = 13;
 
 /// What the command line asked the editor for.
 #[derive(Debug, Clone)]
@@ -482,6 +489,95 @@ struct MelodyChoice {
     name: Option<String>,
     /// Where each of its notes starts, in order.
     onsets: Vec<u32>,
+    /// Its notes with their lengths and keys, in the order they start.
+    notes: Vec<Note>,
+    /// The lowest and the highest key it plays.
+    keys: (u8, u8),
+    /// How long its longest note sounds.
+    longest_ms: u32,
+}
+
+/// One note of a channel, in milliseconds so that a change of tempo does not bend the chart.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct Note {
+    start_ms: u32,
+    end_ms: u32,
+    key: u8,
+}
+
+/// Every channel's notes, each list in the order the notes start.
+///
+/// A key struck again while it sounds ends the note before it, as the engine plays it.
+fn notes_by_channel(song: &Song) -> [Vec<Note>; 16] {
+    let mut notes: [Vec<Note>; 16] = Default::default();
+    // Where the note sounding on a channel's key sits in that channel's list.
+    let mut sounding: std::collections::HashMap<(u8, u8), usize> = std::collections::HashMap::new();
+    for event in &song.events {
+        match event.kind {
+            EventKind::NoteOn { channel, key, .. } => {
+                let Some(list) = notes.get_mut(usize::from(channel)) else {
+                    continue;
+                };
+                let at = song.tempo_map.tick_to_ms(event.tick);
+                if let Some(before) = sounding.insert((channel, key), list.len()) {
+                    list[before].end_ms = at;
+                }
+                list.push(Note {
+                    start_ms: at,
+                    end_ms: u32::MAX,
+                    key,
+                });
+            }
+            EventKind::NoteOff { channel, key } => {
+                if let Some(index) = sounding.remove(&(channel, key)) {
+                    notes[usize::from(channel)][index].end_ms =
+                        song.tempo_map.tick_to_ms(event.tick);
+                }
+            }
+            _ => {}
+        }
+    }
+    // A note nothing ends sounds to the end of the song.
+    let end = song.duration_ms();
+    for ((channel, _), index) in sounding {
+        let note = &mut notes[usize::from(channel)][index];
+        note.end_ms = end.max(note.start_ms);
+    }
+    notes
+}
+
+/// The notes the chart shows at this moment: those that sound, or start, inside its window.
+///
+/// `longest_ms` is the channel's longest note. A note that started that long before the window
+/// can still sound inside it, and no earlier note can.
+fn notes_in_view(notes: &[Note], longest_ms: u32, now_ms: u32) -> impl Iterator<Item = &Note> {
+    let from = now_ms.saturating_sub(CHART_BEHIND_MS);
+    let to = now_ms.saturating_add(CHART_AHEAD_MS);
+    let first = notes.partition_point(|n| n.start_ms < from.saturating_sub(longest_ms));
+    let last = notes.partition_point(|n| n.start_ms <= to);
+    notes[first..last].iter().filter(move |n| n.end_ms >= from)
+}
+
+/// Where the song is across the chart's width, as a fraction of it.
+const CHART_NOW: f32 = CHART_BEHIND_MS as f32 / (CHART_BEHIND_MS + CHART_AHEAD_MS) as f32;
+
+/// Where a note sits in the chart: its left edge, top edge, width and height, as fractions of the
+/// chart. The highest key is the top row.
+fn note_box(note: &Note, now_ms: u32, keys: (u8, u8)) -> (f32, f32, f32, f32) {
+    let span = (CHART_BEHIND_MS + CHART_AHEAD_MS) as f32;
+    let across = |ms: u32| {
+        let ahead = ms as f32 - now_ms as f32;
+        (CHART_NOW + ahead / span).clamp(0.0, 1.0)
+    };
+    let (left, right) = (across(note.start_ms), across(note.end_ms));
+
+    // A narrow part sits in the middle of the fewest rows the chart has.
+    let (low, high) = (i32::from(keys.0), i32::from(keys.1));
+    let rows = (high - low + 1).max(i32::from(CHART_KEYS));
+    let top_key = high + (rows - (high - low + 1)) / 2;
+    let row = (top_key - i32::from(note.key)).clamp(0, rows - 1);
+    let height = 1.0 / rows as f32;
+    (left, row as f32 * height, right - left, height)
 }
 
 impl MelodyChoice {
@@ -505,13 +601,30 @@ impl MelodyChoice {
 /// is likeliest is [`vocal_line_under`]'s question, and it asks the taps.
 fn melody_choices(song: &Song) -> Vec<MelodyChoice> {
     let thresholds = km_suitability::Thresholds::default();
+    let mut notes = notes_by_channel(song);
     let mut choices: Vec<MelodyChoice> = km_suitability::channel::measure(song, &thresholds)
         .into_iter()
         .filter(|s| s.note_count > 0 && s.channel != km_suitability::DRUM_CHANNEL)
-        .map(|s| MelodyChoice {
-            channel: s.channel,
-            name: s.track_names.first().cloned(),
-            onsets: s.onset_ticks,
+        .map(|s| {
+            let notes = notes
+                .get_mut(usize::from(s.channel))
+                .map(std::mem::take)
+                .unwrap_or_default();
+            MelodyChoice {
+                channel: s.channel,
+                name: s.track_names.first().cloned(),
+                onsets: s.onset_ticks,
+                keys: (
+                    notes.iter().map(|n| n.key).min().unwrap_or(0),
+                    notes.iter().map(|n| n.key).max().unwrap_or(0),
+                ),
+                longest_ms: notes
+                    .iter()
+                    .map(|n| n.end_ms - n.start_ms)
+                    .max()
+                    .unwrap_or(0),
+                notes,
+            }
         })
         .collect();
     choices.sort_by_key(|choice| choice.channel);
@@ -1532,6 +1645,9 @@ pub(crate) fn run(paths: &Paths, settings: &Settings, request: &Request) -> anyh
             VocalLine::NoChannel => t("sync-vocal-label-no-channel"),
         };
         screen.melody(&mut canvas, &mut cache, &fonts, &theme, &vocal, note_lit);
+        if let Some(melody) = melody {
+            screen.chart(&mut canvas, &theme, melody, song.tempo_map.tick_to_ms(tick));
+        }
         if let Some((text, since)) = &message {
             if now.duration_since(*since) < MESSAGE_FOR {
                 screen.note(&mut canvas, &mut cache, &fonts, &theme, 0.12, text);
@@ -1841,6 +1957,45 @@ impl Layout {
             (right - side * 1.5, top),
             &TextStyle::outlined(theme.text, theme, Align::Right),
         );
+    }
+
+    /// The vocal line's notes around this moment, moving left onto a line that marks the song.
+    ///
+    /// A note is as long as it sounds and as high as its key, so the person sees a word coming
+    /// before they hear it.
+    fn chart(&self, canvas: &mut Screenful, theme: &Theme, melody: &MelodyChoice, now_ms: u32) {
+        let (left, top) = (self.width * 0.02, self.height * 0.17);
+        let (width, height) = (self.width * 0.96, self.height * 0.08);
+        canvas.set_blend_mode(BlendMode::Blend);
+        canvas.set_draw_color(theme.panel);
+        let _ = canvas.fill_rect(FRect::new(left, top, width, height));
+
+        // A short note keeps a width that can be seen, and two notes on one key keep a gap.
+        let least = (self.height * 0.004).max(2.0);
+        for note in notes_in_view(&melody.notes, melody.longest_ms, now_ms) {
+            let (x, y, w, h) = note_box(note, now_ms, melody.keys);
+            canvas.set_draw_color(if note.end_ms <= now_ms {
+                dim(theme.accent)
+            } else if note.start_ms <= now_ms {
+                theme.lyric_sung
+            } else {
+                theme.accent
+            });
+            let _ = canvas.fill_rect(FRect::new(
+                left + x * width,
+                top + y * height,
+                (w * width - least * 0.5).max(least),
+                (h * height).max(least * 1.5),
+            ));
+        }
+
+        canvas.set_draw_color(theme.text);
+        let _ = canvas.fill_rect(FRect::new(
+            left + CHART_NOW * width - least * 0.5,
+            top,
+            least,
+            height,
+        ));
     }
 
     /// The tapping screen: the line being tapped, with the one before it and the one after.
@@ -2188,6 +2343,109 @@ mod tests {
     fn a_file_with_no_pitched_channel_has_nothing_to_detect() {
         assert_eq!(vocal_line_state(None, 0, 0, 40), VocalLine::NoChannel);
         assert_eq!(vocal_line_state(None, 0, 40, 40), VocalLine::NoChannel);
+    }
+
+    /// A song from channel events. The test file has 480 ticks to the quarter at 120, so a tick
+    /// is not a millisecond, and the tests ask the tempo map.
+    fn notes_of(events: &[(u32, [u8; 3])]) -> (Song, [Vec<Note>; 16]) {
+        let song = km_song::testing::parse(&km_song::testing::channel_events(events));
+        let notes = notes_by_channel(&song);
+        (song, notes)
+    }
+
+    #[test]
+    fn a_note_runs_from_its_note_on_to_its_note_off_on_its_own_channel() {
+        let (song, notes) = notes_of(&[
+            (0, [0x90, 60, 100]),
+            (0, [0x93, 72, 100]),
+            (480, [0x80, 60, 0]),
+            (960, [0x83, 72, 0]),
+        ]);
+        let ms = |tick| song.tempo_map.tick_to_ms(tick);
+        assert_eq!(
+            notes[0],
+            [Note {
+                start_ms: 0,
+                end_ms: ms(480),
+                key: 60
+            }]
+        );
+        assert_eq!(
+            notes[3],
+            [Note {
+                start_ms: 0,
+                end_ms: ms(960),
+                key: 72
+            }]
+        );
+    }
+
+    #[test]
+    fn a_note_on_at_velocity_zero_ends_a_note() {
+        let (song, notes) = notes_of(&[(0, [0x90, 60, 100]), (480, [0x90, 60, 0])]);
+        assert_eq!(notes[0].len(), 1);
+        assert_eq!(notes[0][0].end_ms, song.tempo_map.tick_to_ms(480));
+    }
+
+    #[test]
+    fn a_key_struck_again_while_it_sounds_ends_the_note_before_it() {
+        let (song, notes) = notes_of(&[
+            (0, [0x90, 60, 100]),
+            (240, [0x90, 60, 100]),
+            (480, [0x80, 60, 0]),
+        ]);
+        let ms = |tick| song.tempo_map.tick_to_ms(tick);
+        let spans: Vec<(u32, u32)> = notes[0].iter().map(|n| (n.start_ms, n.end_ms)).collect();
+        assert_eq!(spans, [(0, ms(240)), (ms(240), ms(480))]);
+    }
+
+    fn note(start_ms: u32, end_ms: u32, key: u8) -> Note {
+        Note {
+            start_ms,
+            end_ms,
+            key,
+        }
+    }
+
+    #[test]
+    fn the_chart_holds_the_notes_that_sound_or_start_inside_its_window() {
+        let notes = [
+            // Over before the window opens.
+            note(1_000, 2_000, 60),
+            // Started long before, and still sounding.
+            note(3_000, 9_500, 62),
+            // Behind the song, inside the window.
+            note(9_200, 9_400, 64),
+            // Ahead of it.
+            note(12_000, 12_500, 65),
+            // Past the window.
+            note(14_500, 15_000, 67),
+        ];
+        let seen: Vec<u8> = notes_in_view(&notes, 6_500, 10_000)
+            .map(|n| n.key)
+            .collect();
+        assert_eq!(seen, [62, 64, 65]);
+    }
+
+    #[test]
+    fn a_note_starting_now_stands_on_the_charts_line_and_the_highest_key_is_on_top() {
+        // Two octaves, so the keys fill the height.
+        let keys = (48, 72);
+        let (left, top, width, height) = note_box(&note(10_000, 11_000, 72), 10_000, keys);
+        assert!((left - CHART_NOW).abs() < 1e-6);
+        assert_eq!(top, 0.0);
+        assert!((width - 0.2).abs() < 1e-6);
+        assert!((height - 1.0 / 25.0).abs() < 1e-6);
+        let (_, low_top, _, _) = note_box(&note(10_000, 11_000, 48), 10_000, keys);
+        assert!((low_top + height - 1.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn a_note_is_cut_at_the_charts_edges_and_a_narrow_part_sits_in_the_middle() {
+        let (left, top, width, height) = note_box(&note(0, 60_000, 60), 10_000, (60, 60));
+        assert_eq!((left, width), (0.0, 1.0));
+        // One key in thirteen rows: six rows above it.
+        assert!((top - 6.0 * height).abs() < 1e-6);
     }
 
     /// A file's words come back as the editor wrote them: ticks, breaks, spacing and ends.
