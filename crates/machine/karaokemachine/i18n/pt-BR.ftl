@@ -71,6 +71,7 @@ sync-key-show-keys = teclas
 sync-key-review-so-far = revisar o que já foi marcado
 sync-key-back-to-tapping = voltar a marcar
 sync-key-select = selecionar
+sync-key-select-sung = selecionar a palavra cantada
 sync-key-end-here = terminar aqui
 sync-key-move = mover 10 ms (Shift 50)
 sync-key-play-line = tocar esta linha

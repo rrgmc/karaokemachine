@@ -624,6 +624,7 @@ Backspace takes back the last one. `E` ends a word before a pause, so its highli
 
 **Review** plays the song with your words as the machine will draw them. It opens when the last
 word is tapped, and `R` opens it earlier. The arrow keys select a word and move it by 10 ms.
+`C` selects the word being sung.
 
 **The vocal line** is the channel that plays the sung tune. The editor finds it from your taps,
 and `M` changes it. `V` silences it, so you hear whether the tune is gone. `N` moves your words

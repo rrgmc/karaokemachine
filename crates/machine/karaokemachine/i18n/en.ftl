@@ -71,6 +71,7 @@ sync-key-show-keys = keys
 sync-key-review-so-far = review what is tapped so far
 sync-key-back-to-tapping = back to tapping
 sync-key-select = select
+sync-key-select-sung = select the word being sung
 sync-key-end-here = end here
 sync-key-move = move 10 ms (Shift 50)
 sync-key-play-line = play this line

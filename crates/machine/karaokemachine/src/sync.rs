@@ -257,6 +257,13 @@ impl Session {
         };
     }
 
+    /// Selects the tapped syllable being sung at `tick`: the last one that starts at or before
+    /// it, and the first one while the song is before every word.
+    fn select_at(&mut self, tick: u32) {
+        let started = self.syllables[..self.stamped].partition_point(|s| s.tick <= tick);
+        self.selected = started.saturating_sub(1);
+    }
+
     /// Puts the selected syllable at `tick`, held between its two neighbours.
     fn move_selected(&mut self, tick: u32) {
         if self.selected >= self.stamped {
@@ -1166,6 +1173,7 @@ pub(crate) fn run(paths: &Paths, settings: &Settings, request: &Request) -> anyh
                 }
                 (Phase::Review, Keycode::Up) => session.select(false),
                 (Phase::Review, Keycode::Down) => session.select(true),
+                (Phase::Review, Keycode::C) if !ctrl => session.select_at(tick),
                 (Phase::Review, Keycode::Left | Keycode::Right) => {
                     let step = if shift { NUDGE_COARSE_MS } else { NUDGE_MS };
                     let step = if key == Keycode::Left { -step } else { step };
@@ -1479,6 +1487,7 @@ const REVIEW_KEYS: [HelpRow; 4] = [
         "sync-row-word",
         &[
             ("Up Down", "sync-key-select"),
+            ("C", "sync-key-select-sung"),
             ("E", "sync-key-end-here"),
             ("Backspace", "sync-key-undo"),
             ("Left Right", "sync-key-move"),
@@ -1876,6 +1885,18 @@ mod tests {
         // At the start of a line with no taps: the line before goes.
         assert_eq!(s.retap_line(), 0);
         assert_eq!(s.stamped, 0);
+    }
+
+    #[test]
+    fn the_syllable_being_sung_is_the_last_one_that_has_started() {
+        let mut s = session("a b c d");
+        for tick in [100, 200, 300] {
+            s.tap(tick);
+        }
+        for (tick, selected) in [(0, 0), (100, 0), (250, 1), (300, 2), (9_000, 2)] {
+            s.select_at(tick);
+            assert_eq!(s.selected, selected, "at tick {tick}");
+        }
     }
 
     #[test]
