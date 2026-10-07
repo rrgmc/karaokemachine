@@ -578,10 +578,11 @@ line.
 
 **The portable copy is a carrier on Windows and on Linux.** `task dist:portable` stages it. It is
 every program in one folder, with a marker file that makes each keep its files in `data/` there.
-On Linux the whole folder is built in Docker, tools included. The same run stages
-`dist/portable-console/<platform>`, which holds the console form of each program. That folder has no
-archive and is not a carrier. The rule is
+On Linux the whole folder is built in Docker, tools included. The rule is
 [`A portable copy keeps its state beside its programs`](docs/decisions/distribution.md#a-portable-copy-keeps-its-state-beside-its-programs).
+
+**The same run stages `dist/portable-console/<platform>`, which is not a carrier.** It holds the
+console form of each program, and has no archive.
 
 **The macOS carrier is the notarized package**, which is why that row names
 `task dist:setup:notarized` and its pattern stops at the architecture. The signed-only and ad-hoc
