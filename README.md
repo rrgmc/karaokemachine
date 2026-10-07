@@ -46,6 +46,7 @@ pictures and the download are on the site,
   - [Getting a corpus into shape](#getting-a-corpus-into-shape)
   - [Putting words on a MIDI file](#putting-words-on-a-midi-file)
 - [Documentation](#documentation)
+- [Related projects](#related-projects)
 - [License](#license)
 - [Privacy](#privacy)
 - [Author](#author)
@@ -664,6 +665,10 @@ uses the machine's instrument bank, audio device and language, and writes no set
 | [`docs/learning-rust.md`](docs/learning-rust.md) | What a C++ reader needs in order to read this codebase. |
 | [`docs/HISTORY.md`](docs/HISTORY.md) | **Where it came from.** Five attempts at this machine over eighteen years, and where each one stopped. |
 | [`CLAUDE.md`](CLAUDE.md) | Repository guide, and the rules those documents are kept under. |
+
+## Related projects
+
+- [KaraokeMachine Video Tools](https://github.com/rrgmc/km-video-tools)
 
 ## License
 
