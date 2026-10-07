@@ -1,6 +1,6 @@
 //! Timing what a page and a scan batch cost, on a database too large to reason about.
 //!
-//! **The `#[ignore]`d tests, and they are the only ones in this repository.** They are ignored
+//! **The `#[ignore]`d tests of this program.** They are ignored
 //! because none of them runs anywhere but on a machine holding a real corpus, and because each takes
 //! minutes to hours — so `cargo km-test` skips them and nothing in CI reaches them. `KM_CORPUS` says
 //! which folder, `KM_MMAP` says which of the two settings this run is measuring, and one run measures

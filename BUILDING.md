@@ -2228,6 +2228,14 @@ tools/dist/clean.sh --old --dry-run # ...only the stale ones            (task cl
 tools/dev/clean.sh [--docker --cache]  # ...and everything else a build wrote (task clean:all)
 ```
 
+```sh
+task release:bank                   # fetch the recommended bank as the machine does, and check its digests
+```
+
+**`task release:bank` is the one check that reaches the network**, so `task check` does not run it.
+It is an ignored test in `fetch.rs`, and it writes only to a temporary folder.
+[`RELEASE.md`](RELEASE.md#4-prove-the-tree) says when to run it.
+
 **`--docker` and `--cache` are the two things that are not only yours.** A Docker prune takes a
 parallel session's cache with it, and the asset cache is a download plus an ffmpeg build to refill.
 Neither is therefore ever implied. **`local/`, `scratch/` and `.wpcache/` survive every setting.**

@@ -923,6 +923,17 @@ tasks:
       - task: dist:setup:remote:notarized
       - '"{{.SH}}" tools/dist/release.sh --add --platforms macos {{if .VERBOSE}}--verbose{{end}}'
 
+  # The one release check that reaches the network, which is why `task check` does not hold it.
+  # Both setup programs request the recommended bank by default, and its address names a file
+  # rather than a revision. This fetches it through the machine's own downloader into a temporary
+  # folder, and fails on an address that does not answer or on bytes the table does not name.
+  #
+  # No feature list: `karaokemachine` builds without video, and the downloader is the same in both.
+  release:bank:
+    desc: 'Before a release: fetch the recommended SoundFont as the machine does, and check its digests'
+    cmds:
+      - cargo test -p karaokemachine --lib -- --ignored --exact fetch::tests::the_recommended_bank_is_fetched_and_matches_the_table
+
   # -- onto the appliance ------------------------------------------------------------------------
   #
   # The last mile: the box under the television, reached over ssh. `deploy.sh` builds the package,

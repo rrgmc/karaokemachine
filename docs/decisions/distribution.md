@@ -982,6 +982,32 @@ that is `manual`, or for a table with two recommendations.
 appliance is the one install where somebody is at a shell anyway. `--first-run-soundfont` writes the
 same request, and `task soundfont BANK=…` is there.
 
+## The recommended bank is fetched before a release is tagged
+
+**`task release:bank` downloads the recommended bank and checks it against the bank table, and a
+failure stops the release.** [`RELEASE.md`](../../RELEASE.md#4-prove-the-tree) runs it before the
+tag.
+
+**A release that ticks a box promises a download.** Both setup programs request this bank by default.
+A bank that cannot be fetched fails on the first start of every fresh install, three times, and then
+the request is removed.
+
+**Its address names a file and not a revision.** The publisher can replace the archive behind it, and
+then both digests in the table refuse the download. The host can also stop answering. The table
+alone cannot show either fault, because a digest is compared only when somebody downloads the bank.
+
+**The check runs the machine's own downloader.** It is an ignored test in `fetch.rs` that calls the
+function a first start calls. A host may answer one client with the file and another with a page, so
+a second client would prove nothing about a fresh install. The test also opens the bank in the
+synthesizer, as a first start does.
+
+**It reads the `recommended` row and names no bank**, so it follows the recommendation when that
+moves. The other offered banks are not checked, because no setup program requests them.
+
+**Not in `task check`, and not in the release workflow.** `task check` reaches no network, and a slow
+mirror must not fail a pull request. The release workflow starts from the pushed tag, which is after
+the point where a release can still be stopped.
+
 ## The setup programs pre-write a settings file
 
 **All three setup programs place `{"display": {"fullscreen": true}}` where there is no
