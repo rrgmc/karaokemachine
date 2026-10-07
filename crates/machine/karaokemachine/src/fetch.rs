@@ -405,4 +405,51 @@ mod tests {
 
         let _ = std::fs::remove_dir_all(&dir);
     }
+
+    /// The recommended bank arrives through this module, from the address the table gives.
+    ///
+    /// **Ignored, because it downloads a few hundred megabytes.** `task release:bank` runs it before
+    /// a release is tagged. Both installers request this bank by default, and its address names a
+    /// file rather than a revision, so the publisher can replace the bytes behind it.
+    ///
+    /// It calls [`run`] rather than a second client. A host may answer one user agent with the file
+    /// and another with a page, so only this module's own request proves what a fresh install gets.
+    #[test]
+    #[ignore = "downloads the recommended bank; run by `task release:bank`"]
+    fn the_recommended_bank_is_fetched_and_matches_the_table() {
+        let bank = crate::banks::catalog()
+            .iter()
+            .find(|bank| bank.recommended)
+            .expect("one bank is recommended");
+        let url = bank.url.expect("the recommended bank has a url");
+        let digest = bank.digest.expect("the recommended bank has a digest");
+
+        let dir = std::env::temp_dir().join("km-fetch-recommended-test");
+        let _ = std::fs::remove_dir_all(&dir);
+
+        // `download` reads the expected size from the shared status, to refuse an implausible offer.
+        let shared = Arc::new(Mutex::new(Fetching::Working {
+            id: bank.id.to_owned(),
+            name: bank.name.to_owned(),
+            done: 0,
+            total: bank.bytes,
+        }));
+        let archive = bank
+            .archive
+            .map(|archive| (archive, bank.archive_digest, bank.member));
+
+        let outcome = run(&shared, &dir, url, digest, bank.name, archive);
+
+        let fetched = dir.join(bank.name);
+        let length = std::fs::metadata(&fetched).map(|file| file.len());
+        let _ = std::fs::remove_dir_all(&dir);
+
+        outcome.unwrap_or_else(|why| panic!("{} from {url}: {why}", bank.id));
+        assert_eq!(
+            length.expect("the bank is in the folder"),
+            bank.bytes,
+            "{} is not the size the table gives",
+            bank.id
+        );
+    }
 }
