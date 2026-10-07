@@ -14,6 +14,7 @@
 //! See `docs/ARCHITECTURE.md` for the wider design.
 
 pub mod encoding;
+pub mod kar_write;
 pub mod karaoke;
 pub mod loudness;
 pub mod lrc;

@@ -24,6 +24,9 @@ pub enum SmfError {
     /// A data byte arrived before any status byte.
     #[error("running status with no status byte")]
     RunningStatus,
+    /// A track holds a status byte that only a live MIDI stream carries.
+    #[error("a track holds the system byte {0:#04X}, which a file cannot carry")]
+    SystemByte(u8),
     /// An event says it is longer than the track that holds it.
     #[error("event runs past the end of its track")]
     EventPastEnd,
@@ -145,6 +148,9 @@ pub fn parse_track(body: &[u8]) -> Result<Vec<Event>, SmfError> {
                 running = None;
                 slice(body, start, at)?
             }
+            // A system common or real-time byte belongs on a wire and has no place in a file. Its
+            // length is not knowable here, so everything after it would be a guess.
+            status if status >= 0xF0 => return Err(SmfError::SystemByte(status)),
             status if status >= 0x80 => {
                 running = Some(status);
                 let start = at;
