@@ -567,7 +567,10 @@ and a tag whose release is already published is refused rather than clobbered.
 download. See
 [`What a release page says, and to whom`](docs/decisions/distribution.md#what-a-release-page-says-and-to-whom).
 The run substitutes `@VERSION@` and the carol pack's name into `dist/release/<version>-notes.md` and
-sends that, so the tracked file names no version. Edit its `What changed` list before a cut.
+sends that, so the tracked file names no version.
+
+The body opens with a `Download` table that links the full package for each platform, and
+`Every file` below it describes all of them. Edit its `What changed` list before a cut.
 `--notes-file <path>` overrides it. Every `--upload` rewrites a draft's body, so a corrected sentence
 is a re-run.
 

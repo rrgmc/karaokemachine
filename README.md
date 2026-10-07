@@ -141,7 +141,7 @@ and what the machine leaves out by decision.
 
 ## Installing
 
-**The downloads are on the [release page](https://github.com/rrgmc/karaokemachine/releases)**, one
+**The downloads are on the [release page](https://github.com/rrgmc/karaokemachine/releases/latest)**, one
 file per platform. The manual's [Installing](https://rrgmc.github.io/karaokemachine/docs/installing.html)
 chapter says what each file is. To build from source, see [`BUILDING.md`](BUILDING.md).
 

@@ -2,6 +2,21 @@ A karaoke machine that plays MIDI files, video files, MP3+G pairs, and UltraStar
 highlights the words in time with the music, takes song requests from a phone, and has an HTTP API
 for search, queueing and control.
 
+## Download
+
+| File | For |
+|---|---|
+| [`karaokemachine-setup-@VERSION@-windows-x86_64.exe`](https://github.com/rrgmc/karaokemachine/releases/download/v@VERSION@/karaokemachine-setup-@VERSION@-windows-x86_64.exe) | Windows |
+| [`karaokemachine-setup-@VERSION@-macos-aarch64.pkg`](https://github.com/rrgmc/karaokemachine/releases/download/v@VERSION@/karaokemachine-setup-@VERSION@-macos-aarch64.pkg) | macOS on Apple Silicon |
+| [`karaokemachine_@VERSION@-1_amd64.deb`](https://github.com/rrgmc/karaokemachine/releases/download/v@VERSION@/karaokemachine_@VERSION@-1_amd64.deb) | Debian and Ubuntu |
+| [`karaokemachine-@VERSION@-x86_64-unknown-linux-gnu.tar.gz`](https://github.com/rrgmc/karaokemachine/releases/download/v@VERSION@/karaokemachine-@VERSION@-x86_64-unknown-linux-gnu.tar.gz) | Any other Linux |
+| [`karaokemachine-@VERSION@-android.apk`](https://github.com/rrgmc/karaokemachine/releases/download/v@VERSION@/karaokemachine-@VERSION@-android.apk) | Android and Google TV |
+| [`karaokemachine-@VERSION@-quest.apk`](https://github.com/rrgmc/karaokemachine/releases/download/v@VERSION@/karaokemachine-@VERSION@-quest.apk) | Meta Quest |
+| [`karaokemachine-@VERSION@-ios-unsigned.ipa`](https://github.com/rrgmc/karaokemachine/releases/download/v@VERSION@/karaokemachine-@VERSION@-ios-unsigned.ipa) | iPhone and iPad |
+
+Each of these is the whole machine for its platform. **Every file** below describes them, and has
+the portable copies and the remote on its own.
+
 ## What changed
 
 - **A portable copy for Windows and Linux.** Unpack it anywhere and run it. Every program keeps its
@@ -18,7 +33,7 @@ for search, queueing and control.
 - **The recommended instrument bank downloads again.** The machine takes the publisher's current
   release.
 
-## Which file to download
+## Every file
 
 | File | For |
 |---|---|
