@@ -767,7 +767,13 @@ CREATE TABLE IF NOT EXISTS folders (
     direct  INTEGER NOT NULL,
     -- Distinct songs anywhere at or below it. A song with six copies in one subtree counts once,
     -- which is why this cannot be a sum of its children.
-    beneath INTEGER NOT NULL
+    beneath INTEGER NOT NULL,
+    -- The mean suitability of the songs `direct` counts, and of the songs `beneath` counts. A song
+    -- with no suitability is in the count and not in the mean, and NULL says no song here has one.
+    -- Kept here because the pass that counts the songs already reads each song's row, so the mean
+    -- costs the scan one addition a song and the page nothing.
+    direct_suitability  REAL,
+    beneath_suitability REAL
 );
 
 CREATE INDEX IF NOT EXISTS folders_parent ON folders(parent);

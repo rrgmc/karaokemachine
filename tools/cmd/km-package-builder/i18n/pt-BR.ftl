@@ -440,6 +440,7 @@ folders-none-link = lido
 folders-none-tail = .
 folders-folder = Pasta
 folders-songs-title = Músicas distintas em qualquer lugar abaixo dela, não arquivos
+folders-suitability-title = Adequação automática média dessas músicas, de 0 a 10
 folders-up = subir
 folders-files-here = arquivos aqui
 folders-browse = Abrir

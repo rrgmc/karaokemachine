@@ -25,6 +25,9 @@ Entries are written for somebody who has the machine. Why any of it is the way i
   you name and downloads the `.kar`, `.mid` and `.midi` files they link. It opens `.zip` archives,
   and builds a package from the songs that have words. It honours the site's `robots.txt` and waits
   between requests.
+- **The curation tool's Folders page shows each folder's average suitability.** The average covers
+  the same songs as the count beside it. It appears after the next scan that changes a file, and a
+  dash stands in until then.
 - **A lyric sync editor puts words on a MIDI file.** `karaokemachine --sync song.mid --sync-words
   words.txt` plays the song while you press Space on each word. It writes a new `.kar` and never
   changes the MIDI file. Review shows the words as the machine draws them. There you can move a word,

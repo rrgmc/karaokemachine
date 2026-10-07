@@ -4344,6 +4344,8 @@ fn a_database_at_schema_14_steps_to_the_current_schema() {
              ALTER TABLE songs DROP COLUMN det_language_guess_confidence;
              ALTER TABLE songs DROP COLUMN lyrics_hidden;
              ALTER TABLE songs DROP COLUMN deleted_at;
+             ALTER TABLE folders DROP COLUMN direct_suitability;
+             ALTER TABLE folders DROP COLUMN beneath_suitability;
              -- The narrow shape a schema-14 build wrote, so the step's `DROP INDEX` has the index
              -- it exists to replace rather than a wider one already in place.
              CREATE INDEX songs_countable ON songs(merged_into, duplicate_of);
@@ -4381,6 +4383,9 @@ fn a_database_at_schema_14_steps_to_the_current_schema() {
     // curated gains the question without gaining an answer to it.
     db.execute_for_test("SELECT lyrics_hidden FROM songs LIMIT 1")
         .expect("the step added the words column");
+    // And the folder means, which start NULL and wait for the scan that next rebuilds the tree.
+    db.execute_for_test("SELECT direct_suitability, beneath_suitability FROM folders LIMIT 1")
+        .expect("the step added both means");
     // And the browse index built on the old two-leg key was rebuilt on the current one. Left alone
     // it would keep its name and its old key, so the browse page would match no index and sort the
     // whole corpus with nothing saying so.
@@ -7100,6 +7105,87 @@ fn a_song_with_copies_in_two_subfolders_counts_once_in_their_parent() {
             .collect::<Vec<_>>(),
         vec![("one", 1), ("two", 2)]
     );
+}
+
+/// Gives each named song a suitability, or takes it away, the way a scan would have left it.
+fn rate(db: &Db, suitabilities: &[(&str, Option<u8>)]) {
+    for (id, suitability) in suitabilities {
+        let value = suitability.map_or("NULL".to_owned(), |value| value.to_string());
+        db.execute_for_test(&format!(
+            "UPDATE songs SET suitability = {value} WHERE id = '{id}'"
+        ))
+        .expect("rate");
+    }
+}
+
+/// A folder's mean is over the distinct songs its count is over, at every level.
+///
+/// **The copy is the half worth pinning.** A mean taken per file would let a song filed six times
+/// pull a folder six times as hard, and the number would describe a different set of songs from the
+/// count beside it.
+#[test]
+fn a_folder_shows_the_mean_suitability_of_its_distinct_songs() {
+    let mut db = db();
+    add(&mut db, "a", Some("A"), "rock/one/a.kar");
+    db.execute_for_test(
+        "INSERT INTO files(path, size, mtime, content_hash, song_id, scan_status, scanned_at)
+         VALUES ('rock/two/a.kar', 1234, 0, 'a', 'a', 'ok', '2026-08-24T00:00:00Z')",
+    )
+    .expect("second copy");
+    add(&mut db, "b", Some("B"), "rock/two/b.kar");
+    add(&mut db, "c", Some("C"), "rock/c.kar");
+    rate(&db, &[("a", Some(10)), ("b", Some(4)), ("c", Some(1))]);
+
+    let means = |prefix: &str| {
+        listing(&db, prefix)
+            .iter()
+            .map(|node| (node.name.clone(), node.suitability))
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(
+        means(""),
+        vec![("rock".to_owned(), Some(5.0))],
+        "three songs under rock/, and the one filed twice weighs once"
+    );
+    assert_eq!(
+        means("rock/"),
+        vec![
+            (String::new(), Some(1.0)),
+            ("one".to_owned(), Some(10.0)),
+            ("two".to_owned(), Some(7.0)),
+        ]
+    );
+}
+
+/// A song with no suitability is in the count and out of the mean, and a folder of them has none.
+#[test]
+fn a_song_without_a_suitability_leaves_the_folder_mean_alone() {
+    let mut db = db();
+    add(&mut db, "a", Some("A"), "rock/a.kar");
+    add(&mut db, "b", Some("B"), "rock/b.kar");
+    add(&mut db, "c", Some("C"), "mpb/c.kar");
+    rate(&db, &[("a", Some(8)), ("b", None), ("c", None)]);
+
+    let top = listing(&db, "");
+    assert_eq!(
+        top.iter()
+            .map(|node| (node.name.as_str(), node.song_count, node.suitability))
+            .collect::<Vec<_>>(),
+        vec![("mpb", 1, None), ("rock", 2, Some(8.0))]
+    );
+}
+
+/// A deleted song leaves the mean with the count, because both describe what the folder shows.
+#[test]
+fn a_deleted_song_leaves_the_folder_mean() {
+    let mut db = db();
+    add(&mut db, "a", Some("A"), "rock/a.kar");
+    add(&mut db, "b", Some("B"), "rock/b.kar");
+    rate(&db, &[("a", Some(2)), ("b", Some(9))]);
+    assert_eq!(listing(&db, "")[0].suitability, Some(5.5));
+
+    db.set_deleted_of(&["a".to_owned()], true).expect("delete");
+    assert_eq!(listing(&db, "")[0].suitability, Some(9.0));
 }
 
 #[test]

@@ -3354,6 +3354,11 @@ pub fn suitability_class(suitability: &Option<u8>) -> &'static str {
     km_pack::suitability_class(*suitability)
 }
 
+/// [`suitability_class`] for a folder's mean, which takes the band of the whole number nearest it.
+pub fn mean_suitability_class(mean: &Option<f64>) -> &'static str {
+    km_pack::suitability_class(mean.map(|mean| mean.round().clamp(0.0, 10.0) as u8))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
