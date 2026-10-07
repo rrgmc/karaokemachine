@@ -8,8 +8,8 @@
 # tarball-in-container.sh gives.
 #
 # It gathers the machine's staged tarball folder, builds every tool beside it, and hands the
-# folder to tools/dist/portable.sh. That script adds the marker, the `data` folders and the
-# document, proves the claim and writes the archive.
+# folder to tools/dist/portable.sh. That script makes both copies from it. It adds the marker, the
+# `data` folders and the document to each, proves the claim and writes the archive.
 
 set -euo pipefail
 

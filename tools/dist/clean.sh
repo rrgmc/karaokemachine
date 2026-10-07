@@ -199,4 +199,9 @@ sweep km-remote-setup            "$VERSION" dist/setup/macos/*
 sweep karaokemachine-portable    "$VERSION" dist/portable/windows/*
 sweep karaokemachine-portable    "$VERSION" dist/portable/linux/*
 
+# The console copy beside it, which is a folder with no archive. The longer prefix is its own line
+# because `sweep` takes the version as the field after the app name.
+sweep karaokemachine-portable-console "$VERSION" dist/portable-console/windows/*
+sweep karaokemachine-portable-console "$VERSION" dist/portable-console/linux/*
+
 echo "dist-clean: $REMOVED older staged item(s); kept $VERSION"
