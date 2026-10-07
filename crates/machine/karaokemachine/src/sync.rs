@@ -360,10 +360,12 @@ fn vocal_line_under(taps_ms: &[u32], channels_ms: &[Vec<u32>]) -> Option<usize> 
             (index, hit, hit - chance)
         })
         .collect();
-    // A sung line is often doubled on a second channel, and either serves. Among the channels the
-    // taps follow, the one more taps land on is the one a snap can use for more words.
+    // A sung line is often doubled on a second channel that plays more besides. Among the channels
+    // the taps follow, the one furthest above chance is the sparser, and the likelier to be the
+    // voice alone. A part carrying the tune inside a harmony has more notes for a snap to find,
+    // and more wrong ones.
     scored.retain(|&(_, hit, lead)| hit >= 0.7 && lead >= 0.25);
-    scored.sort_by(|a, b| b.1.total_cmp(&a.1).then(b.2.total_cmp(&a.2)));
+    scored.sort_by(|a, b| b.2.total_cmp(&a.2).then(b.1.total_cmp(&a.1)));
     scored.first().map(|&(index, _, _)| index)
 }
 
@@ -428,6 +430,31 @@ fn open_audio(paths: &Paths, settings: &Settings) -> anyhow::Result<OutputStream
         }
     };
     stream.context("no audio output")
+}
+
+/// Loads the song again with `channel` silenced, and puts it back where it was.
+///
+/// The engine silences one channel, the one a song is loaded with as its guide melody. A load
+/// starts the song over, so the position, the tempo and the transport are sent after it.
+fn load_silencing(
+    stream: &mut OutputStream,
+    song: &Arc<Song>,
+    channel: u8,
+    at_ms: u32,
+    playing: bool,
+    tempo_ratio: f32,
+) {
+    stream.send(Command::Load(Load::Midi {
+        song: Arc::clone(song),
+        melody_channel: Some(channel),
+        fixes: km_fixes::ChannelFixes::default(),
+    }));
+    stream.send(Command::SetMelodyEnabled(false));
+    stream.send(Command::SetTempoRatio(tempo_ratio));
+    stream.send(Command::SeekMs(at_ms));
+    if playing {
+        stream.send(Command::Play);
+    }
 }
 
 /// Runs the editor until its window closes.
@@ -576,6 +603,9 @@ pub(crate) fn run(paths: &Paths, settings: &Settings, request: &Request) -> anyh
     let mut leaving = false;
     let mut show_help = true;
     let mut was_in_review = false;
+    // Whether the vocal line is silenced, and which channel the loaded song can silence.
+    let mut silenced = false;
+    let mut silencing: Option<u8> = None;
     let mut message: Option<(String, Instant)> = Some((
         "Press Enter to start the song, then Space on each syllable".to_owned(),
         Instant::now(),
@@ -680,11 +710,59 @@ pub(crate) fn run(paths: &Paths, settings: &Settings, request: &Request) -> anyh
                 (_, Keycode::M) if !choices.is_empty() => {
                     let next = choice.map_or(0, |c| (c + 1) % choices.len());
                     choice = Some(next);
-                    say(format!(
-                        "The vocal line is {}. The sound does not change",
-                        choices[next].label()
-                    ));
+                    if silenced {
+                        // The silence follows the choice, so each press is heard.
+                        silencing = Some(choices[next].channel);
+                        load_silencing(
+                            &mut stream,
+                            &song,
+                            choices[next].channel,
+                            state.position_ms(),
+                            playing,
+                            tempo_ratio,
+                        );
+                        say(format!(
+                            "The vocal line is {}, and it is silenced",
+                            choices[next].label()
+                        ));
+                    } else {
+                        say(format!(
+                            "The vocal line is {}. V silences it, to hear what is left",
+                            choices[next].label()
+                        ));
+                    }
                 }
+                (_, Keycode::V) if !repeat => match choice {
+                    None => say("No vocal line is chosen. M picks the channel".to_owned()),
+                    Some(chosen) if silenced => {
+                        silenced = false;
+                        stream.send(Command::SetMelodyEnabled(true));
+                        say(format!("{} sounds again", choices[chosen].label()));
+                    }
+                    Some(chosen) => {
+                        silenced = true;
+                        let channel = choices[chosen].channel;
+                        // The engine silences the one channel a song was loaded with. A channel
+                        // chosen since the load needs the song loaded again.
+                        if silencing == Some(channel) {
+                            stream.send(Command::SetMelodyEnabled(false));
+                        } else {
+                            silencing = Some(channel);
+                            load_silencing(
+                                &mut stream,
+                                &song,
+                                channel,
+                                state.position_ms(),
+                                playing,
+                                tempo_ratio,
+                            );
+                        }
+                        say(format!(
+                            "{} is silenced. V brings it back",
+                            choices[chosen].label()
+                        ));
+                    }
+                },
 
                 (Phase::Tapping, Keycode::Space) if !repeat => {
                     if playing {
@@ -949,6 +1027,7 @@ pub(crate) fn run(paths: &Paths, settings: &Settings, request: &Request) -> anyh
             &fonts,
             &theme,
             &match melody {
+                Some(melody) if silenced => format!("Vocal line: {}, silenced", melody.label()),
                 Some(melody) => format!("Vocal line: {}", melody.label()),
                 None => "Vocal line: not chosen".to_owned(),
             },
@@ -996,7 +1075,8 @@ const TAPPING_KEYS: [HelpRow; 3] = [
             ("Enter", "play / pause"),
             ("Left Right", "5 s"),
             ("-  +", "slower / faster"),
-            ("M", "pick the channel that plays the vocal line"),
+            ("M", "pick the vocal line"),
+            ("V", "silence it"),
         ],
     ),
     (
@@ -1034,6 +1114,7 @@ const REVIEW_KEYS: [HelpRow; 4] = [
         "NOTES",
         &[
             ("M", "pick the channel that plays the vocal line"),
+            ("V", "silence it"),
             ("N", "move the words onto its notes (Ctrl+Z undoes)"),
         ],
     ),
@@ -1476,7 +1557,19 @@ mod tests {
     }
 
     #[test]
-    fn of_two_channels_the_taps_follow_the_one_more_taps_land_on_is_chosen() {
+    fn a_part_with_the_tune_inside_more_notes_loses_to_the_tune_alone() {
+        let sung: Vec<u32> = (0..30).map(|i| 10_000 + i * 1_000).collect();
+        // The same notes with a second voice between them: every tap lands, at twice the density.
+        let mut thick = sung.clone();
+        thick.extend(sung.iter().map(|t| t + 400));
+        thick.sort_unstable();
+        // The tune alone, resting for three words, so fewer taps land on it.
+        let alone = sung[..27].to_vec();
+        assert_eq!(vocal_line_under(&taps(), &[thick, alone]), Some(1));
+    }
+
+    #[test]
+    fn of_two_channels_the_taps_follow_the_one_further_above_chance_is_chosen() {
         let sung: Vec<u32> = (0..30).map(|i| 10_000 + i * 1_000).collect();
         // A doubling that rests for the last five words.
         let doubled = sung[..25].to_vec();
