@@ -593,7 +593,10 @@ pub(crate) fn run(paths: &Paths, settings: &Settings, request: &Request) -> anyh
                 (_, Keycode::H) if !repeat => show_help = !show_help,
                 (_, Keycode::M) if !choices.is_empty() => {
                     choice = (choice + 1) % choices.len();
-                    say(format!("Snap follows {}", choices[choice].label()));
+                    say(format!(
+                        "N will snap words to {}. The sound does not change",
+                        choices[choice].label()
+                    ));
                 }
 
                 (Phase::Tapping, Keycode::Space) if !repeat => {
@@ -821,7 +824,7 @@ pub(crate) fn run(paths: &Paths, settings: &Settings, request: &Request) -> anyh
                 &mut cache,
                 &fonts,
                 &theme,
-                &format!("Melody: {}", melody.label()),
+                &format!("Snap to {}", melody.label()),
                 note_lit,
             );
         }
@@ -866,7 +869,7 @@ const TAPPING_KEYS: [HelpRow; 3] = [
         &[
             ("Enter", "play / pause"),
             ("Left Right", "5 s"),
-            ("M", "melody channel"),
+            ("M", "select channel to snap to"),
             ("-  +", "slower / faster"),
         ],
     ),
@@ -895,7 +898,7 @@ const REVIEW_KEYS: [HelpRow; 3] = [
         "SONG",
         &[
             ("Space", "play / pause"),
-            ("M", "melody channel"),
+            ("M", "select channel to snap to"),
             ("-  +", "slower / faster"),
             ("Enter", "play this line"),
         ],
@@ -906,7 +909,7 @@ const REVIEW_KEYS: [HelpRow; 3] = [
             ("Ctrl+S", "save"),
             ("Esc", "leave"),
             ("H", "hide these keys"),
-            ("N", "snap to melody (Ctrl+Z undoes)"),
+            ("N", "snap words to its notes (Ctrl+Z undoes)"),
         ],
     ),
 ];
