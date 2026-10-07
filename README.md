@@ -640,7 +640,12 @@ first word again. The same keys give the taps back until you tap a word.
 
 **The vocal line** is the channel that plays the sung tune. The editor finds it from your taps,
 and `M` changes it. `V` silences it, so you hear whether the tune is gone. `N` moves your words
-onto its notes.
+onto its notes. The top right corner says the editor is detecting it while a word is untapped. It
+says none was found only when every word is tapped.
+
+**A chart under the status line shows the notes of the vocal line.** They move left onto a line
+that marks the song, four seconds ahead of it. A note is as long as it sounds and as high as its
+pitch, so you see the next word coming.
 
 The key list at the foot of the window names every key, and `H` hides it. Ctrl+S saves. Ctrl+T writes
 the words as a `.txt` beside the song, when no such file is there. The editor

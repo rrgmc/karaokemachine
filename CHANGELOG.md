@@ -35,6 +35,9 @@ Entries are written for somebody who has the machine. Why any of it is the way i
   end it before a pause, or move every word onto the notes of the vocal line. Without a words file
   it opens the words a karaoke file already has, and `--sync-continue` goes on from a file saved
   part-way.
+- **The editor shows the notes of the vocal line before they sound.** A chart under the status line
+  moves each note onto a line that marks the song, four seconds ahead. The label beside it says the
+  vocal line is being detected while a word is untapped.
 - **The editor saves the words as text.** Ctrl+T writes them as a `.txt` beside the song, when
   none is there.
 - **KM Song Sync starts the lyric sync editor from a page.** `km-song-sync` lists the MIDI files of
