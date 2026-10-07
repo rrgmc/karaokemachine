@@ -4,6 +4,11 @@ A karaoke machine that behaves like a commercial home unit: pick a song by numbe
 words highlight in time. It runs full-screen on a television, and any phone on the network is a
 remote: search the catalog, queue a song, change the key, skip.
 
+![The playing screen on a television: the song's number, title and artist across the top with key and
+melody badges and a disc in the corner counting the songs waiting, the line being sung in large
+letters with the current syllable half-filled in amber, the line that follows it below in gray, and a
+progress bar along the bottom](../images/screen-playing.png)
+
 A song is one of five things:
 
 - a **MIDI file with embedded karaoke lyrics**;
