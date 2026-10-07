@@ -510,6 +510,7 @@ it are the same entry. How the thing is built is [`ARCHITECTURE.md`](../ARCHITEC
 - [A downloadable song pack](repository.md#a-downloadable-song-pack)
 - [The website is one page per language, and it links one download](repository.md#the-website-is-one-page-per-language-and-it-links-one-download)
 - [The Rust toolchain is pinned exactly](repository.md#the-rust-toolchain-is-pinned-exactly)
+- [A script that opens with a shebang is executable](repository.md#a-script-that-opens-with-a-shebang-is-executable)
 - [Why the pass checks everything](repository.md#why-the-pass-checks-everything)
 - [`master` takes pull requests, and CI is one required check](repository.md#master-takes-pull-requests-and-ci-is-one-required-check)
 - [A vulnerability is reported privately, through GitHub](repository.md#a-vulnerability-is-reported-privately-through-github)

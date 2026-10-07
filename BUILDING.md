@@ -108,7 +108,7 @@ with a sentence beside each. Neither a cargo alias file nor a directory of scrip
 | `task test` | `cargo km-test`, video included; `task test:no-video` declines it |
 | `task lint` | `cargo km-lint` — clippy over every target, warnings denied, video included |
 | `task fmt` | formats both workspaces: this one's members, and the excluded `tools/cmd/assets` |
-| `task check` | `lint:local`, `lint:prose`, `lint:pin`, `lint:version`, `lint:mdns`, `lint:cargo`, `lint:labels`, `lint:ci`, `fmt:check`, `lint`, then `test` — the pass before a push |
+| `task check` | `lint:local`, `lint:prose`, `lint:pin`, `lint:version`, `lint:modes`, `lint:mdns`, `lint:cargo`, `lint:labels`, `lint:ci`, `fmt:check`, `lint`, then `test` — the pass before a push |
 | `task lint:local` | asserts no tracked file names a local path, address or person |
 | `task lint:prose` | asserts the prose this branch adds, and the messages it commits them in, state the rule rather than narrating it, and take the sentence shape |
 | `task lint:cargo` | asserts every value in `.cargo/config.toml` is a string, which is what a worktree can inherit without doubling it |
@@ -716,22 +716,22 @@ ffmpeg at all: nothing it was asked for has such a feature, so nothing checks fo
 Everything lands under `dist/<app>/<platform>/`:
 
 ```
-dist/karaokemachine/windows/karaokemachine-1.21.1-x86_64-pc-windows-msvc/   (+ .zip with --zip)
-dist/karaokemachine/windows/karaokemachine-1.21.1-x86_64-pc-windows-msvc-no-video/
+dist/karaokemachine/windows/karaokemachine-1.21.2-x86_64-pc-windows-msvc/   (+ .zip with --zip)
+dist/karaokemachine/windows/karaokemachine-1.21.2-x86_64-pc-windows-msvc-no-video/
 dist/karaokemachine/macos/Karaoke Machine.app
-dist/karaokemachine/linux/karaokemachine_1.21.1-1_amd64.deb
-dist/karaokemachine/linux/no-video/karaokemachine_1.21.1-1_amd64.deb
-dist/karaokemachine-tools/linux/karaokemachine-tools_1.21.1-1_amd64.deb
-dist/karaokemachine/linux/karaokemachine-1.21.1-x86_64-unknown-linux-gnu/   (+ .tar.gz)
-dist/km-pack/windows/km-pack-1.21.1-x86_64-pc-windows-msvc/
-dist/km-lyrics/windows/km-lyrics-1.21.1-x86_64-pc-windows-msvc/
-dist/km-package-builder/windows/km-package-builder-1.21.1-x86_64-pc-windows-msvc/
-dist/setup/windows/karaokemachine-setup-1.21.1-windows-x86_64.exe
-dist/setup/macos/karaokemachine-setup-1.21.1-macos-aarch64.pkg              (notarized)
-dist/setup/macos/karaokemachine-setup-1.21.1-macos-aarch64-unnotarized.pkg  (signed only)
-dist/setup/macos/karaokemachine-setup-1.21.1-macos-aarch64-unsigned.pkg     (ad-hoc, the default)
-dist/setup/windows/km-remote-setup-1.21.1-windows-x86_64.exe
-dist/setup/macos/km-remote-setup-1.21.1-macos-aarch64.pkg                   (the same three signing states)
+dist/karaokemachine/linux/karaokemachine_1.21.2-1_amd64.deb
+dist/karaokemachine/linux/no-video/karaokemachine_1.21.2-1_amd64.deb
+dist/karaokemachine-tools/linux/karaokemachine-tools_1.21.2-1_amd64.deb
+dist/karaokemachine/linux/karaokemachine-1.21.2-x86_64-unknown-linux-gnu/   (+ .tar.gz)
+dist/km-pack/windows/km-pack-1.21.2-x86_64-pc-windows-msvc/
+dist/km-lyrics/windows/km-lyrics-1.21.2-x86_64-pc-windows-msvc/
+dist/km-package-builder/windows/km-package-builder-1.21.2-x86_64-pc-windows-msvc/
+dist/setup/windows/karaokemachine-setup-1.21.2-windows-x86_64.exe
+dist/setup/macos/karaokemachine-setup-1.21.2-macos-aarch64.pkg              (notarized)
+dist/setup/macos/karaokemachine-setup-1.21.2-macos-aarch64-unnotarized.pkg  (signed only)
+dist/setup/macos/karaokemachine-setup-1.21.2-macos-aarch64-unsigned.pkg     (ad-hoc, the default)
+dist/setup/windows/km-remote-setup-1.21.2-windows-x86_64.exe
+dist/setup/macos/km-remote-setup-1.21.2-macos-aarch64.pkg                   (the same three signing states)
 ```
 
 The `.deb` gets a subfolder rather than a suffix. `cargo-deb` names the file from the package and the

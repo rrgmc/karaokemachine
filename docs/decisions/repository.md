@@ -1462,6 +1462,34 @@ deliberately not enabled.** A bump also wants the Android and iOS targets added 
 CI does not do that, so the PR would be green and incomplete. `dependabot.yml` covers the workflows'
 actions only.
 
+## A script that opens with a shebang is executable
+
+**A tracked file whose first line is a shebang has mode 755 in git. A file that other scripts
+source carries no shebang and has mode 644.**
+
+**Linux starts a program only when its mode allows it.** A script that runs another by path fails
+there with `Permission denied`, and so does a container handed a script as its command. A caller
+that types `bash` in front of the path does not depend on the mode. The rule does not rest on every
+caller doing so.
+
+**Windows cannot show the fault.** Its filesystem has no executable bit and reports every file as
+executable. A folder it mounts into a container does the same. `git add` on Windows records a new
+file with mode 644, and the script still runs on that machine. The first Linux run is what fails,
+and for a release script that run is the release build.
+
+**The shebang is what marks a program.** A sourced file needs none, because the shell that sources
+it is already running. So the first line says which mode a file takes, and a check can read it.
+
+`tools/dev/check-script-modes.sh` fails naming each file that has a shebang and mode 644. It reads
+the mode from the index, which is the same on every platform. `task check` runs it, and so does
+CI's `guards` job.
+
+**Setting the mode needs no Linux.** `git update-index --chmod=+x <file>` records it on any
+platform, and `git add --chmod=+x <file>` does so for a new file.
+
+**The check cannot see a script with no shebang that a caller runs by path.** Nothing in such a file
+says it is a program.
+
 ## Why the pass checks everything
 
 **`task check` compiles and tests the whole workspace on every run. Cheap stages keep it quick, and

@@ -115,13 +115,15 @@ jobs:
       # `--no-self-update`: a rustup replacing itself mid-job gains nothing.
       - run: rustup toolchain install --no-self-update
 
-      # Through `bash`, as the Taskfile runs them: a script's executable bit does not survive a
-      # commit made on Windows, and the checks do not depend on it.
+      # Through `bash`, as the Taskfile runs them: a script written on Windows is committed with no
+      # executable bit, and the checks do not depend on it. `check-script-modes.sh` is the one
+      # that fails on such a script.
       - name: Repository guards
         run: |
           bash tools/dev/check-no-local-refs.sh
           bash tools/dev/check-toolchain-pin.sh
           bash tools/dev/check-version-pin.sh
+          bash tools/dev/check-script-modes.sh
           bash tools/dev/check-mdns.sh
           bash tools/dev/check-cargo-config.sh
           bash tools/dev/labels.sh check
