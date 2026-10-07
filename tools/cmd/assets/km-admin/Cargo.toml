@@ -97,7 +97,7 @@ anyhow = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
-directories = { workspace = true }
+km-dirs = { workspace = true }
 image = { workspace = true }
 # `StreamExt`, for reading a gigabyte bank off the socket a chunk at a time rather than into memory
 # whole. The same reason `km-wallpaper-pack` takes it.

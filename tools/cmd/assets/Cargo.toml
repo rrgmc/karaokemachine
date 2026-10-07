@@ -187,10 +187,13 @@ km-logsettings = { path = "../../../crates/platform/km-logsettings" }
 km-osopen = { path = "../../../crates/platform/km-osopen" }
 # The machine passwords this computer was told to remember, shared with `km-package-builder` over
 # on the other side of this boundary. Safe to take from here on the rule the eight above keep: it
-# declares serde, serde_json, directories and tracing, and **no HTTP client**, so nothing it carries
+# declares serde, serde_json, km-dirs and tracing, and **no HTTP client**, so nothing it carries
 # can unify with the `reqwest` in this tree. Where the file goes is `crate::passwords`, this
 # program's own answer, including the `cfg!(test)` guard that keeps a suite off the owner's store.
 km-passwords = { path = "../../../crates/platform/km-passwords" }
+# Where a program keeps its files, and the one crate that names a per-user directory. Safe to take
+# from here on the rule the crates above keep: it declares `directories` and **no HTTP client**.
+km-dirs = { path = "../../../crates/platform/km-dirs" }
 km-tray = { path = "../../../crates/platform/km-tray" }
 # The window geometry the three desktop shells share. Reached across this workspace boundary by path
 # for the reason the root `Cargo.toml` gives about the four platform crates: it takes no HTTP client,

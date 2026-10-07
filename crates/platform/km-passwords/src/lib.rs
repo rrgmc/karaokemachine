@@ -78,8 +78,8 @@ pub fn file_for(setting: Option<&std::ffi::OsStr>, app: &str) -> Option<PathBuf>
         Some(named) if named.is_empty() => None,
         Some(named) => Some(PathBuf::from(named)),
         None => {
-            let dirs = directories::ProjectDirs::from("", "", app)?;
-            Some(dirs.config_dir().join(FILE_NAME))
+            let dirs = km_dirs::for_app(app)?;
+            Some(dirs.config.join(FILE_NAME))
         }
     }
 }

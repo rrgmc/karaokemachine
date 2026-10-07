@@ -123,7 +123,7 @@ axum = { workspace = true }
 # For the one piece of state that is not in the curated folder: which folders this person has opened
 # before. The same crate, and the same call, `km-app` and `km-remote` already use for their own
 # per-user files. See `src/recent.rs`.
-directories = { workspace = true }
+km-dirs = { workspace = true }
 tokio = { workspace = true }
 # `multipart` and `stream` are for the one call that sends a song's bytes to a machine that cannot
 # see this box's disk. Both were checked against the workspace entry's no-TLS constraint: `multipart`

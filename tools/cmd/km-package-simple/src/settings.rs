@@ -60,8 +60,8 @@ impl Settings {
 /// Where the settings file lives: the platform's per-user configuration folder.
 #[must_use]
 pub fn default_path() -> Option<PathBuf> {
-    directories::ProjectDirs::from("", "", "km-package-simple")
-        .map(|dirs| dirs.config_dir().join("settings.json"))
+    km_dirs::for_app("km-package-simple")
+        .map(|dirs| dirs.config.join("settings.json"))
 }
 
 #[cfg(test)]

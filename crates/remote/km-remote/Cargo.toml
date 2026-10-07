@@ -85,7 +85,7 @@ tracing-subscriber = { workspace = true }
 # Where this device's copy lives, on a desktop. The one call `km-remote-core` refuses to make for
 # itself, because the answer is wrong on both of the platforms this is heading for -- see that
 # crate's header.
-directories = { workspace = true }
+km-dirs = { workspace = true }
 
 # The window, behind the `desktop` feature above. Workspace dependencies so that this crate and
 # `tools/cmd/km-package-builder` cannot end up on two webview versions.

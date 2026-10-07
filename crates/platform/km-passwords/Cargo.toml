@@ -20,7 +20,7 @@ workspace = true
 [dependencies]
 serde = { workspace = true }
 serde_json = { workspace = true }
-directories = { workspace = true }
+km-dirs = { workspace = true }
 tracing = { workspace = true }
 
 # **No dev-dependencies either.** The tests want one empty directory each, and the root workspace

@@ -119,8 +119,8 @@ pub fn seed_path() -> Option<PathBuf> {
         let named = PathBuf::from(named);
         return (!named.as_os_str().is_empty()).then_some(named);
     }
-    let dirs = directories::ProjectDirs::from("", "", "km-package-builder")?;
-    Some(dirs.config_dir().join("machine.json"))
+    let dirs = km_dirs::for_app("km-package-builder")?;
+    Some(dirs.config.join("machine.json"))
 }
 
 /// The machine this computer was last pointed at by hand, for a workspace that has never been told.

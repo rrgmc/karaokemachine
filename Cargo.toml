@@ -44,6 +44,7 @@ members = [
     "crates/platform/km-locale",
     "crates/platform/km-webshell",
     "crates/platform/km-passwords",
+    "crates/platform/km-dirs",
     # The packager's commands. `tools/cmd/` for the same reason `crates/` has five folders: the
     # directory says what the thing is. What a person types is still the package name -- `-p km-pack`
     # -- which no path here can change, so moving them cost nothing at a command line.
@@ -237,6 +238,10 @@ km-folders = { path = "crates/platform/km-folders" }
 # each host's own answer, including the `cfg!(test)` guard over it -- `cfg(test)` is per crate, so one
 # written inside that crate would be inert in the suite of whoever depends on it.
 km-passwords = { path = "crates/platform/km-passwords" }
+# Where a program keeps its files. **The one crate that names a per-user directory**, so a portable
+# copy has one function to answer for it. Shared with `km-admin` across the `tools/cmd/assets/`
+# boundary on the rule that boundary keeps: it takes `directories` and no HTTP client.
+km-dirs = { path = "crates/platform/km-dirs" }
 km-api = { path = "crates/machine/km-api" }
 # The owner's page, at `/admin/`. **One page set behind two hosts**: this machine serves
 # it in its own process, and `tools/cmd/assets/km-admin` serves the same markup over HTTP against a
