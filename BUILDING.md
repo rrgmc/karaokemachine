@@ -1386,6 +1386,7 @@ tools/setup/fetch-assets.sh --list       # the banks it knows about
 tools/setup/fetch-ffmpeg.sh              # ffmpeg + libclang           (task ffmpeg)
 tools/setup/fetch-ffmpeg.sh --homebrew   # macOS: Homebrew's GPL build instead of a pinned LGPL one
 bash tools/setup/fetch-abcmidi.sh             # for the carol pack          (task abcmidi)
+bash tools/setup/fetch-mdbook.sh              # for the site's manual       (task mdbook)
 task ffmpeg:android                      # the LGPL ffmpeg for both Android ABIs
 ```
 
@@ -2089,16 +2090,24 @@ Sixteen public-domain carols as one `.kmpkg`, **a separate download and never bu
 network once and `abc2midi`. The license gate is in code and **fails closed**. Each carol's own
 copyright line must say public domain in all four layers a hymn divides into.
 
-## The landing page
+## The landing page and the manual
 
 ```sh
+bash tools/setup/fetch-mdbook.sh       # once per machine                  (task mdbook)
 bash tools/dist/site.sh                # stage dist/site                   (task site)
 bash tools/dist/site.sh --open         # ...and open it                    (task site OPEN=1)
 bash tools/dist/site.sh -v             # ...naming every file it staged
 ```
 
-One hand-written page, `site/index.html` and `site/style.css`, staged with the nine pictures out
-of `docs/images/` and a favicon out of `icon/`. **`.github/workflows/pages.yml` runs this exact
+One hand-written page per language, `site/index.html` and `site/style.css`, staged with the
+pictures out of `docs/images/` and a favicon out of `icon/`. **The manual is `docs/manual/`, which
+mdBook renders into `dist/site/docs`.** `tools/setup/fetch-mdbook.sh` pins the mdBook version and
+its checksum, and the script uses that copy and no other. `site/book.toml` configures the book, and
+`site/manual.css` gives it the landing page's colors.
+
+**A chapter is one file directly in `docs/manual/`, named in `SUMMARY.md`.** The script refuses a
+chapter in a subfolder, because `../images/` then misses the pictures on the site. It also refuses a
+chapter that `SUMMARY.md` does not name, because mdBook renders no page for it. **`.github/workflows/pages.yml` runs this exact
 script** and uploads what it produces, so a local preview and the published page come out of one
 code path. It publishes to <https://rrgmc.github.io/karaokemachine/>, and only once the repository
 is public — the workflow tests the repository's name *and* its visibility and skips otherwise.
@@ -2111,6 +2120,8 @@ It refuses three things that would otherwise be found only after publishing:
 - a picture the page names that `docs/images/` does not have;
 - an absolute path, the site being served under `/karaokemachine/`, so `/images/x.png` would 404;
 - anything the page would fetch from another server.
+
+The manual's pages pass the same three checks.
 
 ## Issue labels
 

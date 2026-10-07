@@ -699,49 +699,61 @@ give the same frames.
 
 ## Who the README is for
 
-**The README is for somebody who has the machine; `BUILDING.md` for somebody who has the source.** The
-split is by **audience** and not by size. The test for a paragraph is whether an installed build can
-act on it. These are all `BUILDING.md`'s:
+**The README is the front page. The manual is for somebody who has the machine, and `BUILDING.md`
+for somebody who has the source.** The split is by **audience** and not by size. The test for a
+paragraph of the manual is whether an installed build can act on it. These are all `BUILDING.md`'s:
 
 - the cargo alias table, the Taskfile and the per-platform prerequisites;
 - ffmpeg and libclang, and the ten staging scripts;
 - what an IDE does with `ffmpeg-sys-next`;
 - what GitHub bills for a macOS CI minute.
 
-The README covers installing, using, and the two products an owner runs beside the machine: the
-offline remote and `km-package-builder`.
+**The README says what this is and where to go next.** It holds the description, one picture, the
+release link, a short start, and a table that links the manual. A reader on GitHub reaches the
+license and the list of documents on the second screen. A paragraph that says how to do something
+belongs in a chapter, and the README links that chapter.
 
-**Within the README the owner comes first, and `For a technical reader` is where the second audience
+**The manual is [`docs/manual/`](../manual/), one chapter per file.** It covers installing, using,
+and the products an owner runs beside the machine. GitHub renders the folder, and the site renders
+the same files as pages with a sidebar and a search. That is
+[`The website is one page per language, and it links one download`](#the-website-is-one-page-per-language-and-it-links-one-download).
+
+**Within the manual the owner comes first, and `For a technical reader` is where the second audience
 starts.** What it is, what it looks like, installing and using it are answerable from the machine's
 screen, a phone, a browser or a double-click. Other things need a shell or a program of your own,
-and those sit after the divider:
+and those sit in that last part:
 
 - the flags and the HTTP API;
 - discovery on the network;
 - what a song file may contain;
 - the commands that build a package.
 
-A bullet holding both is split across the divider. An owner is told a song can be a video, and the
-codec it carries is stated below. Both halves still pass the test above: an installed build can act
-on either.
+A bullet holding both is split across the two parts. An owner is told a song can be a video, and
+the codec it carries is stated in `formats.md`. Both halves still pass the test above: an installed
+build can act on either.
 
-**Its headings are addresses.** `BUILDING.md`, `DEPLOYING.md` and `Distribution` link to
-`#installing`, `#the-song-book` and `#getting-a-corpus-into-shape`. The two halves link to each other
-by anchor as well. Nothing in the repository validates a markdown anchor. So a heading that moves or
-is renamed takes its inbound links with it by hand.
+**A chapter's file name is an address.** `BUILDING.md`, `DEPLOYING.md` and `Distribution` link to
+`installing.md`, `ios.md`, `song-book.md` and `packaging.md`. The site serves each chapter under the
+same name with `.html`, and the README links those. `tools/dist/site.sh` checks the links between
+chapters, and nothing checks a link from another document. So a chapter that is renamed takes its
+inbound links with it by hand.
+
+**The chapters are flat in the folder.** A chapter reaches a picture as `../images/x.png`. That
+names `docs/images/` on GitHub and the staged `images/` on the site, so one path serves both. A
+chapter in a subfolder would need a second `../` on the site only, and `site.sh` refuses one.
 
 **`BUILDING.md` sits at the root** rather than under `docs/` for one mechanical reason and one social
 one. Every relative link in it (`docs/decisions/*`, `docs/images/*`, `tools/*`) resolves unchanged.
 And somebody who did not think to look in `docs/` finds a file beside the README.
 
 **Installing names the carriers and links one download**: the release page of the repository the
-README is rendered from. GitHub shows that page to whoever can see that repository. A link per asset
+manual is rendered from. GitHub shows that page to whoever can see that repository. A link per asset
 would put a version number into a document that carries none, because every asset name has one in
-it. Each such link would break at the next release. Building from source stays in the section as the
+it. Each such link would break at the next release. Building from source stays in the chapter as the
 other way in, pointing at `BUILDING.md`.
 
-**What is *not* duplicated.** The README says the builds are unsigned and what the recipient clicks;
-`BUILDING.md` says how to sign one. The README states the logging behavior; `BUILDING.md` states why
+**What is *not* duplicated.** The manual says the builds are unsigned and what the recipient clicks;
+`BUILDING.md` says how to sign one. The manual states the logging behavior; `BUILDING.md` states why
 `--frame-stats` is deliberately not a log level. It is reference documentation and not a plan, so
 rule 5 in `CLAUDE.md` does not reach it.
 
@@ -1342,17 +1354,29 @@ same name and the same address, so a reader meets one form in both places. A `ma
 visitor's mail client to open, which the page asks of nothing else. Each page translates the label
 alone, and carries the name and the address verbatim.
 
-**Not a generated documentation site.** The documents are some twelve thousand lines of markdown.
-GitHub already renders them with anchors, a file tree and search. A generator would buy a second
-rendering of the same words that can go stale against the first. That is the failure rule 5 in
-`CLAUDE.md` exists to prevent, in HTML rather than in prose. What GitHub renders badly is a *first
-impression*, and that is the one page this adds.
+**The manual is the one generated part, and it has one source.** `docs/manual/` is markdown that
+GitHub renders in place. `tools/dist/site.sh` renders the same files into `docs/` on the site, as
+pages with a sidebar, a next page and a search. A second copy of the words would go stale against
+the first, and here no second copy exists. That is the failure rule 5 in `CLAUDE.md` exists to
+prevent. `Who the README is for` says what the manual holds.
 
-**No Jekyll, no mdBook, no MkDocs and no Node**, because the whole page is smaller than any of those
-toolchains' lockfiles. The cost of a generator is never the generator. It is a second language to
-learn before you can change a heading, and a build that breaks for reasons unrelated to the page.
-`crates/remote/km-remote-pages/static/app.css` makes this argument for the remote first and is the
-working precedent.
+**The other documents stay as markdown on GitHub.** Somebody who has the source reads `BUILDING.md`,
+the architecture notes and the decisions. GitHub already renders them with anchors, a file tree and
+search.
+
+**mdBook renders the manual, and no Jekyll, no MkDocs and no Node.** mdBook is one executable with
+no runtime behind it. `tools/setup/fetch-mdbook.sh` pins its version and the checksum of each
+archive, and `site.sh` uses that copy and no other. Two machines therefore render the same markup.
+A chapter is plain markdown, so nobody learns a second language to change a heading. The manual's
+pages run mdBook's own scripts for the sidebar and the search, and load them from the site itself.
+
+**The landing pages stay hand-written**, because each one is smaller than a generator's
+configuration. `crates/remote/km-remote-pages/static/app.css` makes this argument for the remote
+first and is the working precedent.
+
+**The manual is in English.** A translated landing page links the English manual and says so, by
+`The links out stay English` above. A second language would be a second book to keep in step, and
+no script can compare two books' words.
 
 **No external request of any kind** — no web font, no CDN, no analytics. That is `Nothing downloads`
 applied to the page that describes the product. The product's whole claim is that it works on a
@@ -1364,7 +1388,11 @@ in the same pass, because the site is served one path segment down. `/images/x.p
 the organization's root. A Jekyll `baseurl` normally solves that problem; this site solves it by not
 having it.
 
-**The pictures are staged and never committed twice.** They are in `docs/images/` because the README
+**Both checks read every page and stylesheet mdBook writes.** That proves a new mdBook version still
+carries its own fonts and scripts. The manual's `404.html` alone names the site's own path. A host
+serves it for an address at any depth, so its links cannot be relative.
+
+**The pictures are staged and never committed twice.** They are in `docs/images/` because the manual
 shows them and `tools/dev/screenshots.sh` regenerates them. A second copy under `site/` would be a
 megabyte that silently diverges from what a reader sees on GitHub. The consequence is accepted rather
 than worked around. `site/index.html` opened straight out of a checkout shows no pictures, and the
