@@ -154,6 +154,7 @@ km-package-simple-video = "run -p km-package-simple --features video --"
 km-pack = "run -p km-pack --"
 km-pack-video = "run -p km-pack --features video --"
 km-lyrics = "run -p km-lyrics --"
+km-site-pack = "run -p km-site-pack --"
 # The offline remote. The alias and the package are now the same word, so this one saves no
 # keystrokes and is kept for the reason the others exist: every command in CLAUDE.md is a `cargo
 # km-*`, and the one that is spelled `cargo run -p` instead is the one somebody gets wrong. The

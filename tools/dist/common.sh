@@ -729,7 +729,7 @@ you add one you left out:
     KM Simple Package   makes a package straight from a folder, in one step
     KM Remote           search and queue from this computer
     KM Admin            finds pictures and instrument banks for the machine
-    Command-line tools  km-pack, km-lyrics, km-wallpaper-pack
+    Command-line tools  km-pack, km-lyrics, km-site-pack, km-wallpaper-pack
 
 Each one has a README of its own beside this file, named for it -- README-karaokemachine.txt,
 README-km-pack.txt and so on. Those are the documents to read: they say what each program is for,
@@ -786,9 +786,9 @@ and running it again is how you add one you left out:
     KM Simple Package   makes a package from a folder, quickly  /Applications
     KM Remote           search and queue from this Mac          /Applications
     KM Admin            finds pictures and instrument banks     /Applications
-    Command-line tools  seven names you can type                here
+    Command-line tools  eight names you can type                here
 
-The seven are km-pack, km-lyrics, km-wallpaper-pack, km-package-builder, km-package-simple,
+The eight are km-pack, km-lyrics, km-site-pack, km-wallpaper-pack, km-package-builder, km-package-simple,
 km-remote and km-admin -- so the last four are each an application *and* a command, and the command comes with
 the tools tick rather than with the application's own. The machine has a command too,
 karaokemachine, and that one comes with the application.

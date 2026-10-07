@@ -2,14 +2,14 @@
 #
 # Stages portable builds of the command-line tools.
 #
-#   tools/dist/cmd.sh                    # all seven
+#   tools/dist/cmd.sh                    # all eight
 #   tools/dist/cmd.sh km-pack            # just one, or any subset
 #   tools/dist/cmd.sh --zip              # also produce a .zip beside each folder
 #   tools/dist/cmd.sh --no-video         # build the video-capable tools without the `video` feature
 #   tools/dist/cmd.sh -v                 # watch the builds; quiet is the default
 #
 # **Quiet by default**, and this is the script it matters most in: with no arguments it runs
-# `cargo build --release` seven times. The phases, the per-tool reports and every warning are printed;
+# `cargo build --release` eight times. The phases, the per-tool reports and every warning are printed;
 # the compile streams are not. A step that fails replays everything it held back, so `-v` is for
 # watching a build rather than for diagnosing one afterwards.
 #
@@ -66,7 +66,7 @@ cd "$(dirname "$0")/../.."
 . tools/dist/common.sh
 DIST_SCRIPT=dist-tools
 
-ALL_TOOLS=(km-pack km-lyrics km-package-builder km-package-simple km-remote km-admin km-wallpaper-pack)
+ALL_TOOLS=(km-pack km-lyrics km-site-pack km-package-builder km-package-simple km-remote km-admin km-wallpaper-pack)
 
 # Which tools can be built with video, and which simply have no such feature. km-lyrics parses MIDI
 # text and never touches a container, so asking for `--features video` there is not a smaller build --
@@ -524,6 +524,87 @@ Licenses
 --------
 
 km-lyrics is MIT OR Apache-2.0, at your option; both texts are beside this file.
+README
+}
+
+readme_km_site_pack() { # <file> <video: 1 or 0>
+  cat > "$1" <<'README'
+km-site-pack
+============
+
+Fetch the song files a site links, and build a package from them. It reads the pages of one site,
+downloads every .kar, .mid and .midi file they link, opens any .zip archive among them, and builds
+a .kmpkg from the songs that have words.
+
+Running it
+----------
+
+    km-site-pack <address> <folder>
+
+reads the site at that address, fills the folder, and writes the package beside the folder. Give
+the address of one folder of a site and only the pages inside that folder are read.
+
+    km-site-pack <address> <folder> --dry-run
+
+lists what a run would download and writes nothing.
+
+    km-site-pack --from-folder <folder>
+
+makes no request. It opens the archives in a folder you filled yourself and builds the package.
+
+What it does and does not do
+----------------------------
+
+It runs only when you run it, and reads only the site you name. It honours the site's robots.txt,
+including the wait the site asks for between requests, and no option turns that off. It tells the
+site its own name. A site that answers only a browser is reported as one, and the run stops there;
+save the files with a browser and use --from-folder.
+
+A file already in the folder is not downloaded again, so a run that was stopped carries on.
+
+A file with no words stays in the folder and goes into no package. Some sites serve a karaoke file
+under the .mid extension, so the words decide what a song is and the extension does not.
+
+Nothing it writes records where a file came from. Every package it builds is marked uncurated,
+because nobody has reviewed its titles.
+
+Whether you may download and keep what a site offers is for you to judge. This program does not
+judge it and cannot.
+
+Options
+-------
+
+    --depth N               how many links deep a page may be from the address, default 2
+    --max-pages N           the most pages one run reads, default 2000
+    --ext kar,mid,midi      the song-file extensions to take
+    --delay-ms MS           milliseconds to leave between two requests, default 500. Raise it to
+                            go easier on a small site.
+
+    --name NAME             the package's name, default the folder's name
+    --publisher NAME        who publishes the package
+    --package-version V     the package's version, default 1.0.0
+    --default-language CODE the language of a song whose file gives none, default und
+    --min-suitability N     leave out a song rated below N, from 0 to 10
+    --keep-wordless         put a file with no words into the package as well
+    --out-dir DIR           where the package is written, default the folder's parent
+
+    --no-package            download and unpack, and build no package
+    --dry-run               list what would be downloaded, and write nothing
+    --version
+
+More than 999 songs
+-------------------
+
+A package holds 999 songs. A folder with more is written as volumes: <name>-vol1, <name>-vol2 and
+so on.
+
+Beside each package it writes <name>.kmspec.yaml, the description the package was built from. Edit
+its titles and artists and run `km-pack build <name>.kmspec.yaml` to build the package again.
+
+Licenses
+--------
+
+km-site-pack is MIT OR Apache-2.0, at your option; both texts are beside this file.
 README
 }
 
@@ -1492,6 +1573,7 @@ for d in "${staged[@]}"; do
       printf '    cd %s && ./km-pack%s spec <your karaoke folder> --out vol1.kmspec.yaml\n' "$d" "$EXT"
       printf '    cd %s && ./km-pack%s build vol1.kmspec.yaml\n' "$d" "$EXT" ;;
     km-lyrics) printf '    cd %s && ./km-lyrics%s scan <your karaoke folder>\n' "$d" "$EXT" ;;
+    km-site-pack) printf '    cd %s && ./km-site-pack%s <address> <your karaoke folder> --dry-run\n' "$d" "$EXT" ;;
     km-package-builder)
       # **The console executable where there is one**, because these are lines to type: the windowed
       # one is GUI-subsystem on Windows and would run perfectly while appearing to say nothing at all,
