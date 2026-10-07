@@ -1541,6 +1541,17 @@ such an event as the end of the syllable before it, in any file.
 **The event is this project's convention, and no standard has one.** A karaoke file has no agreed
 way to end a word. Another player draws nothing for an event that holds no bytes.
 
+**The flags say whether a file's own words are used, and the editor never works it out.** A file
+that has words is as often one to tap again from the start as one to go on with. Only the person
+knows which.
+
+- `--sync` with `--sync-words` taps the typed words from the first one, and replaces the file's.
+- `--sync` alone opens the words the file has, with their timing, in review.
+- `--sync-continue` keeps the file's timing on the typed words it already times, and taps the rest.
+
+**Going on from a file is refused when its words are not the start of the text.** The refusal names
+the first word that differs. Timing on the wrong words is worse than none.
+
 **The editor does not find words and does not split them.** It looks nothing up, and a syllable
 break is a hyphen somebody typed.
 

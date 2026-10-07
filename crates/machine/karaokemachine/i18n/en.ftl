@@ -22,6 +22,9 @@ sync-selected-at = { $line }   at { $time }
 ## Messages
 
 sync-start = Press Enter to start the song, then Space on each word
+# The editor was opened on a file's own words, and on a file to go on tapping.
+sync-reopened = These are the words the file has, with their timing. Move a word, then Ctrl+S saves
+sync-continued = { $tapped } words keep their timing. Enter plays from the next word
 sync-unsaved-close = Not saved. Ctrl+S saves, closing again leaves
 sync-unsaved-esc = Not saved. Ctrl+S saves, Esc again leaves
 sync-saved = Saved { $tapped } of { $total } words to { $file }

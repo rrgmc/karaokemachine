@@ -29,7 +29,7 @@ use km_locale::{Catalog, Catalogs, Locale};
 use km_queue::Transport;
 use km_song::kar_write::{KarWords, split_words, write_soft_karaoke};
 use km_song::timeline::{LineBreak, RawSyllable};
-use km_song::{ParseOptions, Song};
+use km_song::{LyricTimeline, ParseOptions, SYLLABLE_DIVIDER, Song, WordEnds};
 use sdl3::event::{Event as SdlEvent, WindowEvent};
 use sdl3::keyboard::{Keycode, Mod};
 use sdl3::pixels::Color;
@@ -68,7 +68,9 @@ pub(crate) struct Request {
     /// The MIDI file to play. Read, and never written.
     pub song: PathBuf,
     /// The words as typed text.
-    pub words: PathBuf,
+    pub words: Option<PathBuf>,
+    /// Whether the typed words keep the ticks the song file already holds for the leading ones.
+    pub resume: bool,
     /// Where the `.kar` goes. `None` puts it beside the song.
     pub out: Option<PathBuf>,
     /// The title to write, where the song's own is not wanted.
@@ -132,6 +134,13 @@ impl Session {
             before_snap: None,
             reviewing: false,
         }
+    }
+
+    /// The same words with the first `tapped` of them holding the ticks they came with.
+    fn with_tapped(mut self, tapped: usize) -> Self {
+        self.stamped = tapped.min(self.syllables.len());
+        self.selected = self.stamped.saturating_sub(1);
+        self
     }
 
     fn phase(&self) -> Phase {
@@ -586,6 +595,115 @@ fn open_fonts(
     )
 }
 
+/// The words to edit, and how many of them come with a tick already.
+///
+/// Three cases, chosen by what the person passed and never by looking at the file:
+///
+/// * words and no `continue`: the typed words, none tapped. A file's own words are replaced.
+/// * no words: the file's own words with the ticks it gives them, all tapped.
+/// * words and `continue`: the typed words, with the file's ticks on the leading ones.
+fn starting_words(song: &Song, request: &Request) -> anyhow::Result<(Vec<RawSyllable>, usize)> {
+    let held = syllables_of(&song.lyrics, u32::from(song.ticks_per_quarter.max(1)));
+    let Some(path) = &request.words else {
+        anyhow::ensure!(
+            !held.is_empty(),
+            "{} holds no words; pass --sync-words with the words to tap",
+            request.song.display()
+        );
+        let tapped = held.len();
+        return Ok((held, tapped));
+    };
+    let typed = split_words(&read_words(path)?);
+    anyhow::ensure!(!typed.is_empty(), "{} holds no words", path.display());
+    if !request.resume {
+        return Ok((typed, 0));
+    }
+    continue_from(typed, &held).map_err(|fault| {
+        anyhow::anyhow!(
+            "{} does not continue from {}: {fault}",
+            path.display(),
+            request.song.display()
+        )
+    })
+}
+
+/// A song's words as the syllables an editor holds: each with its tick, its break and its end.
+///
+/// A syllable takes an end only where the file gave it one, which is where it stops short of the
+/// next. The text is the file's own spacing, with the dividers the reader drew taken back out.
+fn syllables_of(lyrics: &LyricTimeline, beat: u32) -> Vec<RawSyllable> {
+    let mut out: Vec<RawSyllable> = Vec::new();
+    let mut page = None;
+    for line in &lyrics.lines {
+        for (index, syllable) in line.syllables.iter().enumerate() {
+            let break_before = match (index, page) {
+                (0, Some(before)) if before == line.page => LineBreak::Line,
+                (0, _) => LineBreak::Page,
+                _ => LineBreak::None,
+            };
+            // The one before this ended early if it stops before this one starts.
+            if let Some(before) = out.last_mut()
+                && before
+                    .end_tick
+                    .is_some_and(|end| end >= syllable.start_tick)
+            {
+                before.end_tick = None;
+            }
+            let text = match lyrics.word_ends {
+                WordEnds::AsWritten => syllable.text.clone(),
+                WordEnds::EverySyllableSpaced => syllable.text.replace(SYLLABLE_DIVIDER, " "),
+                WordEnds::NoneSpaced => syllable.text.replace(SYLLABLE_DIVIDER, ""),
+            };
+            out.push(RawSyllable {
+                tick: syllable.start_tick,
+                text,
+                break_before,
+                end_tick: Some(syllable.end_tick),
+            });
+        }
+        page = Some(line.page);
+    }
+    // The last syllable of a song has nothing after it to stop short of. A file that gives it no
+    // end has it held for one beat, so one beat is no end.
+    if let Some(last) = out.last_mut()
+        && last.end_tick == Some(last.tick.saturating_add(beat))
+    {
+        last.end_tick = None;
+    }
+    out
+}
+
+/// Gives the typed words the ticks a file already holds for the leading ones.
+///
+/// The file's words must be the start of the typed words, compared without case or outer space. A
+/// word that differs is named, since ticks on the wrong words are worse than none.
+fn continue_from(
+    mut typed: Vec<RawSyllable>,
+    held: &[RawSyllable],
+) -> Result<(Vec<RawSyllable>, usize), String> {
+    if held.len() > typed.len() {
+        return Err(format!(
+            "the file times {} words and the text has {}",
+            held.len(),
+            typed.len()
+        ));
+    }
+    for (index, (mine, theirs)) in typed.iter_mut().zip(held).enumerate() {
+        let same = mine.text.trim().to_lowercase() == theirs.text.trim().to_lowercase();
+        if !same {
+            return Err(format!(
+                "word {} is \"{}\" in the file and \"{}\" in the text",
+                index + 1,
+                theirs.text.trim(),
+                mine.text.trim()
+            ));
+        }
+        mine.tick = theirs.tick;
+        mine.end_tick = theirs.end_tick;
+    }
+    Ok((typed, held.len()))
+}
+
 /// The typed words: a file, or standard input when the path is `-`.
 ///
 /// Standard input is for a program that starts the editor with words it holds and has no file for.
@@ -608,12 +726,7 @@ pub(crate) fn run(paths: &Paths, settings: &Settings, request: &Request) -> anyh
         Song::parse(&source, &ParseOptions::default())
             .with_context(|| format!("{} is not a MIDI file", request.song.display()))?,
     );
-    let syllables = split_words(&read_words(&request.words)?);
-    anyhow::ensure!(
-        !syllables.is_empty(),
-        "{} holds no words",
-        request.words.display()
-    );
+    let (syllables, already_tapped) = starting_words(&song, request)?;
 
     let out = request
         .out
@@ -730,7 +843,13 @@ pub(crate) fn run(paths: &Paths, settings: &Settings, request: &Request) -> anyh
         height: height as f32,
     };
 
-    let mut session = Session::new(syllables);
+    let mut session = Session::new(syllables).with_tapped(already_tapped);
+    // Tapping goes on from the word after the last one the file timed, with a run-up.
+    if session.phase() == Phase::Tapping && already_tapped > 0 {
+        let last = session.syllables[already_tapped - 1].tick;
+        let ms = song.tempo_map.tick_to_ms(last).saturating_sub(RUN_UP_MS);
+        sound.send(Command::SeekMs(ms));
+    }
     // The words as the output file will hold them, parsed back, so review draws what a machine
     // will draw from the file.
     let mut preview: Option<Song> = None;
@@ -747,7 +866,14 @@ pub(crate) fn run(paths: &Paths, settings: &Settings, request: &Request) -> anyh
     let mut silencing: Option<u8> = None;
     // Where the song was, and whether it played, when its device went away.
     let mut lost: Option<(u32, bool)> = None;
-    let mut message: Option<(String, Instant)> = Some((t("sync-start"), Instant::now()));
+    let opening = match (already_tapped, session.phase()) {
+        (0, _) => t("sync-start"),
+        (_, Phase::Review) => t("sync-reopened"),
+        (kept, Phase::Tapping) => words
+            .msg_with("sync-continued", &[("tapped", (kept as i64).into())])
+            .into_owned(),
+    };
+    let mut message: Option<(String, Instant)> = Some((opening, Instant::now()));
 
     'frames: loop {
         let now = Instant::now();
@@ -1853,6 +1979,61 @@ mod tests {
     fn a_few_taps_choose_nothing() {
         let sung: Vec<u32> = (0..30).map(|i| 10_000 + i * 1_000).collect();
         assert_eq!(vocal_line_under(&taps()[..5], &[sung]), None);
+    }
+
+    /// A file's words come back as the editor wrote them: ticks, breaks, spacing and ends.
+    #[test]
+    fn a_saved_files_words_are_read_back_as_they_were_tapped() {
+        let mut typed = split_words("Twin-kle lit-tle star\nhow I won-der\n\nUp a-bove");
+        for (index, syllable) in typed.iter_mut().enumerate() {
+            syllable.tick = 480 + 240 * u32::try_from(index).unwrap();
+        }
+        // "star" closes its line and is ended before the next line starts.
+        typed[4].end_tick = Some(typed[4].tick + 100);
+        let saved = write_soft_karaoke(
+            &km_song::testing::instrumental(),
+            &KarWords {
+                title: "A Song".to_owned(),
+                syllables: typed.clone(),
+                ..KarWords::default()
+            },
+        )
+        .unwrap();
+        let song = Song::parse(&saved, &ParseOptions::default()).unwrap();
+        let held = syllables_of(&song.lyrics, u32::from(song.ticks_per_quarter));
+        assert_eq!(held, typed);
+    }
+
+    #[test]
+    fn typed_words_take_a_files_ticks_for_the_words_it_already_times() {
+        let typed = split_words("one two\nthree four");
+        let mut held = split_words("One two");
+        held[0].tick = 100;
+        held[1].tick = 200;
+        held[1].end_tick = Some(250);
+
+        let (words, tapped) = continue_from(typed.clone(), &held).unwrap();
+        assert_eq!(tapped, 2);
+        assert_eq!((words[0].tick, words[1].tick), (100, 200));
+        assert_eq!(words[1].end_tick, Some(250));
+        // The typed text is what is kept, and the untapped words are untouched.
+        assert_eq!(words[0].text, "one");
+        assert_eq!(words[2..], typed[2..]);
+
+        let session = Session::new(words).with_tapped(tapped);
+        assert_eq!(session.phase(), Phase::Tapping);
+        assert_eq!(session.stamped, 2);
+    }
+
+    #[test]
+    fn a_file_whose_words_are_not_the_start_of_the_text_is_refused_by_name() {
+        let typed = split_words("one two three");
+        let mut held = split_words("one too");
+        held[1].tick = 200;
+        let fault = continue_from(typed.clone(), &held).unwrap_err();
+        assert!(fault.contains("word 2") && fault.contains("too"), "{fault}");
+        let longer = split_words("one two three four");
+        assert!(continue_from(typed, &longer).is_err());
     }
 
     /// Both locales hold the same keys, and every key the source names is one of them.

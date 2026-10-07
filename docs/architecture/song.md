@@ -612,6 +612,12 @@ the engine reports, which is the same distance a tap trails it by.
 never lands before the one in front of it. A move or a snap never carries a syllable past a
 neighbour or past its own end.
 
+**`starting_words` picks the words from the flags.** `syllables_of` turns a parsed song's lines
+back into syllables with ticks, breaks and ends. A syllable has an end only where it stops short of
+the next. The dividers the reader draws for a file with no word boundaries are taken back out.
+`continue_from` copies those ticks onto the leading typed words and compares the text without case.
+A test saves words and reads them back equal.
+
 **`vocal_line_under` is the editor's own measure, and `melody::detect` is not used.** Detection asks
 for a note on each syllable, and a person tapping whole words gives it one tap for several notes.
 The editor counts the taps with a note of the channel within 120 ms. It subtracts the share that

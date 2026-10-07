@@ -28,7 +28,9 @@ Entries are written for somebody who has the machine. Why any of it is the way i
 - **A lyric sync editor puts words on a MIDI file.** `karaokemachine --sync song.mid --sync-words
   words.txt` plays the song while you press Space on each word. It writes a new `.kar` and never
   changes the MIDI file. Review shows the words as the machine draws them. There you can move a word,
-  end it before a pause, or move every word onto the notes of the vocal line.
+  end it before a pause, or move every word onto the notes of the vocal line. Without a words file
+  it opens the words a karaoke file already has, and `--sync-continue` goes on from a file saved
+  part-way.
 
 ### Changed
 

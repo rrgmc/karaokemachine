@@ -607,7 +607,13 @@ give it the song and the words as text, and you press Space as each word is sung
 
 ```sh
 karaokemachine --sync song.mid --sync-words words.txt     # writes song.kar beside the song
+karaokemachine --sync song.kar                            # correct the words a file already has
+karaokemachine --sync song.kar --sync-words words.txt --sync-continue   # go on from a part-tapped file
 ```
+
+**A file that has words** opens in review when you give no words file, so you can fix its timing.
+A file saved before every word was tapped goes on from the next word with `--sync-continue`. The
+result of either is written to `song-synced.kar`, and `--sync-out` names another file.
 
 **The words file** is plain text. One line is one line on screen, and an empty line starts a new
 page. A hyphen splits a word into syllables, so `ka-ra-o-ke` is tapped four times. Type `\-` for a

@@ -400,8 +400,20 @@ struct SyncArgs {
     ///
     /// The song plays and you press Space as each word is sung. The words come from
     /// `--sync-words`. The result is a new `.kar` file, and the MIDI file is not changed.
-    #[arg(long = "sync", value_name = "FILE", requires = "words")]
+    ///
+    /// Without `--sync-words` the editor opens the words the file already has, with their timing,
+    /// for you to correct.
+    #[arg(long = "sync", value_name = "FILE")]
     song: Option<PathBuf>,
+
+    // Asked for and never detected: a file that has words is as often one to tap again from the
+    // start as one to go on with, and only the person knows which.
+    /// Keep the timing the `--sync` file already has, and go on tapping from the next word.
+    ///
+    /// For a file saved before every word was tapped. The words in the file must be the first
+    /// words of `--sync-words`.
+    #[arg(long = "sync-continue", requires = "words")]
+    resume: bool,
 
     // `-` is for a program that starts the editor with words it holds and has no file for.
     /// The words for `--sync`, as a text file, or `-` to read them from standard input.
@@ -460,7 +472,8 @@ impl SyncArgs {
     fn request(&self) -> Option<crate::sync::Request> {
         Some(crate::sync::Request {
             song: self.song.clone()?,
-            words: self.words.clone()?,
+            words: self.words.clone(),
+            resume: self.resume,
             out: self.out.clone(),
             title: self.title.clone(),
             artist: self.artist.clone(),
@@ -2125,13 +2138,29 @@ mod tests {
     /// is what leaves `display.fullscreen` in charge, and a refactor that turned the pair into two
     /// bools would lose it silently.
     #[test]
-    fn the_sync_editor_needs_a_song_and_its_words_together() {
+    fn the_sync_editor_takes_a_song_with_words_without_them_or_to_go_on_from() {
         let parse = |flags: &[&str]| {
             let mut args = vec!["karaokemachine"];
             args.extend_from_slice(flags);
             Cli::try_parse_from(args)
         };
-        assert!(parse(&["--sync", "a.mid"]).is_err());
+        // A song alone opens the words it already has.
+        let alone = parse(&["--sync", "a.kar"]).unwrap().sync.request().unwrap();
+        assert_eq!((alone.words, alone.resume), (None, false));
+        // Going on from a file needs the words to go on with.
+        assert!(parse(&["--sync", "a.kar", "--sync-continue"]).is_err());
+        let resumed = parse(&[
+            "--sync",
+            "a.kar",
+            "--sync-words",
+            "a.txt",
+            "--sync-continue",
+        ])
+        .unwrap()
+        .sync
+        .request()
+        .unwrap();
+        assert!(resumed.resume);
         assert!(parse(&["--sync-words", "a.txt"]).is_err());
         assert!(parse(&["--sync-out", "a.kar"]).is_err());
         // No editor flag at all is the machine, with no request.
@@ -2155,7 +2184,7 @@ mod tests {
         .unwrap();
         let request = cli.sync.request().unwrap();
         assert_eq!(request.song, PathBuf::from("a.mid"));
-        assert_eq!(request.words, PathBuf::from("a.txt"));
+        assert_eq!(request.words, Some(PathBuf::from("a.txt")));
         assert_eq!(request.out, Some(PathBuf::from("b.kar")));
         assert!(request.force);
         assert_eq!(request.title.as_deref(), Some("A Song"));
@@ -2167,7 +2196,7 @@ mod tests {
     fn the_sync_editor_takes_its_words_from_standard_input_and_refuses_a_channel_17() {
         let cli = Cli::try_parse_from(["karaokemachine", "--sync", "a.mid", "--sync-words", "-"])
             .unwrap();
-        assert_eq!(cli.sync.request().unwrap().words, PathBuf::from("-"));
+        assert_eq!(cli.sync.request().unwrap().words, Some(PathBuf::from("-")));
         assert!(
             Cli::try_parse_from([
                 "karaokemachine",

@@ -22,6 +22,9 @@ sync-selected-at = { $line }   em { $time }
 ## Mensagens
 
 sync-start = Aperte Enter para tocar a música, depois Space em cada palavra
+# O editor foi aberto nas palavras do próprio arquivo, e num arquivo para continuar marcando.
+sync-reopened = Estas são as palavras do arquivo, com o tempo delas. Mova uma palavra, depois Ctrl+S salva
+sync-continued = { $tapped } palavras mantêm o tempo. Enter toca a partir da próxima palavra
 sync-unsaved-close = Não salvo. Ctrl+S salva, fechar de novo sai
 sync-unsaved-esc = Não salvo. Ctrl+S salva, Esc de novo sai
 sync-saved = { $tapped } de { $total } palavras salvas em { $file }
