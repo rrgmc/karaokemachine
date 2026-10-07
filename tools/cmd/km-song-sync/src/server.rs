@@ -27,10 +27,16 @@ pub const SAID_KEYS: &[&str] = &[
     "said-no-song",
     "said-no-machine",
     "said-no-words",
+    "said-box-empty",
     "said-not-midi",
     "said-output-exists",
     "said-reveal-failed",
 ];
+
+/// How many folders and songs one page of the browser holds.
+///
+/// Few, because the words box is under the browser and a long page pushes it out of the window.
+pub const PAGE_ROWS: usize = 15;
 
 /// The event the page hears when the editor has closed, which draws the browser again.
 const EDITOR_ENDED: &str = "editor-ended";
@@ -131,7 +137,7 @@ async fn read(
     };
     let app = Arc::clone(app);
     tokio::task::spawn_blocking(move || {
-        let listing = km_folders::list_with(&ask, crate::rows::is_song);
+        let listing = km_folders::list_with(&ask, PAGE_ROWS, crate::rows::is_song);
         // A folder that was read is where the browser is. One that was not is a wrong turn.
         if let (Some(here), None) = (&ask.here, &listing.error) {
             app.remember_folder(here);
@@ -188,6 +194,8 @@ struct StartForm {
     song: String,
     #[serde(default)]
     words: String,
+    /// Present when the words box is ticked for use.
+    use_words: Option<String>,
     /// Present when the box is ticked.
     resume: Option<String>,
     /// Present when the row's box is ticked.
@@ -206,7 +214,7 @@ async fn start(
     let words = crate::words::messages(locale);
     let asked = Start {
         song: PathBuf::from(form.song),
-        pasted: form.words,
+        pasted: form.use_words.is_some().then_some(form.words),
         resume: form.resume.is_some(),
         force: form.force.is_some(),
     };

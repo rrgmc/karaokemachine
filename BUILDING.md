@@ -1806,7 +1806,7 @@ and a listing goes beside each one. See
 
 ```sh
 cargo build -p karaokemachine                   # the editor is the machine, so build it first
-cargo km-song-sync                              # the page opens on the folder you are in
+cargo km-song-sync                              # the page opens on the folder it was on last
 cargo km-song-sync ./songs                      # ...or on this one
 cargo km-song-sync-desktop                      # ...in a window
 cargo km-song-sync -- --machine-exe <FILE>      # a machine that is not beside this program

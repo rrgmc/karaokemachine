@@ -52,7 +52,7 @@ const SELF_TARGET: &str = env!("CARGO_CRATE_NAME");
 #[derive(Parser, Debug)]
 #[command(name = "km-song-sync", about, version)]
 struct Cli {
-    /// The folder the page opens on. Without one it opens on the folder you are in.
+    /// The folder the page opens on. Without one it opens on the folder it was on last.
     folder: Option<PathBuf>,
 
     /// The karaoke machine's program, when it is not installed beside this one.

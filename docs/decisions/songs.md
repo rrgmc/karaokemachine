@@ -1570,9 +1570,10 @@ The editor takes its words from a file or from standard input, and a person past
 line is a poor place to paste a song. The work stays the editor's:
 [`A MIDI file gets its words in a new file, from an editor a person taps`](#a-midi-file-gets-its-words-in-a-new-file-from-an-editor-a-person-taps).
 
-**The browser opens where the person stands.** A folder named on the command line wins, then the
-folder the program was started in. A double-click starts a program in its own folder, which nobody
-chose, so the folder of the song started last comes next. The home folder is the last resort. A
+**The browser opens where it was last.** A folder named on the command line wins. Then comes the
+folder the browser was on when the program closed, because a person works through one folder over
+several sittings. With neither, it opens on the folder the program was started in. A double-click
+starts a program in its own folder, which nobody chose, so the home folder is the last resort. A
 path box takes any folder by name.
 
 **It lists folders and MIDI files, and no other file.** A MIDI file is a `.mid`, a `.midi` or a
@@ -1580,11 +1581,18 @@ path box takes any folder by name.
 
 **A row shows the title and the artist the file states, under its file name.** A file name is often
 a number or a code, and the words to paste belong to a song somebody has to recognise. The page
-reads the files of one page only, so a folder of thousands costs a hundred reads.
+reads the files of one page only, so a folder of thousands costs fifteen reads.
 
-**Pasted words win, then the text file beside the song, then the song's own words.** The text file
-has the song's name and `.txt`. With the box empty and no such file, the editor opens the words the
+**The words box wins when it is ticked, then the text file beside the song, then the song's own
+words.** The text file has the song's name and `.txt`. With neither, the editor opens the words the
 song has, for correction. A song with no words anywhere needs the box.
+
+**A tick says the box is used, and text in the box does not.** Words left from one song would
+otherwise go to the next. Words put into an empty box set the tick, and the person can take it
+off. A ticked box that holds nothing is refused.
+
+**The box is under the browser, and a page holds fifteen rows.** A person finds the song first and
+pastes its words second. A short page keeps the box in the window.
 
 **An UltraStar file is not a page of words.** It is a `.txt` with timing in it, and it is a song in
 its own right.
@@ -1617,7 +1625,7 @@ still works, every Start is off, and the page says why.
 another. The system passes no standard input, so the words go through a file in the program's cache
 folder. The file is removed when the editor closes.
 
-**It remembers the language and the folder of the last song, and nothing else.** No song path, no
+**It remembers the language and the folder its browser was on, and nothing else.** No song path, no
 words and no path to the machine reach its settings file.
 
 **Another site's page cannot press Start.** `POST /start` starts a program, so the rule in

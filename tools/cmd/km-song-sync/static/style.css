@@ -71,7 +71,7 @@ button.quiet {
 
 /* The words box, which every Start button reads. */
 .words { display: flex; flex-direction: column; gap: 0.35rem; margin: 1rem 0; }
-.words label { color: var(--dim); }
+.words label { color: var(--text); }
 .words textarea { width: 100%; resize: vertical; }
 .words p { margin: 0; }
 

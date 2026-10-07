@@ -88,7 +88,7 @@ pub const PAGE: usize = 100;
 /// **Gather, narrow, sort, and take the page.** A caller that asks something costly of each row asks
 /// it of the page it gets back, so a directory of thousands costs a hundred.
 pub fn list(ask: &Ask) -> Listing {
-    list_with(ask, |_| false)
+    list_with(ask, PAGE, |_| false)
 }
 
 /// [`list`], with the files `wanted_file` accepts listed after the folders.
@@ -97,9 +97,12 @@ pub fn list(ask: &Ask) -> Listing {
 /// through both and the count beside it covers both. The filter narrows a file by name as it
 /// narrows a folder. The drive list holds no files.
 ///
+/// `page` is how many rows a page holds, for a caller whose page shares its window with more.
+///
 /// `wanted_file` sees a path and reads nothing: it runs for every file in the directory, where a
 /// costly question belongs to the page that comes back.
-pub fn list_with(ask: &Ask, wanted_file: impl Fn(&Path) -> bool) -> Listing {
+pub fn list_with(ask: &Ask, page: usize, wanted_file: impl Fn(&Path) -> bool) -> Listing {
+    let page = page.max(1);
     let Some(here) = ask.here.as_deref() else {
         return drives();
     };
@@ -157,15 +160,15 @@ pub fn list_with(ask: &Ask, wanted_file: impl Fn(&Path) -> bool) -> Listing {
     // A page above the end draws the last one rather than nothing. An offset outlives the listing it
     // was written against: a folder is walked away from and come back to, and things are created
     // and deleted in it meanwhile.
-    let last_page = listing.total.saturating_sub(1) / PAGE * PAGE;
+    let last_page = listing.total.saturating_sub(1) / page * page;
     listing.offset = ask.offset.min(last_page);
     // Empty means *do not draw this control*. It has to be a separate test from what `page_at`
     // returns, since the first page's own query string is legitimately empty too.
     if listing.offset > 0 {
-        listing.previous = page_at(ask, listing.offset.saturating_sub(PAGE));
+        listing.previous = page_at(ask, listing.offset.saturating_sub(page));
     }
-    if listing.offset + PAGE < listing.total {
-        listing.next = page_at(ask, listing.offset + PAGE);
+    if listing.offset + page < listing.total {
+        listing.next = page_at(ask, listing.offset + page);
     }
 
     let row = |(name, path): (String, PathBuf)| Folder {
@@ -175,13 +178,13 @@ pub fn list_with(ask: &Ask, wanted_file: impl Fn(&Path) -> bool) -> Listing {
     listing.rows = found
         .into_iter()
         .skip(listing.offset)
-        .take(PAGE)
+        .take(page)
         .map(row)
         .collect();
     listing.files = files
         .into_iter()
         .skip(listing.offset.saturating_sub(folders))
-        .take(PAGE - listing.rows.len())
+        .take(page - listing.rows.len())
         .map(row)
         .collect();
     listing
@@ -419,6 +422,7 @@ mod tests {
                 here: Some(scratch.to_path_buf()),
                 ..Ask::default()
             },
+            PAGE,
             songs,
         );
         let folders: Vec<&str> = listing.rows.iter().map(|r| r.name.as_str()).collect();
@@ -433,6 +437,7 @@ mod tests {
                 filter: "B.M".to_owned(),
                 ..Ask::default()
             },
+            PAGE,
             songs,
         );
         assert!(narrowed.rows.is_empty());
@@ -453,13 +458,13 @@ mod tests {
             ..Ask::default()
         };
 
-        let first = list_with(&ask(0), |_| true);
+        let first = list_with(&ask(0), PAGE, |_| true);
         assert_eq!(first.rows.len(), PAGE - 10);
         assert_eq!(first.files.len(), 10);
         assert_eq!(first.total, PAGE + 20);
         assert!(!first.next.is_empty());
 
-        let second = list_with(&ask(PAGE), |_| true);
+        let second = list_with(&ask(PAGE), PAGE, |_| true);
         assert!(second.rows.is_empty());
         assert_eq!(second.files.len(), 20);
         assert_eq!(second.files[0].name, "song-0010.mid");

@@ -100,8 +100,8 @@ pub struct App {
 pub struct Start {
     /// The song.
     pub song: PathBuf,
-    /// What the words box holds.
-    pub pasted: String,
+    /// What the words box holds, when its box says to use it.
+    pub pasted: Option<String>,
     /// Keep the timing the song's own words have.
     pub resume: bool,
     /// Replace the synced copy that exists.
@@ -189,7 +189,8 @@ impl App {
 
     /// Starts the editor on a song, unless one is open or the start makes no sense.
     ///
-    /// **Pasted words win, then the text file beside the song, then the song's own.** Every check
+    /// **The words box wins when it is ticked, then the text file beside the song, then the song's
+    /// own.** A ticked box that holds nothing is refused, since somebody meant words to be there. Every check
     /// the page makes is made again here, because the folder may have changed under the page.
     ///
     /// # Errors
@@ -204,12 +205,14 @@ impl App {
             return Err("said-no-machine");
         };
 
-        let pasted = start.pasted.replace("\r\n", "\n");
-        let words = if pasted.trim().is_empty() {
-            crate::rows::words_beside(&song).map(|(_, words)| words)
-        } else {
-            Some(pasted)
-        };
+        let pasted = start.pasted.map(|pasted| pasted.replace("\r\n", "\n"));
+        if pasted
+            .as_deref()
+            .is_some_and(|pasted| pasted.trim().is_empty())
+        {
+            return Err("said-box-empty");
+        }
+        let words = pasted.or_else(|| crate::rows::words_beside(&song).map(|(_, words)| words));
         if words.is_none() {
             match crate::rows::holds(&song) {
                 crate::rows::Holds::Words => {}

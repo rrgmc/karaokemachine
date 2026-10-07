@@ -8,13 +8,14 @@ language-picker = Language
 action-quit = Quit
 
 home-heading = Put words on a MIDI file
-home-intro = Paste the words of a song, find its MIDI file below, and press Start. The sync editor opens, and you tap each syllable in time with the music. The editor saves a new .kar file beside the song and never changes the song.
+home-intro = Find the MIDI file of a song, paste its words in the box below, and press Start. The sync editor opens, and you tap each syllable in time with the music. The editor saves a new .kar file beside the song and never changes the song.
 home-no-machine = The karaoke machine was not found beside this program, so nothing can be started. Install the machine, or name it with --machine-exe.
 
 words-label = The words
 words-placeholder = One line of the song on each line. Leave an empty line between verses.
-words-hint = A hyphen splits a word into syllables: ka-ra-o-ke is four taps. Type \- for a hyphen that is sung. Leave the box empty to use the text file beside a song, or the words the song already has.
+words-hint = A hyphen splits a word into syllables: ka-ra-o-ke is four taps. Type - for a hyphen that is sung. Without the tick, a song uses the text file beside it, or the words it already has.
 words-continue = The song is partly tapped already: keep those words as they are, and tap only the rest
+words-use = Use the words in this box
 action-clear = Clear
 
 action-start = Start
@@ -34,9 +35,9 @@ page-previous = Previous
 page-next = Next
 
 row-not-midi = This is not a MIDI file the editor can read.
-row-uses-text-file = Uses the words in { $file } when the box above is empty.
-row-own-words = Has words already. With the box above empty, the editor opens them for correction.
-row-needs-words = Has no words. Paste them in the box above.
+row-uses-text-file = Uses the words in { $file }, unless the box below is ticked.
+row-own-words = Has words already. The editor opens them for correction, unless the box below is ticked.
+row-needs-words = Has no words. Paste them in the box below.
 row-output-exists = { $file } is already here.
 row-replace = Replace it
 
@@ -49,7 +50,8 @@ editor-failed = The editor did not open { $song }.
 said-busy = The editor is already open. Close it before you start another song.
 said-no-song = That is not a MIDI file in a folder this program can read.
 said-no-machine = The karaoke machine was not found, so the editor cannot start.
-said-no-words = That song has no words. Paste them in the box first.
+said-no-words = That song has no words. Paste them in the box and tick it.
+said-box-empty = The words box is empty. Paste the words, or take the tick off.
 said-not-midi = That is not a MIDI file the editor can read.
 said-output-exists = The synced file is already there. Tick Replace it on that row first.
 said-reveal-failed = The folder could not be opened.

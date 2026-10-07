@@ -115,7 +115,7 @@ async fn the_page_lists_folders_and_midi_files_and_nothing_else() {
         "{page}"
     );
     assert!(
-        page.contains("Uses the words in tune.txt"),
+        page.contains("Uses the words in tune.txt,"),
         "the row names the text file beside the song: {page}"
     );
     assert!(page.contains("Has words already"), "{page}");
@@ -148,7 +148,14 @@ async fn pasted_words_reach_the_editor_and_a_saved_copy_is_reported() {
     let (status, panel) = post(
         &app,
         "/start",
-        &start_form(&song, &[("words", "pas-ted words\r\n"), ("resume", "on")]),
+        &start_form(
+            &song,
+            &[
+                ("words", "pas-ted words\r\n"),
+                ("use_words", "on"),
+                ("resume", "on"),
+            ],
+        ),
     )
     .await;
     assert_eq!(status, StatusCode::OK);
@@ -226,13 +233,30 @@ async fn a_start_that_makes_no_sense_is_refused_and_starts_nothing() {
     let (_, no_words) = post(&app, "/start", &start_form(&tune, &[])).await;
     assert!(no_words.contains("has no words"), "{no_words}");
 
-    let (_, exists) = post(&app, "/start", &start_form(&synced, &[("words", "la")])).await;
+    // The box is ticked and holds nothing: somebody meant words to be there.
+    let (_, empty) = post(
+        &app,
+        "/start",
+        &start_form(&tune, &[("words", " \n"), ("use_words", "on")]),
+    )
+    .await;
+    assert!(empty.contains("box is empty"), "{empty}");
+
+    let (_, exists) = post(
+        &app,
+        "/start",
+        &start_form(&synced, &[("words", "la"), ("use_words", "on")]),
+    )
+    .await;
     assert!(exists.contains("already there"), "{exists}");
 
     let (_, not_a_song) = post(
         &app,
         "/start",
-        &start_form(&folder.join("notes.txt"), &[("words", "la")]),
+        &start_form(
+            &folder.join("notes.txt"),
+            &[("words", "la"), ("use_words", "on")],
+        ),
     )
     .await;
     assert!(not_a_song.contains("not a MIDI file"), "{not_a_song}");
@@ -244,7 +268,10 @@ async fn a_start_that_makes_no_sense_is_refused_and_starts_nothing() {
     post(
         &app,
         "/start",
-        &start_form(&synced, &[("words", "la"), ("force", "on")]),
+        &start_form(
+            &synced,
+            &[("words", "la"), ("use_words", "on"), ("force", "on")],
+        ),
     )
     .await;
     closed(&app).await;
@@ -263,7 +290,12 @@ async fn the_editors_own_refusal_reaches_the_page() {
     });
     let app = tool(&folder, launcher);
 
-    post(&app, "/start", &start_form(&sung, &[("words", "la la la")])).await;
+    post(
+        &app,
+        "/start",
+        &start_form(&sung, &[("words", "la la la"), ("use_words", "on")]),
+    )
+    .await;
     assert!(matches!(closed(&app).await, Outcome::Failed { .. }));
 
     let panel = get(&app, "/editor").await;

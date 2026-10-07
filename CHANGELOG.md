@@ -32,8 +32,9 @@ Entries are written for somebody who has the machine. Why any of it is the way i
   it opens the words a karaoke file already has, and `--sync-continue` goes on from a file saved
   part-way. Ctrl+T writes the words as a `.txt` beside the song, when none is there.
 - **KM Song Sync starts the lyric sync editor from a page.** `km-song-sync` lists the MIDI files of
-  any folder you browse to. Paste a song's words into the box and press Start on the song. With the box empty it uses the text file beside the song, saved in any encoding. It installs
-  with the other tools on Windows, macOS and Linux, and it is in the portable copy.
+  any folder you browse to. Paste a song's words into the box, tick it, and press Start on the
+  song. With the box unticked it uses the text file beside the song, saved in any encoding. It
+  installs with the other tools on Windows, macOS and Linux, and it is in the portable copy.
 
 ### Changed
 

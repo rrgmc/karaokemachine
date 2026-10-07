@@ -9,11 +9,17 @@
 
 {{ editor|safe }}
 
+{{ browser|safe }}
+
 {# Outside the browser and the editor's panel, which are what a press swaps, so what somebody
-   pasted is still here after either. A Start button sends this form's fields with its own. #}
+   pasted is still here after either. A Start button sends this form's fields with its own.
+
+   The tick says whether the box is used, and the box holding text does not. Words left in the box
+   from the last song would otherwise go to the next one. #}
 <form id="words" class="words" onsubmit="return false">
-  <label for="words-box">{{ "words-label"|t }}</label>
-  <textarea id="words-box" name="words" rows="8" spellcheck="false" placeholder="{{ "words-placeholder"|t }}"></textarea>
+  <label><input type="checkbox" id="use-words" name="use_words"> {{ "words-use"|t }}</label>
+  <textarea id="words-box" name="words" rows="8" spellcheck="false" aria-label="{{ "words-label"|t }}"
+            placeholder="{{ "words-placeholder"|t }}"></textarea>
   <p class="hint">{{ "words-hint"|t }}</p>
   <div class="row">
     <label><input type="checkbox" name="resume"> {{ "words-continue"|t }}</label>
@@ -21,6 +27,4 @@
     <button type="button" class="quiet" data-clear="words-box">{{ "action-clear"|t }}</button>
   </div>
 </form>
-
-{{ browser|safe }}
 {% endblock %}

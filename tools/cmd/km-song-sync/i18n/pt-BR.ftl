@@ -8,13 +8,14 @@ language-picker = Idioma
 action-quit = Sair
 
 home-heading = Colocar a letra em um arquivo MIDI
-home-intro = Cole a letra de uma música, encontre o arquivo MIDI abaixo e pressione Iniciar. O editor de sincronia abre, e você marca cada sílaba no tempo da música. O editor salva um novo arquivo .kar ao lado da música e nunca altera a música.
+home-intro = Encontre o arquivo MIDI de uma música, cole a letra na caixa abaixo e pressione Iniciar. O editor de sincronia abre, e você marca cada sílaba no tempo da música. O editor salva um novo arquivo .kar ao lado da música e nunca altera a música.
 home-no-machine = A máquina de karaokê não foi encontrada ao lado deste programa, então nada pode ser iniciado. Instale a máquina, ou indique-a com --machine-exe.
 
 words-label = A letra
 words-placeholder = Um verso da música em cada linha. Deixe uma linha vazia entre as estrofes.
-words-hint = Um hífen divide a palavra em sílabas: ka-ra-o-ke são quatro toques. Digite \- para um hífen que é cantado. Deixe a caixa vazia para usar o arquivo de texto ao lado da música, ou a letra que a música já tem.
+words-hint = Um hífen divide a palavra em sílabas: ka-ra-o-ke são quatro toques. Digite - para um hífen que é cantado. Sem a marca, a música usa o arquivo de texto ao lado dela, ou a letra que ela já tem.
 words-continue = A música já está marcada em parte: manter essas palavras como estão, e marcar só o resto
+words-use = Usar a letra desta caixa
 action-clear = Limpar
 
 action-start = Iniciar
@@ -34,9 +35,9 @@ page-previous = Anterior
 page-next = Próxima
 
 row-not-midi = Este não é um arquivo MIDI que o editor consegue ler.
-row-uses-text-file = Usa a letra de { $file } quando a caixa acima está vazia.
-row-own-words = Já tem letra. Com a caixa acima vazia, o editor a abre para correção.
-row-needs-words = Não tem letra. Cole-a na caixa acima.
+row-uses-text-file = Usa a letra de { $file }, a menos que a caixa abaixo esteja marcada.
+row-own-words = Já tem letra. O editor a abre para correção, a menos que a caixa abaixo esteja marcada.
+row-needs-words = Não tem letra. Cole-a na caixa abaixo.
 row-output-exists = { $file } já está aqui.
 row-replace = Substituir
 
@@ -49,7 +50,8 @@ editor-failed = O editor não abriu { $song }.
 said-busy = O editor já está aberto. Feche-o antes de iniciar outra música.
 said-no-song = Esse não é um arquivo MIDI em uma pasta que este programa consegue ler.
 said-no-machine = A máquina de karaokê não foi encontrada, então o editor não pode iniciar.
-said-no-words = Essa música não tem letra. Cole-a na caixa primeiro.
+said-no-words = Essa música não tem letra. Cole-a na caixa e marque-a.
+said-box-empty = A caixa da letra está vazia. Cole a letra, ou tire a marca.
 said-not-midi = Esse não é um arquivo MIDI que o editor consegue ler.
 said-output-exists = O arquivo sincronizado já existe. Marque Substituir nessa linha primeiro.
 said-reveal-failed = Não foi possível abrir a pasta.

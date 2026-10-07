@@ -706,7 +706,7 @@ Put words on a MIDI file. Paste the words of a song, browse to its MIDI file, an
 Start opens the karaoke machine's sync editor on that song. The song plays, and you press Space as
 each word is sung. The editor saves a new .kar file beside the song and never changes the song.
 
-The page lists folders and MIDI files: .mid, .midi and .kar. Leave the words box empty to use the
+The page lists folders and MIDI files: .mid, .midi and .kar. Leave the words box unticked to use the
 text file beside a song, which has the song's name and .txt. A song that has words already opens
 with them, for correction.
 
@@ -766,7 +766,7 @@ Running it
 
 A build with a window opens one. Otherwise, open the address it prints -- http://127.0.0.1:8182/,
 or another port when that one is taken -- in a browser. The page opens on the folder you name, or
-on the folder you are in.
+on the folder it was on last.
 
     --machine-exe FILE       the karaoke machine's program, when it is not beside this one
     --machine-data-dir DIR   the data folder the editor reads the machine's settings from
