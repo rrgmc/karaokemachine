@@ -17,6 +17,9 @@
   <tr{% if song.needs_words %} class="needs-words"{% endif %}>
     <td>
       <span class="mono">{{ song.name }}</span>
+      {% if !song.called.is_empty() %}
+      <div class="called">{{ song.called }}</div>
+      {% endif %}
       {% for note in song.notes %}
       <div class="hint">{{ note }}</div>
       {% endfor %}

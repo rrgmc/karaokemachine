@@ -1573,6 +1573,10 @@ path box takes any folder by name.
 **It lists folders and MIDI files, and no other file.** A MIDI file is a `.mid`, a `.midi` or a
 `.kar`. The editor opens nothing else, and a row that cannot start is a row in the way.
 
+**A row shows the title and the artist the file states, under its file name.** A file name is often
+a number or a code, and the words to paste belong to a song somebody has to recognise. The page
+reads the files of one page only, so a folder of thousands costs a hundred reads.
+
 **Pasted words win, then the text file beside the song, then the song's own words.** The text file
 has the song's name and `.txt`. With the box empty and no such file, the editor opens the words the
 song has, for correction. A song with no words anywhere needs the box.

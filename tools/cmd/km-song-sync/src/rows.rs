@@ -39,6 +39,10 @@ pub struct Row {
     pub path: String,
     /// What the file holds.
     pub holds: Holds,
+    /// The title the file states.
+    pub title: Option<String>,
+    /// The artist the file states.
+    pub artist: Option<String>,
     /// The name of the text file beside it that supplies its words, where there is one.
     pub sidecar: Option<String>,
     /// The name of the synced copy the editor writes.
@@ -109,25 +113,54 @@ pub fn words_beside(song: &Path) -> Option<(String, String)> {
     Some((name, words_in(text_file)?))
 }
 
+/// What one read of a song file found.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Found {
+    /// What the file holds.
+    pub holds: Holds,
+    /// The title the file states.
+    pub title: Option<String>,
+    /// The artist the file states.
+    pub artist: Option<String>,
+}
+
+/// Reads `song` once, for what it holds and what it calls itself.
+///
+/// The parse that says whether a file has words has read its title and artist already, so the page
+/// shows them at no further cost.
+#[must_use]
+pub fn found(song: &Path) -> Found {
+    let parsed = std::fs::read(song)
+        .ok()
+        .and_then(|bytes| Song::parse(&bytes, &ParseOptions::default()).ok());
+    let Some(parsed) = parsed else {
+        return Found {
+            holds: Holds::NotMidi,
+            title: None,
+            artist: None,
+        };
+    };
+    let has_words = parsed
+        .lyrics
+        .lines
+        .iter()
+        .any(|line| !line.syllables.is_empty());
+    let stated = |value: Option<String>| value.filter(|value| !value.trim().is_empty());
+    Found {
+        holds: if has_words {
+            Holds::Words
+        } else {
+            Holds::NoWords
+        },
+        title: stated(parsed.meta.title),
+        artist: stated(parsed.meta.artist),
+    }
+}
+
 /// What `song` holds.
 #[must_use]
 pub fn holds(song: &Path) -> Holds {
-    let Ok(bytes) = std::fs::read(song) else {
-        return Holds::NotMidi;
-    };
-    match Song::parse(&bytes, &ParseOptions::default()) {
-        Ok(song)
-            if song
-                .lyrics
-                .lines
-                .iter()
-                .any(|line| !line.syllables.is_empty()) =>
-        {
-            Holds::Words
-        }
-        Ok(_) => Holds::NoWords,
-        Err(_) => Holds::NotMidi,
-    }
+    found(song).holds
 }
 
 /// Describes one page of song files, all from one folder.
@@ -147,10 +180,13 @@ pub fn describe(files: &[km_folders::Folder]) -> Vec<Row> {
                 .filter(|text_file| words_in(text_file).is_some())
                 .and_then(|text_file| text_file.file_name())
                 .map(|name| name.to_string_lossy().into_owned());
+            let found = found(song);
             Row {
                 name: file.name.clone(),
                 path: file.path.clone(),
-                holds: holds(song),
+                holds: found.holds,
+                title: found.title,
+                artist: found.artist,
                 sidecar,
                 out_exists: out.exists(),
                 out: out
@@ -203,6 +239,7 @@ mod tests {
         ]);
 
         assert_eq!(rows[0].holds, Holds::Words);
+        assert!(rows[0].title.is_some(), "a karaoke file states its title");
         assert_eq!(rows[0].sidecar, None);
         assert_eq!(rows[0].out, "sung-synced.kar");
         assert!(!rows[0].out_exists);

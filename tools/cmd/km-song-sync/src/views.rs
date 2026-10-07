@@ -185,6 +185,8 @@ pub struct SongView {
     pub name: String,
     /// Its path, which the Start button posts.
     pub path: String,
+    /// The title and the artist the file states, as one line. Empty when it states neither.
+    pub called: String,
     /// What the row says under the name, as finished sentences.
     pub notes: Vec<String>,
     /// Whether the synced copy exists, which puts a box on the row to say replace it.
@@ -215,9 +217,16 @@ fn song(row: Row, words: &Catalog) -> SongView {
                 .into_owned(),
         );
     }
+    // Data, not words: a title and an artist are the file's own, in whatever language it is in.
+    let called = match (row.title, row.artist) {
+        (Some(title), Some(artist)) => format!("{title} \u{2013} {artist}"),
+        (Some(one), None) | (None, Some(one)) => one,
+        (None, None) => String::new(),
+    };
     SongView {
         name: row.name,
         path: row.path,
+        called,
         notes,
         out_exists: row.out_exists,
         readable: row.holds != Holds::NotMidi,

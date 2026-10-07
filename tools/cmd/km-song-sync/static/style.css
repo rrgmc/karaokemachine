@@ -113,6 +113,9 @@ td { padding: 0.35rem 0.4rem; border-top: 1px solid var(--line); vertical-align:
 .start { justify-content: flex-end; flex-wrap: nowrap; }
 .start label { color: var(--dim); }
 
+/* What the file calls itself, under the name it has on disk. */
+.called { font-weight: 600; }
+
 /* A Start that would be refused is held here, and the server refuses it again. Three reasons: an
    editor is open, the synced copy exists and its box is not ticked, or the song has no words of
    its own or beside it and the words box is empty. */
