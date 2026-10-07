@@ -164,8 +164,7 @@ fn is_karaoke_text(tick: u32, event: &Event) -> bool {
     if event.is_meta(0x05) {
         return true;
     }
-    event.is_meta(0x01)
-        && (tick > 0 || event.payload().is_some_and(|text| text.starts_with(b"@")))
+    event.is_meta(0x01) && (tick > 0 || event.payload().is_some_and(|text| text.starts_with(b"@")))
 }
 
 /// The words track's events: its header lines at tick zero, then each syllable at its tick.
@@ -238,10 +237,11 @@ mod tests {
 
     #[test]
     fn typed_words_split_into_lines_pages_words_and_syllables() {
-        let got: Vec<(String, LineBreak)> = split_words("Twin-kle lit-tle\nstar\n\n\nUp a\\-bove -")
-            .into_iter()
-            .map(|s| (s.text, s.break_before))
-            .collect();
+        let got: Vec<(String, LineBreak)> =
+            split_words("Twin-kle lit-tle\nstar\n\n\nUp a\\-bove -")
+                .into_iter()
+                .map(|s| (s.text, s.break_before))
+                .collect();
         let want = [
             ("Twin", LineBreak::Page),
             ("kle", LineBreak::None),

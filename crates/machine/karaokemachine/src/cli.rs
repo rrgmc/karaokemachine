@@ -312,6 +312,52 @@ struct Cli {
     #[arg(long, value_name = "NAME")]
     book_name: Option<String>,
 
+    // A window of its own rather than a mode of the machine: no catalog, no queue and no web
+    // address, and the keys mean different things. See `src/sync.rs`.
+    /// Open the lyric sync editor on a MIDI file, in place of the machine.
+    ///
+    /// The song plays and you press Space as each syllable is sung. The words come from
+    /// `--sync-words`. The result is a new `.kar` file, and the MIDI file is not changed.
+    #[arg(long, value_name = "FILE", requires = "sync_words")]
+    sync: Option<PathBuf>,
+
+    /// The words for `--sync`, as a text file.
+    ///
+    /// One line of text is one line on screen, and an empty line starts a new page. A hyphen
+    /// splits a word into syllables: `ka-ra-o-ke` is tapped four times. Type `\-` for a hyphen
+    /// that is part of the word.
+    #[arg(long, value_name = "FILE", requires = "sync")]
+    sync_words: Option<PathBuf>,
+
+    /// Where `--sync` writes the `.kar` file. Defaults to the song's folder and name.
+    #[arg(long, value_name = "FILE", requires = "sync")]
+    sync_out: Option<PathBuf>,
+
+    /// Replace the `--sync` output file if it exists.
+    #[arg(long, requires = "sync")]
+    sync_force: bool,
+
+    /// The title `--sync` writes. Defaults to the song's own, or its file name.
+    #[arg(long, value_name = "TITLE", requires = "sync")]
+    sync_title: Option<String>,
+
+    /// The artist `--sync` writes. Defaults to the song's own.
+    #[arg(long, value_name = "ARTIST", requires = "sync")]
+    sync_artist: Option<String>,
+
+    /// The language `--sync` writes, as four letters such as `ENGL`.
+    #[arg(long, value_name = "CODE", requires = "sync")]
+    sync_language: Option<String>,
+
+    /// The MIDI channel, 1 to 16, that `--sync` moves syllables onto. `M` changes it in the editor.
+    #[arg(long, value_name = "CHANNEL", requires = "sync",
+          value_parser = clap::value_parser!(u8).range(1..=16))]
+    sync_melody_channel: Option<u8>,
+
+    /// Milliseconds `--sync` moves each tap by. Defaults to the lyric timing offset in settings.
+    #[arg(long, value_name = "MS", requires = "sync", allow_hyphen_values = true)]
+    sync_tap_offset_ms: Option<i16>,
+
     // On an appliance there is no browser and no screen, and the identifiers are not guessable, so
     // this is how you find one over SSH before you can send it.
     /// List the audio output devices, and exit.
@@ -978,6 +1024,26 @@ pub fn main(shell: Shell) -> anyhow::Result<()> {
     }
 
     let (mut settings, _) = Settings::load(&paths);
+
+    // After the settings, because the editor plays through the bank and the device they name.
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    if let (Some(song), Some(words)) = (&cli.sync, &cli.sync_words) {
+        return crate::sync::run(
+            &paths,
+            &settings,
+            &crate::sync::Request {
+                song: song.clone(),
+                words: words.clone(),
+                out: cli.sync_out.clone(),
+                title: cli.sync_title.clone(),
+                artist: cli.sync_artist.clone(),
+                language: cli.sync_language.clone(),
+                melody_channel: cli.sync_melody_channel,
+                tap_offset_ms: cli.sync_tap_offset_ms,
+                force: cli.sync_force,
+            },
+        );
+    }
 
     if cli.list_audio_devices {
         let saved = settings.audio.output_device.as_deref();

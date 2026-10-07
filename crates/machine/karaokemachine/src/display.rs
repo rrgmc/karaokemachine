@@ -120,7 +120,7 @@ const MIN_FRAME: Duration = Duration::from_millis(8);
     unsafe_code,
     reason = "one FFI call to SDL to set renderer vsync; sdl3-rs wraps only the GL swap interval"
 )]
-fn request_vsync(canvas: &Canvas<Window>) -> bool {
+pub(crate) fn request_vsync(canvas: &Canvas<Window>) -> bool {
     // SAFETY: `canvas.raw()` is the live `SDL_Renderer` this canvas owns, valid for as long as the
     // canvas is; the call takes it and an int by value, returns a plain bool, and borrows nothing.
     let granted = unsafe { sdl3::sys::render::SDL_SetRenderVSync(canvas.raw(), 1) };
@@ -659,7 +659,7 @@ fn font_sizes_for(theme: &Theme, height: u32) -> (u16, [u16; 3], u16, u16) {
 /// `period_ms=11`. Nothing here uses it — the offset this would inform is a *display* offset judged
 /// by eye against a real television, and it is the appliance that has one — but the sentence above
 /// reads as though no backend ever answers, and one does.
-struct StepSmoother {
+pub(crate) struct StepSmoother {
     /// The last value the engine reported, and when this loop first saw it.
     anchor: Option<(u32, Instant)>,
     /// How far the last report moved. Zero until two have been seen, which shows the report as-is.
@@ -667,7 +667,7 @@ struct StepSmoother {
 }
 
 impl StepSmoother {
-    fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self {
             anchor: None,
             step: 0,
@@ -675,7 +675,13 @@ impl StepSmoother {
     }
 
     /// `period` is the engine's callback size; zero means no stream has run and nothing is smoothed.
-    fn smooth(&mut self, reported: u32, period_ms: u32, playing: bool, now: Instant) -> u32 {
+    pub(crate) fn smooth(
+        &mut self,
+        reported: u32,
+        period_ms: u32,
+        playing: bool,
+        now: Instant,
+    ) -> u32 {
         // Nothing is moving, so inventing movement would be a lie anyone can see. Dropping the anchor
         // is also what stops a pause being counted as song time when play resumes.
         if !playing || period_ms == 0 {
