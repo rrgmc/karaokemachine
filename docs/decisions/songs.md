@@ -1499,7 +1499,7 @@ how somebody judged it.
 ## A MIDI file gets its words in a new file, from an editor a person taps
 
 **`karaokemachine --sync` times typed words to a MIDI file and writes a new `.kar`.** The song
-plays, and the person presses Space as each syllable is sung. The editor never writes the file it
+plays, and the person presses Space as each word is sung. The editor never writes the file it
 plays.
 
 **The fix is a file because the fault is in a file.** Missing words and bad sync are what
@@ -1507,24 +1507,42 @@ plays.
 leaves to the file. A corrected `.kar` needs nothing new from the machine, the package format or
 `km-pack`, and it plays in any karaoke player.
 
-**The words come from a text file.** The machine draws no text box, and the words of a song are
-pasted far more often than they are typed. One line of text is one line on screen, an empty line
-opens a page, and a hyphen splits a word into syllables.
+**The words come from a text file, or from standard input.** The machine draws no text box, and the
+words of a song are pasted far more often than they are typed. One line of text is one line on
+screen, an empty line opens a page, and a hyphen splits a word into syllables. Standard input is
+for a program that starts the editor with words it holds.
 
 **The output is Soft Karaoke.** It is the first convention `km-song` tries, and the one other
 players read. The editor removes the lyric events and the timed text the source held, so the new
 words are the only words.
 
-**The person corrects a tap by ear and by the melody, and the editor guesses nothing.** The arrow keys move one syllable
-by 10 ms. One key moves every syllable onto the nearest note of a channel the person chooses, within
-120 ms, and keeps the words in order. Melody detection abstains on a file with no words, so the
-person chooses the channel.
+**The editor has two modes, and it names the one it is in.** Tapping gives each word a tick.
+Review plays the song with the words as the file will hold them, drawn by the machine's own
+screen. Review opens on the last tap, and `R` opens it on the words tapped so far.
+
+**The person corrects a tap by ear and by the vocal line, and the editor guesses nothing about a
+word.** The arrow keys move one word by 10 ms. One key moves every word onto the nearest note of
+the vocal line, within 120 ms, and keeps the words in order.
+
+**The vocal line is unchosen until the taps choose it.** A file with no words gives melody
+detection nothing to tie a channel to the singing with. After 24 taps the editor takes the channel
+the taps land on, furthest above what that channel's own density gives by chance. A bass plays on
+the beats the words fall on, and it has twice the notes. `M` steps through the channels in number
+order, and a channel a person chose is never replaced.
+
+**`V` silences the vocal line, because the ear is the test.** A song with the voice missing proves
+the choice, and a mark that lights on each note does not.
 
 **A word can be given an end, and a file says so with an event that holds no bytes.** A lyric event
 has no length, so the last word before a pause is wiped across the whole pause. `E` in the editor
-marks where the word stops. The writer puts a text event with no bytes at that tick. `km-song` reads such an event
-as the end of the syllable before it, in any file. Another player draws nothing
-for it.
+marks where the word stops. The writer puts a text event with no bytes at that tick. `km-song` reads
+such an event as the end of the syllable before it, in any file.
+
+**The event is this project's convention, and no standard has one.** A karaoke file has no agreed
+way to end a word. Another player draws nothing for an event that holds no bytes.
 
 **The editor does not find words and does not split them.** It looks nothing up, and a syllable
 break is a hyphen somebody typed.
+
+**The editor reads the machine's settings and writes none.** It plays through the bank and the
+device they name, in the language they name. Started on a folder with no settings, it leaves none.

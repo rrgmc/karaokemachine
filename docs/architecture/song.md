@@ -569,12 +569,27 @@ back as Soft Karaoke, so a caller never holds a file the machine reads different
 **A word's first syllable carries a leading space.** A trailing space on every syllable is the shape
 `marks_no_word_ends` reads as a file with no word boundaries.
 
-**A syllable's end is a text event with no bytes.** `write_soft_karaoke` writes one at
-`RawSyllable::end_tick`, and `karaoke::collect_raws` reads one as the end of the syllable before it.
-The reader judges the bytes before it cleans them, so padding and a harmonica tab end nothing. The
-rule covers every file, and 13% of 1,054 sampled corpus files hold such an event somewhere.
-
 `km-carols` uses `smf` for its pass over abc2midi output.
+
+### An event with no bytes ends a syllable
+
+`write_soft_karaoke` writes a text event with no bytes at `RawSyllable::end_tick`.
+`karaoke::collect_raws` reads one as the end of the syllable before it, in every file. The reader
+judges the bytes before it cleans them, so padding and a harmonica tab end nothing.
+
+Measured on 4,000 files sampled from the local corpus, 1,258 of them with words:
+
+| Question | Result |
+|---|---|
+| Files the rule changes | 4.1% of those with words |
+| Syllables it ends | 0.14% |
+| Ends on the last word of a line | 91% |
+| How long an ended word is held | median 526 ms, none under 100 ms |
+| Ends inside a line | held 139 to 833 ms, with a pause after |
+| Files whose suitability, breakdown or warning count changes | none |
+
+A real file puts such an event where the editor puts one: after a held word, before a pause.
+`ANALYSIS_REVISION` does not rise, because no stored number moves.
 
 ### The editor that calls it
 
@@ -586,16 +601,40 @@ device and `StepSmoother`.
 |---|---|
 | The tick of a tap | `SharedState::position_ticks`, smoothed, then moved by `display.lyric_offset_ms` |
 | The review screen | `write_soft_karaoke` in memory, parsed, drawn by `km_display::draw` |
-| The channels to snap to | `km_suitability::channel::measure` and `melody::rank` |
+| The channels a person steps through | `km_suitability::channel::measure`, in channel order |
+| The vocal line | `vocal_line_under`, from the taps |
+| The words on screen | `i18n/en.ftl` and `i18n/pt-BR.ftl` in the machine's crate |
 
 **The lyric offset is the tap offset.** It measures how far the sound in the room trails the tick
 the engine reports, which is the same distance a tap trails it by.
 
 **`Session` holds the words and their ticks and no window.** The tests drive it directly. A tap
-never lands before the one in front of it, and a move or a snap never carries a syllable past a
-neighbour.
+never lands before the one in front of it. A move or a snap never carries a syllable past a
+neighbour or past its own end.
 
-**The editor's own text is English in the source.** The machine's catalog does not hold it.
+**`vocal_line_under` is the editor's own measure, and `melody::detect` is not used.** Detection asks
+for a note on each syllable, and a person tapping whole words gives it one tap for several notes.
+The editor counts the taps with a note of the channel within 120 ms. It subtracts the share that
+channel's density reaches by chance, which is `1 - exp(-notes × window ÷ span)`. A channel needs
+70% of the taps and 0.25 above chance, and the highest above chance wins.
+
+**Silencing a channel is the engine's guide melody.** The engine silences the one channel a song is
+loaded with, so a channel chosen since the load loads the song again. `load_song` sends the
+position, the tempo and the transport after the load. A channel the taps chose loads nothing, so
+tapping is not interrupted.
+
+**`Sound` outlives a device.** It holds the bank and the shared state, and the stream is an option.
+A stream that reports an error is dropped, and an open is tried every two seconds. The song then
+goes back where it was. Nothing tests this path, because no test may open a device.
+
+**The window and the fonts go through the machine's seams.** A resize asks
+`display::font_sizes_for` whether a point size moved, and opens the fonts again when one did. A word
+the open faces cannot draw sets `TextCache::saw_cjk`, and the fonts open again on a CJK face. Each
+clears the text cache. The window is created here and not in `display::run_with`, whose setup
+belongs to a machine with a queue and a wallpaper.
+
+**The loop and its keys have no test.** The tests cover `Session`, `vocal_line_under`, the flags,
+the catalogs, the writer and the reader.
 
 ## Language, as a code
 
