@@ -1,0 +1,17 @@
+/*
+ * KaraokeMachine — the manual.
+ *
+ * The one addition to mdBook's own stylesheet: the machine's icon beside the title in the bar at the
+ * top of every page. `tools/dist/site.sh` stages `icon-512.png` at the site's root, one folder above
+ * this file, so the path is the same from every chapter.
+ */
+
+.menu-title::before {
+  content: "";
+  display: inline-block;
+  width: 1.15em;
+  height: 1.15em;
+  margin-right: 0.4em;
+  vertical-align: -0.2em;
+  background: url("../icon-512.png") center / contain no-repeat;
+}

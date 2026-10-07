@@ -18,4 +18,6 @@ edit-url-template = "https://github.com/rrgmc/karaokemachine/edit/master/docs/ma
 # is read as a document, and the landing page is what carries the machine's colors.
 default-theme = "light"
 preferred-dark-theme = "light"
+# The icon beside the title, and nothing else.
+additional-css = ["manual.css"]
 no-section-label = true
