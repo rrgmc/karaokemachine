@@ -70,8 +70,9 @@ mod soundfont;
 #[cfg(feature = "video")]
 mod stream;
 // The lyric sync editor. A desk tool with a keyboard, so it is not built for a phone or a headset.
+// Public for `examples/sync_picture.rs`, which takes the editor's published picture.
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
-mod sync;
+pub mod sync;
 // The icon in the bar, for a streaming run that has no window to be its face.
 mod timed;
 #[cfg(all(feature = "video", feature = "tray"))]
