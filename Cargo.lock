@@ -2843,6 +2843,36 @@ dependencies = [
 ]
 
 [[package]]
+name = "km-song-sync"
+version = "1.20.0"
+dependencies = [
+ "anyhow",
+ "askama",
+ "axum",
+ "clap",
+ "km-console",
+ "km-dirs",
+ "km-folders",
+ "km-locale",
+ "km-logfile",
+ "km-osopen",
+ "km-song",
+ "km-testkit",
+ "km-tray",
+ "km-webshell",
+ "serde",
+ "serde_json",
+ "serde_urlencoded",
+ "tao",
+ "tokio",
+ "tower",
+ "tracing",
+ "tracing-subscriber",
+ "winresource",
+ "wry",
+]
+
+[[package]]
 name = "km-songbook"
 version = "1.20.0"
 dependencies = [

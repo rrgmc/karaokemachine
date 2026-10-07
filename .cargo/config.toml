@@ -151,6 +151,7 @@ km-pkgbuild-video = "run -p km-package-builder --features video --"
 # The folder packager, which reads no database and needs `video` only to build a video song.
 km-package-simple = "run -p km-package-simple --"
 km-package-simple-video = "run -p km-package-simple --features video --"
+km-song-sync = "run -p km-song-sync --"
 km-pack = "run -p km-pack --"
 km-pack-video = "run -p km-pack --features video --"
 km-lyrics = "run -p km-lyrics --"
@@ -173,6 +174,7 @@ km-pick = "run -p km-pick --"
 km-remote-desktop = "run -p km-remote --features desktop --"
 km-pkgbuild-desktop = "run -p km-package-builder --features desktop --"
 km-package-simple-desktop = "run -p km-package-simple --features desktop --"
+km-song-sync-desktop = "run -p km-song-sync --features desktop --"
 
 # Generated assets, rebuilt from code rather than committed. All five of km-display's examples, not
 # the three that happened to get an alias first: `banner` and `screenshots` were reached by a bare

@@ -95,6 +95,7 @@ it are the same entry. How the thing is built is [`ARCHITECTURE.md`](../ARCHITEC
 - [A track named for a part names no song](songs.md#a-track-named-for-a-part-names-no-song)
 - [A song's words can be turned off, and three faults turn them off without being asked](songs.md#a-songs-words-can-be-turned-off-and-three-faults-turn-them-off-without-being-asked)
 - [A MIDI file gets its words in a new file, from an editor a person taps](songs.md#a-midi-file-gets-its-words-in-a-new-file-from-an-editor-a-person-taps)
+- [The sync editor is started from a page that lists a folder's MIDI files](songs.md#the-sync-editor-is-started-from-a-page-that-lists-a-folders-midi-files)
 
 ## [Song sources — video, MP3+G, UltraStar and LRC](song-sources.md)
 

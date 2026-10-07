@@ -1557,3 +1557,60 @@ break is a hyphen somebody typed.
 
 **The editor reads the machine's settings and writes none.** It plays through the bank and the
 device they name, in the language they name. Started on a folder with no settings, it leaves none.
+
+## The sync editor is started from a page that lists a folder's MIDI files
+
+**`km-song-sync` is a page with a words box and a file browser, and a Start button on each song.**
+The editor takes its words from a file or from standard input, and a person pastes them. A command
+line is a poor place to paste a song. The work stays the editor's:
+[`A MIDI file gets its words in a new file, from an editor a person taps`](#a-midi-file-gets-its-words-in-a-new-file-from-an-editor-a-person-taps).
+
+**The browser opens where the person stands.** A folder named on the command line wins, then the
+folder the program was started in. A double-click starts a program in its own folder, which nobody
+chose, so the folder of the song started last comes next. The home folder is the last resort. A
+path box takes any folder by name.
+
+**It lists folders and MIDI files, and no other file.** A MIDI file is a `.mid`, a `.midi` or a
+`.kar`. The editor opens nothing else, and a row that cannot start is a row in the way.
+
+**Pasted words win, then the text file beside the song, then the song's own words.** The text file
+has the song's name and `.txt`. With the box empty and no such file, the editor opens the words the
+song has, for correction. A song with no words anywhere needs the box.
+
+**An UltraStar file is not a page of words.** It is a `.txt` with timing in it, and it is a song in
+its own right.
+
+**The program decodes the text file and hands the editor UTF-8.** The editor reads UTF-8 only. A
+text editor saves UTF-16 or a legacy codepage as often, and such a file would stop the editor on
+its first byte.
+
+**Given words replace the song's own, and going on from them is asked for.** One box on the page
+keeps the timing the song has and taps the rest. It is never ticked for the person, for the reason
+the editor's flags give: only the person knows which they want.
+
+**A synced copy that exists is replaced only when its row says so.** The row names the copy and
+carries a box. Start waits for the tick, and the server refuses a start without it. A second run on
+one song otherwise costs the first run's taps.
+
+**One editor at a time.** Two would play through one audio device. The page says which song the
+editor is open on. It then says how the editor ended: the file it saved, nothing saved, or the
+editor's own sentence for refusing.
+
+**Closing this program leaves an open editor alone.** The editor holds taps that are not saved yet.
+
+**The program finds the machine by where an install puts it, and holds no path to it.** It looks
+beside itself, one folder up, at the bundle beside its own bundle, and on the search path.
+`--machine-exe` and `KM_MACHINE_EXE` name it for a staged copy. Without the machine the browser
+still works, every Start is off, and the page says why.
+
+**On macOS the system starts the editor.** That is the rule
+[`A running server has an icon in the bar`](interface.md#a-running-server-has-an-icon-in-the-bar) gives for one bundle starting
+another. The system passes no standard input, so the words go through a file in the program's cache
+folder. The file is removed when the editor closes.
+
+**It remembers the language and the folder of the last song, and nothing else.** No song path, no
+words and no path to the machine reach its settings file.
+
+**Another site's page cannot press Start.** `POST /start` starts a program, so the rule in
+[`A page on another site cannot press this tool's buttons`](curation.md#a-page-on-another-site-cannot-press-this-tools-buttons)
+holds here with more at stake.

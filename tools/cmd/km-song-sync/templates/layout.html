@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="{{ chrome.lang }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ "app-title"|t }}</title>
+  <link rel="icon" href="/static/icon.png">
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="/static/htmx.min.js"></script>
+  <script src="/static/ui.js" defer></script>
+</head>
+<body>
+<header class="bar">
+  <span class="brand">{{ "app-title"|t }}</span>
+  <span class="grow"></span>
+  {# Posts on change, and the answer redraws the page in the chosen language. #}
+  <form hx-post="/locale" hx-trigger="change" hx-swap="none">
+    <select name="locale" aria-label="{{ "language-picker"|t }}">
+      {% for option in chrome.locales %}
+      <option value="{{ option.tag }}"{% if option.current %} selected{% endif %}>{{ option.name }}</option>
+      {% endfor %}
+    </select>
+  </form>
+  {# In a window, closing the window is the quit, so the page offers no second one. #}
+  {% if !chrome.windowed %}
+  <button type="button" class="quiet" hx-post="/quit" hx-swap="none">{{ "action-quit"|t }}</button>
+  {% endif %}
+</header>
+<main>
+{% block content %}{% endblock %}
+</main>
+</body>
+</html>

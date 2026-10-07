@@ -1,0 +1,57 @@
+{# The folders, the songs and their pager. Every page turn sends `at` and `filter` back inside
+   `previous` and `next`, because a turn that dropped either would walk somebody out of the folder
+   they narrowed. The block draws itself again when the editor closes: a synced copy is in the
+   folder by then, and its row has to say so. #}
+<div id="rows" hx-get="/browse?rows=1&amp;{{ again }}" hx-trigger="editor-ended from:body" hx-swap="outerHTML">
+{% if !folders.is_empty() %}
+<ul class="folders">
+{% for folder in folders %}
+  <li><button type="button" class="link" hx-get="/browse?at={{ folder.path|urlencode }}"
+              hx-target="#browser" hx-swap="outerHTML">{{ folder.name }}</button></li>
+{% endfor %}
+</ul>
+{% endif %}
+{% if !songs.is_empty() %}
+<table class="songs">
+{% for song in songs %}
+  <tr{% if song.needs_words %} class="needs-words"{% endif %}>
+    <td>
+      <span class="mono">{{ song.name }}</span>
+      {% for note in song.notes %}
+      <div class="hint">{{ note }}</div>
+      {% endfor %}
+    </td>
+    <td class="num">
+      {# `hx-include` adds the words box and its Continue box. The row's own Replace box travels
+         with the form it is in, and the stylesheet holds the button until that box is ticked. #}
+      {% if song.readable %}
+      <form class="row start" hx-post="/start" hx-target="#editor" hx-swap="outerHTML" hx-include="#words">
+        <input type="hidden" name="song" value="{{ song.path }}">
+        {% if song.out_exists %}
+        <label><input type="checkbox" name="force"> {{ "row-replace"|t }}</label>
+        {% endif %}
+        <button type="submit"{% if !machine %} disabled{% endif %}>{{ "action-start"|t }}</button>
+      </form>
+      {% endif %}
+    </td>
+  </tr>
+{% endfor %}
+</table>
+{% endif %}
+{% if folders.is_empty() && songs.is_empty() %}
+<p class="hint">{% if filter.is_empty() %}{{ "browse-nothing-found"|t }}{% else %}{{ "browse-nothing-called-that"|t }}{% endif %}</p>
+{% endif %}
+{% if !range.is_empty() %}
+<nav class="pager">
+  {% if !previous.is_empty() %}
+  <button type="button" class="quiet" hx-get="/browse?rows=1&amp;{{ previous }}"
+          hx-target="#rows" hx-swap="outerHTML">{{ "page-previous"|t }}</button>
+  {% endif %}
+  <span>{{ range }}</span>
+  {% if !next.is_empty() %}
+  <button type="button" class="quiet" hx-get="/browse?rows=1&amp;{{ next }}"
+          hx-target="#rows" hx-swap="outerHTML">{{ "page-next"|t }}</button>
+  {% endif %}
+</nav>
+{% endif %}
+</div>

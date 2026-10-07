@@ -642,6 +642,36 @@ belongs to a machine with a queue and a wallpaper.
 **The loop and its keys have no test.** The tests cover `Session`, `vocal_line_under`, the flags,
 the catalogs, the writer and the reader.
 
+### The page that starts it
+
+`km-song-sync` is `tools/cmd/km-song-sync`, a loopback page in the shape of `km-package-simple`. It
+holds no editor. It starts `karaokemachine --sync` as a child and waits for it.
+
+| Piece | Where it comes from |
+|---|---|
+| The folders and the songs of a folder | `km_folders::list_with`, with `rows::is_song` choosing the files |
+| What a row says about a song | `rows::describe`, for the page's songs only |
+| The synced copy's name | `km_song::kar_write::synced_path`, which the editor calls too |
+| The words beside a song | `rows::words_beside`, decoded by `km_song::encoding::decode_text_file` |
+| Where the machine is | `machine::find`, over the places an install puts it |
+| The command line | `launch::plan`, a pure function of the machine and the request |
+| The process | `launch::Process`, behind the `Launcher` trait |
+
+**`plan` has two shapes.** An executable gets `--sync-words -` and the words on standard input. A
+macOS bundle is started with `open -n -W -a`, and the words and the editor's refusal go through two
+files in the cache folder. `open` hides the exit status, so a refusal is a line that starts with
+`Error:`.
+
+**The child's standard output is discarded.** The machine writes its log there, and a pipe nobody
+reads fills and stops the editor. Standard error is kept, because a refused start says why there.
+
+**`App::start` repeats every check the page makes.** The stylesheet holds a Start that would be
+refused, and a stylesheet is no gate. The server checks the song, the machine, the words, the
+synced copy and the running editor.
+
+**The page's tests start no process.** `tests/flow.rs` gives `App` a `Launcher` that records what it
+was asked to run. `launch::plan` is tested for both shapes on every platform.
+
 ## Language, as a code
 
 `Language` is the whole ISO 639-1 list compiled in, plus `und` and `zxx`.

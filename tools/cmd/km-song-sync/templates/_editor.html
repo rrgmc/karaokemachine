@@ -1,0 +1,18 @@
+{# What the editor is doing. While it is open this asks again every second, and `data-running` is
+   what the stylesheet reads to hold every Start. The answer that says it closed carries no poll. #}
+<div id="editor" class="editor"{% if running %} data-running hx-get="/editor" hx-trigger="every 1s" hx-swap="outerHTML"{% endif %}>
+  {% if !said.is_empty() %}
+  <p class="row">
+    <span>{{ said }}</span>
+    {% if saved %}
+    <button type="button" class="quiet" hx-post="/reveal" hx-target="#editor" hx-swap="outerHTML">{{ "action-reveal"|t }}</button>
+    {% endif %}
+  </p>
+  {% endif %}
+  {% if running %}
+  <p class="hint">{{ "editor-running-hint"|t }}</p>
+  {% endif %}
+  {% if let Some(error) = error %}
+  <p class="error">{{ error }}</p>
+  {% endif %}
+</div>

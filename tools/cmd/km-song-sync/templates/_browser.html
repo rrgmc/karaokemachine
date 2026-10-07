@@ -1,0 +1,41 @@
+{# The file browser. The path box takes any folder by name, and the crumbs walk up from this one. #}
+<div id="browser" class="picker">
+  <div class="crumbs">
+    {% if let Some(here) = here %}
+    <button type="button" class="quiet" hx-get="/browse?drives=1" hx-target="#browser" hx-swap="outerHTML"
+            title="{{ "browse-top-title"|t }}">&#x23F6;</button>
+    {% if let Some(parent) = parent %}
+    <button type="button" class="quiet" hx-get="/browse?at={{ parent|urlencode }}" hx-target="#browser" hx-swap="outerHTML"
+            title="{{ "browse-up-title"|t }}">..</button>
+    {% endif %}
+    {% else %}
+    <span class="here">{{ "browse-this-computer"|t }}</span>
+    {% endif %}
+    <form class="row grow" hx-get="/browse" hx-target="#browser" hx-swap="outerHTML">
+      <input class="mono grow" name="at" value="{% if let Some(here) = here %}{{ here }}{% endif %}"
+             aria-label="{{ "browse-folder-label"|t }}" placeholder="{{ "browse-folder-label"|t }}">
+      <button type="submit" class="quiet">{{ "action-go"|t }}</button>
+    </form>
+  </div>
+
+  {% if let Some(error) = error %}
+  <p class="error">{{ error }}</p>
+  {% endif %}
+
+  {# Outside the rows, which is what it swaps, so the box being typed into survives its own result.
+     Walking into a folder replaces the whole browser and empties the box with it: a name typed here
+     is about the folder it was typed in. #}
+  {% if let Some(here) = here %}
+  <form class="row filter" onsubmit="return false">
+    <input type="hidden" name="rows" value="1">
+    <input type="hidden" name="at" value="{{ here }}">
+    <label>{{ "browse-named"|t }}
+      <input type="search" name="filter" placeholder="{{ "browse-part-of-a-name"|t }}" value="{{ rows.filter }}"
+             hx-get="/browse" hx-trigger="keyup changed delay:400ms, search" hx-include="closest form"
+             hx-target="#rows" hx-swap="outerHTML">
+    </label>
+  </form>
+  {% endif %}
+
+  {{ rows|safe }}
+</div>
