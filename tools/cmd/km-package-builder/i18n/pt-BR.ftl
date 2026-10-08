@@ -621,7 +621,7 @@ packages-import = Importar
 packages-from = A partir de
 packages-last-built = Montado em
 packages-never = nunca
-packages-delete-confirm = Excluir o pacote { $id }? As músicas e qualquer .kmpkg já gravado não são alterados.
+packages-delete-confirm = Excluir o pacote { $name }? As músicas e qualquer .kmpkg já gravado não são alterados.
 
 ## Um pacote ------------------------------------------------------------------------
 
