@@ -1665,7 +1665,10 @@ impl PackageListRow {
                     .into_owned()
             }),
             delete_confirm: crate::words::messages(locale)
-                .msg_with("packages-delete-confirm", &[("id", row.id.as_str().into())])
+                .msg_with(
+                    "packages-delete-confirm",
+                    &[("name", row.name.as_str().into())],
+                )
                 .into_owned(),
             row,
             sources,

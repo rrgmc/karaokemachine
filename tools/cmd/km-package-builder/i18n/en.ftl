@@ -643,7 +643,7 @@ packages-import = Import
 packages-from = From
 packages-last-built = Last built
 packages-never = never
-packages-delete-confirm = Delete the package { $id }? The songs and any .kmpkg already written are not touched.
+packages-delete-confirm = Delete the package { $name }? The songs and any .kmpkg already written are not touched.
 
 ## One package -----------------------------------------------------------------------
 
