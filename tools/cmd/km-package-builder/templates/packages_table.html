@@ -21,15 +21,21 @@
   <tbody>
   {% for p in packages %}
     <tr>
-      {# **A mark beside the name rather than a column**, because most packages have none and a
+      {# **A mark under the name rather than a column**, because most packages have none and a
          column of dashes is a column nobody reads. It says which lists decide a volume before
          somebody opens it to find out, and it is why that package is missing from the *add these
          songs to* select two pages away. #}
       {# The volume count is a mark for the reason the sources are: most packages have one volume,
          and the version, first number and build time beside it are the first volume's. #}
+      {# **The marks take a line of their own**, so every name starts and ends at the same place
+         however many lists its package draws on. #}
       <td><a href="/packages/{{ p.row.id }}">{{ p.row.name }}</a>
-        {% match p.volumes %}{% when Some with (said) %}<span class="tag">{{ said }}</span>{% when None %}{% endmatch %}
-        {% for name in p.sources %}<span class="tag">{{ name }}</span>{% endfor %}</td>
+        {% if p.volumes.is_some() || !p.sources.is_empty() %}
+        <div class="marks">
+          {% match p.volumes %}{% when Some with (said) %}<span class="tag">{{ said }}</span>{% when None %}{% endmatch %}
+          {% for name in p.sources %}<span class="tag">{{ name }}</span>{% endfor %}
+        </div>
+        {% endif %}</td>
       <td>{{ p.row.version }}</td>
       <td class="num">{{ p.row.total_songs }}</td>
       <td class="num">{{ p.row.start_number }}</td>

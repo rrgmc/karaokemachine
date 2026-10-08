@@ -384,6 +384,9 @@ td.tick { white-space: nowrap; }
 .tag.pill:hover { text-decoration: none; border-color: var(--accent); color: var(--text); }
 .tag.pill .dim { font-size: 0.72rem; }
 
+/* The tags under a name in a table. Wrapping, for the reason `.chips` does. */
+.marks { display: flex; flex-wrap: wrap; gap: 0.25rem; margin-top: 0.2rem; }
+
 /* The band the pills sit in. Wrapping, because a package can draw on more lists than fit a line. */
 .chips { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; margin: 0 0 0.6rem; }
 
