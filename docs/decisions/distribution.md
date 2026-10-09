@@ -2303,14 +2303,46 @@ page can do nothing but write a file down for later until this one has an addres
 ## The front door is where a tool is pointed and let in
 
 **`km-admin` opens on a page with no tab strip: the machine it last chose, and the machines answering
-on this network. It offers a box for an address, and a box for the password. Every launch, and the
-tabs are not drawn until a machine is picked.**
+on this network. A second page asks for the password, and only when one has to be typed. Every
+launch, and the tabs are not drawn until a machine is picked.**
 
-**The two boxes are one form because they are one errand.** Nothing behind this page can write to a
-machine until it has been told which machine and been given that machine's password. Splitting
-them across two pages makes the second one somewhere a person has to be sent. It is also why a write
-refused for want of a password comes back *here* from whichever tab it was made on. A message naming
-the fix on a page that does not carry it is a message somebody then has to go and find.
+**The door is two pages, because the second question depends on the answer to the first.** Whether a
+password must be typed is a fact about the machine picked. A password box beside the list asks before
+that answer exists. It is then needed on some launches and not on others, and the page cannot say
+which until a row is chosen. So the first page picks a machine, and the second holds the box.
+
+**The password page is drawn only when a password is needed, or asked for.** *Connect* spends a token
+held this run, or a password saved for the machine, and goes straight to the tabs. It reaches the
+password page only when this computer has neither. *Enter a different password* reaches that page
+whatever this computer holds. That is the way to replace a saved password, and it asks the machine
+nothing.
+
+**Each row says whether this computer has that machine's password.** *Will I be asked for the
+password* is the question somebody has before pressing anything. The answer is a fact about this
+computer, so stating it costs no call to the machine. A discovered row reads it from the id the
+machine advertises. That id is unchecked, so it decides the label and never what is sent.
+
+**The door finds a saved password by the id the machine gives.** Choosing an address records the
+address and no id, and the password store uses the id as its key. So *Connect* asks a machine with
+no id recorded which machine it is, and looks the password up under that answer. Without that
+question, a machine picked for the second time is one this computer appears never to have met.
+
+**Nothing authenticates that answer.** A device on the network that gave another machine's id would
+receive that machine's password. Following a machine to a new address already trusts an advertised
+id in the same way, and [`Network reach`](api-and-network.md#network-reach) is the judgement both
+rest on.
+
+**A saved password the machine refuses stays saved.** A refusal can be the machine's limit on
+attempts as well as a changed password. One answer is not grounds to delete a credential. The
+refusal lands on the password page, which carries *Forget it*.
+
+**The address box sits behind *Use another address*.** A machine that is switched on lists itself,
+so an address is typed only for a machine the browse cannot see. A box drawn on every launch reads
+as a field to fill in. A refused address opens it.
+
+**A write refused for want of a password lands on the password page**, from whichever tab it was
+made on. A message naming the fix on a page that does not carry it is a message somebody then has to
+go and find.
 
 **A control that refuses says so on a page, and the page is the one that can mend it.** Every control
 on these surfaces is an ordinary form, so the browser navigates and a status with a sentence in it
@@ -2339,28 +2371,22 @@ screens from the box that would fix it. That reads as a broken machine rather th
 nobody answered. It is the failure the whole page exists to prevent. The point of asking *which
 machine* before anything is sent is to have the answer before it matters.
 
-**The page says which of three positions it is in, and asks for a password only in the third.** A
-password saved on this computer, a token already bought this run, or neither. The first two are facts
-the door can state without asking the machine anything, and each of them is a way in. So the box
-sits behind *Type a different password* where there is one, and is the whole of what is drawn where
-there is not. A box offered on its own asks for something this program is holding. A page that
-does that reads as not having heard the answer.
+**This computer is in one of three positions, and only the third asks for a password.** A password
+saved on this computer, a token already bought this run, or neither. The first two are facts the
+door can state without asking the machine anything, and each of them is a way in. Somebody who ticked
+the box does not type the password again every launch. Neither does somebody who logged in ten
+minutes ago and came back from a tab. A token the machine issued is a password it accepted, which is
+the whole of what this door asks for.
 
-**Blank means the way in this program already has.** Somebody who ticked the box does not type it
-again every launch. Neither does somebody who logged in ten minutes ago and came back from a tab.
-A token the machine issued is a password it accepted, which is the whole of what this door asks for.
-Somebody with neither is turned away here.
-
-**The sentence names the machine, and stops claiming to when another row is picked.** *Which machine*
-and *which password* are one errand, so a page whose subject is choosing between machines cannot
-answer the second with the word *this*.
+**The password page names the machine.** *Which machine* and *which password* are one errand. A page
+holding only a box leaves the first of them open.
 
 **The tick rides with a typed password, and *Forget it* is the way out.** The checkbox is a statement
-about what this computer should be remembering, and it is spent on the password in hand. So a pass
-that types none leaves the store alone. An entry that forgot what it had just used would be the door
-deleting a credential as a side effect of opening. The button that means that sits beside the
-sentence saying there is something to forget, which is where somebody looking for it is already
-reading.
+about what this computer should be remembering, and it is spent on the password in hand. It is drawn
+on the password page and nowhere else. So *Connect*, which types none, leaves the store alone. An
+entry that forgot what it had just used would be the door deleting a credential as a side effect of
+opening. The button that means that sits beside the sentence saying there is something to forget,
+which is where somebody looking for it is already reading.
 
 **What it costs is entering a machine that is switched off**, and that is a real loss rather than a
 tidy-up. A password can only be checked by the machine that set it, so requiring one requires the
@@ -2371,7 +2397,8 @@ is unaffected, because what that decision protects happens *after* a machine is 
 downloaded today is still sent tomorrow, to a box that was off in between.
 
 **A machine that did not answer is told apart from a password it refused.** One is switched off and
-the other is mistyped, and they are two different things to do next.
+the other is mistyped, and they are two different things to do next. The first lands on the page
+that picks a machine, and the second on the page that holds the box.
 
 **Drawing the page asks the machine nothing, which is what makes it appear at once.** The ordinary
 chrome reads the machine's name, its factory-password flag and its problem count. Over HTTP a
@@ -2379,9 +2406,9 @@ machine that is not answering charges the full ask timeout for each. That happen
 that is drawn before anything is known about the machine. It also happens on the one somebody lands
 on when a write has just been refused.
 
-So the door wears the shared `<head>` and stylesheet and none of the chrome, and draws from
-`machine.json` alone. Pressing its button is the other half and does talk to the machine: that is
-where the password is checked. The browse arrives underneath as a fragment,
+So both pages wear the shared `<head>` and stylesheet and none of the chrome, and draw from
+`machine.json` and the password store alone. Pressing a button is the other half and does talk to
+the machine: that is where the password is checked. The browse arrives underneath as a fragment,
 because it waits its whole three seconds by the rule above and a page must not.
 
 **`--machine` still wins for the run and is still not written down**, which this page had to be
@@ -2392,7 +2419,8 @@ client.
 
 **A remembered password is keyed to the machine in force**, which is the same rule read carefully. A
 run pointed somewhere the record does not name has no identity to key one under. So it neither reads
-one nor offers a box to store one. Without that, a `--machine` run would take the id out of a record
+one nor offers a box to store one, and *Connect* does not ask that machine which machine it is.
+Without that, a `--machine` run would take the id out of a record
 about a different box and hand that box's password to this one.
 
 **The Home page it replaces is gone rather than moved.** Its three cards linked to Songs, to the
@@ -2402,9 +2430,14 @@ the tabs*.
 
 ### …and the third question it asks is what language it is in
 
-**A card below the door, and it is this program's own language rather than any machine's.** The
-picker names each language in itself, the choice goes in the `km_locale` cookie, and the page that
-lands afterwards is already in it.
+**A small picker in the corner of the door, and it is this program's own language rather than any
+machine's.** The picker names each language in itself, the choice goes in the `km_locale` cookie, and
+the page that lands afterwards is already in it.
+
+**Small and out of the column, because it is not part of the errand.** A language is chosen once and
+left, where a machine is picked on every launch. A card of its own gives a setting touched once the
+weight of the question the page is for. Picking a language submits it, and a button remains for a
+browser without the script.
 
 **A program on an origin of its own needs its own picker, and that is what makes this different from
 the machine's `/admin/`.** Both surfaces read the same cookie. On the machine that is enough: the
@@ -2426,10 +2459,10 @@ it now, and a `Path` other than `/`, or a different life, would be one surface f
 what the other remembered. That is the same argument that put the name there rather than in either pages
 crate.
 
-**The heading says which of two languages it means**, and so does the *Screen language* pane on the
-*This machine* tab. That one is the television's, in a room; this one is this browser's, on this
-computer. Confusing the two is the likeliest misreading of either, which is why neither heading is
-just *Language*. The confirmation is worded in the language just chosen, so somebody who picked the
+**The label and the tooltip say which of two languages it means**, and so does the *Screen language*
+pane on the *This machine* tab. That one is the television's, in a room; this one is this browser's,
+on this computer. Confusing the two is the likeliest misreading of either, which is why neither is
+labelled just *Language*. The confirmation is worded in the language just chosen, so somebody who picked the
 wrong one finds out at once.
 
 ## The banks already on this computer are at the top of the list

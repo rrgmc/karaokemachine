@@ -31,8 +31,8 @@ machine's own route table. **An id in a path goes through `one_segment`**: forma
 into a path lets a delete address another route entirely.
 
 **Everything it serves is under `/admin`**, because that is where the shared markup's links point.
-`/` redirects to `/admin/connect`, which is this program's front door: which machine, and the
-password for it. **Nothing else answers until a machine is chosen.** `to_the_door` in `src/server.rs`
+`/` redirects to `/admin/connect`, which is this program's front door: which machine. Its second
+page, `/admin/connect/password`, asks for the password when one has to be typed. **Nothing else answers until a machine is chosen.** `to_the_door` in `src/server.rs`
 redirects every other page there, and that middleware is this program's alone. The machine's own
 `/admin/` has no such question.
 

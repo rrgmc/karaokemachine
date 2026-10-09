@@ -23,7 +23,7 @@ output picker and factory-password banner.
 | Packages, rotation, installed banks | listed and managed | the same, minus a package's size, which the API does not publish |
 | Screen language | both | both, over `PUT /admin/machine/locale` |
 | Password reset | yes | no: a reset draws a PIN on a television this program is not beside |
-| Which machine, and the password for it | no question: it is one | its own front door, outside this crate |
+| Which machine, and the password for it | no question: it is one | its own front door, two pages outside this crate |
 | The guard | denies by default; the page faces a LAN | loopback only, no password of its own — and so nothing here authorizes its writes |
 
 ### The traits are grouped by tab, and that is deliberate
@@ -157,10 +157,17 @@ ask timeout for each. That would happen on the one page a person reaches *becaus
 So the door costs one render and no request. The three-second browse arrives afterwards as a fragment
 of the host's own.
 
-**`/admin/connect` is the third route this crate names and does not own.** The two that the
-`searching` capability links to are the others, and the rule is the same. A host that sets
-`choose_machine` must serve it, because `handlers::refusal` sends a write refused for want of a
-password there.
+**`/admin/connect` and `/admin/connect/password` are routes this crate names and does not own.** The
+two that the `searching` capability links to are the others, and the rule is the same. A host that
+sets `choose_machine` must serve both. The strip's way back leads to the first, which picks a
+machine. `handlers::refusal` sends a write refused for want of a password to the second, which holds
+the password box.
+
+**The host's door is two pages and one prefix.** `/admin/connect` picks a machine, and
+`POST /admin/connect/use` decides what follows. It spends a held token or a saved password and enters
+the tabs, or it redirects to `/admin/connect/password`. It first asks a machine whose record holds no id
+for one, because the password store uses the id as its key. `to_the_door` lets the whole
+`/admin/connect` prefix through, so the second page needs no rule of its own.
 
 ### One stylesheet, and the one thing a host may put in the head
 

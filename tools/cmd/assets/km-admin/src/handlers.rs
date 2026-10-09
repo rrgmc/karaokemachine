@@ -830,13 +830,13 @@ fn destination(
 /// is asking somebody to use. Sound and Pictures are pages with no password box, so the sentence
 /// has to name where one is.
 ///
-/// **The door is where it says, and where this lands.** The password this program logs in with is
-/// typed on the front door and nowhere else: the *This machine* tab carries a status banner about
-/// the machine's own password, which is a different thing somebody sent here would not find. A
-/// redirect puts the sentence and the box on one screen, which is what
-/// `km-admin-pages`' `back_to_door` already does with a refusal from the shared half.
+/// **The door's password page is where it says, and where this lands.** The password this program
+/// logs in with is typed there and nowhere else: the *This machine* tab carries a status banner
+/// about the machine's own password, which is a different thing somebody sent here would not find.
+/// A redirect puts the sentence and the box on one screen, which is what `km-admin-pages`'
+/// `back_to_password` does with a refusal from the shared half.
 fn needs_password(locale: km_locale::Locale) -> Response {
-    door_says(
+    password_says(
         &crate::words::messages(locale).msg("send-needs-password"),
         "bad",
     )
@@ -1052,38 +1052,33 @@ fn described(file_name: &str) -> String {
 
 // -- the front door ------------------------------------------------------------------------------
 
-/// Which machine the door was submitted with, and the password for it.
+/// Which machine the door was submitted with.
 #[derive(Debug, Clone, Deserialize)]
 pub struct EnterForm {
     /// The row that was picked: `chosen`, `typed`, or a discovered machine's URL.
     ///
-    /// **A radio group and not a free field**, so that submitting without picking is impossible and
-    /// every discovered machine has to be pressed. The two fixed names are the two rows whose
-    /// address is not in the form: the machine this run is already pointed at, and the box below.
+    /// **A radio group and not a free field**, so that every discovered machine has to be pressed.
+    /// The two fixed names are the two rows whose address is not in the form: the machine this run
+    /// is already pointed at, and the box behind *Use another address*. Empty where no row was
+    /// picked, which [`enter`] answers as it answers an empty address.
+    #[serde(default)]
     pub row: String,
     /// What was typed, read only when `row` is `typed`.
     ///
-    /// **Opaque here**, exactly as the box it replaces was: what an address may be is
-    /// [`crate::machine::normalize`]'s rule, and it is the one that has to reach it.
+    /// **Opaque here**: what an address may be is [`crate::machine::normalize`]'s rule, and it is
+    /// the one that has to reach it.
     #[serde(default)]
     pub typed: String,
-    /// The machine's password, or empty to spend the way in this program already has.
+    /// `password` when the second button was pressed, absent for the first.
     ///
-    /// **Blank is not *no password*, it is *the one already held*** — remembered on this computer,
-    /// or a token bought earlier this run — and a pass with neither to fall back on is turned away
-    /// at the door. See [`enter`].
+    /// The second button asks for the password page whatever this computer holds.
     #[serde(default)]
-    pub password: String,
-    /// Present when the *remember it* box was ticked, absent when it was not.
-    ///
-    /// **Read only where a password was typed**, the box being drawn only there.
-    #[serde(default)]
-    pub remember: Option<String>,
+    pub then: Option<String>,
 }
 
-/// `POST /admin/connect/use` — point this program at a machine and let it in.
+/// `POST /admin/connect/use` — point this program at a machine, and let it in where it can be.
 ///
-/// # The four rules this keeps, each of them decided elsewhere
+/// # The rules this keeps, each of them decided elsewhere
 ///
 /// **Listing is not setting.** Nothing here is reached except by a row somebody picked and a button
 /// they pressed. See `Discovering a machine in the package builder`.
@@ -1096,20 +1091,16 @@ pub struct EnterForm {
 ///
 /// **The door does not open without a password the machine accepted.** The alternative is a program
 /// whose every write refuses three screens later, which reads as a broken machine rather than as a
-/// question nobody answered. See `The front door asks for a password` in
-/// docs/decisions/distribution.md, which is also where the cost is written down: a machine that is
-/// switched off can no longer be entered.
+/// question nobody answered. See `The front door is where a tool is pointed and let in` in
+/// docs/decisions/distribution.md.
 ///
-/// **A password is stored only after it has been accepted**, so a typo is never written down — the
-/// order here, not a check afterwards.
+/// **A password is asked for only when this computer has no way in.** A token held this run and a
+/// password saved for this machine are each a way in, and each is spent without a second page.
+/// Everything else goes to [`crate::views::password`].
 ///
-/// **The tick rides with a typed password and says nothing about one that was not.** The box is a
-/// statement about what this computer should remember, and it is spent on the password in hand — so
-/// a pass that types one applies it, unticked included, and a pass that spends what is already
-/// remembered leaves the store alone. The door draws no box where nothing is being typed, and an
-/// entry that quietly forgot what it had just used would be the page's own convenience deleting a
-/// credential. *Forget it* is the control that means that, and it is beside the sentence saying
-/// there is something to forget.
+/// **A saved password is found by the id the machine gives, not by the address picked.** Choosing
+/// an address writes a record with no id, so a machine picked for the second time would look like
+/// one this computer has never met. One `/discover` names it, and the store is keyed by that name.
 pub async fn enter(
     AxumState(state): AxumState<State>,
     headers: axum::http::HeaderMap,
@@ -1120,12 +1111,13 @@ pub async fn enter(
     let held = state.machine();
 
     let address = match form.row.as_str() {
+        "" => None,
         "chosen" => held.clone(),
         "typed" => Some(form.typed.trim().to_owned()).filter(|typed| !typed.is_empty()),
         url => Some(url.to_owned()),
     };
     let Some(address) = address else {
-        return door_says(&words.msg("door-needs-an-address"), "bad");
+        return address_says(&words.msg("door-needs-an-address"));
     };
 
     // Not `set_machine` where it would write down what the command line said for this run only.
@@ -1134,38 +1126,98 @@ pub async fn enter(
     }
 
     let Some(client) = state.client() else {
-        return door_says(&words.msg("door-no-machine"), "bad");
+        return address_says(&words.msg("door-no-machine"));
     };
 
-    // **What is spent: the password typed, or the one this computer remembers for this machine.**
-    // A blank box is not an answer of its own — it means *use what you already have* — so a run
-    // with nothing to fall back on is turned away here rather than three screens later.
-    let typed = form.password.trim();
-    let remembered = state.remembered_password();
-    let password = if typed.is_empty() {
-        remembered.as_deref().unwrap_or_default()
-    } else {
-        typed
-    };
-    if password.is_empty() {
-        // **A token in hand is a password the machine accepted**, which is the whole of what this
-        // door asks for. Somebody who logged in without ticking the box and came back here — from a
-        // tab, or from a write refused while the token was still good — has nothing to type and
-        // nothing remembered, and refusing them would be this page demanding an answer it already
-        // holds. Only ever the address this run is already on: the branch above replaced the client
-        // for any other, and a fresh client holds no token.
-        if client.has_token() {
-            return Redirect::to("/admin/machine").into_response();
-        }
-        return door_says(&words.msg("door-needs-a-password"), "bad");
+    // **Before anything is asked of the machine**, because this button means *let me type one*, and
+    // that is as true of a machine that is switched off as of one that is on.
+    if form.then.as_deref() == Some("password") {
+        return Redirect::to(crate::views::PASSWORD_PAGE).into_response();
     }
 
-    match client.log_in(password).await {
+    // **A token in hand is a password the machine accepted**, which is the whole of what this door
+    // asks for. Only ever the address this run is already on: the branch above replaced the client
+    // for any other, and a fresh client holds no token.
+    if client.has_token() {
+        return Redirect::to("/admin/machine").into_response();
+    }
+
+    // **The identity, asked for where the record has none.** A machine picked from the list starts
+    // with an address and no id, and the password store is keyed by id. A run whose record is about
+    // another machine has nothing to key by, so it is not asked.
+    if state.can_remember() && state.machine_id().is_none() {
+        match client.discover().await {
+            Ok(discovery) => state.machine_answered(
+                &discovery.id,
+                km_api::discover::display_name(&discovery.name).map(str::to_owned),
+            ),
+            Err(crate::machine::Refused::Unreachable(_)) => {
+                return door_says(&words.msg("door-unreachable"), "bad");
+            }
+            Err(error) => tracing::debug!("the machine did not say which machine it is: {error}"),
+        }
+    }
+
+    let Some(password) = state.remembered_password() else {
+        return Redirect::to(crate::views::PASSWORD_PAGE).into_response();
+    };
+    match client.log_in(&password).await {
+        Ok(()) => Redirect::to("/admin/machine").into_response(),
+        // **The two refusals are told apart, because the answers differ.** A machine that is not
+        // answering is a machine to switch on; a password it refused is a password to type.
+        Err(crate::machine::Refused::Unreachable(_)) => {
+            door_says(&words.msg("door-unreachable"), "bad")
+        }
+        // **The saved password stays saved.** A refusal can be the machine's limit on attempts as
+        // well as a changed password, and deleting a credential on the strength of one answer is
+        // not this page's to do. The password page carries *Forget it*.
+        Err(error) => {
+            tracing::debug!("the machine did not accept the saved password: {error}");
+            password_says(&words.msg("door-saved-refused"), "bad")
+        }
+    }
+}
+
+/// The password typed on the door's second page.
+#[derive(Debug, Clone, Deserialize)]
+pub struct PasswordForm {
+    /// The machine's password.
+    #[serde(default)]
+    pub password: String,
+    /// Present when the *remember it* box was ticked, absent when it was not.
+    #[serde(default)]
+    pub remember: Option<String>,
+}
+
+/// `POST /admin/connect/password` — log in to the machine in force with a typed password.
+///
+/// **A password is stored only after it has been accepted**, so a typo is never written down. That
+/// is the order here, not a check afterwards.
+///
+/// **The tick is applied to the password in hand, unticked included.** The box is a statement about
+/// what this computer should remember, and this page is reached only to type one. So a ticked box
+/// stores it and a clear box forgets whatever was stored for this machine.
+pub async fn give_password(
+    AxumState(state): AxumState<State>,
+    headers: axum::http::HeaderMap,
+    Form(form): Form<PasswordForm>,
+) -> Response {
+    let locale = crate::words::locale(&headers);
+    let words = crate::words::messages(locale);
+    let Some(client) = state.client() else {
+        return Redirect::to(crate::views::CONNECT_PAGE).into_response();
+    };
+
+    let typed = form.password.trim();
+    if typed.is_empty() {
+        return password_says(&words.msg("door-needs-a-password"), "bad");
+    }
+
+    match client.log_in(typed).await {
         Ok(()) => {
-            // **The identity, learned here because this is the first moment it can be.** A password
-            // is keyed by the machine's id and nothing on this page has read one: the door asks the
-            // machine nothing so that it draws at once. A login is proof that this machine is up —
-            // it just answered — so the `/discover` that records the id costs one request.
+            // **The identity, read here because a login is proof the machine is up.** A password is
+            // keyed by the machine's id, and a machine that was off when it was picked has none
+            // recorded yet. The same answer carries the name the door shows.
             if let Ok(discovery) = client.discover().await {
                 state.machine_answered(
                     &discovery.id,
@@ -1173,23 +1225,17 @@ pub async fn enter(
                 );
             }
         }
-        // **The two refusals are told apart, because the answers differ.** A machine that is not
-        // answering is a machine to switch on; a password it refused is a password to retype.
+        // A machine that is not answering is mended on the page that picks one.
         Err(crate::machine::Refused::Unreachable(_)) => {
             return door_says(&words.msg("door-unreachable"), "bad");
         }
         Err(error) => {
             tracing::debug!("the machine did not accept that password: {error}");
-            return door_says(&words.msg("door-password-refused"), "bad");
+            return password_says(&words.msg("door-password-refused"), "bad");
         }
     }
 
-    // **After the login and outside it**, so that two promises hold at once: a password the machine
-    // refused is never written to this computer, and an unticked box forgets whichever password was
-    // spent — including the remembered one, which is the case a blank box makes.
-    if !typed.is_empty() {
-        state.remember_password(form.remember.is_some().then_some(password));
-    }
+    state.remember_password(form.remember.is_some().then_some(typed));
 
     Redirect::to("/admin/machine").into_response()
 }
@@ -1264,6 +1310,23 @@ fn says(page: &str, kind: &str, said: &str) -> Response {
 /// Back to the door, carrying something to say.
 fn door_says(said: &str, kind: &str) -> Response {
     says(crate::views::CONNECT_PAGE, kind, said)
+}
+
+/// Back to the door with a fault about the address, which opens the box that mends it.
+///
+/// `another` is what [`crate::views::NoticeParams`] reads to open *Use another address*.
+fn address_says(said: &str) -> Response {
+    Redirect::to(&format!(
+        "{}?kind=bad&another=1&said={}",
+        crate::views::CONNECT_PAGE,
+        urlencoding(said)
+    ))
+    .into_response()
+}
+
+/// Back to the door's password page, carrying something to say.
+fn password_says(said: &str, kind: &str) -> Response {
+    says(crate::views::PASSWORD_PAGE, kind, said)
 }
 
 /// Back to the Sound page, carrying a sentence from a key.

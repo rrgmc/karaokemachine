@@ -46,12 +46,13 @@ pub const COMPOSED: &[&str] = &[
     // the sentence that names none for a machine whose owner never named it.
     "door-saved-for",
     "door-saved-here",
-    // The front door's three answers. These interpolate nothing and are here for the other half of
+    // The front door's answers. These interpolate nothing and are here for the other half of
     // this list's job: a sentence spent from Rust rather than from markup is a sentence the template
     // scanner cannot see, and one it cannot see is one `no_message_is_left_unused` would delete.
     "door-needs-an-address",
     "door-no-machine",
     "door-password-refused",
+    "door-saved-refused",
     "door-needs-a-password",
     "door-unreachable",
     // ...and its fourth, which is the one confirmation among them: what the language picker says

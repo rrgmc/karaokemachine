@@ -1739,7 +1739,7 @@ fn refusal(
     // turns up. Choosing an output while a song is loaded is the case that earned the distinction,
     // and a handler that hard-coded the kind would quietly lose it.
     if error.wants_password() && state.capabilities.choose_machine {
-        return back_to_door(
+        return back_to_password(
             error.severity(),
             &crate::words::messages(locale).msg("login-needed"),
         );
@@ -1749,12 +1749,21 @@ fn refusal(
 
 /// Out to the host's own front door, carrying something to say.
 ///
-/// **The second route this crate names and does not own**, `Capabilities::searching`'s two being the
-/// first. A host that sets `choose_machine` serves `/admin/connect`; without it a refusal for want
-/// of a password would land on a page with no way to type one.
+/// **A route this crate names and does not own**, as `Capabilities::searching`'s two are. A host
+/// that sets `choose_machine` serves `/admin/connect`.
 fn back_to_door(kind: &str, said: &str) -> Response {
     let said = urlencode(said);
     Redirect::to(&format!("/admin/connect?kind={kind}&said={said}")).into_response()
+}
+
+/// Out to the page of the host's front door that holds the password box.
+///
+/// **Not the door's first page**, which picks a machine and carries no box. A host that sets
+/// `choose_machine` serves `/admin/connect/password`. Without it a refusal for want of a password
+/// would land on a page with no way to type one.
+fn back_to_password(kind: &str, said: &str) -> Response {
+    let said = urlencode(said);
+    Redirect::to(&format!("/admin/connect/password?kind={kind}&said={said}")).into_response()
 }
 
 /// The same, for the Machine tab, whose errands are panes rather than pages.

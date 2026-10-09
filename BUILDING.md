@@ -1933,16 +1933,18 @@ cargo km-admin-desktop --browser
   also has better things to do than a hundred JPEG decodes. This is what produces the file — and the
   page around that is the machine's own, from `km-admin-pages`, rather than a copy of it.
 - **Everything is under `/admin`, and `/` redirects to the front door.** That is where the shared
-  markup's links point. This program's own pages are `/admin/connect`, `/admin/pictures/find` and
-  `/admin/sound/fetch`. A link from the shared Pictures and Sound tabs reaches the last two. The
+  markup's links point. This program's own pages are `/admin/connect`, `/admin/connect/password`,
+  `/admin/pictures/find` and `/admin/sound/fetch`. A link from the shared Pictures and Sound tabs reaches the last two. The
   searching is a page under its tab rather than the tab itself. That is a consequence of sharing the
   markup, and `docs/decisions/distribution.md` argues it.
 - **The redirect is temporary and a shell opens the door itself.** A browser keeps a permanent
   redirect and follows it without asking again. That would make where the door is a promise every
   later build has to honour.
 - **It opens on the front door, and that is where a machine is chosen.** The page has no tab strip.
-  It shows the machine it last chose, what is advertising itself over mDNS, a box for an address and
-  a box for the password. It opens on every launch, and the tabs are not drawn until a machine is
+  It shows the machine it last chose and what is advertising itself over mDNS, with a box for an
+  address behind *Use another address*. A second page asks for the password when this computer has
+  no way in to the machine picked.
+- **The door opens on every launch**, and the tabs are not drawn until a machine is
   picked. Whichever row you press is remembered in `<data-dir>/machine.json`. `--machine` is
   therefore for a machine broadcast cannot reach, or for pointing one run somewhere else without
   disturbing what is remembered.

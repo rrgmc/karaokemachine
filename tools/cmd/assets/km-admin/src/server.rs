@@ -431,6 +431,26 @@ impl State {
         (crate::machine::normalize(&known.url) == pointed_at).then_some(known.id)?
     }
 
+    /// What the record calls the machine in force, where it has answered once and said.
+    ///
+    /// **Only where the record is about the machine this run is pointed at**, for
+    /// [`Self::machine_id`]'s reason: a `--machine` run must not wear the name of the machine chosen
+    /// last.
+    pub fn machine_name(&self) -> Option<String> {
+        let known = crate::chosen::load(&self.inner.data_dir)?;
+        let pointed_at = self.machine()?;
+        (crate::machine::normalize(&known.url) == pointed_at).then_some(known.name)?
+    }
+
+    /// Whether this computer has a password saved under this machine id.
+    ///
+    /// **For a label on a row and nothing else.** What is spent is
+    /// [`Self::remembered_password`], which reads the id the machine itself gave.
+    #[must_use]
+    pub fn holds_password_for(&self, id: &str) -> bool {
+        self.inner.passwords.lock().is_ok_and(|held| held.holds(id))
+    }
+
     /// What this computer remembers about the machine in force, or `None` if there is no id to key a
     /// password under.
     ///
@@ -739,6 +759,8 @@ fn own_pages(pages: Pages) -> Router {
         // This program's front door, which the machine's own page needs no counterpart for: a
         // machine has no say over which machine it is.
         .route("/connect", get(views::connect))
+        // The door's second page, drawn only when a password has to be typed.
+        .route("/connect/password", get(views::password))
         // The searching, each on its own page under the tab it belongs to. Reached by a link from
         // the shared page — see `Capabilities::searching`.
         .route("/pictures/find", get(views::pictures))
@@ -750,6 +772,10 @@ fn own_pages(pages: Pages) -> Router {
                 // arrives as a fragment because it takes three seconds, and the form's answer.
                 .route("/connect/found", get(views::found))
                 .route("/connect/use", axum::routing::post(handlers::enter))
+                .route(
+                    "/connect/password",
+                    axum::routing::post(handlers::give_password),
+                )
                 // What language this program's own pages are in, which is the door's third
                 // question and the only one that is not about a machine.
                 .route(
@@ -1017,6 +1043,27 @@ mod tests {
         );
         // Percent-decoded enough to read: the notice rides as `said=` with spaces as `+`.
         answer.location().replace('+', " ")
+    }
+
+    /// One of this program's pages, as the markup a browser is handed.
+    async fn page(state: State, path: &str) -> String {
+        let response = router(state)
+            .oneshot(
+                Request::builder()
+                    .uri(path)
+                    .body(Body::empty())
+                    .expect("request"),
+            )
+            .await
+            .expect("response");
+        assert_eq!(response.status(), StatusCode::OK, "{path}");
+        String::from_utf8(
+            axum::body::to_bytes(response.into_body(), usize::MAX)
+                .await
+                .expect("body")
+                .to_vec(),
+        )
+        .expect("utf-8")
     }
 
     /// A state with a machine that is not there, so a network attempt would be visible.
@@ -1516,9 +1563,10 @@ mod tests {
             b"row=chosen".to_vec(),
         )
         .await;
-        // The door turns this away for want of a password, which is a later rule than the one
-        // under test: the address is settled before anything is asked of a machine.
-        assert!(said.starts_with("/admin/connect?"), "{said}");
+        // The door asks for a password on its second page, which is a later rule than the one
+        // under test: the address is settled before anything is asked of a machine. A `--machine`
+        // run has no record to key a saved password by, so the machine is not asked who it is.
+        assert_eq!(said, views::PASSWORD_PAGE, "{said}");
         assert_eq!(
             crate::chosen::load(dir.path()).map(|known| known.url),
             Some("http://192.168.1.42:8177".to_owned()),
@@ -1537,12 +1585,14 @@ mod tests {
             state,
             "/admin/connect/use",
             "application/x-www-form-urlencoded",
-            b"row=typed&typed=192.168.1.50".to_vec(),
+            // The second button, which asks nothing of the machine: no test may wait on an address
+            // that is not there.
+            b"row=typed&typed=192.168.1.50&then=password".to_vec(),
         )
         .await;
-        // Turned away for want of a password, as every entry now is — and the address is written
-        // down all the same, because what is remembered is what somebody chose.
-        assert!(said.starts_with("/admin/connect?"), "{said}");
+        // Sent on to type a password, and the address is written down all the same, because what
+        // is remembered is what somebody chose.
+        assert_eq!(said, views::PASSWORD_PAGE, "{said}");
         assert_eq!(
             State::new(dir.path().to_path_buf(), None)
                 .machine()
@@ -1567,10 +1617,74 @@ mod tests {
         .await;
         assert!(said.starts_with("/admin/connect?"), "{said}");
         assert!(said.contains("kind=bad"), "{said}");
+        // ...and it opens the box the refusal is about, which sits behind a summary.
+        assert!(said.contains("another=1"), "{said}");
         assert_eq!(
             crate::chosen::load(dir.path()).map(|known| known.url),
             Some("http://192.168.1.42:8177".to_owned()),
             "a blank box forgot the machine somebody had chosen"
+        );
+    }
+
+    /// A submit with no row picked is answered like an empty address.
+    ///
+    /// The radios are not `required`, because a browser cannot point at one inside a closed summary.
+    #[tokio::test]
+    async fn a_submit_with_no_row_picked_comes_back_to_the_door() {
+        let dir = tempfile::tempdir().expect("a temporary folder");
+        let state = State::new(dir.path().to_path_buf(), None);
+
+        let said = post_for_location(
+            state.clone(),
+            "/admin/connect/use",
+            "application/x-www-form-urlencoded",
+            Vec::new(),
+        )
+        .await;
+        assert!(said.starts_with("/admin/connect?"), "{said}");
+        assert!(said.contains("another=1"), "{said}");
+        assert_eq!(state.machine(), None);
+    }
+
+    /// The address box is behind a summary, and a fault about an address opens it.
+    #[tokio::test]
+    async fn the_address_box_is_folded_until_asked_for() {
+        let dir = tempfile::tempdir().expect("a temporary folder");
+        let state = State::new(dir.path().to_path_buf(), None);
+
+        let html = page(state.clone(), "/admin/connect").await;
+        let Some((_, folded)) = html.split_once(r#"<details class="another">"#) else {
+            panic!("the address box is not behind a closed summary: {html}");
+        };
+        assert!(folded.contains(r#"name="typed""#), "{html}");
+        // And with no machine remembered, no row opens selected.
+        assert!(!html.contains(" checked"), "{html}");
+
+        let html = page(state, "/admin/connect?kind=bad&another=1&said=nope").await;
+        assert!(
+            html.contains(r#"<details class="another" open>"#),
+            "a refused address left its box shut: {html}"
+        );
+    }
+
+    /// The password page is about a machine, so with none chosen it is the door.
+    #[tokio::test]
+    async fn the_password_page_needs_a_machine() {
+        let dir = tempfile::tempdir().expect("a temporary folder");
+        let state = State::new(dir.path().to_path_buf(), None);
+        let response = router(state)
+            .oneshot(
+                Request::builder()
+                    .uri(views::PASSWORD_PAGE)
+                    .body(Body::empty())
+                    .expect("request"),
+            )
+            .await
+            .expect("response");
+        assert_eq!(response.status(), StatusCode::SEE_OTHER);
+        assert_eq!(
+            response.headers().get("location").map(|v| v.as_bytes()),
+            Some(views::CONNECT_PAGE.as_bytes())
         );
     }
 

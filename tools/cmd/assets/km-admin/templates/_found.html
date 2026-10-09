@@ -14,10 +14,11 @@
       <input type="radio" name="row" value="{{ machine.url }}">
       <strong>{{ machine.name }}</strong>
       <span class="mono">{{ machine.url }}</span>
-      {% match chosen %}
-      {% when Some with (address) %}{% if address.as_str() == machine.url.as_str() %}<span class="dim">{{ "door-this-one"|t }}</span>{% endif %}
-      {% when None %}
-      {% endmatch %}
+      {% if machine.chosen %}<span class="dim">{{ "door-this-one"|t }}</span>{% endif %}
+      {# **A label and never a key.** The id behind it is the one the machine advertises, which
+         nothing has checked, so it decides what this row says and not what is sent. `handlers::enter`
+         asks the machine itself before a saved password is spent. #}
+      {% if machine.saved %}<span class="tag good">{{ "door-badge-saved"|t }}</span>{% endif %}
     </label>
   </li>
   {% endfor %}
