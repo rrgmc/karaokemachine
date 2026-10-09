@@ -2430,9 +2430,14 @@ the tabs*.
 
 ### …and the third question it asks is what language it is in
 
-**A card below the door, and it is this program's own language rather than any machine's.** The
-picker names each language in itself, the choice goes in the `km_locale` cookie, and the page that
-lands afterwards is already in it.
+**A small picker in the corner of the door, and it is this program's own language rather than any
+machine's.** The picker names each language in itself, the choice goes in the `km_locale` cookie, and
+the page that lands afterwards is already in it.
+
+**Small and out of the column, because it is not part of the errand.** A language is chosen once and
+left, where a machine is picked on every launch. A card of its own gives a setting touched once the
+weight of the question the page is for. Picking a language submits it, and a button remains for a
+browser without the script.
 
 **A program on an origin of its own needs its own picker, and that is what makes this different from
 the machine's `/admin/`.** Both surfaces read the same cookie. On the machine that is enough: the
@@ -2454,10 +2459,10 @@ it now, and a `Path` other than `/`, or a different life, would be one surface f
 what the other remembered. That is the same argument that put the name there rather than in either pages
 crate.
 
-**The heading says which of two languages it means**, and so does the *Screen language* pane on the
-*This machine* tab. That one is the television's, in a room; this one is this browser's, on this
-computer. Confusing the two is the likeliest misreading of either, which is why neither heading is
-just *Language*. The confirmation is worded in the language just chosen, so somebody who picked the
+**The label and the tooltip say which of two languages it means**, and so does the *Screen language*
+pane on the *This machine* tab. That one is the television's, in a room; this one is this browser's,
+on this computer. Confusing the two is the likeliest misreading of either, which is why neither is
+labelled just *Language*. The confirmation is worded in the language just chosen, so somebody who picked the
 wrong one finds out at once.
 
 ## The banks already on this computer are at the top of the list

@@ -12,6 +12,30 @@
 
    The browse arrives underneath rather than holding the page: it waits its whole three seconds, and
    this is the page that opens on every launch. #}
+
+{# What *these pages* are in, which is not what the television says -- that is the Screen language
+   pane on the Machine tab, and the two labels are worded apart because confusing them is the
+   likeliest misreading.
+
+   **In the corner and small, because it is not part of the errand.** A language is chosen once and
+   left, where a machine is picked every time somebody points this program somewhere new. A card of
+   its own would give a setting touched once the weight of the question the page is for.
+
+   **Here rather than on a tab** because this is the page that draws before anything on the network
+   has answered -- so somebody who cannot read this program can reach the picker without a machine
+   being up.
+
+   The note rides as a tooltip, and the label is for a screen reader. `static/ui.js` submits on a
+   change and hides the button, which is what somebody without the script presses. #}
+<form method="post" action="/admin/connect/locale" class="door-locale" title="{{ "door-locale-note"|t }}">
+  <select name="locale" aria-label="{{ "door-locale-heading"|t }}">
+    {% for choice in locales %}
+    <option value="{{ choice.tag }}"{% if choice.chosen %} selected{% endif %}>{{ choice.name }}</option>
+    {% endfor %}
+  </select>
+  <button type="submit" class="quiet">{{ "door-locale-save"|t }}</button>
+</form>
+
 <section class="card door">
   <h2>{{ "door-heading"|t }}</h2>
   <p class="hint">{{ "door-explained"|t }}</p>
@@ -79,28 +103,4 @@
        gone, needs a way to that page that is on this one. `then` is read by `handlers::enter`. #}
     <button type="submit" class="quiet" name="then" value="password">{{ "door-other-password"|t }}</button>
   </form>
-</section>
-
-{# What *these pages* are in, which is not what the television says -- that is the Screen language
-   pane on the Machine tab, and the two headings are worded apart because confusing them is the
-   likeliest misreading.
-
-   **A card of its own below the door, not a field inside it.** The form above is one errand and
-   this is not part of it: a language is chosen once and left, where a machine is picked every time
-   somebody points this program somewhere new.
-
-   **Here rather than on a tab** because this is the page that draws before anything on the network
-   has answered -- so somebody who cannot read this program can reach the picker without a machine
-   being up. #}
-<section class="card">
-  <h2>{{ "door-locale-heading"|t }}</h2>
-  <form method="post" action="/admin/connect/locale" class="inline">
-    <select name="locale" aria-label="{{ "door-locale-heading"|t }}">
-      {% for choice in locales %}
-      <option value="{{ choice.tag }}"{% if choice.chosen %} selected{% endif %}>{{ choice.name }}</option>
-      {% endfor %}
-    </select>
-    <button type="submit">{{ "door-locale-save"|t }}</button>
-  </form>
-  <p class="hint">{{ "door-locale-note"|t }}</p>
 </section>

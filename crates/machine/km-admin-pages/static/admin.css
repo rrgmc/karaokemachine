@@ -486,6 +486,25 @@ a:hover { text-decoration: underline; }
 .door details.another[open] > summary { margin-bottom: 0.6rem; }
 .door details.another .machines { margin: 0; }
 
+/* What language a host's own pages are in, in the corner of its front door. Small and out of the
+ * column, because it is set once and the page is about something else. The right edge follows the
+ * body's own, which is 46rem wide and centred. */
+.door-locale {
+  position: absolute;
+  top: 1.5rem;
+  right: max(1rem, calc(50% - 23rem));
+  margin: 0;
+  gap: 0.3rem;
+  align-items: center;
+}
+.door-locale select,
+.door-locale button {
+  font-size: 0.78rem;
+  padding-block: 0.2rem;
+}
+.door-locale select { padding-left: 0.4rem; color: var(--dim); }
+.door-locale button { padding-inline: 0.5rem; }
+
 /* The browse fills a second list under the first, and the two are one column of machines to a
  * reader. Left alone, the first list's trailing margin and the second's leading one stack on top of
  * the form's own gap, and the rows a browse found sit three times as far apart as the rows that

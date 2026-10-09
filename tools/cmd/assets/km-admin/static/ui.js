@@ -114,6 +114,17 @@
     if (row) row.checked = true;
   });
 
+  // **The front door's language picker answers the change itself.**
+  //
+  // Picking a language is the whole act, so the button is one press too many where a script can
+  // submit. It stays in the markup for a browser without one.
+  const language = document.querySelector("form.door-locale");
+  if (language) {
+    const save = language.querySelector("button");
+    if (save) save.hidden = true;
+    language.addEventListener("change", () => language.submit());
+  }
+
   // Exposed so a handler's fragment can raise one without a round trip of its own.
   window.kmToast = toast;
 })();

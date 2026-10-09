@@ -49,10 +49,10 @@ door-remember-open = On this computer your user profile protects the file, and n
 door-forget = Forget it
 door-where = The password is a six-digit code on the machine's own screen until somebody changes it.
 
-# The picker by which somebody sets what language **this program** is in, on the card below the
-# door.
+# The picker by which somebody sets what language **this program** is in, in the corner of the
+# door. The heading is its label for a screen reader, and the note is its tooltip.
 #
-# **The heading says which of two languages it means**, because the Machine tab has the other one:
+# **The label says which of two languages it means**, because the Machine tab has the other one:
 # that pane sets what the television draws in, and the likeliest misreading of either is that they
 # are one thing. The languages inside the control name themselves rather than being translated —
 # see `Locale::endonym`.
