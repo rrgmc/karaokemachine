@@ -114,6 +114,8 @@ the queue of six waiting songs with the singer who asked for each">
 - **A Debian box becomes an appliance**: it starts with the power and draws with no desktop
   installed. See
   [On Debian, it is also an appliance](https://rrgmc.github.io/karaokemachine/docs/appliance.html).
+- **A `.deb` for a Raspberry Pi**, on Raspberry Pi OS based on Debian 13. It is built for arm64 and
+  is not tested on a board.
 
 **Remotes and setup**
 
