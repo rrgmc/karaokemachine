@@ -188,29 +188,29 @@ package holding only libraries, and it costs more than it returns while there ar
 What each opens is a browser, which is [`The package builder's
 window`](curation.md#the-package-builders-window) and its siblings unchanged.
 
-## An arm64 `.deb`, for a Raspberry Pi
+## Every Linux carrier, for arm64 and a Raspberry Pi
 
-**A release carries the machine's `.deb` for arm64 beside the one for amd64.** A Raspberry Pi under
-a television is the same product as the Debian appliance, on a board many people already own.
+**A release carries each Linux carrier for arm64 beside the one for amd64.** That is the machine's
+`.deb`, the tools `.deb`, the tarball and the portable copy. A Raspberry Pi under a television is
+the same product as the Debian appliance, on a board many people already own.
 
-**It is the same package from the same script.** `tools/platform/linux/deb.sh` names no architecture
-and builds for the Docker host. An arm64 runner therefore produces
-`karaokemachine_<version>-1_arm64.deb` with no second build path to keep.
+**They are the same carriers from the same scripts.** `deb.sh`, `tarball.sh` and `portable.sh` name
+no architecture and build for the Docker host. An arm64 runner therefore produces all four with no
+second build path to keep.
 
 **The floor is Debian 13, as it is for amd64.** Raspberry Pi OS follows Debian, so its release
-based on Debian 13 installs the package. An older one has an older glibc and refuses it.
+based on Debian 13 installs the packages. An older one has an older glibc and refuses them.
 
-**arm64 gets the machine and nothing else.** The tools package, the tarball and the portable copy
-stay amd64. A board under a television runs the machine, and the tools run on the computer that
-curates.
+**arm64 gets the tools too.** A board is also a small computer on a desk. Somebody with one and no
+other Linux machine has nowhere else to run the package builder.
 
-**It is a platform of its own in `release.sh`, named `linux-arm64`.** A desk machine that names
-`linux` cannot build for arm64, and a named platform that is not staged stops the run.
+**They are a platform of their own in `release.sh`, named `linux-arm64`.** A desk machine that
+names `linux` cannot build for arm64, and a named platform that is not staged stops the run.
 
-**The release job installs the package, and no job runs it on a board.** `verify-deb.sh` proves
-that apt satisfies its dependencies on arm64 and that the program starts. It cannot prove picture
-through the board's graphics driver, sound through its HDMI output, or frame rate. The release page
-says so beside the file, so that the row promises what was checked.
+**The release job installs and unpacks them, and no job runs one on a board.** `verify-deb.sh` and
+`verify-tarball.sh` prove that the dependencies resolve on arm64 and that the programs start. They
+cannot prove picture through the board's graphics driver, sound through its HDMI output, or frame
+rate. The release page says so, so that each row promises what was checked.
 
 **The boot polish does not reach it.** `appliance-boot.sh` edits GRUB, and a Raspberry Pi does not
 boot through GRUB. The service, the dependencies and `wait-for-drm.sh` name no architecture.
@@ -2720,8 +2720,9 @@ into it, so the tracked file states no version of its own.
 
 **The body opens with one linked file per platform, and that file is the full package.** Eight
 rows name the two setup programs, the two machine `.deb` files, the tarball, the two machine APKs and
-the machine `.ipa`. A reader who wants the machine on one system chooses among eight links and not among sixteen
-files. The portable copies, the remote on its own, the tools package and the carol pack stay in
+the machine `.ipa`. A reader who wants the machine on one system chooses among eight links and not
+among nineteen files. The portable copies, the remote on its own, the tools packages, the arm64 tarball and the
+carol pack stay in
 the full table below it.
 
 **A release body can link an asset, where the site and the manual cannot.** An asset's name
@@ -2745,7 +2746,7 @@ files that mean nothing to a reader who has a download.
 - a `.deb` and a tarball, which carry Debian's own conventions
 
 **A release page is flat**, so the folder that says it in `dist/setup/windows/` and
-`dist/setup/macos/` is not there. A reader choosing between sixteen files has the filename and
+`dist/setup/macos/` is not there. A reader choosing between nineteen files has the filename and
 the sentence beside it.
 
 **The extension is not enough on its own.** A `.pkg` and an `.exe` each belong to one system, and
@@ -2761,12 +2762,12 @@ name the build gave it, so one name holds in `dist/`, in the documents and on th
 
 **`bash tools/dist/release.sh --platforms windows,linux,android,quest` names what a cut carries**, and the rows
 for every other platform leave the table, the count and the body's download table together. A run
-that names none carries all sixteen, which is the full release and the default.
+that names none carries all nineteen, which is the full release and the default.
 
-**No one desk machine builds all sixteen.** The two `.pkg` files and the two `.ipa` files are
-produced on a Mac, and the arm64 `.deb` on an arm64 Docker host. So a machine that is neither has
-five carriers it cannot stage, and a refusal it can do nothing about. Holding a release until every platform can be built on one
-computer waits on hardware rather than on the software being ready. The release workflow names its
+**No one desk machine builds all nineteen.** The two `.pkg` files and the two `.ipa` files are
+produced on a Mac, and the four arm64 carriers on an arm64 Docker host. So a machine that is
+neither has eight carriers it cannot stage, and a refusal it can do nothing about. Holding a
+release until every platform can be built on one computer waits on hardware rather than on the software being ready. The release workflow names its
 platforms the same way, leaving the two `.pkg` files to a Mac; see
 [`CI builds the release, and a Mac adds its packages`](#ci-builds-the-release-and-a-mac-adds-its-packages).
 
@@ -2796,7 +2797,7 @@ the rows the first one wrote with it.
 
 ## CI builds the release, and a Mac adds its packages
 
-**A pushed `v*` tag runs `.github/workflows/release.yml`, which builds fourteen of the sixteen carriers
+**A pushed `v*` tag runs `.github/workflows/release.yml`, which builds seventeen of the nineteen carriers
 and fills the draft release.** Each platform's job runs the same staging script a person types, and
 a last job runs `bash tools/dist/release.sh --upload` over what they staged. Publishing stays
 `gh release edit v<version> --draft=false`, typed by somebody who has opened the page.

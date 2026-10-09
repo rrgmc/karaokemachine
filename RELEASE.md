@@ -139,16 +139,15 @@ bash tools/dist/release.sh --upload  # ...and fill the draft release
 [`Releases`](BUILDING.md#releases) lists the script behind each one, and `release.sh` names any that
 is missing and stops.
 
-**Name the platforms where a Mac is not to hand.** `--platforms windows,linux,android,quest` carries those
-and leaves the two `.pkg` files, the two `.ipa` files and the arm64 `.deb` out of the count and off
-the page. It does
-that rather than failing on five carriers the machine cannot build. Everything else holds: a named
+**Name the platforms where a Mac is not to hand.** `--platforms windows,linux,android,quest` carries those.
+It leaves the two `.pkg` files, the two `.ipa` files and the four arm64 carriers out of the count
+and off the page. It does that rather than failing on eight carriers the machine cannot build. Everything else holds: a named
 platform whose carrier is missing still stops the run. See
 [`A release page carries the platforms the machine cutting it can build`](docs/decisions/distribution.md#a-release-page-carries-the-platforms-the-machine-cutting-it-can-build).
 
 ## 8. Publish
 
-Either way, the result is a **draft**. Somebody opens the page, sees all sixteen files on it, reads
+Either way, the result is a **draft**. Somebody opens the page, sees all nineteen files on it, reads
 it, and only then types this:
 
 ```sh

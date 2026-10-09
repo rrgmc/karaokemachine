@@ -10,7 +10,7 @@ name: Release
 # |---------|----------------|-----------------------------------------------------------|
 # | windows | windows        | the setup program, the remote's own, the portable copy    |
 # | linux   | ubuntu, Docker | both `.deb` files, the tarball, the portable copy         |
-# | linux-arm64 | ubuntu on arm64, Docker | the machine's `.deb` for arm64               |
+# | linux-arm64 | ubuntu on arm64, Docker | the same four, for arm64                    |
 # | android | ubuntu         | the machine's APK, and the remote's                       |
 # | ios     | macos          | both unsigned `.ipa` files                                |
 # | carols  | ubuntu         | the carol pack                                            |
@@ -257,10 +257,10 @@ jobs:
             dist/portable/linux/*.tar.gz
           if-no-files-found: error
 
-  # The machine's `.deb` for arm64, which is what a Raspberry Pi installs. `deb.sh` names no
-  # architecture and builds for the Docker host, so an arm64 runner is the whole difference from the
-  # job above. `verify-deb.sh` installs the package in a clean arm64 container. No job runs it on a
-  # board.
+  # The same four carriers for arm64, which is what a Raspberry Pi installs. The staging scripts
+  # name no architecture and build for the Docker host, so an arm64 runner is the whole difference
+  # from the job above. The verifiers install and unpack in clean arm64 containers. No job runs a
+  # carrier on a board.
   linux-arm64:
     needs: tag
     runs-on: ubuntu-24.04-arm
@@ -276,13 +276,22 @@ jobs:
       - run: bash tools/setup/fetch-assets.sh
 
       - run: bash tools/platform/linux/deb.sh
+      - run: bash tools/platform/linux/deb.sh --tools
+      - run: bash tools/platform/linux/tarball.sh
+      - run: bash tools/platform/linux/portable.sh --no-build
+
       - run: bash tools/platform/linux/verify-deb.sh
+      - run: bash tools/platform/linux/verify-deb.sh --tools
+      - run: bash tools/platform/linux/verify-tarball.sh
 
       - uses: actions/upload-artifact@v7
         with:
           name: linux-arm64
           path: |
             dist/karaokemachine/linux/*.deb
+            dist/karaokemachine/linux/*.tar.gz
+            dist/karaokemachine-tools/linux/*.deb
+            dist/portable/linux/*.tar.gz
           if-no-files-found: error
 
   # **Signed with the release key or not built.** Without `KM_ANDROID_KEYSTORE` the build signs with
@@ -477,7 +486,7 @@ jobs:
       - uses: actions/download-artifact@v8
         with:
           name: linux-arm64
-          path: dist/karaokemachine/linux
+          path: dist
       - uses: actions/download-artifact@v8
         with:
           name: android

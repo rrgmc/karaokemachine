@@ -539,14 +539,14 @@ task release:macos              #   ...both notarized packages built, then that,
 ```
 
 **`--platforms` is for the release no one machine can cut.** Only a Mac produces the two `.pkg` files
-and the two `.ipa` files, and only an arm64 Docker host produces the arm64 `.deb`. Naming the
+and the two `.ipa` files, and only an arm64 Docker host produces the four arm64 carriers. Naming the
 platforms a run carries therefore takes the rest out of the table. It takes them out of the count,
 and out of the body's download table, at the same time. A carrier of a platform that *was* named and is not staged still stops the run. The rule
 is
 [`A release page carries the platforms the machine cutting it can build`](docs/decisions/distribution.md#a-release-page-carries-the-platforms-the-machine-cutting-it-can-build).
 
 **A pushed `v*` tag runs all of this in CI, except the Mac's half.** `.github/workflows/release.yml`
-stages fourteen of the sixteen carriers on hosted runners and runs
+stages seventeen of the nineteen carriers on hosted runners and runs
 `release.sh --upload --platforms windows,linux,linux-arm64,android,quest,ios --elsewhere macos`. A Mac
 builds the two
 `.pkg` files, and `release.sh --add --platforms macos` adds them. [`RELEASE.md`](RELEASE.md) has the
@@ -724,7 +724,7 @@ dist/karaokemachine/windows/karaokemachine-1.22.0-x86_64-pc-windows-msvc/   (+ .
 dist/karaokemachine/windows/karaokemachine-1.22.0-x86_64-pc-windows-msvc-no-video/
 dist/karaokemachine/macos/Karaoke Machine.app
 dist/karaokemachine/linux/karaokemachine_1.22.0-1_amd64.deb
-dist/karaokemachine/linux/karaokemachine_1.22.0-1_arm64.deb                    (on an arm64 host)
+dist/karaokemachine/linux/karaokemachine_1.22.0-1_arm64.deb                    (on an arm64 host, as is every Linux carrier)
 dist/karaokemachine/linux/no-video/karaokemachine_1.22.0-1_amd64.deb
 dist/karaokemachine-tools/linux/karaokemachine-tools_1.22.0-1_amd64.deb
 dist/karaokemachine/linux/karaokemachine-1.22.0-x86_64-unknown-linux-gnu/   (+ .tar.gz)
