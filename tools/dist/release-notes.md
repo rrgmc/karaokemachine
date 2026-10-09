@@ -21,8 +21,8 @@ the portable copies and the remote on its own.
 ## What changed
 
 <!-- platform: linux-arm64 -->
-- **A Raspberry Pi can install the machine.** This release has a `.deb` for arm64, for Raspberry
-  Pi OS based on Debian 13.
+- **A Raspberry Pi can install the machine and its tools.** This release has every Linux file for
+  arm64 as well: both `.deb` files, the tarball and the portable copy.
 <!-- /platform -->
 - **`km-admin` asks for the machine's password only when it needs it.** The opening page picks a
   machine, and *Connect* goes straight in when this computer has its password.
@@ -43,10 +43,13 @@ the portable copies and the remote on its own.
 | `karaokemachine-portable-@VERSION@-windows-x86_64.zip` | Windows 10 or 11, 64-bit — **a portable copy**. Unzip it anywhere and run it. Every program is in it, and each keeps its settings and songs in the `data` folder inside. It reads and writes nothing in your user profile, so it runs beside an installed copy without touching it. |
 | `km-remote-setup-@VERSION@-macos-aarch64.pkg` | macOS on Apple Silicon — **the remote on its own**. KM Remote goes to `/Applications` and nothing is put on your `PATH`. |
 | `karaokemachine_@VERSION@-1_amd64.deb` | Debian 13 or later, amd64. Install it with `sudo apt install ./karaokemachine_@VERSION@-1_amd64.deb`. |
-| `karaokemachine_@VERSION@-1_arm64.deb` | Raspberry Pi OS based on Debian 13, or Debian 13 or later on arm64. Install it with `sudo apt install ./karaokemachine_@VERSION@-1_arm64.deb`. It holds the machine and no tools. |
+| `karaokemachine_@VERSION@-1_arm64.deb` | Raspberry Pi OS based on Debian 13, or Debian 13 or later on arm64. Install it with `sudo apt install ./karaokemachine_@VERSION@-1_arm64.deb`. |
 | `karaokemachine-tools_@VERSION@-1_amd64.deb` | The package builder, the offline remote and the picture-and-bank tool, for the same Debian. Download it beside the one above and install both at once: `sudo apt install ./karaokemachine_@VERSION@-1_amd64.deb ./karaokemachine-tools_@VERSION@-1_amd64.deb`. A box under a television needs only the machine. |
+| `karaokemachine-tools_@VERSION@-1_arm64.deb` | The same tools for arm64. Install both at once: `sudo apt install ./karaokemachine_@VERSION@-1_arm64.deb ./karaokemachine-tools_@VERSION@-1_arm64.deb`. |
 | `karaokemachine-@VERSION@-x86_64-unknown-linux-gnu.tar.gz` | Any other 64-bit Linux. Unpack it anywhere and run it. It includes the libraries it needs. |
+| `karaokemachine-@VERSION@-aarch64-unknown-linux-gnu.tar.gz` | Any other 64-bit Linux on ARM. Unpack it anywhere and run it. It includes the libraries it needs. |
 | `karaokemachine-portable-@VERSION@-linux-x86_64.tar.gz` | Any 64-bit Linux — **a portable copy**. Unpack it anywhere and run it. It holds the machine and every tool, and each keeps its settings and songs in the `data` folder inside. It reads and writes nothing in your home directory. |
+| `karaokemachine-portable-@VERSION@-linux-aarch64.tar.gz` | Any 64-bit Linux on ARM — **a portable copy**, with the same contents as the one above. |
 | `karaokemachine-@VERSION@-android.apk` | The machine on Android and Google TV. One file covers 32-bit and 64-bit ARM. |
 | `km-remote-@VERSION@-android.apk` | The remote, for a phone. It works when the machine is not reachable. One file covers both ARM architectures. |
 | `karaokemachine-@VERSION@-quest.apk` | The machine on a Meta Quest, on a screen that hangs in the room with the room still behind it. It installs beside the Android APK rather than over it. |
@@ -64,9 +67,9 @@ an empty catalog.
 - **Windows** shows *"Windows protected your PC"*. Click **More info**, then **Run anyway**.
 <!-- /platform -->
 <!-- platform: linux-arm64 -->
-- **The arm64 `.deb` has not run on a Raspberry Pi.** The release build installs it in a Debian 13
-  arm64 container and checks that the program starts. Picture, sound and speed on a board are
-  untested.
+- **The arm64 files have not run on a Raspberry Pi.** The release build installs and unpacks them
+  in Debian 13 arm64 containers and checks that the programs start. Picture, sound and speed on a
+  board are untested.
 <!-- /platform -->
 <!-- platform: ios -->
 - **Both `.ipa` files are unsigned, and you sign them yourself** with your own Apple ID. It takes

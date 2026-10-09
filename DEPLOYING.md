@@ -428,7 +428,8 @@ on the box.
 **The build is for this computer's architecture.** An amd64 computer builds
 `karaokemachine_<version>-1_amd64.deb`, which an arm64 box refuses. A Raspberry Pi takes the
 `_arm64.deb` from the release page: copy it to the board and run `sudo apt install ./<file>` there.
-No job has run that package on a board, so picture, sound and speed there are untested.
+The tools `.deb`, the tarball and the portable copy have arm64 files there too. No job has run any
+of them on a board, so picture, sound and speed there are untested.
 
 ### What it reports, and the four things that bite
 
