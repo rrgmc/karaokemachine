@@ -11,6 +11,19 @@ Entries are written for somebody who has the machine. Why any of it is the way i
 
 ## [Unreleased]
 
+### Changed
+
+- **`km-admin` asks for the machine's password only when it needs it.** The opening page picks a
+  machine, and each row says whether this computer has its password. *Connect* goes straight in when
+  it does. A second page asks for the password when it does not, and *Enter a different password*
+  opens that page to replace a saved one. The box for typing an address is behind *Use another
+  address*.
+
+### Fixed
+
+- **`km-admin` finds a saved password again after you pick another machine.** It asked for the
+  password of a machine you had picked before, although the password was saved.
+
 ## [1.21.2] - 2026-10-07
 
 ### Added
