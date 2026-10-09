@@ -489,27 +489,42 @@ async fn one_page_load_asks_discover_once() {
 async fn the_front_door_carries_the_box_this_program_logs_in_with() {
     let (_server, state, _dir) = common::machine().await;
 
+    // The door picks a machine and carries no password box, whatever this computer holds.
     let (status, body) = get(&state, "/admin/connect").await;
     assert_eq!(status, StatusCode::OK);
     assert!(
         body.contains(r#"action="/admin/connect/use""#),
+        "the door has no form to pick a machine with: {body}"
+    );
+    assert!(
+        !body.contains(r#"name="password""#),
+        "the door asks for a password before a machine is picked: {body}"
+    );
+    // ...and it carries the button that reaches the box without waiting to be refused.
+    assert!(
+        body.contains(r#"class="quiet" name="then" value="password""#),
+        "no way to the password page from the door: {body}"
+    );
+
+    let (status, body) = get(&state, "/admin/connect/password").await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(
+        body.contains(r#"action="/admin/connect/password""#),
         "there is nowhere to type the machine's password: {body}"
     );
     assert!(
         body.contains(r#"name="password""#),
-        "the door carries no password box: {body}"
+        "the password page carries no password box: {body}"
     );
 }
 
-/// The door says what this computer already holds, and puts the box behind that.
+/// The door says a password is saved, and the password page says which machine for.
 ///
 /// # What this is about
 ///
-/// **The page was read as asking for a password it already had.** The box was drawn on every launch
-/// whatever this computer held, and the sentence that answered *do I have to type this again* sat
-/// below the submit button, worded as a fact rather than as an answer. So the three things a person
-/// wanted before pressing anything — is it saved, for which machine, and what happens if I type
-/// nothing — were a sentence away from the control they were about, or nowhere.
+/// **A person wants to know before pressing anything whether the password will be asked for.** The
+/// row carries the answer as a label. The sentence naming the machine and the way out of remembering
+/// sit on the page where a password is typed.
 #[tokio::test]
 async fn the_door_says_it_already_has_the_password_and_which_machine_for() {
     let (server, state, _dir) = common::machine().await;
@@ -518,18 +533,34 @@ async fn the_door_says_it_already_has_the_password_and_which_machine_for() {
     state.set_machine(Some(server.uri()));
     log_in(&server, &state).await;
     answers_discover(&server).await;
+
+    let (_, body) = get(&state, "/admin/connect").await;
+    assert!(
+        !body.contains("password saved"),
+        "the row claims a password nobody saved: {body}"
+    );
+    // A token and nothing saved, which is its own label.
+    assert!(body.contains("logged in"), "{body}");
+
     post_form_to(
         &state,
-        "/admin/connect/use",
-        "row=chosen&password=first1975&remember=yes",
+        "/admin/connect/password",
+        "password=first1975&remember=yes",
     )
     .await;
 
     let (status, body) = get(&state, "/admin/connect").await;
     assert_eq!(status, StatusCode::OK);
     assert!(
+        body.contains("password saved"),
+        "the row does not say this computer has its password: {body}"
+    );
+
+    let (status, body) = get(&state, "/admin/connect/password").await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(
         body.contains("has the password for Living Room"),
-        "the door does not say what it holds, or which machine for: {body}"
+        "the page does not say what it holds, or which machine for: {body}"
     );
     // The way out, beside the sentence saying there is something to forget rather than under the
     // button. `form=` because a form inside a form is not a document.
@@ -537,62 +568,45 @@ async fn the_door_says_it_already_has_the_password_and_which_machine_for() {
         body.contains(r#"form="forget-password""#),
         "no way to stop remembering: {body}"
     );
-    // ...and the box is still there, one press away rather than gone: a machine whose password has
-    // been changed is answered by typing the new one here.
-    let Some(behind) = body.split_once(r#"<details class="retype""#) else {
-        panic!("the box is not behind a summary: {body}");
-    };
+    // The tick opens set, so retyping a password does not forget it by accident.
     assert!(
-        behind.1.contains(r#"name="password""#),
-        "the box is outside the summary it should be behind: {body}"
-    );
-    assert!(
-        !behind.0.contains(r#"name="password""#),
-        "a second password box above the summary: {body}"
+        body.contains(r#"name="remember" value="yes" checked"#),
+        "{body}"
     );
 }
 
-/// A refusal opens the box it asks somebody to use.
+/// The second button reaches the password page and asks the machine nothing.
 ///
-/// Every bad notice this page draws is answered by typing a password — an address that is not one, a
-/// machine that did not answer, one that refused the password, a write refused three tabs away — so
-/// pointing at a closed box would be the page asking for a press before the press it wants.
+/// *Let me type one* is as true of a machine that is switched off as of one that is on, and a saved
+/// password must not be spent by the press that asks to replace it.
 #[tokio::test]
-async fn a_refusal_opens_the_box_rather_than_pointing_at_it() {
-    let (_server, state, _dir) = common::signed_in().await;
+async fn asking_for_a_different_password_asks_the_machine_nothing() {
+    let (server, state, _dir) = common::machine().await;
 
-    let (status, body) = get(&state, "/admin/connect").await;
-    assert_eq!(status, StatusCode::OK);
+    let landed = post_form_to(&state, "/admin/connect/use", "row=chosen&then=password").await;
+    assert_eq!(landed, "/admin/connect/password", "{landed}");
     assert!(
-        body.contains(r#"<details class="retype">"#),
-        "the box opens with nothing having been refused: {body}"
-    );
-
-    let (status, body) = get(&state, "/admin/connect?kind=bad&said=nope").await;
-    assert_eq!(status, StatusCode::OK);
-    assert!(
-        body.contains(r#"<details class="retype" open>"#),
-        "a refusal left the box it names shut: {body}"
+        server
+            .received_requests()
+            .await
+            .expect("recorded")
+            .is_empty(),
+        "the machine was called on the way to the password page"
     );
 }
 
 /// A token already held is a password the machine accepted, and the door takes it.
 ///
-/// # The bug this pins
-///
-/// **The page said one thing and the handler did another.** *This program is already logged in…
-/// leave the box empty to stay that way* was drawn whenever a token was held, but a blank box was
-/// only ever spent against a *remembered* password — so somebody who logged in without ticking the
-/// box, went to a tab and came back was told to leave it empty and then refused for want of a
-/// password they had already given.
+/// Somebody who logged in without ticking the box, went to a tab and came back has nothing saved
+/// and nothing to type. Asking them again would be the door demanding an answer it already holds.
 #[tokio::test]
-async fn a_token_already_held_opens_the_door_with_the_box_blank() {
+async fn a_token_already_held_opens_the_door_with_no_password_page() {
     let (server, state, _dir) = common::machine().await;
     // Logged in and nothing written down, which is what leaving the tick clear leaves behind.
     log_in(&server, &state).await;
     assert_eq!(state.remembered_password(), None);
 
-    let landed = post_form_to(&state, "/admin/connect/use", "row=chosen&password=").await;
+    let landed = post_form_to(&state, "/admin/connect/use", "row=chosen").await;
     assert_eq!(landed, "/admin/machine", "{landed}");
 
     // And the machine was not asked a second time: what was spent is the token this run already
@@ -638,8 +652,8 @@ async fn the_machine_tab_says_so_once_this_program_is_logged_in() {
 
 /// Logging in from the door enters the machine.
 ///
-/// Choosing a machine and being let in to it are one errand, so one form does both and the answer is
-/// the tab somebody came to use.
+/// With nothing saved and no token, picking a machine leads to the password page, and the password
+/// typed there leads to the tab somebody came to use.
 #[tokio::test]
 async fn logging_in_from_the_door_enters_the_machine() {
     let (server, state, _dir) = common::machine().await;
@@ -652,16 +666,18 @@ async fn logging_in_from_the_door_enters_the_machine() {
         .mount(&server)
         .await;
 
-    let said = post_form_to(
-        &state,
-        "/admin/connect/use",
-        "row=chosen&password=first1975",
-    )
-    .await;
+    let said = post_form_to(&state, "/admin/connect/use", "row=chosen").await;
+    assert_eq!(said, "/admin/connect/password", "{said}");
+    assert!(
+        !state.logged_in(),
+        "picking a machine logged in with nothing"
+    );
+
+    let said = post_form_to(&state, "/admin/connect/password", "password=first1975").await;
     assert_eq!(said, "/admin/machine", "{said}");
 }
 
-/// A password the machine refuses comes back to the door and is not written down.
+/// A password the machine refuses comes back to the page it was typed on and is not written down.
 #[tokio::test]
 async fn a_password_the_machine_refuses_comes_back_to_the_door() {
     let (server, state, _dir) = common::machine().await;
@@ -675,11 +691,11 @@ async fn a_password_the_machine_refuses_comes_back_to_the_door() {
 
     let said = post_form_to(
         &state,
-        "/admin/connect/use",
-        "row=chosen&password=wrong&remember=yes",
+        "/admin/connect/password",
+        "password=wrong&remember=yes",
     )
     .await;
-    assert!(said.starts_with("/admin/connect?"), "{said}");
+    assert!(said.starts_with("/admin/connect/password?"), "{said}");
     assert!(said.contains("kind=bad"), "{said}");
     assert_eq!(
         state.remembered_password(),
@@ -706,11 +722,11 @@ async fn a_write_refused_for_want_of_a_password_lands_on_the_door() {
         .await;
 
     let said = post_form_to(&state, "/admin/machine/demo", "enabled=yes").await;
-    assert!(said.starts_with("/admin/connect?"), "{said}");
+    assert!(said.starts_with("/admin/connect/password?"), "{said}");
     assert!(said.contains("kind=bad"), "{said}");
 
     // And the page that `Location` names really does carry the box.
-    let (status, body) = get(&state, "/admin/connect").await;
+    let (status, body) = get(&state, "/admin/connect/password").await;
     assert_eq!(status, StatusCode::OK);
     assert!(
         body.contains(r#"name="password""#),
@@ -809,13 +825,13 @@ async fn a_machine_that_answers_is_recorded_by_its_id() {
 
 /// Nothing is keyed under a machine that has not said which machine it is.
 ///
-/// **The rule is about storing, and the door had to stop expressing it by not drawing the box.**
-/// One row shared by every anonymous machine is a password handed to whichever answers next, so a
-/// password may only be written down under an id — but this page asks the machine nothing, by
-/// design, so on a first login there is no id yet and a box gated on one could never be ticked. The
-/// id is recorded by `handlers::enter` at the moment a login proves the machine is up, and the
-/// password is stored after that. This asserts both halves: a machine that never answers keeps
-/// nothing, and one that does is remembered under its own id.
+/// **The rule is about storing, and the page does not express it by leaving the box out.** One row
+/// shared by every anonymous machine is a password handed to whichever answers next, so a password
+/// may only be written down under an id. Drawing the page asks the machine nothing, so on a first
+/// login there may be no id yet, and a box gated on one could never be ticked. The id is recorded by
+/// `handlers::give_password` at the moment a login proves the machine is up, and the password is
+/// stored after that. This asserts both halves: a machine that never says who it is keeps nothing,
+/// and one that does is remembered under its own id.
 #[tokio::test]
 async fn a_password_is_remembered_only_under_a_machine_that_named_itself() {
     // A machine that takes the password and will not say who it is: no `/discover` mock at all.
@@ -833,14 +849,14 @@ async fn a_password_is_remembered_only_under_a_machine_that_named_itself() {
     state.set_machine(Some(silent.uri()));
 
     // The box is offered, because a password typed here can be checked.
-    let (status, body) = get(&state, "/admin/connect").await;
+    let (status, body) = get(&state, "/admin/connect/password").await;
     assert_eq!(status, StatusCode::OK);
     assert!(body.contains(r#"name="remember""#), "{body}");
 
     post_form_to(
         &state,
-        "/admin/connect/use",
-        "row=chosen&password=first1975&remember=yes",
+        "/admin/connect/password",
+        "password=first1975&remember=yes",
     )
     .await;
     assert!(
@@ -866,8 +882,8 @@ async fn a_password_is_remembered_only_under_a_machine_that_named_itself() {
 
     post_form_to(
         &answering,
-        "/admin/connect/use",
-        "row=chosen&password=first1975&remember=yes",
+        "/admin/connect/password",
+        "password=first1975&remember=yes",
     )
     .await;
     assert!(
@@ -1091,8 +1107,8 @@ async fn a_send_with_no_password_lands_on_the_door_that_holds_one() {
 
     let landed = post_form_to(&state, "/admin/pictures/packs/wallpapers-aaaaaaaa/send", "").await;
     assert!(
-        landed.starts_with("/admin/connect?"),
-        "a refused send goes to the door, not to {landed}"
+        landed.starts_with("/admin/connect/password?"),
+        "a refused send goes to the door's password page, not to {landed}"
     );
     assert!(landed.contains("kind=bad"), "{landed}");
     // The sentence names where the box is, and the box is here rather than on the *This machine*
@@ -1101,8 +1117,8 @@ async fn a_send_with_no_password_lands_on_the_door_that_holds_one() {
 
     // ...and the door it goes to is a page, with the control the sentence asks somebody to use.
     // `post_form_to` reads `+` back as a space for legibility, so the query is not re-requestable;
-    // what this asks of the destination is that it is the door and that the box is on it.
-    let (status, body) = get(&state, "/admin/connect").await;
+    // what this asks of the destination is that it is a page and that the box is on it.
+    let (status, body) = get(&state, "/admin/connect/password").await;
     assert_eq!(status, StatusCode::OK, "{body}");
     assert!(
         body.contains(r#"name="password""#),
@@ -1134,6 +1150,7 @@ async fn a_notice_meant_for_this_programs_own_page_is_drawn_on_it() {
         "/admin/pictures/find",
         "/admin/sound/fetch",
         "/admin/connect",
+        "/admin/connect/password",
     ] {
         let (status, body) = get(&state, &format!("{page}?kind=bad&said=nope")).await;
         assert_eq!(status, StatusCode::OK, "{page}: {body}");
@@ -1292,8 +1309,11 @@ async fn both_buttons_post_one_form_and_no_name_is_suggested() {
 async fn the_door_does_not_open_without_a_password() {
     let (server, state, _dir) = common::machine().await;
 
-    let landed = post_form_to(&state, "/admin/connect/use", "row=chosen&password=").await;
-    assert!(landed.starts_with("/admin/connect?"), "{landed}");
+    let landed = post_form_to(&state, "/admin/connect/use", "row=chosen").await;
+    assert_eq!(landed, "/admin/connect/password", "{landed}");
+
+    let landed = post_form_to(&state, "/admin/connect/password", "password=").await;
+    assert!(landed.starts_with("/admin/connect/password?"), "{landed}");
     assert!(landed.contains("kind=bad"), "{landed}");
     assert!(
         !state.logged_in(),
@@ -1312,40 +1332,49 @@ async fn the_door_does_not_open_without_a_password() {
 
 /// A machine that does not answer is told apart from a password it refused.
 ///
-/// Two different things to do about it — switch the machine on, or retype — so two sentences.
+/// Two different things to do about it — switch the machine on, or type again — so two sentences.
+/// Both land on the page that picks a machine, because that is where an address is mended.
 #[tokio::test]
 async fn a_machine_that_does_not_answer_says_so_rather_than_blaming_the_password() {
     let dir = tempfile::tempdir().expect("temp dir");
     // A port nothing is listening on. Loopback, which is this repository's rule for a test.
     let state = State::new(dir.path().to_path_buf(), Some("127.0.0.1:1".to_owned()));
 
-    let landed = post_form_to(
-        &state,
-        "/admin/connect/use",
-        "row=chosen&password=first1975",
-    )
-    .await;
+    let landed = post_form_to(&state, "/admin/connect/password", "password=first1975").await;
+    assert!(landed.starts_with("/admin/connect?"), "{landed}");
     assert!(landed.contains("kind=bad"), "{landed}");
     assert!(
         landed.contains("did not answer"),
         "an unreachable machine was reported as a refused password: {landed}"
     );
+
+    // ...and a machine picked from the list that is not there says so before any password page.
+    let dir = tempfile::tempdir().expect("temp dir");
+    let state = State::new(dir.path().to_path_buf(), None);
+    let landed = post_form_to(
+        &state,
+        "/admin/connect/use",
+        "row=typed&typed=127.0.0.1%3A1",
+    )
+    .await;
+    assert!(landed.starts_with("/admin/connect?"), "{landed}");
+    assert!(landed.contains("did not answer"), "{landed}");
 }
 
 /// Spending a remembered password keeps it.
 ///
 /// # The bug this pins
 ///
-/// **The tick is spent on the password in hand, and a blank box has none.** The door draws no
-/// checkbox where nothing is being typed — there is nothing for it to be a statement about — so an
-/// entry that read its absence as *forget* would delete a credential as a side effect of using it,
-/// on the one press the page exists for. Using a thing is not asking for it to be thrown away.
+/// **The tick is spent on the password in hand, and the door's first page has none.** That page
+/// draws no checkbox, so an entry that read its absence as *forget* would delete a credential as a
+/// side effect of using it, on the one press the page exists for. Using a thing is not asking for
+/// it to be thrown away.
 ///
 /// The route out is *Forget it*, which is beside the sentence saying there is something to forget,
 /// and `an_unticked_box_forgets_and_so_does_the_button` is where both of those are pinned.
 #[tokio::test]
 async fn spending_a_remembered_password_keeps_it() {
-    let (server, state, _dir) = common::machine().await;
+    let (server, state, dir) = common::machine().await;
     // Chosen rather than handed over on a command line: only a chosen machine has a record for an
     // identity to be written against, and an identity is what a password is keyed by.
     state.set_machine(Some(server.uri()));
@@ -1354,32 +1383,113 @@ async fn spending_a_remembered_password_keeps_it() {
 
     post_form_to(
         &state,
-        "/admin/connect/use",
-        "row=chosen&password=first1975&remember=yes",
+        "/admin/connect/password",
+        "password=first1975&remember=yes",
     )
     .await;
     assert!(state.remembered_password().is_some(), "nothing was stored");
 
-    // The box blank and no tick in the body, which is every entry the saved state draws.
-    let landed = post_form_to(&state, "/admin/connect/use", "row=chosen&password=").await;
+    // A fresh run holds no token, so the door spends what is saved and asks for nothing.
+    let next = State::new(dir.path().to_path_buf(), None);
+    assert!(!next.logged_in());
+    let landed = post_form_to(&next, "/admin/connect/use", "row=chosen").await;
     assert_eq!(landed, "/admin/machine", "{landed}");
+    assert!(next.logged_in(), "the saved password was not spent");
     assert_eq!(
-        state.remembered_password().as_deref(),
+        next.remembered_password().as_deref(),
         Some("first1975"),
         "using the remembered password threw it away"
     );
 
-    // ...and typing one with the tick cleared still forgets, the box being drawn on that pass.
-    let landed = post_form_to(
-        &state,
-        "/admin/connect/use",
-        "row=chosen&password=first1975",
-    )
-    .await;
+    // ...and typing one with the tick cleared still forgets, the box being drawn on that page.
+    let landed = post_form_to(&next, "/admin/connect/password", "password=first1975").await;
     assert_eq!(landed, "/admin/machine", "{landed}");
     assert!(
-        state.remembered_password().is_none(),
+        next.remembered_password().is_none(),
         "an unticked box kept a password that was typed beside it"
+    );
+}
+
+/// A saved password is found again after another machine was picked in between.
+///
+/// # The fault this pins
+///
+/// **Picking an address writes a record with no id, and the store is keyed by id.** So a machine
+/// picked for the second time looked like one this computer had never met, and its password was
+/// asked for although it was saved. The door asks the machine which machine it is, and that answer
+/// is the key.
+#[tokio::test]
+async fn a_saved_password_survives_picking_another_machine() {
+    let (server, state, _dir) = common::machine().await;
+    state.set_machine(Some(server.uri()));
+    log_in(&server, &state).await;
+    answers_discover(&server).await;
+    post_form_to(
+        &state,
+        "/admin/connect/password",
+        "password=first1975&remember=yes",
+    )
+    .await;
+
+    // Somewhere else, through the second button so that nothing waits on an address that is not
+    // there. The record now names that address and holds no id.
+    post_form_to(
+        &state,
+        "/admin/connect/use",
+        "row=typed&typed=127.0.0.1%3A1&then=password",
+    )
+    .await;
+    assert_eq!(state.remembered_password(), None);
+    assert!(!state.logged_in());
+
+    // Back to the first machine, as a row the browse listed.
+    let row = format!(
+        "row={}",
+        server.uri().replace(':', "%3A").replace('/', "%2F")
+    );
+    let landed = post_form_to(&state, "/admin/connect/use", &row).await;
+    assert_eq!(
+        landed, "/admin/machine",
+        "a machine whose password is saved was asked for it again"
+    );
+    assert!(state.logged_in());
+}
+
+/// A saved password the machine refuses leads to the password page, and stays saved.
+///
+/// A refusal can be the machine's limit on attempts as well as a changed password, so one answer is
+/// not grounds to delete a credential. *Forget it* is on the page this lands on.
+#[tokio::test]
+async fn a_saved_password_the_machine_refuses_asks_for_a_new_one() {
+    let (server, state, dir) = common::machine().await;
+    state.set_machine(Some(server.uri()));
+    log_in(&server, &state).await;
+    answers_discover(&server).await;
+    post_form_to(
+        &state,
+        "/admin/connect/password",
+        "password=first1975&remember=yes",
+    )
+    .await;
+
+    // The machine's password changes.
+    server.reset().await;
+    Mock::given(method("POST"))
+        .and(path(common::wire_path(km_admin::machine::Call::Login)))
+        .respond_with(ResponseTemplate::new(401).set_body_json(
+            serde_json::json!({"error": "unauthorized", "message": "wrong password"}),
+        ))
+        .mount(&server)
+        .await;
+
+    let next = State::new(dir.path().to_path_buf(), None);
+    let landed = post_form_to(&next, "/admin/connect/use", "row=chosen").await;
+    assert!(landed.starts_with("/admin/connect/password?"), "{landed}");
+    assert!(landed.contains("saved on this computer"), "{landed}");
+    assert_eq!(
+        next.remembered_password().as_deref(),
+        Some("first1975"),
+        "one refusal deleted a saved password"
     );
 }
 
@@ -1403,8 +1513,8 @@ async fn a_run_pointed_elsewhere_does_not_borrow_another_machines_password() {
     answers_discover(&server).await;
     post_form_to(
         &chosen,
-        "/admin/connect/use",
-        "row=chosen&password=first1975&remember=yes",
+        "/admin/connect/password",
+        "password=first1975&remember=yes",
     )
     .await;
     assert!(

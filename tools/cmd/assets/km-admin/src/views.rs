@@ -111,6 +111,9 @@ pub struct NoticeParams {
     /// What to say.
     #[serde(default)]
     pub said: Option<String>,
+    /// Present when the notice is about an address, so the door opens the box that mends it.
+    #[serde(default)]
+    pub another: Option<String>,
 }
 
 impl NoticeParams {
@@ -130,7 +133,7 @@ impl NoticeParams {
     }
 }
 
-/// The front door: which machine, and the password for it.
+/// The front door: which machine.
 #[derive(Template)]
 #[template(path = "connect.html")]
 pub struct Connect {
@@ -142,36 +145,15 @@ pub struct Connect {
     pub chosen: Option<String>,
     /// What the record calls that machine, where it has answered once and said.
     pub chosen_name: Option<String>,
-    /// Whether this program holds a token the machine will accept.
+    /// Whether this computer has that machine's password saved.
+    pub saved: bool,
+    /// Whether this program holds a token that machine will accept.
     pub logged_in: bool,
-    /// The sentence saying this computer has this machine's password, or `None` where it has not.
+    /// Whether the address box opens on load rather than behind its summary.
     ///
-    /// **Composed rather than a key**, because it names the machine: which machine a password is for
-    /// is the question this page was read as leaving open, and a sentence about *this machine* on a
-    /// page whose whole subject is picking one answers it only by accident. The record's name where
-    /// there is one, and a sentence that names nothing where there is not — a machine gains a name
-    /// and an id together, so the nameless case is a machine whose owner never named it.
-    pub saved: Option<String>,
-    /// Whether the file a password would be written to can be made owner-only on this platform.
-    ///
-    /// The page says what is true rather than claiming a protection it did not apply.
-    pub owner_only: bool,
-    /// Whether the box opens on load rather than behind its summary.
-    ///
-    /// **Every bad notice on this page is about getting in** — an address that is not one, a machine
-    /// that did not answer, a password it refused, a write refused three tabs away — and every one of
-    /// them is answered by typing a password. So a refusal opens the box it asks somebody to use
-    /// rather than pointing at a closed one.
-    pub retype: bool,
-    /// Whether to offer the *remember it* box beside the password.
-    ///
-    /// **Drawn where a password could actually be written down**, which is not the same as a
-    /// machine being chosen. A password is keyed by the machine id a login records into the chosen
-    /// record, so the box belongs where that record is about the machine in force: on a first login
-    /// the id does not exist yet and the record does, which is enough. Where it is not — a
-    /// `--machine` run pointed somewhere the record does not name — a tick would be taken and then
-    /// discarded, so no box is offered. See [`crate::server::State::can_remember`].
-    pub can_remember: bool,
+    /// **Open where the notice is about an address**, because the box is what that notice asks
+    /// somebody to mend.
+    pub another_open: bool,
     /// Every language this build has, with the one these pages are in marked.
     ///
     /// **This program's language and not the machine's**, which is the *Screen language* pane on
@@ -185,14 +167,52 @@ pub struct Connect {
     pub locales: Vec<km_admin_pages::views::LocaleChoice>,
 }
 
+/// One machine a browse turned up.
+pub struct FoundRow {
+    /// The machine's name.
+    pub name: String,
+    /// The address to talk to it on.
+    pub url: String,
+    /// Whether this is the machine already chosen, so the row can say so.
+    pub chosen: bool,
+    /// Whether this computer has a password saved under the id this machine advertises.
+    ///
+    /// **For the label only.** An advertised id is unchecked, so [`crate::handlers::enter`] asks the
+    /// machine for its id before it spends a saved password.
+    pub saved: bool,
+}
+
 /// The machines a browse turned up, as a fragment the door pulls in after it has drawn.
 #[derive(Template)]
 #[template(path = "_found.html")]
 pub struct Found {
     /// Every machine advertising itself, **none of them pre-selected**.
-    pub found: Vec<km_api::discover::Sighting>,
-    /// The machine already chosen, so a row that is it can say so rather than offering itself twice.
-    pub chosen: Option<String>,
+    pub found: Vec<FoundRow>,
+}
+
+/// The front door's second page: the password for the machine in force.
+#[derive(Template)]
+#[template(path = "password.html")]
+pub struct Password {
+    /// The machine the password is for.
+    pub address: String,
+    /// What the record calls that machine, where it has answered once and said.
+    pub name: Option<String>,
+    /// The sentence saying this computer has this machine's password, or `None` where it has not.
+    ///
+    /// **Composed rather than a key**, because it names the machine. The record's name where there
+    /// is one, and a sentence that names nothing where there is not.
+    pub saved: Option<String>,
+    /// Whether the file a password would be written to can be made owner-only on this platform.
+    ///
+    /// The page says what is true rather than claiming a protection it did not apply.
+    pub owner_only: bool,
+    /// Whether to offer the *remember it* box beside the password.
+    ///
+    /// **Drawn where a password could actually be written down.** A `--machine` run pointed
+    /// somewhere the record does not name has no identity to key one under, so a tick there would
+    /// be taken and discarded. See [`crate::server::State::can_remember`].
+    pub can_remember: bool,
 }
 
 /// `GET /admin/connect` — this program's front door.
@@ -207,32 +227,52 @@ pub async fn connect(
     headers: HeaderMap,
 ) -> Response {
     let locale = crate::words::locale(&headers);
-    let words = crate::words::messages(locale);
-    let chosen = crate::chosen::load(pages.state.data_dir());
-    // The client's address rather than the record's: a `--machine` run is pointed somewhere the
-    // record does not know about, and the door has to offer what this run is actually using.
-    let address = pages.state.machine();
-    let chosen_name = chosen.as_ref().and_then(|known| known.name.clone());
-    let remembering = pages.state.remembering();
     let template = Connect {
-        saved: remembering
+        // The client's address rather than the record's: a `--machine` run is pointed somewhere the
+        // record does not know about, and the door has to offer what this run is actually using.
+        chosen: pages.state.machine(),
+        chosen_name: pages.state.machine_name(),
+        saved: pages
+            .state
+            .remembering()
+            .is_some_and(|remembering| remembering.on),
+        logged_in: pages.state.logged_in(),
+        another_open: params.another.is_some(),
+        locales: km_admin_pages::views::LocaleChoice::all(locale),
+    };
+    door(&pages, &template, locale, params.into_notice())
+}
+
+/// `GET /admin/connect/password` — the password for the machine just picked.
+///
+/// **With no machine in force there is nothing to ask about**, so this is the door. That is the
+/// state a bookmark of this page meets on a fresh install.
+pub async fn password(
+    axum::extract::State(pages): axum::extract::State<Pages>,
+    axum::extract::Query(params): axum::extract::Query<NoticeParams>,
+    headers: HeaderMap,
+) -> Response {
+    let Some(address) = pages.state.machine() else {
+        return axum::response::Redirect::to(CONNECT_PAGE).into_response();
+    };
+    let locale = crate::words::locale(&headers);
+    let words = crate::words::messages(locale);
+    let name = pages.state.machine_name();
+    let template = Password {
+        saved: pages
+            .state
+            .remembering()
             .filter(|remembering| remembering.on)
-            .map(|_| match &chosen_name {
+            .map(|_| match &name {
                 Some(name) => words
                     .msg_with("door-saved-for", &[("machine", name.as_str().into())])
                     .into_owned(),
                 None => words.msg("door-saved-here").into_owned(),
             }),
         owner_only: crate::passwords::owner_only(),
-        // Read before `into_notice` takes the params, which is the whole of the plumbing this
-        // needed: the notice is already on its way to the wrapper, and what the box wants to know is
-        // the kind rather than the words.
-        retype: params.kind.as_deref() == Some("bad"),
-        chosen_name,
         can_remember: pages.state.can_remember(),
-        chosen: address,
-        logged_in: pages.state.logged_in(),
-        locales: km_admin_pages::views::LocaleChoice::all(locale),
+        address,
+        name,
     };
     door(&pages, &template, locale, params.into_notice())
 }
@@ -242,8 +282,8 @@ pub async fn connect(
 /// **Its own request because it takes three seconds.** `Discovering a machine in the package
 /// builder` binds this program to waiting the whole of it rather than stopping at the first answer,
 /// and a page that did that inline would be blank for three seconds every launch — on the program
-/// whose front door this is. So the door draws at once with the remembered machine and the address
-/// box, and this arrives underneath.
+/// whose front door this is. So the door draws at once with the remembered machine, and this arrives
+/// underneath.
 pub async fn found(
     axum::extract::State(state): axum::extract::State<crate::server::State>,
     headers: HeaderMap,
@@ -253,13 +293,21 @@ pub async fn found(
     // Following is not adopting: this moves a machine somebody *already chose* to a new address when
     // its id turns up there, which is the exception `machine.json` records.
     state.follow_machine();
-    render(
-        &Found {
-            found: state.machines_seen(),
-            chosen: state.machine(),
-        },
-        locale,
-    )
+    let chosen = state.machine();
+    let found = state
+        .machines_seen()
+        .into_iter()
+        .map(|sighting| FoundRow {
+            chosen: chosen.as_deref() == Some(sighting.url.as_str()),
+            saved: sighting
+                .id
+                .as_deref()
+                .is_some_and(|id| state.holds_password_for(id)),
+            name: sighting.name,
+            url: sighting.url,
+        })
+        .collect();
+    render(&Found { found }, locale)
 }
 
 /// The Sound page: the whole bank table, and what is to be done about each row.
@@ -424,6 +472,12 @@ pub const PICTURES_PAGE: &str = "/admin/pictures/find";
 /// this is the one path a browser is handed directly.
 pub const CONNECT_PAGE: &str = "/admin/connect";
 
+/// The door's second page, where the password for the machine in force is typed.
+///
+/// **Under [`CONNECT_PAGE`]**, because the door layer in [`crate::server`] lets that prefix through
+/// and nothing else.
+pub const PASSWORD_PAGE: &str = "/admin/connect/password";
+
 /// Every path this program writes out for itself that no template holds.
 ///
 /// **The sweep cannot see these**, which is why they are collected here: a const reaches markup
@@ -431,6 +485,7 @@ pub const CONNECT_PAGE: &str = "/admin/connect";
 /// header, and neither is text a scan of `templates/` can find.
 pub const OWN_PATHS: &[&str] = &[
     CONNECT_PAGE,
+    PASSWORD_PAGE,
     SOUND_PAGE,
     PICTURES_PAGE,
     SOUND_LIST,

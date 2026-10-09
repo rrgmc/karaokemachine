@@ -16,9 +16,9 @@
 
 ## The front door ------------------------------------------------------------
 #
-# Which machine, and the password for it. The two are one form because they are one errand: nothing
-# on the tabs behind this page can write to a machine until it has been told which one and been let
-# in. The password box is labelled from a key of this file's own even though the shared catalog has
+# Which machine, and then the password for it where one has to be typed. Nothing on the tabs behind
+# these two pages can write to a machine until it has been told which one and been let in. The
+# password box is labelled from a key of this file's own even though the shared catalog has
 # one for the same box, because `Catalogs live beside the words they translate` puts a key where its
 # markup is; what keeps the two saying the same thing is the rule, not the file.
 
@@ -27,18 +27,23 @@ door-password = The machine's password
 door-explained = Everything this program sends goes to the machine you pick here. It has to be switched on, so that it can check the password.
 door-chosen-unnamed = The machine you last chose
 door-last-used = last used
-door-typed = Another address
+door-another = Use another address
+door-typed = Use this address
+door-address = The machine's address
 door-address-example = 192.168.1.50
 door-looking = Looking for machines on this network…
-door-none-found = No machines answered. Type an address above, or look again once the machine is on.
+door-none-found = No machines answered. Look again once the machine is on, or use another address.
 door-look-again = Look again
 door-this-one = this one
-door-use = Use this machine
+door-badge-saved = password saved
+door-badge-logged-in = logged in
+door-use = Connect
+door-other-password = Enter a different password
+door-password-heading = The password for this machine
+door-log-in = Log in
+door-back = Choose another machine
 door-saved-for = This computer has the password for { $machine }.
 door-saved-here = This computer has this machine's password.
-door-already = This program is already logged in to this machine.
-door-retype = Type a different password
-door-retype-again = Type the password again
 door-remember = Remember this password on this computer
 door-remember-open = On this computer your user profile protects the file, and nothing more does.
 door-forget = Forget it
@@ -61,6 +66,7 @@ door-locale-changed = These pages are now in this language.
 door-needs-an-address = Type an address, or pick a machine.
 door-no-machine = That address could not be used.
 door-password-refused = The machine did not accept that password.
+door-saved-refused = The machine did not accept the password saved on this computer. Type the one it has now.
 door-needs-a-password = This machine's password is needed before this program can be used with it.
 door-unreachable = That machine did not answer. Check that it is switched on and that the address is right.
 send-needs-password = This machine asks for its password before anything can be sent to it. Type it here, then send again.

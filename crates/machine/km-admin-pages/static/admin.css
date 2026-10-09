@@ -417,9 +417,9 @@ a:hover { text-decoration: underline; }
 .card h2 a { color: var(--accent); }
 .card p { margin: 0 0 0.7rem; }
 
-/* A host's front door: which machine, and the password for it -------------- *
+/* A host's front door: which machine, and then the password for it --------- *
  *
- * One card on an otherwise empty page, because the page has one thing on it. Narrower than the body
+ * One card on an otherwise empty page, because each page has one thing on it. Narrower than the body
  * and centred, so it reads as a door rather than as a tab whose chrome failed to load. */
 .door { max-width: 34rem; margin-inline: auto; }
 
@@ -474,21 +474,17 @@ a:hover { text-decoration: underline; }
 }
 .door .saved p { margin: 0; }
 
-/* The box behind a summary, where there is already a way in. A default triangle and bold label read
- * as a section of the page; what this is is one more thing you may press, so it takes the accent and
- * the weight of a link. */
-.door details.retype > summary {
+/* The address box behind a summary, because a machine that is switched on lists itself. A default
+ * triangle and bold label read as a section of the page; what this is is one more thing you may
+ * press, so it takes the accent and the weight of a link. */
+.door details.another > summary {
   cursor: pointer;
   color: var(--accent);
   width: fit-content;
 }
-.door details.retype > summary::marker { content: ""; }
-.door details.retype[open] > summary { margin-bottom: 0.6rem; }
-
-/* The saved sentence is about the machine this program is pointed at, and a row somebody has just
- * picked may be another one — so it stops claiming to be about that one the moment the picked row is
- * not the chosen row. The box below stays, which is what that state needs. */
-.door form:not(:has(.machines input[value="chosen"]:checked)) .saved { display: none; }
+.door details.another > summary::marker { content: ""; }
+.door details.another[open] > summary { margin-bottom: 0.6rem; }
+.door details.another .machines { margin: 0; }
 
 /* The browse fills a second list under the first, and the two are one column of machines to a
  * reader. Left alone, the first list's trailing margin and the second's leading one stack on top of

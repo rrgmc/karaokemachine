@@ -192,12 +192,12 @@ async fn nothing_is_kept_whichever_way_it_goes() {
         assert!(said.contains(expected), "{status} produced: {said}");
         if door {
             assert!(
-                said.starts_with("/admin/connect?"),
+                said.starts_with("/admin/connect/password?"),
                 "a {status} has to land on the page that mends it: {said}"
             );
         } else {
             assert!(
-                !said.starts_with("/admin/connect?"),
+                !said.starts_with("/admin/connect"),
                 "a {status} is not something the password box can mend: {said}"
             );
         }

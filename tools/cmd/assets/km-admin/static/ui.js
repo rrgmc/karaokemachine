@@ -102,27 +102,16 @@
     }, 0);
   });
 
-  // **The front door's password box follows the row somebody picks.**
+  // **Typing an address on the front door picks the row it belongs to.**
   //
-  // What this computer has saved is saved for the machine it is pointed at, so the moment another
-  // row is picked the box is the only way in and there is no reason to make somebody open it. The
-  // tick goes with it: it opens set for the machine in force, and a machine nobody has chosen yet is
-  // not one this computer has been asked to remember. `defaultChecked` is the markup's own answer,
-  // so the tick comes back if the first row is picked again.
-  //
-  // The sentence above the box goes at the same time, by a rule in the stylesheet, which is what
-  // covers all of this with the script absent: the box is then one press away rather than open, and
-  // the page still works.
-  //
-  // Delegated because the discovered rows arrive after load.
-  document.body.addEventListener("change", (event) => {
-    const picked = event.target;
-    if (!picked || picked.name !== "row" || !picked.form) return;
-    const chosen = picked.value === "chosen";
-    const box = picked.form.querySelector("details.retype");
-    if (box) box.open = !chosen;
-    const remember = picked.form.querySelector('input[name="remember"]');
-    if (remember) remember.checked = remember.defaultChecked && chosen;
+  // The box is read only when its own row is the one selected, so an address typed under another
+  // row's dot would be sent nowhere. With the script absent the row is one press away and the page
+  // still works.
+  document.body.addEventListener("input", (event) => {
+    const box = event.target;
+    if (!box || box.name !== "typed" || !box.form) return;
+    const row = box.form.querySelector('input[name="row"][value="typed"]');
+    if (row) row.checked = true;
   });
 
   // Exposed so a handler's fragment can raise one without a round trip of its own.
