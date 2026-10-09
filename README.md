@@ -193,6 +193,15 @@ catalog and queue a song.
 
 - [KaraokeMachine Video Tools](https://github.com/rrgmc/km-video-tools)
 
+### Sites with downloadable karaoke files
+
+You may use the command-line app "km-site-pack" to make a package out of these sites.
+
+* [Geoff Carters MIDI Page](https://midkar.com/Geoff_Carters_MIDI_Page/GeoffCartersMIDIs_A_to_Z.html)
+* [karaokemusic weebly](https://karaokemusic.weebly.com/)
+* [Jimmy Sears](http://jimmy-sears.awardspace.biz/music/music.htm)
+* [mg20.vc-graz](https://mg20.vc-graz.ac.at/karaoke/songs/)
+
 ## License
 
 `MIT OR Apache-2.0`, at your option, as every crate in the workspace declares. The texts are
