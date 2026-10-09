@@ -20,6 +20,10 @@ the portable copies and the remote on its own.
 
 ## What changed
 
+<!-- platform: linux-arm64 -->
+- **A Raspberry Pi can install the machine.** This release has a `.deb` for arm64, for Raspberry
+  Pi OS based on Debian 13.
+<!-- /platform -->
 - **`km-admin` asks for the machine's password only when it needs it.** The opening page picks a
   machine, and *Connect* goes straight in when this computer has its password.
 - **`km-admin` finds a saved password again after you pick another machine.**

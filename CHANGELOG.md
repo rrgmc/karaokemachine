@@ -15,6 +15,9 @@ Entries are written for somebody who has the machine. Why any of it is the way i
 
 ### Added
 
+- **A Raspberry Pi can install the machine.** The release has a `.deb` for arm64, for Raspberry Pi
+  OS based on Debian 13. It holds the machine and no tools. Nobody has run it on a board, so
+  picture, sound and speed there are untested.
 - **The manual says what each system asks when you install.** Its Installing chapter has a line
   for Windows, macOS, Android, Meta Quest, Debian and Ubuntu, and iPhone and iPad.
 - **The README lists sites with karaoke files to download.** `km-site-pack` makes a package from
