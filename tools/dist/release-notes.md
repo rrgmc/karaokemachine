@@ -9,6 +9,7 @@ for search, queueing and control.
 | [`karaokemachine-setup-@VERSION@-windows-x86_64.exe`](https://github.com/rrgmc/karaokemachine/releases/download/v@VERSION@/karaokemachine-setup-@VERSION@-windows-x86_64.exe) | Windows |
 | [`karaokemachine-setup-@VERSION@-macos-aarch64.pkg`](https://github.com/rrgmc/karaokemachine/releases/download/v@VERSION@/karaokemachine-setup-@VERSION@-macos-aarch64.pkg) | macOS on Apple Silicon |
 | [`karaokemachine_@VERSION@-1_amd64.deb`](https://github.com/rrgmc/karaokemachine/releases/download/v@VERSION@/karaokemachine_@VERSION@-1_amd64.deb) | Debian and Ubuntu |
+| [`karaokemachine_@VERSION@-1_arm64.deb`](https://github.com/rrgmc/karaokemachine/releases/download/v@VERSION@/karaokemachine_@VERSION@-1_arm64.deb) | Raspberry Pi OS, and Debian on arm64 |
 | [`karaokemachine-@VERSION@-x86_64-unknown-linux-gnu.tar.gz`](https://github.com/rrgmc/karaokemachine/releases/download/v@VERSION@/karaokemachine-@VERSION@-x86_64-unknown-linux-gnu.tar.gz) | Any other Linux |
 | [`karaokemachine-@VERSION@-android.apk`](https://github.com/rrgmc/karaokemachine/releases/download/v@VERSION@/karaokemachine-@VERSION@-android.apk) | Android and Google TV |
 | [`karaokemachine-@VERSION@-quest.apk`](https://github.com/rrgmc/karaokemachine/releases/download/v@VERSION@/karaokemachine-@VERSION@-quest.apk) | Meta Quest |
@@ -38,6 +39,7 @@ the portable copies and the remote on its own.
 | `karaokemachine-portable-@VERSION@-windows-x86_64.zip` | Windows 10 or 11, 64-bit — **a portable copy**. Unzip it anywhere and run it. Every program is in it, and each keeps its settings and songs in the `data` folder inside. It reads and writes nothing in your user profile, so it runs beside an installed copy without touching it. |
 | `km-remote-setup-@VERSION@-macos-aarch64.pkg` | macOS on Apple Silicon — **the remote on its own**. KM Remote goes to `/Applications` and nothing is put on your `PATH`. |
 | `karaokemachine_@VERSION@-1_amd64.deb` | Debian 13 or later, amd64. Install it with `sudo apt install ./karaokemachine_@VERSION@-1_amd64.deb`. |
+| `karaokemachine_@VERSION@-1_arm64.deb` | Raspberry Pi OS based on Debian 13, or Debian 13 or later on arm64. Install it with `sudo apt install ./karaokemachine_@VERSION@-1_arm64.deb`. It holds the machine and no tools. |
 | `karaokemachine-tools_@VERSION@-1_amd64.deb` | The package builder, the offline remote and the picture-and-bank tool, for the same Debian. Download it beside the one above and install both at once: `sudo apt install ./karaokemachine_@VERSION@-1_amd64.deb ./karaokemachine-tools_@VERSION@-1_amd64.deb`. A box under a television needs only the machine. |
 | `karaokemachine-@VERSION@-x86_64-unknown-linux-gnu.tar.gz` | Any other 64-bit Linux. Unpack it anywhere and run it. It includes the libraries it needs. |
 | `karaokemachine-portable-@VERSION@-linux-x86_64.tar.gz` | Any 64-bit Linux — **a portable copy**. Unpack it anywhere and run it. It holds the machine and every tool, and each keeps its settings and songs in the `data` folder inside. It reads and writes nothing in your home directory. |
@@ -56,6 +58,11 @@ an empty catalog.
 
 <!-- platform: windows -->
 - **Windows** shows *"Windows protected your PC"*. Click **More info**, then **Run anyway**.
+<!-- /platform -->
+<!-- platform: linux-arm64 -->
+- **The arm64 `.deb` has not run on a Raspberry Pi.** The release build installs it in a Debian 13
+  arm64 container and checks that the program starts. Picture, sound and speed on a board are
+  untested.
 <!-- /platform -->
 <!-- platform: ios -->
 - **Both `.ipa` files are unsigned, and you sign them yourself** with your own Apple ID. It takes

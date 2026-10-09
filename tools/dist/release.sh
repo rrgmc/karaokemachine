@@ -6,7 +6,7 @@
 #   bash tools/dist/release.sh                      # gather into dist/release/<version>/ and report
 #   bash tools/dist/release.sh --upload             # ...and create or update the draft release
 #   bash tools/dist/release.sh --platforms windows,linux,android,quest   # ...the carriers one machine builds
-#   bash tools/dist/release.sh --upload --platforms windows,linux,android,quest,ios --elsewhere macos
+#   bash tools/dist/release.sh --upload --platforms windows,linux,linux-arm64,android,quest,ios --elsewhere macos
 #                                              # ...and a body that also names what a Mac adds later
 #   bash tools/dist/release.sh --add --platforms macos   # upload these carriers to the draft, body untouched
 #   bash tools/dist/release.sh --check-tag          # is this checkout at the version's tag, unchanged?
@@ -16,11 +16,11 @@
 #   dist/release/<version>/            every asset under the name it is published as
 #   dist/release/<version>-notes.md    the body, rendered from tools/dist/release-notes.md
 #
-# **It gathers; it does not build.** Fifteen carriers, six build systems, three of them in Docker, one
+# **It gathers; it does not build.** Sixteen carriers, six build systems, three of them in Docker, one
 # needing a JDK and two a Mac: a script that ran all of them would be a release cut by whoever typed
 # one word, from artifacts nobody had looked at. So each row below names the command that produces
 # it, a missing artifact is reported by name rather than skipped, and the run stops. `BUILDING.md`
-# has the fifteen commands in order.
+# has the commands in order.
 #
 # **`--platforms` is for the release no one machine can cut.** The two `.pkg` files and the two
 # `.ipa` files are built on a Mac and the rest are not, so a machine without one has four carriers it
@@ -84,7 +84,7 @@ cd "$(dirname "$0")/../.."
 . tools/dist/common.sh
 DIST_SCRIPT=dist-release
 
-ALL_PLATFORMS="windows macos linux android quest ios any"
+ALL_PLATFORMS="windows macos linux linux-arm64 android quest ios any"
 
 UPLOAD=0
 ADD=0
@@ -245,6 +245,10 @@ fi
 #
 # **The two portable patterns end the same way**, and there the marker is `-no-video`. A release
 # carries the build that plays every kind of song.
+#
+# **The `.deb` patterns spell the architecture out**, because two of them stage into one folder. The
+# arm64 package is a platform of its own, `linux-arm64`, so a desk machine that names `linux` is not
+# asked for a package it cannot build.
 release_rows() {
   cat <<ROWS
 windows|dist/setup/windows|karaokemachine-setup-$VERSION-windows-*.exe|=|task dist:setup
@@ -252,8 +256,9 @@ macos|dist/setup/macos|karaokemachine-setup-$VERSION-macos-*[0-9].pkg|=|task dis
 windows|dist/setup/windows|km-remote-setup-$VERSION-windows-*.exe|=|task dist:setup:remote
 windows|dist/portable/windows|karaokemachine-portable-$VERSION-windows-*[0-9].zip|=|task dist:portable
 macos|dist/setup/macos|km-remote-setup-$VERSION-macos-*[0-9].pkg|=|task dist:setup:remote:notarized
-linux|dist/karaokemachine/linux|karaokemachine_$VERSION-1_*.deb|=|task dist:deb
-linux|dist/karaokemachine-tools/linux|karaokemachine-tools_$VERSION-1_*.deb|=|task dist:deb:tools
+linux|dist/karaokemachine/linux|karaokemachine_$VERSION-1_amd64.deb|=|task dist:deb
+linux-arm64|dist/karaokemachine/linux|karaokemachine_$VERSION-1_arm64.deb|=|task dist:deb
+linux|dist/karaokemachine-tools/linux|karaokemachine-tools_$VERSION-1_amd64.deb|=|task dist:deb:tools
 linux|dist/karaokemachine/linux|karaokemachine-$VERSION-*.tar.gz|=|task dist:tarball
 linux|dist/portable/linux|karaokemachine-portable-$VERSION-linux-*[0-9].tar.gz|=|task dist:portable
 android|ports/machine/android/app/build/outputs/apk/flat/release|app-flat-release.apk|karaokemachine-$VERSION-android.apk|task build:android RELEASE=1
@@ -481,7 +486,7 @@ awk -v selected="$PLATFORMS $ELSEWHERE" -v omitted="$omitted_globs" '
     }
     return out
   }
-  /^<!-- platform: [a-z]+ -->$/ {
+  /^<!-- platform: [a-z0-9-]+ -->$/ {
     p = $0; sub(/^<!-- platform: /, "", p); sub(/ -->$/, "", p)
     skip = !is_selected(p)
     next

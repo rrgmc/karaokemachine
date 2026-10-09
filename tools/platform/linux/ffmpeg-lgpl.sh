@@ -220,6 +220,9 @@ for lib in "$PREFIX"/lib/lib*.so.*; do
   while read -r dep; do
     case "$dep" in
       libc.so.*|libm.so.*|libgcc_s.so.*|libpthread.so.*|libdl.so.*|librt.so.*) ;;
+      # The dynamic loader is part of glibc. Debian's arm64 libopenh264 names it as a NEEDED entry,
+      # so it is allowed under whatever name the architecture gives it.
+      ld-linux*.so.*) ;;
       # zlib is the one external library the shared pin asks for by name -- several demuxers want it,
       # and libz.so.1 is on every Linux that can run any of this. Allowed here rather than silently
       # tolerated, so that anything *else* appearing still stops the build.

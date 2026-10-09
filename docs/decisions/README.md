@@ -429,6 +429,7 @@ it are the same entry. How the thing is built is [`ARCHITECTURE.md`](../ARCHITEC
 - [What the machine *is*, on Linux](distribution.md#what-the-machine-is-on-linux)
 - [An appliance install carries no display-server stack](distribution.md#an-appliance-install-carries-no-display-server-stack)
 - [The desktop tools are a package of their own, which the machine recommends](distribution.md#the-desktop-tools-are-a-package-of-their-own-which-the-machine-recommends)
+- [An arm64 `.deb`, for a Raspberry Pi](distribution.md#an-arm64-deb-for-a-raspberry-pi)
 - [What the box shows before the machine does](distribution.md#what-the-box-shows-before-the-machine-does)
 - [Any screen size, and the screen chooses the mode](distribution.md#any-screen-size-and-the-screen-chooses-the-mode)
 - [What a shipped build says out loud](distribution.md#what-a-shipped-build-says-out-loud)

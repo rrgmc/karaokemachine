@@ -10,6 +10,7 @@ name: Release
 # |---------|----------------|-----------------------------------------------------------|
 # | windows | windows        | the setup program, the remote's own, the portable copy    |
 # | linux   | ubuntu, Docker | both `.deb` files, the tarball, the portable copy         |
+# | linux-arm64 | ubuntu on arm64, Docker | the machine's `.deb` for arm64               |
 # | android | ubuntu         | the machine's APK, and the remote's                       |
 # | ios     | macos          | both unsigned `.ipa` files                                |
 # | carols  | ubuntu         | the carol pack                                            |
@@ -256,6 +257,34 @@ jobs:
             dist/portable/linux/*.tar.gz
           if-no-files-found: error
 
+  # The machine's `.deb` for arm64, which is what a Raspberry Pi installs. `deb.sh` names no
+  # architecture and builds for the Docker host, so an arm64 runner is the whole difference from the
+  # job above. `verify-deb.sh` installs the package in a clean arm64 container. No job runs it on a
+  # board.
+  linux-arm64:
+    needs: tag
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.TAG }}
+      - uses: actions/cache@v6
+        with:
+          path: ~/.cache/karaokemachine/assets
+          key: assets-linux-arm64-${{ hashFiles('tools/setup/fetch-assets.sh') }}
+      - run: bash tools/setup/fetch-assets.sh
+
+      - run: bash tools/platform/linux/deb.sh
+      - run: bash tools/platform/linux/verify-deb.sh
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: linux-arm64
+          path: |
+            dist/karaokemachine/linux/*.deb
+          if-no-files-found: error
+
   # **Signed with the release key or not built.** Without `KM_ANDROID_KEYSTORE` the build signs with
   # a debug key the runner made for itself, which `release.sh` refuses an hour later; the missing
   # secret is named here instead. See `How the Android applications are signed` in
@@ -421,7 +450,7 @@ jobs:
   # where its staging script left it, and lets `release.sh` do what it does on a desk: refuse a
   # carrier that is missing or debug-signed, check the body against the files, and fill the draft.
   release:
-    needs: [windows, linux, android, ios, carols]
+    needs: [windows, linux, linux-arm64, android, ios, carols]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -447,6 +476,10 @@ jobs:
           path: dist
       - uses: actions/download-artifact@v8
         with:
+          name: linux-arm64
+          path: dist/karaokemachine/linux
+      - uses: actions/download-artifact@v8
+        with:
           name: android
           path: ports
       - uses: actions/download-artifact@v8
@@ -458,6 +491,6 @@ jobs:
           name: carols
           path: dist/carols
 
-      - run: bash tools/dist/release.sh --upload --platforms windows,linux,android,quest,ios --elsewhere macos
+      - run: bash tools/dist/release.sh --upload --platforms windows,linux,linux-arm64,android,quest,ios --elsewhere macos
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
