@@ -11,8 +11,21 @@ Entries are written for somebody who has the machine. Why any of it is the way i
 
 ## [Unreleased]
 
+## [1.22.0] - 2026-10-09
+
+### Added
+
+- **The manual says what each system asks when you install.** Its Installing chapter has a line
+  for Windows, macOS, Android, Meta Quest, Debian and Ubuntu, and iPhone and iPad.
+- **The README lists sites with karaoke files to download.** `km-site-pack` makes a package from
+  each of them.
+
 ### Changed
 
+- **The download page opens with one file for each platform.** Each row of its first table links
+  the whole machine for one system. The table of every file is below it.
+- **The curation tool shows a package's tags under its name.** Every name in the package list
+  starts and ends at the same place.
 - **`km-admin` asks for the machine's password only when it needs it.** The opening page picks a
   machine, and each row says whether this computer has its password. *Connect* goes straight in when
   it does. A second page asks for the password when it does not, and *Enter a different password*
@@ -23,6 +36,8 @@ Entries are written for somebody who has the machine. Why any of it is the way i
 
 - **`km-admin` finds a saved password again after you pick another machine.** It asked for the
   password of a machine you had picked before, although the password was saved.
+- **The curation tool's delete prompt names the package.** It showed an id that the tool generated,
+  and no row of the package list carries that id.
 
 ## [1.21.2] - 2026-10-07
 
