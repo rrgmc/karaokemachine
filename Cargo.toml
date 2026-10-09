@@ -86,7 +86,7 @@ members = [
 exclude = ["tools/cmd/assets"]
 
 [workspace.package]
-version = "1.21.2"
+version = "1.22.0"
 edition = "2024"
 # **Equal to the pin in `rust-toolchain.toml`, and it has to be bumped with it.** This is an
 # application rather than a library -- `publish = false` throughout -- so nothing downstream reads

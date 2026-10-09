@@ -19,19 +19,14 @@ the portable copies and the remote on its own.
 
 ## What changed
 
-- **A portable copy for Windows and Linux.** Unpack it anywhere and run it. Every program keeps its
-  settings and songs in the `data` folder inside.
-- **A lyric sync editor puts words on a MIDI file.** The song plays while you press Space on each
-  word, and the editor writes a new `.kar`.
-- **KM Song Sync starts the editor from a page.** Browse to a folder, select a song, paste its words
-  and press Start.
-- **A site's song files become a package in one command**, with `km-site-pack`.
-- **Every song counts you back in after a break.** A bar above the next line fills during a long
-  pause and is full when the line starts.
-- **The curation tool's Folders page shows each folder's average suitability**, and sorts by name,
-  by songs or by suitability.
-- **The recommended instrument bank downloads again.** The machine takes the publisher's current
-  release.
+- **`km-admin` asks for the machine's password only when it needs it.** The opening page picks a
+  machine, and *Connect* goes straight in when this computer has its password.
+- **`km-admin` finds a saved password again after you pick another machine.**
+- **This page opens with one file for each platform.** Each row of the table above links the whole
+  machine for one system.
+- **The manual says what each system asks when you install.**
+- **The curation tool shows a package's tags under its name**, and its delete prompt names the
+  package.
 
 ## Every file
 
