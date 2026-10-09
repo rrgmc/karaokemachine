@@ -134,7 +134,7 @@ VERSION="$(pkg_version -p karaokemachine)"
 #     saying so here is the whole of the fix.
 #
 # The two separators are both handled because both occur: a folder is `<app>-<version>-<triple>` and
-# a Debian package is `<app>_<version>-1_amd64.deb`.
+# a Debian package is `<app>_<version>-1_<arch>.deb`.
 sweep() { # <app> <wanted version> <path>...
   local app="$1" want="$2" e base rest v
   shift 2

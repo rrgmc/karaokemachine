@@ -13,9 +13,9 @@
 # **Quiet by default.** The phases and the package report are printed; `docker build`'s layer stream
 # and cargo's compile stream are not. A step that fails replays everything it held back.
 #
-# Output: dist/karaokemachine/linux/karaokemachine_<version>-1_amd64.deb
-#         dist/karaokemachine/linux/no-video/karaokemachine_<version>-1_amd64.deb        (--no-video)
-#         dist/karaokemachine/linux/system-ffmpeg/karaokemachine_<version>-1_amd64.deb   (--system-ffmpeg)
+# Output: dist/karaokemachine/linux/karaokemachine_<version>-1_<arch>.deb
+#         dist/karaokemachine/linux/no-video/karaokemachine_<version>-1_<arch>.deb        (--no-video)
+#         dist/karaokemachine/linux/system-ffmpeg/karaokemachine_<version>-1_<arch>.deb   (--system-ffmpeg)
 #
 # **The default package carries its own ffmpeg, and that is what lets an appliance install carry no
 # X.** Debian's libavutil has libX11, libva-x11, libvdpau and libOpenCL as direct NEEDED entries, so
@@ -35,7 +35,7 @@
 # beside the exe, macOS links them by absolute path, and a .deb just names them.
 #
 # The declined build goes in a subfolder rather than beside the ordinary one because both are called
-# karaokemachine_<version>-1_amd64.deb -- cargo-deb names the file from the package and the version,
+# karaokemachine_<version>-1_<arch>.deb -- cargo-deb names the file from the package and the version,
 # and a cargo feature changes neither. Two builds into one directory would overwrite each other, and
 # every consumer here picks the newest .deb in a directory. The marker is on the declined build for
 # the same reason it is in the Windows folder name: the plain path should hold what the plain command

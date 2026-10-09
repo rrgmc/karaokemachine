@@ -425,8 +425,10 @@ for `--songs` when present, and falls back to `scp`.
 network access to the Debian archive. `apt-get` installs the package, so it resolves the dependencies
 on the box.
 
-**amd64 only.** The package is `karaokemachine_<version>-1_amd64.deb`; a Raspberry Pi or other arm64
-box is not a target this tooling reaches.
+**The build is for this computer's architecture.** An amd64 computer builds
+`karaokemachine_<version>-1_amd64.deb`, which an arm64 box refuses. A Raspberry Pi takes the
+`_arm64.deb` from the release page: copy it to the board and run `sudo apt install ./<file>` there.
+No job has run that package on a board, so picture, sound and speed there are untested.
 
 ### What it reports, and the four things that bite
 
@@ -515,7 +517,8 @@ bash tools/platform/linux/appliance-boot.sh user@box [--revert] [--force] [--sli
 
 **What it assumes about the box.** Debian, and little else. It probes for the bootloader, whatever
 regenerates its config, the Plymouth theme tool and the initramfs lister, rather than assuming their
-names. It skips the bootloader half cleanly on a box that does not boot through GRUB.
+names. It skips the bootloader half cleanly on a box that does not boot through GRUB, which
+includes a Raspberry Pi.
 The one distribution-specific step is installing Plymouth, which is `apt-get`. Anywhere else it says
 so and stops, rather than half-configuring somebody's boot.
 

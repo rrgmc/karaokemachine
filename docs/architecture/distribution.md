@@ -896,7 +896,8 @@ evermeet ships a static GPL command, and ffmpeg.org is source only.
 
 ## The Debian package
 
-`.deb` for Debian 13 amd64, built in a container. **`FROM debian:13-slim` is the compatibility floor**
+`.deb` for Debian 13, built in a container for the architecture of its Docker host: amd64 or arm64.
+**`FROM debian:13-slim` is the compatibility floor**
 and the only thing to change to retarget. It is a container and not the WSL Ubuntu on the same box,
 because that Ubuntu is newer than Debian stable. A package built there installs on trixie and then
 refuses to start. "The .deb does not run on Debian" is the one way this deliverable can be wrong while

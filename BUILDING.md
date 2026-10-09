@@ -532,22 +532,23 @@ task build:ios:remote RELEASE=1 DEVICE=1 IPA=1  #   ...and the offline remote
 bash tools/dist/release.sh           # gather the carriers into dist/release/<version>/ under release names
 bash tools/dist/release.sh --upload  #   ...and put them, and the body, on the draft GitHub release
 bash tools/dist/release.sh --platforms windows,linux,android,quest  # ...the carriers one machine builds
-bash tools/dist/release.sh --upload --platforms windows,linux,android,quest,ios --elsewhere macos
+bash tools/dist/release.sh --upload --platforms windows,linux,linux-arm64,android,quest,ios --elsewhere macos
                                 #   ...and a page that also names what a Mac adds
 bash tools/dist/release.sh --add --platforms macos   # on the Mac: add its packages to that draft
 task release:macos              #   ...both notarized packages built, then that, at the tag only
 ```
 
-**`--platforms` is for the release no one machine can cut.** A Mac produces the two `.pkg` files and
-the two `.ipa` files, and nothing else does. Naming the platforms a run carries therefore takes the
-rest out of the table. It takes them out of the count, and out of the body's download table, at the
-same time. A carrier of a platform that *was* named and is not staged still stops the run. The rule
+**`--platforms` is for the release no one machine can cut.** Only a Mac produces the two `.pkg` files
+and the two `.ipa` files, and only an arm64 Docker host produces the arm64 `.deb`. Naming the
+platforms a run carries therefore takes the rest out of the table. It takes them out of the count,
+and out of the body's download table, at the same time. A carrier of a platform that *was* named and is not staged still stops the run. The rule
 is
 [`A release page carries the platforms the machine cutting it can build`](docs/decisions/distribution.md#a-release-page-carries-the-platforms-the-machine-cutting-it-can-build).
 
 **A pushed `v*` tag runs all of this in CI, except the Mac's half.** `.github/workflows/release.yml`
-stages thirteen of the fifteen carriers on hosted runners and runs
-`release.sh --upload --platforms windows,linux,android,quest,ios --elsewhere macos`. A Mac builds the two
+stages fourteen of the sixteen carriers on hosted runners and runs
+`release.sh --upload --platforms windows,linux,linux-arm64,android,quest,ios --elsewhere macos`. A Mac
+builds the two
 `.pkg` files, and `release.sh --add --platforms macos` adds them. [`RELEASE.md`](RELEASE.md) has the
 order.
 
@@ -723,6 +724,7 @@ dist/karaokemachine/windows/karaokemachine-1.22.0-x86_64-pc-windows-msvc/   (+ .
 dist/karaokemachine/windows/karaokemachine-1.22.0-x86_64-pc-windows-msvc-no-video/
 dist/karaokemachine/macos/Karaoke Machine.app
 dist/karaokemachine/linux/karaokemachine_1.22.0-1_amd64.deb
+dist/karaokemachine/linux/karaokemachine_1.22.0-1_arm64.deb                    (on an arm64 host)
 dist/karaokemachine/linux/no-video/karaokemachine_1.22.0-1_amd64.deb
 dist/karaokemachine-tools/linux/karaokemachine-tools_1.22.0-1_amd64.deb
 dist/karaokemachine/linux/karaokemachine-1.22.0-x86_64-unknown-linux-gnu/   (+ .tar.gz)
