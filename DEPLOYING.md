@@ -103,7 +103,9 @@ task ffmpeg:android               # the LGPL ffmpeg, per ABI (not needed with NO
 
 Also needed, and each fails in a way that does not name itself:
 
-- **The Android NDK**, from Android Studio's SDK Manager, or `ANDROID_NDK_HOME`.
+- **The Android NDK**, at the version `ndkVersion` names in `ports/machine/android/app/build.gradle`.
+  `sdkmanager "ndk;<version>"` installs it, and so does Android Studio's SDK Manager. The build
+  scripts take that version from the SDK, or the NDK that `ANDROID_NDK_HOME` names.
 - **`ANDROID_HOME`** pointing at the SDK, or `sdk.dir` in `ports/machine/android/local.properties`
   (not committed, being machine-specific).
 - **`JAVA_HOME` naming a JDK 17 or 21.** Gradle 8.12 rejects JDK 25 with `Unsupported class file
