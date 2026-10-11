@@ -608,3 +608,35 @@ and the kind `lrc`, and never the `.lrc`.
 
 **Finding lyrics for an MP3 on the internet is not part of this.** An `.lrc` is a file the owner
 already has.
+
+## A zip holding one song is a song source
+
+**A `.zip` is a song when it holds the files of exactly one two-file song.** That is an MP3+G pair,
+an UltraStar `.txt` with its MP3, or an `.lrc` with its MP3. One zip for each song is how these
+songs are traded, and the packager can open one where a person would unpack it by hand.
+
+- **The packaging tools read a zip, and the machine never does.** `km-pack`, the package builder
+  and the simple packager take one from a source folder. The package stores what the loose files
+  store.
+- **A zipped song is the song its loose files are.** The package entries and the content hash are
+  the same, so a zipped copy and a loose copy are duplicates of each other.
+- **One zip is one song.** The song is filed under the zip's own path, and two songs cannot share a
+  path. A zip holding more than one song is refused with the reason.
+- **A zip that does not hold both files of a song is not a song and not a failure.** Most zips in a
+  folder are pictures, documents or a backup.
+- **Only the two-file kinds.** A MIDI file or a video in a zip is not a song. Each is one file, and
+  a zip adds nothing to it.
+- **What an operating system adds is not read.** An `__MACOSX` folder, a `._` file, `.DS_Store`,
+  `Thumbs.db` and `desktop.ini` are passed over. A `._` file beside an MP3 has the MP3's extension
+  and none of its audio.
+- **The files pair inside one folder of the zip, by the rules loose files pair by.** One MP3 is one
+  song. An MP3+G pair comes first, then an UltraStar song, then an LRC song.
+- **A song the packager refuses matters only when it is the zip's one song.** A duet `.txt` beside
+  a song that packages is passed over, as a readme is.
+- **A zip inside a zip is not opened.**
+- **Nothing is unpacked to disk.** An entry name is a stranger's text, so it is compared and shown
+  and never used as a path. Every read has a size limit.
+- **Zip and no other archive.** The build already reads zip, and another format costs a dependency.
+- **The package builder plays a zipped song by sending its files.** It reads the song out of the
+  zip and uploads the two halves, as it does for a machine on another box. The machine takes no
+  zip, so a zipped song is uploaded even to a machine on the same box.

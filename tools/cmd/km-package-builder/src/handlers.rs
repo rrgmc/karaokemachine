@@ -4527,6 +4527,55 @@ fn read_timed(
     }
 }
 
+/// The song inside a zip, read for what a preview sends.
+struct ZippedPlay {
+    /// The MP3: its name inside the zip, and its bytes.
+    audio: (String, Vec<u8>),
+    /// The `.cdg` of an MP3+G song.
+    graphics: Option<(String, Vec<u8>)>,
+    /// The kind and the words of an UltraStar or LRC song.
+    timed: Option<(km_kmpkg::SongKind, km_song::LyricTimeline)>,
+    /// The name of the entry the song is found from, without its extension.
+    stem: String,
+}
+
+/// Reads the one song a zip holds, as the scan read it.
+fn read_zipped(zip: &std::path::Path) -> Result<ZippedPlay, String> {
+    let found = match km_pack::read_zip(zip) {
+        km_pack::ZipVerdict::Song(found) => *found,
+        km_pack::ZipVerdict::NotASong => {
+            return Err("it does not hold both files of a song".to_owned());
+        }
+        refused => return Err(refused.refusal().unwrap_or_default()),
+    };
+    let read = |member: &km_pack::ZipMember, limit: u64| {
+        member
+            .read(limit)
+            .map(|bytes| (member.file_name().to_owned(), bytes))
+            .map_err(|error| format!("{member}: {error}"))
+    };
+    let audio = read(found.audio(), km_pack::media::MAX_ZIPPED_AUDIO)?;
+    let stem = km_pack::file_stem(std::path::Path::new(found.found_from().file_name()));
+    let (graphics, timed) = match found {
+        km_pack::ZipSong::Cdg { graphics, .. } => (
+            Some(read(&graphics, km_pack::media::MAX_ZIPPED_GRAPHICS)?),
+            None,
+        ),
+        km_pack::ZipSong::UltraStar { song, .. } => {
+            (None, Some((km_kmpkg::SongKind::UltraStar, song.timeline)))
+        }
+        km_pack::ZipSong::Lrc { song, .. } => {
+            (None, Some((km_kmpkg::SongKind::Lrc, song.timeline)))
+        }
+    };
+    Ok(ZippedPlay {
+        audio,
+        graphics,
+        timed,
+        stem,
+    })
+}
+
 /// `POST /songs/{id}/play`
 pub async fn play(
     AxumState(state): AxumState<State>,
@@ -4556,6 +4605,20 @@ pub async fn play(
     // path against its *own* working directory, which is not this tool's; a machine elsewhere never
     // sees the path at all, and this is simply how the file gets opened here to be read.
     let absolute = crate::model::tidy(&path);
+    // The machine opens no zip. The song inside is read here and its files are sent, as the files
+    // of a loose song are sent to a machine on another box.
+    let zipped = if km_pack::is_zip_candidate(&absolute) {
+        let zip = absolute.clone();
+        match tokio::task::spawn_blocking(move || read_zipped(&zip)).await {
+            Ok(Ok(song)) => Some(song),
+            Ok(Err(refusal)) => {
+                return said(&reply, false, format!("{}: {refusal}", absolute.display()));
+            }
+            Err(join) => return said(&reply, false, join.to_string()),
+        }
+    } else {
+        None
+    };
     // An UltraStar song is found from its `.txt` and an LRC song from its `.lrc`, and the machine
     // never reads either: the words are read here, and the machine is sent the MP3 with the words
     // beside it. The stem stays the lyrics file's, so a title the machine falls back to is the one
@@ -4575,6 +4638,15 @@ pub async fn play(
         } else {
             None
         };
+    // Taken out of the zipped song so the words can be lent to `decided` while the bytes are moved
+    // into the request.
+    let (zipped, zipped_timed) = match zipped {
+        Some(mut song) => {
+            let timed = song.timed.take();
+            (Some(song), timed)
+        }
+        None => (None, None),
+    };
     let decided = km_api::Audition {
         title: Some(title.as_str()),
         artist: artist.as_deref(),
@@ -4589,8 +4661,14 @@ pub async fn play(
         // offers is the one the package will.
         melody: crate::fixes::MelodyChoice::parse(detail.melody_chosen.as_deref())
             .map(crate::fixes::MelodyChoice::channel),
-        lyrics: timed.as_ref().map(|(_, _, timeline)| timeline),
-        lyrics_kind: timed.as_ref().map(|(kind, _, _)| *kind),
+        lyrics: timed
+            .as_ref()
+            .map(|(_, _, timeline)| timeline)
+            .or(zipped_timed.as_ref().map(|(_, timeline)| timeline)),
+        lyrics_kind: timed
+            .as_ref()
+            .map(|(kind, _, _)| *kind)
+            .or(zipped_timed.as_ref().map(|(kind, _)| *kind)),
         // Silent where nobody has said, so the machine measures the file exactly as a build would.
         // Where somebody has, this is what the preview exists to show them: a curator who has just
         // turned the words off is looking at the television to see the screen they chose.
@@ -4612,7 +4690,13 @@ pub async fn play(
     // box is handed the path: instant, and it copies nothing — which matters most for exactly the
     // songs the bytes route handles worst, a loose video of a few hundred megabytes. A machine
     // anywhere else cannot open a path from this disk, so it gets the song itself.
-    let sent = if client.is_loopback() {
+    let sent = if let Some(song) = zipped {
+        // A zip entry is not a path the machine can open, so a zipped song is sent whichever box
+        // the machine is on.
+        client
+            .play_upload_bytes(song.audio, song.graphics, &song.stem, &decided)
+            .await
+    } else if client.is_loopback() {
         client.play_file(played, &root, &decided).await
     } else {
         // Found here rather than over there: an MP3+G song is a `.mp3` and a `.cdg` sharing a stem,
@@ -4687,6 +4771,12 @@ pub async fn reveal(
     let path = match state.blocking(move |db| db.best_file(&lookup)).await {
         Ok((_, path)) => path,
         Err(error) => return said(&reply, false, error.say(state.locale())),
+    };
+    // A zip is shown in its folder and not opened. An operating system opens a zip by unpacking it
+    // beside itself, and the next scan would find those files as a second copy of the song.
+    let path = match path.parent() {
+        Some(folder) if km_pack::is_zip_candidate(&path) => folder.to_path_buf(),
+        _ => path,
     };
     let display = path.display().to_string();
     let words = crate::words::messages(state.locale());
@@ -8540,6 +8630,64 @@ async fn load_song(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A preview of a zipped song sends what a preview of its loose files sends.
+    #[test]
+    fn a_zipped_song_is_read_as_the_files_a_preview_sends() {
+        use std::io::Write;
+
+        let scratch = km_testkit::Scratch::new("zipped-preview");
+        let zip_of = |name: &str, entries: &[(&str, &[u8])]| {
+            let file = std::fs::File::create(scratch.join(name)).expect("create a zip");
+            let mut zip = zip::ZipWriter::new(file);
+            for (entry, bytes) in entries {
+                zip.start_file(*entry, zip::write::SimpleFileOptions::default())
+                    .expect("start an entry");
+                zip.write_all(bytes).expect("write an entry");
+            }
+            zip.finish().expect("finish the zip");
+            scratch.join(name)
+        };
+
+        let pair = zip_of(
+            "pair.zip",
+            &[
+                ("album/Someone - Song.MP3", b"audio"),
+                ("album/Someone - Song.cdg", b"graphics"),
+            ],
+        );
+        let pair = read_zipped(&pair).expect("a pair");
+        assert_eq!(
+            pair.audio,
+            ("Someone - Song.MP3".to_owned(), b"audio".to_vec())
+        );
+        assert_eq!(
+            pair.graphics,
+            Some(("Someone - Song.cdg".to_owned(), b"graphics".to_vec()))
+        );
+        assert!(pair.timed.is_none());
+        assert_eq!(pair.stem, "Someone - Song");
+
+        let timed = zip_of(
+            "timed.zip",
+            &[
+                (
+                    "Words.lrc",
+                    b"[00:01.00]First line\n[00:02.00]Second line\n",
+                ),
+                ("Words.mp3", b"audio"),
+            ],
+        );
+        let timed = read_zipped(&timed).expect("an LRC song");
+        assert!(timed.graphics.is_none());
+        let (kind, timeline) = timed.timed.expect("its words");
+        assert_eq!(kind, km_kmpkg::SongKind::Lrc);
+        assert_eq!(timeline.line_count(), 2);
+        assert_eq!(timed.stem, "Words");
+
+        let other = zip_of("other.zip", &[("one.png", b"png")]);
+        assert!(read_zipped(&other).is_err());
+    }
 
     /// A folder order keeps *files here* first and an unrated folder last, in both directions.
     #[test]

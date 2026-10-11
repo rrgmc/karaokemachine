@@ -37,6 +37,7 @@ use km_kmpkg::{Language, PackageBuilder, PackageMeta, content_hash};
 use km_song::{ParseOptions, Song};
 use km_suitability::Analysis;
 
+use crate::media::Media;
 use crate::spec::{Spec, SpecSong};
 use crate::{ChosenFields, Edits, apply_edits, entry_from_analysis, extension};
 
@@ -415,6 +416,16 @@ pub fn build(
             )
         } else if crate::is_lrc_candidate(&source) {
             add_lrc(
+                &mut builder,
+                song,
+                &source,
+                number,
+                options.dry_run,
+                options.measure_loudness,
+                &mut outcome,
+            )
+        } else if crate::is_zip_candidate(&source) {
+            add_zip(
                 &mut builder,
                 song,
                 &source,
@@ -848,6 +859,93 @@ fn add_lrc(
 
     outcome.lrc_written += 1;
     let note = added.findings.join("\n      ");
+    Ok((!note.is_empty()).then_some(note))
+}
+
+/// Adds the one song a zip holds, as the song its loose files would be.
+fn add_zip(
+    builder: &mut PackageBuilder,
+    song: &SpecSong,
+    zip: &Path,
+    number: u32,
+    dry_run: bool,
+    measure_loudness: bool,
+    outcome: &mut BuildOutcome,
+) -> Result<Option<String>, String> {
+    // The pair inside a zip is found by rule alone. A named graphics file is a file beside the
+    // audio on disk, and a zip has nothing beside it.
+    if song.graphics.is_some() {
+        return Err("a zipped song does not take a named graphics file".to_owned());
+    }
+    let found = match crate::read_zip(zip) {
+        crate::ZipVerdict::Song(found) => *found,
+        crate::ZipVerdict::NotASong => {
+            return Err("it does not hold both files of a song".to_owned());
+        }
+        refused => return Err(refused.refusal().unwrap_or_default()),
+    };
+    let timed = crate::ultrastar::UltraStarRequest {
+        number,
+        title: song.title.clone(),
+        artist: song.artist.clone(),
+        language: song.language.clone(),
+        tags: song.tags.clone(),
+        lyrics_hidden: song.lyrics_hidden,
+        measure_loudness,
+        dry_run,
+    };
+
+    let findings = match found {
+        crate::ZipSong::Cdg { audio, graphics } => {
+            let request = crate::CdgRequest {
+                number,
+                title: song.title.clone(),
+                artist: song.artist.clone(),
+                language: song.language.clone(),
+                tags: song.tags.clone(),
+                measure_loudness,
+                dry_run,
+            };
+            let added = crate::add_cdg_parts(
+                builder,
+                &Media::Zipped(audio),
+                &Media::Zipped(graphics),
+                &request,
+            )
+            .map_err(|error| format!("{error:#}"))?;
+            outcome.cdg_written += 1;
+            added.findings.iter().map(ToString::to_string).collect()
+        }
+        crate::ZipSong::UltraStar { text, audio, song } => {
+            let added = crate::ultrastar::add_ultrastar_parts(
+                builder,
+                &song,
+                &Media::Zipped(text),
+                &Media::Zipped(audio),
+                &timed,
+            )
+            .map_err(|error| format!("{error:#}"))?;
+            outcome.ultrastar_written += 1;
+            added.findings
+        }
+        crate::ZipSong::Lrc {
+            lyrics,
+            audio,
+            song,
+        } => {
+            let added = crate::lrc::add_lrc_parts(
+                builder,
+                &song,
+                &Media::Zipped(lyrics),
+                &Media::Zipped(audio),
+                &timed,
+            )
+            .map_err(|error| format!("{error:#}"))?;
+            outcome.lrc_written += 1;
+            added.findings
+        }
+    };
+    let note = findings.join("\n      ");
     Ok((!note.is_empty()).then_some(note))
 }
 

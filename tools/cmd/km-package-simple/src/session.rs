@@ -63,6 +63,23 @@ impl Kind {
         }
     }
 
+    /// The kind of a song in `folder`, which for a zip is the kind of the song inside it.
+    ///
+    /// A zip's extension says nothing about the song it holds, so the zip is read.
+    #[must_use]
+    pub fn of_in(folder: &Path, file: &str) -> Self {
+        if km_pack::is_zip_candidate(Path::new(file))
+            && let km_pack::ZipVerdict::Song(song) = km_pack::read_zip(&folder.join(file))
+        {
+            return match song.kind() {
+                km_pack::ZipKind::Cdg => Self::Cdg,
+                km_pack::ZipKind::UltraStar => Self::UltraStar,
+                km_pack::ZipKind::Lrc => Self::Lrc,
+            };
+        }
+        Self::of(file)
+    }
+
     /// The catalog key a page draws the kind with.
     #[must_use]
     pub fn key(self) -> &'static str {
@@ -304,7 +321,7 @@ impl Session {
             .songs
             .into_iter()
             .map(|song| Row {
-                kind: Kind::of(&song.file),
+                kind: Kind::of_in(&folder, &song.file),
                 suitability: suitability.get(&song.file).copied(),
                 kept: true,
                 song,
@@ -457,6 +474,32 @@ fn nonblank(value: &str) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_zip_is_drawn_as_the_kind_of_song_inside_it() {
+        use std::io::Write;
+
+        let scratch = km_testkit::Scratch::new("simple-zip-kind");
+        let file = std::fs::File::create(scratch.join("song.zip")).expect("create a zip");
+        let mut zip = zip::ZipWriter::new(file);
+        for (entry, bytes) in [
+            (
+                "song.txt",
+                &b"#TITLE:Song\n#MP3:song.mp3\n#BPM:300\n: 0 4 0 la\nE\n"[..],
+            ),
+            ("song.mp3", b"audio"),
+        ] {
+            zip.start_file(entry, zip::write::SimpleFileOptions::default())
+                .expect("start an entry");
+            zip.write_all(bytes).expect("write an entry");
+        }
+        zip.finish().expect("finish the zip");
+
+        assert_eq!(Kind::of_in(&scratch, "song.zip"), Kind::UltraStar);
+        // A name alone says nothing, and a zip that is not there is drawn as its extension is.
+        assert_eq!(Kind::of_in(&scratch, "absent.zip"), Kind::of("absent.zip"));
+        assert_eq!(Kind::of_in(&scratch, "song.lrc"), Kind::Lrc);
+    }
 
     fn session(count: u32) -> Session {
         Session {

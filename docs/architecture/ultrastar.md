@@ -83,6 +83,10 @@ a video, as it folds a `.cdg` into its MP3's. A row written before the `.txt` co
 file is read again once. A `.txt` is compared on its own size and mtime. Reading every text file in a
 corpus to find its audio would cost a disk seek per file on every scan.
 
+**The same parser reads a song inside a zip, and the same rule finds its audio.** The
+header's name is looked up among the entries in the `.txt`'s folder of the zip. See
+[`A zip holding one song`](packaging.md#a-zip-holding-one-song).
+
 ## Playing it
 
 **The audio is an MP3+G song's audio without the graphics.** `km_cdg::open_audio_from` starts the

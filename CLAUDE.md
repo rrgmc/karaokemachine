@@ -71,6 +71,8 @@ Standing decisions — do not add these without recording the change in `docs/de
   and discards its pitches.
   **CD+G as a *disc* format is not supported** — `.bin`/`.cue` images and raw subcode rips — because
   the corpus holds none of them. The file pair is what the world actually trades.
+- **A `.zip` holding one two-file song is that song, to the packaging tools only.** The machine
+  opens no zip.
 - **No video backgrounds; wallpapers are still images.** A video *song* is not a video wallpaper.
 - **No audio-file pitch shifting.** An MP3+G song answers a key change with a 409, exactly as a video
   does, because it has no key to change and never will.

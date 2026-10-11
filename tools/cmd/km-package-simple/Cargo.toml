@@ -67,5 +67,7 @@ winresource = { workspace = true }
 
 [dev-dependencies]
 km-testkit = { workspace = true, features = ["http"] }
+# A test writes the zip it then reads as a song.
+zip = { workspace = true }
 km-song = { workspace = true, features = ["testing"] }
 tower = { workspace = true }

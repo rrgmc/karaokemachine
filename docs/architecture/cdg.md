@@ -177,6 +177,9 @@ a pair is not a degraded song.
 folder, and a stem with a trailing space. The packager normalizes all of it **once**. The
 messy-pairing code never ships to the machine.
 
+**The packager finds a pair inside a zip by the same rule.** See
+[`A zip holding one song`](packaging.md#a-zip-holding-one-song).
+
 **The check is two lines long, and the corpus is why.** There is no packaging profile, and that
 departs from video deliberately. The video profile exists because the video decoder copies three
 planes and carries no swscale, so a pixel format it cannot read genuinely blocks. Nothing here has an

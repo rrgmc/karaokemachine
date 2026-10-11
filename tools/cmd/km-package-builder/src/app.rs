@@ -421,6 +421,41 @@ impl Client {
         stem: &str,
         decided: &km_api::Audition<'_>,
     ) -> Result<(), AppError> {
+        let primary = file_part(path).await?;
+        let partner = match partner {
+            Some(partner) => Some(file_part(partner).await?),
+            None => None,
+        };
+        self.play_upload_parts(primary, partner, stem, decided)
+            .await
+    }
+
+    /// [`Self::play_upload`], for a song whose files are bytes in hand and not files on disk.
+    ///
+    /// A song inside a zip is the case. Each half is its name and its bytes, and the machine reads
+    /// the name for its extension only, as it does a file's.
+    pub async fn play_upload_bytes(
+        &self,
+        primary: (String, Vec<u8>),
+        partner: Option<(String, Vec<u8>)>,
+        stem: &str,
+        decided: &km_api::Audition<'_>,
+    ) -> Result<(), AppError> {
+        let part = |(name, bytes): (String, Vec<u8>)| {
+            reqwest::multipart::Part::bytes(bytes).file_name(name)
+        };
+        self.play_upload_parts(part(primary), partner.map(part), stem, decided)
+            .await
+    }
+
+    /// Sends the parts of one song. See [`Self::play_upload`].
+    async fn play_upload_parts(
+        &self,
+        primary: reqwest::multipart::Part,
+        partner: Option<reqwest::multipart::Part>,
+        stem: &str,
+        decided: &km_api::Audition<'_>,
+    ) -> Result<(), AppError> {
         if !self.discover().await?.debug_enabled {
             return Err(AppError::Refused(explain_uploads(
                 "this machine is not in debugging mode, so it takes no uploaded songs",
@@ -458,9 +493,9 @@ impl Client {
         if let Some(kind) = decided.lyrics_kind {
             form = form.text(LYRICS_KIND_FIELD, kind.as_str());
         }
-        form = form.part("primary", file_part(path).await?);
+        form = form.part("primary", primary);
         if let Some(partner) = partner {
-            form = form.part("partner", file_part(partner).await?);
+            form = form.part("partner", partner);
         }
 
         let response = self

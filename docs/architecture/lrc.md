@@ -52,6 +52,9 @@ claims, so the precedence is one check in one place.
 finds the `.lrc` beside an unpaired MP3. A row that read the MP3 as half a pair differs in size once
 the `.lrc` counts, and is read again once.
 
+**A song inside a zip pairs the same way**, among the entries in the `.lrc`'s folder of the zip.
+See [`A zip holding one song`](packaging.md#a-zip-holding-one-song).
+
 ## Suitability
 
 `km_pack::purpose_made_suitability_for` takes the timeline's granularity. A line-level timeline gets

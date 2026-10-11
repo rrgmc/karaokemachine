@@ -11,6 +11,12 @@ Entries are written for somebody who has the machine. Why any of it is the way i
 
 ## [Unreleased]
 
+### Added
+
+- **The packaging tools read a song from a zip.** A `.zip` holding one MP3+G, UltraStar or LRC song
+  is packaged as that song, with nothing to unpack first. A zip holding two songs is refused with
+  the reason, and any other zip is passed over.
+
 ## [1.22.0] - 2026-10-09
 
 ### Added

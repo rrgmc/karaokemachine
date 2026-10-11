@@ -15,6 +15,7 @@ mod container;
 mod flags;
 pub mod language;
 pub mod manifest;
+mod siblings;
 pub mod tag;
 
 use std::io::{Read, Seek};
@@ -33,6 +34,7 @@ pub use crate::manifest::{
     LoudnessRecord, MANIFEST_PATH, Manifest, ManifestProblem, MelodyRecord, PackageMeta, SongEntry,
     SongKind, SuitabilityRecord, VolumeOf, WarningRecord, is_safe_name, is_safe_path, name_slug,
 };
+pub use crate::siblings::{named_among, sibling_among};
 pub use crate::tag::Tag;
 
 /// The most of `manifest.json` this build will hold in memory.
@@ -883,21 +885,16 @@ pub fn sibling_with_extension(path: &Path, wanted: &[&str]) -> Option<PathBuf> {
         }
     }
 
-    let stem = path.file_stem()?.to_str()?.trim().to_lowercase();
-    std::fs::read_dir(path.parent()?)
+    // The one pairing rule, asked of this folder's names. See [`sibling_among`].
+    let name = path.file_name()?.to_str()?;
+    let parent = path.parent()?;
+    let listed: Vec<String> = std::fs::read_dir(parent)
         .ok()?
         .filter_map(Result::ok)
-        .map(|entry| entry.path())
-        .find(|candidate| {
-            candidate
-                .extension()
-                .and_then(|ext| ext.to_str())
-                .is_some_and(|ext| wanted.iter().any(|want| ext.eq_ignore_ascii_case(want)))
-                && candidate
-                    .file_stem()
-                    .and_then(|s| s.to_str())
-                    .is_some_and(|s| s.trim().to_lowercase() == stem)
-        })
+        .filter_map(|entry| entry.file_name().into_string().ok())
+        .collect();
+    let names: Vec<&str> = listed.iter().map(String::as_str).collect();
+    sibling_among(name, wanted, &names).map(|found| parent.join(found))
 }
 
 /// Hashes both halves of an MP3+G song together, as one recording's identity.
@@ -964,6 +961,44 @@ pub fn pair_content_hash_of(audio: &Path, graphics: &Path) -> std::io::Result<St
     Ok(digest[..16].iter().map(|b| format!("{b:02x}")).collect())
 }
 
+/// Bytes a media entry is written from that are not a file of their own.
+///
+/// An archive holding a song is the case: the entry is inside another file, and the package writer
+/// knows nothing of archives. The reader is handed to a callback because an archive's entry reader
+/// borrows the archive it was opened from.
+pub trait EntrySource: std::fmt::Debug + Send + Sync {
+    /// What to call these bytes in an error.
+    fn name(&self) -> String;
+
+    /// How many bytes the reader gives.
+    fn size(&self) -> u64;
+
+    /// Opens the bytes and hands `read` a reader over them, once.
+    ///
+    /// # Errors
+    ///
+    /// If the bytes cannot be opened.
+    fn with_reader(&self, read: &mut dyn FnMut(&mut dyn Read)) -> std::io::Result<()>;
+}
+
+/// Where a media entry's bytes are when a song is added.
+#[derive(Debug, Clone)]
+pub enum Source {
+    /// A file on disk.
+    Path(PathBuf),
+    /// Bytes inside something else. See [`EntrySource`].
+    Entry(std::sync::Arc<dyn EntrySource>),
+}
+
+impl Source {
+    fn into_content(self) -> Content {
+        match self {
+            Self::Path(path) => Content::File(path),
+            Self::Entry(source) => Content::Entry(source),
+        }
+    }
+}
+
 /// Where one entry's bytes come from when the package is written.
 ///
 /// Nothing but MIDI is held in memory. A media entry records a **path** and is copied in at
@@ -971,6 +1006,8 @@ pub fn pair_content_hash_of(audio: &Path, graphics: &Path) -> std::io::Result<St
 /// paths rather than twenty gigabytes.
 #[derive(Debug)]
 enum Content {
+    /// Bytes inside something else, streamed in when the package is written.
+    Entry(std::sync::Arc<dyn EntrySource>),
     /// Held in memory. MIDI only, and only because a MIDI file is a few kilobytes.
     Bytes(Vec<u8>),
     /// A file on disk, streamed in when the package is written.
@@ -1156,10 +1193,29 @@ impl PackageBuilder {
     /// that can only ever hold one value is one a hand-edited manifest can set wrong.
     pub fn add_cdg_source(
         &mut self,
-        mut entry: SongEntry,
+        entry: SongEntry,
         name: &str,
         audio: &Path,
         graphics: &Path,
+        content_hash: Option<String>,
+    ) -> Result<&SongEntry, PackageError> {
+        self.add_cdg_source_from(
+            entry,
+            name,
+            Source::Path(audio.to_path_buf()),
+            Source::Path(graphics.to_path_buf()),
+            content_hash,
+        )
+    }
+
+    /// Adds an MP3+G song whose halves may be inside an archive. See
+    /// [`PackageBuilder::add_cdg_source`].
+    pub fn add_cdg_source_from(
+        &mut self,
+        mut entry: SongEntry,
+        name: &str,
+        audio: Source,
+        graphics: Source,
         content_hash: Option<String>,
     ) -> Result<&SongEntry, PackageError> {
         if self.manifest.song(entry.number).is_some() {
@@ -1171,11 +1227,11 @@ impl PackageBuilder {
 
         self.files.push(Pending {
             name: name.to_owned(),
-            content: Content::File(audio.to_path_buf()),
+            content: audio.into_content(),
         });
         self.files.push(Pending {
             name: graphics_entry_for(name),
-            content: Content::File(graphics.to_path_buf()),
+            content: graphics.into_content(),
         });
         self.manifest.songs.push(entry);
         Ok(self.manifest.songs.last().expect("just pushed"))
@@ -1194,9 +1250,34 @@ impl PackageBuilder {
     pub fn add_timeline_source(
         &mut self,
         kind: SongKind,
-        mut entry: SongEntry,
+        entry: SongEntry,
         name: &str,
         audio: &Path,
+        timeline: &km_song::LyricTimeline,
+        content_hash: Option<String>,
+    ) -> Result<&SongEntry, PackageError> {
+        self.add_timeline_source_from(
+            kind,
+            entry,
+            name,
+            Source::Path(audio.to_path_buf()),
+            timeline,
+            content_hash,
+        )
+    }
+
+    /// Adds an UltraStar or LRC song whose audio may be inside an archive. See
+    /// [`PackageBuilder::add_timeline_source`].
+    ///
+    /// # Panics
+    ///
+    /// When `kind` is not one that [`SongKind::carries_timeline`].
+    pub fn add_timeline_source_from(
+        &mut self,
+        kind: SongKind,
+        mut entry: SongEntry,
+        name: &str,
+        audio: Source,
         timeline: &km_song::LyricTimeline,
         content_hash: Option<String>,
     ) -> Result<&SongEntry, PackageError> {
@@ -1211,7 +1292,7 @@ impl PackageBuilder {
         let json = serde_json::to_vec(timeline).expect("a lyric timeline serializes");
         self.files.push(Pending {
             name: name.to_owned(),
-            content: Content::File(audio.to_path_buf()),
+            content: audio.into_content(),
         });
         self.files.push(Pending {
             name: lyrics_entry_for(name),
@@ -1375,6 +1456,37 @@ impl PackageBuilder {
                         // played yet.
                         return Err(PackageError::SourceChanged {
                             path: source.display().to_string(),
+                            expected: len,
+                            copied,
+                        });
+                    }
+                }
+                Content::Entry(source) => {
+                    let len = source.size();
+                    let mut written = None;
+                    source
+                        .with_reader(&mut |reader| {
+                            // One byte past the measured length is enough to see a source that
+                            // grew, and bounds what a source that lies about its size can write.
+                            written = Some(writer.stream_entry(
+                                &pending.name,
+                                media_method(&pending.name),
+                                &mut reader.take(len.saturating_add(1)),
+                            ));
+                        })
+                        .map_err(|error| PackageError::Io {
+                            path: source.name(),
+                            source: error,
+                        })?;
+                    let copied = written
+                        .ok_or_else(|| PackageError::Io {
+                            path: source.name(),
+                            source: std::io::Error::other("the source gave no reader"),
+                        })?
+                        .map_err(fault)?;
+                    if copied != len {
+                        return Err(PackageError::SourceChanged {
+                            path: source.name(),
                             expected: len,
                             copied,
                         });
@@ -1903,6 +2015,108 @@ mod tests {
             package.graphics_bytes(12).expect("graphics"),
             graphics_bytes
         );
+    }
+
+    /// Bytes held in memory, claiming whatever size a test gives them.
+    #[derive(Debug)]
+    struct Held {
+        bytes: Vec<u8>,
+        size: u64,
+    }
+
+    impl EntrySource for Held {
+        fn name(&self) -> String {
+            "held".to_owned()
+        }
+
+        fn size(&self) -> u64 {
+            self.size
+        }
+
+        fn with_reader(&self, read: &mut dyn FnMut(&mut dyn Read)) -> std::io::Result<()> {
+            read(&mut self.bytes.as_slice());
+            Ok(())
+        }
+    }
+
+    fn held(bytes: &[u8]) -> Source {
+        Source::Entry(std::sync::Arc::new(Held {
+            bytes: bytes.to_vec(),
+            size: bytes.len() as u64,
+        }))
+    }
+
+    #[test]
+    fn a_pair_inside_something_else_writes_the_package_its_files_write() {
+        let dir = temp_dir("write-cdg-entry");
+        let audio = dir.join("song.mp3");
+        let graphics = dir.join("song.cdg");
+        let audio_bytes = pattern(9_000);
+        let graphics_bytes = pattern(2_600);
+        std::fs::write(&audio, &audio_bytes).expect("audio");
+        std::fs::write(&graphics, &graphics_bytes).expect("graphics");
+        let hash = pair_content_hash(&audio_bytes, &graphics_bytes);
+        assert_eq!(hash, pair_content_hash_of(&audio, &graphics).expect("hash"));
+
+        let from_files = dir.join("files.kmpkg");
+        let mut builder = PackageBuilder::new(meta());
+        builder
+            .add_cdg_source(
+                entry(12),
+                "media/0012.mp3",
+                &audio,
+                &graphics,
+                Some(hash.clone()),
+            )
+            .expect("cdg");
+        builder.write(&from_files).expect("write");
+
+        let from_entries = dir.join("entries.kmpkg");
+        let mut builder = PackageBuilder::new(meta());
+        builder
+            .add_cdg_source_from(
+                entry(12),
+                "media/0012.mp3",
+                held(&audio_bytes),
+                held(&graphics_bytes),
+                Some(hash),
+            )
+            .expect("cdg");
+        builder.write(&from_entries).expect("write");
+
+        assert_eq!(
+            std::fs::read(&from_entries).expect("entries"),
+            std::fs::read(&from_files).expect("files")
+        );
+    }
+
+    #[test]
+    fn a_source_that_is_not_the_size_it_gave_is_refused() {
+        let dir = temp_dir("write-entry-size");
+        let bytes = pattern(9_000);
+        for claimed in [8_999, 9_001] {
+            let mut builder = PackageBuilder::new(meta());
+            builder
+                .add_timeline_source_from(
+                    SongKind::Lrc,
+                    entry(3),
+                    "media/0003.mp3",
+                    Source::Entry(std::sync::Arc::new(Held {
+                        bytes: bytes.clone(),
+                        size: claimed,
+                    })),
+                    &a_timeline(),
+                    None,
+                )
+                .expect("lrc");
+            let error = builder
+                .write(dir.join("vol1.kmpkg"))
+                .expect_err("a changed source");
+            assert!(
+                matches!(error, PackageError::SourceChanged { expected, .. } if expected == claimed),
+                "{error}"
+            );
+        }
     }
 
     #[test]

@@ -271,6 +271,7 @@ failure-bad-ultrastar = an UltraStar file this machine does not play
 failure-ultrastar-audio = an UltraStar file whose MP3 is not beside it
 failure-bad-lrc = an LRC file with no timed words
 failure-lrc-audio = an LRC file with no MP3 of its own beside it
+failure-bad-zip = a zip that cannot be read as one song
 failure-panicked = the parser panicked
 
 ## The checklist a long job draws ---------------------------------------------------

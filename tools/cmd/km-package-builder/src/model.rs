@@ -173,6 +173,12 @@ pub enum ScanStatus {
     BadLrc,
     /// An LRC file with no MP3 of its stem beside it, or one that is already another song.
     LrcAudio,
+    /// A zip that holds a song and cannot be packaged as one: it holds more than one song, the song
+    /// is one this project does not play, or the zip cannot be read. The row's error says which.
+    ///
+    /// **A zip that holds no song is not this.** Most zips are something else, and such a zip is
+    /// neither a song nor a failure.
+    BadZip,
     /// Parsing panicked. Kept as a status rather than allowed to end the scan.
     Panicked,
 }
@@ -194,6 +200,7 @@ impl ScanStatus {
             Self::UltraStarAudio => "ultrastar_audio",
             Self::BadLrc => "bad_lrc",
             Self::LrcAudio => "lrc_audio",
+            Self::BadZip => "bad_zip",
             Self::Panicked => "panicked",
         }
     }
@@ -215,6 +222,7 @@ impl ScanStatus {
             "ultrastar_audio" => Self::UltraStarAudio,
             "bad_lrc" => Self::BadLrc,
             "lrc_audio" => Self::LrcAudio,
+            "bad_zip" => Self::BadZip,
             _ => Self::Panicked,
         }
     }
@@ -243,6 +251,7 @@ impl ScanStatus {
             Self::UltraStarAudio => "failure-ultrastar-audio",
             Self::BadLrc => "failure-bad-lrc",
             Self::LrcAudio => "failure-lrc-audio",
+            Self::BadZip => "failure-bad-zip",
             Self::Panicked => "failure-panicked",
         }
     }
@@ -266,6 +275,7 @@ impl ScanStatus {
         "failure-ultrastar-audio",
         "failure-bad-lrc",
         "failure-lrc-audio",
+        "failure-bad-zip",
         "failure-panicked",
     ];
 }

@@ -132,6 +132,7 @@ it are the same entry. How the thing is built is [`ARCHITECTURE.md`](../ARCHITEC
 - [Which LRC files are songs](song-sources.md#which-lrc-files-are-songs)
 - [Where an LRC song's title and artist come from](song-sources.md#where-an-lrc-songs-title-and-artist-come-from)
 - [The machine never reads an LRC file](song-sources.md#the-machine-never-reads-an-lrc-file)
+- [A zip holding one song is a song source](song-sources.md#a-zip-holding-one-song-is-a-song-source)
 
 ## [Packages and song numbers](packaging.md)
 
