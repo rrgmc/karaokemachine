@@ -822,6 +822,8 @@ pub struct MachinePage {
     pub announcement_length_max: u32,
     /// Whether a song ends when its tail is silent.
     pub end_on_silence: bool,
+    /// Whether a recorded song changes key and tempo.
+    pub adjust_recordings: bool,
     /// Whether this host can be shut down and restarted, and so whether the card exists.
     ///
     /// **Absent rather than disabled**, which is this page's standing rule: a grayed control invites

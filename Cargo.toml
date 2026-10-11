@@ -359,9 +359,16 @@ symphonia = { version = "0.6.1", default-features = false, features = [
 # `dasp_sample` and `smallvec` were all in `Cargo.lock` already, leaving only `dasp_frame`.
 ebur128 = "0.1.10"
 
-# The two time stretchers `km-cdg`'s `stretch` example compares. Both are MIT and pure Rust. They
-# are development dependencies of that one crate, so no shipped program links either.
+# The stretcher a recorded song's key and tempo go through, in `km-audio`. MIT, pure Rust, with no
+# build script and no `unsafe` code. Its real-time engine has a feed, a controller and a processor,
+# which is the shape `TrackPlayer` already has.
+#
+# **Priced, as everything in this file is.** It brings `rustfft` and five crates under it or beside
+# it, into every build, because an MP3+G song plays in every build. It also carries beat tracking and
+# file readers that playback never calls, and no feature turns them off.
 timestretch = "0.15.0"
+# The other stretcher `km-cdg`'s `stretch` example compares. MIT and pure Rust. It is a development
+# dependency of that one crate, so no shipped program links it.
 wsola = "0.1.0"
 
 # Video
@@ -697,6 +704,15 @@ opt-level = 2
 opt-level = 2
 
 [profile.dev.package.argon2]
+opt-level = 2
+
+# ...and the stretcher with its FFT, for `rustysynth`'s reason: they run in every audio callback of
+# a recorded song whose key or tempo is changed. **Measured on a desktop**: unoptimized, the output
+# stream reported 27 overruns a second for as long as the stretcher ran, and none optimized.
+[profile.dev.package.timestretch]
+opt-level = 2
+
+[profile.dev.package.rustfft]
 opt-level = 2
 
 # ...and three more whose cost lands on every test run, as `argon2`'s does. `whatlang` guesses the

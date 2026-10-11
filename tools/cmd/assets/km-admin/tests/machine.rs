@@ -116,6 +116,43 @@ async fn ending_a_song_on_silence_reaches_its_own_route() {
     );
 }
 
+/// The box reaches `PUT /api/v1/admin/playback/adjust-recordings` with the token and one field.
+#[tokio::test]
+async fn key_and_tempo_for_recorded_songs_reaches_its_own_route() {
+    let (server, state, _dir) = common::signed_in().await;
+
+    Mock::given(method("PUT"))
+        .and(path("/api/v1/admin/playback/adjust-recordings"))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(serde_json::json!({ "enabled": false })),
+        )
+        .mount(&server)
+        .await;
+
+    // An unticked box sends no field, so an empty form turns it off.
+    let (status, body) = post_form(&state, "/admin/machine/adjust-recordings", "").await;
+    assert!(status.is_redirection(), "{status} {body}");
+
+    let sent = server
+        .received_requests()
+        .await
+        .expect("recorded")
+        .into_iter()
+        .find(|request| request.url.path() == "/api/v1/admin/playback/adjust-recordings")
+        .expect("the switch never reached the admin route");
+    assert_eq!(
+        sent.headers
+            .get("authorization")
+            .map(|v| v.to_str().unwrap()),
+        Some("Bearer a-token"),
+        "the switch went without the token it needs"
+    );
+    assert_eq!(
+        sent.body_json::<serde_json::Value>().expect("a JSON body"),
+        serde_json::json!({ "enabled": false }),
+    );
+}
+
 /// The announcement reaches `PUT /api/v1/admin/announcement` with its switch and its length.
 #[tokio::test]
 async fn the_announcement_reaches_its_route_with_both_values() {

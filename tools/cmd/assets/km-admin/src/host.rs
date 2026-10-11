@@ -319,7 +319,7 @@ impl Switches for RemoteMachine {
         // six whole timeouts -- which is the difference between a page that says so and a page that
         // looks broken. `try_join!` also stops at the first refusal rather than waiting out the
         // others.
-        let (debug, dev_remote, performance, demo, announcement, end_on_silence) =
+        let (debug, dev_remote, performance, demo, announcement, end_on_silence, adjust_recordings) =
             tokio::try_join!(
                 client.debug(),
                 client.dev_remote(),
@@ -327,6 +327,7 @@ impl Switches for RemoteMachine {
                 client.demo(),
                 client.announcement(),
                 client.end_on_silence(),
+                client.adjust_recordings(),
             )
             .map_err(fault)?;
 
@@ -334,6 +335,7 @@ impl Switches for RemoteMachine {
             announcement_enabled: announcement.enabled,
             announcement_length_secs: announcement.length_secs,
             end_on_silence: end_on_silence.enabled,
+            adjust_recordings: adjust_recordings.enabled,
             debug_running: debug.enabled,
             debug_stored: debug.stored,
             dev_remote_stored: dev_remote.enabled,
@@ -399,6 +401,15 @@ impl Switches for RemoteMachine {
         self.writing()
             .await?
             .set_end_on_silence(on)
+            .await
+            .map(|stored| stored.enabled)
+            .map_err(fault)
+    }
+
+    async fn set_adjust_recordings(&self, on: bool) -> Result<bool, AdminError> {
+        self.writing()
+            .await?
+            .set_adjust_recordings(on)
             .await
             .map(|stored| stored.enabled)
             .map_err(fault)

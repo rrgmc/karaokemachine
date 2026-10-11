@@ -1366,6 +1366,31 @@ pub async fn put_end_on_silence(
     Ok(Json(crate::dto::EndOnSilenceDto { enabled }))
 }
 
+/// `GET /api/v1/playback/adjust-recordings`
+///
+/// Whether a recorded song changes key and tempo. Public, like the switch above.
+pub async fn get_adjust_recordings(
+    State(state): State<ApiState>,
+) -> Json<crate::dto::AdjustRecordingsDto> {
+    Json(crate::dto::AdjustRecordingsDto {
+        enabled: state.controller().adjust_recordings(),
+    })
+}
+
+/// `PUT /api/v1/admin/playback/adjust-recordings`
+///
+/// Under `/admin/` because it is installation configuration and is written down. The reply is what
+/// the machine stored. See [`Controller::set_adjust_recordings`].
+///
+/// [`Controller::set_adjust_recordings`]: crate::machine::Controller::set_adjust_recordings
+pub async fn put_adjust_recordings(
+    State(state): State<ApiState>,
+    Body(body): Body<crate::dto::AdjustRecordingsRequest>,
+) -> ApiResult<Json<crate::dto::AdjustRecordingsDto>> {
+    let enabled = state.controller().set_adjust_recordings(body.enabled)?;
+    Ok(Json(crate::dto::AdjustRecordingsDto { enabled }))
+}
+
 /// `GET /api/v1/performance`
 ///
 /// Whether the frame-statistics panel is on the machine's own screen. Public, like the two switches

@@ -146,6 +146,12 @@ struct Loaded {
     /// `1.0` and [`km_display::GainSource::Unmeasured`] for a song nothing levelled, which is a
     /// description of what happened rather than a missing value.
     gain: (f32, km_display::GainSource),
+    /// Whether this song changes key and tempo.
+    ///
+    /// True for a MIDI song, and for a recorded song loaded while `playback.adjust_recordings` was
+    /// on. [`Machine::start`] decides it, and it holds for the song: the stretcher is built with the
+    /// load, so a switch of the setting reaches the next song.
+    adjustable: bool,
     /// The song itself.
     media: Media,
 }
@@ -177,6 +183,7 @@ impl Loaded {
                 .lyric_song()
                 .is_some_and(|song| !song.lyrics.is_empty()),
             lyrics_hidden: self.lyrics_hidden,
+            adjustable: self.adjustable,
         }
     }
 
@@ -220,11 +227,12 @@ impl Loaded {
     /// **Read from the media and not through [`Self::lyric_song`].** A song whose words are turned
     /// off still has a singer who starts at its first word.
     ///
-    /// `tempo_ratio` shortens or stretches a MIDI song's introduction. An UltraStar or LRC song
-    /// plays recorded audio at its own speed, so the ratio does not apply to it.
+    /// `tempo_ratio` shortens or stretches the song's introduction. An UltraStar or LRC song that
+    /// cannot change tempo plays at its own speed, so the ratio does not apply to it.
     fn reveal(&self, tempo_ratio: f32) -> Option<Duration> {
         let (song, ratio) = match &self.media {
             Media::Midi(song) => (song, tempo_ratio),
+            Media::Timed(timed) if self.adjustable => (timed.song(), tempo_ratio),
             Media::Timed(timed) => (timed.song(), 1.0),
             Media::Video(_) | Media::Cdg(_) => return None,
         };
@@ -376,11 +384,25 @@ fn quiet_point_ms(words_end_ms: Option<u32>, duration_ms: u32) -> Option<u32> {
         .or_else(|| (duration_ms > 0).then(|| duration_ms - TAIL_WINDOW_MS.min(duration_ms / 2)))
 }
 
-/// Tells a decoded song's player where its silent tail may begin.
+/// Whether a song changes key and tempo, given what `playback.adjust_recordings` says.
+fn adjusts(media: &Media, adjust_recordings: bool) -> bool {
+    match media {
+        Media::Midi(_) => true,
+        Media::Video(_) | Media::Cdg(_) | Media::Timed(_) => adjust_recordings,
+    }
+}
+
+/// Tells a decoded song's player where its silent tail may begin, and gives it its stretcher.
 ///
-/// A MIDI song carries no track, and its sequencer knows its own last note.
+/// A MIDI song carries no track, and its sequencer knows its own last note and its own key.
+///
+/// **The stretcher is built here, on the control thread.** Building it allocates, and the audio
+/// thread only ever takes a player that is already whole.
 fn with_quiet_point(mut load: km_audio::audio::Load, loaded: &Loaded) -> km_audio::audio::Load {
     if let km_audio::audio::Load::Track(track) = &mut load {
+        if loaded.adjustable {
+            track.add_stretch();
+        }
         let words_end_ms = match &loaded.media {
             Media::Timed(timed) if !timed.song().lyrics.lines.is_empty() => {
                 Some(timed.song().duration_ms())
@@ -444,9 +466,11 @@ pub enum CatalogCounts {
 ///
 /// **Built from the kind rather than fixed**, since a second kind lacks all three for its own
 /// reasons: a video's words are pixels in somebody else's picture, an MP3+G song's are tiles this
-/// application draws itself. Neither has a channel to mute or a key to shift, and a message naming
-/// the wrong one would send somebody looking for a video song they never queued.
-/// The stable names for "this kind of song has no key to change".
+/// application draws itself. Neither has a channel to mute, and a message naming the wrong one would
+/// send somebody looking for a video song they never queued.
+/// The stable names for "this machine does not change the key of this kind of song".
+///
+/// A recorded song gets one where `playback.adjust_recordings` is off.
 ///
 /// **One code per kind rather than one code and a kind beside it.** A surface rendering this has to
 /// say `uma música em vídeo` where English says `a video song` — an article that agrees with the
@@ -466,7 +490,7 @@ fn no_key_code(kind: SongKind) -> &'static str {
     }
 }
 
-/// The stable names for "this kind of song has no tempo to change". See [`no_key_code`].
+/// The stable names for the same refusal of a tempo change. See [`no_key_code`].
 fn no_tempo_code(kind: SongKind) -> &'static str {
     match kind {
         SongKind::Midi => "no_tempo_midi",
@@ -517,14 +541,20 @@ pub const NO_MELODY_CHANNEL: &str = "no_melody_channel";
 fn has_no_key(kind: SongKind) -> Refusal {
     Refusal::coded(
         no_key_code(kind),
-        format!("{} has no key to change", kind.article_name()),
+        format!(
+            "this machine does not change the key of {}",
+            kind.article_name()
+        ),
     )
 }
 
 fn has_no_tempo(kind: SongKind) -> Refusal {
     Refusal::coded(
         no_tempo_code(kind),
-        format!("{} has no tempo to change", kind.article_name()),
+        format!(
+            "this machine does not change the tempo of {}",
+            kind.article_name()
+        ),
     )
 }
 
@@ -1487,6 +1517,7 @@ impl Machine {
             // A loose file has no package, so nothing measured it. See `Loaded::loudness_lufs`.
             loudness_lufs: None,
             gain: Loaded::UNLEVELLED,
+            adjustable: false,
             media: Media::Midi(Arc::clone(&song)),
         };
         self.start(
@@ -1549,6 +1580,7 @@ impl Machine {
             // A loose file has no package, so nothing measured it. See `Loaded::loudness_lufs`.
             loudness_lufs: None,
             gain: Loaded::UNLEVELLED,
+            adjustable: false,
             media: Media::Video(Arc::new(song)),
         };
         self.start(loaded, 0, km_audio::audio::Load::Track(Box::new(track)))
@@ -1600,6 +1632,7 @@ impl Machine {
             // A loose file has no package, so nothing measured it. See `Loaded::loudness_lufs`.
             loudness_lufs: None,
             gain: Loaded::UNLEVELLED,
+            adjustable: false,
             media: Media::Cdg(Arc::new(song)),
         };
         self.start(loaded, 0, km_audio::audio::Load::Track(Box::new(track)))
@@ -1670,6 +1703,7 @@ impl Machine {
             // A loose file has no package, so nothing measured it. See `Loaded::loudness_lufs`.
             loudness_lufs: None,
             gain: Loaded::UNLEVELLED,
+            adjustable: false,
             media: Media::Timed(Arc::new(song)),
         };
         self.start(loaded, 0, km_audio::audio::Load::Track(Box::new(track)))
@@ -2293,6 +2327,7 @@ impl Machine {
                     fixes,
                     loudness_lufs: row.loudness_lufs,
                     gain: Loaded::UNLEVELLED,
+                    adjustable: false,
                     media,
                 };
                 Some((loaded, row.default_transpose, load))
@@ -2527,6 +2562,7 @@ impl Machine {
                         fixes,
                         loudness_lufs: row.loudness_lufs,
                         gain: Loaded::UNLEVELLED,
+                        adjustable: false,
                         media,
                     };
                     if self.start(loaded, row.default_transpose, load).is_ok() {
@@ -2576,6 +2612,7 @@ impl Machine {
             normalize_midi,
             change_wallpaper,
             announce_length,
+            adjust_recordings,
         ) = {
             let settings = self.lock_settings();
             (
@@ -2599,8 +2636,16 @@ impl Machine {
                 // deliberately never held at once anywhere in this function.
                 settings.wallpaper.on_song_change,
                 settings.announcement.length(),
+                settings.playback.adjust_recordings,
             )
         };
+
+        // A MIDI song changes key and tempo in its sequencer. A recorded song needs a stretcher,
+        // and gets one where the owner's setting allows it.
+        //
+        // One that gets none plays at its own key and tempo. The settings go on holding the stored
+        // values through it, because `update_settings` writes them back to the file.
+        loaded.adjustable = adjusts(&loaded.media, adjust_recordings);
 
         // **Only a queued song is announced.** A demo song has no singer walking to a microphone
         // and chains with no gap, and a file played through the debug routes is a curator
@@ -2911,15 +2956,15 @@ impl Machine {
 
     /// Applies a settings change to the engine, returning what now holds.
     fn apply_settings(&self, patch: &SettingsPatch) -> Result<ApiSettings, ControlError> {
-        let (melody_available, adjustable, kind) = {
+        let (melody_available, adjustable, melodic, kind) = {
             let state = self.lock_state();
             let loaded = state.loaded.as_ref();
             (
                 loaded.is_none_or(|loaded| loaded.melody_channel.is_some()),
-                // With nothing loaded these still apply: they are the settings the *next* MIDI song
-                // will start with, and a video or MP3+G song playing now must not stop somebody
-                // preparing the key for the one after it. Only such a song actually on the machine
-                // refuses.
+                // With nothing loaded these still apply: they are the settings the next song will
+                // start with. Only a loaded song that cannot change key and tempo refuses.
+                loaded.is_none_or(|loaded| loaded.adjustable),
+                // The guide melody is a channel, and only a MIDI song has one.
                 loaded.is_none_or(|loaded| loaded.kind.is_midi()),
                 // Carried so the refusal can name the kind it is refusing for.
                 loaded.map_or(SongKind::Midi, |loaded| loaded.kind),
@@ -2958,7 +3003,7 @@ impl Machine {
             commands.push(Command::SetTempoRatio(ratio));
         }
         if let Some(enabled) = patch.melody_enabled {
-            if enabled && !adjustable {
+            if enabled && !melodic {
                 return Err(ControlError::Unavailable(has_no_melody(kind)));
             }
             if enabled && !melody_available {
@@ -2982,9 +3027,9 @@ impl Machine {
             // that: this is a calibration dial, and the number is meant to be nudged from a remote
             // while a song plays until the highlight lands on the beat.
             //
-            // No `adjustable` check either. The three settings that have one are about a MIDI song's
-            // notes and refuse while a video plays; this one is about the screen, and an owner
-            // calibrating the room must not be told to wait for the video to end.
+            // No `adjustable` check either. The three settings that have one are about the song's
+            // sound and may refuse; this one is about the screen, and an owner calibrating the
+            // room must not be told to wait for the song to end.
             //
             // And no `Command`: nothing about this reaches the engine, the audio or the real-time
             // thread. The audio is already right — it is the drawing that is early or late.
@@ -4961,6 +5006,21 @@ impl Controller for Machine {
         Ok(enabled)
     }
 
+    fn adjust_recordings(&self) -> bool {
+        self.lock_settings().playback.adjust_recordings
+    }
+
+    /// Stores the switch and writes it down.
+    ///
+    /// No command goes to the player. A song takes its stretcher when it loads, so the song that is
+    /// playing keeps what it has and `start` reads the stored value for the next one.
+    fn set_adjust_recordings(&self, enabled: bool) -> Result<bool, ControlError> {
+        self.lock_settings().playback.adjust_recordings = enabled;
+        self.save_settings();
+        tracing::info!(enabled, "key and tempo for a recorded song was switched");
+        Ok(enabled)
+    }
+
     fn developer_switches(&self) -> km_api::machine::DeveloperSwitches {
         // Read off the settings rather than off the running `ApiConfig`, which is the whole point of
         // this call: both switches take effect at the next start, so what a page can usefully draw
@@ -5641,6 +5701,7 @@ mod tests {
             fixes: km_fixes::ChannelFixes::default(),
             loudness_lufs: None,
             gain: Loaded::UNLEVELLED,
+            adjustable: false,
             media: Media::Midi(song),
         }
     }
@@ -7311,6 +7372,120 @@ mod tests {
             2,
             "the next song starts with what was stored"
         );
+    }
+
+    /// A loaded song of `kind` that does or does not change key and tempo.
+    ///
+    /// The media is a MIDI song whatever the kind says. `apply_settings` reads the kind and the
+    /// flag, and a real recording needs a decoder and a file.
+    fn loaded_as(kind: SongKind, adjustable: bool) -> Loaded {
+        Loaded {
+            kind,
+            adjustable,
+            ..loaded_midi(false)
+        }
+    }
+
+    #[test]
+    fn a_recorded_song_with_a_stretcher_takes_a_key_and_a_tempo() {
+        let (_scratch, machine, log, _codes) = a_machine_with_eight_songs("adjust-recorded");
+        for kind in [
+            SongKind::Video,
+            SongKind::Cdg,
+            SongKind::UltraStar,
+            SongKind::Lrc,
+        ] {
+            machine.lock_state().loaded = Some(loaded_as(kind, true));
+            let settings = Controller::update_settings(
+                machine.as_ref(),
+                &SettingsPatch {
+                    transpose: Some(-3),
+                    tempo_milli: Some(1_100),
+                    ..SettingsPatch::default()
+                },
+            )
+            .unwrap_or_else(|error| panic!("{kind:?}: {error:?}"));
+            assert_eq!(settings.transpose, -3, "{kind:?}");
+            assert!((settings.tempo_ratio - 1.1).abs() < 0.001, "{kind:?}");
+        }
+        assert_eq!(log.count("SetTranspose(-3)"), 4);
+        assert_eq!(log.count("SetTempoRatio(1.1)"), 4);
+    }
+
+    #[test]
+    fn a_recorded_song_without_a_stretcher_refuses_a_key_and_a_tempo() {
+        let (_scratch, machine, log, _codes) = a_machine_with_eight_songs("fixed-recorded");
+        machine.lock_state().loaded = Some(loaded_as(SongKind::Video, false));
+
+        for (patch, code) in [
+            (
+                SettingsPatch {
+                    transpose: Some(2),
+                    ..SettingsPatch::default()
+                },
+                "no_key_video",
+            ),
+            (
+                SettingsPatch {
+                    tempo_milli: Some(900),
+                    ..SettingsPatch::default()
+                },
+                "no_tempo_video",
+            ),
+        ] {
+            match Controller::update_settings(machine.as_ref(), &patch) {
+                Err(ControlError::Unavailable(refusal)) => {
+                    assert_eq!(refusal.code, Some(code));
+                }
+                other => panic!("{code}: {other:?}"),
+            }
+        }
+        assert_eq!(log.count("SetTranspose(2)"), 0);
+        assert_eq!(log.count("SetTempoRatio(0.9)"), 0);
+    }
+
+    /// A stretcher gives a recording a key and a tempo, and no channel to mute.
+    #[test]
+    fn a_recorded_song_refuses_the_guide_melody_with_or_without_a_stretcher() {
+        let (_scratch, machine, _log, _codes) = a_machine_with_eight_songs("melody-recorded");
+        for adjustable in [true, false] {
+            machine.lock_state().loaded = Some(loaded_as(SongKind::Cdg, adjustable));
+            let patch = SettingsPatch {
+                melody_enabled: Some(true),
+                ..SettingsPatch::default()
+            };
+            match Controller::update_settings(machine.as_ref(), &patch) {
+                Err(ControlError::Unavailable(refusal)) => {
+                    assert_eq!(refusal.code, Some("no_melody_cdg"));
+                }
+                other => panic!("adjustable {adjustable}: {other:?}"),
+            }
+        }
+    }
+
+    #[test]
+    fn the_setting_decides_whether_a_recorded_song_changes_key_and_tempo() {
+        let midi = loaded_midi(false).media;
+        assert!(adjusts(&midi, false), "a MIDI song needs no stretcher");
+        assert!(adjusts(&midi, true));
+    }
+
+    /// The switch is written down, and no command goes to the song that is playing.
+    #[test]
+    fn switching_key_and_tempo_for_recordings_is_stored_for_the_next_song() {
+        let (_scratch, machine, log, _codes) = a_machine_with_eight_songs("adjust-switch");
+        let before = Controller::adjust_recordings(machine.as_ref());
+        assert_eq!(
+            before,
+            Settings::default().playback.adjust_recordings,
+            "the platform's default"
+        );
+
+        let commands = log.count("Set");
+        assert!(!Controller::set_adjust_recordings(machine.as_ref(), false).expect("switch"));
+        assert!(!Controller::adjust_recordings(machine.as_ref()));
+        assert!(!machine.lock_settings().playback.adjust_recordings);
+        assert_eq!(log.count("Set"), commands, "the player is told nothing");
     }
 
     #[test]

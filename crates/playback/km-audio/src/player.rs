@@ -210,7 +210,7 @@ impl<S: AudioSource> Player<S> {
 
     /// The settings that are or will be in force.
     ///
-    /// A video song has none of them, so what comes back is what the *next* MIDI song will get.
+    /// A recorded song holds none of its own, so what comes back is what this player last took.
     pub fn settings(&self) -> PlaybackSettings {
         match &self.program {
             Some(Program::Midi(sequencer)) => sequencer.settings(),
@@ -257,9 +257,13 @@ impl<S: AudioSource> Player<S> {
     ///
     /// The synthesizer is silenced rather than unloaded: it stays for the next MIDI song, which is
     /// the whole point of keeping the source and varying the program.
-    pub fn load_track(&mut self, track: TrackPlayer) {
+    pub fn load_track(&mut self, mut track: TrackPlayer) {
         self.source.reset();
         self.discard_spill();
+        track.set_adjustments(
+            self.pending_settings.transpose,
+            self.pending_settings.tempo_ratio,
+        );
         self.program = Some(Program::Track(track));
         self.transport = Transport::Stopped;
         self.ended_reported = false;
@@ -344,30 +348,40 @@ impl<S: AudioSource> Player<S> {
 
     /// Sets the transposition in semitones. This is the tone adjustment control.
     ///
-    /// Inert while a video song is loaded — there is no key to shift — but still recorded, so it
-    /// takes effect on the next MIDI song exactly as a transpose set while idle does.
+    /// A recorded song takes it through its stretcher. One loaded without that stage ignores it, and
+    /// the value is still recorded, so it takes effect on the next song that can use it.
     pub fn set_transpose(&mut self, semitones: i8) {
         self.pending_settings.transpose = semitones;
         self.pending_settings = self.pending_settings.clamped();
-        if let Some(Program::Midi(sequencer)) = &mut self.program {
-            sequencer.set_transpose(semitones);
+        let settings = self.pending_settings;
+        match &mut self.program {
+            Some(Program::Midi(sequencer)) => sequencer.set_transpose(semitones),
+            Some(Program::Track(track)) => {
+                track.set_adjustments(settings.transpose, settings.tempo_ratio);
+            }
+            None => {}
         }
     }
 
-    /// Sets playback speed as a multiple of the written tempo.
+    /// Sets playback speed as a multiple of the song's own tempo.
     ///
-    /// Inert while a video song is loaded, for the reason given on [`Player::set_transpose`].
+    /// A recorded song takes it as [`Player::set_transpose`] describes.
     pub fn set_tempo_ratio(&mut self, ratio: f32) {
         self.pending_settings.tempo_ratio = ratio;
         self.pending_settings = self.pending_settings.clamped();
-        if let Some(Program::Midi(sequencer)) = &mut self.program {
-            sequencer.set_tempo_ratio(ratio);
+        let settings = self.pending_settings;
+        match &mut self.program {
+            Some(Program::Midi(sequencer)) => sequencer.set_tempo_ratio(ratio),
+            Some(Program::Track(track)) => {
+                track.set_adjustments(settings.transpose, settings.tempo_ratio);
+            }
+            None => {}
         }
     }
 
     /// Turns the guide melody on or off.
     ///
-    /// Inert while a video song is loaded, for the reason given on [`Player::set_transpose`].
+    /// Inert while a recorded song is loaded, because a recording has no channel to mute.
     pub fn set_melody_enabled(&mut self, enabled: bool) {
         self.pending_settings.melody_enabled = enabled;
         if let Some(Program::Midi(sequencer)) = &mut self.program {

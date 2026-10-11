@@ -349,6 +349,8 @@ pub struct SwitchState {
     pub announcement_length_secs: u32,
     /// Whether a song ends when its tail is silent.
     pub end_on_silence: bool,
+    /// Whether a recorded song changes key and tempo.
+    pub adjust_recordings: bool,
 }
 
 /// The facts the information panel draws, which are the machine saying what it is.
@@ -675,6 +677,9 @@ pub trait Switches: Send + Sync + 'static {
 
     /// Say whether a song ends when its tail is silent, answering with what the machine stored.
     async fn set_end_on_silence(&self, on: bool) -> Result<bool, AdminError>;
+
+    /// Say whether a recorded song changes key and tempo, answering with what the machine stored.
+    async fn set_adjust_recordings(&self, on: bool) -> Result<bool, AdminError>;
 }
 
 /// The Sound tab: where the sound comes out, and which bank supplies the instruments.

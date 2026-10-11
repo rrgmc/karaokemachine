@@ -190,6 +190,15 @@ end-on-silence-save = Save
 end-on-silence-on = The machine ends a song when the rest of it is silent.
 end-on-silence-off = The machine plays every song to the end of its file.
 
+# A recorded song is a video, an MP3+G song, or an UltraStar or LRC song. The hint names the cost,
+# because the cost is the reason somebody turns this off.
+adjust-recordings-heading = Key and tempo for recorded songs
+adjust-recordings-hint = A video, an MP3+G song and a song with recorded audio can change key and tempo. The change needs more processing. Turn it off if those songs stutter on this machine.
+adjust-recordings-enabled = Let recorded songs change key and tempo
+adjust-recordings-save = Save
+adjust-recordings-on = Recorded songs change key and tempo, from the next song.
+adjust-recordings-off = Recorded songs play at their own key and tempo, from the next song.
+
 ## The announcement
 #
 # One Save for the switch and the length, so one confirmation covers both. The confirmation names

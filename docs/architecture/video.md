@@ -30,6 +30,11 @@ below is about.
 device has actually consumed, exactly as a MIDI song's comes from the sequencer. Audio-as-master-clock
 follows from the machine's existing design, and video playback brings no clock of its own.
 
+**A tempo change therefore moves the picture with no video code.** The position runs at the song's
+tempo, and `take_frame_for` compares it with each frame's own time. The decoder paces on ring space,
+so a faster tempo pulls frames faster. At tempo 1.25 it decodes 25% more frames each second, and
+nothing has measured that on the television.
+
 Five things worth knowing before changing any of it:
 
 - **The device's sample rate never reaches the decoder.** The decoder pushes samples at the *file's*

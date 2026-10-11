@@ -19,17 +19,17 @@ error-failed = Não deu certo. Tente de novo.
 # substantivo, e `uma música em vídeo` não sai de nenhuma tradução de `a video song has no key`.
 error-no-key = { $kind ->
     [midi] Esta música não tem tom para mudar.
-    [video] Uma música em vídeo não tem tom para mudar.
-    [cdg] Uma música MP3+G não tem tom para mudar.
-    [ultrastar] Uma música UltraStar não tem tom para mudar.
-    [lrc] Uma música LRC não tem tom para mudar.
+    [video] Esta máquina não muda o tom de uma música em vídeo.
+    [cdg] Esta máquina não muda o tom de uma música MP3+G.
+    [ultrastar] Esta máquina não muda o tom de uma música UltraStar.
+    [lrc] Esta máquina não muda o tom de uma música LRC.
    *[other] Esta música não tem tom para mudar.
  }
 error-no-tempo = { $kind ->
-    [video] Uma música em vídeo não tem ritmo para mudar.
-    [cdg] Uma música MP3+G não tem ritmo para mudar.
-    [ultrastar] Uma música UltraStar não tem ritmo para mudar.
-    [lrc] Uma música LRC não tem ritmo para mudar.
+    [video] Esta máquina não muda o ritmo de uma música em vídeo.
+    [cdg] Esta máquina não muda o ritmo de uma música MP3+G.
+    [ultrastar] Esta máquina não muda o ritmo de uma música UltraStar.
+    [lrc] Esta máquina não muda o ritmo de uma música LRC.
    *[other] Esta música não tem ritmo para mudar.
  }
 error-no-melody = { $kind ->

@@ -169,6 +169,15 @@ end-on-silence-save = Salvar
 end-on-silence-on = A máquina encerra a música quando o resto dela é silêncio.
 end-on-silence-off = A máquina toca cada música até o fim do arquivo.
 
+## Tom e ritmo das músicas gravadas
+
+adjust-recordings-heading = Tom e ritmo das músicas gravadas
+adjust-recordings-hint = Um vídeo, uma música MP3+G e uma música com áudio gravado podem mudar de tom e de ritmo. A mudança exige mais processamento. Desligue se essas músicas engasgam nesta máquina.
+adjust-recordings-enabled = Deixar as músicas gravadas mudarem de tom e de ritmo
+adjust-recordings-save = Salvar
+adjust-recordings-on = As músicas gravadas mudam de tom e de ritmo, a partir da próxima música.
+adjust-recordings-off = As músicas gravadas tocam no próprio tom e ritmo, a partir da próxima música.
+
 ## O anúncio
 
 announcement-heading = Anúncio

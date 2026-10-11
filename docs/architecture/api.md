@@ -51,6 +51,16 @@ rather than clamping.
 `playback.end_on_silence` and sends `Command::SetEndOnSilence` to the player. The argument is
 [`Ending a song on silence is a route of its own`](../decisions/api-and-network.md#ending-a-song-on-silence-is-a-route-of-its-own-and-it-is-always-written-down).
 
+**`PUT /api/v1/admin/playback/adjust-recordings` says whether a recorded song changes key and
+tempo**, and `GET /api/v1/playback/adjust-recordings` reads it. The pair has the shape of the pair
+above. `Controller::set_adjust_recordings` writes `playback.adjust_recordings` and sends the player
+nothing, because a song takes its stretcher when it loads.
+
+**`NowPlaying::adjustable` is what a client reads, and not the kind.** It is true for a MIDI song,
+and for a recorded song the machine gave a stretcher. `transpose_available` and `tempo_available`
+carry it on the wire. `km_api::machine` names `MAX_TRANSPOSE`, `MIN_TEMPO_RATIO` and
+`MAX_TEMPO_RATIO`, so a client clamps to the range `PUT /settings` accepts.
+
 **`GET /api/v1/announcement` and `PUT /api/v1/admin/announcement` are one resource in two prefixes
 as well.** The `PUT` takes `enabled` and `length_secs` together and always writes both down, so it
 has no `persist` and no second route under it. It answers 400 for a length of zero or one above
@@ -462,9 +472,9 @@ refusal rather than nothing.
 
 | Code | Raised by | What a surface says |
 |---|---|---|
-| `no_key_midi` / `no_key_video` / `no_key_cdg` | a key change on a song with no key | `error-no-key`, selecting on the kind |
-| `no_tempo_midi` / `no_tempo_video` / `no_tempo_cdg` | a tempo change on a song with no tempo | `error-no-tempo` |
-| `no_melody_midi` / `no_melody_video` / `no_melody_cdg` | a melody toggle on a song that has none | `error-no-melody` |
+| `no_key_<kind>` | a key change on a recorded song, with `playback.adjust_recordings` off | `error-no-key`, selecting on the kind |
+| `no_tempo_<kind>` | a tempo change on such a song | `error-no-tempo` |
+| `no_melody_<kind>` | a melody toggle on a song that has none | `error-no-melody` |
 | `no_melody_channel` | a MIDI song where detection abstained | `error-no-melody-channel` |
 | `nothing_playing` | pause with nothing playing, and skip with nothing playing and demo mode off | `error-nothing-playing` |
 | `nothing_loaded` | seek or restart with nothing loaded | `error-nothing-loaded` |

@@ -4119,6 +4119,54 @@ async fn ending_on_silence_is_public_to_read_and_admin_to_switch() {
     );
 }
 
+/// Key and tempo for a recorded song is public to read and admin to switch, and the read follows.
+#[tokio::test]
+async fn adjusting_recordings_is_public_to_read_and_admin_to_switch() {
+    let mut harness = Harness::with_password("carols1975")
+        .at_the_machine()
+        .tokenless();
+
+    let body = harness
+        .ok(Method::GET, "/playback/adjust-recordings", None)
+        .await;
+    assert_eq!(body["enabled"], true, "{body}");
+
+    let (status, _) = harness
+        .put(
+            "/admin/playback/adjust-recordings",
+            json!({ "enabled": false }),
+        )
+        .await;
+    assert_eq!(
+        status,
+        StatusCode::UNAUTHORIZED,
+        "switching it needs a token"
+    );
+
+    harness.log_in("carols1975").await;
+    let (status, body) = harness
+        .put(
+            "/admin/playback/adjust-recordings",
+            json!({ "enabled": false }),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(body["enabled"], false, "{body}");
+    assert!(
+        harness
+            .machine
+            .recorded()
+            .iter()
+            .any(|entry| matches!(entry, Recorded::AdjustRecordingsSet(false))),
+        "the switch did not reach the controller"
+    );
+
+    let body = harness
+        .ok(Method::GET, "/playback/adjust-recordings", None)
+        .await;
+    assert_eq!(body["enabled"], false, "{body}");
+}
+
 /// The console's switch is public to read and admin to move, exactly as debugging's is.
 ///
 /// **And it reports `served: false` while it is on**, which is the state this pair exists for: the

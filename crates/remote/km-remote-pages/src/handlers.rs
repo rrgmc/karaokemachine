@@ -2046,19 +2046,28 @@ async fn patch_transpose(state: &Remote, semitones: i8) -> Result<(), RemoteErro
     state
         .machine
         .update_settings(&SettingsPatchDto {
-            transpose: Some(semitones.clamp(-6, 6)),
+            transpose: Some(semitones.clamp(
+                -km_api::machine::MAX_TRANSPOSE,
+                km_api::machine::MAX_TRANSPOSE,
+            )),
             ..Default::default()
         })
         .await
         .map(|_| ())
 }
 
-/// Changes the tempo, clamped so a stepper cannot walk it into silence.
+/// Changes the tempo, clamped to the range the machine accepts.
+///
+/// A step past either end therefore sends the end again, where a wider clamp sends a value the
+/// machine refuses.
 async fn patch_tempo(state: &Remote, ratio: f32) -> Result<(), RemoteError> {
     state
         .machine
         .update_settings(&SettingsPatchDto {
-            tempo_ratio: Some(ratio.clamp(0.5, 1.5)),
+            tempo_ratio: Some(ratio.clamp(
+                km_api::machine::MIN_TEMPO_RATIO,
+                km_api::machine::MAX_TEMPO_RATIO,
+            )),
             ..Default::default()
         })
         .await

@@ -29,6 +29,9 @@ km-fixes = { workspace = true }
 rustysynth = { workspace = true }
 cpal = { workspace = true }
 rtrb = { workspace = true }
+# The stretcher a recorded song's key and tempo go through. Pure Rust and MIT, with no `unsafe` code.
+# It carries no cargo feature, because an MP3+G song plays in every build.
+timestretch = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
 

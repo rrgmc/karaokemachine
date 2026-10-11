@@ -2362,6 +2362,7 @@ dependencies = [
  "rtrb",
  "rustysynth",
  "thiserror 2.0.20",
+ "timestretch",
  "tracing",
  "windows 0.62.2",
 ]

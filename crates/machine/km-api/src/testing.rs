@@ -112,6 +112,8 @@ pub enum Recorded {
     PerformanceOverlaySet(bool),
     /// Ending a song on a silent tail was switched.
     EndOnSilenceSet(bool),
+    /// Key and tempo for a recorded song was switched.
+    AdjustRecordingsSet(bool),
     /// The admin password was set, or cleared when this is `None`.
     ///
     /// The hash and the factory PIN, in that order. The hash rather than the password, which is
@@ -266,6 +268,8 @@ struct Inner {
     performance_overlay: bool,
     /// Whether a silent tail ends a song. Held as well as recorded, so a read follows a write.
     end_on_silence: bool,
+    /// Whether a recorded song changes key and tempo. Held so a read follows a write.
+    adjust_recordings: bool,
     /// What debugging and the development console are set to in settings.
     ///
     /// **Stored only, with no running twin**, which is the opposite arrangement to the panel above
@@ -388,6 +392,7 @@ impl TestMachine {
                 },
                 performance_overlay: false,
                 end_on_silence: true,
+                adjust_recordings: true,
                 debug_stored: false,
                 dev_remote_stored: false,
                 output_level: None,
@@ -759,6 +764,8 @@ impl Inner {
             melody_channel: song.as_ref().and_then(|song| song.melody_channel),
             has_lyrics: true,
             lyrics_hidden: false,
+            // The machine this stands in for has key and tempo for recordings turned off.
+            adjustable: song.as_ref().is_none_or(|song| song.kind.is_midi()),
         });
         self.transport = Transport::Playing;
         self.position_ms = 0;
@@ -1518,6 +1525,17 @@ impl Controller for TestMachine {
         Ok(enabled)
     }
 
+    fn adjust_recordings(&self) -> bool {
+        self.lock().adjust_recordings
+    }
+
+    fn set_adjust_recordings(&self, enabled: bool) -> Result<bool, ControlError> {
+        let mut inner = self.lock();
+        inner.adjust_recordings = enabled;
+        inner.recorded.push(Recorded::AdjustRecordingsSet(enabled));
+        Ok(enabled)
+    }
+
     fn set_admin_password(
         &self,
         hash: Option<String>,
@@ -1818,6 +1836,7 @@ fn begin_file(inner: &mut Inner, path: &Path) {
         melody_channel: None,
         has_lyrics: true,
         lyrics_hidden: false,
+        adjustable: true,
     });
     inner.transport = Transport::Playing;
     inner.position_ms = 0;

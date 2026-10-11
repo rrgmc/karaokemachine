@@ -522,6 +522,10 @@ pub fn router(state: Admin) -> Router {
             "/machine/end-on-silence",
             post(handlers::set_end_on_silence),
         )
+        .route(
+            "/machine/adjust-recordings",
+            post(handlers::set_adjust_recordings),
+        )
         .route("/machine/password", post(handlers::set_password))
         .route("/machine/sessions", post(handlers::reset_sessions))
         .route("/machine/access", post(handlers::set_room_access))

@@ -267,6 +267,12 @@ states perfectly well, and the machine that wants it changed has no way to edit 
 in the player: `Machine::set_end_on_silence` sends `Command::SetEndOnSilence`, so the song that is
 playing obeys the new value.
 
+**`playback.adjust_recordings` is the eighth, and it has no live counterpart.** It says whether a
+recorded song changes key and tempo. It gets `PUT /api/v1/admin/playback/adjust-recordings` and is
+written down at once. `Machine::start` reads it when a song loads, so the song that is playing keeps
+the stretcher it has or lacks. Its default is `true` on a desktop and `false` on Android and iOS,
+through `cfg!`, as `display.number_pad` is.
+
 **`announcement` is a section of two keys, and one route writes both.** `announcement.enabled` and
 `announcement.length_secs` say whether a card names each queued song and for how many seconds.
 `PUT /api/v1/admin/announcement` takes the pair and writes it at once. Neither key has a run-only

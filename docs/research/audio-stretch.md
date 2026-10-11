@@ -1,9 +1,9 @@
 # Research: key and tempo for a recorded song
 
-**Findings, and no decision.** A recorded song refuses a key change and a tempo change, and
-`No audio-file pitch shifting` is a non-goal in `CLAUDE.md`. Giving a recording either control
-would change that non-goal and the entries in
-[`song-sources.md`](../decisions/song-sources.md) that rest on it.
+**Research only.** What was decided is
+[`A recorded song changes key and tempo`](../decisions/audio.md#a-recorded-song-changes-key-and-tempo),
+and how it is built is in [`docs/architecture/audio.md`](../architecture/audio.md). Where this note
+and either of those disagree, they hold.
 
 A recorded song is a video, an MP3+G pair, or an UltraStar or LRC file with its audio.
 
