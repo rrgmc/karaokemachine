@@ -14,7 +14,7 @@
 # find. Each line below is one of those attempts.
 #
 # Prerequisites (see "Android prerequisites" in docs/ARCHITECTURE.md):
-#   - Android NDK, via Android Studio's SDK Manager
+#   - Android NDK at the version build.gradle pins, via `sdkmanager` or Android Studio's SDK Manager
 #   - cargo install cargo-ndk
 #   - rustup target add aarch64-linux-android armv7-linux-androideabi
 #   - ninja on PATH
@@ -58,7 +58,7 @@ done
 # -- find the NDK ---------------------------------------------------------------------------------
 
 # The discovery lives in tools/port/ndk.sh rather than inline, because
-# tools/port/machine/android/ffmpeg.sh needs exactly the same NDK, the same "newest installed" rule
+# tools/port/machine/android/ffmpeg.sh needs exactly the same NDK, the same "pinned version first" rule
 # and the same "is this really an NDK?" check.
 ndk_require || exit 1
 toolchain="$NDK_TOOLCHAIN"

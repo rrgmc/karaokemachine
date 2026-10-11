@@ -11,7 +11,7 @@
 #
 # **This exists because there are now two callers.** `tools/port/machine/android/build.sh` found the NDK
 # itself from the day it was written, which was right while it was the only script that needed one;
-# `tools/port/machine/android/ffmpeg.sh` needs the same NDK, the same version-sorted "newest installed" rule
+# `tools/port/machine/android/ffmpeg.sh` needs the same NDK, the same "the pinned version first" rule
 # and the same "is this really an NDK?" check, and a second copy of that would be a second thing to
 # fix when the layout changes. The discovery below is `build.sh`'s, moved rather than rewritten.
 #
@@ -37,15 +37,27 @@ ANDROID_PLATFORM="${ANDROID_PLATFORM:-26}"
 # A function rather than top-level code so that sourcing this file is free of side effects and a
 # caller decides when -- and whether -- it needs an NDK at all.
 ndk_require() {
+  pin=""
   if [ -z "${ANDROID_NDK_HOME:-}" ]; then
     sdk="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-${LOCALAPPDATA:-$HOME}/Android/Sdk}}"
-    if [ -d "$sdk/ndk" ]; then
-      # Newest installed version, so a side-by-side upgrade needs no edit here.
+    # **The version `build.gradle` pins comes first.** Gradle strips and packages with that NDK, so
+    # the Rust half must compile with the same one. An SDK can hold several NDKs side by side, and
+    # another project sharing the SDK can install a newer one at any time.
+    pin="$(sed -n "s/.*ndkVersion = '\([^']*\)'.*/\1/p" ports/machine/android/app/build.gradle 2>/dev/null | head -1)"
+    if [ -n "$pin" ] && [ -d "$sdk/ndk/$pin" ]; then
+      ANDROID_NDK_HOME="$sdk/ndk/$pin"
+    elif [ -d "$sdk/ndk" ] && [ -n "$(ls -1 "$sdk/ndk")" ]; then
+      # The newest installed version stands in, and the warning names what Gradle will ask for.
       ANDROID_NDK_HOME="$sdk/ndk/$(ls -1 "$sdk/ndk" | sort -V | tail -1)"
+      if [ -n "$pin" ]; then
+        echo "warning: NDK $pin is not installed, so this build uses $ANDROID_NDK_HOME." >&2
+        echo "         Gradle uses the pinned one. Install it:  sdkmanager \"ndk;$pin\"" >&2
+      fi
     fi
   fi
   if [ -z "${ANDROID_NDK_HOME:-}" ] || [ ! -d "$ANDROID_NDK_HOME" ]; then
-    echo "error: no Android NDK found. Install it from Android Studio's SDK Manager," >&2
+    echo "error: no Android NDK found. Install the version build.gradle pins, with" >&2
+    echo "       sdkmanager \"ndk;${pin:-<version>}\" or Android Studio's SDK Manager," >&2
     echo "       or set ANDROID_NDK_HOME." >&2
     return 1
   fi
