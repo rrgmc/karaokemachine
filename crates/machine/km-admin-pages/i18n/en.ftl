@@ -180,6 +180,19 @@ demo-delay-save = Save
 demo-delay-saved = The machine will wait { $seconds } seconds. Saved for good, as a delay always is.
 demo-delay-bad = That is not a number of seconds.
 
+## The announcement
+#
+# One Save for the switch and the length, so one confirmation covers both. The confirmation names
+# the length the machine stored.
+announcement-heading = Announcement
+announcement-hint = Before a queued song starts, the screen shows its title and who sings it. A song with a long introduction plays under the card.
+announcement-enabled = Announce each queued song
+announcement-length-label = Show the card for this many seconds
+announcement-save = Save
+announcement-on = Each queued song is announced for { $seconds } seconds.
+announcement-off = Queued songs start with no announcement.
+announcement-length-bad = That is not a number of seconds.
+
 ## Power
 #
 # The card is absent altogether on a machine whose host has no power control, so none of these are

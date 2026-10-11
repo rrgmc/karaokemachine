@@ -744,6 +744,48 @@ impl DemoSettings {
     }
 }
 
+/// The announcement: the card that names a queued song before it starts.
+///
+/// A singer needs one clear moment that says the next song is theirs. The small `next:` row at the
+/// top of the screen is easy to miss from across a room.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct AnnouncementSettings {
+    /// Whether a queued song is announced before it starts.
+    ///
+    /// **On.** The card costs a song with a long intro no time at all, and a room with several
+    /// singers needs it most on the day nobody has opened the settings.
+    pub enabled: bool,
+    /// How many seconds the card stays on the screen.
+    ///
+    /// **Five.** Long enough to read a title and a name from a sofa and to stand up. Short enough
+    /// that a video song, which waits in silence for all of it, does not leave the room idle.
+    ///
+    /// **Zero means no card**, the same as [`Self::enabled`] off. A card of no length announces
+    /// nothing, so the file has one meaning for it and no route accepts it.
+    ///
+    /// Capped at [`km_api::machine::MAX_ANNOUNCEMENT_SECS`] where a *route* sets it. The cap is not
+    /// applied here, for the reason [`DemoSettings::delay_secs`] gives.
+    pub length_secs: u32,
+}
+
+impl Default for AnnouncementSettings {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            length_secs: 5,
+        }
+    }
+}
+
+impl AnnouncementSettings {
+    /// How long the card stays up, or `None` when no song is announced.
+    pub fn length(&self) -> Option<Duration> {
+        (self.enabled && self.length_secs > 0)
+            .then(|| Duration::from_secs(u64::from(self.length_secs)))
+    }
+}
+
 /// A remembered microphone channel.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MicSettings {
@@ -1065,6 +1107,8 @@ pub struct Settings {
     pub playback: PlaybackSettings,
     /// What the machine plays when nobody is singing.
     pub demo: DemoSettings,
+    /// The card that names a queued song before it starts.
+    pub announcement: AnnouncementSettings,
     /// What the stream looks like, for a run that draws for an encoder. See [`StreamSettings`].
     #[serde(default)]
     pub stream: StreamSettings,
@@ -1775,6 +1819,41 @@ mod tests {
             ..DemoSettings::default()
         };
         assert_eq!(demo.delay(), Duration::ZERO);
+    }
+
+    /// A fresh install announces each queued song, and so does a machine with an older file.
+    #[test]
+    fn a_queued_song_is_announced_out_of_the_box() {
+        let announcement = AnnouncementSettings::default();
+        assert!(announcement.enabled);
+        assert_eq!(announcement.length_secs, 5);
+        assert_eq!(announcement.length(), Some(Duration::from_secs(5)));
+
+        // A new key and not a changed default, so `serde(default)` fills it on every file.
+        let settings: Settings = serde_json::from_str("{}").expect("parse");
+        assert!(settings.announcement.enabled);
+        assert_eq!(settings.announcement.length_secs, 5);
+
+        let partial: Settings =
+            serde_json::from_str(r#"{"announcement":{"length_secs":8}}"#).expect("parse");
+        assert!(partial.announcement.enabled);
+        assert_eq!(partial.announcement.length(), Some(Duration::from_secs(8)));
+    }
+
+    /// The switch off and a length of zero both mean no card.
+    #[test]
+    fn an_announcement_switched_off_or_of_no_length_is_no_card() {
+        let off = AnnouncementSettings {
+            enabled: false,
+            ..AnnouncementSettings::default()
+        };
+        assert_eq!(off.length(), None);
+
+        let zero = AnnouncementSettings {
+            length_secs: 0,
+            ..AnnouncementSettings::default()
+        };
+        assert_eq!(zero.length(), None);
     }
 
     /// A fresh install is reachable from a phone, which is the whole point of the remote.

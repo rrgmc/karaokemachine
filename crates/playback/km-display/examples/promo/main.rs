@@ -116,6 +116,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             screen: Screen::Playing,
             faults: km_display::Faults::default(),
             flash: None,
+            announcement: None,
             song: Some(&info),
             timeline: Some(&song.lyrics),
             picture: false,

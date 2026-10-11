@@ -106,6 +106,7 @@ the queue of six waiting songs with the singer who asked for each">
 - **Transpose and tempo** per song, and a **guide melody** that can be muted.
 - **A lyric timing offset**, adjustable mid-song, for the picture lag of a television.
 - **A queue** with singer names, shown over whatever is playing.
+- **An announcement before each queued song**, naming the title and the singer on the whole screen.
 - **Wallpapers** that cycle with a crossfade, and a **demo mode** that plays songs by itself.
 - **Every function on the keyboard**, and on a television remote. See
   [The keyboard](https://rrgmc.github.io/karaokemachine/docs/keyboard.html).

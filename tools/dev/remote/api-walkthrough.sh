@@ -94,6 +94,9 @@ call GET /wallpapers
 # deadline has passed, and null again whenever something is loaded or queued: both mean "no
 # countdown to show", which is not the same as "nothing is coming".
 call GET /demo
+# Whether a card names each queued song before it starts, and for how many seconds. Public, like
+# `/demo`, and its `PUT` twin is under `/admin/`.
+call GET /announcement
 call GET /packages
 call GET /debug
 

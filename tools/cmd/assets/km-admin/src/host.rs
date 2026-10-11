@@ -305,8 +305,8 @@ impl Switches for RemoteMachine {
     async fn read(&self) -> Result<SwitchState, AdminError> {
         let client = self.client()?;
 
-        // **Four reads for one pane, and the shape of the trait is what hides that.** In the
-        // machine's own process this is four field accesses; here it is four requests, and the
+        // **Five reads for one page, and the shape of the trait is what hides that.** In the
+        // machine's own process this is five field accesses; here it is five requests, and the
         // Debugging pane needs all of them -- the console's state is only legible beside debugging's,
         // and the pane says *which* switch is missing rather than only reporting success.
         //
@@ -314,20 +314,23 @@ impl Switches for RemoteMachine {
         // the **running** value, and a switch drawn from it read *Turn debugging on* both before the
         // press and after it. See `SwitchState::debug_stored`.
         //
-        // **Concurrent, because none of the four is an input to another.** In sequence they cost
-        // four round trips for a pane that needs one, and against a machine that is not answering
-        // four whole timeouts -- which is the difference between a page that says so and a page that
+        // **Concurrent, because none of the five is an input to another.** In sequence they cost
+        // five round trips for a pane that needs one, and against a machine that is not answering
+        // five whole timeouts -- which is the difference between a page that says so and a page that
         // looks broken. `try_join!` also stops at the first refusal rather than waiting out the
-        // other three.
-        let (debug, dev_remote, performance, demo) = tokio::try_join!(
+        // others.
+        let (debug, dev_remote, performance, demo, announcement) = tokio::try_join!(
             client.debug(),
             client.dev_remote(),
             client.performance(),
             client.demo(),
+            client.announcement(),
         )
         .map_err(fault)?;
 
         Ok(SwitchState {
+            announcement_enabled: announcement.enabled,
+            announcement_length_secs: announcement.length_secs,
             debug_running: debug.enabled,
             debug_stored: debug.stored,
             dev_remote_stored: dev_remote.enabled,
@@ -377,6 +380,15 @@ impl Switches for RemoteMachine {
             .set_demo_delay(secs)
             .await
             .map(|demo| demo.delay_secs)
+            .map_err(fault)
+    }
+
+    async fn set_announcement(&self, enabled: bool, length_secs: u32) -> Result<u32, AdminError> {
+        self.writing()
+            .await?
+            .set_announcement(enabled, length_secs)
+            .await
+            .map(|announcement| announcement.length_secs)
             .map_err(fault)
     }
 }

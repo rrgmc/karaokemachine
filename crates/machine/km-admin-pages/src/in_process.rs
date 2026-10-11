@@ -402,7 +402,10 @@ impl Switches for ThisMachine {
         // draws all three together and the console's state is only legible beside debugging's.
         let developer = self.0.controller().developer_switches();
         let demo = self.0.controller().demo();
+        let announcement = self.0.controller().announcement();
         Ok(SwitchState {
+            announcement_enabled: announcement.enabled,
+            announcement_length_secs: announcement.length_secs,
             debug_running: self.0.config().debug_enabled,
             debug_stored: developer.debug,
             dev_remote_stored: developer.dev_remote,
@@ -454,6 +457,14 @@ impl Switches for ThisMachine {
             .controller()
             .set_demo_delay(secs)
             .map(|demo| demo.delay_secs)
+            .map_err(refused)
+    }
+
+    async fn set_announcement(&self, enabled: bool, length_secs: u32) -> Result<u32, AdminError> {
+        self.0
+            .controller()
+            .set_announcement(enabled, length_secs)
+            .map(|announcement| announcement.length_secs)
             .map_err(refused)
     }
 }

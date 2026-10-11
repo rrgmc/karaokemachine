@@ -227,6 +227,9 @@ pub(crate) fn run(
 
         // Only the idle screen draws it, so only the idle screen asks.
         let catalog = (!playing).then(|| summary.get(&machine)).flatten();
+        // The same card the television draws. A viewer in another room otherwise hears a held
+        // song's silence with nothing on the screen to explain it.
+        let announced = machine.announcement_card(std::time::Instant::now());
 
         let frame = Frame {
             locale: machine.locale(),
@@ -242,7 +245,8 @@ pub(crate) fn run(
             // Always, unlike a television's. The bar there comes and goes because it sits over the
             // words and somebody at the machine can ask for it; nobody watching this can ask, and a
             // song with no way to see how far in it is the thing a singer misses first.
-            show_position: playing,
+            // Except under the announcement's card, whose last row the bar would cross.
+            show_position: playing && announced.is_none(),
             position_ms: snapshot.position_ms,
             duration_ms: snapshot
                 .now_playing
@@ -274,6 +278,7 @@ pub(crate) fn run(
             show_queue_overlay: false,
             faults: crate::display::faults(&machine),
             version: Some(crate::display::VERSION),
+            announcement: announced.as_ref().map(crate::display::announcement_for),
             // Every one of these is raised by somebody at the machine, and there is nobody there.
             flash: None,
             keypad: None,
