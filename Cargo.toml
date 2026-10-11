@@ -359,6 +359,11 @@ symphonia = { version = "0.6.1", default-features = false, features = [
 # `dasp_sample` and `smallvec` were all in `Cargo.lock` already, leaving only `dasp_frame`.
 ebur128 = "0.1.10"
 
+# The two time stretchers `km-cdg`'s `stretch` example compares. Both are MIT and pure Rust. They
+# are development dependencies of that one crate, so no shipped program links either.
+timestretch = "0.15.0"
+wsola = "0.1.0"
+
 # Video
 # The one C dependency outside SDL, and the reason `km-video` exists as a crate of its own: exactly
 # one Cargo.toml in the workspace names ffmpeg, so every other crate goes on showing its real
