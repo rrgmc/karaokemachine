@@ -74,8 +74,6 @@ Standing decisions — do not add these without recording the change in `docs/de
 - **A `.zip` holding one two-file song is that song, to the packaging tools only.** The machine
   opens no zip.
 - **No video backgrounds; wallpapers are still images.** A video *song* is not a video wallpaper.
-- **No audio-file pitch shifting.** An MP3+G song answers a key change with a 409, exactly as a video
-  does, because it has no key to change and never will.
 - No in-app microphone DSP. Hardware mixes the microphones.
 - **No shaped scripts — Thai, Arabic, Indic — and no right-to-left.** These need a shaper, and
   HarfBuzz is off by build decision. **CJK is not among them.** Han, Kana and Hangul need no

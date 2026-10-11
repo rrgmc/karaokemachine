@@ -19,6 +19,7 @@
   [Watching it in another room](streaming.md).
 - **Words highlight in time**, syllable by syllable, on the sequencer's own clock.
 - **Transpose and tempo** per song, a **guide melody** that can be muted, and per-song defaults.
+  A video, an MP3+G song and a song with recorded audio change key and tempo too.
 - **A lyric timing offset in milliseconds**, adjustable mid-song, for the picture lag of a
   television. It moves the highlight only and never the audio, because the microphones are in that
   audio.
@@ -66,7 +67,6 @@ waiting.</sub>
 - No scoring of singers.
 - No bare audio files, and no CD+G disc images — only the file pair.
 - No video wallpapers: a video song is not a video background.
-- No pitch shifting of audio.
 - No microphone processing in the app, because hardware mixes the microphones.
 - No Thai, Arabic or Indic words on the screen, and no right-to-left, though the machine draws
   Japanese and Chinese.

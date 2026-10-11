@@ -169,6 +169,10 @@ pub(crate) fn run(
         let snapshot = machine.snapshot();
         let song = machine.current_lyric_song();
         let now_kind = snapshot.now_playing.as_ref().map(|now| now.kind);
+        let adjustable = snapshot
+            .now_playing
+            .as_ref()
+            .is_none_or(|now| now.adjustable);
         let queue = machine.queue();
         let factory_pin = machine.factory_pin();
         let connect = crate::connect::to_display(&api.connect_info(), factory_pin.as_deref());
@@ -212,7 +216,10 @@ pub(crate) fn run(
                         snapshot.settings.tempo_ratio,
                     )
                 } else {
-                    (song.tempo_map.ms_to_tick(snapshot.position_ms), 1.0)
+                    (
+                        song.tempo_map.ms_to_tick(snapshot.position_ms),
+                        crate::display::drawn_adjustments(adjustable, &snapshot.settings).1,
+                    )
                 };
                 let tick = km_display::lyrics::shift_ticks(
                     &song.tempo_map,
@@ -252,8 +259,8 @@ pub(crate) fn run(
                 .now_playing
                 .as_ref()
                 .map_or(0, |now| now.duration_ms),
-            transpose: crate::display::drawn_adjustments(now_kind, &snapshot.settings).0,
-            tempo_ratio: crate::display::drawn_adjustments(now_kind, &snapshot.settings).1,
+            transpose: crate::display::drawn_adjustments(adjustable, &snapshot.settings).0,
+            tempo_ratio: crate::display::drawn_adjustments(adjustable, &snapshot.settings).1,
             melody: snapshot
                 .now_playing
                 .as_ref()

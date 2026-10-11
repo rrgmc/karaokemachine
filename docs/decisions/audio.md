@@ -991,6 +991,54 @@ can judge a decibel.
 an early end there would shorten what they write. The machine sends `SetEndOnSilence` with every
 song.
 
+## A recorded song changes key and tempo
+
+**A recorded song changes key and tempo over the range a MIDI song has.** A recorded song is a
+video, an MP3+G pair, or an UltraStar or LRC file with its audio. The key moves six semitones either
+way, and the tempo runs from 0.75 to 1.25. A singer needs a key that fits the voice, whatever the
+file is.
+
+**One stretcher gives both controls.** A stretcher changes the length of the audio and keeps its
+pitch. The player's resampler changes both together. A song at tempo `T` and pitch ratio `P` is the
+audio stretched to rate `T / P` and then resampled by `P`.
+
+**A song at its own key and tempo does not pass through the stretcher.** It sounds and costs what it
+does on a machine with the setting off. A stretcher at rate 1.0 still colours the sound, so it stays
+out of the path until a control moves.
+
+**The position is a position in the song.** At tempo 1.25 one second of output moves it 1,250
+milliseconds. The picture, the CD+G graphics, the word highlight and the silent tail all read it as
+a place in the file. Each one follows the tempo with no code of its own.
+
+**`playback.adjust_recordings` turns it off, and the *This machine* tab has the box.** It is on for
+a desktop. It is off for Android and iOS, because nothing has measured the stretcher on those
+processors. A faster tempo also makes a video decode faster, and a 1080p video already takes most of
+one core on the television. A song that stutters is worse than a control that refuses.
+
+**With the setting off, a recorded song refuses both controls.** The answer is a 409 that names the
+kind, and the remote grays the two steppers. `transpose_available` and `tempo_available` say which
+case a client is in.
+
+**The setting applies from the next song.** A song builds its stretcher when it loads, on the
+control thread, because building allocates. The song that is playing keeps what it has.
+
+**A recorded song has no guide melody, with the setting on or off.** A recording has no channel to
+mute.
+
+**The television draws no key or tempo badge over a video or an MP3+G picture.** The song's own
+picture fills the screen there. An UltraStar or LRC song draws both badges, as a MIDI song does.
+
+**The stretcher is the `timestretch` crate, in every build.** It is pure Rust and MIT, and it has no
+`unsafe` code. An MP3+G song plays in a `--no-video` build and on Android, so no cargo feature can
+hold the dependency. It uses the crate's phase vocoder mode, because the cheaper mode stops
+correcting at four semitones.
+
+**The engine allocates nothing on the audio thread after its first use, and the player gives it that
+first use.** It grows its buffers during the first blocks at a new rate, and it grows a list of
+spectral peaks on dense music. The player runs noise through it at both ends of the range when it
+builds it. `crates/playback/km-audio/tests/track_alloc.rs` counts allocations and fails without
+that step.
+
 ## The bank is chosen by id, not by path
 
 **`audio.soundfont` names the bank id — the slug of a filename — and the SoundFont folder is what says

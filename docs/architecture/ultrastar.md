@@ -102,10 +102,10 @@ Four things differ from a MIDI song, and each is a trap:
 - **`Loaded::song()` stays MIDI only, and `Loaded::lyric_song()` is the words of either kind.** A bank
   switch reloads whatever `song()` returns into the synthesizer.
 - **The clock is the audio's position**, through the song's tempo map, in the display, the stream
-  and `announce_lyric_line`. `Player::position_ticks` is 0 for every track. The lyric offset is
-  not scaled by the tempo setting, which belongs to the next MIDI song.
+  and `announce_lyric_line`. `Player::position_ticks` is 0 for every track. That position runs at the
+  song's tempo, so the display scales the lyric offset by the tempo the song is playing at.
 - **The lyric view's lead-in is eight beats of `Song::beat_ticks`**, half a second for a timecode
   song. Built from `ticks_per_quarter`, which is 0 for one, it read ahead eight ticks.
-- **The key and tempo badges read neutral values for any kind but MIDI**, through
-  `display::drawn_adjustments`. The frame's `picture` flag is false for an UltraStar song, and that
-  flag is what hid them for a video.
+- **The key and tempo badges read neutral values for a song that cannot change them**, through
+  `display::drawn_adjustments` and `NowPlaying::adjustable`. The frame's `picture` flag is false
+  for an UltraStar song, so its badges show where a video's do not.

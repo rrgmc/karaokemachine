@@ -66,6 +66,26 @@ position reporting, transpose, tempo scaling, seek, melody muting and queue-driv
   whether it did, so a paused, starved or seeking block does not count. A bare `Player` has the
   watch off. The machine turns it on with `Command::SetEndOnSilence`, and `Sticky` replays it into
   a rebuilt stream.
+- **A recorded song's key and tempo are a stage in `TrackPlayer`.** `track.rs` holds a `timestretch`
+  engine between the feed and the resampler. The engine runs at rate `tempo / pitch`, and the
+  resampler steps `pitch` times as far. `Player::set_transpose` and `set_tempo_ratio` reach it
+  through `TrackPlayer::set_adjustments`. The rule is
+  [`A recorded song changes key and tempo`](../decisions/audio.md#a-recorded-song-changes-key-and-tempo).
+- **The stage is out of the path at key 0 and tempo 1.0.** The resampler then reads the feed
+  directly. A return to bypass drops the frames the engine held, about 50 ms, and moves the position
+  over them.
+- **`TrackPlayer::position_ms` counts the song and not the output.** It holds a base in feed frames
+  and counts output frames from it, each worth `base_step * tempo`. A change of tempo folds the
+  count into the base. Every reader of the position takes it as a place in the file.
+- **The engine renders a block only when the feed covers it.** It plays its own silence for what it
+  lacks, and that silence is not the song. So a short feed stalls an engaged song as it stalls one
+  in bypass, and the position waits. The engine also gives silent blocks while it fills its first
+  window, and the player drops those.
+- **The machine builds the stage, on the control thread.** `machine::with_quiet_point` calls
+  `TrackPlayer::add_stretch` for a song `start` marked adjustable. The build runs noise through the
+  engine, which takes its allocations off the audio thread. `tests/track_alloc.rs` holds that.
+- **The cost on a desktop core is about 5% of real time.** `docs/research/audio-stretch.md` has the
+  figures. Nothing has measured a television.
 - **The queue state machine lives on the control thread.** The audio thread only raises "song ended";
   the control thread pops the next entry and loads it.
 - Behind a `PlayerEngine` trait, so `km-api` can be tested against a stub with no audio device.

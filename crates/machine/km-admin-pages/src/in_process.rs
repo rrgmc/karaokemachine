@@ -407,6 +407,7 @@ impl Switches for ThisMachine {
             announcement_enabled: announcement.enabled,
             announcement_length_secs: announcement.length_secs,
             end_on_silence: self.0.controller().end_on_silence(),
+            adjust_recordings: self.0.controller().adjust_recordings(),
             debug_running: self.0.config().debug_enabled,
             debug_stored: developer.debug,
             dev_remote_stored: developer.dev_remote,
@@ -471,6 +472,13 @@ impl Switches for ThisMachine {
 
     async fn set_end_on_silence(&self, on: bool) -> Result<bool, AdminError> {
         self.0.controller().set_end_on_silence(on).map_err(refused)
+    }
+
+    async fn set_adjust_recordings(&self, on: bool) -> Result<bool, AdminError> {
+        self.0
+            .controller()
+            .set_adjust_recordings(on)
+            .map_err(refused)
     }
 }
 

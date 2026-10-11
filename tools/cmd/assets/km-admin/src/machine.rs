@@ -35,13 +35,13 @@ use std::time::{Duration, Instant};
 
 use km_api::discover::Discovery;
 use km_api::dto::{
-    AccessCodeRequest, AccessDto, AdminPasswordDto, AdminPasswordRequest, AnnouncementDto,
-    AudioLevelRequest, AudioOutputRequest, AudioOutputsDto, BankDto, BankRequest, DebugDto,
-    DemoDto, DevRemoteDto, DevRemoteRequest, EndOnSilenceDto, EndOnSilenceRequest, LoginRequest,
-    LoginResponse, MachineLocaleRequest, MachineNameRequest, PackagesDto, PerformanceDto,
-    PerformanceRequest, RoomAccessRequest, SetAnnouncementRequest, SetDemoDelayRequest,
-    SetDemoRequest, SettingsDto, SettingsPatchDto, SoundFontDto, SoundFontRequest, SoundFontsDto,
-    UninstallDto, UploadReportDto, WallpapersDto,
+    AccessCodeRequest, AccessDto, AdjustRecordingsDto, AdjustRecordingsRequest, AdminPasswordDto,
+    AdminPasswordRequest, AnnouncementDto, AudioLevelRequest, AudioOutputRequest, AudioOutputsDto,
+    BankDto, BankRequest, DebugDto, DemoDto, DevRemoteDto, DevRemoteRequest, EndOnSilenceDto,
+    EndOnSilenceRequest, LoginRequest, LoginResponse, MachineLocaleRequest, MachineNameRequest,
+    PackagesDto, PerformanceDto, PerformanceRequest, RoomAccessRequest, SetAnnouncementRequest,
+    SetDemoDelayRequest, SetDemoRequest, SettingsDto, SettingsPatchDto, SoundFontDto,
+    SoundFontRequest, SoundFontsDto, UninstallDto, UploadReportDto, WallpapersDto,
 };
 
 /// The machine's own default port, so "a bare host means 8177" is not written down twice.
@@ -107,6 +107,10 @@ pub enum Call<'a> {
     EndOnSilence,
     /// `PUT` — say whether a song ends when its tail is silent.
     SetEndOnSilence,
+    /// `GET` — whether a recorded song changes key and tempo.
+    AdjustRecordings,
+    /// `PUT` — say whether a recorded song changes key and tempo.
+    SetAdjustRecordings,
     /// `GET` — the output devices the machine has, and which one it is using.
     AudioOutputs,
     /// `PUT` — choose the output device.
@@ -235,6 +239,8 @@ impl<'a> Call<'a> {
         Call::SetPerformance,
         Call::EndOnSilence,
         Call::SetEndOnSilence,
+        Call::AdjustRecordings,
+        Call::SetAdjustRecordings,
         Call::AudioOutputs,
         Call::SetAudioOutput,
         Call::SetAudioLevel,
@@ -275,6 +281,7 @@ impl<'a> Call<'a> {
             | Self::DevRemote
             | Self::Performance
             | Self::EndOnSilence
+            | Self::AdjustRecordings
             | Self::AudioOutputs
             | Self::Settings
             | Self::Locale
@@ -292,6 +299,7 @@ impl<'a> Call<'a> {
             | Self::SetDevRemote
             | Self::SetPerformance
             | Self::SetEndOnSilence
+            | Self::SetAdjustRecordings
             | Self::SetAudioOutput
             | Self::SetAudioLevel
             | Self::SetSettings
@@ -366,6 +374,8 @@ impl<'a> Call<'a> {
             Self::SetPerformance => "/admin/performance",
             Self::EndOnSilence => "/playback/end-on-silence",
             Self::SetEndOnSilence => "/admin/playback/end-on-silence",
+            Self::AdjustRecordings => "/playback/adjust-recordings",
+            Self::SetAdjustRecordings => "/admin/playback/adjust-recordings",
             // The read is public and the write is not, which is the split every pair here has. The
             // singular on the write is the machine's own spelling: `/audio/outputs` is the list and
             // `/audio/output` is the one in force.
@@ -793,6 +803,23 @@ impl Client {
     pub async fn set_end_on_silence(&self, enabled: bool) -> Result<EndOnSilenceDto, Refused> {
         self.json_with(Call::SetEndOnSilence, &EndOnSilenceRequest { enabled })
             .await
+    }
+
+    /// Whether a recorded song changes key and tempo.
+    pub async fn adjust_recordings(&self) -> Result<AdjustRecordingsDto, Refused> {
+        self.get_json(Call::AdjustRecordings).await
+    }
+
+    /// Says whether a recorded song changes key and tempo. The machine writes it down.
+    pub async fn set_adjust_recordings(
+        &self,
+        enabled: bool,
+    ) -> Result<AdjustRecordingsDto, Refused> {
+        self.json_with(
+            Call::SetAdjustRecordings,
+            &AdjustRecordingsRequest { enabled },
+        )
+        .await
     }
 
     /// The output devices the machine has, and which one is sounding.

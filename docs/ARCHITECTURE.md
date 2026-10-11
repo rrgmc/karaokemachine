@@ -100,7 +100,8 @@ crates/
                            # compression -- because the base-14 fonts need none of the three.
   playback/                # turning one into sound and picture
     km-audio/              # audio thread: rustysynth + our sequencer, transpose, the audio feed.
-                           # The ONLY crate that names rustysynth or cpal.
+                           # The ONLY crate that names rustysynth or cpal. It also holds the
+                           # stretcher a recorded song's key and tempo go through.
     km-cdg/                # MP3+G songs: a CD+G renderer and an MP3 feed. Pure Rust, NO feature.
     km-video/              # video decoding -- the only crate that DECODES with ffmpeg. Optional.
     km-stream/             # ...and the only one that encodes with it: a drawn screen and the sound

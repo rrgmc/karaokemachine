@@ -13,6 +13,10 @@ Entries are written for somebody who has the machine. Why any of it is the way i
 
 ### Added
 
+- **A video, an MP3+G song and a song with recorded audio change key and tempo.** The key and tempo
+  buttons on the phone work for them as they do for a MIDI song. A song left at its own key and
+  tempo sounds exactly as it did. The change needs more processing, so it starts off on a
+  television, a tablet and a phone. The *This machine* tab has a box that turns it on or off.
 - **A song ends when the rest of it is silent.** Some files go on in silence after the music stops,
   and the machine starts the next song there. A quiet passage in the middle of a song does not end
   it. The *This machine* tab has a box that turns this off.

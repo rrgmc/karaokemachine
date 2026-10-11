@@ -890,17 +890,20 @@ struct DecodeCounts {
 /// `song` being `None` is also what says the loaded song is not a MIDI one, so no song kind has to
 /// travel to `km-display` to be asked about. A video and an MP3+G song are told apart by asking the
 /// machine for the second, which is the only other thing a non-MIDI song can be.
-/// The key and tempo the badges name: the settings for a MIDI song, and none for any other kind.
+/// The key and tempo in force: the settings for a song that changes them, and none for one that
+/// does not.
 ///
-/// **Only a MIDI song's key and tempo move.** The settings go on holding what the next MIDI song
-/// will use while a recording plays, and a badge reading "key +2" over one would be a plain lie.
+/// `adjustable` is [`km_api::machine::NowPlaying::adjustable`], and true with nothing playing. A
+/// recorded song without a stretcher plays at its own key and tempo whatever the settings hold, and
+/// a badge reading "key +2" over one would be a plain lie.
 pub(crate) fn drawn_adjustments(
-    kind: Option<km_catalog::SongKind>,
+    adjustable: bool,
     settings: &km_api::machine::Settings,
 ) -> (i8, f32) {
-    match kind {
-        Some(kind) if !kind.is_midi() => (0, 1.0),
-        _ => (settings.transpose, settings.tempo_ratio),
+    if adjustable {
+        (settings.transpose, settings.tempo_ratio)
+    } else {
+        (0, 1.0)
     }
 }
 
@@ -2453,6 +2456,10 @@ fn run_with(
         snapshot.position_ms = ms_clock.smooth(snapshot.position_ms, period_ms, advancing, now);
         let song = machine.current_lyric_song();
         let now_kind = snapshot.now_playing.as_ref().map(|now| now.kind);
+        let adjustable = snapshot
+            .now_playing
+            .as_ref()
+            .is_none_or(|now| now.adjustable);
 
         // **The window says what is playing**, which is the one thing about this machine an
         // operating system will draw for a program that is behind another window. Pushed from here
@@ -2545,8 +2552,8 @@ fn run_with(
                 // Smoothed for the same reason and by the same means as `position_ms` above: this
                 // is the counter the wipe actually rides on, and it steps once per audio callback.
                 // An UltraStar song's clock is the audio's, already smoothed, which its millisecond
-                // tempo map turns into ticks; its tempo is never changed, so the offset is not
-                // scaled by a ratio meant for the next MIDI song.
+                // tempo map turns into ticks. That clock runs at the song's tempo, so the offset is
+                // scaled by the tempo the song is playing at.
                 let (ticks, tempo_ratio) = if now_kind.is_some_and(|kind| kind.is_midi()) {
                     let ticks = tick_clock.smooth(
                         machine.engine().position_ticks(),
@@ -2556,7 +2563,10 @@ fn run_with(
                     );
                     (ticks, snapshot.settings.tempo_ratio)
                 } else {
-                    (song.tempo_map.ms_to_tick(snapshot.position_ms), 1.0)
+                    (
+                        song.tempo_map.ms_to_tick(snapshot.position_ms),
+                        drawn_adjustments(adjustable, &snapshot.settings).1,
+                    )
                 };
                 let tick = km_display::lyrics::shift_ticks(
                     &song.tempo_map,
@@ -2627,7 +2637,7 @@ fn run_with(
             .now_playing
             .as_ref()
             .map_or(0, |now| now.duration_ms);
-        let adjustments = drawn_adjustments(now_kind, &snapshot.settings);
+        let adjustments = drawn_adjustments(adjustable, &snapshot.settings);
         // Asked with the frame's one instant, so the card's opacity and the two deadlines above
         // answer from the same clock.
         let announced = machine.announcement_card(deadline_now);
@@ -3615,31 +3625,17 @@ pub fn catalog_is_empty(machine: &Machine) -> bool {
 mod tests {
     use super::*;
 
-    /// A key or tempo badge is drawn over a MIDI song, and over nothing else that is playing.
+    /// A key or tempo badge names what the song is playing at, and a song that cannot change plays
+    /// at its own.
     #[test]
-    fn only_a_midi_song_draws_its_key_and_tempo() {
+    fn only_a_song_that_changes_key_and_tempo_draws_them() {
         let settings = km_api::machine::Settings {
             transpose: 2,
             tempo_ratio: 1.1,
             ..km_api::machine::Settings::default()
         };
-        assert_eq!(
-            drawn_adjustments(Some(km_catalog::SongKind::Midi), &settings),
-            (2, 1.1)
-        );
-        assert_eq!(drawn_adjustments(None, &settings), (2, 1.1));
-        for kind in [
-            km_catalog::SongKind::UltraStar,
-            km_catalog::SongKind::Lrc,
-            km_catalog::SongKind::Cdg,
-            km_catalog::SongKind::Video,
-        ] {
-            assert_eq!(
-                drawn_adjustments(Some(kind), &settings),
-                (0, 1.0),
-                "{kind:?}"
-            );
-        }
+        assert_eq!(drawn_adjustments(true, &settings), (2, 1.1));
+        assert_eq!(drawn_adjustments(false, &settings), (0, 1.0));
     }
 
     /// A desktop drop is a path and passes through untouched, and an iOS URL becomes the path it
@@ -3755,6 +3751,7 @@ mod tests {
                 melody_channel: None,
                 has_lyrics: true,
                 lyrics_hidden: false,
+                adjustable: true,
             };
 
             let idle: Option<(String, Option<String>)> = None;

@@ -184,7 +184,7 @@ the single place it says the name.
 **`unsafe` is denied workspace-wide, and every exception is narrowed to one item and made to say what
 it is for.** `crates/platform/km-console/src/lib.rs` holds the only whole-*module* allowance —
 `#![allow(unsafe_code)]`, and it is two calls. Everywhere else an exception is a
-`#[expect(unsafe_code, reason = "…")]` on a single item, and there are thirty-nine:
+`#[expect(unsafe_code, reason = "…")]` on a single item, and there are forty:
 
 - Twenty-seven are in the machine and the shells around it. They cover the C symbols Android's
   loader, SDLActivity and Swift look for, and the liblog bridge. They also cover two borrowed C
@@ -206,6 +206,11 @@ one.
 `avio_closep` on that field is the whole of the exception. The obligation is small enough to check by
 reading it: nothing has written a header yet, so nothing is reading `pb`. And null is the state the
 muxer is specified to be given.
+
+**The fortieth is in a test, and no program links it.** `crates/playback/km-audio/tests/track_alloc.rs`
+installs a global allocator that counts, and `GlobalAlloc` is an unsafe trait. It forwards every
+call to the system allocator unchanged. The count is what proves a recorded song's stretcher
+allocates nothing on the audio thread.
 
 **The lint level stays `deny` rather than `allow`**, so every exception has to name its reason in
 order to compile.

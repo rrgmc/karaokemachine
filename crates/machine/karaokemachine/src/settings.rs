@@ -576,6 +576,15 @@ pub struct PlaybackSettings {
     /// that with the queue full. Off plays every file to its last tick, for the owner whose song
     /// holds a silence this would cut.
     pub end_on_silence: bool,
+    /// Whether a recorded song changes key and tempo.
+    ///
+    /// A recorded song is a video, an MP3+G pair, or an UltraStar or LRC file with its audio. The
+    /// change runs a stretcher on the audio thread, and a faster tempo makes a video decode faster.
+    ///
+    /// **On for a desktop, and off for a television, a tablet and a phone.** Nothing has measured
+    /// the stretcher on those processors, and a song that stutters is worse than a control that
+    /// refuses. Off, a recorded song answers a key or tempo change with a 409.
+    pub adjust_recordings: bool,
 }
 
 impl Default for PlaybackSettings {
@@ -585,6 +594,8 @@ impl Default for PlaybackSettings {
             tempo_ratio: 1.0,
             melody_enabled: true,
             end_on_silence: true,
+            // `cfg!` and not `#[cfg]`, so both answers compile on every platform.
+            adjust_recordings: !cfg!(any(target_os = "android", target_os = "ios")),
         }
     }
 }
@@ -1829,6 +1840,25 @@ mod tests {
         assert!(!settings.playback.end_on_silence);
         let written = serde_json::to_value(&settings).expect("serialize");
         assert_eq!(written["playback"]["end_on_silence"], false);
+    }
+
+    /// Asserted against the same `cfg!` for the reason the pad's tests are.
+    #[test]
+    fn a_recorded_song_changes_key_and_tempo_by_default_on_a_desktop_only() {
+        let desktop = !cfg!(any(target_os = "android", target_os = "ios"));
+        assert_eq!(Settings::default().playback.adjust_recordings, desktop);
+        let settings: Settings =
+            serde_json::from_str(r#"{"playback":{"transpose":1}}"#).expect("parse");
+        assert_eq!(
+            settings.playback.adjust_recordings, desktop,
+            "a file written before the key takes the platform's default"
+        );
+        let settings: Settings =
+            serde_json::from_str(r#"{"playback":{"adjust_recordings":false}}"#).expect("parse");
+        assert!(!settings.playback.adjust_recordings);
+        let settings: Settings =
+            serde_json::from_str(r#"{"playback":{"adjust_recordings":true}}"#).expect("parse");
+        assert!(settings.playback.adjust_recordings);
     }
 
     /// Zero here means "at once", where `idle_release_secs` reads zero as "never".

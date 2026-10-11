@@ -24,19 +24,22 @@ error-failed = That did not work. Try again.
 # The kind of song is an argument rather than part of the sentence, because English writes `a video
 # song` and Portuguese writes `uma música em vídeo` — an article that agrees with the noun. A
 # sentence composed by the machine could not be translated without taking it apart again.
+#
+# A recorded song changes key and tempo unless the owner turned that off. So the sentence for one
+# names the machine, where the sentence for a guide melody names the song.
 error-no-key = { $kind ->
     [midi] This song has no key to change.
-    [video] A video song has no key to change.
-    [cdg] An MP3+G song has no key to change.
-    [ultrastar] An UltraStar song has no key to change.
-    [lrc] An LRC song has no key to change.
+    [video] This machine does not change the key of a video song.
+    [cdg] This machine does not change the key of an MP3+G song.
+    [ultrastar] This machine does not change the key of an UltraStar song.
+    [lrc] This machine does not change the key of an LRC song.
    *[other] This song has no key to change.
  }
 error-no-tempo = { $kind ->
-    [video] A video song has no tempo to change.
-    [cdg] An MP3+G song has no tempo to change.
-    [ultrastar] An UltraStar song has no tempo to change.
-    [lrc] An LRC song has no tempo to change.
+    [video] This machine does not change the tempo of a video song.
+    [cdg] This machine does not change the tempo of an MP3+G song.
+    [ultrastar] This machine does not change the tempo of an UltraStar song.
+    [lrc] This machine does not change the tempo of an LRC song.
    *[other] This song has no tempo to change.
  }
 error-no-melody = { $kind ->

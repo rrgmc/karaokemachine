@@ -25,6 +25,11 @@ use km_queue::queue::{QueueEntry, QueueRequest};
 use km_song::Song;
 use km_songcode::SongCode;
 
+/// The key and tempo limits `PUT /settings` holds a request to.
+///
+/// Named here so a client clamps to the range the machine accepts and not to one of its own.
+pub use km_queue::{MAX_TEMPO_RATIO, MAX_TRANSPOSE, MIN_TEMPO_RATIO};
+
 /// A refusal, and the stable name for it when it has one.
 ///
 /// **This exists because a message is not renderable by anybody but the machine that wrote it.**
@@ -297,8 +302,8 @@ pub struct NowPlaying {
     pub singer: Option<String>,
     /// Whether this is a MIDI song or a video song.
     ///
-    /// The three performance adjustments — key, tempo and guide melody — exist only for a MIDI one,
-    /// so this is what decides whether a client is offered them at all.
+    /// The guide melody exists only for a MIDI one. [`Self::adjustable`] says whether the key and
+    /// the tempo change.
     pub kind: SongKind,
     /// Length in milliseconds, as the file reports it.
     pub duration_ms: u32,
@@ -318,6 +323,11 @@ pub struct NowPlaying {
     /// Separate from [`Self::has_lyrics`] because the television says so out loud, and a machine
     /// that only knew the words were absent could not tell a file with none from a decision.
     pub lyrics_hidden: bool,
+    /// Whether this song changes key and tempo.
+    ///
+    /// True for a MIDI song. True for a recorded song where the machine gave it a stretcher, which
+    /// the owner's setting decides. A client offers the two controls on this and not on the kind.
+    pub adjustable: bool,
 }
 
 /// Playback settings a remote may change.
@@ -1650,6 +1660,27 @@ pub trait Controller: Send + Sync + 'static {
     ///
     /// Has a default that refuses, for a host that plays nothing.
     fn set_end_on_silence(&self, enabled: bool) -> Result<bool, ControlError> {
+        let _ = enabled;
+        Err(ControlError::Unavailable(
+            "this host has no playback to configure".into(),
+        ))
+    }
+
+    /// Whether a recorded song changes key and tempo.
+    ///
+    /// Defaulted off, which is what a host with no stretcher does.
+    fn adjust_recordings(&self) -> bool {
+        false
+    }
+
+    /// Say whether a recorded song changes key and tempo.
+    ///
+    /// Installation configuration, written down at once, for [`Self::set_end_on_silence`]'s reason.
+    /// A song builds its stretcher when it loads, so the change applies from the next song. The
+    /// answer is what the machine stored.
+    ///
+    /// Has a default that refuses, for a host that plays nothing.
+    fn set_adjust_recordings(&self, enabled: bool) -> Result<bool, ControlError> {
         let _ = enabled;
         Err(ControlError::Unavailable(
             "this host has no playback to configure".into(),

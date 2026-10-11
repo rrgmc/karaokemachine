@@ -134,11 +134,11 @@ pub struct NowPlayingDto {
     pub melody_available: bool,
     /// Whether a key change should be offered at all.
     ///
-    /// False for a video or MP3+G song: there is no key to shift. Carried rather than left to be
-    /// inferred, for the same reason as `melody_available` — a client that offers this on a video
-    /// offers a control that answers 409, which is worse than not offering it.
+    /// False for a recorded song on a machine whose owner turned its key and tempo off. Carried
+    /// rather than left to be inferred, for the same reason as `melody_available`. A client that
+    /// offers this on such a song offers a control that answers 409.
     pub transpose_available: bool,
-    /// Whether a tempo change should be offered at all. False for a video or MP3+G song.
+    /// Whether a tempo change should be offered at all. False where `transpose_available` is.
     pub tempo_available: bool,
     /// Whether the file has lyrics to draw.
     ///
@@ -160,8 +160,8 @@ impl From<&NowPlaying> for NowPlayingDto {
             duration_ms: now.duration_ms,
             melody_channel: now.melody_channel,
             melody_available: now.melody_channel.is_some(),
-            transpose_available: now.kind.is_midi(),
-            tempo_available: now.kind.is_midi(),
+            transpose_available: now.adjustable,
+            tempo_available: now.adjustable,
             has_lyrics: now.has_lyrics,
         }
     }
@@ -1988,6 +1988,21 @@ pub struct EndOnSilenceRequest {
     pub enabled: bool,
 }
 
+/// `GET /playback/adjust-recordings` and the reply to `PUT /admin/playback/adjust-recordings`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AdjustRecordingsDto {
+    /// Whether a recorded song changes key and tempo.
+    pub enabled: bool,
+}
+
+/// `PUT /admin/playback/adjust-recordings`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AdjustRecordingsRequest {
+    /// What to set it to.
+    pub enabled: bool,
+}
+
 /// `POST /debug/play-file`.
 ///
 /// `PartialEq` without `Eq` since the corrections arrived: a fix this build cannot read is held as
@@ -2258,9 +2273,19 @@ mod tests {
             melody_channel: None,
             has_lyrics: true,
             lyrics_hidden: false,
+            adjustable: true,
         };
         let dto = NowPlayingDto::from(&now);
         assert!(!dto.melody_available);
+        assert!(dto.transpose_available && dto.tempo_available);
+
+        let fixed = NowPlaying {
+            kind: km_catalog::SongKind::Video,
+            adjustable: false,
+            ..now.clone()
+        };
+        let dto = NowPlayingDto::from(&fixed);
+        assert!(!dto.transpose_available && !dto.tempo_available);
 
         let with_melody = NowPlaying {
             melody_channel: Some(4),

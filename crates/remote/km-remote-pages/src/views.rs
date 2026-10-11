@@ -1077,8 +1077,8 @@ pub struct PlayerBlock {
     pub position: PositionBlock,
     /// Why the key buttons are grayed, when they are.
     ///
-    /// Composed in Rust, because the sentence names the kind of song: `A video song has no key to
-    /// change.` A grayed button that says nothing reads as a fault in the remote.
+    /// Composed in Rust, because the sentence names the kind of song: `This machine does not change
+    /// the key of a video song.` A grayed button that says nothing reads as a fault in the remote.
     pub key_hint: Option<String>,
     /// Why the tempo buttons are grayed, when they are.
     pub tempo_hint: Option<String>,
@@ -1500,8 +1500,8 @@ mod tests {
     fn a_grayed_control_says_why_for_the_kind_of_song() {
         let video = card_for(km_kmpkg::SongKind::Video, false);
         for sentence in [
-            "A video song has no key to change.",
-            "A video song has no tempo to change.",
+            "This machine does not change the key of a video song.",
+            "This machine does not change the tempo of a video song.",
             "A video song has no guide melody.",
         ] {
             assert!(video.contains(sentence), "{sentence} is missing: {video}");
@@ -1611,17 +1611,17 @@ mod tests {
     fn a_refusal_is_said_in_the_language_the_page_is_in() {
         let refusal = RemoteError::Unavailable {
             code: "no_key_video".to_owned(),
-            message: "a video song has no key to change".to_owned(),
+            message: "this machine does not change the key of a video song".to_owned(),
         };
         assert_eq!(
             message_for(&refusal, Locale::English).text,
-            "A video song has no key to change."
+            "This machine does not change the key of a video song."
         );
         // The article agrees with the noun, which is why the kind is an argument and not part of a
         // sentence the machine composed.
         assert_eq!(
             message_for(&refusal, Locale::BrazilianPortuguese).text,
-            "Uma música em vídeo não tem tom para mudar."
+            "Esta máquina não muda o tom de uma música em vídeo."
         );
     }
 

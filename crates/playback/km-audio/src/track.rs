@@ -22,6 +22,21 @@
 //! resamples on the way out. The decoder is then a pure function of the file, and a device that
 //! comes back at 44.1 kHz where it was 48 kHz costs nothing but a different step size.
 //!
+//! # Key and tempo
+//!
+//! A stretcher changes the length of the audio and keeps its pitch. The resampler changes both
+//! together. A song at tempo `T` and pitch ratio `P` is therefore the audio stretched to rate
+//! `T / P` and then resampled by `P`, so the stretcher is the one stage a key change adds.
+//!
+//! **A song at its own key and tempo does not pass through the stretcher.** Its samples reach the
+//! resampler straight from the feed, so an unchanged song costs and sounds what it does without the
+//! stage. A player built without [`TrackPlayer::with_stretch`] has no stage and ignores both
+//! controls.
+//!
+//! **The position is a position in the song, not in the output.** At tempo 1.25 one second of output
+//! is 1.25 seconds of song. The picture, the graphics and the words all read the position as a place
+//! in the file.
+//!
 //! # Seeking, without either side blocking
 //!
 //! A seek has to discard whatever is already in the ring, and the awkward part is that the producer
@@ -33,6 +48,11 @@
 
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
+
+use km_queue::{MAX_TEMPO_RATIO, MAX_TRANSPOSE, MIN_TEMPO_RATIO};
+use timestretch::engine::{
+    Engine, EngineConfig, EngineController, EngineProcessor, EngineProfile, SourceProducer,
+};
 
 /// Channels a feed carries. Interleaved stereo, always.
 ///
@@ -212,9 +232,200 @@ impl AudioFeed {
         Some(frame)
     }
 
+    /// Takes whole frames into `out`, returning how many frames went.
+    fn pop_frames(&mut self, out: &mut [f32]) -> usize {
+        let frames = (out.len() / FEED_CHANNELS).min(self.rx.slots() / FEED_CHANNELS);
+        for slot in &mut out[..frames * FEED_CHANNELS] {
+            let Ok(sample) = self.rx.pop() else {
+                return 0;
+            };
+            *slot = sample;
+            self.read += 1;
+        }
+        frames
+    }
+
     /// Whether the producer has finished and everything it wrote has been taken.
     fn drained(&self) -> bool {
         self.state.eof.load(Ordering::Acquire) && self.rx.slots() < FEED_CHANNELS
+    }
+}
+
+/// Frames the stretcher renders at a time, which is the smallest block its engine takes.
+const STRETCH_BLOCK: usize = 64;
+
+/// Frames the stretcher's own ring holds. Enough for a few blocks at the fastest rate, and no more:
+/// the feed is the buffer, and every frame held here is a frame a return to bypass skips.
+const STRETCH_RING_FRAMES: usize = 4096;
+
+/// Blocks one call may render while the engine fills its first window. The engine needs about ten at
+/// the fastest rate, and the bound keeps a call on the audio thread finite.
+const STRETCH_FILL_BLOCKS: usize = 64;
+
+/// Blocks of silence the engine runs when it is built, which carries it past its first window.
+const STRETCH_WARM_UP_BLOCKS: usize = 128;
+
+/// The stage that changes a song's length without changing its pitch.
+///
+/// Built on the control thread, because building allocates. Everything it does afterwards runs on
+/// the audio callback and allocates nothing.
+#[derive(Debug)]
+struct Stretch {
+    controller: EngineController,
+    processor: EngineProcessor,
+    source: SourceProducer,
+    /// One rendered block, interleaved, and how much of it the resampler has taken.
+    block: [f32; STRETCH_BLOCK * FEED_CHANNELS],
+    len: usize,
+    at: usize,
+    /// Whether the song passes through the stage. False at the song's own key and tempo.
+    engaged: bool,
+    /// Feed frames given to the engine since it was last reset.
+    fed: u64,
+    /// Whether the end of the feed has been flushed through the engine.
+    flushed: bool,
+    /// Whether the engine has played the last of the song.
+    ended: bool,
+}
+
+impl Stretch {
+    fn new(sample_rate: u32) -> Option<Box<Self>> {
+        let handles = Engine::build(EngineConfig {
+            sample_rate,
+            channels: FEED_CHANNELS,
+            profile: EngineProfile::WideKeylock,
+            max_block_frames: STRETCH_BLOCK,
+            source_capacity_frames: STRETCH_RING_FRAMES,
+            ..EngineConfig::default()
+        })
+        .ok()?;
+        let mut stretch = Box::new(Self {
+            controller: handles.controller,
+            processor: handles.processor,
+            source: handles.source,
+            block: [0.0; STRETCH_BLOCK * FEED_CHANNELS],
+            len: 0,
+            at: 0,
+            engaged: false,
+            fed: 0,
+            flushed: false,
+            ended: false,
+        });
+        stretch.warm_up();
+        Some(stretch)
+    }
+
+    /// Runs the engine over noise at each end of its rate range, here on the control thread.
+    ///
+    /// The engine grows its buffers on the first blocks at a rate it has not run at, and never
+    /// after them. It also keeps a list of spectral peaks sized for a quarter of its bins. Noise
+    /// has more peaks than that, so the list grows here, once, to the most a spectrum can hold.
+    /// `tests/track_alloc.rs` counts, and fails where this is taken out.
+    fn warm_up(&mut self) {
+        let fastest = f64::from(MAX_TEMPO_RATIO) * 2f64.powf(f64::from(MAX_TRANSPOSE) / 12.0);
+        let slowest = f64::from(MIN_TEMPO_RATIO) / 2f64.powf(f64::from(MAX_TRANSPOSE) / 12.0);
+        let mut noise = [0.0; STRETCH_BLOCK * FEED_CHANNELS];
+        let mut seed: u32 = 0x2545_F491;
+        for rate in [fastest, slowest, 1.0] {
+            self.controller.set_tempo_rate(rate);
+            for _ in 0..STRETCH_WARM_UP_BLOCKS {
+                while self.source.free_frames() >= STRETCH_BLOCK
+                    && self.source.occupied_frames() < STRETCH_RING_FRAMES / 2
+                {
+                    for sample in &mut noise {
+                        // A linear congruential step. The same noise every time, so a build that
+                        // passes the allocation test passes it on every run.
+                        seed = seed.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+                        *sample = (seed >> 8) as f32 / 8_388_608.0 - 1.0;
+                    }
+                    self.source.push(&noise);
+                }
+                self.processor.process(&mut self.block);
+            }
+        }
+        // Silence last, so the frame the engine fades out from at its next reset is a silent one.
+        let silence = [0.0; STRETCH_BLOCK * FEED_CHANNELS];
+        for _ in 0..STRETCH_WARM_UP_BLOCKS {
+            self.source.push(&silence);
+            self.source.push(&silence);
+            self.processor.process(&mut self.block);
+        }
+        self.block = silence;
+        self.restart();
+    }
+
+    /// Empties the engine, so the next frame it plays is the next frame it is given.
+    fn restart(&mut self) {
+        self.processor.reset();
+        self.len = 0;
+        self.at = 0;
+        self.fed = 0;
+        self.flushed = false;
+        self.ended = false;
+    }
+
+    /// The next stretched frame, or `None` when the feed has too little for a block.
+    fn next_frame(&mut self, feed: &mut AudioFeed) -> Option<[f32; FEED_CHANNELS]> {
+        if self.at == self.len && !self.refill(feed) {
+            return None;
+        }
+        let i = self.at * FEED_CHANNELS;
+        self.at += 1;
+        Some([self.block[i], self.block[i + 1]])
+    }
+
+    /// Renders one block. False when the feed cannot cover it yet, or the song has ended.
+    fn refill(&mut self, feed: &mut AudioFeed) -> bool {
+        if self.ended {
+            return false;
+        }
+        let need = self
+            .source
+            .demand_hint(STRETCH_BLOCK, self.controller.tempo_rate_target());
+        let mut chunk = [0.0; STRETCH_BLOCK * FEED_CHANNELS];
+        for _ in 0..STRETCH_FILL_BLOCKS {
+            while self.source.occupied_frames() < need {
+                let room = self.source.free_frames().min(STRETCH_BLOCK);
+                let frames = feed.pop_frames(&mut chunk[..room * FEED_CHANNELS]);
+                if frames == 0 {
+                    break;
+                }
+                self.source.push(&chunk[..frames * FEED_CHANNELS]);
+                self.fed += frames as u64;
+            }
+
+            let short = self.source.occupied_frames() < need;
+            if short {
+                // The engine plays silence for what it does not have. A block is therefore
+                // rendered only when the feed covers it, and a short feed stalls the song as it
+                // does in bypass.
+                if !feed.drained() {
+                    return false;
+                }
+                if !self.flushed {
+                    self.flushed = self.source.finish();
+                }
+            }
+
+            let dry_before = self.controller.underrun_frames();
+            self.processor.process(&mut self.block);
+            let dry = self.controller.underrun_frames() - dry_before;
+            if short && self.flushed {
+                if dry > 0 {
+                    // The engine ran out inside this block, so the block holds the song's last
+                    // frames.
+                    self.ended = true;
+                }
+            } else if dry >= STRETCH_BLOCK as u64 {
+                // The engine is still filling its first window and gave a block of its own
+                // silence. That block is not part of the song, so it is dropped.
+                continue;
+            }
+            self.len = STRETCH_BLOCK;
+            self.at = 0;
+            return true;
+        }
+        false
     }
 }
 
@@ -222,26 +433,31 @@ impl AudioFeed {
 ///
 /// This is the video-song counterpart of [`crate::sequencer::Sequencer`], and deliberately has the
 /// same shape: it owns the position, it is advanced from the audio callback, and it reports when it
-/// has finished. What it does *not* have is a tick timeline, a transposition or a channel to mute —
-/// a video carries none of those, which is why a video song's controls are reported unavailable
-/// rather than silently doing nothing.
+/// has finished. It has no tick timeline and no channel to mute, because a recording carries
+/// neither. Its key and tempo come from the stage [`TrackPlayer::with_stretch`] adds.
 #[derive(Debug)]
 pub struct TrackPlayer {
     feed: AudioFeed,
-    /// Device rate, which is what the position is measured in.
+    /// Device rate.
     out_rate: u32,
-    /// Source frames advanced per output frame.
+    /// Feed frames per output frame at the song's own key.
+    base_step: f64,
+    /// Frames the resampler advances per output frame: `base_step` times the pitch ratio.
     step: f64,
+    /// Feed frames the song advances per output frame: `base_step` times the tempo.
+    advance: f64,
+    /// The stretcher, where the song may change key and tempo.
+    stretch: Option<Box<Stretch>>,
     /// Fractional position between `prev` and `next`.
     cursor: f64,
     prev: [f32; FEED_CHANNELS],
     next: [f32; FEED_CHANNELS],
     /// Whether `prev`/`next` hold real samples yet.
     primed: bool,
-    /// Output frames emitted, which is the position. Frozen while starved.
+    /// The position at the last seek or change of tempo, in feed frames.
+    base: f64,
+    /// Output frames emitted since `base`. Frozen while starved.
     rendered: u64,
-    /// Where a pending seek will land, in output frames.
-    seek_base: u64,
     /// Output frames dropped to a starved feed, for one summary log per song.
     starved: u64,
     /// The position from which silence may end the song, or `None` where it never may.
@@ -258,16 +474,78 @@ impl TrackPlayer {
         Self {
             feed,
             out_rate,
+            base_step: step,
             step,
+            advance: step,
+            stretch: None,
             cursor: 0.0,
             prev: [0.0; FEED_CHANNELS],
             next: [0.0; FEED_CHANNELS],
             primed: false,
+            base: 0.0,
             rendered: 0,
-            seek_base: 0,
             starved: 0,
             quiet_from_ms: None,
             finished: false,
+        }
+    }
+
+    /// Adds the stage that lets the song change key and tempo.
+    ///
+    /// Call it on the control thread: building the stage allocates, and nothing after it does. A
+    /// player without the stage ignores [`TrackPlayer::set_adjustments`].
+    #[must_use]
+    pub fn with_stretch(mut self) -> Self {
+        self.add_stretch();
+        self
+    }
+
+    /// [`TrackPlayer::with_stretch`], for a player that is already inside something else.
+    pub fn add_stretch(&mut self) {
+        self.stretch = Stretch::new(self.feed.sample_rate());
+    }
+
+    /// Whether the song can change key and tempo.
+    #[must_use]
+    pub fn can_adjust(&self) -> bool {
+        self.stretch.is_some()
+    }
+
+    /// Sets the key in semitones and the tempo as a ratio of the song's own.
+    ///
+    /// Both are clamped to the machine's limits. Key 0 and tempo 1.0 take the stretcher out of the
+    /// path. Does nothing on a player without the stage.
+    pub fn set_adjustments(&mut self, semitones: i8, tempo_ratio: f32) {
+        let Some(stretch) = self.stretch.as_deref_mut() else {
+            return;
+        };
+        let semitones = semitones.clamp(-MAX_TRANSPOSE, MAX_TRANSPOSE);
+        let tempo = f64::from(tempo_ratio.clamp(MIN_TEMPO_RATIO, MAX_TEMPO_RATIO));
+        let pitch = 2f64.powf(f64::from(semitones) / 12.0);
+        let engage = semitones != 0 || (tempo - 1.0).abs() > 0.0005;
+
+        // The position holds what the old tempo counted, and counts on from here at the new one.
+        self.base += self.rendered as f64 * self.advance;
+        self.rendered = 0;
+
+        if engage {
+            stretch.controller.set_tempo_rate(tempo / pitch);
+            if !stretch.engaged {
+                stretch.restart();
+                stretch.engaged = true;
+            }
+            self.step = self.base_step * pitch;
+            self.advance = self.base_step * tempo;
+        } else {
+            if stretch.engaged {
+                // The engine holds frames it took from the feed and has not played. Bypass resumes
+                // at the feed's next frame, so the position moves over the frames left behind.
+                let played = stretch.controller.source_position();
+                self.base += (stretch.fed as f64 - played).max(0.0);
+                stretch.engaged = false;
+            }
+            self.step = self.base_step;
+            self.advance = self.base_step;
         }
     }
 
@@ -286,11 +564,15 @@ impl TrackPlayer {
             .is_some_and(|from| self.position_ms() >= from)
     }
 
-    /// Position in milliseconds.
+    /// Position in the song, in milliseconds.
+    ///
+    /// It counts the song and not the output: at tempo 1.25 a second of output moves it 1,250.
     #[must_use]
     pub fn position_ms(&self) -> u32 {
-        let ms = self.rendered.saturating_mul(1000) / u64::from(self.out_rate);
-        u32::try_from(ms).unwrap_or(u32::MAX)
+        let frames = self.base + self.rendered as f64 * self.advance;
+        // The small term keeps a whole millisecond whole after the multiplication above.
+        let ms = frames * 1000.0 / f64::from(self.feed.sample_rate()) + 1e-6;
+        ms.clamp(0.0, f64::from(u32::MAX)) as u32
     }
 
     /// Whether the track has played to its end.
@@ -324,11 +606,14 @@ impl TrackPlayer {
     /// Renders silence until the decoder reports back, which is a fraction of a second and is what
     /// every player does across a seek.
     pub fn seek_ms(&mut self, ms: u32) {
-        self.seek_base = u64::from(ms) * u64::from(self.out_rate) / 1000;
-        self.rendered = self.seek_base;
+        self.base = f64::from(ms) * f64::from(self.feed.sample_rate()) / 1000.0;
+        self.rendered = 0;
         self.primed = false;
         self.cursor = 0.0;
         self.finished = false;
+        if let Some(stretch) = self.stretch.as_deref_mut() {
+            stretch.restart();
+        }
         self.feed.request_seek(ms);
     }
 
@@ -366,18 +651,18 @@ impl TrackPlayer {
 
         for i in 0..frames {
             if !self.primed {
-                let Some(first) = self.feed.pop_frame() else {
+                let Some(first) = self.next_frame() else {
                     self.stall(&mut left[i..frames], &mut right[i..frames]);
                     return false;
                 };
                 self.prev = first;
-                self.next = self.feed.pop_frame().unwrap_or(first);
+                self.next = self.next_frame().unwrap_or(first);
                 self.primed = true;
                 self.cursor = 0.0;
             }
 
             while self.cursor >= 1.0 {
-                let Some(frame) = self.feed.pop_frame() else {
+                let Some(frame) = self.next_frame() else {
                     self.stall(&mut left[i..frames], &mut right[i..frames]);
                     return false;
                 };
@@ -397,13 +682,25 @@ impl TrackPlayer {
         true
     }
 
+    /// The next frame for the resampler: from the stretcher when it is engaged, else from the feed.
+    fn next_frame(&mut self) -> Option<[f32; FEED_CHANNELS]> {
+        match self.stretch.as_deref_mut() {
+            Some(stretch) if stretch.engaged => stretch.next_frame(&mut self.feed),
+            _ => self.feed.pop_frame(),
+        }
+    }
+
     /// Nothing to play: fill silence and hold the position, so the picture waits with the sound.
     ///
     /// Holding rather than advancing is deliberate. If the position ran on through a stall the
     /// video would be asked for frames that the same stall has not produced either, and the two
     /// would come back misaligned; freezing both keeps them together and costs a hesitation.
     fn stall(&mut self, left: &mut [f32], right: &mut [f32]) {
-        if self.feed.drained() {
+        let playing_out = self
+            .stretch
+            .as_deref()
+            .is_some_and(|stretch| stretch.engaged && !stretch.ended);
+        if self.feed.drained() && !playing_out {
             self.finished = true;
         } else {
             self.starved += left.len() as u64;
@@ -448,10 +745,10 @@ mod tests {
     }
 
     #[test]
-    fn position_counts_output_frames_not_source_frames() {
+    fn the_position_is_the_same_at_any_device_rate() {
         let (mut writer, feed) = feed(24_000);
         writer.push(&ramp(1_000));
-        // Source is half the device rate, so 480 output frames is 10 ms either way.
+        // Source is half the device rate, so 480 output frames is 240 of the song, and 10 ms.
         let mut player = TrackPlayer::new(feed, RATE);
 
         render(&mut player, 480);
@@ -629,6 +926,235 @@ mod tests {
         player.restart();
         assert_eq!(player.position_ms(), 0);
         assert_eq!(writer.pending_seek(), Some(0));
+    }
+
+    const TONE_HZ: f32 = 440.0;
+    const TONE_FRAMES: usize = 2 * 44_100;
+
+    /// A player with the stage, over a whole two-second tone the producer has finished.
+    fn tone_player() -> TrackPlayer {
+        let (mut writer, feed) = audio_feed(44_100, TONE_FRAMES);
+        let tone: Vec<f32> = (0..TONE_FRAMES)
+            .flat_map(|i| {
+                let s = (i as f32 * TONE_HZ * std::f32::consts::TAU / 44_100.0).sin() * 0.5;
+                [s, s]
+            })
+            .collect();
+        assert_eq!(writer.push(&tone), tone.len());
+        writer.finish();
+        TrackPlayer::new(feed, 44_100).with_stretch()
+    }
+
+    /// Renders to the end of the song, returning the left channel of every block that played.
+    fn play_out(player: &mut TrackPlayer) -> Vec<f32> {
+        let mut out = Vec::new();
+        let mut left = [0.0; 64];
+        let mut right = [0.0; 64];
+        for _ in 0..10_000 {
+            player.render(&mut left, &mut right, true);
+            if player.is_finished() {
+                return out;
+            }
+            out.extend_from_slice(&left);
+        }
+        panic!("the song never finished");
+    }
+
+    /// The pitch of the middle half of a tone, from its upward zero crossings.
+    fn pitch_hz(samples: &[f32]) -> f32 {
+        let middle = &samples[samples.len() / 4..samples.len() * 3 / 4];
+        let crossings = middle
+            .windows(2)
+            .filter(|pair| pair[0] <= 0.0 && pair[1] > 0.0)
+            .count();
+        crossings as f32 * 44_100.0 / middle.len() as f32
+    }
+
+    fn close(got: f32, want: f32, tolerance: f32) -> bool {
+        (got - want).abs() <= want * tolerance
+    }
+
+    #[test]
+    fn a_player_without_the_stage_ignores_key_and_tempo() {
+        let (mut writer, feed) = feed(RATE);
+        writer.push(&ramp(8));
+        let mut player = TrackPlayer::new(feed, RATE);
+        assert!(!player.can_adjust());
+
+        player.set_adjustments(6, 1.25);
+        let (left, _) = render(&mut player, 4);
+        assert_eq!(left, vec![0.0, 1.0, 2.0, 3.0]);
+    }
+
+    #[test]
+    fn a_song_at_its_own_key_and_tempo_bypasses_the_stage() {
+        let (mut writer, feed) = feed(RATE);
+        writer.push(&ramp(8));
+        let mut player = TrackPlayer::new(feed, RATE).with_stretch();
+        assert!(player.can_adjust());
+
+        player.set_adjustments(0, 1.0);
+        let (left, right) = render(&mut player, 4);
+        assert_eq!(left, vec![0.0, 1.0, 2.0, 3.0]);
+        assert_eq!(right, vec![0.0, -1.0, -2.0, -3.0]);
+    }
+
+    #[test]
+    fn a_key_change_moves_the_pitch_and_keeps_the_length() {
+        for semitones in [-6_i8, 6] {
+            let mut player = tone_player();
+            player.set_adjustments(semitones, 1.0);
+            let out = play_out(&mut player);
+
+            let want = TONE_HZ * 2f32.powf(f32::from(semitones) / 12.0);
+            assert!(
+                close(pitch_hz(&out), want, 0.02),
+                "key {semitones}: {} Hz, wanted {want}",
+                pitch_hz(&out)
+            );
+            assert!(
+                close(out.len() as f32, TONE_FRAMES as f32, 0.03),
+                "key {semitones}: {} frames",
+                out.len()
+            );
+            assert!(close(player.position_ms() as f32, 2_000.0, 0.03));
+        }
+    }
+
+    #[test]
+    fn a_tempo_change_moves_the_length_and_keeps_the_pitch() {
+        for tempo in [0.75_f32, 1.25] {
+            let mut player = tone_player();
+            player.set_adjustments(0, tempo);
+            let out = play_out(&mut player);
+
+            assert!(
+                close(pitch_hz(&out), TONE_HZ, 0.02),
+                "tempo {tempo}: {} Hz",
+                pitch_hz(&out)
+            );
+            assert!(
+                close(out.len() as f32, TONE_FRAMES as f32 / tempo, 0.03),
+                "tempo {tempo}: {} frames",
+                out.len()
+            );
+            // The position is a place in the song, so it ends at the song's own length.
+            assert!(
+                close(player.position_ms() as f32, 2_000.0, 0.03),
+                "tempo {tempo}: ended at {} ms",
+                player.position_ms()
+            );
+        }
+    }
+
+    #[test]
+    fn a_fed_song_never_reaches_the_engines_own_silence() {
+        for (semitones, tempo) in [(6_i8, 1.25_f32), (-6, 0.75), (6, 0.75), (-6, 1.25)] {
+            let mut player = tone_player();
+            player.set_adjustments(semitones, tempo);
+            let mut left = [0.0; 64];
+            let mut right = [0.0; 64];
+            let dry = |player: &TrackPlayer| {
+                player
+                    .stretch
+                    .as_deref()
+                    .map(|stretch| stretch.controller.underrun_frames())
+            };
+            // The first block carries the engine past its first window.
+            assert!(player.render(&mut left, &mut right, true));
+            assert!(left.iter().any(|s| *s != 0.0), "the first block is song");
+            let warm = dry(&player);
+            for _ in 0..400 {
+                assert!(player.render(&mut left, &mut right, true));
+            }
+            assert_eq!(dry(&player), warm, "key {semitones}, tempo {tempo}");
+        }
+    }
+
+    #[test]
+    fn the_position_runs_at_the_tempo() {
+        let mut player = tone_player();
+        player.set_adjustments(0, 1.25);
+        let mut left = [0.0; 441];
+        let mut right = [0.0; 441];
+        for _ in 0..50 {
+            player.render(&mut left, &mut right, true);
+        }
+        // Half a second of output at tempo 1.25 is 625 ms of song.
+        assert_eq!(player.position_ms(), 625);
+    }
+
+    #[test]
+    fn a_change_during_the_song_keeps_the_position_it_had() {
+        let mut player = tone_player();
+        let mut left = [0.0; 441];
+        let mut right = [0.0; 441];
+        for _ in 0..50 {
+            player.render(&mut left, &mut right, true);
+        }
+        assert_eq!(player.position_ms(), 500);
+
+        player.set_adjustments(3, 1.25);
+        assert_eq!(player.position_ms(), 500);
+        for _ in 0..40 {
+            player.render(&mut left, &mut right, true);
+        }
+        assert_eq!(player.position_ms(), 1_000);
+
+        // Back in bypass the position steps over the frames the engine held, and no further.
+        player.set_adjustments(0, 1.0);
+        let resumed = player.position_ms();
+        assert!((1_000..1_100).contains(&resumed), "resumed at {resumed}");
+        assert!(player.render(&mut left, &mut right, true));
+        assert_eq!(player.position_ms(), resumed + 10);
+    }
+
+    #[test]
+    fn a_short_feed_stalls_an_engaged_song_instead_of_playing_silence_as_song() {
+        let (mut writer, feed) = audio_feed(44_100, 44_100);
+        writer.push(&vec![0.25; 2 * 2_000]);
+        let mut player = TrackPlayer::new(feed, 44_100).with_stretch();
+        player.set_adjustments(2, 1.0);
+
+        let mut left = [0.0; 64];
+        let mut right = [0.0; 64];
+        for _ in 0..200 {
+            player.render(&mut left, &mut right, true);
+        }
+        assert!(!player.is_finished(), "starved is not finished");
+        assert!(player.starved_frames() > 0);
+        assert!(
+            player.position_ms() < 50,
+            "the position waits with the sound"
+        );
+    }
+
+    #[test]
+    fn a_seek_while_engaged_lands_on_the_target_and_plays_on() {
+        let (mut writer, feed) = audio_feed(44_100, 44_100);
+        writer.push(&vec![0.25; 2 * 20_000]);
+        let mut player = TrackPlayer::new(feed, 44_100).with_stretch();
+        player.set_adjustments(0, 1.25);
+        let mut left = [0.0; 64];
+        let mut right = [0.0; 64];
+        for _ in 0..20 {
+            player.render(&mut left, &mut right, true);
+        }
+
+        player.seek_ms(1_000);
+        assert_eq!(player.position_ms(), 1_000);
+        player.render(&mut left, &mut right, true);
+        assert_eq!(writer.pending_seek(), Some(1_000));
+        writer.seek_complete();
+        writer.push(&vec![0.5; 2 * 20_000]);
+
+        let mut heard = false;
+        for _ in 0..100 {
+            heard |= player.render(&mut left, &mut right, true);
+        }
+        assert!(heard, "the song plays after the seek");
+        assert!(player.position_ms() > 1_000);
+        assert!(left.iter().any(|s| (*s - 0.5).abs() < 0.05));
     }
 
     #[test]

@@ -105,7 +105,7 @@ no-lyrics = (no lyrics in this file)
 
 ## The badges over a playing song
 #
-# None of these is drawn for a video or MP3+G song, which have no key and no tempo to change.
+# None of these is drawn for a video or MP3+G song, whose own picture fills the screen.
 
 badge-key = key { $semitones }
 badge-tempo = tempo { $ratio }x

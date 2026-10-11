@@ -16,13 +16,17 @@ the machine opens the audio output stream once and only the *loaded thing* varie
 
 ## What a video song does not have
 
-**No transpose, no tempo, no guide melody, no syllable wipe, and no lyric timeline.** All five measure
-or manipulate things a MIDI file has and a video does not. There are no channels to mute, no key to
-shift and no tick timeline to warp, and the words are in somebody else's picture.
+**No guide melody, no syllable wipe, and no lyric timeline.** All three measure or manipulate things
+a MIDI file has and a video does not. There are no channels to mute and no tick timeline to warp,
+and the words are in somebody else's picture.
 
-Asking for one is **reported as unavailable rather than hidden**. The answer is a 409 with code
-`unavailable`, the same answer the melody toggle gives on a file where detection abstained. A control
-that silently does nothing is worse than one that says why.
+**Its key and tempo are the stretcher's.**
+[`A recorded song changes key and tempo`](audio.md#a-recorded-song-changes-key-and-tempo) gives a
+video both, and names the setting that takes both away.
+
+Asking for one it lacks is **reported as unavailable rather than hidden**. The answer is a 409 with
+code `unavailable`, the same answer the melody toggle gives on a file where detection abstained. A
+control that silently does nothing is worse than one that says why.
 
 `display.lyric_offset_ms` is inert for the same reason: nothing is being drawn, so there is nothing to
 offset. The television's picture delay that it compensates for already applies to the video's own
@@ -266,12 +270,13 @@ corpus, because the file pair is what the world actually trades.
 is `symphonia`. So an MP3+G song plays in a `--no-video` build and on Android, and
 `km-app/src/cdg.rs` has no `AVAILABLE` const and no second `mod imp`.
 
-See `No audio-file pitch shifting` for why the control refusals below are permanent.
+See [`A recorded song changes key and tempo`](audio.md#a-recorded-song-changes-key-and-tempo) for
+its key and tempo.
 
 ## What an MP3+G song does not have
 
-**The same five a video lacks, answered the same way.** There is no transpose, no tempo, no guide
-melody, no syllable wipe and no lyric timeline. Each is a 409 with code `unavailable` naming which.
+**The same three a video lacks, answered the same way.** There is no guide melody, no syllable wipe
+and no lyric timeline. The melody is a 409 with code `unavailable` naming which.
 
 One difference looks like it should change the answer and does not. A video's words are pixels in
 *somebody else's* picture. This application draws an MP3+G song's words itself, from data in the
@@ -474,9 +479,10 @@ it has words, where a bare audio file has none.
 
 **The file is read for its words and their timing, and for nothing else.** Every note also carries a
 pitch and a type that singing games score a singer against. Both are discarded, because scoring
-singers is a non-goal and the pitch of a sung melody is not a backing track anyone could transpose.
+singers is a non-goal and the pitch of a sung melody is not a backing track anyone could mute.
 
-See `No audio-file pitch shifting` for why the control refusals below are permanent.
+See [`A recorded song changes key and tempo`](audio.md#a-recorded-song-changes-key-and-tempo) for
+its key and tempo.
 
 ## What an UltraStar song has, and what it does not
 
@@ -484,8 +490,8 @@ See `No audio-file pitch shifting` for why the control refusals below are perman
 a MIDI song's words. They are searchable, and they give the songbook its first line. That is what
 separates it from MP3+G, whose words are pixels.
 
-**It has no transpose, no tempo and no guide melody.** Each is a 409 with code `unavailable` naming
-which, for the reasons an MP3+G song has none.
+**It has no guide melody.** Asking for one is a 409 with code `unavailable` naming which, for the
+reason an MP3+G song has none.
 
 **Its suitability is a flat 10**, under `Suitability, for a song that was made to be sung to`: a
 person timed its words to this recording. The recording is usually the original with its vocals,
@@ -553,17 +559,19 @@ line at a time, by [`A line-timed song lights a line at a time`](interface.md#a-
 Refusing line-timed files would refuse most of the LRC files that exist.
 
 **The recording is usually the original, with its vocals.** A person timed the words to it, so the
-timing is theirs to get right, and a bad file is curation's to hide. See `No audio-file pitch
-shifting` for why the control refusals below are permanent.
+timing is theirs to get right, and a bad file is curation's to hide. See
+[`A recorded song changes key and tempo`](audio.md#a-recorded-song-changes-key-and-tempo) for its
+key and tempo.
 
 ## What an LRC song has, and what it does not
 
 **It has a lyric timeline, drawn over the wallpaper as an UltraStar song's is.** Its words are
 searchable, and they give the songbook its first line.
 
-**It has no transpose, no tempo and no guide melody.** Each is a 409 with code `unavailable` naming
-which, for the reasons an MP3+G song has none. The codes are `no_key_lrc`, `no_tempo_lrc` and
-`no_melody_lrc`, so the remote can name the kind.
+**It has no guide melody.** Asking for one is a 409 with code `unavailable` naming which, for the
+reason an MP3+G song has none. The code is `no_melody_lrc`, so the remote can name the kind. On a
+machine with `playback.adjust_recordings` off, a key or tempo change answers `no_key_lrc` or
+`no_tempo_lrc`.
 
 **Its suitability is a 10 when its words are timed, and an 8 when only its lines are.** A person
 timed it to this recording, as an UltraStar song is timed. A line-timed file loses the words' share

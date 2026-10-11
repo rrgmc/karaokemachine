@@ -584,9 +584,8 @@ Two clamps, both about bounding inputs before they are multiplied:
 
 **Clamped on write, not refused, and never gated on the song.** It follows the volume rather than
 transpose. It is a calibration dial, nudged from a remote until the highlight lands right. A 400 in
-the middle of that is noise. It also skips the `adjustable` check that makes the other
-three answer 409 while a video plays. Those are about a MIDI song's notes, and this is about the
-room's screen.
+the middle of that is noise. It also skips the `adjustable` check that can make the key
+and the tempo answer 409. Those are about the song's sound, and this is about the room's screen.
 
 It rides `PUT /api/v1/settings` with no new route at all, which is the signal that this is
 the right seam.
@@ -744,7 +743,7 @@ crossed into the middle of itself. That is a worse answer than a band of empty p
 
 `Frame::picture` and `Frame::lyrics_hidden` both empty the lyric band and are deliberately not one
 field. `picture` says the song brings its own words in its own image. So it suppresses the key and
-tempo badges with the rows, because those name adjustments a video and an MP3+G song do not have.
+tempo badges with the rows, because the song's own picture fills the screen.
 `lyrics_hidden` says somebody withheld the words of a song that has them. A MIDI song still
 transposes and still changes tempo with them withheld, so sharing the field would take away two
 controls that work.

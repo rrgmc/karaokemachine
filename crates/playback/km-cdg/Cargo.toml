@@ -33,7 +33,7 @@ tracing = { workspace = true }
 # plausible one.
 image = { workspace = true }
 # For `examples/stretch`, which renders a recording at another key or tempo through each
-# candidate. An example's dependency reaches no build of the machine.
+# candidate. `wsola` reaches no build of the machine. `timestretch` does, through `km-audio`.
 timestretch = { workspace = true }
 wsola = { workspace = true }
 # The key and tempo limits that example clamps to, and the machine's own.

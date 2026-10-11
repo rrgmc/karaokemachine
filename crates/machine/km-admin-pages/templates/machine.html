@@ -306,6 +306,18 @@
         <button type="submit">{{ "end-on-silence-save"|t }}</button>
       </form>
     </section>
+
+    <section class="card">
+      <h2>{{ "adjust-recordings-heading"|t }}</h2>
+      <p class="hint">{{ "adjust-recordings-hint"|t }}</p>
+      <form method="post" action="/admin/machine/adjust-recordings">
+        <label class="check">
+          <input type="checkbox" name="adjust_recordings" value="yes"{% if adjust_recordings %} checked{% endif %}>
+          {{ "adjust-recordings-enabled"|t }}
+        </label>
+        <button type="submit">{{ "adjust-recordings-save"|t }}</button>
+      </form>
+    </section>
   </div>
 
   {# One form, where demo mode has two. Both values are always written down, so one Save means one

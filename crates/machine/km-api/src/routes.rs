@@ -186,6 +186,7 @@ pub const SURFACE: &[(&str, &str)] = &[
     ("GET", "/dev-remote"),
     ("GET", "/performance"),
     ("GET", "/playback/end-on-silence"),
+    ("GET", "/playback/adjust-recordings"),
     ("GET", "/events"),
     ("POST", "/login"),
     ("GET", "/access"),
@@ -219,6 +220,7 @@ pub const SURFACE: &[(&str, &str)] = &[
     ("PUT", "/admin/dev-remote"),
     ("PUT", "/admin/performance"),
     ("PUT", "/admin/playback/end-on-silence"),
+    ("PUT", "/admin/playback/adjust-recordings"),
 ];
 
 /// The routes mounted only while debugging mode is on.
@@ -617,6 +619,11 @@ fn api_router(config: &crate::ApiConfig, capabilities: Capabilities) -> Router<A
             "/playback/end-on-silence",
             get(handlers::get_end_on_silence),
         )
+        // Whether a recorded song changes key and tempo. The same split.
+        .route(
+            "/playback/adjust-recordings",
+            get(handlers::get_adjust_recordings),
+        )
         .route("/events", get(handlers::events))
         // Any code or the admin password, for a token of the level it opens. Open, like
         // `/admin/login`, and behind the same rate limiter.
@@ -712,6 +719,10 @@ fn api_router(config: &crate::ApiConfig, capabilities: Capabilities) -> Router<A
         .route(
             "/playback/end-on-silence",
             put(handlers::put_end_on_silence),
+        )
+        .route(
+            "/playback/adjust-recordings",
+            put(handlers::put_adjust_recordings),
         );
 
     // Turning the box off, and starting the application again. Mounted only where the host supplied
