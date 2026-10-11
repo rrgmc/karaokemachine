@@ -1007,6 +1007,7 @@ pub async fn machine_page(
             demo_stored: switches.demo_stored,
             demo_delay_secs: switches.demo_delay_secs,
             demo_delay_max: km_api::machine::MAX_DEMO_DELAY_SECS,
+            end_on_silence: switches.end_on_silence,
             power: identity.power,
         },
         locale,
@@ -1914,6 +1915,27 @@ pub async fn set_demo_delay(
     }
 }
 
+/// `POST /admin/machine/end-on-silence` — whether a song ends when its tail is silent.
+///
+/// One box and no `persist` beside it, for the delay's reason: it is installation configuration and
+/// is always written down. The notice says what the machine stored.
+pub async fn set_end_on_silence(
+    State(state): State<Admin>,
+    headers: HeaderMap,
+    Form(form): Form<EndOnSilenceForm>,
+) -> Response {
+    let words = crate::words::messages(state.locale(&headers));
+    match state
+        .switches
+        .set_end_on_silence(form.end_on_silence.is_some())
+        .await
+    {
+        Err(error) => refusal_on(&state, Pane::Demo, &error, state.locale(&headers)),
+        Ok(true) => back_to_pane(Pane::Demo, "good", &words.msg("end-on-silence-on")),
+        Ok(false) => back_to_pane(Pane::Demo, "good", &words.msg("end-on-silence-off")),
+    }
+}
+
 /// `POST /admin/machine/sessions` — sign out everywhere.
 ///
 /// **Password-independent, and that is the point.** An owner who wants every phone in the house
@@ -2061,6 +2083,13 @@ pub struct DemoForm {
     pub enabled: Option<String>,
     /// The same, for the second box.
     pub persist: Option<String>,
+}
+
+/// Whether a song ends when its tail is silent.
+#[derive(Debug, Clone, Default, serde::Deserialize)]
+pub struct EndOnSilenceForm {
+    /// Present when the box is ticked, absent when it is not.
+    pub end_on_silence: Option<String>,
 }
 
 /// How long the machine waits before performing for itself.

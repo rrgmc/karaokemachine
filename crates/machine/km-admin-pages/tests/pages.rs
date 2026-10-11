@@ -295,6 +295,7 @@ async fn every_page_route_is_asked_about_before_it_runs() {
         ("POST", "/admin/machine/name"),
         ("POST", "/admin/machine/demo"),
         ("POST", "/admin/machine/demo-delay"),
+        ("POST", "/admin/machine/end-on-silence"),
         ("POST", "/admin/machine/password"),
         ("POST", "/admin/machine/sessions"),
         ("POST", "/admin/machine/debug"),
@@ -513,6 +514,40 @@ async fn the_owners_page_sets_the_delay_and_writing_it_down_is_not_optional() {
         let (status, _) = post_form(&app, "/admin/machine/demo-delay", "delay_secs=a+minute").await;
         assert!(status.is_redirection(), "{surface}: {status}");
         assert_eq!(state.controller().demo().delay_secs, 0, "{surface}");
+    }
+}
+
+/// The box is drawn ticked on a machine that ends songs on silence, and unticking it reaches the
+/// machine. An unticked box sends no field, so an empty form is the way to turn it off.
+#[tokio::test]
+async fn ending_a_song_on_silence_is_a_box_on_the_machine_page() {
+    for host in BOTH_HOSTS {
+        let surface = host.name();
+        let (app, state) = nested_as(
+            host,
+            TestMachine::with_catalog(6),
+            Arc::new(SpyGuard::default()),
+        );
+
+        let (status, body) = get(&app, "/admin/machine").await;
+        assert_eq!(status, StatusCode::OK, "{surface}");
+        assert!(
+            body.contains(r#"action="/admin/machine/end-on-silence""#),
+            "{body}"
+        );
+        assert!(
+            body.contains(r#"name="end_on_silence" value="yes" checked"#),
+            "{surface}: {body}"
+        );
+
+        let (status, _) = post_form(&app, "/admin/machine/end-on-silence", "").await;
+        assert!(status.is_redirection(), "{surface}: {status}");
+        assert!(!state.controller().end_on_silence(), "{surface}");
+
+        let (status, _) =
+            post_form(&app, "/admin/machine/end-on-silence", "end_on_silence=yes").await;
+        assert!(status.is_redirection(), "{surface}: {status}");
+        assert!(state.controller().end_on_silence(), "{surface}");
     }
 }
 
@@ -2642,6 +2677,7 @@ async fn a_save_comes_back_to_the_pane_it_was_made_on() {
         ("/admin/machine/name", "name=Living+Room", "name"),
         ("/admin/machine/demo", "enabled=yes", "demo"),
         ("/admin/machine/demo-delay", "delay_secs=45", "demo"),
+        ("/admin/machine/end-on-silence", "", "demo"),
         ("/admin/machine/debug", "enabled=yes", "debug"),
         ("/admin/machine/sessions", "", "password"),
     ] {

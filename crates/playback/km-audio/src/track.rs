@@ -244,6 +244,8 @@ pub struct TrackPlayer {
     seek_base: u64,
     /// Output frames dropped to a starved feed, for one summary log per song.
     starved: u64,
+    /// The position from which silence may end the song, or `None` where it never may.
+    quiet_from_ms: Option<u32>,
     finished: bool,
 }
 
@@ -264,8 +266,24 @@ impl TrackPlayer {
             rendered: 0,
             seek_base: 0,
             starved: 0,
+            quiet_from_ms: None,
             finished: false,
         }
+    }
+
+    /// Names the position from which a run of silence ends the song.
+    ///
+    /// The caller knows where that is and this does not: the last word of a timed song, or the final
+    /// part of one with no timeline. `None` leaves the song to end with its file.
+    pub fn set_quiet_from_ms(&mut self, quiet_from_ms: Option<u32>) {
+        self.quiet_from_ms = quiet_from_ms;
+    }
+
+    /// Whether the position has reached the point from which silence may end the song.
+    #[must_use]
+    pub fn is_past_quiet_point(&self) -> bool {
+        self.quiet_from_ms
+            .is_some_and(|from| self.position_ms() >= from)
     }
 
     /// Position in milliseconds.
@@ -323,7 +341,11 @@ impl TrackPlayer {
     ///
     /// `advancing` is false when the transport is paused: the buffers are still filled, with
     /// silence, and a pending seek is still serviced, so pausing never wedges the decoder.
-    pub fn render(&mut self, left: &mut [f32], right: &mut [f32], advancing: bool) {
+    ///
+    /// Returns whether every frame came from the song. A paused block, a block waiting on a seek and
+    /// a block the decoder left short are silent without the song being silent, and the caller that
+    /// listens for a silent tail must not count them.
+    pub fn render(&mut self, left: &mut [f32], right: &mut [f32], advancing: bool) -> bool {
         let frames = left.len().min(right.len());
 
         if self.feed.seek_pending() {
@@ -332,21 +354,21 @@ impl TrackPlayer {
             self.feed.discard(usize::MAX);
             left[..frames].fill(0.0);
             right[..frames].fill(0.0);
-            return;
+            return false;
         }
         self.feed.drop_stale();
 
         if !advancing {
             left[..frames].fill(0.0);
             right[..frames].fill(0.0);
-            return;
+            return false;
         }
 
         for i in 0..frames {
             if !self.primed {
                 let Some(first) = self.feed.pop_frame() else {
                     self.stall(&mut left[i..frames], &mut right[i..frames]);
-                    return;
+                    return false;
                 };
                 self.prev = first;
                 self.next = self.feed.pop_frame().unwrap_or(first);
@@ -357,7 +379,7 @@ impl TrackPlayer {
             while self.cursor >= 1.0 {
                 let Some(frame) = self.feed.pop_frame() else {
                     self.stall(&mut left[i..frames], &mut right[i..frames]);
-                    return;
+                    return false;
                 };
                 self.prev = self.next;
                 self.next = frame;
@@ -372,6 +394,7 @@ impl TrackPlayer {
             self.cursor += self.step;
             self.rendered += 1;
         }
+        true
     }
 
     /// Nothing to play: fill silence and hold the position, so the picture waits with the sound.

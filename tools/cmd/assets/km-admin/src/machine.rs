@@ -37,10 +37,10 @@ use km_api::discover::Discovery;
 use km_api::dto::{
     AccessCodeRequest, AccessDto, AdminPasswordDto, AdminPasswordRequest, AudioLevelRequest,
     AudioOutputRequest, AudioOutputsDto, BankDto, BankRequest, DebugDto, DemoDto, DevRemoteDto,
-    DevRemoteRequest, LoginRequest, LoginResponse, MachineLocaleRequest, MachineNameRequest,
-    PackagesDto, PerformanceDto, PerformanceRequest, RoomAccessRequest, SetDemoDelayRequest,
-    SetDemoRequest, SettingsDto, SettingsPatchDto, SoundFontDto, SoundFontRequest, SoundFontsDto,
-    UninstallDto, UploadReportDto, WallpapersDto,
+    DevRemoteRequest, EndOnSilenceDto, EndOnSilenceRequest, LoginRequest, LoginResponse,
+    MachineLocaleRequest, MachineNameRequest, PackagesDto, PerformanceDto, PerformanceRequest,
+    RoomAccessRequest, SetDemoDelayRequest, SetDemoRequest, SettingsDto, SettingsPatchDto,
+    SoundFontDto, SoundFontRequest, SoundFontsDto, UninstallDto, UploadReportDto, WallpapersDto,
 };
 
 /// The machine's own default port, so "a bare host means 8177" is not written down twice.
@@ -98,6 +98,10 @@ pub enum Call<'a> {
     Performance,
     /// `PUT` — put the frame-statistics panel on the machine's screen, or take it off.
     SetPerformance,
+    /// `GET` — whether a song ends when its tail is silent.
+    EndOnSilence,
+    /// `PUT` — say whether a song ends when its tail is silent.
+    SetEndOnSilence,
     /// `GET` — the output devices the machine has, and which one it is using.
     AudioOutputs,
     /// `PUT` — choose the output device.
@@ -222,6 +226,8 @@ impl<'a> Call<'a> {
         Call::SetDevRemote,
         Call::Performance,
         Call::SetPerformance,
+        Call::EndOnSilence,
+        Call::SetEndOnSilence,
         Call::AudioOutputs,
         Call::SetAudioOutput,
         Call::SetAudioLevel,
@@ -260,6 +266,7 @@ impl<'a> Call<'a> {
             | Self::Debug
             | Self::DevRemote
             | Self::Performance
+            | Self::EndOnSilence
             | Self::AudioOutputs
             | Self::Settings
             | Self::Locale
@@ -275,6 +282,7 @@ impl<'a> Call<'a> {
             | Self::SetDebugging
             | Self::SetDevRemote
             | Self::SetPerformance
+            | Self::SetEndOnSilence
             | Self::SetAudioOutput
             | Self::SetAudioLevel
             | Self::SetSettings
@@ -345,6 +353,8 @@ impl<'a> Call<'a> {
             Self::SetDevRemote => "/admin/dev-remote",
             Self::Performance => "/performance",
             Self::SetPerformance => "/admin/performance",
+            Self::EndOnSilence => "/playback/end-on-silence",
+            Self::SetEndOnSilence => "/admin/playback/end-on-silence",
             // The read is public and the write is not, which is the split every pair here has. The
             // singular on the write is the machine's own spelling: `/audio/outputs` is the list and
             // `/audio/output` is the one in force.
@@ -760,6 +770,17 @@ impl Client {
     /// no keyboard, so `F12` is not available on the machine that most wants this.
     pub async fn set_performance(&self, enabled: bool) -> Result<PerformanceDto, Refused> {
         self.json_with(Call::SetPerformance, &PerformanceRequest { enabled })
+            .await
+    }
+
+    /// Whether a song ends when its tail is silent.
+    pub async fn end_on_silence(&self) -> Result<EndOnSilenceDto, Refused> {
+        self.get_json(Call::EndOnSilence).await
+    }
+
+    /// Says whether a song ends when its tail is silent. The machine writes it down.
+    pub async fn set_end_on_silence(&self, enabled: bool) -> Result<EndOnSilenceDto, Refused> {
+        self.json_with(Call::SetEndOnSilence, &EndOnSilenceRequest { enabled })
             .await
     }
 

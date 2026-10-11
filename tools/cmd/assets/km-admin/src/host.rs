@@ -314,16 +314,17 @@ impl Switches for RemoteMachine {
         // the **running** value, and a switch drawn from it read *Turn debugging on* both before the
         // press and after it. See `SwitchState::debug_stored`.
         //
-        // **Concurrent, because none of the four is an input to another.** In sequence they cost
-        // four round trips for a pane that needs one, and against a machine that is not answering
-        // four whole timeouts -- which is the difference between a page that says so and a page that
+        // **Concurrent, because none of the five is an input to another.** In sequence they cost
+        // five round trips for a pane that needs one, and against a machine that is not answering
+        // five whole timeouts -- which is the difference between a page that says so and a page that
         // looks broken. `try_join!` also stops at the first refusal rather than waiting out the
-        // other three.
-        let (debug, dev_remote, performance, demo) = tokio::try_join!(
+        // other four.
+        let (debug, dev_remote, performance, demo, end_on_silence) = tokio::try_join!(
             client.debug(),
             client.dev_remote(),
             client.performance(),
             client.demo(),
+            client.end_on_silence(),
         )
         .map_err(fault)?;
 
@@ -336,6 +337,7 @@ impl Switches for RemoteMachine {
             demo_enabled: demo.enabled,
             demo_stored: demo.stored,
             demo_delay_secs: demo.delay_secs,
+            end_on_silence: end_on_silence.enabled,
         })
     }
 
@@ -377,6 +379,15 @@ impl Switches for RemoteMachine {
             .set_demo_delay(secs)
             .await
             .map(|demo| demo.delay_secs)
+            .map_err(fault)
+    }
+
+    async fn set_end_on_silence(&self, on: bool) -> Result<bool, AdminError> {
+        self.writing()
+            .await?
+            .set_end_on_silence(on)
+            .await
+            .map(|stored| stored.enabled)
             .map_err(fault)
     }
 }

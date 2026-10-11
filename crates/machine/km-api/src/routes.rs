@@ -184,6 +184,7 @@ pub const SURFACE: &[(&str, &str)] = &[
     ("GET", "/debug"),
     ("GET", "/dev-remote"),
     ("GET", "/performance"),
+    ("GET", "/playback/end-on-silence"),
     ("GET", "/events"),
     ("POST", "/login"),
     ("GET", "/access"),
@@ -215,6 +216,7 @@ pub const SURFACE: &[(&str, &str)] = &[
     ("PUT", "/admin/debug"),
     ("PUT", "/admin/dev-remote"),
     ("PUT", "/admin/performance"),
+    ("PUT", "/admin/playback/end-on-silence"),
 ];
 
 /// The routes mounted only while debugging mode is on.
@@ -606,6 +608,11 @@ fn api_router(config: &crate::ApiConfig, capabilities: Capabilities) -> Router<A
         // What the frame meter is measuring, if it is drawing. Public read, admin write, the same
         // split as the two switches above -- and the only one of the three that needs no restart.
         .route("/performance", get(handlers::get_performance))
+        // Whether a silent tail ends a song. Public read, admin write, the same split again.
+        .route(
+            "/playback/end-on-silence",
+            get(handlers::get_end_on_silence),
+        )
         .route("/events", get(handlers::events))
         // Any code or the admin password, for a token of the level it opens. Open, like
         // `/admin/login`, and behind the same rate limiter.
@@ -693,7 +700,12 @@ fn api_router(config: &crate::ApiConfig, capabilities: Capabilities) -> Router<A
         .route("/dev-remote", put(handlers::put_dev_remote))
         // Drawing the frame statistics over the picture. Effective on the next frame, so this is
         // the one switch here whose reply a caller should read back.
-        .route("/performance", put(handlers::put_performance));
+        .route("/performance", put(handlers::put_performance))
+        // Installation configuration, written down at once, as the demo delay is.
+        .route(
+            "/playback/end-on-silence",
+            put(handlers::put_end_on_silence),
+        );
 
     // Turning the box off, and starting the application again. Mounted only where the host supplied
     // a way to do either, so a machine that cannot answers 404 on all three — the shape the

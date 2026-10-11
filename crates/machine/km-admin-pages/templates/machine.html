@@ -292,6 +292,18 @@
         <button type="submit">{{ "demo-delay-save"|t }}</button>
       </form>
     </section>
+
+    <section class="card">
+      <h2>{{ "end-on-silence-heading"|t }}</h2>
+      <p class="hint">{{ "end-on-silence-hint"|t }}</p>
+      <form method="post" action="/admin/machine/end-on-silence">
+        <label class="check">
+          <input type="checkbox" name="end_on_silence" value="yes"{% if end_on_silence %} checked{% endif %}>
+          {{ "end-on-silence-enabled"|t }}
+        </label>
+        <button type="submit">{{ "end-on-silence-save"|t }}</button>
+      </form>
+    </section>
   </div>
 
   {# What the *television* speaks, which is not what this page is in. Both hosts draw it: the

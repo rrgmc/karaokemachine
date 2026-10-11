@@ -63,6 +63,7 @@ it are the same entry. How the thing is built is [`ARCHITECTURE.md`](../ARCHITEC
 - [A machine that is not making sound with a real bank says so on the screen](audio.md#a-machine-that-is-not-making-sound-with-a-real-bank-says-so-on-the-screen)
 - [Switching the bank while it plays](audio.md#switching-the-bank-while-it-plays)
 - [Nothing is left sounding](audio.md#nothing-is-left-sounding)
+- [A song ends when its tail is silent](audio.md#a-song-ends-when-its-tail-is-silent)
 
 ## [Songs and suitability](songs.md)
 
@@ -335,6 +336,7 @@ it are the same entry. How the thing is built is [`ARCHITECTURE.md`](../ARCHITEC
 - [Changing the admin password is something a phone can do](api-and-network.md#changing-the-admin-password-is-something-a-phone-can-do)
 - [Turning demo mode on is an owner's act; knowing it is on is not](api-and-network.md#turning-demo-mode-on-is-an-owners-act-knowing-it-is-on-is-not)
 - [The demo delay is a route of its own, and it is always written down](api-and-network.md#the-demo-delay-is-a-route-of-its-own-and-it-is-always-written-down)
+- [Ending a song on silence is a route of its own, and it is always written down](api-and-network.md#ending-a-song-on-silence-is-a-route-of-its-own-and-it-is-always-written-down)
 - [Starting one demo song is anybody's; turning demo mode on is not](api-and-network.md#starting-one-demo-song-is-anybodys-turning-demo-mode-on-is-not)
 - [Changing a microphone is an owner's act; reading them is not](api-and-network.md#changing-a-microphone-is-an-owners-act-reading-them-is-not)
 - [A refusal travels as a code, and whoever shows it writes the sentence](api-and-network.md#a-refusal-travels-as-a-code-and-whoever-shows-it-writes-the-sentence)

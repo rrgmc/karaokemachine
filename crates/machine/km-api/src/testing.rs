@@ -110,6 +110,8 @@ pub enum Recorded {
     DevRemoteEnabledSet(bool),
     /// The frame-statistics panel was switched.
     PerformanceOverlaySet(bool),
+    /// Ending a song on a silent tail was switched.
+    EndOnSilenceSet(bool),
     /// The admin password was set, or cleared when this is `None`.
     ///
     /// The hash and the factory PIN, in that order. The hash rather than the password, which is
@@ -251,6 +253,8 @@ struct Inner {
     /// One field and not two, unlike the pair above: this switch has nothing to persist, so a
     /// running value is the only value there is.
     performance_overlay: bool,
+    /// Whether a silent tail ends a song. Held as well as recorded, so a read follows a write.
+    end_on_silence: bool,
     /// What debugging and the development console are set to in settings.
     ///
     /// **Stored only, with no running twin**, which is the opposite arrangement to the panel above
@@ -368,6 +372,7 @@ impl TestMachine {
                 demo_stored: false,
                 demo_delay_secs: 60,
                 performance_overlay: false,
+                end_on_silence: true,
                 debug_stored: false,
                 dev_remote_stored: false,
                 output_level: None,
@@ -1485,6 +1490,17 @@ impl Controller for TestMachine {
         inner.performance_overlay = on;
         inner.recorded.push(Recorded::PerformanceOverlaySet(on));
         Ok(())
+    }
+
+    fn end_on_silence(&self) -> bool {
+        self.lock().end_on_silence
+    }
+
+    fn set_end_on_silence(&self, enabled: bool) -> Result<bool, ControlError> {
+        let mut inner = self.lock();
+        inner.end_on_silence = enabled;
+        inner.recorded.push(Recorded::EndOnSilenceSet(enabled));
+        Ok(enabled)
     }
 
     fn set_admin_password(

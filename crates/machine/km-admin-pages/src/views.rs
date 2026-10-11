@@ -811,6 +811,8 @@ pub struct MachinePage {
     /// browser refuses exactly what the route refuses and nobody has to discover the cap by being
     /// told no.
     pub demo_delay_max: u32,
+    /// Whether a song ends when its tail is silent.
+    pub end_on_silence: bool,
     /// Whether this host can be shut down and restarted, and so whether the card exists.
     ///
     /// **Absent rather than disabled**, which is this page's standing rule: a grayed control invites

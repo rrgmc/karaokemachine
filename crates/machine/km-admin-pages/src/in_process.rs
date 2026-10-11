@@ -411,6 +411,7 @@ impl Switches for ThisMachine {
             demo_enabled: demo.enabled,
             demo_stored: demo.stored,
             demo_delay_secs: demo.delay_secs,
+            end_on_silence: self.0.controller().end_on_silence(),
         })
     }
 
@@ -455,6 +456,10 @@ impl Switches for ThisMachine {
             .set_demo_delay(secs)
             .map(|demo| demo.delay_secs)
             .map_err(refused)
+    }
+
+    async fn set_end_on_silence(&self, on: bool) -> Result<bool, AdminError> {
+        self.0.controller().set_end_on_silence(on).map_err(refused)
     }
 }
 

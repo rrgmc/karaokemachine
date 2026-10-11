@@ -71,6 +71,26 @@ enum Program {
     Track(TrackPlayer),
 }
 
+/// The peak below which a synthesizer block counts as silent, -60 dBFS.
+///
+/// A synthesizer with no voice left renders exact zeros, and a reverb tail falls through this level
+/// on its way there.
+const MIDI_QUIET_PEAK: f32 = 0.001;
+/// The peak below which a decoded block counts as silent, -50 dBFS.
+///
+/// Higher than the synthesizer's, because a recording's silence carries hiss and dither that a
+/// room does not hear.
+const TRACK_QUIET_PEAK: f32 = 0.003;
+/// How long a MIDI song stays silent after its last note before it ends.
+///
+/// Short, because the gate already says no note is coming and the decay has already passed.
+const MIDI_QUIET_MS: u32 = 1_000;
+/// How long a decoded song stays silent past its quiet point before it ends.
+///
+/// Longer than a held breath before a last chord, which a recording may have and a gate by time
+/// cannot rule out.
+const TRACK_QUIET_MS: u32 = 5_000;
+
 /// Drives a song into an audio buffer.
 pub struct Player<S: AudioSource> {
     source: S,
@@ -103,6 +123,11 @@ pub struct Player<S: AudioSource> {
     /// Duration of one rendered block in microseconds.
     block_us: f64,
     ended_reported: bool,
+    /// Whether a silent tail ends the song. Off until the owner of the player says otherwise, so a
+    /// bare player renders a file to its last tick.
+    end_on_silence: bool,
+    /// Consecutive silent blocks counted toward ending the song.
+    quiet_blocks: u32,
 }
 
 impl<S: AudioSource> Player<S> {
@@ -124,6 +149,8 @@ impl<S: AudioSource> Player<S> {
             spill_read: block_size * 2,
             block_us,
             ended_reported: false,
+            end_on_silence: false,
+            quiet_blocks: 0,
         }
     }
 
@@ -223,6 +250,7 @@ impl<S: AudioSource> Player<S> {
         self.program = Some(Program::Midi(Sequencer::new(song, settings, fixes)));
         self.transport = Transport::Stopped;
         self.ended_reported = false;
+        self.quiet_blocks = 0;
     }
 
     /// Loads a decoded audio track — the audio half of a video song — and leaves it stopped.
@@ -235,6 +263,7 @@ impl<S: AudioSource> Player<S> {
         self.program = Some(Program::Track(track));
         self.transport = Transport::Stopped;
         self.ended_reported = false;
+        self.quiet_blocks = 0;
     }
 
     /// Unloads the current song.
@@ -243,6 +272,7 @@ impl<S: AudioSource> Player<S> {
         self.discard_spill();
         self.program = None;
         self.transport = Transport::Idle;
+        self.quiet_blocks = 0;
     }
 
     /// Starts or resumes playback. Does nothing with no song loaded.
@@ -276,6 +306,7 @@ impl<S: AudioSource> Player<S> {
             self.transport = Transport::Stopped;
             self.ended_reported = false;
         }
+        self.quiet_blocks = 0;
         self.discard_spill();
     }
 
@@ -290,6 +321,7 @@ impl<S: AudioSource> Player<S> {
             self.transport = Transport::Playing;
             self.ended_reported = false;
         }
+        self.quiet_blocks = 0;
     }
 
     /// Jumps to a position in milliseconds.
@@ -306,6 +338,7 @@ impl<S: AudioSource> Player<S> {
         if self.program.is_some() {
             self.ended_reported = false;
         }
+        self.quiet_blocks = 0;
         self.discard_spill();
     }
 
@@ -340,6 +373,23 @@ impl<S: AudioSource> Player<S> {
         if let Some(Program::Midi(sequencer)) = &mut self.program {
             sequencer.set_melody_enabled(enabled, &mut self.source);
         }
+    }
+
+    /// Says whether a silent tail ends the song.
+    ///
+    /// A MIDI song ends a second after it falls silent with no note left to start. A decoded song
+    /// ends after five silent seconds past the point its [`TrackPlayer`] names. A file may place its
+    /// end long after its music, and a room waits through that for nothing.
+    ///
+    /// The count starts again, so a song already in a quiet stretch needs a whole run from here.
+    pub fn set_end_on_silence(&mut self, enabled: bool) {
+        self.end_on_silence = enabled;
+        self.quiet_blocks = 0;
+    }
+
+    /// Whether a silent tail ends the song.
+    pub fn end_on_silence(&self) -> bool {
+        self.end_on_silence
     }
 
     /// Sets the music volume, 0.0 to 1.0.
@@ -440,12 +490,17 @@ impl<S: AudioSource> Player<S> {
         let mut event = None;
         let advancing = self.transport.is_advancing();
         let mut ended = false;
+        // The limit and the run a silent tail is held to, where this block may count toward one.
+        let mut tail = None;
 
         match &mut self.program {
             Some(Program::Midi(sequencer)) => {
                 if advancing {
                     sequencer.advance(self.block_us, &mut self.source);
                     ended = sequencer.is_finished();
+                    if sequencer.is_past_last_note_and_word() {
+                        tail = Some((MIDI_QUIET_PEAK, MIDI_QUIET_MS));
+                    }
                 }
                 // Rendered even when paused, so a held note's tail decays instead of cutting to
                 // silence.
@@ -455,13 +510,20 @@ impl<S: AudioSource> Player<S> {
                 // The track fills the buffers itself, and the synthesizer is left alone: a video
                 // song has no notes to render a tail for. `advancing` is passed rather than checked
                 // here because the track still has to service a pending seek while paused.
-                track.render(&mut self.left, &mut self.right, advancing);
+                let real = track.render(&mut self.left, &mut self.right, advancing);
                 ended = track.is_finished();
+                if real && track.is_past_quiet_point() {
+                    tail = Some((TRACK_QUIET_PEAK, TRACK_QUIET_MS));
+                }
             }
             None => {
                 self.left.fill(0.0);
                 self.right.fill(0.0);
             }
+        }
+
+        if self.tail_is_silent(tail) {
+            ended = true;
         }
 
         if ended && !self.ended_reported {
@@ -488,6 +550,30 @@ impl<S: AudioSource> Player<S> {
         }
         self.spill_read = 0;
         event
+    }
+
+    /// Counts this block toward a silent tail, and says whether the tail is long enough to end on.
+    ///
+    /// `tail` is `None` for a block that cannot count: the song is paused, a note or a word is still
+    /// to come, or the block is silent for want of samples. Any such block, and any block with
+    /// sound in it, starts the count again. The peak is read before the volume and the song's gain,
+    /// so neither changes where a song ends.
+    fn tail_is_silent(&mut self, tail: Option<(f32, u32)>) -> bool {
+        let Some((limit, run_ms)) = tail.filter(|_| self.end_on_silence) else {
+            self.quiet_blocks = 0;
+            return false;
+        };
+        let quiet = self
+            .left
+            .iter()
+            .chain(self.right.iter())
+            .all(|sample| sample.abs() < limit);
+        if !quiet {
+            self.quiet_blocks = 0;
+            return false;
+        }
+        self.quiet_blocks = self.quiet_blocks.saturating_add(1);
+        f64::from(self.quiet_blocks) * self.block_us >= f64::from(run_ms) * 1_000.0
     }
 
     /// Drops any rendered-but-unplayed audio, so a seek or load does not emit stale sound.
@@ -1126,5 +1212,201 @@ mod tests {
         player.load_track(track(0.05, 0.5));
         player.seek_ms(30_000);
         assert_eq!(player.position_ms(), 30_000);
+    }
+
+    /// The instrumental fixture with its end moved a minute past its last note.
+    ///
+    /// The shape of a file whose End-of-Track event sits long after the music.
+    fn song_with_a_late_end() -> Song {
+        let mut song = testing::parse(&testing::instrumental());
+        song.duration_ticks += song.tempo_map.us_to_tick(60_000_000);
+        song
+    }
+
+    /// A track made of spans of one constant value each, and the writer that feeds it.
+    fn track_of(spans: &[(f32, f32)]) -> (crate::track::AudioFeedWriter, TrackPlayer) {
+        let samples: Vec<f32> = spans
+            .iter()
+            .flat_map(|(seconds, value)| {
+                let frames = (seconds * SAMPLE_RATE as f32) as usize;
+                std::iter::repeat_n(*value, frames * crate::track::FEED_CHANNELS)
+            })
+            .collect();
+        let (mut writer, feed) =
+            crate::track::audio_feed(SAMPLE_RATE, samples.len() / crate::track::FEED_CHANNELS + 1);
+        assert_eq!(
+            writer.push(&samples),
+            samples.len(),
+            "the ring holds it all"
+        );
+        (writer, TrackPlayer::new(feed, SAMPLE_RATE))
+    }
+
+    fn ends(events: &[PlayerEvent]) -> usize {
+        events
+            .iter()
+            .filter(|event| **event == PlayerEvent::SongEnded)
+            .count()
+    }
+
+    #[test]
+    fn a_midi_song_ends_a_second_after_its_last_note_falls_silent() {
+        let mut player = player();
+        player.set_end_on_silence(true);
+        player.load(
+            Arc::new(song_with_a_late_end()),
+            None,
+            ChannelFixes::default(),
+        );
+        player.play();
+
+        let (_, events) = render(&mut player, 6.0);
+        assert_eq!(ends(&events), 1, "the silent tail ends the song once");
+    }
+
+    #[test]
+    fn a_bare_player_waits_for_the_last_tick() {
+        let mut player = player();
+        assert!(!player.end_on_silence());
+        player.load(
+            Arc::new(song_with_a_late_end()),
+            None,
+            ChannelFixes::default(),
+        );
+        player.play();
+
+        let (_, events) = render(&mut player, 6.0);
+        assert_eq!(ends(&events), 0, "nothing asked for the early end");
+    }
+
+    #[test]
+    fn a_rest_between_notes_does_not_end_a_midi_song() {
+        let mut song = song_with_a_late_end();
+        let rest = song.tempo_map.us_to_tick(3_000_000);
+        let third_note = song
+            .events
+            .iter()
+            .enumerate()
+            .filter(|(_, event)| matches!(event.kind, EventKind::NoteOn { .. }))
+            .nth(2)
+            .map(|(index, _)| index)
+            .expect("the fixture has five notes");
+        for event in &mut song.events[third_note..] {
+            event.tick += rest;
+        }
+
+        let mut player = player();
+        player.set_end_on_silence(true);
+        player.load(Arc::new(song), None, ChannelFixes::default());
+        player.play();
+
+        let (_, events) = render(&mut player, 4.5);
+        assert_eq!(ends(&events), 0, "notes are still to come after the rest");
+        let (_, events) = render(&mut player, 4.0);
+        assert_eq!(ends(&events), 1, "and the tail after them ends the song");
+    }
+
+    #[test]
+    fn a_paused_midi_song_does_not_count_its_silence() {
+        let mut player = player();
+        player.set_end_on_silence(true);
+        player.load(
+            Arc::new(song_with_a_late_end()),
+            None,
+            ChannelFixes::default(),
+        );
+        player.play();
+        render(&mut player, 2.9);
+        player.pause();
+
+        let (_, events) = render(&mut player, 4.0);
+        assert_eq!(ends(&events), 0, "a pause is not the end of the song");
+        player.play();
+        let (_, events) = render(&mut player, 2.0);
+        assert_eq!(ends(&events), 1);
+    }
+
+    #[test]
+    fn a_seek_back_after_an_early_end_reopens_the_song() {
+        let mut player = player();
+        player.set_end_on_silence(true);
+        player.load(
+            Arc::new(song_with_a_late_end()),
+            None,
+            ChannelFixes::default(),
+        );
+        player.play();
+        let (_, events) = render(&mut player, 6.0);
+        assert_eq!(ends(&events), 1);
+
+        player.seek_ms(0);
+        let (audio, events) = render(&mut player, 6.0);
+        assert!(peak(&audio) > 0.0, "the song plays again");
+        assert_eq!(ends(&events), 1, "and ends again");
+    }
+
+    #[test]
+    fn a_track_ends_five_silent_seconds_past_its_quiet_point() {
+        // Six silent seconds before the quiet point, and seven after it.
+        let (mut writer, mut track) = track_of(&[(1.0, 0.5), (6.0, 0.0), (1.0, 0.5), (7.0, 0.0)]);
+        writer.finish();
+        track.set_quiet_from_ms(Some(8_000));
+        let mut player = player();
+        player.set_end_on_silence(true);
+        player.load_track(track);
+        player.play();
+
+        let (_, events) = render(&mut player, 7.5);
+        assert_eq!(ends(&events), 0, "silence before the quiet point is a rest");
+        let (_, events) = render(&mut player, 6.0);
+        assert_eq!(ends(&events), 1);
+        assert!(
+            player.position_ms() < 14_000,
+            "the song ended before its file did, at {} ms",
+            player.position_ms()
+        );
+    }
+
+    #[test]
+    fn a_track_with_no_quiet_point_ends_with_its_file() {
+        let (mut writer, track) = track_of(&[(1.0, 0.5), (7.0, 0.0)]);
+        writer.finish();
+        let mut player = player();
+        player.set_end_on_silence(true);
+        player.load_track(track);
+        player.play();
+
+        let (_, events) = render(&mut player, 7.5);
+        assert_eq!(ends(&events), 0);
+    }
+
+    #[test]
+    fn a_starved_track_does_not_count_its_silence() {
+        // The writer never finishes, so the feed runs dry with the song still open.
+        let (_writer, mut track) = track_of(&[(1.0, 0.5)]);
+        track.set_quiet_from_ms(Some(0));
+        let mut player = player();
+        player.set_end_on_silence(true);
+        player.load_track(track);
+        player.play();
+
+        let (_, events) = render(&mut player, 8.0);
+        assert!(player.starved_ms() > 6_000, "the decoder fell behind");
+        assert_eq!(ends(&events), 0, "a late decoder is not a silent song");
+    }
+
+    #[test]
+    fn a_track_waiting_on_a_seek_does_not_count_its_silence() {
+        let (_writer, mut track) = track_of(&[(8.0, 0.0)]);
+        track.set_quiet_from_ms(Some(0));
+        let mut player = player();
+        player.set_end_on_silence(true);
+        player.load_track(track);
+        player.play();
+        // Nothing answers the seek, so every block from here is the silence of waiting.
+        player.seek_ms(1_000);
+
+        let (_, events) = render(&mut player, 7.0);
+        assert_eq!(ends(&events), 0);
     }
 }

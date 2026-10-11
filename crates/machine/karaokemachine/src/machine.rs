@@ -301,6 +301,43 @@ fn split_media(
     }
 }
 
+/// The part of a song with no timeline that may hold its silent tail, in milliseconds.
+///
+/// Long enough for a faded ending and the silence left after it. A song shorter than twice this
+/// offers its second half.
+const TAIL_WINDOW_MS: u32 = 20_000;
+
+/// The position from which a run of silence ends a decoded song, or `None` where none may.
+///
+/// **A timed song's is the end of its last line**, which is `words_end_ms`. The words are over, so a
+/// silence there is the end of the music and not a rest before the next verse.
+///
+/// **Every other decoded song offers its last [`TAIL_WINDOW_MS`].** A video and an MP3+G song have
+/// no timeline to read, and an MP3+G song's graphics end before its music does. A timed song with
+/// no lines has nothing to read either.
+///
+/// `None` for a song of unknown length, which ends with its file.
+fn quiet_point_ms(words_end_ms: Option<u32>, duration_ms: u32) -> Option<u32> {
+    words_end_ms
+        .or_else(|| (duration_ms > 0).then(|| duration_ms - TAIL_WINDOW_MS.min(duration_ms / 2)))
+}
+
+/// Tells a decoded song's player where its silent tail may begin.
+///
+/// A MIDI song carries no track, and its sequencer knows its own last note.
+fn with_quiet_point(mut load: km_audio::audio::Load, loaded: &Loaded) -> km_audio::audio::Load {
+    if let km_audio::audio::Load::Track(track) = &mut load {
+        let words_end_ms = match &loaded.media {
+            Media::Timed(timed) if !timed.song().lyrics.lines.is_empty() => {
+                Some(timed.song().duration_ms())
+            }
+            Media::Midi(_) | Media::Video(_) | Media::Cdg(_) | Media::Timed(_) => None,
+        };
+        track.set_quiet_from_ms(quiet_point_ms(words_end_ms, loaded.duration_ms));
+    }
+    load
+}
+
 /// What a best-effort catalog lookup for the keypad's live preview found.
 ///
 /// Three outcomes rather than an `Option`, because two of them would collapse into `None` and must
@@ -1941,12 +1978,12 @@ impl Machine {
             play,
             "loading the song again on the new output stream"
         );
-        self.reload_at(load, position_ms, play);
+        self.reload_at(with_quiet_point(load, &loaded), position_ms, play);
     }
 
     /// Sends a song to a stream that has just been built, and puts it where it was.
     ///
-    /// `Sticky` replays transpose, tempo, the melody mute, the volume and the song's gain when the
+    /// `Sticky` replays every setting the player holds, the silent-tail switch among them, when the
     /// stream reopens, so the song and its position are all that is owed here. `SeekMs` does more
     /// than move the clock. It replays every channel's program and controller state onto a new
     /// synthesizer, so a MIDI song comes back with its own instruments.
@@ -2513,7 +2550,10 @@ impl Machine {
             }
         }
 
+        let end_on_silence = self.lock_settings().playback.end_on_silence;
+        let load = with_quiet_point(load, &loaded);
         self.engine.send(Command::Load(load));
+        self.engine.send(Command::SetEndOnSilence(end_on_silence));
         self.engine.send(Command::SetTranspose(transpose));
         self.engine.send(Command::SetTempoRatio(tempo_ratio));
         self.engine.send(Command::SetMelodyEnabled(melody_enabled));
@@ -4689,6 +4729,22 @@ impl Controller for Machine {
         Ok(())
     }
 
+    fn end_on_silence(&self) -> bool {
+        self.lock_settings().playback.end_on_silence
+    }
+
+    /// Stores the switch, writes it down, and tells the player.
+    ///
+    /// The command reaches the song that is playing. `start` sends the stored value with every
+    /// song, so a switch moved while the machine is idle is not lost with the device.
+    fn set_end_on_silence(&self, enabled: bool) -> Result<bool, ControlError> {
+        self.lock_settings().playback.end_on_silence = enabled;
+        self.save_settings();
+        self.engine.send(Command::SetEndOnSilence(enabled));
+        tracing::info!(enabled, "ending a song on a silent tail was switched");
+        Ok(enabled)
+    }
+
     fn developer_switches(&self) -> km_api::machine::DeveloperSwitches {
         // Read off the settings rather than off the running `ApiConfig`, which is the whole point of
         // this call: both switches take effect at the next start, so what a page can usefully draw
@@ -6668,6 +6724,55 @@ mod tests {
         assert!(
             !machine.take_wallpaper_request(),
             "the setting is off, so only the interval changes the picture"
+        );
+    }
+
+    /// Every song start says whether a silent tail ends the song, and a switch moved mid-song does.
+    ///
+    /// A fresh player waits for the last tick, so a start that sent nothing would play the first
+    /// song of an evening to the end of its file.
+    #[test]
+    fn every_song_start_says_whether_a_silent_tail_ends_the_song() {
+        let (_scratch, machine, log, codes) = a_machine_with_eight_songs("end-on-silence-sent");
+
+        machine.queue_add(a_request(codes[0])).expect("queue one");
+        assert_eq!(log.count("SetEndOnSilence(true)"), 1, "on is the default");
+
+        assert!(!Controller::set_end_on_silence(machine.as_ref(), false).expect("switch it off"));
+        assert_eq!(
+            log.count("SetEndOnSilence(false)"),
+            1,
+            "the song that is playing is told"
+        );
+        assert!(!Controller::end_on_silence(machine.as_ref()));
+
+        machine.queue_add(a_request(codes[1])).expect("queue two");
+        Controller::transport(machine.as_ref(), TransportCommand::Skip)
+            .expect("skip to the second song");
+        assert_eq!(
+            log.count("SetEndOnSilence(false)"),
+            2,
+            "the next song starts with what was stored"
+        );
+    }
+
+    #[test]
+    fn a_timed_song_may_fall_silent_after_its_last_word() {
+        assert_eq!(quiet_point_ms(Some(95_000), 180_000), Some(95_000));
+    }
+
+    #[test]
+    fn a_song_with_no_timeline_may_fall_silent_in_its_final_part() {
+        assert_eq!(quiet_point_ms(None, 180_000), Some(160_000));
+        assert_eq!(
+            quiet_point_ms(None, 30_000),
+            Some(15_000),
+            "a short song offers its second half"
+        );
+        assert_eq!(
+            quiet_point_ms(None, 0),
+            None,
+            "a song of unknown length ends with its file"
         );
     }
 

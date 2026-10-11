@@ -885,7 +885,9 @@ fn needs_device(command: &Command) -> bool {
         | Command::SetMusicVolume(_)
         // Beside the volume, and for the same reason: it is a level, not a sound. It happens to
         // arrive with a `Load` at every song start, and the `Load` is what opens the device.
-        | Command::SetSongGain(_) => false,
+        | Command::SetSongGain(_)
+        // A rule about how a song ends, and no sound either.
+        | Command::SetEndOnSilence(_) => false,
     }
 }
 
@@ -934,6 +936,9 @@ struct Sticky {
     /// rebuilt under a MIDI song is followed by a seek that puts the song back where it was; the
     /// gain has to come with it or the song resumes at the wrong level halfway through.
     song_gain: f32,
+    /// Whether a silent tail ends the song. A stream rebuilt under a song would otherwise play it
+    /// to its last tick.
+    end_on_silence: bool,
 }
 
 impl Sticky {
@@ -952,6 +957,8 @@ impl Sticky {
             // A fresh `Player` starts unlevelled, and so does this: nothing is loaded yet, so there
             // is no song for a gain to belong to.
             song_gain: 1.0,
+            // A fresh `Player` waits for the last tick.
+            end_on_silence: false,
         }
     }
 
@@ -963,18 +970,20 @@ impl Sticky {
             Command::SetMelodyEnabled(enabled) => self.melody_enabled = enabled,
             Command::SetMusicVolume(volume) => self.music_volume = volume,
             Command::SetSongGain(gain) => self.song_gain = gain,
+            Command::SetEndOnSilence(enabled) => self.end_on_silence = enabled,
             _ => {}
         }
     }
 
     /// The commands that put a fresh player back where the last one was.
-    fn replay(self) -> [Command; 5] {
+    fn replay(self) -> [Command; 6] {
         [
             Command::SetTranspose(self.transpose),
             Command::SetTempoRatio(self.tempo_ratio),
             Command::SetMelodyEnabled(self.melody_enabled),
             Command::SetMusicVolume(self.music_volume),
             Command::SetSongGain(self.song_gain),
+            Command::SetEndOnSilence(self.end_on_silence),
         ]
     }
 }
@@ -1440,6 +1449,7 @@ mod tests {
         assert!(!needs_device(&Command::SetTempoRatio(1.1)));
         assert!(!needs_device(&Command::SetMelodyEnabled(true)));
         assert!(!needs_device(&Command::SetMusicVolume(0.5)));
+        assert!(!needs_device(&Command::SetEndOnSilence(true)));
         // With no device there is nothing to stop.
         assert!(!needs_device(&Command::Unload));
         assert!(!needs_device(&Command::Pause));
@@ -1454,10 +1464,12 @@ mod tests {
             Command::SetMusicVolume(0.3),
             Command::Play,
             Command::SetTranspose(-1),
+            Command::SetEndOnSilence(true),
         ] {
             sticky.remember(&command);
         }
         assert_eq!(sticky.transpose, -1);
+        assert!(sticky.end_on_silence);
         assert_eq!(sticky.music_volume, 0.3);
         // Untouched by anything in that stream, so still the defaults.
         assert_eq!(sticky.tempo_ratio, 1.0);
@@ -1469,7 +1481,7 @@ mod tests {
         let sticky = Sticky::new(0.8);
         let replayed = sticky.replay();
         // Five since levelling: the four playback settings and the loaded song's own gain.
-        assert_eq!(replayed.len(), 5);
+        assert_eq!(replayed.len(), 6);
         // A replay that carried a Load or a Play would restart a song the machine did not ask for.
         for command in &replayed {
             assert!(

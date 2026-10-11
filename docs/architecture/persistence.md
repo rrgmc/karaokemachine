@@ -261,6 +261,12 @@ than re-arming it from now; `karaokemachine::machine::demo_deadline_moved` does 
 settings would leave a machine obeying the old delay until the next time somebody touched it. On an
 idle box, that is never.
 
+**`playback.end_on_silence` is the seventh, for the delay's reason.** It is one boolean a file
+states perfectly well, and the machine that wants it changed has no way to edit a file. It gets
+`PUT /api/v1/admin/playback/end-on-silence`, and it is written down at once. Its live counterpart is
+in the player: `Machine::set_end_on_silence` sends `Command::SetEndOnSilence`, so the song that is
+playing obeys the new value.
+
 `min_suitability` is the one key of the three off the API, for a reason of its own. It is the demo
 setting a person cannot judge from the room. A delay is a length somebody feels. A floor of 5 against
 6 is a claim about what the packager measured about a file. Choosing it wants the catalog in

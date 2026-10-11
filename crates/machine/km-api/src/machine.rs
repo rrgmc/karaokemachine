@@ -1579,6 +1579,29 @@ pub trait Controller: Send + Sync + 'static {
         Ok(())
     }
 
+    /// Whether a song ends when its tail is silent.
+    ///
+    /// Defaulted on, which is what a machine does until its owner says otherwise.
+    fn end_on_silence(&self) -> bool {
+        true
+    }
+
+    /// Say whether a song ends when its tail is silent.
+    ///
+    /// **Written down at once, with no `persist` to ask about.** It is installation configuration,
+    /// for [`Self::set_demo_delay`]'s reason: an owner decides it once for the songs the machine
+    /// holds. It reaches the song that is playing, and answers with what the machine stored.
+    ///
+    /// A route of its own, because a machine under a television has no way to edit a file.
+    ///
+    /// Has a default that refuses, for a host that plays nothing.
+    fn set_end_on_silence(&self, enabled: bool) -> Result<bool, ControlError> {
+        let _ = enabled;
+        Err(ControlError::Unavailable(
+            "this host has no playback to configure".into(),
+        ))
+    }
+
     /// What the settings file says about the two developer switches.
     ///
     /// **The stored side of both, in one call.** A running machine's own values are on
