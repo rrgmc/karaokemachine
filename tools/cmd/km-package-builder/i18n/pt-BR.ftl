@@ -251,6 +251,7 @@ failure-bad-ultrastar = é um arquivo UltraStar que esta máquina não toca
 failure-ultrastar-audio = é um arquivo UltraStar cujo MP3 não está ao lado
 failure-bad-lrc = é um arquivo LRC sem palavras com tempo
 failure-lrc-audio = é um arquivo LRC sem um MP3 próprio ao lado
+failure-bad-zip = é um zip que não pode ser lido como uma música só
 failure-panicked = o leitor quebrou
 
 ## A lista de etapas de um trabalho demorado ----------------------------------------

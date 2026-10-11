@@ -1141,15 +1141,64 @@ fn scan_cdg(audio: &Path, relative: String, size: u64, mtime: i64) -> ScannedFil
             "one half of the pair could not be read".to_owned(),
         );
     };
-    let hash = km_kmpkg::pair_content_hash(&audio_bytes, &graphics_bytes);
+    cdg_row(
+        Halves {
+            audio: audio_bytes,
+            audio_name: audio.display().to_string(),
+            second: graphics_bytes,
+            second_name: graphics.display().to_string(),
+        },
+        graphics
+            .file_name()
+            .map(|name| name.to_string_lossy().into_owned())
+            .unwrap_or_default(),
+        km_pack::file_stem(Path::new(&relative)),
+        relative,
+        size,
+        mtime,
+    )
+}
 
-    let audio_name = audio.display().to_string();
-    let graphics_name = graphics.display().to_string();
+/// The two files of a song, read, with what to call each in an error.
+///
+/// Read from disk or out of a zip. The row is built from these and from nothing else, so a zipped
+/// song and its loose files give the same song.
+struct Halves {
+    audio: Vec<u8>,
+    audio_name: String,
+    /// The `.cdg`, the `.txt` or the `.lrc`.
+    second: Vec<u8>,
+    second_name: String,
+}
+
+/// The row for an MP3+G pair, from both halves.
+///
+/// `graphics_path` is where the `.cdg` is, as the row records it, and `stem` is the name the song
+/// takes its title from when nobody gives it one.
+fn cdg_row(
+    halves: Halves,
+    graphics_path: String,
+    stem: String,
+    relative: String,
+    size: u64,
+    mtime: i64,
+) -> ScannedFile {
+    let fail = |status, error: String| ScannedFile {
+        path: relative.clone(),
+        size,
+        mtime,
+        content_hash: None,
+        status,
+        error: Some(error),
+        song: None,
+    };
+    let hash = km_kmpkg::pair_content_hash(&halves.audio, &halves.second);
+
     let info = match km_cdg::probe_from(
-        std::io::Cursor::new(audio_bytes),
-        &audio_name,
-        &graphics_bytes,
-        &graphics_name,
+        std::io::Cursor::new(halves.audio),
+        &halves.audio_name,
+        &halves.second,
+        &halves.second_name,
     ) {
         Ok(info) => info,
         Err(error) => {
@@ -1195,7 +1244,7 @@ fn scan_cdg(audio: &Path, relative: String, size: u64, mtime: i64) -> ScannedFil
             // CD+G carries no text at all — the words are one-bit tiles — and ID3's `TLAN` frame
             // appeared in none of the measured corpus. Somebody has to say.
             det_language: None,
-            stem: km_pack::file_stem(Path::new(&relative)),
+            stem,
             // From the audio, always, and counted rather than read from its header: one corpus file
             // overstates its own length sevenfold.
             duration_ms: info.audio.duration_ms,
@@ -1212,10 +1261,7 @@ fn scan_cdg(audio: &Path, relative: String, size: u64, mtime: i64) -> ScannedFil
             ultrastar: None,
             lrc: None,
             cdg: Some(CdgFacts {
-                graphics_path: graphics
-                    .file_name()
-                    .map(|name| name.to_string_lossy().into_owned())
-                    .unwrap_or_default(),
+                graphics_path,
                 sample_rate: info.audio.sample_rate,
                 channels: info.audio.channels,
                 packets: info.graphics.packets,
@@ -1290,7 +1336,20 @@ fn scan_ultrastar(text: &Path, relative: String, size: u64, mtime: i64) -> Scann
         );
     };
 
-    let song = &source.song;
+    let stem = km_pack::file_stem(Path::new(&relative));
+    ultrastar_row(&source.song, &info, hash, stem, relative, size, mtime)
+}
+
+/// The row for an UltraStar song, from what its `.txt` says and what its audio is.
+fn ultrastar_row(
+    song: &km_song::ultrastar::UltraStar,
+    info: &km_cdg::AudioInfo,
+    hash: String,
+    stem: String,
+    relative: String,
+    size: u64,
+    mtime: i64,
+) -> ScannedFile {
     let plain = song.timeline.plain_text();
     ScannedFile {
         size,
@@ -1304,7 +1363,7 @@ fn scan_ultrastar(text: &Path, relative: String, size: u64, mtime: i64) -> Scann
             det_artist: song.artist.as_deref().and_then(km_song::clean_meta_name),
             // A name such as `English`, which `Language::detect` reads as the declared language.
             det_language: song.language.clone(),
-            stem: km_pack::file_stem(Path::new(&relative)),
+            stem,
             duration_ms: info.duration_ms,
             lyrics: (!plain.trim().is_empty()).then_some(plain),
             fingerprint: String::new(),
@@ -1369,7 +1428,20 @@ fn scan_lrc(lyrics: &Path, relative: String, size: u64, mtime: i64) -> ScannedFi
         );
     };
 
-    let song = &source.song;
+    let stem = km_pack::file_stem(Path::new(&relative));
+    lrc_row(&source.song, &info, hash, stem, relative, size, mtime)
+}
+
+/// The row for an LRC song, from what its `.lrc` says and what its audio is.
+fn lrc_row(
+    song: &km_song::lrc::Lrc,
+    info: &km_cdg::AudioInfo,
+    hash: String,
+    stem: String,
+    relative: String,
+    size: u64,
+    mtime: i64,
+) -> ScannedFile {
     let plain = song.timeline.plain_text();
     ScannedFile {
         size,
@@ -1383,7 +1455,7 @@ fn scan_lrc(lyrics: &Path, relative: String, size: u64, mtime: i64) -> ScannedFi
             det_artist: song.artist.as_deref().and_then(km_song::clean_meta_name),
             // An LRC file names no language, so the guess from the words is all there is.
             det_language: None,
-            stem: km_pack::file_stem(Path::new(&relative)),
+            stem,
             duration_ms: info.duration_ms,
             lyrics: (!plain.trim().is_empty()).then_some(plain),
             fingerprint: String::new(),
@@ -1408,6 +1480,75 @@ fn scan_lrc(lyrics: &Path, relative: String, size: u64, mtime: i64) -> ScannedFi
     }
 }
 
+/// Reads one `.zip`: the one song it holds, a zip that cannot be packaged as one song, or a zip
+/// that is something else.
+///
+/// **Filed under the zip**, because the zip is the one file there is. The identity is the hash the
+/// song's loose files have, so a zipped copy and a loose copy land on one song row.
+fn scan_zip(zip: &Path, relative: String, size: u64, mtime: i64) -> ScannedFile {
+    let fail = |status, error: String| ScannedFile {
+        path: relative.clone(),
+        size,
+        mtime,
+        content_hash: None,
+        status,
+        error: Some(error),
+        song: None,
+    };
+
+    let found = match km_pack::read_zip(zip) {
+        km_pack::ZipVerdict::Song(found) => *found,
+        // Not a song and not a failure, as a readme is. The row is what stops the next scan
+        // opening the zip again.
+        km_pack::ZipVerdict::NotASong => return claimed(relative, size, mtime),
+        refused => return fail(ScanStatus::BadZip, refused.refusal().unwrap_or_default()),
+    };
+
+    let second = match &found {
+        km_pack::ZipSong::Cdg { graphics, .. } => (graphics, km_pack::media::MAX_ZIPPED_GRAPHICS),
+        km_pack::ZipSong::UltraStar { text, .. } => (text, km_pack::media::MAX_ZIPPED_TEXT),
+        km_pack::ZipSong::Lrc { lyrics, .. } => (lyrics, km_pack::media::MAX_ZIPPED_TEXT),
+    };
+    let halves = found
+        .audio()
+        .read(km_pack::media::MAX_ZIPPED_AUDIO)
+        .and_then(|audio| Ok((audio, second.0.read(second.1)?)));
+    let halves = match halves {
+        Ok((audio, second_bytes)) => Halves {
+            audio,
+            audio_name: found.audio().to_string(),
+            second: second_bytes,
+            second_name: second.0.to_string(),
+        },
+        Err(error) => return fail(ScanStatus::BadZip, error.to_string()),
+    };
+
+    // The title comes from the entry a loose song of this kind is filed under, and never from the
+    // zip's own name, so the song is described as its loose files are.
+    let stem = km_pack::file_stem(Path::new(found.found_from().file_name()));
+    match &found {
+        km_pack::ZipSong::Cdg { graphics, .. } => {
+            cdg_row(halves, graphics.name.clone(), stem, relative, size, mtime)
+        }
+        km_pack::ZipSong::UltraStar { song, .. } => {
+            let hash = km_kmpkg::pair_content_hash(&halves.audio, &halves.second);
+            let audio = std::io::Cursor::new(halves.audio);
+            match km_cdg::probe_audio_from(audio, &halves.audio_name) {
+                Ok(info) => ultrastar_row(song, &info, hash, stem, relative, size, mtime),
+                Err(error) => fail(ScanStatus::NotAudio, error.to_string()),
+            }
+        }
+        km_pack::ZipSong::Lrc { song, .. } => {
+            let hash = km_kmpkg::pair_content_hash(&halves.audio, &halves.second);
+            let audio = std::io::Cursor::new(halves.audio);
+            match km_cdg::probe_audio_from(audio, &halves.audio_name) {
+                Ok(info) => lrc_row(song, &info, hash, stem, relative, size, mtime),
+                Err(error) => fail(ScanStatus::NotAudio, error.to_string()),
+            }
+        }
+    }
+}
+
 /// Reads and analyzes one file.
 ///
 /// Every failure mode ends up as a status on the row rather than an error out of the function: over a
@@ -1427,6 +1568,9 @@ pub fn scan_one(path: &Path, relative: String, size: u64, mtime: i64) -> Scanned
     }
     if km_pack::is_lrc_candidate(path) {
         return scan_lrc(path, relative, size, mtime);
+    }
+    if km_pack::is_zip_candidate(path) {
+        return scan_zip(path, relative, size, mtime);
     }
     // A singing game's music video is not a video song: it has no words in its picture, and the
     // UltraStar file that names it is the song.
@@ -1727,6 +1871,107 @@ mod tests {
         );
         assert_eq!(scan("duet.txt").status, ScanStatus::BadUltraStar);
         assert_eq!(scan("Someone - Song.txt").status, ScanStatus::NotAudio);
+    }
+
+    /// Writes a zip of `entries` into `scratch`.
+    fn zip_of(scratch: &Scratch, name: &str, entries: &[(&str, &[u8])]) {
+        use std::io::Write;
+
+        let file = std::fs::File::create(scratch.join(name)).expect("create a zip");
+        let mut zip = zip::ZipWriter::new(file);
+        for (entry, bytes) in entries {
+            zip.start_file(*entry, zip::write::SimpleFileOptions::default())
+                .expect("start an entry");
+            zip.write_all(bytes).expect("write an entry");
+        }
+        zip.finish().expect("finish the zip");
+    }
+
+    /// A zipped song is the song its loose files are, filed under the zip.
+    ///
+    /// The audio is `km-cdg`'s fixture, borrowed for the reason the tagged video is: the row is
+    /// built from a probe, and a probe needs audio that decodes.
+    #[test]
+    fn a_zip_holding_one_song_is_that_song_and_any_other_zip_is_not_a_failure() {
+        let tone = std::fs::read(
+            Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../../../crates/playback/km-cdg/fixtures/tone.mp3"),
+        )
+        .expect("the km-cdg fixture is where it always was");
+        let mut tile = [0u8; 24];
+        tile[0] = 9;
+        tile[1] = 6;
+        tile[4..8].copy_from_slice(&[0, 1, 2, 3]);
+        tile[8..20].fill(0x3F);
+        let mut graphics = tile.to_vec();
+        graphics.resize(24 * 300, 0);
+        let lrc = b"[ti:Timed]\n[00:01.00]First line\n[00:02.00]Second line\n";
+
+        let scratch = Scratch::new("zipped-songs");
+        scratch.write("loose/Someone - Song.mp3", &tone);
+        scratch.write("loose/Someone - Song.cdg", &graphics);
+        zip_of(
+            &scratch,
+            "pair.zip",
+            &[
+                ("album/Someone - Song.mp3", &tone),
+                ("album/Someone - Song.cdg", &graphics),
+                ("__MACOSX/album/._Someone - Song.mp3", b"resource fork"),
+            ],
+        );
+        zip_of(
+            &scratch,
+            "timed.zip",
+            &[("Timed.lrc", lrc), ("Timed.mp3", &tone)],
+        );
+        zip_of(&scratch, "pictures.zip", &[("one.png", b"png")]);
+        zip_of(
+            &scratch,
+            "two.zip",
+            &[
+                ("a.mp3", &tone),
+                ("a.cdg", &graphics),
+                ("b.mp3", &tone),
+                ("b.cdg", &graphics),
+            ],
+        );
+        scratch.write("broken.zip", b"not a zip");
+        let scan = |name: &str| scan_one(&scratch.join(name), name.to_owned(), 1, 0);
+
+        let loose = scan("loose/Someone - Song.mp3");
+        let zipped = scan("pair.zip");
+        assert_eq!(zipped.status, ScanStatus::Ok, "{:?}", zipped.error);
+        assert_eq!(zipped.path, "pair.zip");
+        assert_eq!(
+            zipped.content_hash,
+            Some(km_kmpkg::pair_content_hash(&tone, &graphics))
+        );
+        assert_eq!(zipped.content_hash, loose.content_hash);
+        let (zipped, loose) = (zipped.song.expect("a song"), loose.song.expect("a song"));
+        assert_eq!(zipped.id, loose.id);
+        assert_eq!(zipped.stem, "Someone - Song");
+        assert_eq!(zipped.duration_ms, loose.duration_ms);
+        assert_eq!(
+            zipped.cdg.expect("a pair").graphics_path,
+            "album/Someone - Song.cdg"
+        );
+
+        let timed = scan("timed.zip");
+        assert_eq!(timed.status, ScanStatus::Ok, "{:?}", timed.error);
+        let timed = timed.song.expect("a song");
+        assert_eq!(timed.id, km_kmpkg::pair_content_hash(&tone, lrc));
+        assert_eq!(timed.det_title.as_deref(), Some("Timed"));
+        assert!(timed.lrc.is_some());
+
+        let pictures = scan("pictures.zip");
+        assert_eq!(
+            (pictures.status, pictures.song.is_none()),
+            (ScanStatus::Ok, true)
+        );
+        let two = scan("two.zip");
+        assert_eq!(two.status, ScanStatus::BadZip);
+        assert!(two.error.expect("a reason").contains("2 songs"));
+        assert_eq!(scan("broken.zip").status, ScanStatus::BadZip);
     }
 
     #[test]

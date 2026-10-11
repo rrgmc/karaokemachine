@@ -364,6 +364,44 @@ pub fn describe(
         });
     }
 
+    // Numbered last, so a folder that gains a zip keeps every number it had. A zip that holds no
+    // song is neither listed nor rejected, because most zips are something else.
+    let mut zips: Vec<PathBuf> = crate::files_under(dir)
+        .filter(|path| crate::is_zip_candidate(path))
+        .collect();
+    zips.sort();
+    for path in &zips {
+        if options.limit.is_some_and(|limit| songs.len() >= limit) {
+            break;
+        }
+        match crate::read_zip(path) {
+            crate::ZipVerdict::Song(_) => {}
+            crate::ZipVerdict::NotASong => continue,
+            refused => {
+                let reason = refused.refusal().unwrap_or_default();
+                rejected.push((path.clone(), Rejection::Zip(reason)));
+                continue;
+            }
+        }
+        let over = options
+            .index
+            .get(&crate::index_key(dir, path))
+            .cloned()
+            .unwrap_or_default();
+        let Some(number) = claim(over.number, &mut taken, &mut next_number, ceiling) else {
+            rejected.push((path.clone(), Rejection::NoNumber));
+            continue;
+        };
+        songs.push(SpecSong {
+            file: relative(dir, path),
+            number: Some(number),
+            title: over.title,
+            artist: over.artist,
+            language: over.language.map(|language| language.code().to_owned()),
+            ..SpecSong::default()
+        });
+    }
+
     // **A hard error rather than a short description.** Running out of numbers is reported per song
     // as `Rejection::NoNumber` above, which is right for a folder that overflows by a handful — but
     // pointing this at a corpus produces thousands of them and a package that is silently the first

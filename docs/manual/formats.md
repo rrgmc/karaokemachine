@@ -18,6 +18,10 @@ that times only its lines lights a whole line at a time, and counts you back in 
 
 **A song's language is an ISO 639-1 code**, such as `pt` or `en`.
 
+**A two-file song may be inside a `.zip`.** The packaging tools read an MP3+G, UltraStar or LRC
+song from a zip that holds that one song. A zip holding two songs is refused, and any other zip is
+passed over.
+
 These files reach the machine inside a package. See [Getting songs in](songs.md).
 
 ## Text encodings and writing systems

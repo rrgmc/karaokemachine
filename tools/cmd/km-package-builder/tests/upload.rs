@@ -158,6 +158,26 @@ async fn both_halves_of_an_mp3_g_song_cross_in_one_request() {
     assert_eq!(machine.played(), vec!["Perfidia.mp3".to_owned()]);
 }
 
+/// A song inside a zip has no files to stream, so its halves cross as the bytes read out of it.
+#[tokio::test]
+async fn both_halves_of_a_zipped_song_cross_as_bytes() {
+    let machine = Machine::start(Faults::default()).await;
+
+    machine
+        .client()
+        .await
+        .play_upload_bytes(
+            ("Perfidia .MP3".to_owned(), b"ID3 audio".to_vec()),
+            Some(("Perfidia .Cdg".to_owned(), b"CDG graphics".to_vec())),
+            "Perfidia",
+            &km_api::Audition::default(),
+        )
+        .await
+        .expect("the machine takes both");
+
+    assert_eq!(machine.played(), vec!["Perfidia.mp3".to_owned()]);
+}
+
 /// A stem taken from a real filename, which is where accents actually come from.
 #[tokio::test]
 async fn a_stem_with_accents_in_it_survives_the_wire() {

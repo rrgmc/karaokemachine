@@ -11,6 +11,7 @@ use anyhow::{Context, Result};
 use km_kmpkg::{PackageBuilder, SongEntry, SongKind};
 use km_song::lrc::{self, Lrc, LrcError};
 
+use crate::media::Media;
 use crate::ultrastar::{UltraStarFields, UltraStarOutcome, UltraStarRequest};
 
 /// What a caller wants done with one LRC song: the fields an UltraStar song takes.
@@ -144,10 +145,29 @@ pub fn add_lrc_song(
     source: &LrcSource,
     request: &LrcRequest,
 ) -> Result<LrcOutcome> {
-    let info = km_cdg::probe_audio(&source.audio)
-        .with_context(|| format!("probing {}", source.audio.display()))?;
+    add_lrc_parts(
+        builder,
+        &source.song,
+        &Media::from(source.lyrics.as_path()),
+        &Media::from(source.audio.as_path()),
+        request,
+    )
+}
 
-    let timeline = &source.song.timeline;
+/// [`add_lrc_song`], for a song that may be inside a zip.
+pub(crate) fn add_lrc_parts(
+    builder: &mut PackageBuilder,
+    song: &Lrc,
+    lyrics: &Media,
+    audio: &Media,
+    request: &LrcRequest,
+) -> Result<LrcOutcome> {
+    let audio_bytes = audio.load(crate::media::MAX_ZIPPED_AUDIO)?;
+    let info = audio_bytes
+        .probe_audio()
+        .with_context(|| format!("probing {audio}"))?;
+
+    let timeline = &song.timeline;
     let mut findings = Vec::new();
     let words_end = timeline.lines.last().map_or(0, |line| line.start_tick);
     if words_end > info.duration_ms.saturating_add(PAST_THE_AUDIO_MS) {
@@ -159,7 +179,7 @@ pub fn add_lrc_song(
     }
 
     let measured = if request.measure_loudness {
-        crate::Measured::from(km_cdg::measure_loudness(&source.audio))
+        crate::Measured::from(audio_bytes.measure_loudness())
     } else {
         crate::Measured::default()
     };
@@ -168,30 +188,22 @@ pub fn add_lrc_song(
     }
 
     let file = format!("media/{}.mp3", request.number);
-    let source_hash = km_kmpkg::pair_content_hash_of(&source.audio, &source.lyrics)
-        .with_context(|| format!("hashing {}", source.lyrics.display()))?;
+    let source_hash = audio_bytes
+        .hash_with(&lyrics.load(crate::media::MAX_ZIPPED_TEXT)?)
+        .with_context(|| format!("hashing {lyrics}"))?;
 
     // **A person first, then the tags, then the file's name**, as for an UltraStar file: `[ti:]`
     // and `[ar:]` are what the file's author wrote about the song.
-    let stem = crate::file_stem(&source.lyrics);
+    let stem = lyrics.stem();
     let title = request
         .title
         .clone()
-        .or_else(|| {
-            source
-                .song
-                .title
-                .as_deref()
-                .and_then(km_song::clean_meta_name)
-        })
+        .or_else(|| song.title.as_deref().and_then(km_song::clean_meta_name))
         .unwrap_or_else(|| stem.clone());
-    let artist = request.artist.clone().or_else(|| {
-        source
-            .song
-            .artist
-            .as_deref()
-            .and_then(km_song::clean_meta_name)
-    });
+    let artist = request
+        .artist
+        .clone()
+        .or_else(|| song.artist.as_deref().and_then(km_song::clean_meta_name));
 
     let entry = entry_from_lrc(
         UltraStarFields {
@@ -212,11 +224,11 @@ pub fn add_lrc_song(
         },
         timeline.granularity(),
     );
-    builder.add_timeline_source(
+    builder.add_timeline_source_from(
         SongKind::Lrc,
         entry,
         &file,
-        &source.audio,
+        audio.source(),
         timeline,
         Some(source_hash.clone()),
     )?;

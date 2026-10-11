@@ -1224,6 +1224,31 @@ The page reads that answer off the warnings the row already carries. It checks
 `km_pack::warnings_hide_words` against the spelling `warning_code` wrote. The automatic half
 therefore costs no rescan and no column.
 
+### A zip is one row
+
+`scan_zip` asks `km_pack::read_zip` what the zip is, and writes one row under the zip's own path.
+
+| The zip | Its row |
+|---|---|
+| holds one song | the song, with the id its loose files have |
+| holds no song | no song and no failure, as a readme gets |
+| holds several songs, or a song that cannot be packaged | the failure `bad_zip`, with the reason |
+
+**A zip that is not a song still gets a row.** The skip test compares a row's size and mtime, so the
+row is what stops the next scan opening the zip again.
+
+**One function builds the row of a loose song and of a zipped one.** `cdg_row`, `ultrastar_row` and
+`lrc_row` take the two files' bytes, and `scan_zip` reads those out of the zip. A zipped copy and a
+loose copy therefore land on one song.
+
+**Play sends a zipped song's files, and never the zip.** `read_zipped` reads the song out of the
+zip, and `Client::play_upload_bytes` sends the halves to `/debug/play-upload`. An UltraStar or LRC
+song sends its MP3 and its timeline. A zip entry is not a path the machine can open, so the upload
+route serves a machine on this box too.
+
+**Reveal opens the zip's folder and not the zip.** An operating system opens a zip by unpacking it
+beside itself, and the next scan would find those files as a second copy.
+
 ## Building a package
 
 The build runs on its own thread in three phases. A short lock reads the description. Then the

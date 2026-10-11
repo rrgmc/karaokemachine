@@ -2593,6 +2593,7 @@ dependencies = [
  "serde_norway",
  "time",
  "walkdir",
+ "zip",
 ]
 
 [[package]]
@@ -2640,6 +2641,7 @@ dependencies = [
  "windows-registry",
  "winresource",
  "wry",
+ "zip",
 ]
 
 [[package]]
@@ -2673,6 +2675,7 @@ dependencies = [
  "tracing-subscriber",
  "winresource",
  "wry",
+ "zip",
 ]
 
 [[package]]

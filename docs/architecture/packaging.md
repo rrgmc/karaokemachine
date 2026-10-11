@@ -374,6 +374,49 @@ through other tools, so the writer puts the quotes back on the way out. It is on
 general escaper, because **one code is the whole problem**. Of YAML 1.1's boolean spellings, `no` is
 the only one that is also an ISO 639-1 language.
 
+## A zip holding one song
+
+`km_pack::read_zip` lists a zip and gives one of four answers: one song, not a song, several songs,
+or refused. The decision is
+[`A zip holding one song is a song source`](../decisions/song-sources.md#a-zip-holding-one-song-is-a-song-source).
+
+**The pairing rule is one function over the file names of one folder.** `km_kmpkg::sibling_among`
+pairs by stem, and `km_kmpkg::named_among` finds the file a header names. `sibling_with_extension`
+and `named_file` list a directory and call them. `read_zip` calls them with the entry names of one
+folder of the zip. A test asks both the same cases.
+
+**One function packages a song wherever its files are.** `km_pack::Media` is a file on disk or a
+`ZipMember`. `add_cdg_parts`, `add_ultrastar_parts` and `add_lrc_parts` take it, and the three
+`add_*_song` functions call them with files on disk.
+
+| | A file on disk | A zip entry |
+|---|---|---|
+| Probe, loudness, hash | streamed from the path, each one | read once into memory, then all three |
+| Written into the package | streamed from the path | streamed from the zip |
+
+**The package writer knows nothing of zip.** `km_kmpkg::EntrySource` hands it a reader, and
+`ZipMember` implements that in `km-pack`. The reader arrives through a callback, because a zip
+entry's reader borrows the archive it came from.
+
+**A builder holding a zipped song holds a path and an index.** The zip is opened again when the
+package is written, so a build of 999 zipped songs holds the audio of one at a time. Each read
+checks the entry still has the name and size the listing gave. A zip rewritten during a build is
+then an error and not a package of wrong bytes.
+
+| Limit | Value | Reason |
+|---|---|---|
+| Entries in one zip | 2,000 | A zip past this is refused whole. A listing read in part could hide a second song |
+| An MP3 entry | 64 MiB | It is held in memory while one song is probed, measured and hashed |
+| A `.cdg` entry | 64 MiB | CD+G is 7,200 bytes a second, so this is over two hours |
+| A `.txt` or `.lrc` entry | 4 MiB | It is text |
+| Text read to decide what one zip is | 16 MiB | A zip can hold two thousand text files |
+
+**The size a zip states is the zip's own claim.** Each read stops one byte past its limit, and an
+entry longer than it said is refused.
+
+**An entry behind a password refuses the zip when it is part of the song.** The listing reads each
+entry's directory record only, so a password is seen without being asked for.
+
 ## A site's song files, fetched and packaged
 
 `tools/cmd/km-site-pack` is a library of four stages and a command over them. `crawl` lists the

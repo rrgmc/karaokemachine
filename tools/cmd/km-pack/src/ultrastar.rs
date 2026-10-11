@@ -12,6 +12,8 @@ use anyhow::{Context, Result};
 use km_kmpkg::{Language, PackageBuilder, SongEntry};
 use km_song::ultrastar::{self, UltraStar, UltraStarError};
 
+use crate::media::Media;
+
 /// The extension an UltraStar file has.
 pub const ULTRASTAR_EXTENSION: &str = "txt";
 
@@ -96,7 +98,23 @@ impl std::error::Error for UltraStarRefusal {}
 /// When the file is not an UltraStar song this project packages: see [`UltraStarRefusal`].
 pub fn read_ultrastar(text: &Path) -> Result<UltraStarSource, UltraStarRefusal> {
     let bytes = std::fs::read(text).map_err(UltraStarRefusal::Unreadable)?;
-    let song = ultrastar::parse(&bytes).map_err(|error| match error {
+    let song = interpret_ultrastar(&bytes)?;
+    let audio = named_file(text, &song.audio)
+        .ok_or_else(|| UltraStarRefusal::AudioMissing(song.audio.clone()))?;
+
+    Ok(UltraStarSource {
+        text: text.to_path_buf(),
+        audio,
+        song,
+    })
+}
+
+/// Reads what a `.txt` says, and refuses one whose audio is not MP3.
+///
+/// Everything about the file that its bytes settle. Whether the audio it names is there is the
+/// caller's to answer, because that depends on where the file is.
+pub(crate) fn interpret_ultrastar(bytes: &[u8]) -> Result<UltraStar, UltraStarRefusal> {
+    let song = ultrastar::parse(bytes).map_err(|error| match error {
         UltraStarError::NotUltraStar => UltraStarRefusal::NotUltraStar,
         other => UltraStarRefusal::Refused(other),
     })?;
@@ -112,14 +130,7 @@ pub fn read_ultrastar(text: &Path) -> Result<UltraStarSource, UltraStarRefusal> 
     if !km_kmpkg::AUDIO_EXTENSIONS.contains(&extension.as_str()) {
         return Err(UltraStarRefusal::NotMp3(song.audio));
     }
-    let audio = named_file(text, &song.audio)
-        .ok_or_else(|| UltraStarRefusal::AudioMissing(song.audio.clone()))?;
-
-    Ok(UltraStarSource {
-        text: text.to_path_buf(),
-        audio,
-        song,
-    })
+    Ok(song)
 }
 
 /// The file a header names, beside the `.txt`.
@@ -132,18 +143,14 @@ fn named_file(text: &Path, name: &str) -> Option<PathBuf> {
     if exact.is_file() {
         return Some(exact);
     }
-    let wanted = name.to_lowercase();
-    std::fs::read_dir(folder)
+    let listed: Vec<String> = std::fs::read_dir(folder)
         .ok()?
         .filter_map(Result::ok)
-        .map(|entry| entry.path())
-        .find(|candidate| {
-            candidate.is_file()
-                && candidate
-                    .file_name()
-                    .and_then(|file| file.to_str())
-                    .is_some_and(|file| file.to_lowercase() == wanted)
-        })
+        .filter(|entry| entry.path().is_file())
+        .filter_map(|entry| entry.file_name().into_string().ok())
+        .collect();
+    let names: Vec<&str> = listed.iter().map(String::as_str).collect();
+    km_kmpkg::named_among(name, &names).map(|found| folder.join(found))
 }
 
 impl UltraStarSource {
@@ -327,16 +334,30 @@ pub fn add_ultrastar_song(
     source: &UltraStarSource,
     request: &UltraStarRequest,
 ) -> Result<UltraStarOutcome> {
-    let info = km_cdg::probe_audio(&source.audio)
-        .with_context(|| format!("probing {}", source.audio.display()))?;
+    add_ultrastar_parts(
+        builder,
+        &source.song,
+        &Media::from(source.text.as_path()),
+        &Media::from(source.audio.as_path()),
+        request,
+    )
+}
+
+/// [`add_ultrastar_song`], for a song that may be inside a zip.
+pub(crate) fn add_ultrastar_parts(
+    builder: &mut PackageBuilder,
+    song: &UltraStar,
+    text: &Media,
+    audio: &Media,
+    request: &UltraStarRequest,
+) -> Result<UltraStarOutcome> {
+    let audio_bytes = audio.load(crate::media::MAX_ZIPPED_AUDIO)?;
+    let info = audio_bytes
+        .probe_audio()
+        .with_context(|| format!("probing {audio}"))?;
 
     let mut findings = Vec::new();
-    let words_end = source
-        .song
-        .timeline
-        .lines
-        .last()
-        .map_or(0, |line| line.end_tick);
+    let words_end = song.timeline.lines.last().map_or(0, |line| line.end_tick);
     if words_end > info.duration_ms.saturating_add(PAST_THE_AUDIO_MS) {
         findings.push(format!(
             "the words run {:.0}s past the end of the audio, which usually means the MP3 is a \
@@ -346,7 +367,7 @@ pub fn add_ultrastar_song(
     }
 
     let measured = if request.measure_loudness {
-        crate::Measured::from(km_cdg::measure_loudness(&source.audio))
+        crate::Measured::from(audio_bytes.measure_loudness())
     } else {
         crate::Measured::default()
     };
@@ -355,29 +376,25 @@ pub fn add_ultrastar_song(
     }
 
     let file = format!("media/{}.mp3", request.number);
-    let source_hash = km_kmpkg::pair_content_hash_of(&source.audio, &source.text)
-        .with_context(|| format!("hashing {}", source.text.display()))?;
+    let source_hash = audio_bytes
+        .hash_with(&text.load(crate::media::MAX_ZIPPED_TEXT)?)
+        .with_context(|| format!("hashing {text}"))?;
 
     // **A person first, then the header, then the file's name.** The header is what the song's author
     // wrote about it, which is the reverse of an MP3's tags: an UltraStar file exists to be read by
     // a program, and its title and artist are how a singing game lists it.
-    let stem = crate::file_stem(&source.text);
+    let stem = text.stem();
     let title = request
         .title
         .clone()
-        .or_else(|| km_song::clean_meta_name(&source.song.title))
+        .or_else(|| km_song::clean_meta_name(&song.title))
         .unwrap_or_else(|| stem.clone());
-    let artist = request.artist.clone().or_else(|| {
-        source
-            .song
-            .artist
-            .as_deref()
-            .and_then(km_song::clean_meta_name)
-    });
+    let artist = request
+        .artist
+        .clone()
+        .or_else(|| song.artist.as_deref().and_then(km_song::clean_meta_name));
     let language = request.language.clone().or_else(|| {
-        source
-            .song
-            .language
+        song.language
             .as_deref()
             .and_then(Language::from_declared)
             .map(|language| language.code().to_owned())
@@ -395,21 +412,21 @@ pub fn add_ultrastar_song(
         // question, whether this MP3 is the recording these words were timed to, and answers it with
         // an end rather than a span.
         sung_ms: km_suitability::sung_span_ms(&km_song::recording::song_from_timeline(
-            source.song.timeline.clone(),
+            song.timeline.clone(),
         )),
         loudness: measured.record,
-        lyric_preview: source.song.timeline.preview(crate::LYRIC_PREVIEW_LINES),
+        lyric_preview: song.timeline.preview(crate::LYRIC_PREVIEW_LINES),
         // Nothing detects this for an UltraStar song, so the description is the only voice, and its
         // silence means the words are drawn.
         lyrics_hidden: request.lyrics_hidden.unwrap_or(false),
         content_hash: Some(source_hash.clone()),
     });
-    builder.add_timeline_source(
+    builder.add_timeline_source_from(
         km_kmpkg::SongKind::UltraStar,
         entry,
         &file,
-        &source.audio,
-        &source.song.timeline,
+        audio.source(),
+        &song.timeline,
         Some(source_hash.clone()),
     )?;
 

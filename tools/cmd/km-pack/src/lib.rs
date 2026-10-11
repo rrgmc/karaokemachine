@@ -30,21 +30,27 @@ pub mod build;
 pub mod describe;
 pub mod listing;
 pub mod lrc;
+pub mod media;
 pub mod spec;
 pub mod ultrastar;
 pub mod volumes;
+pub mod zipped;
 
 #[cfg(test)]
 mod cdg_tests;
+#[cfg(test)]
+mod zipped_tests;
 
 pub use build::{BuildEvent, BuildOptions, BuildOutcome, Skipped};
 pub use describe::{DescribeOptions, Description, describe};
 pub use listing::listing;
 pub use lrc::{LrcRefusal, LrcSource, is_lrc_candidate, lrc_naming, read_lrc};
+pub use media::{Media, ZipMember, is_os_junk};
 pub use spec::{Spec, SpecPackage, SpecSong};
 pub use ultrastar::{
     UltraStarRefusal, UltraStarSource, is_ultrastar_candidate, read_ultrastar, ultrastar_naming,
 };
+pub use zipped::{ZipKind, ZipSong, ZipVerdict, is_zip_candidate, read_zip};
 
 /// The moment now, as `YYYY-MM-DDTHH:MM:SSZ`.
 ///
@@ -85,6 +91,8 @@ pub enum Rejection {
     UltraStar(String),
     /// An LRC file this project does not package, with the reason.
     Lrc(String),
+    /// A zip this project does not package, with the reason.
+    Zip(String),
 }
 
 impl std::fmt::Display for Rejection {
@@ -100,7 +108,9 @@ impl std::fmt::Display for Rejection {
                 "no song number available (they run 1 to {})",
                 km_songcode::MAX_SLOT
             ),
-            Self::UltraStar(reason) | Self::Lrc(reason) => write!(f, "{reason}"),
+            Self::UltraStar(reason) | Self::Lrc(reason) | Self::Zip(reason) => {
+                write!(f, "{reason}")
+            }
         }
     }
 }
@@ -769,14 +779,29 @@ pub fn add_cdg_song(
     pair: &CdgPair,
     request: &CdgRequest,
 ) -> Result<CdgOutcome> {
-    let info = km_cdg::probe(&pair.audio, &pair.graphics)
-        .with_context(|| format!("probing {}", pair.audio.display()))?;
+    add_cdg_parts(
+        builder,
+        &Media::from(pair.audio.as_path()),
+        &Media::from(pair.graphics.as_path()),
+        request,
+    )
+}
+
+/// [`add_cdg_song`], for a pair that may be inside a zip.
+pub(crate) fn add_cdg_parts(
+    builder: &mut PackageBuilder,
+    audio: &Media,
+    graphics: &Media,
+    request: &CdgRequest,
+) -> Result<CdgOutcome> {
+    let audio_bytes = audio.load(media::MAX_ZIPPED_AUDIO)?;
+    let graphics_bytes = graphics.load(media::MAX_ZIPPED_GRAPHICS)?;
+    let info = audio_bytes
+        .probe_with(&graphics_bytes)
+        .with_context(|| format!("probing {audio}"))?;
 
     if info.graphics.tiles_written == 0 {
-        anyhow::bail!(
-            "{} never draws a tile, so the song has no words in it",
-            pair.graphics.display()
-        );
+        anyhow::bail!("{graphics} never draws a tile, so the song has no words in it");
     }
 
     let mut findings = Vec::new();
@@ -813,7 +838,7 @@ pub fn add_cdg_song(
     // The audio goes into the package as it is — nothing re-encodes an MP3+G pair — so unlike a
     // video there is no distinction here between the source and what is stored.
     let measured = if request.measure_loudness {
-        Measured::from(km_cdg::measure_loudness(&pair.audio))
+        Measured::from(audio_bytes.measure_loudness())
     } else {
         Measured::default()
     };
@@ -824,13 +849,13 @@ pub fn add_cdg_song(
         findings.push(CdgFinding(note));
     }
 
-    let file = format!("media/{}.{}", request.number, extension_of(&pair.audio));
+    let file = format!("media/{}.{}", request.number, audio.extension());
 
-    // Streamed rather than read. Both halves used to land in memory purely to be hashed, and while
-    // five megabytes is survivable where a video is not, doing it here would leave one path in this
-    // file reading whole files and one not.
-    let source_hash = km_kmpkg::pair_content_hash_of(&pair.audio, &pair.graphics)
-        .with_context(|| format!("hashing {}", pair.audio.display()))?;
+    // A pair on disk is streamed rather than read. Five megabytes is survivable where a video is
+    // not, and reading it here would leave one path in this file reading whole files and one not.
+    let source_hash = audio_bytes
+        .hash_with(&graphics_bytes)
+        .with_context(|| format!("hashing {audio}"))?;
 
     // **A person first, then the file's name, then its tags** — and that middle step is the
     // difference from the video rule. A downloaded video's container tags are the best thing about
@@ -841,11 +866,11 @@ pub fn add_cdg_song(
     let title = request
         .title
         .clone()
-        .unwrap_or_else(|| file_stem(&pair.audio))
+        .unwrap_or_else(|| audio.stem())
         .trim()
         .to_owned();
     let title = if title.is_empty() {
-        usable_tag(info.audio.title.as_deref()).unwrap_or_else(|| file_stem(&pair.audio))
+        usable_tag(info.audio.title.as_deref()).unwrap_or_else(|| audio.stem())
     } else {
         title
     };
@@ -855,7 +880,7 @@ pub fn add_cdg_song(
             // common: in one album of the measured corpus several tracks carry
             // `QUEEN - BICYCLE RACE` in the artist field, which would otherwise be packaged as the
             // performer and shown on the television under the title that already says it.
-            .filter(|value| !same_text(value, &title) && !same_text(value, &file_stem(&pair.audio)))
+            .filter(|value| !same_text(value, &title) && !same_text(value, &audio.stem()))
     });
 
     let entry = entry_from_cdg(CdgFields {
@@ -872,11 +897,11 @@ pub fn add_cdg_song(
     // Two entries, registered rather than read: the audio under this name and the graphics under the
     // name the rule derives from it. `PackageBuilder::write` streams both. A dry run records them
     // and never writes, since nothing is read until then.
-    builder.add_cdg_source(
+    builder.add_cdg_source_from(
         entry,
         &file,
-        &pair.audio,
-        &pair.graphics,
+        audio.source(),
+        graphics.source(),
         Some(source_hash.clone()),
     )?;
 
@@ -1616,6 +1641,7 @@ pub fn collect_songs_observed(
             || is_graphics(path)
             || is_ultrastar_candidate(path)
             || is_lrc_candidate(path)
+            || is_zip_candidate(path)
         {
             out.push(entry.into_path());
         }

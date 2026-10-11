@@ -175,6 +175,8 @@ winresource = { workspace = true }
 
 [dev-dependencies]
 km-testkit = { workspace = true, features = ["http"] }
+# A test writes the zip it then reads as a song.
+zip = { workspace = true }
 # The scan is tested over a corpus built from the synthetic fixtures rather than the real one, which
 # is machine-local and very large. The feature is off by default so it never ships.
 km-song = { workspace = true, features = ["testing"] }
