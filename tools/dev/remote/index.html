@@ -382,6 +382,24 @@
     <p class="muted" id="demo-config">—</p>
   </section>
 
+  <section>
+    <h3>Announcement</h3>
+    <!-- The card that names a queued song before it starts. One route takes the switch and the
+         length together, so each control sends both. The singer's remote has no control for it,
+         for the reason it has none for demo mode. -->
+    <label for="announcement-enabled"
+           style="display:flex; align-items:center; gap:.4rem; margin:.5rem 0">
+      <input id="announcement-enabled" type="checkbox" style="width:auto; flex:0 0 auto">
+      announce each queued song before it starts
+    </label>
+    <label for="announcement-length"
+           style="display:flex; align-items:center; gap:.4rem; margin:.5rem 0">
+      <input id="announcement-length" type="number" min="1" max="30" step="1"
+             style="width:6rem; flex:0 0 auto">
+      seconds on the screen — always written into settings
+    </label>
+  </section>
+
   <section class="wide">
     <h3>SoundFont</h3>
     <!-- A machine with no bank still plays: the lyrics scroll in time over a sine test tone, which
@@ -1707,6 +1725,15 @@ async function refreshDemo() {
   } catch { /* already logged */ }
 }
 
+async function refreshAnnouncement() {
+  try {
+    const announcement = await api("GET", "/announcement");
+    // Both follow the machine, so a refused write repaints what the machine holds.
+    $("announcement-enabled").checked = announcement.enabled;
+    $("announcement-length").value = announcement.length_secs;
+  } catch { /* already logged */ }
+}
+
 async function refreshConnect() {
   try {
     const [connect, discovery] = await Promise.all([
@@ -1746,6 +1773,7 @@ function refreshAll() {
   refreshSoundfontBanks();
   refreshWallpapers();
   refreshDemo();
+  refreshAnnouncement();
   refreshPackages();
   refreshDebug();
   refreshConsole();
@@ -1980,6 +2008,21 @@ $("demo-delay").onchange = (event) => {
   }
   api("PUT", "/admin/demo/delay", { delay_secs }).then(refreshDemo).catch(refreshDemo);
 };
+
+// One body for both controls, because the route takes the switch and the length together. An
+// empty or fractional length repaints instead of asking, as the delay box above does.
+const saveAnnouncement = () => {
+  const length_secs = Number($("announcement-length").value);
+  if (!Number.isInteger(length_secs) || length_secs < 1) {
+    refreshAnnouncement();
+    return;
+  }
+  api("PUT", "/admin/announcement", { enabled: $("announcement-enabled").checked, length_secs })
+    .then(refreshAnnouncement)
+    .catch(refreshAnnouncement);
+};
+$("announcement-enabled").onchange = saveAnnouncement;
+$("announcement-length").onchange = saveAnnouncement;
 
 $("do-play-upload").onclick = async () => {
   const files = Array.from($("upload-files").files || []);

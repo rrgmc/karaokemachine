@@ -169,6 +169,17 @@ end-on-silence-save = Salvar
 end-on-silence-on = A máquina encerra a música quando o resto dela é silêncio.
 end-on-silence-off = A máquina toca cada música até o fim do arquivo.
 
+## O anúncio
+
+announcement-heading = Anúncio
+announcement-hint = Antes de uma música da fila começar, a tela mostra o título e quem canta. Uma música com introdução longa toca por baixo do anúncio.
+announcement-enabled = Anunciar cada música da fila
+announcement-length-label = Mostrar o anúncio por tantos segundos
+announcement-save = Salvar
+announcement-on = Cada música da fila é anunciada por { $seconds } segundos.
+announcement-off = As músicas da fila começam sem anúncio.
+announcement-length-bad = Isso não é um número de segundos.
+
 ## Desligar
 
 power-heading = Energia

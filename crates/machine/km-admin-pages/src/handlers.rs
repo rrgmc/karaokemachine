@@ -408,6 +408,7 @@ fn back_pane(asked: &str) -> Pane {
         "name" => Pane::Name,
         "password" => Pane::Password,
         "demo" => Pane::Demo,
+        "announcement" => Pane::Announcement,
         "language" => Pane::Language,
         _ => Pane::Debug,
     }
@@ -1007,6 +1008,9 @@ pub async fn machine_page(
             demo_stored: switches.demo_stored,
             demo_delay_secs: switches.demo_delay_secs,
             demo_delay_max: km_api::machine::MAX_DEMO_DELAY_SECS,
+            announcement_enabled: switches.announcement_enabled,
+            announcement_length_secs: switches.announcement_length_secs,
+            announcement_length_max: km_api::machine::MAX_ANNOUNCEMENT_SECS,
             end_on_silence: switches.end_on_silence,
             power: identity.power,
         },
@@ -1915,6 +1919,39 @@ pub async fn set_demo_delay(
     }
 }
 
+/// `POST /admin/machine/announcement` — whether a queued song is announced, and for how long.
+///
+/// **One form for the switch and the length**, where demo mode has two. Both values here are always
+/// written down, so one Save means one thing for both.
+///
+/// The length is parsed here and not by the browser, for `set_demo_delay`'s reason.
+pub async fn set_announcement(
+    State(state): State<Admin>,
+    headers: HeaderMap,
+    Form(form): Form<AnnouncementForm>,
+) -> Response {
+    let words = crate::words::messages(state.locale(&headers));
+    let enabled = form.enabled.is_some();
+    let Ok(length_secs) = form.length_secs.trim().parse::<u32>() else {
+        return back_to_pane(
+            Pane::Announcement,
+            "bad",
+            &words.msg("announcement-length-bad"),
+        );
+    };
+    match state.switches.set_announcement(enabled, length_secs).await {
+        Err(error) => refusal_on(&state, Pane::Announcement, &error, state.locale(&headers)),
+        Ok(stored) => {
+            let said = if enabled {
+                words.msg_with("announcement-on", &[("seconds", i64::from(stored).into())])
+            } else {
+                words.msg("announcement-off")
+            };
+            back_to_pane(Pane::Announcement, "good", &said)
+        }
+    }
+}
+
 /// `POST /admin/machine/end-on-silence` — whether a song ends when its tail is silent.
 ///
 /// One box and no `persist` beside it, for the delay's reason: it is installation configuration and
@@ -2085,13 +2122,6 @@ pub struct DemoForm {
     pub persist: Option<String>,
 }
 
-/// Whether a song ends when its tail is silent.
-#[derive(Debug, Clone, Default, serde::Deserialize)]
-pub struct EndOnSilenceForm {
-    /// Present when the box is ticked, absent when it is not.
-    pub end_on_silence: Option<String>,
-}
-
 /// How long the machine waits before performing for itself.
 #[derive(Debug, Clone, Default, serde::Deserialize)]
 pub struct DemoDelayForm {
@@ -2104,6 +2134,23 @@ pub struct DemoDelayForm {
     /// every other refusal on this page does.
     #[serde(default)]
     pub delay_secs: String,
+}
+
+/// Whether a song ends when its tail is silent.
+#[derive(Debug, Clone, Default, serde::Deserialize)]
+pub struct EndOnSilenceForm {
+    /// Present when the box is ticked, absent when it is not.
+    pub end_on_silence: Option<String>,
+}
+
+/// Whether a queued song is announced before it starts, and for how long.
+#[derive(Debug, Clone, Default, serde::Deserialize)]
+pub struct AnnouncementForm {
+    /// Present when the box is ticked, absent when it is not.
+    pub enabled: Option<String>,
+    /// Seconds, as typed. A `String` for the reason [`DemoDelayForm::delay_secs`] is one.
+    #[serde(default)]
+    pub length_secs: String,
 }
 
 /// `POST /admin/machine/password` — change or remove the password. Never set the first one.

@@ -343,6 +343,10 @@ pub struct SwitchState {
     pub demo_stored: bool,
     /// Seconds of silence before a demo song starts. `0` is "as soon as the machine is idle".
     pub demo_delay_secs: u32,
+    /// Whether a queued song is announced before it starts.
+    pub announcement_enabled: bool,
+    /// How many seconds the announcement's card stays on the screen.
+    pub announcement_length_secs: u32,
     /// Whether a song ends when its tail is silent.
     pub end_on_silence: bool,
 }
@@ -663,6 +667,11 @@ pub trait Switches: Send + Sync + 'static {
     /// **The machine's own number back, not the one that was asked for**, because the route caps it
     /// — a page that echoed the request would tell somebody their 9999 had been saved.
     async fn set_demo_delay(&self, secs: u32) -> Result<u32, AdminError>;
+
+    /// Turn the announcement before each queued song on or off, and set how long its card stays.
+    ///
+    /// Always written down. Answers with the length the machine stored.
+    async fn set_announcement(&self, enabled: bool, length_secs: u32) -> Result<u32, AdminError>;
 
     /// Say whether a song ends when its tail is silent, answering with what the machine stored.
     async fn set_end_on_silence(&self, on: bool) -> Result<bool, AdminError>;

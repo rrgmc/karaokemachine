@@ -19,6 +19,11 @@ Entries are written for somebody who has the machine. Why any of it is the way i
 - **The packaging tools read a song from a zip.** A `.zip` holding one MP3+G, UltraStar or LRC song
   is packaged as that song, with nothing to unpack first. A zip holding two songs is refused with
   the reason, and any other zip is passed over.
+- **The machine announces each queued song before it starts.** For five seconds the whole screen
+  shows the title, the artist and the singer's name in large letters. A song with a long
+  introduction plays under the card, and a song with a short one waits only for the difference. A
+  video or MP3+G song waits the five seconds in silence. Demo songs are not announced. The
+  **This machine** tab has an Announcement pane that changes the length or turns it off.
 
 ## [1.22.0] - 2026-10-09
 

@@ -35,12 +35,13 @@ use std::time::{Duration, Instant};
 
 use km_api::discover::Discovery;
 use km_api::dto::{
-    AccessCodeRequest, AccessDto, AdminPasswordDto, AdminPasswordRequest, AudioLevelRequest,
-    AudioOutputRequest, AudioOutputsDto, BankDto, BankRequest, DebugDto, DemoDto, DevRemoteDto,
-    DevRemoteRequest, EndOnSilenceDto, EndOnSilenceRequest, LoginRequest, LoginResponse,
-    MachineLocaleRequest, MachineNameRequest, PackagesDto, PerformanceDto, PerformanceRequest,
-    RoomAccessRequest, SetDemoDelayRequest, SetDemoRequest, SettingsDto, SettingsPatchDto,
-    SoundFontDto, SoundFontRequest, SoundFontsDto, UninstallDto, UploadReportDto, WallpapersDto,
+    AccessCodeRequest, AccessDto, AdminPasswordDto, AdminPasswordRequest, AnnouncementDto,
+    AudioLevelRequest, AudioOutputRequest, AudioOutputsDto, BankDto, BankRequest, DebugDto,
+    DemoDto, DevRemoteDto, DevRemoteRequest, EndOnSilenceDto, EndOnSilenceRequest, LoginRequest,
+    LoginResponse, MachineLocaleRequest, MachineNameRequest, PackagesDto, PerformanceDto,
+    PerformanceRequest, RoomAccessRequest, SetAnnouncementRequest, SetDemoDelayRequest,
+    SetDemoRequest, SettingsDto, SettingsPatchDto, SoundFontDto, SoundFontRequest, SoundFontsDto,
+    UninstallDto, UploadReportDto, WallpapersDto,
 };
 
 /// The machine's own default port, so "a bare host means 8177" is not written down twice.
@@ -86,6 +87,10 @@ pub enum Call<'a> {
     SetDemo,
     /// `PUT` — how long the quiet has to last before the demo starts.
     SetDemoDelay,
+    /// `GET` — whether a queued song is announced, and for how long.
+    Announcement,
+    /// `PUT` — turn the announcement on or off and set its length.
+    SetAnnouncement,
     /// `GET` — whether debugging mode is on, and what settings say it will be.
     Debug,
     /// `PUT` — turn debugging mode on or off.
@@ -220,6 +225,8 @@ impl<'a> Call<'a> {
         Call::Demo,
         Call::SetDemo,
         Call::SetDemoDelay,
+        Call::Announcement,
+        Call::SetAnnouncement,
         Call::Debug,
         Call::SetDebugging,
         Call::DevRemote,
@@ -263,6 +270,7 @@ impl<'a> Call<'a> {
             | Self::SoundFonts
             | Self::Packages
             | Self::Demo
+            | Self::Announcement
             | Self::Debug
             | Self::DevRemote
             | Self::Performance
@@ -279,6 +287,7 @@ impl<'a> Call<'a> {
             | Self::NextWallpaper => reqwest::Method::POST,
             Self::SetDemo
             | Self::SetDemoDelay
+            | Self::SetAnnouncement
             | Self::SetDebugging
             | Self::SetDevRemote
             | Self::SetPerformance
@@ -347,6 +356,8 @@ impl<'a> Call<'a> {
             Self::Demo => "/demo",
             Self::SetDemo => "/admin/demo",
             Self::SetDemoDelay => "/admin/demo/delay",
+            Self::Announcement => "/announcement",
+            Self::SetAnnouncement => "/admin/announcement",
             Self::Debug => "/debug",
             Self::SetDebugging => "/admin/debug",
             Self::DevRemote => "/dev-remote",
@@ -847,6 +858,31 @@ impl Client {
     pub async fn set_demo_delay(&self, delay_secs: u32) -> Result<DemoDto, Refused> {
         self.json_with(Call::SetDemoDelay, &SetDemoDelayRequest { delay_secs })
             .await
+    }
+
+    /// Whether the machine announces a queued song before it starts, and for how long.
+    ///
+    /// Public, like [`Self::demo`], and asked for on every machine page for the same reason.
+    pub async fn announcement(&self) -> Result<AnnouncementDto, Refused> {
+        self.get_json(Call::Announcement).await
+    }
+
+    /// Turns the announcement on or off and sets its length. Both are always written down.
+    ///
+    /// Admin, like [`Self::set_demo`].
+    pub async fn set_announcement(
+        &self,
+        enabled: bool,
+        length_secs: u32,
+    ) -> Result<AnnouncementDto, Refused> {
+        self.json_with(
+            Call::SetAnnouncement,
+            &SetAnnouncementRequest {
+                enabled,
+                length_secs,
+            },
+        )
+        .await
     }
 
     /// Renames the machine.

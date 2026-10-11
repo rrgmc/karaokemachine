@@ -26,9 +26,9 @@ use km_songcode::SongCode;
 
 use crate::machine::{
     AudioOutput, AudioOutputs, Audition, Catalog, CatalogError, ControlError, Controller,
-    MAX_DEMO_DELAY_SECS, NowPlaying, Origin, OutputLevel, PackageProblem, Picture, Refusal,
-    Settings, SettingsPatch, Snapshot, SoundFontChoice, SoundFontStatus, SoundKind,
-    TransportCommand, WallpaperState,
+    MAX_ANNOUNCEMENT_SECS, MAX_DEMO_DELAY_SECS, NowPlaying, Origin, OutputLevel, PackageProblem,
+    Picture, Refusal, Settings, SettingsPatch, Snapshot, SoundFontChoice, SoundFontStatus,
+    SoundKind, TransportCommand, WallpaperState,
 };
 
 /// What a curation tool had settled about a song, as the test machine received it.
@@ -157,6 +157,15 @@ pub enum Recorded {
     /// and there is no poll thread here. So the record *is* the observation, and without it a route
     /// that silently stopped calling the controller would pass every test.
     DemoStarted,
+    /// The announcement was set.
+    ///
+    /// Both halves recorded, so a route that stopped forwarding either one fails a test.
+    SetAnnouncement {
+        /// Whether it was switched on.
+        enabled: bool,
+        /// How long the card was asked to stay, in seconds.
+        length_secs: u32,
+    },
 }
 
 /// How the machine should misbehave, so error paths are reachable from a test.
@@ -248,6 +257,8 @@ struct Inner {
     /// The demo delay, which has no run-against-stored split to model: the route that sets it
     /// always writes it down.
     demo_delay_secs: u32,
+    /// The announcement, as the route last set it.
+    announcement: crate::machine::AnnouncementState,
     /// Whether the frame-statistics panel is on.
     ///
     /// One field and not two, unlike the pair above: this switch has nothing to persist, so a
@@ -371,6 +382,10 @@ impl TestMachine {
                 demo_enabled: false,
                 demo_stored: false,
                 demo_delay_secs: 60,
+                announcement: crate::machine::AnnouncementState {
+                    enabled: true,
+                    length_secs: 5,
+                },
                 performance_overlay: false,
                 end_on_silence: true,
                 debug_stored: false,
@@ -1673,6 +1688,34 @@ impl Controller for TestMachine {
             inner.recorded.push(Recorded::SetDemoDelay { delay_secs });
         }
         Ok(self.demo())
+    }
+
+    fn announcement(&self) -> crate::machine::AnnouncementState {
+        self.lock().announcement
+    }
+
+    /// Applies both bounds the real machine applies, repeated here for `set_demo_delay`'s reason.
+    fn set_announcement(
+        &self,
+        enabled: bool,
+        length_secs: u32,
+    ) -> Result<crate::machine::AnnouncementState, ControlError> {
+        let mut inner = self.lock();
+        if length_secs == 0 || length_secs > MAX_ANNOUNCEMENT_SECS {
+            return Err(ControlError::Rejected(format!(
+                "an announcement of {length_secs} seconds is outside the 1 to \
+                 {MAX_ANNOUNCEMENT_SECS} this accepts"
+            )));
+        }
+        inner.announcement = crate::machine::AnnouncementState {
+            enabled,
+            length_secs,
+        };
+        inner.recorded.push(Recorded::SetAnnouncement {
+            enabled,
+            length_secs,
+        });
+        Ok(inner.announcement)
     }
 
     /// Applies the two refusals a double can see, and records the press.

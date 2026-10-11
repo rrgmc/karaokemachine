@@ -447,6 +447,26 @@ pub enum TransportCommand {
 /// does is asserting the same contract rather than inventing a policy.
 pub const MAX_DEMO_DELAY_SECS: u32 = 3600;
 
+/// The longest announcement [`Controller::set_announcement`] will accept, in seconds.
+///
+/// **Half a minute.** A video song waits in silence for the whole of the card, so a longer one is a
+/// machine that looks stopped. A bound on what a route may be told and not on what a settings file
+/// may hold, for the reason [`MAX_DEMO_DELAY_SECS`] gives.
+pub const MAX_ANNOUNCEMENT_SECS: u32 = 30;
+
+/// The announcement before each queued song, as the API reports it.
+///
+/// One switch and one length, and both are what the settings file holds. The switch has no
+/// *for this run* half, unlike [`DemoState`]: an announcement is how the machine is set up and not
+/// something a party turns on for an evening.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct AnnouncementState {
+    /// Whether a queued song is announced before it starts.
+    pub enabled: bool,
+    /// How many seconds the card stays on the screen.
+    pub length_secs: u32,
+}
+
 /// What the settings file says about the two switches that open a developer surface.
 ///
 /// **Stored values only, and that is the whole reason this type exists.** The running values are on
@@ -1501,6 +1521,40 @@ pub trait Controller: Send + Sync + 'static {
     /// Returns the state as it now stands, so a client learns whether the song it just asked for
     /// will be followed by another.
     fn start_demo_song(&self) -> Result<DemoState, ControlError>;
+
+    /// Whether the machine announces a queued song before it starts, and for how long.
+    ///
+    /// Read-only and unfailing. Defaulted to "off", which is true of a host that draws no card.
+    fn announcement(&self) -> AnnouncementState {
+        AnnouncementState::default()
+    }
+
+    /// Turns the announcement on or off and sets how long its card stays up.
+    ///
+    /// **One call for both, and always written to settings.** Neither value has a *for this run*
+    /// meaning, so nothing here needs the `persist` flag that splits [`Self::set_demo`] from
+    /// [`Self::set_demo_delay`].
+    ///
+    /// **Switching it off ends a card that is on the screen**, and the song under it starts. A new
+    /// length applies from the next song: a card already up was promised the length it started with.
+    ///
+    /// Refuses with [`ControlError::Rejected`] a length of zero or one above
+    /// [`MAX_ANNOUNCEMENT_SECS`]. `enabled` is the off switch, and a second one here would only
+    /// configure a card that announces nothing.
+    ///
+    /// Returns the state as it now stands, so a client needs no second request to redraw.
+    ///
+    /// Defaulted to a refusal, so a host with no card answers honestly.
+    fn set_announcement(
+        &self,
+        enabled: bool,
+        length_secs: u32,
+    ) -> Result<AnnouncementState, ControlError> {
+        let _ = (enabled, length_secs);
+        Err(ControlError::Unavailable(
+            "this machine has no announcement to set".into(),
+        ))
+    }
 
     /// The session epoch moved; write it somewhere it survives a restart.
     ///

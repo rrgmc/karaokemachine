@@ -517,6 +517,7 @@ pub fn router(state: Admin) -> Router {
         .route("/machine/locale", post(handlers::set_machine_locale))
         .route("/machine/demo", post(handlers::set_demo))
         .route("/machine/demo-delay", post(handlers::set_demo_delay))
+        .route("/machine/announcement", post(handlers::set_announcement))
         .route(
             "/machine/end-on-silence",
             post(handlers::set_end_on_silence),

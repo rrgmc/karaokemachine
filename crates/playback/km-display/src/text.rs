@@ -28,7 +28,7 @@ use sdl3::ttf::{Font, Sdl3TtfContext};
 
 use crate::theme::Theme;
 
-/// Fonts at the three sizes the display uses.
+/// Fonts at the sizes the display uses.
 pub struct Fonts {
     /// Lyrics: the largest, read from across a room.
     pub lyric: Font<'static>,
@@ -36,6 +36,12 @@ pub struct Fonts {
     ///
     /// See [`Fonts::fit_lyric`], which is the only thing that should be choosing between these.
     pub lyric_narrow: Vec<Font<'static>>,
+    /// The announcement card's title: larger than the lyrics, and drawn nowhere else.
+    pub announce: Font<'static>,
+    /// Narrower announcement faces, largest first, for a title too wide for [`Fonts::announce`].
+    ///
+    /// See [`Fonts::fit_announce`], which is the only thing that should be choosing between these.
+    pub announce_narrow: Vec<Font<'static>>,
     /// Titles and ordinary interface text.
     pub text: Font<'static>,
     /// Secondary detail.
@@ -356,12 +362,19 @@ impl Fonts {
         for size in theme.lyric_fallback_px(screen_height) {
             lyric_narrow.push(with_fallbacks(size)?);
         }
+        let announce = with_fallbacks(theme.announce_px(screen_height))?;
+        let mut announce_narrow = Vec::new();
+        for size in theme.announce_fallback_px(screen_height) {
+            announce_narrow.push(with_fallbacks(size)?);
+        }
         let text = with_fallbacks(theme.text_px(screen_height))?;
         let small = with_fallbacks(theme.small_px(screen_height))?;
 
         Ok(Self {
             lyric,
             lyric_narrow,
+            announce,
+            announce_narrow,
             text,
             small,
             fallbacks,
@@ -526,27 +539,55 @@ impl Fonts {
     /// If it is picked up, measure first: `KM_FRAME_STATS` and the `FrameMeter` already report where
     /// a frame goes.
     pub fn fit_lyric(&self, syllables: &[&str], available: f32) -> (&Font<'static>, LineMetrics) {
-        let mut measured = vec![measure_line(&self.lyric, syllables)];
-        for font in &self.lyric_narrow {
-            if measured
-                .last()
-                .is_some_and(|m: &LineMetrics| m.width <= available)
-            {
-                break;
-            }
-            measured.push(measure_line(font, syllables));
-        }
-
-        let widths: Vec<f32> = measured.iter().map(|m| m.width).collect();
-        let chosen = first_fitting(&widths, available);
-        let metrics = measured.swap_remove(chosen);
-        let font = if chosen == 0 {
-            &self.lyric
-        } else {
-            &self.lyric_narrow[chosen - 1]
-        };
+        let (font, metrics, _) = fit_ladder(&self.lyric, &self.lyric_narrow, syllables, available);
         (font, metrics)
     }
+
+    /// The largest announcement face this title fits in, its metrics, and which step it is.
+    ///
+    /// The same ladder as [`Fonts::fit_lyric`]. Step 0 is [`Fonts::announce`] and step `n` is
+    /// `announce_narrow[n - 1]`, which the caller needs to space the rows for the face it draws. A
+    /// title that overflows the narrowest face is the caller's to wrap, which a lyric line cannot do
+    /// and a card can.
+    pub fn fit_announce(
+        &self,
+        title: &str,
+        available: f32,
+    ) -> (&Font<'static>, LineMetrics, usize) {
+        fit_ladder(&self.announce, &self.announce_narrow, &[title], available)
+    }
+}
+
+/// Walks one face and its narrower steps, and returns the first the line fits in.
+///
+/// The narrowest face is the answer when none fits. Each step is measured only when the one above
+/// it overflowed, so an ordinary line costs one `size_of` pass.
+fn fit_ladder<'f>(
+    widest: &'f Font<'static>,
+    narrower: &'f [Font<'static>],
+    syllables: &[&str],
+    available: f32,
+) -> (&'f Font<'static>, LineMetrics, usize) {
+    let mut measured = vec![measure_line(widest, syllables)];
+    for font in narrower {
+        if measured
+            .last()
+            .is_some_and(|m: &LineMetrics| m.width <= available)
+        {
+            break;
+        }
+        measured.push(measure_line(font, syllables));
+    }
+
+    let widths: Vec<f32> = measured.iter().map(|m| m.width).collect();
+    let chosen = first_fitting(&widths, available);
+    let metrics = measured.swap_remove(chosen);
+    let font = if chosen == 0 {
+        widest
+    } else {
+        &narrower[chosen - 1]
+    };
+    (font, metrics, chosen)
 }
 
 /// How text is positioned relative to the given point.

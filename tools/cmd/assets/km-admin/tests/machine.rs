@@ -116,6 +116,60 @@ async fn ending_a_song_on_silence_reaches_its_own_route() {
     );
 }
 
+/// The announcement reaches `PUT /api/v1/admin/announcement` with its switch and its length.
+#[tokio::test]
+async fn the_announcement_reaches_its_route_with_both_values() {
+    let (server, state, _dir) = common::signed_in().await;
+
+    Mock::given(method("PUT"))
+        .and(path("/api/v1/admin/announcement"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "enabled": false,
+            "length_secs": 8,
+        })))
+        .mount(&server)
+        .await;
+
+    // An unticked box posts nothing, and the program sends that as `false` beside the length.
+    let said = post_form_to(&state, "/admin/machine/announcement", "length_secs=8").await;
+    assert!(said.contains("pane=announcement"), "{said}");
+    assert!(said.contains("kind=good"), "{said}");
+
+    let sent = server
+        .received_requests()
+        .await
+        .expect("recorded")
+        .into_iter()
+        .find(|request| request.url.path() == "/api/v1/admin/announcement")
+        .expect("the announcement never reached the admin route");
+    assert_eq!(
+        sent.headers
+            .get("authorization")
+            .map(|v| v.to_str().unwrap()),
+        Some("Bearer a-token"),
+        "the announcement went without the token it needs"
+    );
+    assert_eq!(
+        sent.body_json::<serde_json::Value>().expect("a JSON body"),
+        serde_json::json!({ "enabled": false, "length_secs": 8 }),
+    );
+
+    // Something that is not a number never leaves this program.
+    let before = server.received_requests().await.expect("recorded").len();
+    let said = post_form_to(
+        &state,
+        "/admin/machine/announcement",
+        "enabled=yes&length_secs=a+while",
+    )
+    .await;
+    assert!(said.contains("kind=bad"), "{said}");
+    assert_eq!(
+        server.received_requests().await.expect("recorded").len(),
+        before,
+        "a length that is not a number was sent to the machine"
+    );
+}
+
 /// The delay reaches `PUT /api/v1/admin/demo/delay`, as a number and with no `persist` beside it.
 ///
 /// **The body is the assertion, not only the path.** A delay is always written down, so a form that

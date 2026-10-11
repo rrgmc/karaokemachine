@@ -601,22 +601,74 @@ fn song_window_title(title: &str, artist: Option<&str>, base: &str) -> String {
     }
 }
 
+/// How long an announcement's card takes to fade in, and again to fade out.
+///
+/// A quarter of a second. Long enough that the card arrives and leaves as a layer, and short
+/// enough that a five-second card is fully readable for four and a half of them.
+const ANNOUNCE_FADE: Duration = Duration::from_millis(250);
+
+/// How opaque an announcement's card is, `elapsed` into its `total` time on the screen.
+///
+/// It rises over [`ANNOUNCE_FADE`], holds, and falls over the same time. A card too short for both
+/// ramps splits its time between them, so it still reaches its peak at the middle.
+pub(crate) fn announce_alpha(elapsed: Duration, total: Duration) -> f32 {
+    if elapsed >= total {
+        return 0.0;
+    }
+    let ramp = ANNOUNCE_FADE.min(total / 2).as_secs_f32();
+    if ramp <= 0.0 {
+        return 1.0;
+    }
+    let rising = elapsed.as_secs_f32() / ramp;
+    let falling = (total - elapsed).as_secs_f32() / ramp;
+    rising.min(falling).clamp(0.0, 1.0)
+}
+
+/// The card `km-display` draws for the machine's announcement.
+///
+/// Shared by the television and the streamed screen, so both fade the same card the same way.
+pub(crate) fn announcement_for(
+    view: &crate::machine::AnnouncementView,
+) -> km_display::Announcement<'_> {
+    km_display::Announcement {
+        title: &view.title,
+        artist: view.artist.as_deref(),
+        singer: view.singer.as_deref(),
+        alpha: announce_alpha(view.elapsed, view.total),
+    }
+}
+
 /// Every point size a screen of this height asks for.
 ///
 /// Compared rather than the height itself: most of the resize events a drag produces round to the
 /// same sizes, and reopening the font files for those would stutter the loop for nothing.
 ///
-/// **Every face `Fonts::load` opens has to be listed here**, the narrow lyric ladder included, or a
+/// **Every face `Fonts::load` opens has to be listed here**, both narrow ladders included, or a
 /// height change would leave those at the old screen's size. Width is deliberately absent and stays
 /// so: the ladder's sizes come from the height like every other face, and only the *choice* between
 /// them is about width — which `Fonts::fit_lyric` makes per line, per frame, opening nothing.
-pub(crate) fn font_sizes_for(theme: &Theme, height: u32) -> (u16, [u16; 3], u16, u16) {
-    (
-        theme.lyric_px(height),
-        theme.lyric_fallback_px(height),
-        theme.text_px(height),
-        theme.small_px(height),
-    )
+pub(crate) fn font_sizes_for(theme: &Theme, height: u32) -> FontSizes {
+    FontSizes {
+        lyric: theme.lyric_px(height),
+        lyric_narrow: theme.lyric_fallback_px(height),
+        announce: theme.announce_px(height),
+        announce_narrow: theme.announce_fallback_px(height),
+        text: theme.text_px(height),
+        small: theme.small_px(height),
+    }
+}
+
+/// What [`font_sizes_for`] answers: one point size per face, and nothing reads a field.
+///
+/// The two loops that hold one only ask whether it changed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct FontSizes {
+    lyric: u16,
+    lyric_narrow: [u16; 3],
+    announce: u16,
+    announce_narrow: [u16; 3],
+    text: u16,
+    small: u16,
 }
 
 /// Smooths a counter the audio thread only updates once per callback.
@@ -2576,6 +2628,9 @@ fn run_with(
             .as_ref()
             .map_or(0, |now| now.duration_ms);
         let adjustments = drawn_adjustments(now_kind, &snapshot.settings);
+        // Asked with the frame's one instant, so the card's opacity and the two deadlines above
+        // answer from the same clock.
+        let announced = machine.announcement_card(deadline_now);
 
         let frame = Frame {
             // Read per frame rather than off `config`, so the /admin/ picker takes effect on the
@@ -2590,17 +2645,20 @@ fn run_with(
             timeline: song.as_ref().map(|song| &song.lyrics),
             lyrics,
             picture: has_own_picture,
-            show_position: position_visible(
-                position_wanted(strip_pinned, position_until, deadline_now),
-                // A song that has stopped keeps its bar for as long as it is stopped: the position
-                // stops advancing with it, so the window cannot answer for it, and a room that
-                // paused to fetch a drink is the room most likely to be asking. Gated on `playing`
-                // so the idle screen is not reported as wanting a bar it has no row for.
-                playing && !advancing,
-                has_own_picture,
-                snapshot.position_ms,
-                duration_ms,
-            ),
+            // Never under the card. A held song sits stopped at zero, which the rule below reads as
+            // a paused song wanting its bar, and the bar would cross the card's last row.
+            show_position: announced.is_none()
+                && position_visible(
+                    position_wanted(strip_pinned, position_until, deadline_now),
+                    // A song that has stopped keeps its bar for as long as it is stopped: the position
+                    // stops advancing with it, so the window cannot answer for it, and a room that
+                    // paused to fetch a drink is the room most likely to be asking. Gated on `playing`
+                    // so the idle screen is not reported as wanting a bar it has no row for.
+                    playing && !advancing,
+                    has_own_picture,
+                    snapshot.position_ms,
+                    duration_ms,
+                ),
             position_ms: snapshot.position_ms,
             duration_ms,
             transpose: adjustments.0,
@@ -2628,6 +2686,7 @@ fn run_with(
                 text: &flash.text,
                 kind: flash.kind,
             }),
+            announcement: announced.as_ref().map(announcement_for),
             keypad: (!keypad.is_empty()).then_some(keypad),
             soundfont_label: soundfont_label.as_deref(),
             developer_mode,
@@ -3962,6 +4021,49 @@ mod tests {
 
         // And unpinning gives back the deadline rather than the strip.
         assert!(strip_visible(false, alive, now));
+    }
+
+    /// The card fades in, holds at full strength, and fades out to nothing at its end.
+    #[test]
+    fn an_announcement_fades_in_holds_and_fades_out() {
+        let total = Duration::from_secs(5);
+        let at = |ms: u64| announce_alpha(Duration::from_millis(ms), total);
+
+        assert_eq!(at(0), 0.0);
+        assert!((at(125) - 0.5).abs() < 0.01, "half way up the ramp");
+        assert_eq!(at(250), 1.0);
+        assert_eq!(at(2_500), 1.0);
+        assert_eq!(at(4_750), 1.0);
+        assert!((at(4_875) - 0.5).abs() < 0.01, "half way down it");
+        assert_eq!(at(5_000), 0.0);
+        assert_eq!(at(9_000), 0.0, "a card past its end draws nothing");
+    }
+
+    /// A card shorter than its two ramps still peaks at its middle, and one of no length is blank.
+    #[test]
+    fn a_very_short_announcement_still_reaches_its_peak() {
+        let total = Duration::from_millis(200);
+        assert_eq!(announce_alpha(Duration::from_millis(100), total), 1.0);
+        assert!(announce_alpha(Duration::from_millis(50), total) < 1.0);
+        assert_eq!(announce_alpha(Duration::ZERO, Duration::ZERO), 0.0);
+    }
+
+    /// The card `km-display` is handed carries the machine's names and the opacity for its moment.
+    #[test]
+    fn the_drawn_card_carries_the_songs_names_and_its_opacity() {
+        let view = crate::machine::AnnouncementView {
+            title: "Bola de Meia, Bola de Gude".to_owned(),
+            artist: None,
+            singer: Some("Ana".to_owned()),
+            elapsed: Duration::from_secs(2),
+            total: Duration::from_secs(5),
+        };
+        let card = announcement_for(&view);
+
+        assert_eq!(card.title, "Bola de Meia, Bola de Gude");
+        assert_eq!(card.artist, None);
+        assert_eq!(card.singer, Some("Ana"));
+        assert_eq!(card.alpha, 1.0);
     }
 
     /// A song three minutes long, for the tests that want a middle to be hidden in.

@@ -412,6 +412,7 @@ it are the same entry. How the thing is built is [`ARCHITECTURE.md`](../ARCHITEC
 - [Text that is cut or wrapped is measured in columns](interface.md#text-that-is-cut-or-wrapped-is-measured-in-columns)
 - [A line-timed song lights a line at a time](interface.md#a-line-timed-song-lights-a-line-at-a-time)
 - [A song whose words are turned off draws none, and says so in the corner](interface.md#a-song-whose-words-are-turned-off-draws-none-and-says-so-in-the-corner)
+- [The machine announces a song before it starts](interface.md#the-machine-announces-a-song-before-it-starts)
 - [What the machine does when nobody is singing](interface.md#what-the-machine-does-when-nobody-is-singing)
 - [Skip into silence asks demo mode for a song](interface.md#skip-into-silence-asks-demo-mode-for-a-song)
 - [The remote can ask for a demo song without turning demo mode on](interface.md#the-remote-can-ask-for-a-demo-song-without-turning-demo-mode-on)

@@ -96,6 +96,26 @@ pub struct SongInfo {
     pub language: Option<String>,
 }
 
+/// The card that names a song before it starts.
+///
+/// **Structured, where [`Frame::next_up`] is one joined string.** That row is a single small line
+/// and ellipsizes as one. The card gives each fact a row and a face of its own, so the singer's name
+/// is never what a long title pushes off the end.
+///
+/// The caller owns the clock, as it does for a [`Flash`]. How long the card stays and whether the
+/// song plays under it are the machine's questions; this crate is handed an opacity and draws it.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Announcement<'a> {
+    /// The song's title, in the largest face on the screen.
+    pub title: &'a str,
+    /// Performer, when the file says.
+    pub artist: Option<&'a str>,
+    /// Who asked for the song, when a remote said.
+    pub singer: Option<&'a str>,
+    /// How much of its opacity the card has, 0.0 to 1.0, scrim and words together.
+    pub alpha: f32,
+}
+
 /// Where a standing fault falls, for the one word the screen says about it.
 ///
 /// The vocabulary the owner's Problems tab already uses, because one machine must not name one fault
@@ -316,6 +336,12 @@ pub struct Frame<'a> {
     /// suppresses that line while it is up, on the same reasoning that keeps a dialled title away
     /// from an error: two sentences in one place read as one sentence.
     pub flash: Option<Flash<'a>>,
+    /// The song about to be sung, while the machine is announcing it.
+    ///
+    /// An overlay and not a third [`Screen`], for the reason [`Self::show_queue_overlay`] is one.
+    /// The song under the card is already loaded and may already be playing its intro, so the
+    /// playing screen stays live beneath the scrim and is what the card fades away to.
+    pub announcement: Option<Announcement<'a>>,
     /// On-screen touch targets to draw, when there are any.
     ///
     /// Drawn last, so it sits over everything else, and only when present: a keypad permanently
@@ -411,6 +437,7 @@ impl<'a> Frame<'a> {
             show_queue_overlay: false,
             faults: Faults::default(),
             flash: None,
+            announcement: None,
             keypad: None,
             soundfont_label: None,
             developer_mode: None,
@@ -514,6 +541,21 @@ pub fn draw<T: RenderTarget, C>(
     // one this instant is not the reader this is for.
     if let Some(mode) = frame.developer_mode {
         draw_developer_label(canvas, cache, fonts, theme, mode, frame.locale, layout);
+    }
+
+    // Over both screens and every standing label, because for its few seconds the card is the
+    // screen. Under the queue, the flash and the keypad: each of those is something a person asked
+    // for or needs to read this instant, and the card must not cost them it.
+    if let Some(announcement) = frame.announcement {
+        draw_announcement(
+            canvas,
+            cache,
+            fonts,
+            theme,
+            announcement,
+            layout,
+            frame.words(),
+        );
     }
 
     // Over the screen, under the keypad: the queue answers a question, and the keypad has to stay
@@ -1581,6 +1623,207 @@ fn draw_queue_overlay<T: RenderTarget, C>(
             ),
             (text_x, first_row + row_h * shown as f32),
             &TextStyle::plain(theme.text_dim, Align::Left),
+        );
+    }
+}
+
+/// The scrim behind an [`Announcement`], as an alpha out of 255 at full opacity.
+///
+/// Darker than the queue overlay's 210. That panel has two more layers behind its words and this
+/// card has none, so at 215 the lyric line under the card still read through the title. A video
+/// picture under it also arrives with no dimming of its own.
+const ANNOUNCE_SCRIM: f32 = 240.0;
+
+/// The space above the singer's row of an [`Announcement`], as a fraction of screen height.
+///
+/// The artist's row takes half of it, because the artist belongs to the title above it and the
+/// singer is a second statement.
+const ANNOUNCE_GAP: f32 = 0.035;
+
+/// How many lines an announced title may take.
+///
+/// Two, at the narrowest face. A third would push the singer's name toward the bottom edge, and a
+/// title that long is cut with `…` on every other row of this screen too.
+const ANNOUNCE_TITLE_MAX_LINES: usize = 2;
+
+/// The width an [`Announcement`] row may claim.
+///
+/// Two margins a side. The card is centered and stands alone, so it keeps clear of the screen's
+/// edge by more than a row that shares its line with a badge does.
+fn announce_width(layout: Layout) -> f32 {
+    layout.w - layout.margin * 4.0
+}
+
+/// The title face at one step of its ladder, as a fraction of screen height.
+///
+/// Step 0 is the full size and each later step is one of [`Theme::announce_fallbacks`], which is
+/// the numbering [`Fonts::fit_announce`] answers in.
+fn announce_title_size(theme: &Theme, step: usize) -> f32 {
+    match step.checked_sub(1) {
+        None => theme.announce_size,
+        Some(narrow) => {
+            let last = theme.announce_fallbacks.len() - 1;
+            theme.announce_size * theme.announce_fallbacks[narrow.min(last)]
+        }
+    }
+}
+
+/// Where each row of an [`Announcement`] starts, in pixels from the top.
+#[derive(Debug, Clone, PartialEq)]
+struct AnnounceRows {
+    /// The top of the first title line.
+    title_top: f32,
+    /// The distance from one title line's top to the next.
+    title_line: f32,
+    /// The top of the artist row, when there is one.
+    artist_top: Option<f32>,
+    /// The top of the singer row, when there is one.
+    singer_top: Option<f32>,
+    /// Where the last row ends.
+    bottom: f32,
+}
+
+/// Stacks an [`Announcement`]'s rows and centers the stack on the screen.
+///
+/// `title_size` is the title face as a fraction of screen height. Split from the drawing so the
+/// geometry is checked with no font open.
+fn announce_rows(
+    theme: &Theme,
+    layout: Layout,
+    title_size: f32,
+    title_lines: usize,
+    artist: bool,
+    singer: bool,
+) -> AnnounceRows {
+    let height = layout.h as u32;
+    let gap = layout.h * ANNOUNCE_GAP;
+    let title_lines = title_lines.max(1) as f32;
+    let title_line = theme.glyph_box_px(title_size, height);
+    let artist_line = theme.glyph_box_px(theme.text_size, height);
+    let singer_line = theme.glyph_box_px(theme.lyric_size, height);
+
+    let mut total = title_line * title_lines;
+    if artist {
+        total += gap * 0.5 + artist_line;
+    }
+    if singer {
+        total += gap + singer_line;
+    }
+
+    let title_top = ((layout.h - total) / 2.0).round();
+    let mut cursor = title_top + title_line * title_lines;
+    let artist_top = artist.then(|| {
+        let top = cursor + gap * 0.5;
+        cursor = top + artist_line;
+        top
+    });
+    let singer_top = singer.then(|| {
+        let top = cursor + gap;
+        cursor = top + singer_line;
+        top
+    });
+    AnnounceRows {
+        title_top,
+        title_line,
+        artist_top,
+        singer_top,
+        bottom: cursor,
+    }
+}
+
+/// Draws the card that names a song before it starts.
+///
+/// **The title's size gives way first and its shape second**, as the keypad line's does in
+/// [`fit_prompt`]. A title too wide for the narrowest face wraps onto two lines of that face, and
+/// only a title too long for both is cut.
+///
+/// **The singer's row outranks the artist's.** The artist is a fact about the file. The singer's
+/// name is why the card exists: it tells one person in the room to stand up.
+fn draw_announcement<T: RenderTarget, C>(
+    canvas: &mut Canvas<T>,
+    cache: &mut TextCache<C>,
+    fonts: &Fonts,
+    theme: &Theme,
+    announcement: Announcement<'_>,
+    layout: Layout,
+    words: &km_locale::Catalog,
+) {
+    let alpha = announcement.alpha.clamp(0.0, 1.0);
+    if alpha <= 0.0 {
+        return;
+    }
+    let available = announce_width(layout);
+    let height = layout.h as u32;
+    let center = layout.w / 2.0;
+
+    canvas.set_blend_mode(BlendMode::Blend);
+    canvas.set_draw_color(Color::RGBA(0, 0, 0, (ANNOUNCE_SCRIM * alpha).round() as u8));
+    let _ = canvas.fill_rect(FRect::new(0.0, 0.0, layout.w, layout.h));
+
+    let (title_font, metrics, step) = fonts.fit_announce(announcement.title, available);
+    let title_size = announce_title_size(theme, step);
+    let lines = if metrics.width <= available {
+        vec![announcement.title.to_owned()]
+    } else {
+        // Only the narrowest face reaches here, so its size is what a column is counted in.
+        let px = f32::from(theme.announce_fallback_px(height)[2]);
+        wrap_capped(
+            announcement.title,
+            fit_chars(available, px),
+            ANNOUNCE_TITLE_MAX_LINES,
+        )
+    };
+
+    let rows = announce_rows(
+        theme,
+        layout,
+        title_size,
+        lines.len(),
+        announcement.artist.is_some(),
+        announcement.singer.is_some(),
+    );
+
+    for (index, line) in lines.iter().enumerate() {
+        draw_text(
+            canvas,
+            cache,
+            title_font,
+            line,
+            (center, rows.title_top + rows.title_line * index as f32),
+            // The amber a sung word takes, which is the brightest color the screen has. White is
+            // what every standing row is drawn in, and the title must not read as one of them.
+            &TextStyle::outlined(theme.lyric_sung, theme, Align::Center).faded(alpha),
+        );
+    }
+
+    if let (Some(artist), Some(top)) = (announcement.artist, rows.artist_top) {
+        let chars = fit_chars(available, f32::from(theme.text_px(height)));
+        draw_text(
+            canvas,
+            cache,
+            &fonts.text,
+            &ellipsize(artist, chars),
+            (center, top),
+            &TextStyle::outlined(theme.text_dim, theme, Align::Center).faded(alpha),
+        );
+    }
+
+    if let (Some(singer), Some(top)) = (announcement.singer, rows.singer_top) {
+        let line = words.msg_with(crate::words::ANNOUNCE_SINGER, &[("singer", singer.into())]);
+        let (font, metrics) = fonts.fit_lyric(&[&line], available);
+        let line = if metrics.width <= available {
+            line.into_owned()
+        } else {
+            let px = f32::from(theme.lyric_fallback_px(height)[2]);
+            ellipsize(&line, fit_chars(available, px))
+        };
+        draw_text(
+            canvas,
+            cache,
+            font,
+            &line,
+            (center, top),
+            &TextStyle::outlined(theme.accent, theme, Align::Center).faded(alpha),
         );
     }
 }
@@ -4303,6 +4546,101 @@ mod tests {
             next_bottom < lyric_top,
             "`next:` runs to {next_bottom} and the lyrics start at {lyric_top}"
         );
+    }
+
+    /// The tallest card there is stays inside the screen's margins at every size.
+    ///
+    /// The tallest is a title wrapped to its two lines at the narrowest face, with both rows under
+    /// it. A wrapped title is always at that face, so no taller stack can be asked for.
+    #[test]
+    fn the_tallest_announcement_stays_inside_the_screen() {
+        let theme = Theme::default();
+        let narrowest = announce_title_size(&theme, theme.announce_fallbacks.len());
+        for (width, height) in SCREENS {
+            let layout = layout_for(&theme, width, height);
+            for (size, lines) in [
+                (theme.announce_size, 1),
+                (narrowest, ANNOUNCE_TITLE_MAX_LINES),
+            ] {
+                let rows = announce_rows(&theme, layout, size, lines, true, true);
+                assert!(
+                    rows.title_top >= layout.margin,
+                    "{width}x{height}: the title starts at {}",
+                    rows.title_top
+                );
+                assert!(
+                    rows.bottom <= height - layout.margin,
+                    "{width}x{height}: the card runs to {}",
+                    rows.bottom
+                );
+            }
+        }
+    }
+
+    /// The card's rows follow one another without touching, and the stack is centered.
+    #[test]
+    fn an_announcement_stacks_its_rows_and_centers_them() {
+        let theme = Theme::default();
+        for (width, height) in SCREENS {
+            let layout = layout_for(&theme, width, height);
+            let rows = announce_rows(&theme, layout, theme.announce_size, 1, true, true);
+            let artist = rows.artist_top.expect("an artist row was asked for");
+            let singer = rows.singer_top.expect("a singer row was asked for");
+
+            assert!(artist > rows.title_top + rows.title_line);
+            assert!(singer > artist + theme.glyph_box_px(theme.text_size, height as u32));
+            // Centered to within the pixel the top edge is rounded to, and the float error on it.
+            let above = rows.title_top;
+            let below = height - rows.bottom;
+            assert!(
+                (above - below).abs() < 1.5,
+                "{width}x{height}: {above} above and {below} below"
+            );
+        }
+    }
+
+    /// A row that is absent takes no space, so a title alone sits on the middle of the screen.
+    #[test]
+    fn an_announcement_with_no_singer_and_no_artist_is_the_title_alone() {
+        let theme = Theme::default();
+        let layout = layout_for(&theme, 1920.0, 1080.0);
+        let rows = announce_rows(&theme, layout, theme.announce_size, 1, false, false);
+
+        assert_eq!(rows.artist_top, None);
+        assert_eq!(rows.singer_top, None);
+        assert_eq!(rows.bottom, rows.title_top + rows.title_line);
+
+        let with_singer = announce_rows(&theme, layout, theme.announce_size, 1, false, true);
+        assert!(
+            with_singer.title_top < rows.title_top,
+            "a singer's row lifts the title to keep the stack centered"
+        );
+    }
+
+    /// Each step of the title's ladder is narrower than the one before, down to the last.
+    #[test]
+    fn the_announcement_title_narrows_one_step_at_a_time() {
+        let theme = Theme::default();
+        let steps = theme.announce_fallbacks.len();
+        let sizes: Vec<f32> = (0..=steps)
+            .map(|step| announce_title_size(&theme, step))
+            .collect();
+
+        assert_eq!(sizes[0], theme.announce_size);
+        assert!(sizes.windows(2).all(|pair| pair[1] < pair[0]));
+        // A step past the end is the narrowest face, never a panic.
+        assert_eq!(announce_title_size(&theme, steps + 5), sizes[steps]);
+    }
+
+    /// A title that wraps is cut at two lines, and the cut is marked.
+    #[test]
+    fn an_announced_title_too_long_for_two_lines_ends_in_an_ellipsis() {
+        let title = "word ".repeat(60);
+        let lines = wrap_capped(title.trim(), 30, ANNOUNCE_TITLE_MAX_LINES);
+
+        assert_eq!(lines.len(), ANNOUNCE_TITLE_MAX_LINES);
+        assert!(lines.last().is_some_and(|line| line.ends_with('…')));
+        assert!(lines.iter().all(|line| line.width() <= 30));
     }
 
     /// The demo line clears the lyrics above it and the position bar below, and touches neither.

@@ -151,6 +151,16 @@ pub struct Theme {
     /// 0.085 that is a 55% drop, so a line one character too wide would come out at not much over
     /// half height. The steps here are gentle enough that the usual answer is the first of them.
     pub lyric_fallbacks: [f32; 3],
+    /// Announcement title height as a fraction of screen height.
+    ///
+    /// The largest face on the screen, because the card it draws is read once and from a distance.
+    /// A singer has to see their song named while they are still walking to the microphone.
+    pub announce_size: f32,
+    /// Narrower announcement faces, as fractions of [`Theme::announce_size`], for a title too wide.
+    ///
+    /// A ladder for the reason [`Theme::lyric_fallbacks`] is one: a face has to be loaded to
+    /// measure with. A title may also wrap, so the last step here is a floor and not the last resort.
+    pub announce_fallbacks: [f32; 3],
     /// Ordinary text height as a fraction of screen height.
     pub text_size: f32,
     /// Small text height as a fraction of screen height.
@@ -200,6 +210,8 @@ impl Default for Theme {
 
             lyric_size: 0.085,
             lyric_fallbacks: [0.80, 0.65, 0.50],
+            announce_size: 0.15,
+            announce_fallbacks: [0.80, 0.65, 0.50],
             lyric_row_top: 0.42,
             lyric_row_height: 0.13,
             text_size: 0.038,
@@ -268,6 +280,17 @@ impl Theme {
     pub fn lyric_fallback_px(&self, screen_height: u32) -> [u16; 3] {
         self.lyric_fallbacks
             .map(|fraction| self.px(self.lyric_size * fraction, screen_height))
+    }
+
+    /// Announcement title size in pixels for a screen of this height.
+    pub fn announce_px(&self, screen_height: u32) -> u16 {
+        self.px(self.announce_size, screen_height)
+    }
+
+    /// The narrower announcement sizes in pixels, largest first.
+    pub fn announce_fallback_px(&self, screen_height: u32) -> [u16; 3] {
+        self.announce_fallbacks
+            .map(|fraction| self.px(self.announce_size * fraction, screen_height))
     }
 
     /// Ordinary text size in pixels.
@@ -402,6 +425,18 @@ mod tests {
         let theme = Theme::default();
         assert!(theme.lyric_px(1080) > theme.text_px(1080));
         assert!(theme.text_px(1080) > theme.small_px(1080));
+    }
+
+    /// The card is an announcement, so its title outranks every other face, the lyrics included.
+    #[test]
+    fn an_announcement_is_the_largest_face_on_the_screen() {
+        let theme = Theme::default();
+        assert!(theme.announce_px(1080) > theme.lyric_px(1080));
+        // The narrowest step is still larger than ordinary text, or wrapping would be the better answer.
+        let narrowest = theme.announce_fallback_px(1080)[2];
+        assert!(narrowest > theme.text_px(1080));
+        // A 4K television's title stays under the clamp, so the fraction is what it draws at.
+        assert_eq!(theme.announce_px(2160), 324);
     }
 
     #[test]

@@ -92,6 +92,7 @@
   <input type="radio" name="machine-tab" id="machine-tab-name"{% if pane.is(Pane::Name) %} checked{% endif %}>
   <input type="radio" name="machine-tab" id="machine-tab-password"{% if pane.is(Pane::Password) %} checked{% endif %}>
   <input type="radio" name="machine-tab" id="machine-tab-demo"{% if pane.is(Pane::Demo) %} checked{% endif %}>
+  <input type="radio" name="machine-tab" id="machine-tab-announcement"{% if pane.is(Pane::Announcement) %} checked{% endif %}>
   {% if chrome.capabilities.screen_language %}
   <input type="radio" name="machine-tab" id="machine-tab-language"{% if pane.is(Pane::Language) %} checked{% endif %}>
   {% endif %}
@@ -104,6 +105,7 @@
     <label for="machine-tab-name">{{ "machine-name"|t }}</label>
     <label for="machine-tab-password">{{ "password-field"|t }}</label>
     <label for="machine-tab-demo">{{ "demo-heading"|t }}</label>
+    <label for="machine-tab-announcement">{{ "announcement-heading"|t }}</label>
     {% if chrome.capabilities.screen_language %}
     <label for="machine-tab-language">{{ "locale-machine"|t }}</label>
     {% endif %}
@@ -302,6 +304,25 @@
           {{ "end-on-silence-enabled"|t }}
         </label>
         <button type="submit">{{ "end-on-silence-save"|t }}</button>
+      </form>
+    </section>
+  </div>
+
+  {# One form, where demo mode has two. Both values are always written down, so one Save means one
+     thing for both. #}
+  <div class="pane announcement">
+    <section class="card">
+      <h2>{{ "announcement-heading"|t }}</h2>
+      <p class="hint">{{ "announcement-hint"|t }}</p>
+      <form method="post" action="/admin/machine/announcement">
+        <label class="check">
+          <input type="checkbox" name="enabled" value="yes"{% if announcement_enabled %} checked{% endif %}>
+          {{ "announcement-enabled"|t }}
+        </label>
+        <label for="announcement-length">{{ "announcement-length-label"|t }}</label>
+        <input type="number" id="announcement-length" name="length_secs" value="{{ announcement_length_secs }}"
+               min="1" max="{{ announcement_length_max }}" step="1" inputmode="numeric">
+        <button type="submit">{{ "announcement-save"|t }}</button>
       </form>
     </section>
   </div>

@@ -295,6 +295,7 @@ async fn every_page_route_is_asked_about_before_it_runs() {
         ("POST", "/admin/machine/name"),
         ("POST", "/admin/machine/demo"),
         ("POST", "/admin/machine/demo-delay"),
+        ("POST", "/admin/machine/announcement"),
         ("POST", "/admin/machine/end-on-silence"),
         ("POST", "/admin/machine/password"),
         ("POST", "/admin/machine/sessions"),
@@ -416,9 +417,16 @@ async fn the_owners_page_turns_demo_mode_on_for_a_night_or_for_good() {
             body.contains(r#"action="/admin/machine/demo""#),
             "{surface}: {body}"
         );
+        // Read inside the demo form: the announcement's form has a box of the same name, and that
+        // one is ticked out of the box.
+        let demo_form = body
+            .split_once(r#"action="/admin/machine/demo""#)
+            .and_then(|(_, after)| after.split_once("</form>"))
+            .map(|(form, _)| form)
+            .expect("the demo form closes");
         assert!(
-            !body.contains(r#"name="enabled" value="yes" checked"#),
-            "nothing should be ticked yet: {body}"
+            !demo_form.contains(r#"name="enabled" value="yes" checked"#),
+            "nothing should be ticked yet: {demo_form}"
         );
 
         // On for the evening: the machine does it, and the settings file does not.
@@ -548,6 +556,70 @@ async fn ending_a_song_on_silence_is_a_box_on_the_machine_page() {
             post_form(&app, "/admin/machine/end-on-silence", "end_on_silence=yes").await;
         assert!(status.is_redirection(), "{surface}: {status}");
         assert!(state.controller().end_on_silence(), "{surface}");
+    }
+}
+
+/// The announcement is one form: the switch and the length are saved together, and both stick.
+#[tokio::test]
+async fn the_owners_page_sets_the_announcement_and_its_length_on_one_form() {
+    for host in BOTH_HOSTS {
+        let surface = host.name();
+        let (app, state) = nested_as(
+            host,
+            TestMachine::with_catalog(6),
+            Arc::new(SpyGuard::default()),
+        );
+
+        // Drawn with the machine's own values, and the cap the route enforces.
+        let (status, body) = get(&app, "/admin/machine").await;
+        assert_eq!(status, StatusCode::OK, "{surface}");
+        assert!(
+            body.contains(r#"action="/admin/machine/announcement""#),
+            "{body}"
+        );
+        assert!(body.contains(r#"name="length_secs" value="5""#), "{body}");
+        assert!(
+            body.contains(&format!(
+                r#"max="{}""#,
+                km_api::machine::MAX_ANNOUNCEMENT_SECS
+            )),
+            "{body}"
+        );
+
+        // An unticked box posts nothing, and that is the switch going off with the length kept.
+        let (status, _) = post_form(&app, "/admin/machine/announcement", "length_secs=8").await;
+        assert!(status.is_redirection(), "{surface}: {status}");
+        let announcement = state.controller().announcement();
+        assert!(!announcement.enabled, "{surface}");
+        assert_eq!(announcement.length_secs, 8, "{surface}");
+
+        let (status, _) = post_form(
+            &app,
+            "/admin/machine/announcement",
+            "enabled=yes&length_secs=3",
+        )
+        .await;
+        assert!(status.is_redirection(), "{surface}: {status}");
+        let announcement = state.controller().announcement();
+        assert!(announcement.enabled, "{surface}");
+        assert_eq!(announcement.length_secs, 3, "{surface}");
+
+        // Zero, past the cap and not a number are each refused, and the machine keeps what it had.
+        let too_long = km_api::machine::MAX_ANNOUNCEMENT_SECS + 1;
+        for typed in ["0".to_owned(), too_long.to_string(), "a+while".to_owned()] {
+            let (status, _) = post_form(
+                &app,
+                "/admin/machine/announcement",
+                &format!("enabled=yes&length_secs={typed}"),
+            )
+            .await;
+            assert!(status.is_redirection(), "{surface}: {typed}: {status}");
+            assert_eq!(
+                state.controller().announcement().length_secs,
+                3,
+                "{surface}: {typed}"
+            );
+        }
     }
 }
 

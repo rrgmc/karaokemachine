@@ -17,7 +17,7 @@ use std::path::PathBuf;
 use km_display::catalog::CatalogSummary;
 use km_display::connect::{ConnectInfo, ConnectProblem};
 use km_display::draw::{
-    Flash, FlashKind, Frame, Screen, SongInfo, position_reserve, version_reserve,
+    Announcement, Flash, FlashKind, Frame, Screen, SongInfo, position_reserve, version_reserve,
 };
 use km_display::keypad::Keypad;
 use km_display::lyrics::LyricView;
@@ -753,6 +753,64 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 ..playing(&info, &song.lyrics, &view, mid_second, &empty_entry, &song)
             },
         ),
+        // The card that names a song before it starts, with every row it can carry.
+        (
+            "28-announcement",
+            Frame {
+                announcement: Some(Announcement {
+                    title: &info.title,
+                    artist: Some("Milton Nascimento"),
+                    singer: Some("Ana"),
+                    alpha: 1.0,
+                }),
+                show_position: false,
+                ..playing(&info, &song.lyrics, &view, 0, &empty_entry, &song)
+            },
+        ),
+        // A song from the number pad has no singer, and one with no artist in its file has two
+        // rows fewer. The title stands alone and stays centered.
+        (
+            "28a-announcement-title-only",
+            Frame {
+                announcement: Some(Announcement {
+                    title: &info.title,
+                    artist: None,
+                    singer: None,
+                    alpha: 1.0,
+                }),
+                show_position: false,
+                ..playing(&info, &song.lyrics, &view, 0, &empty_entry, &song)
+            },
+        ),
+        // A title too wide for the narrowest face, which wraps, and a singer's name too long for
+        // its row, which is cut.
+        (
+            "28b-announcement-long-title",
+            Frame {
+                announcement: Some(Announcement {
+                    title: "Garota de Ipanema (The Girl from Ipanema) — ao vivo no Carnegie Hall, \
+                            versão completa com a introdução falada",
+                    artist: Some("Antônio Carlos Jobim, Vinícius de Moraes e os seus convidados"),
+                    singer: Some("Maria Eduarda Albuquerque de Vasconcellos e Sá"),
+                    alpha: 1.0,
+                }),
+                show_position: false,
+                ..playing(&info, &song.lyrics, &view, 0, &empty_entry, &song)
+            },
+        ),
+        // Half way out, over a song that has reached its first line: what the card fades away to.
+        (
+            "28c-announcement-fading",
+            Frame {
+                announcement: Some(Announcement {
+                    title: &info.title,
+                    artist: Some("Milton Nascimento"),
+                    singer: Some("Ana"),
+                    alpha: 0.5,
+                }),
+                ..playing(&info, &song.lyrics, &view, mid_first, &empty_entry, &song)
+            },
+        ),
     ];
 
     // The build number goes on every idle frame, here rather than on each one above. What the
@@ -957,9 +1015,33 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         },
     )?;
     check_the_furniture_over_a_pale_picture(&ttf, &theme, &picture_song(false, None), &pale)?;
+    // The card over a picture song's own picture, which arrives with no dimming at all. The scrim
+    // is the only thing between the title and a pale ground.
+    let announced = {
+        let mut frame = picture_song(false, None);
+        frame.announcement = Some(Announcement {
+            title: "Bola de Meia, Bola de Gude",
+            artist: Some("Milton Nascimento"),
+            singer: Some("Ana"),
+            alpha: 1.0,
+        });
+        frame
+    };
+    render_over(
+        &out_dir,
+        "28d-announcement-over-a-pale-picture",
+        &fonts,
+        &theme,
+        &announced,
+        Backdrop {
+            image: Some(&pale),
+            dim: 0.0,
+            shape: cdg_shape,
+        },
+    )?;
     println!(
         "\nwrote {} frames to {}",
-        frames.len() + 8,
+        frames.len() + 9,
         out_dir.display()
     );
     Ok(())
@@ -1043,6 +1125,7 @@ fn playing<'a>(
         screen: Screen::Playing,
         faults: km_display::Faults::default(),
         flash: None,
+        announcement: None,
         song: Some(song_info),
         timeline: Some(timeline),
         picture: false,

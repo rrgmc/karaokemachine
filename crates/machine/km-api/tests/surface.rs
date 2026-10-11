@@ -362,6 +362,7 @@ fn sample_body(path: &str) -> Option<Value> {
         "/admin/machine/name" => json!({ "name": "Living Room" }),
         "/admin/machine/locale" => json!({ "locale": "en" }),
         "/admin/demo" => json!({ "enabled": false }),
+        "/admin/announcement" => json!({ "enabled": true, "length_secs": 5 }),
         "/admin/debug" => json!({ "enabled": false }),
         "/admin/login" => json!({ "password": "wrong" }),
         "/login" => json!({ "password": "wrong" }),
@@ -2633,6 +2634,71 @@ async fn the_demo_delay_is_its_own_admin_route_and_is_always_written_down() {
     assert_eq!(status, StatusCode::BAD_REQUEST, "{status}");
     let body = harness.ok(Method::GET, "/demo", None).await;
     assert_eq!(body["delay_secs"], 30, "a refusal changes nothing");
+}
+
+/// The announcement is read by anybody and set by the owner, switch and length together.
+#[tokio::test]
+async fn the_announcement_is_public_to_read_and_admin_to_set() {
+    let mut harness = Harness::with_password("hunter2").tokenless();
+    let (status, body) = harness.get("/announcement").await;
+    assert!(status.is_success(), "reading it must stay public");
+    assert_eq!(body["enabled"], true);
+    assert_eq!(body["length_secs"], 5);
+
+    let (status, _) = harness
+        .put(
+            "/admin/announcement",
+            json!({ "enabled": false, "length_secs": 5 }),
+        )
+        .await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+
+    let login = harness
+        .ok(
+            Method::POST,
+            "/admin/login",
+            Some(json!({ "password": "hunter2" })),
+        )
+        .await;
+    harness.token = login["token"].as_str().map(str::to_owned);
+
+    let body = harness
+        .ok(
+            Method::PUT,
+            "/admin/announcement",
+            Some(json!({ "enabled": false, "length_secs": 8 })),
+        )
+        .await;
+    assert_eq!(body["enabled"], false);
+    assert_eq!(body["length_secs"], 8);
+    assert_eq!(
+        harness.machine.recorded().last(),
+        Some(&Recorded::SetAnnouncement {
+            enabled: false,
+            length_secs: 8
+        }),
+        "both values have to reach the machine, not merely parse"
+    );
+
+    // A body naming the switch alone leaves the length to a default the caller never saw.
+    let (status, _) = harness
+        .put("/admin/announcement", json!({ "enabled": true }))
+        .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "{status}");
+
+    // Zero is no card, which the switch already says, and past the cap is a typo.
+    for length_secs in [0, km_api::machine::MAX_ANNOUNCEMENT_SECS + 1] {
+        let (status, _) = harness
+            .put(
+                "/admin/announcement",
+                json!({ "enabled": true, "length_secs": length_secs }),
+            )
+            .await;
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{length_secs}: {status}");
+    }
+    let body = harness.ok(Method::GET, "/announcement", None).await;
+    assert_eq!(body["enabled"], false, "a refusal changes nothing");
+    assert_eq!(body["length_secs"], 8, "a refusal changes nothing");
 }
 
 /// Starting one demo song needs the control level, where turning the mode on is an owner's.

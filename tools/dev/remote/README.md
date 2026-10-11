@@ -66,6 +66,8 @@ awkward routes sit together at the bottom rather than wherever they were added. 
   nobody is using it. The delay has no `persist` box beside it because its route does not take one:
   `PUT /admin/demo/delay` always writes it down. The suitability floor is shown and not editable,
   being the one key of the three with no route behind it;
+- **the announcement** — the switch and the length of the card that names a queued song before it
+  starts. One route takes both, so each control sends both, and both are always written down;
 - **debugging mode** — the switch that mounts the two `debug/play-*` routes and makes the whole
   `debug.` settings section do anything. It takes effect at the next start, because the routes are
   mounted when the router is built;
