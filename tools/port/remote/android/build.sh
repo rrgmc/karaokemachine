@@ -16,7 +16,7 @@
 #
 # Prerequisites -- the same ones the machine already needs, and nothing more. No ninja, no ffmpeg, no
 # libclang:
-#   - Android NDK, via Android Studio's SDK Manager
+#   - Android NDK at the version build.gradle pins, via `sdkmanager` or Android Studio's SDK Manager
 #   - cargo install cargo-ndk
 #   - rustup target add aarch64-linux-android armv7-linux-androideabi
 
