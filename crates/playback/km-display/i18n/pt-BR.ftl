@@ -71,6 +71,7 @@ queue-overflow = e mais { $count }
 ## Enquanto uma música toca
 
 next-up = a seguir: { $title }
+announce-singer = Quem canta: { $singer }
 no-lyrics = (esta música não tem letra)
 
 ## Os distintivos sobre a música

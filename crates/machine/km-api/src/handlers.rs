@@ -918,6 +918,36 @@ pub async fn start_demo(State(state): State<ApiState>) -> ApiResult<Json<crate::
     Ok(Json(crate::dto::DemoDto::from(&ops::start_demo(&state)?)))
 }
 
+// -- the announcement ----------------------------------------------------------------------------
+
+/// `GET /api/v1/announcement`
+///
+/// Public, like `GET /demo`. A remote that knows a card is coming can tell a singer why the song
+/// it shows as loaded has not started.
+pub async fn get_announcement(State(state): State<ApiState>) -> Json<crate::dto::AnnouncementDto> {
+    Json(state.controller().announcement().into())
+}
+
+/// `PUT /api/v1/admin/announcement`
+///
+/// Turns the announcement on or off and sets its length, and writes both down. Admin, because it
+/// changes how every song on the machine starts for everybody in the room.
+///
+/// Answers with what the machine now says, as `put_demo` does. Refuses with 400 `rejected` a length
+/// of zero or one above the cap.
+///
+/// Synchronous. Switching it off ends a card that is up, and that is one command to the audio
+/// thread and no load.
+pub async fn put_announcement(
+    State(state): State<ApiState>,
+    Body(body): Body<crate::dto::SetAnnouncementRequest>,
+) -> ApiResult<Json<crate::dto::AnnouncementDto>> {
+    let announcement = state
+        .controller()
+        .set_announcement(body.enabled, body.length_secs)?;
+    Ok(Json(announcement.into()))
+}
+
 // -- packages ------------------------------------------------------------------------------------
 
 /// `GET /api/v1/packages`

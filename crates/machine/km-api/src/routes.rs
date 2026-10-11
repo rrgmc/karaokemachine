@@ -180,6 +180,7 @@ pub const SURFACE: &[(&str, &str)] = &[
     ("GET", "/locale"),
     ("GET", "/demo"),
     ("POST", "/demo/start"),
+    ("GET", "/announcement"),
     ("GET", "/packages"),
     ("GET", "/debug"),
     ("GET", "/dev-remote"),
@@ -207,6 +208,7 @@ pub const SURFACE: &[(&str, &str)] = &[
     ("PUT", "/admin/machine/locale"),
     ("PUT", "/admin/demo"),
     ("PUT", "/admin/demo/delay"),
+    ("PUT", "/admin/announcement"),
     ("POST", "/admin/packages"),
     ("POST", "/admin/packages/upload"),
     ("POST", "/admin/packages/rescan"),
@@ -596,6 +598,8 @@ fn api_router(config: &crate::ApiConfig, capabilities: Capabilities) -> Router<A
         // which is what `PUT /admin/demo` already does; this starts one song and turns nothing on.
         // It interrupts whatever is playing, so it needs the control level.
         .route("/demo/start", post(handlers::start_demo))
+        // Whether a card names each queued song before it starts. Public read, admin write.
+        .route("/announcement", get(handlers::get_announcement))
         .route("/packages", get(handlers::get_packages))
         // Reporting whether debugging is on is public; turning it on is not. Using the answer and
         // changing the state are different acts — the same split `/demo` makes one screen over.
@@ -668,6 +672,9 @@ fn api_router(config: &crate::ApiConfig, capabilities: Capabilities) -> Router<A
         // configuration that is always written down. Admin because zero is a legal delay, so this
         // is the switch reached by another door — see `handlers::put_demo_delay`.
         .route("/demo/delay", put(handlers::put_demo_delay))
+        // One route for the switch and the length. Both are always written down, so nothing
+        // splits them the way `persist` splits the two demo routes above.
+        .route("/announcement", put(handlers::put_announcement))
         // **Install is admin.** It names a path on the machine's disk and installs whatever is there,
         // which is the one write a stranger must not be able to perform; `km-package-builder`
         // keeps a password of its own, so nothing about it needs this public.

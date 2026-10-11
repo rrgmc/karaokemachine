@@ -2181,6 +2181,63 @@ can hear.
 **Key and tempo still appear.** Turning the words off changes nothing about the music, and a MIDI
 song with its words withheld transposes and changes tempo exactly as it did.
 
+## The machine announces a song before it starts
+
+**Before a queued song starts, the whole screen names it.** A card shows the title, the artist, and
+the singer when a remote gave a name. The title stands in the largest face the screen has, larger
+than the lyrics. It takes the amber of a sung word, so it does not read as a standing white row. A singer needs one clear moment that says the song is theirs, and the small `next:`
+row is easy to miss from across a room.
+
+**The card overlaps the introduction, and adds silence only where there is none.** The card stays
+for `announcement.length_secs`. A song whose first line appears that far in, or later, plays at
+once under the card. A song with a shorter introduction waits for the difference, so its first line
+arrives as the card leaves. The first line appears eight beats before its first word, which is the
+lyric view's own lead-in.
+
+**A video and an MP3+G song wait for the whole card.** Neither carries word times, so nothing says
+when its singer starts. A MIDI file with no lyrics waits the same way.
+
+**This is the one gap between queued songs.** A pause between songs is what a party notices, so the
+machine still loads the next song the instant one ends. The announcement is the exception because
+it carries information: who sings next. A song with a long introduction pays nothing for it.
+
+**Every queued song gets a card.** That covers the first song on an idle machine, a song after a
+song, and a song after a skip. The singer is the reason, and each of those has one.
+
+**A demo song never gets one, and neither does a file played through the debug routes.** Nobody
+walks to a microphone for a demo, and demo songs chain with no gap, as
+[`What the machine does when nobody is singing`](#what-the-machine-does-when-nobody-is-singing)
+argues. A queued song that takes the deck from a demo is announced like any other.
+
+**Any transport press ends the card.** Play and Seek start the held song now. Pause leaves it
+loaded at its start until somebody presses Play. Skip and Stop take the song away, and the card
+goes with it. A person who pressed a key has read the screen.
+
+**A held song reports `stopped`, with the song in `now_playing`.** That is what the transport
+already means by stopped: loaded and positioned at the start. A remote shows the song as loaded,
+and no event or field exists for the card alone.
+
+**On by default, at five seconds.** Five seconds is long enough to read a title and a name from a
+sofa and to stand up. A video song waits in silence for all of it, so the default stays short. A
+room with several singers needs the card most on the day nobody has opened the settings.
+
+**The owner sets it, and the singer's remote does not.** `GET /api/v1/announcement` is public and
+`PUT /api/v1/admin/announcement` takes the switch and the length together. Both are always written
+to `settings.json`: neither has a *for tonight* meaning, which is what splits demo mode into two
+routes. The route refuses zero and anything above thirty seconds. In the file, zero means no card.
+
+**Switching it off ends a card that is up, and the song under it plays.** A new length applies from
+the next song.
+
+**The card is an overlay and not a third screen.** The song under it is loaded and may be playing.
+So the playing screen stays live beneath a scrim, and the card fades to it. The queue, a flash
+and the keypad draw above it, because each is something a person asked for or must read now.
+
+**A long title gives up its size first and its shape second.** It steps down three narrower faces,
+then wraps to two lines of the narrowest, and only then ends in an ellipsis. The singer's row
+outranks the artist's: the artist is a fact about the file, and the singer's name tells one person
+to stand up.
+
 ## What the machine does when nobody is singing
 
 **Demo mode: after a minute of silence, the machine starts a random song.** **When that song ends, it

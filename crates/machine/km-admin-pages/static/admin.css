@@ -343,6 +343,7 @@ a.danger {
 #machine-tab-name:checked ~ .pane.name,
 #machine-tab-password:checked ~ .pane.password,
 #machine-tab-demo:checked ~ .pane.demo,
+#machine-tab-announcement:checked ~ .pane.announcement,
 #machine-tab-language:checked ~ .pane.language {
   display: block;
 }
@@ -351,6 +352,7 @@ a.danger {
 #machine-tab-name:checked ~ .tabstrip label[for="machine-tab-name"],
 #machine-tab-password:checked ~ .tabstrip label[for="machine-tab-password"],
 #machine-tab-demo:checked ~ .tabstrip label[for="machine-tab-demo"],
+#machine-tab-announcement:checked ~ .tabstrip label[for="machine-tab-announcement"],
 #machine-tab-language:checked ~ .tabstrip label[for="machine-tab-language"] {
   color: var(--text);
   border-bottom-color: var(--accent);
@@ -361,6 +363,7 @@ a.danger {
 #machine-tab-name:focus-visible ~ .tabstrip label[for="machine-tab-name"],
 #machine-tab-password:focus-visible ~ .tabstrip label[for="machine-tab-password"],
 #machine-tab-demo:focus-visible ~ .tabstrip label[for="machine-tab-demo"],
+#machine-tab-announcement:focus-visible ~ .tabstrip label[for="machine-tab-announcement"],
 #machine-tab-language:focus-visible ~ .tabstrip label[for="machine-tab-language"] {
   outline: 2px solid var(--accent);
   outline-offset: -2px;

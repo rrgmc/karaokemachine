@@ -46,6 +46,18 @@ delay is always written down. The argument is
 It is where `Controller::set_demo_delay` and `MAX_DEMO_DELAY_SECS` live. Past the cap it answers 400
 rather than clamping.
 
+**`GET /api/v1/announcement` and `PUT /api/v1/admin/announcement` are one resource in two prefixes
+as well.** The `PUT` takes `enabled` and `length_secs` together and always writes both down, so it
+has no `persist` and no second route under it. It answers 400 for a length of zero or one above
+`MAX_ANNOUNCEMENT_SECS`. The decision is
+[`The machine announces a song before it starts`](../decisions/interface.md#the-machine-announces-a-song-before-it-starts).
+
+**A song held behind its card reports `transport: stopped` with `now_playing` set.** `Machine::start`
+loads the song and withholds `Command::Play`, and `Machine::settle_announcement` sends it from the
+`km-poll` thread when the hold is over. `song_started` goes out when the song is loaded, which is
+when the queue changed. The arithmetic is `machine/announce.rs`. The hold is the card's length less
+the time to the song's first line. A song with no word times waits for the whole card.
+
 All three writes are **synchronous**, unlike every other route that can result in a song starting.
 `PUT /demo` and `PUT /admin/demo/delay` move a deadline, and `POST /demo/start` sets
 `State::demo_once`. Either way, `Machine::poll` on the `km-poll` thread starts the song up to 50 ms

@@ -118,6 +118,8 @@ pub enum Pane {
     Password,
     /// Whether the machine performs for itself.
     Demo,
+    /// Whether a queued song is announced before it starts.
+    Announcement,
     /// What the television speaks. The machine's own page only.
     Language,
 }
@@ -138,6 +140,7 @@ impl Pane {
             Self::Name => "name",
             Self::Password => "password",
             Self::Demo => "demo",
+            Self::Announcement => "announcement",
             Self::Language => "language",
         }
     }
@@ -811,6 +814,12 @@ pub struct MachinePage {
     /// browser refuses exactly what the route refuses and nobody has to discover the cap by being
     /// told no.
     pub demo_delay_max: u32,
+    /// Whether a queued song is announced before it starts.
+    pub announcement_enabled: bool,
+    /// How many seconds the announcement's card stays on the screen.
+    pub announcement_length_secs: u32,
+    /// The largest length the box will take, drawn from `km_api::machine::MAX_ANNOUNCEMENT_SECS`.
+    pub announcement_length_max: u32,
     /// Whether this host can be shut down and restarted, and so whether the card exists.
     ///
     /// **Absent rather than disabled**, which is this page's standing rule: a grayed control invites

@@ -261,6 +261,17 @@ than re-arming it from now; `karaokemachine::machine::demo_deadline_moved` does 
 settings would leave a machine obeying the old delay until the next time somebody touched it. On an
 idle box, that is never.
 
+**`announcement` is a section of two keys, and one route writes both.** `announcement.enabled` and
+`announcement.length_secs` say whether a card names each queued song and for how many seconds.
+`PUT /api/v1/admin/announcement` takes the pair and writes it at once. Neither key has a run-only
+half, so the route has no `persist` and the machine holds no second value beside the file's.
+
+**Nothing running has to be told.** `Machine::start` reads the section when a song starts, so a new
+length applies from the next song. Switching the announcement off also ends a card that is up. The
+route refuses zero and anything above `km_api::machine::MAX_ANNOUNCEMENT_SECS`, thirty seconds, with
+a 400. That bounds the route and not the file, where zero means no card. It needs no migration: both
+keys are optional, and a file without the section reads as on at five seconds.
+
 `min_suitability` is the one key of the three off the API, for a reason of its own. It is the demo
 setting a person cannot judge from the room. A delay is a length somebody feels. A floor of 5 against
 6 is a claim about what the packager measured about a file. Choosing it wants the catalog in

@@ -160,6 +160,17 @@ demo-delay-save = Salvar
 demo-delay-saved = A máquina vai esperar { $seconds } segundos. Guardado para sempre, como toda espera.
 demo-delay-bad = Isso não é um número de segundos.
 
+## O anúncio
+
+announcement-heading = Anúncio
+announcement-hint = Antes de uma música da fila começar, a tela mostra o título e quem canta. Uma música com introdução longa toca por baixo do anúncio.
+announcement-enabled = Anunciar cada música da fila
+announcement-length-label = Mostrar o anúncio por tantos segundos
+announcement-save = Salvar
+announcement-on = Cada música da fila é anunciada por { $seconds } segundos.
+announcement-off = As músicas da fila começam sem anúncio.
+announcement-length-bad = Isso não é um número de segundos.
+
 ## Desligar
 
 power-heading = Energia

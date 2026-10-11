@@ -24,6 +24,9 @@
   audio.
 - **Wallpapers** cycling with a crossfade, from a folder of stills or a zip of them.
 - **A queue** with singer names, shown over whatever is playing.
+- **An announcement before each queued song.** For five seconds the whole screen shows the title,
+  the artist and the singer's name. A song with a long introduction plays under the card. The owner
+  can change the length or turn it off.
 - **A demo mode**, off by default: after a minute of quiet the machine plays songs by itself until
   somebody queues one.
 

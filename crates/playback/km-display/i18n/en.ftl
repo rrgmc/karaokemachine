@@ -96,6 +96,9 @@ queue-overflow = and { $count } more
 
 # What is queued after this one.
 next-up = next: { $title }
+# The last row of the card that names a song before it starts. A label and a name, so the row
+# reads the same whoever the singer is.
+announce-singer = Singer: { $singer }
 # A MIDI file that carries no words. Not drawn over a video or an MP3+G song, whose words are
 # somebody else's pixels — there it would be a sentence about nothing.
 no-lyrics = (no lyrics in this file)

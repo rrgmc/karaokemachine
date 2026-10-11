@@ -32,8 +32,9 @@ use km_songcode::SongCode;
 use serde::{Deserialize, Serialize};
 
 use crate::machine::{
-    AudioOutputs, DemoState, NowPlaying, Origin, OutputLevel, Settings, SettingsPatch, Snapshot,
-    SoundFontBanks, SoundFontChoice, SoundFontStatus, SoundKind, WallpaperSource, WallpaperState,
+    AnnouncementState, AudioOutputs, DemoState, NowPlaying, Origin, OutputLevel, Settings,
+    SettingsPatch, Snapshot, SoundFontBanks, SoundFontChoice, SoundFontStatus, SoundKind,
+    WallpaperSource, WallpaperState,
 };
 
 /// What the transport is doing.
@@ -391,6 +392,42 @@ impl From<&DemoState> for DemoDto {
             min_suitability,
             playing,
             starts_in_secs,
+        }
+    }
+}
+
+/// `PUT /admin/announcement`.
+///
+/// **Both fields, always.** A form that draws the switch also draws the length, and a body naming
+/// one alone would leave the other to a default the caller never saw.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SetAnnouncementRequest {
+    /// Whether a queued song is announced before it starts.
+    pub enabled: bool,
+    /// How many seconds the card stays on the screen, from 1 to the route's cap.
+    pub length_secs: u32,
+}
+
+/// `GET /announcement`, and the answer to `PUT /admin/announcement`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AnnouncementDto {
+    /// Whether a queued song is announced before it starts.
+    pub enabled: bool,
+    /// How many seconds the card stays on the screen.
+    pub length_secs: u32,
+}
+
+impl From<AnnouncementState> for AnnouncementDto {
+    fn from(announcement: AnnouncementState) -> Self {
+        // Destructured; see `From<Settings> for SettingsDto`.
+        let AnnouncementState {
+            enabled,
+            length_secs,
+        } = announcement;
+        Self {
+            enabled,
+            length_secs,
         }
     }
 }

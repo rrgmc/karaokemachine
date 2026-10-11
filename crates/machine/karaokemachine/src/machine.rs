@@ -61,6 +61,9 @@ use crate::video::VideoSong;
 /// from here: the methods land on [`Machine`] exactly as though they were written below.
 mod soundfont;
 
+/// When an announced song plays and when its card leaves. See its own header.
+mod announce;
+
 /// The two kinds of thing a loaded song can be.
 ///
 /// Held on the control thread for as long as the song is loaded. The audio half of each lives
@@ -205,6 +208,57 @@ impl Loaded {
             Media::Video(_) | Media::Cdg(_) => None,
         }
     }
+
+    /// How long after this song starts its first lyric line appears on the screen.
+    ///
+    /// The line appears one lead-in before its first word, which is the lyric view's own rule. An
+    /// announcement's card leaves at this moment, so the singer reads the line as the card goes.
+    ///
+    /// `None` for a video or an MP3+G song, which carry no word times, and for a song with no
+    /// lyric lines.
+    ///
+    /// **Read from the media and not through [`Self::lyric_song`].** A song whose words are turned
+    /// off still has a singer who starts at its first word.
+    ///
+    /// `tempo_ratio` shortens or stretches a MIDI song's introduction. An UltraStar or LRC song
+    /// plays recorded audio at its own speed, so the ratio does not apply to it.
+    fn reveal(&self, tempo_ratio: f32) -> Option<Duration> {
+        let (song, ratio) = match &self.media {
+            Media::Midi(song) => (song, tempo_ratio),
+            Media::Timed(timed) => (timed.song(), 1.0),
+            Media::Video(_) | Media::Cdg(_) => return None,
+        };
+        first_line_appears(song, ratio)
+    }
+}
+
+/// How long into `song` its first lyric line appears, at `ratio` times its written tempo.
+///
+/// The arithmetic of [`Loaded::reveal`], apart from it so a test hands it a song directly.
+fn first_line_appears(song: &Song, ratio: f32) -> Option<Duration> {
+    let first_word = song.lyrics.lines.first()?.start_tick;
+    let lead_in = km_display::LyricView::for_ticks_per_quarter(song.beat_ticks()).lead_in_ticks;
+    let written_ms = song
+        .tempo_map
+        .tick_to_ms(first_word.saturating_sub(lead_in));
+    // A ratio of zero or less is no tempo at all. `start` never sends one, and a song that
+    // cannot say when it starts waits for the whole card.
+    (ratio > 0.0).then(|| Duration::from_secs_f32(written_ms as f32 / 1000.0 / ratio))
+}
+
+/// The announcement card as the display draws it. See [`Machine::announcement_card`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AnnouncementView {
+    /// The song's title.
+    pub title: String,
+    /// Performer, when the file says.
+    pub artist: Option<String>,
+    /// Who asked for the song, when a remote said.
+    pub singer: Option<String>,
+    /// How long the card has been up.
+    pub elapsed: Duration,
+    /// How long the card stays up in all.
+    pub total: Duration,
 }
 
 /// A song loaded from the catalog and ready to hand to the engine.
@@ -518,6 +572,12 @@ struct State {
     /// back paused. Play and Pause move it while the song waits, so a press made with no device to
     /// play through is kept for when one returns.
     awaiting_stream: Option<bool>,
+    /// The loaded song's announcement, while its card is up or the song is held behind it.
+    ///
+    /// Written with [`Self::loaded`] and under the same lock, so no reader sees one song's card
+    /// beside another song. `None` for a demo song, a debug file play, and a machine whose owner
+    /// turned the announcement off.
+    announce: Option<announce::Announce>,
     /// The lyric line last announced, so `lyric_line` fires on change rather than every poll.
     announced_line: Option<usize>,
     /// Set by the API, cleared by the display: "advance the wallpaper now".
@@ -854,6 +914,7 @@ impl Machine {
                 songs_ended_seen: 0,
                 streams_lost_seen: 0,
                 awaiting_stream: None,
+                announce: None,
                 announced_line: None,
                 wallpaper_requested: false,
                 wallpaper_dir_stale: false,
@@ -2019,12 +2080,98 @@ impl Machine {
             } else {
                 DemoEvent::Somebody
             });
-            // Straight into the next one. A pause between songs is what a party notices.
+            // Straight into the next one. A pause between songs is what a party notices, so the
+            // next song loads now. Its announcement is the one gap, and `start` decides that.
             self.advance();
         }
 
+        self.settle_announcement(Instant::now());
         self.maybe_start_demo();
         self.announce_lyric_line();
+    }
+
+    /// Plays a song held behind its announcement once the hold is over, and retires the card.
+    ///
+    /// Called from [`Self::poll`], so the held song plays up to one poll interval late. That
+    /// lateness sits inside the first line's lead-in, where nobody is singing yet. The card's own
+    /// end is an instant the display reads at frame rate, and this does not move it.
+    ///
+    /// **The play is sent under the state lock.** A skip can start the next song between this
+    /// method reading the hold and sending the play. `start` writes the next song's announcement
+    /// under that same lock before it sends its own load. So the play sent here reaches either the
+    /// song it was held for or an engine about to be loaded again, and never the next song.
+    ///
+    /// **A machine that left the screen drops the hold and plays nothing.** A song must not start
+    /// to an empty room, for the reason [`Self::settle_foreground`] pauses one. The song stays
+    /// loaded at its start, and Play starts it.
+    ///
+    /// `now` is an argument so a test moves the clock without waiting on it.
+    fn settle_announcement(&self, now: Instant) {
+        let foreground = self.foreground.load(Ordering::Acquire);
+        let mut state = self.lock_state();
+        let Some(announce) = state.announce.as_mut() else {
+            return;
+        };
+        if announce.play_is_due(now) {
+            announce.play_at = None;
+            if foreground {
+                self.play_holding_the_state(&mut state);
+            } else {
+                state.announce = None;
+                return;
+            }
+        }
+        if state.announce.is_some_and(|announce| announce.is_over(now)) {
+            state.announce = None;
+        }
+    }
+
+    /// Plays the loaded song, or records the press for a song that waits for a stream.
+    ///
+    /// [`Self::hold_for_stream`] and the send that follows it, for a caller that already holds the
+    /// state lock. See [`Self::settle_announcement`] for why the lock is held across the send.
+    fn play_holding_the_state(&self, state: &mut State) {
+        match state.awaiting_stream.as_mut() {
+            Some(held) => {
+                *held = true;
+                self.engine.send(Command::Wake);
+            }
+            None => {
+                self.engine.send(Command::Play);
+            }
+        }
+    }
+
+    /// Takes the announcement's card down, and plays the song held behind it when asked.
+    ///
+    /// For every act that makes the card stale: a transport press, and the owner turning the
+    /// announcement off. `play_now` is false where the caller sends its own command next.
+    fn end_announcement(&self, play_now: bool) {
+        let mut state = self.lock_state();
+        let held = state
+            .announce
+            .take()
+            .is_some_and(|announce| announce.play_at.is_some());
+        if held && play_now {
+            self.play_holding_the_state(&mut state);
+        }
+    }
+
+    /// The card to draw at `now`, for the display thread: the loaded song's names, and how far
+    /// through its time the card is.
+    ///
+    /// `None` when no card is up. The display turns the two durations into an opacity.
+    pub fn announcement_card(&self, now: Instant) -> Option<AnnouncementView> {
+        let state = self.lock_state();
+        let (elapsed, total) = state.announce.as_ref()?.card(now)?;
+        let loaded = state.loaded.as_ref()?;
+        Some(AnnouncementView {
+            title: loaded.title.clone(),
+            artist: loaded.artist.clone(),
+            singer: loaded.singer.clone(),
+            elapsed,
+            total,
+        })
     }
 
     /// Moves demo mode's deadline, and settles what becomes of a hand-pressed trigger.
@@ -2391,6 +2538,7 @@ impl Machine {
             normalize_media,
             normalize_midi,
             change_wallpaper,
+            announce_length,
         ) = {
             let settings = self.lock_settings();
             (
@@ -2413,8 +2561,20 @@ impl Machine {
                 // Read here rather than beside the state lock below, because the two locks are
                 // deliberately never held at once anywhere in this function.
                 settings.wallpaper.on_song_change,
+                settings.announcement.length(),
             )
         };
+
+        // **Only a queued song is announced.** A demo song has no singer walking to a microphone
+        // and chains with no gap, and a file played through the debug routes is a curator
+        // listening to it. The card's length is read here, so a change applies from the next song.
+        let announced = match &loaded.origin {
+            Origin::Catalog { .. } => announce_length
+                .map(|card| announce::plan(card, loaded.reveal(tempo_ratio)))
+                .map(|plan| announce::Announce::begin(plan, Instant::now())),
+            Origin::Demo { .. } | Origin::File { .. } => None,
+        };
+        let plays_now = announced.is_none_or(|(_, plays_now)| plays_now);
 
         // **The gain is worked out here and sent unconditionally, `1.0` included.** `Sticky` replays
         // the last value it saw into every stream it builds, so a start that sent nothing would
@@ -2499,6 +2659,8 @@ impl Machine {
             // A song starting brings its own `Load`, so nothing is owed to the song it replaces.
             state.awaiting_stream = None;
             state.loaded = Some(loaded.clone());
+            // With the song and under its lock, so the card on the screen is always this song's.
+            state.announce = announced.map(|(announce, _)| announce);
             // **The picture belongs to the song rather than to the clock.** The same flag
             // `POST /wallpapers/next` sets, so a song start takes the display's one change path —
             // re-resolve the folder, rescan it, advance the playlist, ask the loader — instead of
@@ -2519,7 +2681,10 @@ impl Machine {
         self.engine.send(Command::SetMelodyEnabled(melody_enabled));
         self.engine.send(Command::SetMusicVolume(volume));
         self.engine.send(Command::SetSongGain(song_gain));
-        self.engine.send(Command::Play);
+        // A song held behind its card stays loaded and stopped. `settle_announcement` plays it.
+        if plays_now {
+            self.engine.send(Command::Play);
+        }
         // `debug!` rather than `info!`: this is one line per song on a machine that plays all
         // evening, and the number is only interesting when somebody is asking why a song sounds the
         // way it does. `km-pack inspect` is where the measurements are read in bulk.
@@ -2555,6 +2720,7 @@ impl Machine {
             let mut state = self.lock_state();
             state.announced_line = None;
             state.awaiting_stream = None;
+            state.announce = None;
             state.loaded.take().is_some()
         };
         self.engine.send(Command::Unload);
@@ -4222,6 +4388,17 @@ impl Controller for Machine {
                 DemoEvent::Somebody
             },
         );
+        // **Any press ends the announcement.** A person who pressed a key has read the screen.
+        // Play, Pause and Restart send their own command below, so the held play is dropped and
+        // not sent twice. Seek has none of its own that starts a song, so the held one is sent.
+        // Skip and Stop take the song away, and `start` and `go_idle` take the card with it.
+        match command {
+            TransportCommand::Play | TransportCommand::Pause | TransportCommand::Restart => {
+                self.end_announcement(false);
+            }
+            TransportCommand::Seek { .. } => self.end_announcement(true),
+            TransportCommand::Skip | TransportCommand::Stop => {}
+        }
         let loaded = self.lock_state().loaded.is_some();
         match command {
             TransportCommand::Play => {
@@ -4569,6 +4746,45 @@ impl Controller for Machine {
         }
         tracing::info!(delay_secs, was, "the demo delay was changed");
         Ok(self.demo())
+    }
+
+    fn announcement(&self) -> km_api::machine::AnnouncementState {
+        let settings = self.lock_settings();
+        km_api::machine::AnnouncementState {
+            enabled: settings.announcement.enabled,
+            length_secs: settings.announcement.length_secs,
+        }
+    }
+
+    /// Sets the announcement's switch and length, and writes both down.
+    ///
+    /// Straight to disk, for `set_demo`'s reason. Both values are read when the next song starts,
+    /// so a new length applies from then.
+    ///
+    /// **Switching it off ends a card that is up, and the song held behind it plays.** An owner
+    /// who turned the announcement off and still saw one would conclude the switch was broken.
+    fn set_announcement(
+        &self,
+        enabled: bool,
+        length_secs: u32,
+    ) -> Result<km_api::machine::AnnouncementState, ControlError> {
+        if length_secs == 0 || length_secs > km_api::machine::MAX_ANNOUNCEMENT_SECS {
+            return Err(ControlError::Rejected(format!(
+                "an announcement of {length_secs} seconds is outside the 1 to {} this accepts",
+                km_api::machine::MAX_ANNOUNCEMENT_SECS
+            )));
+        }
+        {
+            let mut settings = self.lock_settings();
+            settings.announcement.enabled = enabled;
+            settings.announcement.length_secs = length_secs;
+        }
+        self.save_settings();
+        if !enabled {
+            self.end_announcement(true);
+        }
+        tracing::info!(enabled, length_secs, "the announcement was changed");
+        Ok(self.announcement())
     }
 
     /// Asks for one demo song now.
@@ -6556,8 +6772,31 @@ mod tests {
     /// a test built on one proves nothing about the queue at all.
     ///
     /// The scratch folder comes first, so a caller's binding for it drops after the machine does.
+    ///
+    /// **The announcement is off**, so a queued song plays the instant it is loaded. These tests
+    /// are about the queue and the deck, and the hold has its own machine below.
     fn a_machine_with_eight_songs(
         name: &str,
+    ) -> (Scratch, Arc<Machine>, CommandLog, Vec<SongCode>) {
+        let mut settings = Settings::default();
+        settings.announcement.enabled = false;
+        a_machine_with_eight_songs_under(name, settings)
+    }
+
+    /// The same machine, announcing each queued song for `length_secs`.
+    fn an_announcing_machine(
+        name: &str,
+        length_secs: u32,
+    ) -> (Scratch, Arc<Machine>, CommandLog, Vec<SongCode>) {
+        let mut settings = Settings::default();
+        settings.announcement.enabled = true;
+        settings.announcement.length_secs = length_secs;
+        a_machine_with_eight_songs_under(name, settings)
+    }
+
+    fn a_machine_with_eight_songs_under(
+        name: &str,
+        settings: Settings,
     ) -> (Scratch, Arc<Machine>, CommandLog, Vec<SongCode>) {
         let root = Scratch::new(&format!("machine-{name}"));
 
@@ -6580,7 +6819,7 @@ mod tests {
         let machine = Arc::new(
             Machine::new(
                 Paths::rooted_at(root.path()),
-                Settings::default(),
+                settings,
                 engine,
                 Events::new(),
             )
@@ -6621,6 +6860,324 @@ mod tests {
         );
         assert_eq!(log.count("Load"), 1, "exactly one song should be loaded");
         assert!(machine.queue().is_empty(), "and it should leave the queue");
+    }
+
+    /// The loaded song's announcement, for a test to read its instants from.
+    fn the_announcement(machine: &Machine) -> announce::Announce {
+        machine
+            .lock_state()
+            .announce
+            .expect("the loaded song should be announced")
+    }
+
+    /// A card longer than any fixture's introduction, so every song here waits behind it.
+    const A_LONG_CARD_SECS: u32 = 30;
+
+    /// A queued song loads at once and waits in silence, and plays when the hold is over.
+    #[test]
+    fn an_announced_song_is_loaded_at_once_and_plays_when_the_hold_is_over() {
+        let (_scratch, machine, log, codes) = an_announcing_machine("held", A_LONG_CARD_SECS);
+
+        let mut request = a_request(codes[0]);
+        request.singer = Some("Ana".to_owned());
+        machine.queue_add(request).expect("queue");
+
+        assert_eq!(log.count("Load"), 1, "the song is loaded behind its card");
+        assert_eq!(log.count("Play"), 0, "and it is held there in silence");
+        assert!(
+            Controller::snapshot(machine.as_ref()).now_playing.is_some(),
+            "a remote is told which song it is"
+        );
+
+        let announce = the_announcement(&machine);
+        let play_at = announce.play_at.expect("a held song has a moment to play");
+
+        let card = machine
+            .announcement_card(announce.shown_at)
+            .expect("the card is up");
+        assert_eq!(card.title, "Song 1");
+        assert_eq!(card.artist.as_deref(), Some("A Singer"));
+        assert_eq!(card.singer.as_deref(), Some("Ana"));
+        assert_eq!(card.elapsed, Duration::ZERO);
+        assert_eq!(card.total, Duration::from_secs(u64::from(A_LONG_CARD_SECS)));
+
+        machine.settle_announcement(play_at - Duration::from_millis(1));
+        assert_eq!(log.count("Play"), 0, "not a millisecond early");
+        assert!(
+            machine
+                .announcement_card(play_at - Duration::from_millis(1))
+                .is_some(),
+            "and the card is still up"
+        );
+
+        machine.settle_announcement(play_at);
+        assert_eq!(log.count("Play"), 1, "the hold is over");
+        machine.settle_announcement(play_at + Duration::from_millis(50));
+        assert_eq!(log.count("Play"), 1, "and the song is played once");
+
+        // This fixture's first line is on the screen from its first tick, so the card and the
+        // hold end together.
+        assert_eq!(announce.card_until, play_at);
+        assert!(machine.lock_state().announce.is_none());
+        assert!(machine.announcement_card(announce.card_until).is_none());
+    }
+
+    /// The hold is the card's length less the time to the song's first line.
+    #[test]
+    fn the_hold_is_the_card_less_the_songs_introduction() {
+        let (_scratch, machine, _log, codes) = an_announcing_machine("hold-length", 30);
+        machine.queue_add(a_request(codes[0])).expect("queue");
+
+        let reveal = machine
+            .lock_state()
+            .loaded
+            .as_ref()
+            .expect("a song is loaded")
+            .reveal(1.0)
+            .expect("a karaoke fixture has a first line");
+        let announce = the_announcement(&machine);
+        let held_for = announce.play_at.expect("held") - announce.shown_at;
+
+        assert_eq!(held_for + reveal, Duration::from_secs(30));
+        assert_eq!(
+            announce.card_until - announce.shown_at,
+            Duration::from_secs(30)
+        );
+    }
+
+    /// A song's first line appears one lead-in before its first word, and never before the song.
+    ///
+    /// The fixture's first word is eight beats in, which is exactly the lyric view's lead-in. Its
+    /// first line is therefore on the screen from the first tick.
+    #[test]
+    fn the_first_line_appears_one_lead_in_before_its_first_word() {
+        let mut song = km_song::testing::parse(&km_song::testing::words_around_a_solo());
+        assert_eq!(first_line_appears(&song, 1.0), Some(Duration::ZERO));
+
+        // Forty beats in at 120 to the minute leaves thirty-two beats of introduction.
+        song.lyrics.lines[0].start_tick = 19_200;
+        assert_eq!(
+            first_line_appears(&song, 1.0),
+            Some(Duration::from_secs(16))
+        );
+        // Twice the tempo spends them in half the time, so the card has less to overlap.
+        assert_eq!(first_line_appears(&song, 2.0), Some(Duration::from_secs(8)));
+        assert_eq!(
+            first_line_appears(&song, 0.0),
+            None,
+            "no tempo is no answer"
+        );
+
+        song.lyrics.lines.clear();
+        assert_eq!(
+            first_line_appears(&song, 1.0),
+            None,
+            "no words, no first line"
+        );
+    }
+
+    /// A sixteen-second introduction covers a five-second card, and a thirty-second card waits.
+    #[test]
+    fn a_long_introduction_covers_a_short_card_and_not_a_long_one() {
+        let mut song = km_song::testing::parse(&km_song::testing::words_around_a_solo());
+        song.lyrics.lines[0].start_tick = 19_200;
+        let reveal = first_line_appears(&song, 1.0);
+
+        let short = announce::plan(Duration::from_secs(5), reveal);
+        assert_eq!(short.play_after, Duration::ZERO);
+        let long = announce::plan(Duration::from_secs(30), reveal);
+        assert_eq!(long.play_after, Duration::from_secs(14));
+    }
+
+    /// Play ends the card and starts the held song now, and the hold never plays it a second time.
+    #[test]
+    fn pressing_play_starts_a_held_song_now() {
+        let (_scratch, machine, log, codes) = an_announcing_machine("play-press", A_LONG_CARD_SECS);
+        machine.queue_add(a_request(codes[0])).expect("queue");
+        let play_at = the_announcement(&machine).play_at.expect("held");
+
+        Controller::transport(machine.as_ref(), TransportCommand::Play).expect("play");
+        assert_eq!(log.count("Play"), 1);
+        assert!(machine.lock_state().announce.is_none(), "the card is down");
+
+        machine.settle_announcement(play_at);
+        assert_eq!(log.count("Play"), 1, "the hold was dropped with the card");
+    }
+
+    /// Pause ends the card and leaves the song loaded at its start, for Play to start.
+    #[test]
+    fn pausing_a_held_song_leaves_it_waiting_for_play() {
+        let (_scratch, machine, log, codes) =
+            an_announcing_machine("pause-press", A_LONG_CARD_SECS);
+        machine.queue_add(a_request(codes[0])).expect("queue");
+        let play_at = the_announcement(&machine).play_at.expect("held");
+
+        Controller::transport(machine.as_ref(), TransportCommand::Pause).expect("pause");
+        machine.settle_announcement(play_at);
+        assert_eq!(
+            log.count("Play"),
+            0,
+            "a paused song does not start by itself"
+        );
+        assert!(
+            machine.lock_state().loaded.is_some(),
+            "and it is still loaded"
+        );
+
+        Controller::transport(machine.as_ref(), TransportCommand::Play).expect("play");
+        assert_eq!(log.count("Play"), 1);
+    }
+
+    /// Seek ends the card and plays the held song from where the seek put it.
+    #[test]
+    fn seeking_in_a_held_song_plays_it() {
+        let (_scratch, machine, log, codes) = an_announcing_machine("seek-press", A_LONG_CARD_SECS);
+        machine.queue_add(a_request(codes[0])).expect("queue");
+
+        Controller::transport(machine.as_ref(), TransportCommand::Seek { ms: 4_000 })
+            .expect("seek");
+        assert_eq!(log.count("Play"), 1);
+        assert_eq!(log.count("SeekMs"), 1);
+        assert!(machine.lock_state().announce.is_none());
+    }
+
+    /// Skip takes the held song away, and the next queued song gets a card and a hold of its own.
+    #[test]
+    fn skipping_a_held_song_announces_the_next_one() {
+        let (_scratch, machine, log, codes) = an_announcing_machine("skip-press", A_LONG_CARD_SECS);
+        machine.queue_add(a_request(codes[0])).expect("queue one");
+        machine.queue_add(a_request(codes[1])).expect("queue two");
+        let first = the_announcement(&machine);
+
+        Controller::transport(machine.as_ref(), TransportCommand::Skip).expect("skip");
+        assert_eq!(log.count("Load"), 2);
+        assert_eq!(
+            log.count("Play"),
+            0,
+            "the second song is held as the first was"
+        );
+
+        let card = machine
+            .announcement_card(Instant::now())
+            .expect("the second song's card is up");
+        assert_eq!(card.title, "Song 2");
+        let second = the_announcement(&machine);
+        assert!(second.shown_at >= first.shown_at);
+        assert!(second.play_at.is_some());
+    }
+
+    /// Stop takes the song and its card away, and nothing plays afterwards.
+    #[test]
+    fn stopping_a_held_song_takes_its_card_down() {
+        let (_scratch, machine, log, codes) = an_announcing_machine("stop-press", A_LONG_CARD_SECS);
+        machine.queue_add(a_request(codes[0])).expect("queue");
+        let play_at = the_announcement(&machine).play_at.expect("held");
+
+        Controller::transport(machine.as_ref(), TransportCommand::Stop).expect("stop");
+        assert!(machine.lock_state().announce.is_none());
+        assert!(machine.announcement_card(Instant::now()).is_none());
+
+        machine.settle_announcement(play_at);
+        assert_eq!(log.count("Play"), 0);
+    }
+
+    /// The owner turning the announcement off ends the card that is up and plays the song under it.
+    #[test]
+    fn turning_the_announcement_off_plays_the_song_held_behind_it() {
+        let (_scratch, machine, log, codes) = an_announcing_machine("switch-off", A_LONG_CARD_SECS);
+        machine.queue_add(a_request(codes[0])).expect("queue one");
+        machine.queue_add(a_request(codes[1])).expect("queue two");
+
+        // A new length leaves the card that is up alone.
+        Controller::set_announcement(machine.as_ref(), true, 3).expect("a new length");
+        assert_eq!(log.count("Play"), 0);
+        assert!(machine.lock_state().announce.is_some());
+
+        let state = Controller::set_announcement(machine.as_ref(), false, 3).expect("off");
+        assert!(!state.enabled);
+        assert_eq!(log.count("Play"), 1, "the held song plays");
+        assert!(
+            machine.lock_state().announce.is_none(),
+            "and its card is down"
+        );
+
+        // And the next song is not announced at all.
+        Controller::transport(machine.as_ref(), TransportCommand::Skip).expect("skip");
+        assert_eq!(log.count("Play"), 2);
+        assert!(machine.lock_state().announce.is_none());
+    }
+
+    /// The route's bounds hold on the machine itself, and a refusal changes nothing.
+    #[test]
+    fn an_announcement_of_no_length_or_too_long_is_refused() {
+        let (_scratch, machine, _log, _codes) = an_announcing_machine("bounds", 5);
+
+        for length_secs in [0, km_api::machine::MAX_ANNOUNCEMENT_SECS + 1] {
+            let refused = Controller::set_announcement(machine.as_ref(), true, length_secs);
+            assert!(
+                matches!(refused, Err(ControlError::Rejected(_))),
+                "{length_secs}: {refused:?}"
+            );
+        }
+        let state = Controller::announcement(machine.as_ref());
+        assert!(state.enabled);
+        assert_eq!(state.length_secs, 5);
+
+        let top = km_api::machine::MAX_ANNOUNCEMENT_SECS;
+        let state = Controller::set_announcement(machine.as_ref(), true, top).expect("the cap");
+        assert_eq!(state.length_secs, top);
+    }
+
+    /// A demo song is never announced, and a queued song that takes the deck from one is.
+    #[test]
+    fn a_demo_song_gets_no_card_and_the_song_that_displaces_it_does() {
+        let (_scratch, machine, log, codes) = an_announcing_machine("demo", A_LONG_CARD_SECS);
+        machine.lock_state().demo_enabled = true;
+
+        machine.lock_state().demo_once = true;
+        machine.poll();
+        assert!(
+            matches!(
+                machine.lock_state().loaded.as_ref().map(|it| &it.origin),
+                Some(Origin::Demo { .. })
+            ),
+            "the harness did not get a demo song onto the deck"
+        );
+        assert!(machine.lock_state().announce.is_none());
+        assert_eq!(log.count("Play"), 1, "a demo plays as it is loaded");
+
+        machine.queue_add(a_request(codes[0])).expect("queue");
+        assert!(
+            matches!(
+                machine.lock_state().loaded.as_ref().map(|it| &it.origin),
+                Some(Origin::Catalog { .. })
+            ),
+            "the queued song takes the deck from the demo"
+        );
+        assert!(the_announcement(&machine).play_at.is_some());
+        assert_eq!(log.count("Play"), 1, "and it is held behind its card");
+    }
+
+    /// A machine that left the screen drops the hold, and the song waits for somebody to press Play.
+    #[test]
+    fn a_held_song_does_not_start_while_the_machine_is_off_the_screen() {
+        let (_scratch, machine, log, codes) = an_announcing_machine("background", A_LONG_CARD_SECS);
+        machine.queue_add(a_request(codes[0])).expect("queue");
+        let play_at = the_announcement(&machine).play_at.expect("held");
+
+        machine.foreground.store(false, Ordering::Release);
+        machine.settle_announcement(play_at);
+        assert_eq!(log.count("Play"), 0, "nothing starts to an empty room");
+        assert!(machine.lock_state().announce.is_none());
+        assert!(machine.lock_state().loaded.is_some(), "the song is kept");
+
+        machine.foreground.store(true, Ordering::Release);
+        machine.settle_announcement(play_at + Duration::from_secs(60));
+        assert_eq!(
+            log.count("Play"),
+            0,
+            "and coming back starts nothing by itself"
+        );
     }
 
     /// **A song starting asks for a new picture, and asks once per song.**

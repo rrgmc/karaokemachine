@@ -143,6 +143,8 @@ pub const QUEUE_OVERFLOW: &str = "queue-overflow";
 
 /// What is queued after the song playing.
 pub const NEXT_UP: &str = "next-up";
+/// The announcement card's row naming the singer.
+pub const ANNOUNCE_SINGER: &str = "announce-singer";
 /// A MIDI file that carries no words.
 pub const NO_LYRICS: &str = "no-lyrics";
 
@@ -281,6 +283,7 @@ pub const ALL_IDS: &[&str] = &[
     QUEUE_EMPTY,
     QUEUE_OVERFLOW,
     NEXT_UP,
+    ANNOUNCE_SINGER,
     NO_LYRICS,
     BADGE_KEY,
     BADGE_TEMPO,

@@ -517,6 +517,7 @@ pub fn router(state: Admin) -> Router {
         .route("/machine/locale", post(handlers::set_machine_locale))
         .route("/machine/demo", post(handlers::set_demo))
         .route("/machine/demo-delay", post(handlers::set_demo_delay))
+        .route("/machine/announcement", post(handlers::set_announcement))
         .route("/machine/password", post(handlers::set_password))
         .route("/machine/sessions", post(handlers::reset_sessions))
         .route("/machine/access", post(handlers::set_room_access))

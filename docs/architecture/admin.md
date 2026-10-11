@@ -340,6 +340,8 @@ the two hosts, rather than tidiness:
   draw.
 - **`set_demo_delay` answers with what the machine stored**, not what was asked for, because the route
   caps it. A page echoing the request would tell somebody their 9999 had been saved.
+- **`set_announcement` sends the switch and the length as one write**, and answers with the length
+  the machine stored. The Machine tab's Announcement pane is one form for that reason.
 - **`set_output` answers with the device list.** The confirmation names the device that was *chosen*,
   and `active_name` is what is *sounding*. On an idle machine nothing is, because the endpoint goes
   back five seconds after the last song. So that message once read *"The sound comes out of not yet
