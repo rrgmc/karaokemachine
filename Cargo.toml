@@ -366,7 +366,13 @@ ebur128 = "0.1.10"
 # **Priced, as everything in this file is.** It brings `rustfft` and five crates under it or beside
 # it, into every build, because an MP3+G song plays in every build. It also carries beat tracking and
 # file readers that playback never calls, and no feature turns them off.
-timestretch = "0.15.0"
+#
+# **A fork, for one fix.** The crate's phase vocoder keeps a list of spectral peaks sized for a
+# quarter of its bins, and dense music grows it on the audio thread. The fork sizes it for the most a
+# spectrum can hold. `branch` rather than `rev` for the reason `rustysynth` has one: `Cargo.lock`
+# pins the commit, and every release path passes `--locked`. This goes back to a version number the
+# day upstream carries the fix.
+timestretch = { git = "https://github.com/rrgmc/timestretch-rs", branch = "custom" }
 # The other stretcher `km-cdg`'s `stretch` example compares. MIT and pure Rust. It is a development
 # dependency of that one crate, so no shipped program links it.
 wsola = "0.1.0"

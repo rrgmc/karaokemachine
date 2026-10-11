@@ -51,11 +51,12 @@ wildcards = "allow"
 [sources]
 unknown-registry = "deny"
 unknown-git = "deny"
-# The two dependencies that are not published crates. `Cargo.lock` pins each one's commit, and the
+# The three dependencies that are not published crates. `Cargo.lock` pins each one's commit, and the
 # reasons sit beside each in the root `Cargo.toml`.
 allow-git = [
     "https://github.com/rrgmc/rustysynth",
+    "https://github.com/rrgmc/timestretch-rs",
     "https://github.com/RangelReale/ecapplog-rust",
 ]
-# The assets workspace takes neither.
+# The assets workspace takes none of them.
 unused-allowed-source = "allow"

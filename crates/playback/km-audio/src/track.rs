@@ -315,42 +315,29 @@ impl Stretch {
         Some(stretch)
     }
 
-    /// Runs the engine over noise at each end of its rate range, here on the control thread.
+    /// Runs the engine over silence at each end of its rate range, here on the control thread.
     ///
     /// The engine grows its buffers on the first blocks at a rate it has not run at, and never
-    /// after them. It also keeps a list of spectral peaks sized for a quarter of its bins. Noise
-    /// has more peaks than that, so the list grows here, once, to the most a spectrum can hold.
-    /// `tests/track_alloc.rs` counts, and fails where this is taken out.
+    /// after them. `tests/track_alloc.rs` counts, and fails where this is taken out.
+    ///
+    /// **Silence is enough, and only on the fork.** The published crate also grows a list of
+    /// spectral peaks on dense music, which no silence reaches. The fork in the root `Cargo.toml`
+    /// sizes that list when it builds the engine, and the same test fails on the published crate.
     fn warm_up(&mut self) {
         let fastest = f64::from(MAX_TEMPO_RATIO) * 2f64.powf(f64::from(MAX_TRANSPOSE) / 12.0);
         let slowest = f64::from(MIN_TEMPO_RATIO) / 2f64.powf(f64::from(MAX_TRANSPOSE) / 12.0);
-        let mut noise = [0.0; STRETCH_BLOCK * FEED_CHANNELS];
-        let mut seed: u32 = 0x2545_F491;
+        let silence = [0.0; STRETCH_BLOCK * FEED_CHANNELS];
         for rate in [fastest, slowest, 1.0] {
             self.controller.set_tempo_rate(rate);
             for _ in 0..STRETCH_WARM_UP_BLOCKS {
                 while self.source.free_frames() >= STRETCH_BLOCK
                     && self.source.occupied_frames() < STRETCH_RING_FRAMES / 2
                 {
-                    for sample in &mut noise {
-                        // A linear congruential step. The same noise every time, so a build that
-                        // passes the allocation test passes it on every run.
-                        seed = seed.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
-                        *sample = (seed >> 8) as f32 / 8_388_608.0 - 1.0;
-                    }
-                    self.source.push(&noise);
+                    self.source.push(&silence);
                 }
                 self.processor.process(&mut self.block);
             }
         }
-        // Silence last, so the frame the engine fades out from at its next reset is a silent one.
-        let silence = [0.0; STRETCH_BLOCK * FEED_CHANNELS];
-        for _ in 0..STRETCH_WARM_UP_BLOCKS {
-            self.source.push(&silence);
-            self.source.push(&silence);
-            self.processor.process(&mut self.block);
-        }
-        self.block = silence;
         self.restart();
     }
 

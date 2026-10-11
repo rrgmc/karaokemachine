@@ -82,8 +82,9 @@ position reporting, transpose, tempo scaling, seek, melody muting and queue-driv
   in bypass, and the position waits. The engine also gives silent blocks while it fills its first
   window, and the player drops those.
 - **The machine builds the stage, on the control thread.** `machine::with_quiet_point` calls
-  `TrackPlayer::add_stretch` for a song `start` marked adjustable. The build runs noise through the
-  engine, which takes its allocations off the audio thread. `tests/track_alloc.rs` holds that.
+  `TrackPlayer::add_stretch` for a song `start` marked adjustable. The build runs silence through
+  the engine at both ends of its rate range, which takes its allocations off the audio thread.
+  `tests/track_alloc.rs` holds that, and holds the fork's fix to the peak list with it.
 - **The cost on a desktop core is about 5% of real time.** `docs/research/audio-stretch.md` has the
   figures. Nothing has measured a television.
 - **The queue state machine lives on the control thread.** The audio thread only raises "song ended";
