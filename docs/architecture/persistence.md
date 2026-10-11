@@ -261,6 +261,12 @@ than re-arming it from now; `karaokemachine::machine::demo_deadline_moved` does 
 settings would leave a machine obeying the old delay until the next time somebody touched it. On an
 idle box, that is never.
 
+**`playback.end_on_silence` is the seventh, for the delay's reason.** It is one boolean a file
+states perfectly well, and the machine that wants it changed has no way to edit a file. It gets
+`PUT /api/v1/admin/playback/end-on-silence`, and it is written down at once. Its live counterpart is
+in the player: `Machine::set_end_on_silence` sends `Command::SetEndOnSilence`, so the song that is
+playing obeys the new value.
+
 **`announcement` is a section of two keys, and one route writes both.** `announcement.enabled` and
 `announcement.length_secs` say whether a card names each queued song and for how many seconds.
 `PUT /api/v1/admin/announcement` takes the pair and writes it at once. Neither key has a run-only

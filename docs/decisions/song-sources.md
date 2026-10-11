@@ -413,6 +413,10 @@ nothing and costs one sequential read, and it is the only answer that cannot be 
 freeze on their last picture and the song ends with the sound. The measured gap is its own field, and
 the mispairing check reads it.
 
+**The length is the file's, and the song may end before it.** Silence at the end of the audio ends
+the song early, and the length stays what was counted. See
+[`A song ends when its tail is silent`](audio.md#a-song-ends-when-its-tail-is-silent).
+
 ## A song that stopped says so without being asked
 
 **A starved decoder is reported at `warn` unconditionally, not behind `--frame-stats`.** It is not a

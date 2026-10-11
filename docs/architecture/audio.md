@@ -56,6 +56,16 @@ position reporting, transpose, tempo scaling, seek, melody muting and queue-driv
   early-returns for ever once it is finished. A bare `Player` (`offline.rs`, `render_wav`) has no
   watchdog behind it to load or unload. The parser repairs most of these before they get here; the
   backstop is for songs that reached the player another way.
+- **A silent tail ends a song early.** `Player::render_block` counts consecutive silent blocks once
+  the song says its tail may have begun. A full run takes the same path as the end of the file.
+  `Sequencer::is_past_last_note_and_word` is a MIDI song's gate. `TrackPlayer::is_past_quiet_point`
+  is a decoded song's, and `karaokemachine::machine::quiet_point_ms` chooses that point at load.
+  The rule and its numbers are in
+  [`A song ends when its tail is silent`](../decisions/audio.md#a-song-ends-when-its-tail-is-silent).
+- **Only a block that came from the song counts toward that run.** `TrackPlayer::render` returns
+  whether it did, so a paused, starved or seeking block does not count. A bare `Player` has the
+  watch off. The machine turns it on with `Command::SetEndOnSilence`, and `Sticky` replays it into
+  a rebuilt stream.
 - **The queue state machine lives on the control thread.** The audio thread only raises "song ended";
   the control thread pops the next entry and loads it.
 - Behind a `PlayerEngine` trait, so `km-api` can be tested against a stub with no audio device.

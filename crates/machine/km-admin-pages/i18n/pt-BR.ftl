@@ -160,6 +160,15 @@ demo-delay-save = Salvar
 demo-delay-saved = A máquina vai esperar { $seconds } segundos. Guardado para sempre, como toda espera.
 demo-delay-bad = Isso não é um número de segundos.
 
+## O fim de uma música
+
+end-on-silence-heading = O fim de uma música
+end-on-silence-hint = Alguns arquivos de música continuam em silêncio depois que a música para. A máquina pode encerrar a música ali e começar a próxima.
+end-on-silence-enabled = Encerrar a música quando o resto dela é silêncio
+end-on-silence-save = Salvar
+end-on-silence-on = A máquina encerra a música quando o resto dela é silêncio.
+end-on-silence-off = A máquina toca cada música até o fim do arquivo.
+
 ## O anúncio
 
 announcement-heading = Anúncio

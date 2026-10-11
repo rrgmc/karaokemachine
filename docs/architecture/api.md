@@ -46,6 +46,11 @@ delay is always written down. The argument is
 It is where `Controller::set_demo_delay` and `MAX_DEMO_DELAY_SECS` live. Past the cap it answers 400
 rather than clamping.
 
+**`PUT /api/v1/admin/playback/end-on-silence` says whether a silent tail ends a song**, and
+`GET /api/v1/playback/end-on-silence` reads it. `Controller::set_end_on_silence` writes
+`playback.end_on_silence` and sends `Command::SetEndOnSilence` to the player. The argument is
+[`Ending a song on silence is a route of its own`](../decisions/api-and-network.md#ending-a-song-on-silence-is-a-route-of-its-own-and-it-is-always-written-down).
+
 **`GET /api/v1/announcement` and `PUT /api/v1/admin/announcement` are one resource in two prefixes
 as well.** The `PUT` takes `enabled` and `length_secs` together and always writes both down, so it
 has no `persist` and no second route under it. It answers 400 for a length of zero or one above

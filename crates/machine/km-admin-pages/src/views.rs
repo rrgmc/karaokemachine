@@ -820,6 +820,8 @@ pub struct MachinePage {
     pub announcement_length_secs: u32,
     /// The largest length the box will take, drawn from `km_api::machine::MAX_ANNOUNCEMENT_SECS`.
     pub announcement_length_max: u32,
+    /// Whether a song ends when its tail is silent.
+    pub end_on_silence: bool,
     /// Whether this host can be shut down and restarted, and so whether the card exists.
     ///
     /// **Absent rather than disabled**, which is this page's standing rule: a grayed control invites

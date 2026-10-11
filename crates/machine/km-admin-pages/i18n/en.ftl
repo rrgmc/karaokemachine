@@ -180,6 +180,16 @@ demo-delay-save = Save
 demo-delay-saved = The machine will wait { $seconds } seconds. Saved for good, as a delay always is.
 demo-delay-bad = That is not a number of seconds.
 
+## The end of a song
+
+# On the Demo pane, because both cards say what the machine does when nobody is singing.
+end-on-silence-heading = The end of a song
+end-on-silence-hint = Some song files go on in silence after the music stops. The machine can end the song there and start the next one.
+end-on-silence-enabled = End a song when the rest of it is silent
+end-on-silence-save = Save
+end-on-silence-on = The machine ends a song when the rest of it is silent.
+end-on-silence-off = The machine plays every song to the end of its file.
+
 ## The announcement
 #
 # One Save for the switch and the length, so one confirmation covers both. The confirmation names

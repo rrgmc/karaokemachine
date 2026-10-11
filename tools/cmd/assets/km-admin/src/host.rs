@@ -314,23 +314,26 @@ impl Switches for RemoteMachine {
         // the **running** value, and a switch drawn from it read *Turn debugging on* both before the
         // press and after it. See `SwitchState::debug_stored`.
         //
-        // **Concurrent, because none of the five is an input to another.** In sequence they cost
-        // five round trips for a pane that needs one, and against a machine that is not answering
-        // five whole timeouts -- which is the difference between a page that says so and a page that
+        // **Concurrent, because none of the six is an input to another.** In sequence they cost
+        // six round trips for a pane that needs one, and against a machine that is not answering
+        // six whole timeouts -- which is the difference between a page that says so and a page that
         // looks broken. `try_join!` also stops at the first refusal rather than waiting out the
         // others.
-        let (debug, dev_remote, performance, demo, announcement) = tokio::try_join!(
-            client.debug(),
-            client.dev_remote(),
-            client.performance(),
-            client.demo(),
-            client.announcement(),
-        )
-        .map_err(fault)?;
+        let (debug, dev_remote, performance, demo, announcement, end_on_silence) =
+            tokio::try_join!(
+                client.debug(),
+                client.dev_remote(),
+                client.performance(),
+                client.demo(),
+                client.announcement(),
+                client.end_on_silence(),
+            )
+            .map_err(fault)?;
 
         Ok(SwitchState {
             announcement_enabled: announcement.enabled,
             announcement_length_secs: announcement.length_secs,
+            end_on_silence: end_on_silence.enabled,
             debug_running: debug.enabled,
             debug_stored: debug.stored,
             dev_remote_stored: dev_remote.enabled,
@@ -389,6 +392,15 @@ impl Switches for RemoteMachine {
             .set_announcement(enabled, length_secs)
             .await
             .map(|announcement| announcement.length_secs)
+            .map_err(fault)
+    }
+
+    async fn set_end_on_silence(&self, on: bool) -> Result<bool, AdminError> {
+        self.writing()
+            .await?
+            .set_end_on_silence(on)
+            .await
+            .map(|stored| stored.enabled)
             .map_err(fault)
     }
 }

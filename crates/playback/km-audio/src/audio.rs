@@ -90,6 +90,11 @@ pub enum Command {
     /// last value it saw into each new stream, so a MIDI song following a video would inherit the
     /// video's attenuation if a start were allowed to send nothing.
     SetSongGain(f32),
+    /// Say whether a silent tail ends the song.
+    ///
+    /// A fresh player waits for the last tick, so the machine sends this at every song start and
+    /// `Sticky` replays it into each new stream.
+    SetEndOnSilence(bool),
     /// Nothing for the player to do — a hint that sound is imminent.
     ///
     /// The device takes time to come up, and on a Bluetooth link that time is on the order of a
@@ -820,6 +825,7 @@ fn apply<S: AudioSource>(
         Command::SetMelodyEnabled(enabled) => player.set_melody_enabled(enabled),
         Command::SetMusicVolume(volume) => player.set_music_volume(volume),
         Command::SetSongGain(gain) => player.set_song_gain(gain),
+        Command::SetEndOnSilence(enabled) => player.set_end_on_silence(enabled),
         // Nothing to do here by design: `Wake` is addressed to the thread that owns the device, and
         // its whole effect happened before it reached the queue.
         Command::Wake => {}

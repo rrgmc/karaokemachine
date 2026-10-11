@@ -1973,6 +1973,21 @@ pub struct PerformanceRequest {
     pub enabled: bool,
 }
 
+/// `GET /playback/end-on-silence` and the reply to `PUT /admin/playback/end-on-silence`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EndOnSilenceDto {
+    /// Whether a song ends when its tail is silent.
+    pub enabled: bool,
+}
+
+/// `PUT /admin/playback/end-on-silence`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct EndOnSilenceRequest {
+    /// What to set it to.
+    pub enabled: bool,
+}
+
 /// `POST /debug/play-file`.
 ///
 /// `PartialEq` without `Eq` since the corrections arrived: a fix this build cannot read is held as

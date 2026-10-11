@@ -4059,6 +4059,66 @@ async fn the_performance_panel_is_public_to_read_and_admin_to_switch() {
     assert_eq!(body["enabled"], false, "{body}");
 }
 
+/// Ending a song on a silent tail is public to read and admin to switch, and the read follows.
+#[tokio::test]
+async fn ending_on_silence_is_public_to_read_and_admin_to_switch() {
+    let mut harness = Harness::with_password("carols1975")
+        .at_the_machine()
+        .tokenless();
+
+    let body = harness
+        .ok(Method::GET, "/playback/end-on-silence", None)
+        .await;
+    assert_eq!(body["enabled"], true, "a machine starts with it on");
+
+    let (status, _) = harness
+        .put(
+            "/admin/playback/end-on-silence",
+            json!({ "enabled": false }),
+        )
+        .await;
+    assert_eq!(
+        status,
+        StatusCode::UNAUTHORIZED,
+        "switching it needs a token"
+    );
+
+    harness.log_in("carols1975").await;
+    let (status, body) = harness
+        .put(
+            "/admin/playback/end-on-silence",
+            json!({ "enabled": false }),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(body["enabled"], false, "{body}");
+    assert!(
+        harness
+            .machine
+            .recorded()
+            .iter()
+            .any(|entry| matches!(entry, Recorded::EndOnSilenceSet(false))),
+        "the switch did not reach the controller"
+    );
+
+    let body = harness
+        .ok(Method::GET, "/playback/end-on-silence", None)
+        .await;
+    assert_eq!(body["enabled"], false, "{body}");
+
+    let (status, _) = harness
+        .put(
+            "/admin/playback/end-on-silence",
+            json!({ "enabled": true, "persist": true }),
+        )
+        .await;
+    assert_eq!(
+        status,
+        StatusCode::BAD_REQUEST,
+        "it is always written down, so there is no persist to send"
+    );
+}
+
 /// The console's switch is public to read and admin to move, exactly as debugging's is.
 ///
 /// **And it reports `served: false` while it is on**, which is the state this pair exists for: the

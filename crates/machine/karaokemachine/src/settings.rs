@@ -569,6 +569,13 @@ pub struct PlaybackSettings {
     /// whether the song has a *confidently detected* melody channel, so a file where detection
     /// abstained plays with no guide melody whatever this says.
     pub melody_enabled: bool,
+    /// Whether a song ends when its tail is silent.
+    ///
+    /// **On.** A file may end long after its music does: a MIDI file by an End-of-Track event placed
+    /// past its last note, a recording by silence left at the end of it. The room waits through
+    /// that with the queue full. Off plays every file to its last tick, for the owner whose song
+    /// holds a silence this would cut.
+    pub end_on_silence: bool,
 }
 
 impl Default for PlaybackSettings {
@@ -577,6 +584,7 @@ impl Default for PlaybackSettings {
             transpose: 0,
             tempo_ratio: 1.0,
             melody_enabled: true,
+            end_on_silence: true,
         }
     }
 }
@@ -1805,6 +1813,22 @@ mod tests {
         let settings: Settings =
             serde_json::from_str(r#"{"demo":{"delay_secs":120}}"#).expect("parse");
         assert_eq!(settings.demo.delay_secs, 120);
+    }
+
+    #[test]
+    fn a_song_ends_on_a_silent_tail_unless_the_file_says_otherwise() {
+        assert!(Settings::default().playback.end_on_silence);
+        let settings: Settings =
+            serde_json::from_str(r#"{"playback":{"transpose":1}}"#).expect("parse");
+        assert!(
+            settings.playback.end_on_silence,
+            "a file written before the key keeps the default"
+        );
+        let settings: Settings =
+            serde_json::from_str(r#"{"playback":{"end_on_silence":false}}"#).expect("parse");
+        assert!(!settings.playback.end_on_silence);
+        let written = serde_json::to_value(&settings).expect("serialize");
+        assert_eq!(written["playback"]["end_on_silence"], false);
     }
 
     /// Zero here means "at once", where `idle_release_secs` reads zero as "never".

@@ -13,6 +13,9 @@ Entries are written for somebody who has the machine. Why any of it is the way i
 
 ### Added
 
+- **A song ends when the rest of it is silent.** Some files go on in silence after the music stops,
+  and the machine starts the next song there. A quiet passage in the middle of a song does not end
+  it. The *This machine* tab has a box that turns this off.
 - **The packaging tools read a song from a zip.** A `.zip` holding one MP3+G, UltraStar or LRC song
   is packaged as that song, with nothing to unpack first. A zip holding two songs is refused with
   the reason, and any other zip is passed over.

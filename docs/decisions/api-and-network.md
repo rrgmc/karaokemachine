@@ -1179,6 +1179,25 @@ other side.
 A delay is a length somebody feels, where a floor of 5 against 6 is a claim about what a packager
 measured. Choosing it wants the catalog in front of you rather than a phone.
 
+## Ending a song on silence is a route of its own, and it is always written down
+
+**`PUT /api/v1/admin/playback/end-on-silence` takes `{enabled}` and nothing else.** The switch is
+`playback.end_on_silence`, and
+[`A song ends when its tail is silent`](audio.md#a-song-ends-when-its-tail-is-silent) says what it
+does. An appliance under a television has an owner's page and no text editor. A key in a file is
+a switch that house cannot reach.
+
+**It is not a field on `PUT /api/v1/settings`.** That route holds what belongs to a performance: the
+key, the tempo, the guide melody. A singer's phone may turn those. How every song ends is
+installation configuration, in the family of the demo delay. So it is written to settings at once
+and has no `persist`.
+
+**Admin to write and public to read.** `GET /api/v1/playback/end-on-silence` answers anybody,
+because reporting a state is not changing it. The write changes how the machine behaves for every
+singer after this one.
+
+**The write reaches the song that is playing.** The reply is what the machine stored.
+
 ## Starting one demo song is anybody's; turning demo mode on is not
 
 **`POST /api/v1/demo/start` is public**, beside a `PUT /admin/demo` that is not. The difference is one

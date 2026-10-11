@@ -347,6 +347,8 @@ pub struct SwitchState {
     pub announcement_enabled: bool,
     /// How many seconds the announcement's card stays on the screen.
     pub announcement_length_secs: u32,
+    /// Whether a song ends when its tail is silent.
+    pub end_on_silence: bool,
 }
 
 /// The facts the information panel draws, which are the machine saying what it is.
@@ -670,6 +672,9 @@ pub trait Switches: Send + Sync + 'static {
     ///
     /// Always written down. Answers with the length the machine stored.
     async fn set_announcement(&self, enabled: bool, length_secs: u32) -> Result<u32, AdminError>;
+
+    /// Say whether a song ends when its tail is silent, answering with what the machine stored.
+    async fn set_end_on_silence(&self, on: bool) -> Result<bool, AdminError>;
 }
 
 /// The Sound tab: where the sound comes out, and which bank supplies the instruments.

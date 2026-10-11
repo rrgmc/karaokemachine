@@ -482,6 +482,17 @@ impl Song {
         self.tempo_map.tick_to_ms(self.duration_ticks)
     }
 
+    /// The index in [`Self::events`] of the last note-on, or `None` for a song that starts no note.
+    ///
+    /// Every later event is a note-off, a controller or nothing, so the music that follows it is
+    /// only what is already sounding. `duration_ticks` cannot say this: it also counts the
+    /// End-of-Track event, which a file may place minutes after its last note.
+    pub fn last_note_on_index(&self) -> Option<usize> {
+        self.events
+            .iter()
+            .rposition(|event| matches!(event.kind, EventKind::NoteOn { .. }))
+    }
+
     /// The ticks in one beat, for anything measured in beats: a quarter note, or half a second in a
     /// timecode file, which has no quarter notes.
     ///

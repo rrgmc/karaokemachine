@@ -1340,6 +1340,32 @@ pub async fn get_dev_remote(State(state): State<ApiState>) -> Json<crate::dto::D
     })
 }
 
+/// `GET /api/v1/playback/end-on-silence`
+///
+/// Whether a song ends when its tail is silent. Public, like the switches beside it: reporting a
+/// state is not changing it.
+pub async fn get_end_on_silence(
+    State(state): State<ApiState>,
+) -> Json<crate::dto::EndOnSilenceDto> {
+    Json(crate::dto::EndOnSilenceDto {
+        enabled: state.controller().end_on_silence(),
+    })
+}
+
+/// `PUT /api/v1/admin/playback/end-on-silence`
+///
+/// Under `/admin/` because it is installation configuration and is written down. The reply is what
+/// the machine stored. See [`Controller::set_end_on_silence`].
+///
+/// [`Controller::set_end_on_silence`]: crate::machine::Controller::set_end_on_silence
+pub async fn put_end_on_silence(
+    State(state): State<ApiState>,
+    Body(body): Body<crate::dto::EndOnSilenceRequest>,
+) -> ApiResult<Json<crate::dto::EndOnSilenceDto>> {
+    let enabled = state.controller().set_end_on_silence(body.enabled)?;
+    Ok(Json(crate::dto::EndOnSilenceDto { enabled }))
+}
+
 /// `GET /api/v1/performance`
 ///
 /// Whether the frame-statistics panel is on the machine's own screen. Public, like the two switches

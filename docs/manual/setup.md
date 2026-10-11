@@ -17,7 +17,7 @@ Change it on the *This machine* tab. Every tab links to that tab until you do.
 
 | Tab | What you do there |
 |---|---|
-| **This machine** | Set its name, where to reach it, the password, demo mode, the announcement before each song and the screen language. Sign out every phone and browser at once. Turn debugging on and off. |
+| **This machine** | Set its name, where to reach it, the password, demo mode, the announcement before each song and the screen language. Choose whether a song ends when the rest of it is silent. Sign out every phone and browser at once. Turn debugging on and off. |
 | **Songs** | See the installed packages, how many songs each holds, and the thousand its numbers sit in. Add or remove a package. |
 | **Pictures** | See the pictures in the rotation and the one that shows, and add more. Your own pictures replace the ones that came with the machine. |
 | **Sound** | Choose the sound bank that plays and the audio output, and add a `.sf2`. |

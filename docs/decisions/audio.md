@@ -936,6 +936,61 @@ corpus defers 28,248 note-offs at once.
 ([`A half-read file plays, and says which track was lost`](songs.md#a-half-read-file-plays-and-says-which-track-was-lost)).
 These two are the backstop for a song that arrived another way.
 
+## A song ends when its tail is silent
+
+**The player ends a song that has fallen silent with nothing left to play.** A file may end long
+after its music. A MIDI file places its End-of-Track event after its last note, sometimes by minutes.
+A recording carries silence after its last chord. The room waits through that with the queue full.
+
+**Silence alone never ends a song, because a rest is silence too.** Each kind of song says where its
+tail may begin, and the player listens only from there.
+
+| Song | Where the tail may begin | Silent for |
+|---|---|---|
+| MIDI | no note-on is left in the file, and the last lyric line has ended | 1 second |
+| UltraStar, LRC | the last lyric line has ended | 5 seconds |
+| Video, MP3+G, a timed song with no lines | the last 20 seconds, or the second half of a shorter song | 5 seconds |
+
+**A MIDI song's gate is an event index, so it is exact.** Tempo and transposition move events in
+time and cannot move an index. One second is enough, because a release and a reverb tail have
+already decayed below the limit by then.
+
+**A recording has no such index, so its run is five seconds.** A singer may hold a breath before a
+last chord, and five seconds outlasts it. A video and an MP3+G song have no timeline to read. The
+graphics of an MP3+G song end before its music does, as
+[`An MP3+G song's length is its audio's`](song-sources.md#an-mp3g-songs-length-is-its-audios-and-is-counted-rather-than-read)
+records. So both offer their final part only.
+
+**Silent means a peak below -60 dBFS for a synthesizer and -50 dBFS for a recording.** A synthesizer
+with no voice renders exact zeros. A recording's silence carries hiss and dither that a room does
+not hear. The player reads the peak before the volume and the song's gain, so neither moves the end
+of a song.
+
+**A block that is silent for want of samples does not count.** A paused song, a decoder that fell
+behind and a seek that has not landed are all silent, and none of them is the song. Each one starts
+the count again.
+
+**The end is the ordinary end.** The player raises the same `SongEnded` and the queue advances with
+`EndReason::Finished`. For the room the song did finish, and a remote needs no new case. `Nothing is
+left sounding` still holds: the voices stop and the transport stays in `Playing`.
+
+**Nothing is measured when a package is built, and the length of a song does not change.** The
+catalog keeps the length of the file, and the progress bar stops short of its end. A stored end
+would need every package rebuilt, and it could not follow a tempo change.
+
+**A wrong guess fails toward the file.** A tail that never falls below the limit plays to its last
+tick. So does a song of unknown length. The cost of a miss is the wait this decision removes, and
+never a song cut short in its middle.
+
+**`playback.end_on_silence` turns it off, and it is on by default.** A recording may hold five
+silent seconds in its last twenty on purpose, and no measurement tells that from padding. The owner
+of such a song needs one switch. The lengths and the limits are constants, because nobody in a room
+can judge a decibel.
+
+**A bare `Player` waits for the last tick.** `offline.rs` and `render_wav` render a whole file, and
+an early end there would shorten what they write. The machine sends `SetEndOnSilence` with every
+song.
+
 ## The bank is chosen by id, not by path
 
 **`audio.soundfont` names the bank id — the slug of a filename — and the SoundFont folder is what says

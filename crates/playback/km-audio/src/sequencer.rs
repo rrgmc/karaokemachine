@@ -275,12 +275,19 @@ pub struct Sequencer {
     /// sequencer inline in an enum beside a video song's much smaller track, and boxing it would
     /// allocate in the audio callback.
     stranded_from: [u32; 16],
+    /// The index one past the last note-on, so `next_index` reaching it means no note is left to
+    /// start. Read once at load, because the audio callback asks on every block.
+    notes_end_index: usize,
+    /// The tick the last lyric line ends at, or 0 for a song with no words.
+    words_end_tick: u32,
     finished: bool,
 }
 
 impl Sequencer {
     /// Starts a song at its beginning.
     pub fn new(song: Arc<Song>, settings: PlaybackSettings, fixes: ChannelFixes) -> Self {
+        let notes_end_index = song.last_note_on_index().map_or(0, |index| index + 1);
+        let words_end_tick = song.lyrics.lines.last().map_or(0, |line| line.end_tick);
         Self {
             song,
             settings: settings.clamped(),
@@ -289,6 +296,8 @@ impl Sequencer {
             position_us: 0.0,
             sounding: Vec::with_capacity(crate::source::MAX_POLYPHONY),
             stranded_from: [NEVER_STRANDED; 16],
+            notes_end_index,
+            words_end_tick,
             finished: false,
         }
     }
@@ -316,6 +325,14 @@ impl Sequencer {
     /// Whether every event has been dispatched and the song has run to its end.
     pub fn is_finished(&self) -> bool {
         self.finished
+    }
+
+    /// Whether the song has started its last note and shown its last word.
+    ///
+    /// From here on the song can only decay, so silence means the music is over and not that it
+    /// rests. An index and a tick rather than a time, so a tempo change cannot move either.
+    pub fn is_past_last_note_and_word(&self) -> bool {
+        self.next_index >= self.notes_end_index && self.position_ticks() >= self.words_end_tick
     }
 
     /// Advances by a span of real time, emitting everything due.
