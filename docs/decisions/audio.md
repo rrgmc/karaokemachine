@@ -1034,10 +1034,15 @@ hold the dependency. It uses the crate's phase vocoder mode, because the cheaper
 correcting at four semitones.
 
 **The engine allocates nothing on the audio thread after its first use, and the player gives it that
-first use.** It grows its buffers during the first blocks at a new rate, and it grows a list of
-spectral peaks on dense music. The player runs noise through it at both ends of the range when it
-builds it. `crates/playback/km-audio/tests/track_alloc.rs` counts allocations and fails without
-that step.
+first use.** It grows its buffers during the first blocks at a new rate. The player runs silence
+through it at both ends of the range when it builds it.
+`crates/playback/km-audio/tests/track_alloc.rs` counts allocations and fails without that step.
+
+**The crate is a fork, for one fix.** The published crate sizes its list of spectral peaks for a
+quarter of its bins, and dense music grows that list on the audio thread. No warm-up reaches it,
+because the count depends on the music and not on the rate. The fork sizes the list for half the
+bins, which is the most a spectrum can hold. The same test fails on the published crate. The
+dependency goes back to a version number when upstream carries the fix.
 
 ## The bank is chosen by id, not by path
 
