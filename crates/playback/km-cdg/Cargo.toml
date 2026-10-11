@@ -32,3 +32,9 @@ tracing = { workspace = true }
 # judge a screen on a machine with no monitor, and the fastest way to tell a working renderer from a
 # plausible one.
 image = { workspace = true }
+# For `examples/stretch`, which renders a recording at another key or tempo through each
+# candidate. An example's dependency reaches no build of the machine.
+timestretch = { workspace = true }
+wsola = { workspace = true }
+# The key and tempo limits that example clamps to, and the machine's own.
+km-queue = { workspace = true }
