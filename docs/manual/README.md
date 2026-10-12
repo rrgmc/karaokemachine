@@ -40,6 +40,7 @@ These chapters need the machine's screen, a phone, a browser or a double-click.
 - [The keyboard](keyboard.md)
 - [Getting songs in](songs.md)
 - [The remotes](remotes.md)
+- [Running a public night](venue.md)
 - [Watching it in another room](streaming.md)
 - [Setting it up from a browser](setup.md)
 - [The song book](song-book.md)

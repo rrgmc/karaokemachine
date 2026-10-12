@@ -43,6 +43,8 @@ Entries are written for somebody who has the machine. Why any of it is the way i
   The host also moves a singer to another phone, joins two names that are one person, and takes
   out a singer who went home. On a tablet or a laptop the tab uses the width: the queue stands
   beside the waiting songs, and the buttons are larger.
+- **The manual has a chapter for a bar or a hall.** *Running a public night* lists the six
+  settings a venue changes, what a guest and a host each do, and two limits of the network.
 - **The host stops taking songs near the end.** Phones then read that the night is closed. Songs
   already waiting still play, and the host still adds one at the desk.
 - **The host starts a new evening without a restart.** It empties the queue, the waiting songs and

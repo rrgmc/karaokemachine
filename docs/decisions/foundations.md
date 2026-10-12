@@ -505,3 +505,49 @@ It is written here as well because clap-generated `--help` has no catalog to hea
 **A translation answers to its own language.** A `pt-BR` string is written to be plain
 Portuguese rather than a word-for-word rendering of the plain English — see
 [`The prose and the names are US English`](#the-prose-and-the-names-are-us-english).
+
+## A hosted public night is served
+
+**The machine serves a night at a bar or a hall, beside the home it is built for.** The owner sets
+it up once, guests ask from their own phones, and the rule puts the singers in turn. A host
+corrects what the rule did. No part of the night needs a second program.
+
+**A venue is a use of the home machine, and it is no second product.** Every piece is one a home
+uses: the room level, the two codes, the seats, the request list and the host's tab. A venue
+changes settings and nothing else. The manual's venue chapter is therefore the whole of its
+surface.
+
+**Six settings make a venue.**
+
+| Setting | Value at a venue | Reason |
+|---|---|---|
+| The admin password | Set, and held by the owner | The factory password shows on the screen, and a host for one night needs no settings |
+| The room level | `request`, or `view` where the host enters every song | `request` lets each table ask from a phone |
+| The control code | Set, and held by the host | It declines, accepts early, reorders and acts for a singer |
+| The queue code | Not handed out | It opens `PUT /settings` and the song with no singer, which passes the rule |
+| A required name | On | The host calls each singer by the name on the screen |
+| The cap on one singer's waiting requests | Low | One table cannot fill the request list |
+
+**The night needs no host at the desk.** The rule accepts requests with nobody watching. A host
+who leaves loses the corrections and nothing else.
+
+**No guest's phone changes the sound of another singer's song.** `PUT /settings` stays above the
+`request` level, and that is the reason it does.
+
+**Two limits belong to the venue's network, and the machine answers neither.** No code raises a
+phone to `request` alone. A venue that wants only its own guests to ask relies on its network, or
+sets the room to `view`. A guest network that keeps its clients apart also keeps them from the
+machine.
+
+**The non-goals hold at a venue.** Nothing rates a singer. A guest has no account, and a seat
+ends with the evening. The machine keeps no record of a night after the host starts the next one.
+
+**The right to perform a song in public is the venue's own matter.** The machine holds no
+license and checks none.
+
+The levels are in
+[`Five access levels, and the method and path decide them`](api-and-network.md#five-access-levels-and-the-method-and-path-decide-them).
+The rule is in
+[`The queue holds one song for each singer`](api-and-network.md#the-queue-holds-one-song-for-each-singer).
+The host's actions are in
+[`An operator corrects what the rule did`](api-and-network.md#an-operator-corrects-what-the-rule-did).

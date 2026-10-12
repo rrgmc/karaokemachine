@@ -55,6 +55,8 @@ waiting.</sub>
   ask for a song out of the box. You can lower that to watching only, or raise it. Two codes you
   choose raise one phone at a time. One queues out of turn and changes the key, and one skips and
   plays now.
+- **A host runs a public night.** At a bar or a hall, guests ask from their own phones and a host
+  corrects from a tablet. See [Running a public night](venue.md).
 
 **Giving the machine pictures and instruments**
 
