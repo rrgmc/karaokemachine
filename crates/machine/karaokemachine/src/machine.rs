@@ -4941,6 +4941,42 @@ impl Controller for Machine {
         Ok(self.demo())
     }
 
+    fn singer_rules(&self) -> km_api::machine::SingerRules {
+        let singers = self.lock_settings().singers;
+        km_api::machine::SingerRules {
+            name_required: singers.name_required,
+            max_per_device: singers.max_per_device,
+            max_waiting: singers.max_waiting,
+        }
+    }
+
+    /// Sets what the owner asks of a singer, and writes all three answers down.
+    ///
+    /// Straight to disk, for `set_demo`'s reason. `seat_register` and `request_add` read the
+    /// settings at each call, so the new rules apply from the next one.
+    fn set_singer_rules(
+        &self,
+        rules: km_api::machine::SingerRules,
+    ) -> Result<km_api::machine::SingerRules, ControlError> {
+        if let Some(why) = rules.refusal() {
+            return Err(ControlError::Rejected(why));
+        }
+        {
+            let mut settings = self.lock_settings();
+            settings.singers.name_required = rules.name_required;
+            settings.singers.max_per_device = rules.max_per_device;
+            settings.singers.max_waiting = rules.max_waiting;
+        }
+        self.save_settings();
+        tracing::info!(
+            name_required = rules.name_required,
+            max_per_device = ?rules.max_per_device,
+            max_waiting = rules.max_waiting,
+            "the singer rules were changed"
+        );
+        Ok(self.singer_rules())
+    }
+
     fn announcement(&self) -> km_api::machine::AnnouncementState {
         let settings = self.lock_settings();
         km_api::machine::AnnouncementState {

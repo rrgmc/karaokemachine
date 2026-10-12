@@ -278,11 +278,15 @@ through `cfg!`, as `display.number_pad` is.
 `OLDEST_SETTINGS_VERSION` is set aside, as before. A file with no version is a new file and takes
 no step, so a hand-written `queue` stays `queue`.
 
-**`singers` is a section of three keys, and no route writes any.** `singers.name_required` and
-`singers.max_per_device` are what the owner asks of a singer who registers. `singers.max_waiting`
-caps one singer's waiting requests, and it starts at 10. No route changes them, so
-an edit to the file applies from the next start. A file that names neither
-asks for no name and sets no cap on a device.
+**`singers` is a section of three keys, and one route writes all three.** `singers.name_required`
+and `singers.max_per_device` are what the owner asks of a singer who registers.
+`singers.max_waiting` caps one singer's waiting requests, and it starts at 10. A file that names
+none asks for no name and sets no cap on a device.
+
+**`PUT /api/v1/admin/singers/rules` takes the three and writes them at once.** No key has a
+run-only half, as with `announcement`. `Machine::seat_register` and `Machine::request_add` read the
+section at each call, so nothing running has to be told. `SingerRules::refusal` bounds the route at
+`MAX_SINGER_CAP`, and it does not bound the file.
 
 **`announcement` is a section of two keys, and one route writes both.** `announcement.enabled` and
 `announcement.length_secs` say whether a card names each queued song and for how many seconds.

@@ -5620,3 +5620,72 @@ async fn a_rename_reaches_the_songs_already_queued() {
     let (_, queue) = harness.get("/queue").await;
     assert_eq!(queue["entries"][0]["singer"], "Ana");
 }
+
+/// What the owner asks of a singer is public to read and the owner's to set, and it applies to the
+/// next registration and the next request.
+#[tokio::test]
+async fn the_singer_rules_are_public_to_read_and_admin_to_set() {
+    let mut harness = Harness::with_password("hunter2").tokenless();
+    let (status, body) = harness.get("/singers/rules").await;
+    assert!(status.is_success(), "reading them must stay public");
+    assert_eq!(
+        body,
+        json!({ "name_required": false, "max_per_device": null, "max_waiting": 10 })
+    );
+
+    let strict = json!({ "name_required": true, "max_per_device": 1, "max_waiting": 0 });
+    let (status, _) = harness.put("/admin/singers/rules", strict.clone()).await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+
+    let login = harness
+        .ok(
+            Method::POST,
+            "/admin/login",
+            Some(json!({ "password": "hunter2" })),
+        )
+        .await;
+    harness.token = login["token"].as_str().map(str::to_owned);
+    let body = harness
+        .ok(Method::PUT, "/admin/singers/rules", Some(strict.clone()))
+        .await;
+    assert_eq!(body, strict);
+    let (_, body) = harness.get("/singers/rules").await;
+    assert_eq!(body, strict);
+
+    // A singer with no name is refused, one phone holds one singer, and a second song is refused.
+    let (status, body) = harness
+        .post("/singers", json!({ "device": "phone-a" }))
+        .await;
+    assert_eq!(status, StatusCode::CONFLICT);
+    assert_eq!(body["error"], "name_required");
+    let (ana, token) = register(&harness, "phone-a", Some("Ana")).await;
+    let (_, body) = harness
+        .post("/singers", json!({ "device": "phone-a", "name": "Beto" }))
+        .await;
+    assert_eq!(body["error"], "device_full");
+    ask(&harness, ana, &token, "1001").await;
+    let (_, body) = harness
+        .post(
+            "/requests",
+            json!({ "singer": ana, "token": token, "number": "1002" }),
+        )
+        .await;
+    assert_eq!(body["error"], "singer_requests_full");
+}
+
+#[tokio::test]
+async fn a_singer_cap_outside_its_range_is_a_400() {
+    let harness = Harness::new();
+    for body in [
+        json!({ "name_required": false, "max_per_device": 0, "max_waiting": 10 }),
+        json!({ "name_required": false, "max_per_device": 101, "max_waiting": 10 }),
+        json!({ "name_required": false, "max_per_device": null, "max_waiting": 101 }),
+        json!({ "name_required": false, "max_waiting": 10 }),
+        json!({ "name_required": false, "max_per_device": null }),
+    ] {
+        let (status, answer) = harness.put("/admin/singers/rules", body.clone()).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{body} answered {answer}");
+    }
+    let (_, rules) = harness.get("/singers/rules").await;
+    assert_eq!(rules["max_waiting"], 10, "and nothing was stored");
+}

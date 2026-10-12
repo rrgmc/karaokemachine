@@ -304,7 +304,11 @@ impl Evening {
             .iter()
             .filter(|held| held.request.seat == seat && held.request.state == RequestState::Waiting)
             .count();
-        if waiting >= rules.max_waiting as usize {
+        // The cap is on songs that wait. A song the rule accepts at once waits for nothing, so a
+        // cap of zero still gives each singer one song in the queue.
+        let would_wait =
+            waiting > 0 || self.queue.holds_seat(seat) || self.queue.len() >= MAX_QUEUED;
+        if would_wait && waiting >= rules.max_waiting as usize {
             return Err(RequestError::SingerFull);
         }
 
@@ -727,6 +731,32 @@ mod tests {
             ask(number).expect("under the cap");
         }
         assert_eq!(ask(14), Err(RequestError::SingerFull));
+    }
+
+    /// A cap of zero is one song at a time: the song that goes straight in is never refused.
+    #[test]
+    fn a_cap_of_no_waiting_songs_still_takes_the_song_that_goes_straight_in() {
+        let now = Instant::now();
+        let mut evening = Evening::new();
+        let ana = singer(&mut evening, "Ana");
+        let rules = RequestRules { max_waiting: 0 };
+        let mut ask =
+            |number| evening.request(ana.seat, Proof::Token(&ana.token), song(number), rules, now);
+
+        let first = ask(11).expect("nothing of hers is queued, so it goes in");
+        assert_eq!(first.state, RequestState::Queued);
+        assert_eq!(
+            ask(12),
+            Err(RequestError::SingerFull),
+            "the second would wait"
+        );
+
+        // Her song starts, and the next one goes straight in again.
+        evening.pop(now);
+        let next = evening
+            .request(ana.seat, Proof::Token(&ana.token), song(12), rules, now)
+            .expect("the queue holds none of hers");
+        assert_eq!(next.state, RequestState::Queued);
     }
 
     #[test]

@@ -296,6 +296,7 @@ async fn every_page_route_is_asked_about_before_it_runs() {
         ("POST", "/admin/machine/demo"),
         ("POST", "/admin/machine/demo-delay"),
         ("POST", "/admin/machine/announcement"),
+        ("POST", "/admin/machine/singers"),
         ("POST", "/admin/machine/end-on-silence"),
         ("POST", "/admin/machine/adjust-recordings"),
         ("POST", "/admin/machine/password"),
@@ -593,6 +594,74 @@ async fn key_and_tempo_for_recorded_songs_is_a_box_on_the_machine_page() {
         .await;
         assert!(status.is_redirection(), "{surface}: {status}");
         assert!(state.controller().adjust_recordings(), "{surface}");
+    }
+}
+
+/// What the machine asks of a singer is one form on the password pane, beside the room level.
+#[tokio::test]
+async fn the_owners_page_sets_what_the_machine_asks_of_a_singer() {
+    for host in BOTH_HOSTS {
+        let surface = host.name();
+        let (app, state) = nested_as(
+            host,
+            TestMachine::with_catalog(6),
+            Arc::new(SpyGuard::default()),
+        );
+
+        // Drawn with the machine's own values: no name asked, no cap on a phone, ten waiting.
+        let (status, body) = get(&app, "/admin/machine").await;
+        assert_eq!(status, StatusCode::OK, "{surface}");
+        assert!(
+            body.contains(r#"action="/admin/machine/singers""#),
+            "{body}"
+        );
+        assert!(body.contains(r#"name="max_waiting" value="10""#), "{body}");
+        assert!(
+            body.contains(
+                r#"name="max_per_device"
+               value="""#
+            ),
+            "an empty box is no limit: {body}"
+        );
+
+        let (status, _) = post_form(
+            &app,
+            "/admin/machine/singers",
+            "name_required=yes&max_per_device=3&max_waiting=2",
+        )
+        .await;
+        assert!(status.is_redirection(), "{surface}: {status}");
+        let rules = state.controller().singer_rules();
+        assert!(rules.name_required, "{surface}");
+        assert_eq!(rules.max_per_device, Some(3), "{surface}");
+        assert_eq!(rules.max_waiting, 2, "{surface}");
+
+        // An unticked box and an empty one post nothing, which is no name asked and no limit.
+        let (status, _) = post_form(
+            &app,
+            "/admin/machine/singers",
+            "max_per_device=&max_waiting=5",
+        )
+        .await;
+        assert!(status.is_redirection(), "{surface}: {status}");
+        let rules = state.controller().singer_rules();
+        assert!(!rules.name_required, "{surface}");
+        assert_eq!(rules.max_per_device, None, "{surface}");
+        assert_eq!(rules.max_waiting, 5, "{surface}");
+
+        // A number that is no number changes nothing.
+        let (status, _) = post_form(
+            &app,
+            "/admin/machine/singers",
+            "max_per_device=many&max_waiting=5",
+        )
+        .await;
+        assert!(status.is_redirection(), "{surface}: {status}");
+        assert_eq!(
+            state.controller().singer_rules().max_waiting,
+            5,
+            "{surface}"
+        );
     }
 }
 

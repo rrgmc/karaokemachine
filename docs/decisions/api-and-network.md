@@ -80,6 +80,15 @@ a name, for a host who calls each one by the name on the screen. `singers.max_pe
 singers on one device, and a home that passes one phone around wants no cap. The machine counts by
 the id a remote sends, so the cap stops a mistake and not a cheat.
 
+**The owner sets them on the password tab, beside the room level.** The level says whether a phone
+may ask, and these say what the machine asks of a singer who does. `singers.max_waiting` is the
+third answer on the same form.
+
+**One route reads the three and one writes them.** `GET /api/v1/singers/rules` is public, so a
+remote can ask for a name before the first song. `PUT /api/v1/admin/singers/rules` takes the three together and writes
+them at once. Each cap goes up to 100, and an empty box for the singers on one phone is no limit.
+A new rule applies from the next registration and the next request.
+
 **The machine has a word for the evening, and a phone keeps it beside its seats.** A seat ends
 when the machine stops, and ids start again from zero. An id kept from an earlier evening would
 name somebody else's seat. `GET /singers` and each registration carry a random word that is new at
@@ -146,7 +155,8 @@ what became of it. A request that stayed for ever would fill the cap with songs 
 
 **Two caps, and each refusal says which one it met.** The whole list holds 1,000 requests, because
 a phone at the room level could otherwise fill memory. `singers.max_waiting` caps one singer's
-waiting requests, and it starts at 10. The codes are `requests_full` and `singer_requests_full`.
+waiting requests, and it starts at 10. A song the rule accepts at once waits for nothing, so a cap
+of zero still gives each singer one song in the queue. The codes are `requests_full` and `singer_requests_full`.
 
 **A full queue accepts nothing.** Its requests wait, and the oldest takes the first place that
 frees.

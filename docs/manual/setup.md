@@ -43,3 +43,11 @@ skip** on the same card, and give each to whoever should have it. They type it o
 tab, which then says what that phone can do.
 
 Clearing or changing a code takes that level back from every phone that used it.
+
+**The same tab says what the machine asks of a singer.** The **Singers** card has three answers:
+
+| Setting | What it does |
+|---|---|
+| Every singer gives a name | A phone must type a name before its first song. Turn it on where a host calls each singer by name. |
+| Singers on one phone | The most singers one phone may add. Leave it empty for no limit, which suits a home that passes one phone around. |
+| Songs one singer may have waiting | The most songs a singer may have waiting behind the one in the queue. It starts at 10. |

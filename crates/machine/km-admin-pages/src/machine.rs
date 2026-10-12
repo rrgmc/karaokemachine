@@ -343,6 +343,11 @@ pub struct SwitchState {
     pub demo_stored: bool,
     /// Seconds of silence before a demo song starts. `0` is "as soon as the machine is idle".
     pub demo_delay_secs: u32,
+    /// What the machine asks of a singer, or `None` from a machine that has no such rules.
+    ///
+    /// A tool may be talking to a machine of another version, and a card drawn from invented
+    /// defaults would show rules that machine does not apply.
+    pub singers: Option<km_api::machine::SingerRules>,
     /// Whether a queued song is announced before it starts.
     pub announcement_enabled: bool,
     /// How many seconds the announcement's card stays on the screen.
@@ -674,6 +679,13 @@ pub trait Switches: Send + Sync + 'static {
     ///
     /// Always written down. Answers with the length the machine stored.
     async fn set_announcement(&self, enabled: bool, length_secs: u32) -> Result<u32, AdminError>;
+
+    /// Set what the machine asks of a singer: a name, a cap on one device's singers, and a cap on
+    /// one singer's waiting songs. Always written down. Answers with what the machine stored.
+    async fn set_singer_rules(
+        &self,
+        rules: km_api::machine::SingerRules,
+    ) -> Result<km_api::machine::SingerRules, AdminError>;
 
     /// Say whether a song ends when its tail is silent, answering with what the machine stored.
     async fn set_end_on_silence(&self, on: bool) -> Result<bool, AdminError>;

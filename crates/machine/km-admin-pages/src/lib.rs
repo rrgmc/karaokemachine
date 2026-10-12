@@ -518,6 +518,7 @@ pub fn router(state: Admin) -> Router {
         .route("/machine/demo", post(handlers::set_demo))
         .route("/machine/demo-delay", post(handlers::set_demo_delay))
         .route("/machine/announcement", post(handlers::set_announcement))
+        .route("/machine/singers", post(handlers::set_singer_rules))
         .route(
             "/machine/end-on-silence",
             post(handlers::set_end_on_silence),

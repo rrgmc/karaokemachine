@@ -999,6 +999,31 @@ pub async fn start_demo(State(state): State<ApiState>) -> ApiResult<Json<crate::
     Ok(Json(crate::dto::DemoDto::from(&ops::start_demo(&state)?)))
 }
 
+// -- what the owner asks of a singer -------------------------------------------------------------
+
+/// `GET /api/v1/singers/rules`
+///
+/// Public, like `GET /announcement`. A remote that knows a name is required asks for it before the
+/// first song, where the refusal would ask for it after.
+pub async fn get_singer_rules(State(state): State<ApiState>) -> Json<crate::dto::SingerRulesDto> {
+    Json(state.controller().singer_rules().into())
+}
+
+/// `PUT /api/v1/admin/singers/rules`
+///
+/// Sets whether a name is required, the cap on one device's singers and the cap on one singer's
+/// waiting requests, and writes all three down. Admin, because it changes what every phone in the
+/// room may do.
+///
+/// Answers with what the machine now says. Refuses with 400 `rejected` a cap outside its range.
+pub async fn put_singer_rules(
+    State(state): State<ApiState>,
+    Body(body): Body<crate::dto::SingerRulesDto>,
+) -> ApiResult<Json<crate::dto::SingerRulesDto>> {
+    let rules = state.controller().set_singer_rules(body.into())?;
+    Ok(Json(rules.into()))
+}
+
 // -- the announcement ----------------------------------------------------------------------------
 
 /// `GET /api/v1/announcement`

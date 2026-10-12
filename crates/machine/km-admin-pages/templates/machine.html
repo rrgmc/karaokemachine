@@ -262,6 +262,31 @@
     {% when None %}
     {% endmatch %}
 
+    {# What the machine asks of a singer, beside the level that lets a phone ask at all. One form,
+       because all three answers are written down together. #}
+    {% match singers %}
+    {% when Some with (rules) %}
+    <section class="card">
+      <h2>{{ "singers-heading"|t }}</h2>
+      <p class="hint">{{ "singers-explained"|t }}</p>
+      <form method="post" action="/admin/machine/singers">
+        <label class="check">
+          <input type="checkbox" name="name_required" value="yes"{% if rules.name_required %} checked{% endif %}>
+          {{ "singers-name-required"|t }}
+        </label>
+        <label for="singers-max-per-device">{{ "singers-max-per-device"|t }}</label>
+        <input type="number" id="singers-max-per-device" name="max_per_device"
+               value="{% match rules.max_per_device %}{% when Some with (cap) %}{{ cap }}{% when None %}{% endmatch %}"
+               min="1" max="{{ singers_cap_max }}" step="1" inputmode="numeric">
+        <label for="singers-max-waiting">{{ "singers-max-waiting"|t }}</label>
+        <input type="number" id="singers-max-waiting" name="max_waiting" value="{{ rules.max_waiting }}"
+               min="0" max="{{ singers_cap_max }}" step="1" inputmode="numeric">
+        <button type="submit">{{ "singers-save"|t }}</button>
+      </form>
+    </section>
+    {% when None %}
+    {% endmatch %}
+
     <section class="card">
       <h2>{{ "sessions-heading"|t }}</h2>
       <p class="hint">{{ "sessions-explained"|t }}</p>
