@@ -22,6 +22,10 @@ A fifth access level, `request`, carries the whole design. A new machine starts 
 level, so the fair queue is what a machine does with no setup.
 
 The design needs two new lists, a few routes, events on the existing stream and one page.
+
+Every queued song also shows a rough wait, on the remote and on the machine's screen. Section 12
+shows how a public venue runs a night on the design.
+
 | Marker | Meaning |
 |---|---|
 | **[repo]** | Read from this repository's code. High confidence. |
@@ -122,6 +126,12 @@ on `start` says the key resets with each song. Nothing was run to settle the two
 
 **[repo]** A `QueueEntry` carries no key, no tempo and no duration. Key and tempo are settings of
 the machine, which `PUT /settings` changes. A song's `duration_ms` is in the catalog's answer for that song.
+
+**[repo]** `ops::enqueue` reads that answer before it adds the entry. `NowPlayingDto` carries the
+playing song's `duration_ms`, and the playback snapshot carries its `position_ms`.
+
+**[repo]** The machine's screen draws the queue from the `QueueEntry` list itself. It has an overlay
+that lists every waiting song, and a line that names the next one.
 
 ## 3. What OpenKJ does
 
@@ -504,7 +514,6 @@ The helpers worth having beyond those actions, and what each one needs:
 |---|---|
 | A panel of singers | A count of songs sung tonight for each singer, which nothing keeps today |
 | A warning on a request | The queue, and the list of songs sung tonight |
-| A wait on each row, and on each guest's phone | A duration on each queue entry |
 | A proposed merge | A measure of how close two names are, or two seats on one device |
 | A song marked taken | `Queue::contains_number`, and the list of songs sung tonight |
 
@@ -519,9 +528,103 @@ request and a seat therefore do not outlive a restart.
 **[inferred]** One action at the `control` level starts a new evening without a restart. It clears
 the request list and the record, and it ends every seat.
 
-## 11. What was not examined
+## 11. The wait
 
-- The television's queue display, and whether it shows a count of waiting requests.
+**[chosen]** Each queued song shows a rough time until it starts. The remote shows it, and so does
+the queue overlay on the machine's screen. No setting turns it off.
+
+**[chosen]** The figure tells a singer whether to stay near the microphone, and a rough one does
+that. It has two forms.
+
+| The wait | What the entry shows |
+|---|---|
+| A minute or more | *about N min*, rounded to the minute |
+| Less than a minute | *less than a minute* |
+
+**[inferred]** The wait has two parts. One is the time left in the playing song. The other is the
+sum of the durations of the entries ahead.
+
+**[inferred]** `QueueEntry` gains `duration_ms`, because the machine's screen and the API both read
+that type. The screen adds the durations itself, and `ops::enqueue` already holds the figure.
+
+**[inferred]** For a remote, the machine sends the second part and the client adds the first.
+`QueueEntryDto` gains `duration_ms` and `ahead_ms`, and `ahead_ms` is the sum for the entries
+before it.
+
+**[inferred]** The split keeps the figure moving between events. `Event::QueueChanged` fires when
+the queue changes, and the time left in the playing song changes every second. A client already
+reads the position, so it counts the wait down without a new event.
+
+**[inferred]** The figure ignores the time between two songs, a pause and a changed tempo. Each is
+small beside a figure rounded to the minute.
+
+**[inferred]** The stable order of section 7 keeps the figure honest. No accepted song moves an
+entry back, so a wait grows only when an operator moves an entry.
+
+**[inferred]** A request in the *Queued* state shows the wait of its entry. A request in the
+*Waiting* state has no place yet, and it shows no figure.
+
+**[chosen]** The machine's screen shows how many requests wait. The queue holds one song for each
+singer, so the count tells the room how much singing stands behind it. The count is the one thing
+about requests that the screen shows.
+
+**[inferred]** The wait needs no seat and no rule. It can be built before the fair queue, on the
+queue the machine has.
+
+## 12. A public venue
+
+**[inferred]** The design runs a night at a bar or a hall. The host sets the machine up once, and no
+piece needs a second program.
+
+| Setting | Value at a venue | Reason |
+|---|---|---|
+| The room level | `request`, or `view` where the host enters every song | `request` lets each table ask from a phone |
+| The control code | Set, and held by the host | It declines, accepts early, reorders and acts for a singer |
+| The queue code | Not handed out | It opens `PUT /settings` and the generic song, which passes the rule |
+| A required name | On | The host calls each singer by the name on the screen |
+| The cap on one singer's requests | Low | One table cannot fill the request list |
+| The admin password | Set, and held by the owner | A host for one night needs no settings |
+
+**[inferred]** A night then runs in four steps.
+
+1. A guest opens the remote on a phone, types a name, and asks for a song.
+2. The rule puts the song in the queue, or holds it until that singer's turn comes round.
+3. The guest's phone shows the song's place and its wait.
+4. The machine's screen shows the queue with a wait on each song, so the room knows who is near.
+
+**[inferred]** The night needs no host at the desk. A host who leaves loses nothing but the
+corrections of section 9.
+
+**[inferred]** No guest's phone changes the sound of another singer's song. Section 5 keeps
+`PUT /settings` above the `request` level.
+
+**[inferred]** No code raises a phone to `request` alone. A venue that wants only its own guests to
+ask therefore relies on its network, or sets the room to `view`.
+
+**[inferred]** Every phone must reach the machine over the venue's network. A guest network that
+keeps its clients apart from each other also keeps them from the machine.
+
+### What the change that builds the design must write
+
+**[repo]** `CLAUDE.md` calls the project a machine like a commercial home unit, and no decision
+names a venue. The manual says what the machine does, and the site publishes the same. So none of
+the four below can land before the design does.
+
+| Where | What to write |
+|---|---|
+| `docs/decisions/` | An entry that a hosted public night is served, beside the home the machine is built for |
+| `docs/decisions/api-and-network.md` | The access levels entry gains the fifth level and the new room default |
+| `docs/manual/` | A chapter for a venue: the table above, the four steps, and the two network limits |
+| `site/index.html` and each language's page | One short section that says a host can run a public night |
+
+**[repo]** `tools/dist/site.sh` refuses two language pages whose sections differ. The site section
+therefore lands in every language at once.
+
+## 13. What was not examined
+
+- Whether the queue overlay has the width for a wait beside each title.
+- Where a count of requests fits on the machine's screen.
+- Whether a venue needs anything for the public performance of its songs.
 - Whether a running machine shows the carried key that the code reads.
 - OpenKJ's automated request mode, and the hosted request service its clients use.
 - A duet, which needs two singers on one entry.
