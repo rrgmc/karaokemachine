@@ -136,6 +136,8 @@ pub const DEVELOPER_CONSOLE: &str = "developer-console";
 pub const QUEUE_HEADING: &str = "queue-heading";
 /// How many songs are waiting.
 pub const QUEUE_WAITING: &str = "queue-waiting";
+/// How many requests wait behind the queue, beside the count of songs in it.
+pub const QUEUE_REQUESTS: &str = "queue-requests";
 /// What the overlay says with an empty queue.
 pub const QUEUE_EMPTY: &str = "queue-empty";
 /// The reserved last row when the queue does not fit.
@@ -284,6 +286,7 @@ pub const ALL_IDS: &[&str] = &[
     DEVELOPER_CONSOLE,
     QUEUE_HEADING,
     QUEUE_WAITING,
+    QUEUE_REQUESTS,
     QUEUE_EMPTY,
     QUEUE_OVERFLOW,
     QUEUE_WAIT_MINUTES,

@@ -65,6 +65,10 @@ queue-waiting = { $count ->
     [one] { $count } música esperando
    *[other] { $count } músicas esperando
  }
+queue-requests = { $count ->
+    [one] mais { $count } pedida
+   *[other] mais { $count } pedidas
+ }
 queue-empty = Nada na fila — digite o número de uma música
 queue-overflow = e mais { $count }
 queue-wait-minutes = ~{ $minutes } min

@@ -205,6 +205,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         demo: None,
         show_connect_overlay: false,
         queue: &waiting,
+        requests_waiting: 0,
         show_queue_overlay: false,
         keypad: None,
         // The published pictures show no bank label. The switcher is a debugging control, and a

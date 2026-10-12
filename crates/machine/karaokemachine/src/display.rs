@@ -2510,6 +2510,7 @@ fn run_with(
         }
 
         let queue = machine.queue();
+        let requests_waiting = machine.requests_waiting();
         // The PIN comes from settings rather than from the API's `ConnectInfo`, because it is
         // deliberately not on the wire: `/discover` says only *that* a machine is on a factory
         // password, never which one. The screen is the one place it belongs.
@@ -2702,6 +2703,7 @@ fn run_with(
             demo,
             show_connect_overlay: show_connect || started.elapsed() < CONNECT_GREETING,
             queue: &queue,
+            requests_waiting,
             show_queue_overlay: show_queue,
             faults,
             flash: flash.as_ref().map(|flash| km_display::Flash {
