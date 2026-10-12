@@ -120,9 +120,10 @@ the first sentence, and the machine hears nothing.
 **[repo]** A token is `v2.<level>.<expires>.<nonce>.<mac>`, and the parser refuses any other shape.
 The stored admin password hash is the signing key, so a token outlives a restart.
 
-**[repo]** `Machine::start` reads key and tempo from the stored settings, and `update_settings`
-writes each live change there. A song therefore starts in the key of the song before it. A comment
-on `start` says the key resets with each song. Nothing was run to settle the two.
+**[decision]** Each song starts at its own key and tempo, and
+[`A key and a tempo belong to one song`](../decisions/audio.md#a-key-and-a-tempo-belong-to-one-song)
+is the entry. `playback.transpose` and `playback.tempo_ratio` are the owner's defaults, and a change
+from a remote never writes them.
 
 **[repo]** A `QueueEntry` carries no key, no tempo and no duration. Key and tempo are settings of
 the machine, which `PUT /settings` changes. A song's `duration_ms` is in the catalog's answer for that song.
@@ -419,13 +420,10 @@ entry keeps them, and the machine applies them when the song starts.
 **[chosen]** The remote does not show key and tempo when a guest asks for a song. Few singers set
 them, so the two controls sit behind a fold that a regular opens.
 
-**[chosen]** A song with no key of its own starts at the original key and tempo. No singer inherits
-what the singer before chose.
+**[decision]** A song with no key of its own starts at the owner's defaults. No singer inherits what
+the singer before chose.
 
-**[chosen]** The comment on `start` states the rule, and the carried key that section 2 reads is a
-fault. Its repair is separate from the fair queue.
-
-**[chosen]** Only key and tempo start again with each song. Melody, music volume and lyric offset
+**[decision]** Only key and tempo start again with each song. Melody, music volume and lyric offset
 belong to the room and its equipment, and they stay as set.
 
 **[chosen]** The singer of the playing song changes its key and tempo. The singer's token is the
@@ -625,7 +623,6 @@ therefore lands in every language at once.
 - Whether the queue overlay has the width for a wait beside each title.
 - Where a count of requests fits on the machine's screen.
 - Whether a venue needs anything for the public performance of its songs.
-- Whether a running machine shows the carried key that the code reads.
 - OpenKJ's automated request mode, and the hosted request service its clients use.
 - A duet, which needs two singers on one entry.
 - A singer who is absent or who pauses, which needs the machine to know who is in the room.
