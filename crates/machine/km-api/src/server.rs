@@ -146,9 +146,8 @@ impl ApiState {
             config.queue_code_hash.clone(),
             config.control_code_hash.clone(),
         );
-        // A settings file that names the admin level for the room is read as the control level,
-        // the highest a room may hold.
-        let room_access = RwLock::new(config.room_access.min(Access::Control));
+        // A settings file may name a level no room holds. See `Access::as_room`.
+        let room_access = RwLock::new(config.room_access.as_room());
 
         // Resolved eagerly so `GET /discover` and the display have an answer from the first request,
         // rather than a hole until the refresh task's first tick.
@@ -448,14 +447,14 @@ impl ApiState {
 
     /// Sets what the room gets with no code, for this run.
     ///
-    /// **Only the running value**, for [`Self::set_admin_password`]'s reason. The admin level is
-    /// never a room level, so it is read as [`Access::Control`].
+    /// **Only the running value**, for [`Self::set_admin_password`]'s reason. A level no room holds
+    /// is read through [`Access::as_room`].
     pub fn set_room_access(&self, room: Access) {
         *self
             .inner
             .room_access
             .write()
-            .unwrap_or_else(|poisoned| poisoned.into_inner()) = room.min(Access::Control);
+            .unwrap_or_else(|poisoned| poisoned.into_inner()) = room.as_room();
     }
 
     /// The level a caller holding this token has: the higher of the room's and the token's.
@@ -969,6 +968,15 @@ mod tests {
         assert_eq!(state.room_access(), Access::Control);
         state.set_room_access(Access::Admin);
         assert_eq!(state.room_access(), Access::Control);
+    }
+
+    /// The request level opens what the view level opens, so a room that names it is at view.
+    #[test]
+    fn a_room_is_never_left_at_the_request_level() {
+        let state = with_codes(Access::Request);
+        assert_eq!(state.room_access(), Access::View);
+        state.set_room_access(Access::Request);
+        assert_eq!(state.room_access(), Access::View);
     }
 
     #[test]

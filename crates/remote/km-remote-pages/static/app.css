@@ -494,6 +494,8 @@ input[type="search"], input[type="text"], select {
  * handler behind each button refuses a phone below its level anyway; this is what it is offered. */
 .access-view .needs-queue,
 .access-view .needs-control,
+.access-request .needs-queue,
+.access-request .needs-control,
 .access-queue .needs-control { display: none; }
 
 /* The ⋯ is a label, so it needs the two affordances a button gets for free — as the gear does, and

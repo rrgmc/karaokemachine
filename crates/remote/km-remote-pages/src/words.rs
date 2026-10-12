@@ -405,6 +405,7 @@ mod tests {
         "access-queue",
         "access-control",
         "access-admin",
+        "access-request",
         // Composed in `handlers::set_access`.
         "access-code-wrong",
         // Composed in `handlers.rs`, because each puts a value or a count into a sentence.

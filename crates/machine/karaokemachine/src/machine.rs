@@ -4963,7 +4963,7 @@ impl Controller for Machine {
             match level {
                 km_api::Access::Queue => settings.api.queue_code_hash = hash,
                 km_api::Access::Control => settings.api.control_code_hash = hash,
-                km_api::Access::View | km_api::Access::Admin => {
+                km_api::Access::View | km_api::Access::Request | km_api::Access::Admin => {
                     return Err(ControlError::Unavailable(
                         format!("the {level} level has no code").into(),
                     ));

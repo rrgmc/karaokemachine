@@ -336,6 +336,7 @@ impl Chrome {
     pub fn access_key(&self) -> &'static str {
         match self.access.access {
             km_api::Access::View => "access-view",
+            km_api::Access::Request => "access-request",
             km_api::Access::Queue => "access-queue",
             km_api::Access::Control => "access-control",
             km_api::Access::Admin => "access-admin",
