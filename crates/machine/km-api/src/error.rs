@@ -221,6 +221,25 @@ impl From<km_queue::SeatError> for ApiError {
     }
 }
 
+impl From<km_queue::RequestError> for ApiError {
+    /// For [`km_queue::SeatError`]'s reason: a refusal a singer can provoke is a 409 with a code.
+    fn from(error: km_queue::RequestError) -> Self {
+        use km_queue::RequestError;
+        let conflict = |code| Self::Conflict {
+            code,
+            message: error.to_string(),
+        };
+        match error {
+            RequestError::NoSinger => Self::not_found("singer"),
+            RequestError::NotFound => Self::not_found("request"),
+            RequestError::WrongToken => Self::Forbidden(error.to_string()),
+            RequestError::SingerFull => conflict("singer_requests_full"),
+            RequestError::Full => conflict("requests_full"),
+            RequestError::Finished => conflict("request_finished"),
+        }
+    }
+}
+
 impl From<crate::power::PowerError> for ApiError {
     fn from(error: crate::power::PowerError) -> Self {
         use crate::power::PowerError;

@@ -20,6 +20,7 @@ use std::sync::Arc;
 use km_catalog::search::SearchQuery;
 use km_catalog::{CatalogSong, InstallReport, InstalledPackage, SongKind};
 use km_queue::Transport;
+use km_queue::evening::{Proof, Request, RequestError, RequestedSong};
 use km_queue::mics::{MicChannel, MicPatch};
 use km_queue::queue::{QueueEntry, QueueRequest};
 use km_queue::seats::{Issued, Seat, SeatError, SeatName};
@@ -1331,6 +1332,23 @@ pub trait Controller: Send + Sync + 'static {
 
     /// Gives a seat a new token, whatever it holds. The route's level is the check.
     fn seat_reissue(&self, id: u64, token: String) -> Result<Issued, SeatError>;
+
+    /// Every request the evening holds, oldest first.
+    fn requests(&self) -> Vec<Request>;
+
+    /// Takes a singer's request, under the owner's cap on one singer's waiting songs.
+    ///
+    /// The machine accepts it at once when that singer has no song in the queue, and holds it
+    /// otherwise. The answer carries the state it reached. See [`km_queue::Evening`].
+    fn request_add(
+        &self,
+        seat: u64,
+        proof: Proof<'_>,
+        song: RequestedSong,
+    ) -> Result<Request, RequestError>;
+
+    /// Takes a request back, for its singer. `token` is the seat's, and it is the proof.
+    fn request_withdraw(&self, id: u64, token: &str) -> Result<Request, RequestError>;
 
     /// Drives the transport.
     fn transport(&self, command: TransportCommand) -> Result<(), ControlError>;

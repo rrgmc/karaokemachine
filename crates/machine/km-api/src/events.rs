@@ -19,7 +19,9 @@ use std::time::Duration;
 use serde::{Deserialize, Serialize};
 use tokio::sync::broadcast;
 
-use crate::dto::{MicsDto, NowPlayingDto, QueueDto, SettingsDto, StateDto};
+use crate::dto::{
+    MicsDto, NowPlayingDto, QueueDto, RequestsDto, SettingsDto, SingersDto, StateDto,
+};
 use crate::machine::Controller;
 
 /// How often the periodic state event goes out.
@@ -48,6 +50,19 @@ pub enum Event {
     QueueChanged {
         /// The queue as it now stands.
         queue: QueueDto,
+    },
+    /// The requests changed, or a queued request's place did.
+    ///
+    /// Published beside every [`Self::QueueChanged`], because a queued request carries its entry's
+    /// position.
+    RequestsChanged {
+        /// The list as it now stands.
+        requests: RequestsDto,
+    },
+    /// A singer registered, took a name or got a new token.
+    SingersChanged {
+        /// The singers as they now stand. No token travels here.
+        singers: SingersDto,
     },
     /// A song started playing.
     SongStarted {
@@ -232,6 +247,15 @@ mod tests {
             Event::QueueChanged {
                 queue: QueueDto::new(&[]),
             },
+            Event::RequestsChanged {
+                requests: RequestsDto::new(&[], &[]),
+            },
+            Event::SingersChanged {
+                singers: SingersDto {
+                    singers: Vec::new(),
+                    capacity: km_queue::MAX_SEATS,
+                },
+            },
             Event::SongEnded {
                 reason: EndReason::Finished,
             },
@@ -263,6 +287,8 @@ mod tests {
             [
                 "state",
                 "queue_changed",
+                "requests_changed",
+                "singers_changed",
                 "song_ended",
                 "lyric_line",
                 "settings_changed",

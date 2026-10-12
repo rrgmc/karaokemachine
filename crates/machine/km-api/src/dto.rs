@@ -24,6 +24,7 @@
 use km_catalog::search::{MAX_LIMIT, SortOrder};
 use km_catalog::{CatalogSong, DuplicateContent, InstallReport, InstalledPackage};
 use km_queue::Transport;
+use km_queue::evening::{Request, RequestState};
 use km_queue::mics::{MicChannel, MicPatch};
 use km_queue::queue::QueueEntry;
 use km_queue::seats::Seat;
@@ -901,6 +902,134 @@ pub struct RenameSingerRequest {
     pub token: String,
     /// The new name.
     pub name: String,
+}
+
+/// Where a request stands.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RequestStateDto {
+    /// The singer already has a song in the queue, or the queue is full.
+    Waiting,
+    /// Accepted, and in the queue.
+    Queued,
+    /// The song started.
+    Played,
+    /// Somebody at the control level took it out.
+    Declined,
+    /// Its singer took it back.
+    Withdrawn,
+}
+
+impl From<RequestState> for RequestStateDto {
+    fn from(state: RequestState) -> Self {
+        match state {
+            RequestState::Waiting => Self::Waiting,
+            RequestState::Queued => Self::Queued,
+            RequestState::Played => Self::Played,
+            RequestState::Declined => Self::Declined,
+            RequestState::Withdrawn => Self::Withdrawn,
+        }
+    }
+}
+
+/// One song a singer asked for, from the asking to the singing.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RequestDto {
+    /// Opaque, never reused. A lower id is an older request.
+    pub id: u64,
+    /// The singer who asked, as [`SingerDto::id`].
+    pub singer: u64,
+    /// The catalog number.
+    pub number: SongCode,
+    /// Title.
+    pub title: String,
+    /// Performer.
+    pub artist: Option<String>,
+    /// Length in milliseconds.
+    pub duration_ms: u32,
+    /// Where it stands.
+    pub state: RequestStateDto,
+    /// The queue entry it became, from the moment the machine accepted it.
+    pub entry_id: Option<u64>,
+    /// Where that entry sits in the queue, while the request is queued.
+    ///
+    /// The wait is the entry's, so a client reads it from the queue by `entry_id`. A waiting
+    /// request has no place yet and no wait.
+    pub position: Option<usize>,
+}
+
+impl RequestDto {
+    /// One request, with its entry's place looked up in the queue.
+    pub fn new(request: &Request, queue: &[QueueEntry]) -> Self {
+        let position = (request.state == RequestState::Queued)
+            .then(|| {
+                queue
+                    .iter()
+                    .position(|entry| Some(entry.id) == request.entry)
+            })
+            .flatten();
+        Self {
+            id: request.id,
+            singer: request.seat,
+            number: request.number,
+            title: request.title.clone(),
+            artist: request.artist.clone(),
+            duration_ms: request.duration_ms,
+            state: request.state.into(),
+            entry_id: request.entry,
+            position,
+        }
+    }
+}
+
+/// `GET /requests`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RequestsDto {
+    /// Every request the evening holds, oldest first.
+    pub requests: Vec<RequestDto>,
+    /// The cap on the whole list, so a client need not hard-code it.
+    pub capacity: usize,
+}
+
+impl RequestsDto {
+    /// The list, with each queued request's place looked up in the queue.
+    pub fn new(requests: &[Request], queue: &[QueueEntry]) -> Self {
+        Self {
+            requests: requests
+                .iter()
+                .map(|request| RequestDto::new(request, queue))
+                .collect(),
+            capacity: km_queue::MAX_REQUESTS,
+        }
+    }
+}
+
+/// `POST /requests`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AddRequest {
+    /// The singer, as [`SingerDto::id`].
+    pub singer: u64,
+    /// That singer's token, which is the proof.
+    pub token: String,
+    /// The song number.
+    pub number: SongCode,
+}
+
+/// `POST /singers/{id}/requests`, for a caller whose level is the proof.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AddSingerRequest {
+    /// The song number.
+    pub number: SongCode,
+}
+
+/// `POST /requests/{id}/withdraw`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct WithdrawRequest {
+    /// The token of the singer who asked, which is the proof.
+    pub token: String,
 }
 
 /// `POST /queue`.

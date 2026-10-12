@@ -2,10 +2,12 @@
 //!
 //! This is the vocabulary an *observer* of the machine needs — the API describing it over HTTP, a
 //! remote rendering it, the screen drawing it — as opposed to the machinery that makes any of it
-//! happen, which is [`km_audio`](https://docs.rs/km-audio). Six things live here:
+//! happen, which is [`km_audio`](https://docs.rs/km-audio). Seven things live here:
 //!
 //! * [`queue`] — the waiting songs. Pure state, held on the control thread; it knows song codes and
 //!   titles and nothing about how a song is loaded or played.
+//! * [`evening`] — the queue, the singers and their requests together, and the rule that gives
+//!   each singer one song in the queue.
 //! * [`seats`] — the evening's singers: who holds which name, and the token that proves it.
 //! * [`wait`] — how long a queued song waits, and the two forms that figure takes.
 //! * [`mics`] — the microphone registry. Configuration state only: mic audio is mixed in hardware,
@@ -24,6 +26,7 @@
 //! It takes `km-songcode` and `thiserror` and nothing else, and the absence of anything heavier is the
 //! property worth protecting — see the note at the foot of `Cargo.toml`.
 
+pub mod evening;
 pub mod limits;
 pub mod mics;
 pub mod queue;
@@ -31,6 +34,9 @@ pub mod seats;
 pub mod transport;
 pub mod wait;
 
+pub use crate::evening::{
+    Evening, MAX_REQUESTS, Proof, Request, RequestError, RequestRules, RequestState, RequestedSong,
+};
 pub use crate::limits::{MAX_TEMPO_RATIO, MAX_TRANSPOSE, MIN_TEMPO_RATIO};
 pub use crate::mics::{MAX_GAIN, MAX_MICS, MicBus, MicChannel, MicError, MicPatch, MicRegistry};
 pub use crate::queue::{MAX_QUEUED, Queue, QueueEntry, QueueFull, QueueRequest};

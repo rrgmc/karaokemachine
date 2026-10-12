@@ -63,7 +63,7 @@ name.
 
 **A seat that holds no song comes back by its name.** Registering the name of such a seat returns
 that seat with a new token, and the old token ends. A phone that lost its token needs nobody. The
-machine refuses the same registration while the seat has a song in the queue. A reclaim by name
+machine refuses the same registration while the seat has a song queued or waiting. A reclaim by name
 alone would hand one singer's songs to another. A caller at the `control` level then reissues the
 seat, with `POST /api/v1/singers/{id}/reissue`.
 
@@ -72,7 +72,8 @@ name. The seat keeps its id, its token and whatever it holds. A rename never tak
 another seat, even a free one.
 
 **A queue entry carries its seat's id.** The `singer` text on an entry stays the label, and `seat`
-is the identity. A song with no singer carries none.
+is the identity. A song with no singer carries none. A seat that takes a name later puts it on the
+songs it already has in the queue.
 
 **The owner sets two rules, and both start open.** `singers.name_required` makes every singer give
 a name, for a host who calls each one by the name on the screen. `singers.max_per_device` caps the
@@ -85,6 +86,70 @@ registering singers.
 **Each refusal a singer can cause has a code.** `name_taken`, `name_required`, `unnamed_taken`,
 `device_full` and `singers_full` answer 409, so a remote says each in its own words. A wrong token
 answers 403, because a level's token would not help.
+
+## The queue holds one song for each singer
+
+**A singer's song is a request, and one rule moves it into the queue.** The queue holds one song
+for each singer. So the singers take turns, and the rule needs nobody in charge.
+
+- The machine accepts a request at once when its singer has no entry in the queue.
+- Any other request waits in the request list.
+- When a singer's entry leaves the queue, the machine accepts that singer's oldest waiting request.
+
+**A singer's next request goes in when that singer's song starts.** The singer sees the next place
+while singing, and the queue is never empty while requests wait.
+
+**An entry leaves in three ways, and the rule treats them alike.** Its song starts, somebody at the
+`control` level removes it, or its singer withdraws it. Clearing the queue is the second way for
+every entry at once, so each singer's next request then goes in.
+
+**An accepted song goes to the end of the queue.** No entry moves back for it, so a singer's place
+never gets worse because of what another singer did. A new singer waits one round at most.
+
+**The rule places a song once and never moves an entry afterwards.** Whatever somebody moves by
+hand stays where they put it.
+
+**A song with no singer passes the rule.** `POST /queue` puts it straight at the end, and it holds
+back no other song. That route needs the `queue` level, which is why it stands above `request`.
+
+**The rule treats an operator's request as it treats a phone's.** `POST /singers/{id}/requests`
+needs the `control` level and no token. An operator who types in a pile of slips in any order still
+gets a queue of fair turns.
+
+**One record carries the whole course of a song.** A request keeps the id of its queue entry once
+the machine accepts it.
+
+| State | Meaning |
+|---|---|
+| `waiting` | The singer already has a song in the queue, or the queue is full |
+| `queued` | Accepted, with the entry's id and position |
+| `played` | The song started |
+| `declined` | Somebody at the `control` level took it out |
+| `withdrawn` | Its singer took it back |
+
+**The singer's token takes a request back, waiting or queued.** `POST /requests/{id}/withdraw`
+needs the `request` level and that token. A guest who asked for the wrong song needs no control
+code.
+
+**The whole room reads the list.** `GET /requests` needs the `view` level, and a phone picks out
+its own singers' requests by their ids. No token travels in it.
+
+**A finished request stays for ten minutes.** That is long enough for the phone that asked to read
+what became of it. A request that stayed for ever would fill the cap with songs already sung.
+
+**Two caps, and each refusal says which one it met.** The whole list holds 1,000 requests, because
+a phone at the room level could otherwise fill memory. `singers.max_waiting` caps one singer's
+waiting requests, and it starts at 10. The codes are `requests_full` and `singer_requests_full`.
+
+**A full queue accepts nothing.** Its requests wait, and the oldest takes the first place that
+frees.
+
+**The rule needs no record of the evening.** It reads the queue and the request list, and both
+exist the moment the machine starts. A request and a seat end with the process, as the queue does.
+
+**Two events carry it.** `requests_changed` goes out beside every `queue_changed`, because a queued
+request carries its entry's position. `singers_changed` goes out when a singer registers, takes a
+name or gets a new token.
 
 ## Four access levels, and the method and path decide them
 
@@ -102,9 +167,9 @@ answers 403, because a level's token would not help.
 it to `view` or `control`, and never to `admin`. A queue code and a control code each raise a phone
 to their level. The admin password opens the admin level, as it always does.
 
-**The type holds a fifth level, `request`, between `view` and `queue`.** Two routes need it:
-`POST /singers` and `PUT /singers/{id}/name`. No room is given it and no code buys it, so a caller
-reaches those routes at `queue` or above. A settings file that names it for the room is read as
+**The type holds a fifth level, `request`, between `view` and `queue`.** Four routes need it. They
+register a singer, name one, ask for a song and take one back. No room is given it and no code buys
+it, so a caller reaches those routes at `queue` or above. A settings file that names it for the room is read as
 `view`, as one that names `admin` is read as `control`. See
 [`A singer is a seat, and a token proves it`](#a-singer-is-a-seat-and-a-token-proves-it).
 

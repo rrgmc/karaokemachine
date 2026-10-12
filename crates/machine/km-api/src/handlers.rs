@@ -30,14 +30,15 @@ use crate::book::{self, BookFilter, BookQuery};
 use crate::connect::ConnectInfo;
 use crate::discover::Discovery;
 use crate::dto::{
-    AccessCodeRequest, AccessDto, AccessGrantDto, AddToQueueRequest, AddedToQueueDto,
-    AdminPasswordDto, AdminPasswordRequest, BankDto, BankRequest, DebugDto, DebugRequest, ErrorDto,
-    ExportParams, InstallReportDto, InstallRequest, LoginRequest, LoginResponse, LyricsDto,
-    MachineLocaleRequest, MachineNameRequest, MicPatchDto, MicsDto, MoveRequest, PackageDto,
-    PackagesDto, PlayFileRequest, PowerDto, QueueDto, RegisterSingerRequest, RenameSingerRequest,
-    RoomAccessRequest, SearchParams, SearchResponse, SeekRequest, SetDemoDelayRequest,
-    SetDemoRequest, SettingsDto, SettingsPatchDto, SingerDto, SingerIssuedDto, SingersDto, SongDto,
-    StateDto, UninstallDto, UploadReportDto, effective_limit, export_limit,
+    AccessCodeRequest, AccessDto, AccessGrantDto, AddRequest, AddSingerRequest, AddToQueueRequest,
+    AddedToQueueDto, AdminPasswordDto, AdminPasswordRequest, BankDto, BankRequest, DebugDto,
+    DebugRequest, ErrorDto, ExportParams, InstallReportDto, InstallRequest, LoginRequest,
+    LoginResponse, LyricsDto, MachineLocaleRequest, MachineNameRequest, MicPatchDto, MicsDto,
+    MoveRequest, PackageDto, PackagesDto, PlayFileRequest, PowerDto, QueueDto,
+    RegisterSingerRequest, RenameSingerRequest, RequestDto, RequestsDto, RoomAccessRequest,
+    SearchParams, SearchResponse, SeekRequest, SetDemoDelayRequest, SetDemoRequest, SettingsDto,
+    SettingsPatchDto, SingerDto, SingerIssuedDto, SingersDto, SongDto, StateDto, UninstallDto,
+    UploadReportDto, WithdrawRequest, effective_limit, export_limit,
 };
 use crate::error::{ApiError, ApiResult};
 use crate::events::Event;
@@ -588,6 +589,54 @@ pub async fn reissue_singer(
     Segment(id): Segment<u64>,
 ) -> ApiResult<Json<SingerIssuedDto>> {
     Ok(Json(ops::reissue_singer(&state, id)?))
+}
+
+/// `GET /api/v1/requests`
+pub async fn get_requests(State(state): State<ApiState>) -> Json<RequestsDto> {
+    Json(ops::requests(&state))
+}
+
+/// `POST /api/v1/requests`
+pub async fn add_request(
+    State(state): State<ApiState>,
+    Body(body): Body<AddRequest>,
+) -> ApiResult<(axum::http::StatusCode, Json<RequestDto>)> {
+    // Off the runtime, for `add_to_queue`'s reason: a request accepted onto an idle machine loads
+    // its song.
+    let request = ops::off_runtime(&state, move |state| {
+        ops::add_request(
+            state,
+            body.singer,
+            km_queue::Proof::Token(&body.token),
+            body.number,
+        )
+    })
+    .await?;
+    Ok((axum::http::StatusCode::CREATED, Json(request)))
+}
+
+/// `POST /api/v1/singers/{id}/requests`
+///
+/// For a caller whose level is the proof, acting for any singer.
+pub async fn add_singer_request(
+    State(state): State<ApiState>,
+    Segment(singer): Segment<u64>,
+    Body(body): Body<AddSingerRequest>,
+) -> ApiResult<(axum::http::StatusCode, Json<RequestDto>)> {
+    let request = ops::off_runtime(&state, move |state| {
+        ops::add_request(state, singer, km_queue::Proof::Level, body.number)
+    })
+    .await?;
+    Ok((axum::http::StatusCode::CREATED, Json(request)))
+}
+
+/// `POST /api/v1/requests/{id}/withdraw`
+pub async fn withdraw_request(
+    State(state): State<ApiState>,
+    Segment(id): Segment<u64>,
+    Body(body): Body<WithdrawRequest>,
+) -> ApiResult<Json<RequestDto>> {
+    Ok(Json(ops::withdraw_request(&state, id, &body.token)?))
 }
 
 /// `DELETE /api/v1/queue/{entry_id}`

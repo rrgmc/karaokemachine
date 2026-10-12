@@ -5335,3 +5335,280 @@ async fn a_registration_that_cannot_be_used_is_a_400() {
     let (_, list) = harness.get("/singers").await;
     assert_eq!(list["singers"], json!([]));
 }
+
+// -- requests ------------------------------------------------------------------------------------
+
+/// Asks for a song for a singer, and answers with the request.
+async fn ask(harness: &Harness, singer: u64, token: &str, number: &str) -> Value {
+    let (status, body) = harness
+        .post(
+            "/requests",
+            json!({ "singer": singer, "token": token, "number": number }),
+        )
+        .await;
+    assert_eq!(status, StatusCode::CREATED, "{body}");
+    body
+}
+
+/// The queue as song numbers, in play order.
+async fn queued_numbers(harness: &Harness) -> Vec<String> {
+    let (_, queue) = harness.get("/queue").await;
+    queue["entries"]
+        .as_array()
+        .expect("entries")
+        .iter()
+        .map(|entry| entry["number"].as_str().expect("a number").to_owned())
+        .collect()
+}
+
+/// The first request goes into the queue and the second waits, which is the whole rule.
+#[tokio::test]
+async fn a_singers_first_request_is_queued_and_the_second_waits() {
+    let harness = Harness::new();
+    let (ana, token) = register(&harness, "phone-a", Some("Ana")).await;
+
+    let first = ask(&harness, ana, &token, "1001").await;
+    assert_eq!(first["state"], "queued");
+    assert_eq!(first["singer"], ana);
+    assert_eq!(first["position"], 0);
+    assert!(first["entry_id"].is_u64(), "{first}");
+
+    let second = ask(&harness, ana, &token, "1002").await;
+    assert_eq!(second["state"], "waiting");
+    assert_eq!(second["entry_id"], Value::Null);
+    assert_eq!(second["position"], Value::Null);
+
+    assert_eq!(queued_numbers(&harness).await, vec!["1001"]);
+    let (_, queue) = harness.get("/queue").await;
+    assert_eq!(queue["entries"][0]["singer"], "Ana");
+    assert_eq!(queue["entries"][0]["seat"], ana);
+
+    let (status, list) = harness.get("/requests").await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(list["requests"].as_array().expect("requests").len(), 2);
+    assert_eq!(list["capacity"], km_queue::MAX_REQUESTS);
+    assert!(
+        !list.to_string().contains(&token),
+        "the list is for the whole room, so it carries no token: {list}"
+    );
+}
+
+/// Two singers ask in any order and the queue is one round.
+#[tokio::test]
+async fn two_singers_take_turns_whatever_order_they_ask_in() {
+    let harness = Harness::new();
+    let (ana, ana_token) = register(&harness, "phone-a", Some("Ana")).await;
+    let (beto, beto_token) = register(&harness, "phone-b", Some("Beto")).await;
+    ask(&harness, ana, &ana_token, "1001").await;
+    ask(&harness, ana, &ana_token, "1002").await;
+    ask(&harness, beto, &beto_token, "1003").await;
+    assert_eq!(queued_numbers(&harness).await, vec!["1001", "1003"]);
+
+    // Ana's song leaves the queue, and her next one goes in behind Beto's.
+    let (_, queue) = harness.get("/queue").await;
+    let first = queue["entries"][0]["id"].as_u64().expect("an id");
+    harness.delete(&format!("/queue/{first}")).await;
+    assert_eq!(queued_numbers(&harness).await, vec!["1003", "1002"]);
+
+    let (_, list) = harness.get("/requests").await;
+    let states: Vec<&str> = list["requests"]
+        .as_array()
+        .expect("requests")
+        .iter()
+        .map(|request| request["state"].as_str().expect("a state"))
+        .collect();
+    assert_eq!(states, vec!["declined", "queued", "queued"]);
+}
+
+#[tokio::test]
+async fn a_request_needs_the_singers_own_token() {
+    let harness = Harness::new();
+    let (ana, _) = register(&harness, "phone-a", Some("Ana")).await;
+    let (_, beto_token) = register(&harness, "phone-b", Some("Beto")).await;
+
+    let (status, _) = harness
+        .post(
+            "/requests",
+            json!({ "singer": ana, "token": beto_token, "number": "1001" }),
+        )
+        .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+
+    let (status, _) = harness
+        .post(
+            "/requests",
+            json!({ "singer": 9999, "token": beto_token, "number": "1001" }),
+        )
+        .await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+
+    let (status, _) = harness
+        .post(
+            "/requests",
+            json!({ "singer": ana, "token": "x", "number": "999999" }),
+        )
+        .await;
+    assert_eq!(
+        status,
+        StatusCode::NOT_FOUND,
+        "no such song, before anything else"
+    );
+
+    assert!(queued_numbers(&harness).await.is_empty());
+}
+
+/// The token that asked takes the song back, waiting or queued, and no control code is needed.
+#[tokio::test]
+async fn a_singer_withdraws_a_song_and_the_next_one_takes_its_turn() {
+    let config = ApiConfig::default()
+        .without_mdns()
+        .with_password(SWEEP_PASSWORD)
+        .expect("argon2 hashes a password");
+    // No token of any level: the room is at the queue level, which is above the request level.
+    let harness = Harness::with_config(config).tokenless();
+    let (ana, token) = register(&harness, "phone-a", Some("Ana")).await;
+    let (_, beto_token) = register(&harness, "phone-b", Some("Beto")).await;
+    let wrong = ask(&harness, ana, &token, "1001").await;
+    ask(&harness, ana, &token, "1002").await;
+    let path = format!("/requests/{}/withdraw", wrong["id"]);
+
+    let (status, _) = harness.post(&path, json!({ "token": beto_token })).await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+
+    let (status, body) = harness.post(&path, json!({ "token": token })).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(body["state"], "withdrawn");
+    assert_eq!(queued_numbers(&harness).await, vec!["1002"]);
+
+    let (status, body) = harness.post(&path, json!({ "token": token })).await;
+    assert_eq!(status, StatusCode::CONFLICT);
+    assert_eq!(body["error"], "request_finished");
+
+    let (status, _) = harness
+        .post("/requests/9999/withdraw", json!({ "token": token }))
+        .await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn the_cap_on_one_singers_waiting_songs_has_a_code_of_its_own() {
+    let harness = Harness::new();
+    harness
+        .machine
+        .set_request_rules(km_queue::RequestRules { max_waiting: 1 });
+    let (ana, token) = register(&harness, "phone-a", Some("Ana")).await;
+    ask(&harness, ana, &token, "1001").await;
+    ask(&harness, ana, &token, "1002").await;
+
+    let (status, body) = harness
+        .post(
+            "/requests",
+            json!({ "singer": ana, "token": token, "number": "1003" }),
+        )
+        .await;
+    assert_eq!(status, StatusCode::CONFLICT);
+    assert_eq!(body["error"], "singer_requests_full");
+}
+
+/// A caller at the control level adds a song for any singer, and the rule treats it as a phone's.
+#[tokio::test]
+async fn the_control_level_asks_for_any_singer_with_no_token() {
+    let config = ApiConfig::default()
+        .without_mdns()
+        .with_password(SWEEP_PASSWORD)
+        .expect("argon2 hashes a password")
+        .with_codes("sweep-queue", "sweep-control")
+        .expect("argon2 hashes a code");
+    let mut harness = Harness::with_config(config).tokenless();
+    let (ana, _) = register(&harness, "phone-a", Some("Ana")).await;
+    let path = format!("/singers/{ana}/requests");
+
+    let (status, _) = harness.post(&path, json!({ "number": "1001" })).await;
+    assert_eq!(
+        status,
+        StatusCode::UNAUTHORIZED,
+        "the room is at the queue level"
+    );
+
+    harness.token = harness
+        .state
+        .auth()
+        .issue_for(Access::Control)
+        .map(|grant| grant.token);
+    let (status, first) = harness.post(&path, json!({ "number": "1001" })).await;
+    assert_eq!(status, StatusCode::CREATED, "{first}");
+    assert_eq!(first["state"], "queued");
+    let (_, second) = harness.post(&path, json!({ "number": "1002" })).await;
+    assert_eq!(second["state"], "waiting");
+
+    let (status, _) = harness
+        .post("/singers/9999/requests", json!({ "number": "1001" }))
+        .await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+}
+
+/// A song with no singer still goes straight in, and it is no request.
+#[tokio::test]
+async fn a_song_with_no_singer_passes_the_rule() {
+    let harness = Harness::new();
+    let (ana, token) = register(&harness, "phone-a", Some("Ana")).await;
+    ask(&harness, ana, &token, "1001").await;
+
+    harness.post("/queue", json!({ "number": "1002" })).await;
+    harness.post("/queue", json!({ "number": "1003" })).await;
+
+    assert_eq!(queued_numbers(&harness).await, vec!["1001", "1002", "1003"]);
+    let (_, list) = harness.get("/requests").await;
+    assert_eq!(list["requests"].as_array().expect("requests").len(), 1);
+}
+
+/// A room at the view level reads the requests and asks for nothing.
+#[tokio::test]
+async fn a_viewer_reads_the_requests_and_asks_for_none() {
+    let harness = Harness::with_config(
+        ApiConfig::default()
+            .without_mdns()
+            .with_password(SWEEP_PASSWORD)
+            .expect("argon2 hashes a password")
+            .with_room_access(Access::View),
+    )
+    .tokenless();
+
+    let (status, _) = harness.get("/requests").await;
+    assert_eq!(status, StatusCode::OK);
+    let (status, _) = harness
+        .post(
+            "/requests",
+            json!({ "singer": 0, "token": "x", "number": "1001" }),
+        )
+        .await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+    let (status, _) = harness
+        .post("/requests/0/withdraw", json!({ "token": "x" }))
+        .await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+}
+
+/// A name taken later reaches the songs the seat already has in the queue.
+#[tokio::test]
+async fn a_rename_reaches_the_songs_already_queued() {
+    let harness = Harness::new();
+    let (guest, token) = register(&harness, "phone-a", None).await;
+    ask(&harness, guest, &token, "1001").await;
+    let (_, queue) = harness.get("/queue").await;
+    assert_eq!(
+        queue["entries"][0]["singer"],
+        Value::Null,
+        "no name, so none on the screen"
+    );
+
+    harness
+        .put(
+            &format!("/singers/{guest}/name"),
+            json!({ "token": token, "name": "Ana" }),
+        )
+        .await;
+
+    let (_, queue) = harness.get("/queue").await;
+    assert_eq!(queue["entries"][0]["singer"], "Ana");
+}

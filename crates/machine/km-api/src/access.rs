@@ -1,8 +1,9 @@
 //! Who may do what: five levels, and what decides a caller's.
 //!
 //! **Five levels, in a fixed order, and each one includes the ones below it.** A viewer sees the
-//! catalog, the queue and the screen. A requester also registers a singer and names one. A queuer
-//! also adds a song and turns a singer's knobs: key,
+//! catalog, the queue and the screen. A requester also registers a singer and asks for a song,
+//! which the machine queues in that singer's turn. A queuer also adds a song with no singer, which
+//! takes no turn, and turns a singer's knobs: key,
 //! tempo, volume, melody and lyric offset. A controller also interrupts: skip, play now, the other
 //! transport buttons, and moving or removing anybody's queue entry. The admin also reconfigures the
 //! machine.
@@ -24,7 +25,7 @@ use serde::{Deserialize, Serialize};
 pub enum Access {
     /// Sees the catalog, the queue and what is playing. Changes nothing.
     View,
-    /// Registers a singer, and names one.
+    /// Registers a singer and names one, and asks for a song and takes one back.
     ///
     /// **Nothing grants it by itself.** No room is given it and no code buys it, so a caller
     /// reaches its routes by holding [`Self::Queue`] or more.
@@ -53,8 +54,8 @@ impl Access {
 
     /// The levels a room may be given.
     ///
-    /// The admin level is never one of them. [`Self::Request`] is not one either, because a room at
-    /// that level registers singers and has no route to ask for a song with.
+    /// The admin level is never one of them. [`Self::Request`] is not one either: the singer's
+    /// remote asks through the queue level, so a room at this level could ask for nothing from it.
     pub const ROOM: [Self; 3] = [Self::View, Self::Queue, Self::Control];
 
     /// The word for this level, as it appears in JSON, in a token and in `settings.json`.
