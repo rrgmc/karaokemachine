@@ -159,6 +159,10 @@ pub struct QueueRow {
     pub first: bool,
     /// Whether it is the last one, which cannot move down.
     pub last: bool,
+    /// How long until it starts, as a sentence in the reader's language.
+    ///
+    /// `None` where the machine sent no figure to state one from.
+    pub wait: Option<String>,
 }
 
 impl QueueRow {
@@ -226,6 +230,15 @@ impl PlayerView {
             },
             online: false,
         }
+    }
+
+    /// The time left in the playing song, which is the half of a queued song's wait that moves.
+    ///
+    /// Zero where nothing plays.
+    pub fn remaining_ms(&self) -> u32 {
+        self.now().map_or(0, |now| {
+            km_queue::wait::remaining_ms(self.state.position_ms, now.duration_ms)
+        })
     }
 
     /// The song, when there is one.

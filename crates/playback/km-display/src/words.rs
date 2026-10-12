@@ -140,6 +140,10 @@ pub const QUEUE_WAITING: &str = "queue-waiting";
 pub const QUEUE_EMPTY: &str = "queue-empty";
 /// The reserved last row when the queue does not fit.
 pub const QUEUE_OVERFLOW: &str = "queue-overflow";
+/// A queued song's wait of a minute or more.
+pub const QUEUE_WAIT_MINUTES: &str = "queue-wait-minutes";
+/// A queued song's wait of less than a minute.
+pub const QUEUE_WAIT_SOON: &str = "queue-wait-soon";
 
 /// What is queued after the song playing.
 pub const NEXT_UP: &str = "next-up";
@@ -282,6 +286,8 @@ pub const ALL_IDS: &[&str] = &[
     QUEUE_WAITING,
     QUEUE_EMPTY,
     QUEUE_OVERFLOW,
+    QUEUE_WAIT_MINUTES,
+    QUEUE_WAIT_SOON,
     NEXT_UP,
     ANNOUNCE_SINGER,
     NO_LYRICS,

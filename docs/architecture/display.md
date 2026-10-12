@@ -606,6 +606,13 @@ singer column is the one people read, because the question is "am I next", not "
 overlay cuts a long title by **character** rather than byte. That matters for a corpus this full of
 accented Latin text, because slicing by byte would panic on a character boundary.
 
+**Each row ends with its wait**, in the dim color at the right edge, and the singer's name ends one
+column to its left. The wait column is as wide as the longest wait on show, so both columns keep a
+straight edge. The title takes 56% of the row, and the singer's name is cut to what the wait leaves.
+`draw` passes the time left in the playing song, from the frame's position and length.
+`km_queue::wait::ahead_ms` gives the lengths ahead, and `km_queue::Wait` gives the two forms. See
+[`A queued song shows a rough wait`](../decisions/interface.md#a-queued-song-shows-a-rough-wait).
+
 Three details each fix something a rendered frame showed:
 
 - **Full-screen scrim at 82%, then the card twice.** Even a second pass of the ~78% panel left a lyric

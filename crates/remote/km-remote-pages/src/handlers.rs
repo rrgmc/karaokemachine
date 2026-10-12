@@ -26,8 +26,9 @@ use axum::extract::{Path, Query, State};
 use axum::http::{HeaderMap, StatusCode, header};
 use axum::response::{Html, IntoResponse, Redirect, Response};
 use km_api::Access;
-use km_api::dto::{AccessDto, OriginDto, SettingsPatchDto};
+use km_api::dto::{AccessDto, OriginDto, QueueEntryDto, SettingsPatchDto};
 use km_locale::{Catalog, Locale};
+use km_queue::Wait;
 use km_song::text::fold;
 use km_songcode::SongCode;
 use qrcode::EcLevel;
@@ -40,7 +41,7 @@ use crate::machine::{
     ArtistFilter, BrowseQuery, Connection, FolderRow, Miss, Order, Reconciliation, RemoteError,
     Resolution, Scanned, SongPage, SongRef, Transport,
 };
-use crate::model::{Mode, PlayerView, QueueRow, SongRow};
+use crate::model::{Mode, PlayerView, SongRow};
 use crate::prefs::{self, Prefs};
 use crate::views::{
     self, ArtistLine, BackupPage, Badge, Banner, BrowseBlock, BrowsePage, Chrome, Conn, FolderLine,
@@ -1273,18 +1274,15 @@ async fn player_block(state: &Remote, locale: Locale) -> PlayerBlock {
     PlayerBlock::of(player_view(state).await, locale)
 }
 
-/// The Queue page's now bar as it stands.
-async fn nowbar_block(state: &Remote) -> NowBar {
-    NowBar::of(player_view(state).await)
-}
-
 /// `GET /queue`
 pub async fn queue_page(State(state): State<Remote>, headers: HeaderMap) -> Response {
     let prefs = Prefs::read(&headers);
     let locale = prefs.locale;
     let chrome = chrome(&state, "queue", &prefs).await;
-    let nowbar = nowbar_block(&state).await;
-    let queue = queue_block(&state).await;
+    // One read of the state for both, so the bar and the waits describe the same moment.
+    let view = player_view(&state).await;
+    let queue = queue_block(&state, view.remaining_ms(), locale).await;
+    let nowbar = NowBar::of(view);
     views::page(
         &QueuePage {
             chrome,
@@ -1295,28 +1293,21 @@ pub async fn queue_page(State(state): State<Remote>, headers: HeaderMap) -> Resp
     )
 }
 
-/// The queue list as it stands.
-async fn queue_block(state: &Remote) -> QueueBlock {
+/// The queue list as it stands, given the time left in the playing song.
+async fn queue_block(state: &Remote, remaining_ms: u32, locale: Locale) -> QueueBlock {
     let online = state.machine.connection().online;
-    let entries = state
+    let entries = queue_entries(state).await;
+    QueueBlock::of(&entries, online, remaining_ms, locale)
+}
+
+/// The waiting songs, or none from a machine that has not answered.
+async fn queue_entries(state: &Remote) -> Vec<QueueEntryDto> {
+    state
         .machine
         .queue()
         .await
         .map(|queue| queue.entries)
-        .unwrap_or_default();
-    let last = entries.len().saturating_sub(1);
-    QueueBlock {
-        rows: entries
-            .into_iter()
-            .enumerate()
-            .map(|(index, entry)| QueueRow {
-                entry,
-                first: index == 0,
-                last: index == last,
-            })
-            .collect(),
-        online,
-    }
+        .unwrap_or_default()
 }
 
 /// `GET /events`
@@ -1893,7 +1884,8 @@ pub async fn queue_action(
     // The list comes back either way, and it comes back **from the machine** rather than from what
     // this handler believes it did. A move that was refused then shows the order that actually
     // holds, instead of the one the tap was aiming at.
-    let block = queue_block(&state).await;
+    let remaining_ms = player_view(&state).await.remaining_ms();
+    let block = queue_block(&state, remaining_ms, locale).await;
     match result {
         Ok(()) => views::page(&block, locale),
         // The machine wants a password and this phone has not got one. Somewhere to type it beats a
@@ -3351,14 +3343,16 @@ async fn pump(state: Remote) {
     let mut last_position = tokio::time::Instant::now() - POSITION_INTERVAL;
     let mut last_card: Option<Vec<(Locale, String)>> = None;
     let mut last_connection: Option<Connection> = None;
-
-    publish_everything(&state).await;
+    // The queue is kept between two events, because a wait moves with the playing song and the
+    // list must go out again when a figure on it changes.
+    let mut queue = publish_everything(&state).await;
 
     loop {
         tokio::select! {
             event = events.recv() => match event {
                 Ok(km_api::events::Event::State { state: snapshot }) => {
                     let view = PlayerView { state: snapshot, online: state.machine.connection().online };
+                    queue.remaining_ms = view.remaining_ms();
                     // The card, only when something on it actually changed. Comparing the rendered
                     // markup is both the simplest and the most honest test of that: it is exactly
                     // the question "would a page look different?" — asked of every language at
@@ -3396,10 +3390,16 @@ async fn pump(state: Remote) {
                         // position block that would not render was retried on every single event
                         // rather than every `POSITION_INTERVAL`.
                         last_position = tokio::time::Instant::now();
+                        // At the position's pace and no faster. The list holds the row buttons, so
+                        // it goes out only when a wait on it reads differently.
+                        if queue.waits() != queue.sent {
+                            queue.publish(&state);
+                        }
                     }
                 }
-                Ok(km_api::events::Event::QueueChanged { queue }) => {
-                    publish_queue(&state, queue.len).await;
+                Ok(km_api::events::Event::QueueChanged { queue: changed }) => {
+                    queue.entries = changed.entries;
+                    queue.publish(&state);
                 }
                 Ok(km_api::events::Event::SongStarted { .. })
                 | Ok(km_api::events::Event::SongEnded { .. })
@@ -3412,13 +3412,13 @@ async fn pump(state: Remote) {
                 Ok(km_api::events::Event::Desync { skipped }) => {
                     tracing::debug!(skipped, "resynchronizing after a gap in the event stream");
                     last_card = None;
-                    publish_everything(&state).await;
+                    queue = publish_everything(&state).await;
                 }
                 Ok(_) => {}
                 Err(RecvError::Lagged(skipped)) => {
                     tracing::debug!(skipped, "the pump fell behind the machine's events");
                     last_card = None;
-                    publish_everything(&state).await;
+                    queue = publish_everything(&state).await;
                 }
                 Err(RecvError::Closed) => {
                     tracing::debug!("the machine's event stream closed; the pump is stopping");
@@ -3432,7 +3432,7 @@ async fn pump(state: Remote) {
                     // Coming back after an absence means everything on every open page is stale.
                     if connection.online {
                         last_card = None;
-                        publish_everything(&state).await;
+                        queue = publish_everything(&state).await;
                     }
                     last_connection = Some(connection);
                 }
@@ -3503,7 +3503,9 @@ fn render_card(view: &PlayerView) -> Result<Vec<(Locale, String)>, askama::Error
 }
 
 /// The card and the bar, which are one state rendered for two pages.
-async fn publish_player(state: &Remote) {
+///
+/// Hands the state back, so a caller that also sends the queue reads it once.
+async fn publish_player(state: &Remote) -> PlayerView {
     let view = player_view(state).await;
     publish_rendered(
         state,
@@ -3511,19 +3513,41 @@ async fn publish_player(state: &Remote) {
         everywhere(|locale| PlayerBlock::of(view.clone(), locale)),
     );
     publish_rendered(state, sse::NOWBAR, everywhere(|_| NowBar::of(view.clone())));
+    view
 }
 
-async fn publish_queue(state: &Remote, len: usize) {
-    let queue = queue_block(state).await;
-    publish_rendered(
-        state,
-        sse::QUEUE,
-        everywhere(|_| QueueBlock {
-            rows: queue.rows.clone(),
-            online: queue.online,
-        }),
-    );
-    publish_rendered(state, sse::QUEUE_COUNT, everywhere(|_| QueueCount { len }));
+/// What the pump holds of the queue between two events.
+///
+/// A queued song's wait has two parts, and they arrive on two events. The lengths ahead come with
+/// `queue_changed`, and the time left in the playing song comes with every `state`. Holding the
+/// first lets the pump state the wait again as the second moves, without asking the machine.
+struct QueueFeed {
+    /// The waiting songs, as the machine last reported them.
+    entries: Vec<QueueEntryDto>,
+    /// The time left in the playing song, as the last state gave it.
+    remaining_ms: u32,
+    /// The waits on the list every open page holds.
+    sent: Vec<Option<Wait>>,
+}
+
+impl QueueFeed {
+    /// The wait each entry shows now.
+    fn waits(&self) -> Vec<Option<Wait>> {
+        views::queue_waits(&self.entries, self.remaining_ms)
+    }
+
+    /// Sends the list and the count, and remembers the waits that went out.
+    fn publish(&mut self, state: &Remote) {
+        let online = state.machine.connection().online;
+        publish_rendered(
+            state,
+            sse::QUEUE,
+            everywhere(|locale| QueueBlock::of(&self.entries, online, self.remaining_ms, locale)),
+        );
+        let len = self.entries.len();
+        publish_rendered(state, sse::QUEUE_COUNT, everywhere(|_| QueueCount { len }));
+        self.sent = self.waits();
+    }
 }
 
 /// The dot, the banner, and — where this build has one — the machine card.
@@ -3556,11 +3580,16 @@ async fn publish_connection(state: &Remote, connection: &Connection) {
     }
 }
 
-async fn publish_everything(state: &Remote) {
-    publish_player(state).await;
-    let len = state.machine.queue().await.map(|q| q.len).unwrap_or(0);
-    publish_queue(state, len).await;
+async fn publish_everything(state: &Remote) -> QueueFeed {
+    let view = publish_player(state).await;
+    let mut queue = QueueFeed {
+        entries: queue_entries(state).await,
+        remaining_ms: view.remaining_ms(),
+        sent: Vec::new(),
+    };
+    queue.publish(state);
     publish_connection(state, &state.machine.connection()).await;
+    queue
 }
 
 #[cfg(test)]
@@ -3711,10 +3740,7 @@ mod tests {
         add(sse::POSITION, everywhere(|_| PositionBlock::of(&idle)));
         add(
             sse::QUEUE,
-            everywhere(|_| QueueBlock {
-                rows: Vec::new(),
-                online: true,
-            }),
+            everywhere(|locale| QueueBlock::of(&[], true, 0, locale)),
         );
         add(sse::QUEUE_COUNT, everywhere(|_| QueueCount { len: 3 }));
         add(sse::CONN, everywhere(|_| Conn { online: false }));

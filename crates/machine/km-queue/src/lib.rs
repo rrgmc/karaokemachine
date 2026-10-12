@@ -2,10 +2,11 @@
 //!
 //! This is the vocabulary an *observer* of the machine needs — the API describing it over HTTP, a
 //! remote rendering it, the screen drawing it — as opposed to the machinery that makes any of it
-//! happen, which is [`km_audio`](https://docs.rs/km-audio). Four things live here:
+//! happen, which is [`km_audio`](https://docs.rs/km-audio). Five things live here:
 //!
 //! * [`queue`] — the waiting songs. Pure state, held on the control thread; it knows song codes and
 //!   titles and nothing about how a song is loaded or played.
+//! * [`wait`] — how long a queued song waits, and the two forms that figure takes.
 //! * [`mics`] — the microphone registry. Configuration state only: mic audio is mixed in hardware,
 //!   a standing decision in `docs/decisions/`, so there is no input stream here and no DSP.
 //! * [`transport`] — whether a song is playing, paused, stopped or absent.
@@ -26,8 +27,10 @@ pub mod limits;
 pub mod mics;
 pub mod queue;
 pub mod transport;
+pub mod wait;
 
 pub use crate::limits::{MAX_TEMPO_RATIO, MAX_TRANSPOSE, MIN_TEMPO_RATIO};
 pub use crate::mics::{MAX_GAIN, MAX_MICS, MicBus, MicChannel, MicError, MicPatch, MicRegistry};
 pub use crate::queue::{MAX_QUEUED, Queue, QueueEntry, QueueFull, QueueRequest};
 pub use crate::transport::Transport;
+pub use crate::wait::Wait;

@@ -427,6 +427,8 @@ mod tests {
         "count-songs",
         "song-unfavorite-confirm",
         "machine-songs-copied",
+        "queue-wait-minutes",
+        "queue-wait-soon",
         // Keyed by `km-remote-core`'s stable code — see `how_key`.
         "machine-how-asked-for",
         "machine-how-remembered",

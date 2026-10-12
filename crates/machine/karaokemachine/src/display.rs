@@ -3514,6 +3514,7 @@ fn queue_number(machine: &Machine, entry: &mut NumberEntry, number: SongCode) {
                 title: song.title,
                 artist: song.artist,
                 singer: None,
+                duration_ms: song.duration_ms,
             };
             match machine.queue_add(request) {
                 Ok(_) => {
@@ -3826,6 +3827,7 @@ mod tests {
                     title: "Something".to_owned(),
                     artist: None,
                     singer: None,
+                    duration_ms: 0,
                 })
                 .expect("the queue takes it");
 

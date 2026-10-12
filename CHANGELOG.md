@@ -29,6 +29,10 @@ Entries are written for somebody who has the machine. Why any of it is the way i
   video or MP3+G song waits the five seconds in silence. Demo songs are not announced. The
   **This machine** tab has an Announcement pane that changes the length or turns it off.
 
+- **Each queued song shows about how long until it starts.** The phone's Queue tab and the queue on
+  the machine's screen both show `~4 min` or `< 1 min` beside each song. The figure
+  counts down as the playing song runs.
+
 ### Fixed
 
 - **Each song starts at its own key and tempo.** A song started in the key and tempo that the singer

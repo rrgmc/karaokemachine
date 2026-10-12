@@ -2238,6 +2238,44 @@ then wraps to two lines of the narrowest, and only then ends in an ellipsis. The
 outranks the artist's: the artist is a fact about the file, and the singer's name tells one person
 to stand up.
 
+## A queued song shows a rough wait
+
+**Each queued song shows about how long until it starts.** The remote's Queue tab shows it on each
+row, and so does the queue overlay on the machine's screen. A singer reads it to decide whether to
+stay near the microphone.
+
+**The figure has two forms.**
+
+| The wait | What the entry shows |
+|---|---|
+| A minute or more | `~N min`, rounded to the minute |
+| Less than a minute | `< 1 min` |
+
+**The figure is symbols and no words.** It shares a row with a title and a singer's name, and the
+short form leaves them the room. It also reads the same in every language.
+
+**A rough figure is the honest one.** The wait ignores the time between two songs, a pause and a
+changed tempo. Each is small beside a figure rounded to the minute, and a figure in seconds would
+claim more than the machine knows.
+
+**The wait has two parts.** One is the time left in the playing song. The other is the sum of the
+lengths of the entries ahead. A queue entry carries its song's length, so neither the screen nor
+the API asks the catalog for it.
+
+**The machine sends the second part, and a client adds the first.** Each entry of `GET /queue` and
+of `queue_changed` carries `duration_ms` and `ahead_ms`. `ahead_ms` changes only when the queue
+does. The time left in the playing song comes with every `state`, so a client counts the wait down
+between two `queue_changed` events.
+
+**An entry with no `ahead_ms` shows no wait.** A remote and a machine compare no versions, and a
+zero would read as a turn that is about to come.
+
+**No setting turns the wait off.** A singer who does not want the figure ignores it at no cost. A
+wait on some machines and none on others would be two things to explain.
+
+**`km_queue::Wait` is the one rule for the two forms.** The screen and the remote both word their
+figure from it, so the television and a phone never disagree about the same entry.
+
 ## What the machine does when nobody is singing
 
 **Demo mode: after a minute of silence, the machine starts a random song.** **When that song ends, it

@@ -99,6 +99,7 @@ pub fn enqueue(
         title: song.title.clone(),
         artist: song.artist.clone(),
         singer,
+        duration_ms: song.duration_ms,
     })?;
 
     let queue = publish_queue(state);

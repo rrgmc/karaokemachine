@@ -67,6 +67,8 @@ queue-waiting = { $count ->
  }
 queue-empty = Nada na fila — digite o número de uma música
 queue-overflow = e mais { $count }
+queue-wait-minutes = ~{ $minutes } min
+queue-wait-soon = < 1 min
 
 ## Enquanto uma música toca
 

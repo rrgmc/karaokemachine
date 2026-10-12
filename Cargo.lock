@@ -2812,6 +2812,7 @@ dependencies = [
  "km-catalog",
  "km-kmpkg",
  "km-locale",
+ "km-queue",
  "km-song",
  "km-songcode",
  "km-testkit",

@@ -108,6 +108,10 @@ queue-move-up = Move up
 queue-move-down = Move down
 queue-remove = Remove
 queue-empty-hint = No song queued. Tap
+# How long until a queued song starts. Rough on purpose: it says whether to stay near the microphone.
+# Symbols and no words, because the figure shares a row with a title and a name.
+queue-wait-minutes = ~{ $minutes } min
+queue-wait-soon = < 1 min
 singing-as = Singing as
 singer-name = Name your songs are queued under
 singer-placeholder = your name

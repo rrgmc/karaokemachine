@@ -6984,6 +6984,7 @@ mod tests {
             title: format!("Song {}", number.slot()),
             artist: Some("A Singer".to_owned()),
             singer: None,
+            duration_ms: 200_000,
         }
     }
 

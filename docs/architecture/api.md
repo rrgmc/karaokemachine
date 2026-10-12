@@ -432,6 +432,13 @@ WebSocket events: `state`, `queue_changed`, `song_started`, `song_ended`, `lyric
 `state` at about 4 Hz, and per-syllable position is never streamed.** The display reads it from the
 shared atomic, and remotes interpolate locally from the lyric timeline.
 
+**A queue entry carries half of its wait.** `QueueEntry` holds the song's `duration_ms`, which
+`ops::enqueue` and the keypad copy from the catalog row they already read. `QueueDto::new` gives
+each `QueueEntryDto` that length and `ahead_ms`, the sum of the lengths before it. The other half is
+the time left in the playing song, which a client takes from `state`. The split means no event
+fires for a wait that counts down. `ahead_ms` is optional on the wire, and a client shows no wait
+for an entry without one.
+
 ### The machine's own log
 
 A second WebSocket, `GET /api/v1/admin/logs/stream`, carries `record` and `lagged` frames.

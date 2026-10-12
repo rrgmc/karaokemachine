@@ -1928,6 +1928,7 @@ mod tests {
             title: format!("Song {number}"),
             artist: None,
             singer: None,
+            duration_ms: 180_000,
         }
     }
 
