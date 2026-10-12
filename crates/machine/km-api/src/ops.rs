@@ -27,7 +27,9 @@
 
 use std::future::Future;
 
-use crate::dto::{AddedToQueueDto, QueueDto, SettingsDto, StateDto};
+use crate::dto::{
+    AddedToQueueDto, QueueDto, SettingsDto, SingerDto, SingerIssuedDto, SingersDto, StateDto,
+};
 use km_songcode::SongCode;
 
 use crate::error::{ApiError, ApiResult};
@@ -35,6 +37,7 @@ use crate::events::{EndReason, Event};
 use crate::machine::{SettingsPatch, TransportCommand};
 use crate::server::ApiState;
 use km_queue::queue::QueueRequest;
+use km_queue::seats::SeatName;
 
 /// Runs one of these operations on a blocking thread instead of on the async runtime.
 ///
@@ -100,6 +103,7 @@ pub fn enqueue(
         artist: song.artist.clone(),
         singer,
         duration_ms: song.duration_ms,
+        seat: None,
     })?;
 
     let queue = publish_queue(state);
@@ -114,6 +118,73 @@ pub fn enqueue(
         position,
         title: song.title,
         artist: song.artist,
+    })
+}
+
+/// Bytes of randomness in a seat's token.
+///
+/// The machine stores the token and compares it, so it needs no signature and no parts. Sixteen
+/// bytes is what a level's token draws for its nonce.
+const SEAT_TOKEN_BYTES: usize = 16;
+
+/// A typed name, with the key two names are compared by, or `None` for nothing typed.
+///
+/// The key ignores case, surrounding spaces and accents, which is the catalog's own fold. So a
+/// second `ana` cannot stand beside `Ana` on the screen.
+fn seat_name(typed: &str) -> Option<SeatName> {
+    let shown = typed.trim();
+    (!shown.is_empty()).then(|| SeatName {
+        shown: shown.to_owned(),
+        key: km_song::text::fold(shown),
+    })
+}
+
+/// The evening's singers.
+pub fn singers(state: &ApiState) -> SingersDto {
+    SingersDto {
+        singers: state.controller().seats().iter().map(Into::into).collect(),
+        capacity: km_queue::MAX_SEATS,
+    }
+}
+
+/// Registers a singer for a device, and hands back the seat with its token.
+///
+/// A name of spaces alone is no name, so that singer registers unnamed.
+pub fn register_singer(
+    state: &ApiState,
+    device: &str,
+    name: Option<&str>,
+) -> ApiResult<SingerIssuedDto> {
+    let issued = state.controller().seat_register(
+        device.trim(),
+        name.and_then(seat_name),
+        crate::auth::random_hex(SEAT_TOKEN_BYTES),
+    )?;
+    // The id and never the token: this line reaches the log, and the log reaches the admin page.
+    tracing::info!(singer = issued.seat.id, "a singer registered");
+    Ok(SingerIssuedDto {
+        singer: (&issued.seat).into(),
+        token: issued.token,
+    })
+}
+
+/// Gives a singer a name, or another name. The seat's token is the proof.
+pub fn rename_singer(state: &ApiState, id: u64, token: &str, name: &str) -> ApiResult<SingerDto> {
+    let name = seat_name(name)
+        .ok_or_else(|| ApiError::BadRequest("a singer's name cannot be empty".to_owned()))?;
+    let seat = state.controller().seat_rename(id, token, name)?;
+    Ok((&seat).into())
+}
+
+/// Gives a singer a new token, for a caller whose level is the check.
+pub fn reissue_singer(state: &ApiState, id: u64) -> ApiResult<SingerIssuedDto> {
+    let issued = state
+        .controller()
+        .seat_reissue(id, crate::auth::random_hex(SEAT_TOKEN_BYTES))?;
+    tracing::info!(singer = issued.seat.id, "a singer's token was reissued");
+    Ok(SingerIssuedDto {
+        singer: (&issued.seat).into(),
+        token: issued.token,
     })
 }
 

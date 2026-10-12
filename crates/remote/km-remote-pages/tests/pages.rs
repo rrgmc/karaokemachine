@@ -553,6 +553,7 @@ impl Machine for StubMachine {
             artist: None,
             singer: singer.map(str::to_owned),
             duration_ms: 180_000,
+            seat: None,
             ahead_ms: Some(180_000 * position as u64),
         });
         Ok(AddedToQueueDto {

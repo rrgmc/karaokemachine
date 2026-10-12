@@ -1411,5 +1411,6 @@ fn queued(
         artist: artist.map(str::to_owned),
         singer: singer.map(str::to_owned),
         duration_ms: 200_000,
+        seat: None,
     }
 }

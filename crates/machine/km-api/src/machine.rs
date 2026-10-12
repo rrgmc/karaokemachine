@@ -22,6 +22,7 @@ use km_catalog::{CatalogSong, InstallReport, InstalledPackage, SongKind};
 use km_queue::Transport;
 use km_queue::mics::{MicChannel, MicPatch};
 use km_queue::queue::{QueueEntry, QueueRequest};
+use km_queue::seats::{Issued, Seat, SeatError, SeatName};
 use km_song::Song;
 use km_songcode::SongCode;
 
@@ -1310,6 +1311,26 @@ pub trait Controller: Send + Sync + 'static {
 
     /// Empties the queue without touching what is playing.
     fn queue_clear(&self) -> Result<usize, ControlError>;
+
+    /// The evening's singers, in the order each registered.
+    fn seats(&self) -> Vec<Seat>;
+
+    /// Registers a singer for a device, under the owner's rules for a name and for a device.
+    ///
+    /// `token` is what the caller will prove the seat with. A seat that comes back by its name
+    /// takes this token, and its old one ends. See [`km_queue::Seats::register`].
+    fn seat_register(
+        &self,
+        device: &str,
+        name: Option<SeatName>,
+        token: String,
+    ) -> Result<Issued, SeatError>;
+
+    /// Gives a seat a name, or another name. `token` is the proof.
+    fn seat_rename(&self, id: u64, token: &str, name: SeatName) -> Result<Seat, SeatError>;
+
+    /// Gives a seat a new token, whatever it holds. The route's level is the check.
+    fn seat_reissue(&self, id: u64, token: String) -> Result<Issued, SeatError>;
 
     /// Drives the transport.
     fn transport(&self, command: TransportCommand) -> Result<(), ControlError>;

@@ -72,6 +72,7 @@ mod tests {
             artist: None,
             singer: None,
             duration_ms,
+            seat: None,
         }
     }
 

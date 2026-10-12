@@ -38,6 +38,54 @@ instead.
 same permission as any other setting: a performance knob a singer reaches for. So it sits outside
 `/admin/` with queueing, permanently, and needs the queue level.
 
+## A singer is a seat, and a token proves it
+
+**The machine issues a seat for each singer of the evening.** A seat holds an id and an optional
+name. `POST /api/v1/singers` registers one and answers with a random token. The name is what
+people see, and the token is what proves. Without the token, anybody could type a held name and act
+as that singer.
+
+**A seat is no account.** It holds no password, and it ends with the process, as the queue does.
+The machine stores no list of people, and a name is free again the next evening. It does let the
+machine tell two phones apart.
+
+**The machine stores the token and compares it.** It needs no signature, because nothing has to
+read it without the machine. A stored token also ends with the evening, where a signed one would
+outlive a restart. No list of singers carries a token.
+
+**A name is optional.** A singer who gives none gets a number, as in `Guest 4`, and a client words
+the label. One device holds one unnamed singer at most, so people who share a tablet can tell their
+songs apart. A remote makes an id for its device and sends it with each registration.
+
+**A name is unique among the evening's singers.** The comparison ignores case, surrounding spaces
+and accents, which is the catalog's own fold. So the television never shows two singers under one
+name.
+
+**A seat that holds no song comes back by its name.** Registering the name of such a seat returns
+that seat with a new token, and the old token ends. A phone that lost its token needs nobody. The
+machine refuses the same registration while the seat has a song in the queue. A reclaim by name
+alone would hand one singer's songs to another. A caller at the `control` level then reissues the
+seat, with `POST /api/v1/singers/{id}/reissue`.
+
+**A rename keeps the seat.** `PUT /api/v1/singers/{id}/name` takes the seat's token and a free
+name. The seat keeps its id, its token and whatever it holds. A rename never takes a name from
+another seat, even a free one.
+
+**A queue entry carries its seat's id.** The `singer` text on an entry stays the label, and `seat`
+is the identity. A song with no singer carries none.
+
+**The owner sets two rules, and both start open.** `singers.name_required` makes every singer give
+a name, for a host who calls each one by the name on the screen. `singers.max_per_device` caps the
+singers on one device, and a home that passes one phone around wants no cap. The machine counts by
+the id a remote sends, so the cap stops a mistake and not a cheat.
+
+**An evening holds 1,000 seats at most.** A phone at the room level could otherwise fill memory by
+registering singers.
+
+**Each refusal a singer can cause has a code.** `name_taken`, `name_required`, `unnamed_taken`,
+`device_full` and `singers_full` answer 409, so a remote says each in its own words. A wrong token
+answers 403, because a level's token would not help.
+
 ## Four access levels, and the method and path decide them
 
 **Four levels, each including the ones below it: view, queue, control and admin.**
@@ -54,9 +102,11 @@ same permission as any other setting: a performance knob a singer reaches for. S
 it to `view` or `control`, and never to `admin`. A queue code and a control code each raise a phone
 to their level. The admin password opens the admin level, as it always does.
 
-**The type holds a fifth level, `request`, between `view` and `queue`, and no caller holds it.** No
-route needs it, so it opens what `view` opens. No room is given it and no code buys it. A settings
-file that names it for the room is read as `view`, as one that names `admin` is read as `control`.
+**The type holds a fifth level, `request`, between `view` and `queue`.** Two routes need it:
+`POST /singers` and `PUT /singers/{id}/name`. No room is given it and no code buys it, so a caller
+reaches those routes at `queue` or above. A settings file that names it for the room is read as
+`view`, as one that names `admin` is read as `control`. See
+[`A singer is a seat, and a token proves it`](#a-singer-is-a-seat-and-a-token-proves-it).
 
 **No accounts.** A karaoke machine's owner hands a code to the people who may skip, and changes it
 when that stops being true. Names and passwords per guest would be a list nobody keeps. The singer

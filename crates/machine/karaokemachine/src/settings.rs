@@ -763,6 +763,36 @@ impl DemoSettings {
     }
 }
 
+/// What the owner asks of a singer who registers.
+///
+/// A singer is a seat the machine issues for the evening, and the name is its label. Both settings
+/// start open, so a machine works in full with every singer unnamed and any number on one phone.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct SingerSettings {
+    /// Whether every singer gives a name.
+    ///
+    /// **Off.** A home needs no names, and a host who calls each singer by the name on the screen
+    /// turns it on.
+    pub name_required: bool,
+    /// How many singers one device may hold.
+    ///
+    /// **No limit**, because a home passes one phone or one tablet around. The machine counts by an
+    /// id the remote sends, so the cap stops a mistake and not a cheat.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_per_device: Option<u32>,
+}
+
+impl SingerSettings {
+    /// The same two answers, as the seat registry takes them.
+    pub fn rules(self) -> km_queue::SeatRules {
+        km_queue::SeatRules {
+            name_required: self.name_required,
+            max_per_device: self.max_per_device,
+        }
+    }
+}
+
 /// The announcement: the card that names a queued song before it starts.
 ///
 /// A singer needs one clear moment that says the next song is theirs. The small `next:` row at the
@@ -1128,6 +1158,9 @@ pub struct Settings {
     pub demo: DemoSettings,
     /// The card that names a queued song before it starts.
     pub announcement: AnnouncementSettings,
+    /// What the owner asks of a singer who registers.
+    #[serde(default)]
+    pub singers: SingerSettings,
     /// What the stream looks like, for a run that draws for an encoder. See [`StreamSettings`].
     #[serde(default)]
     pub stream: StreamSettings,
@@ -1895,6 +1928,26 @@ mod tests {
     }
 
     /// The switch off and a length of zero both mean no card.
+    /// A machine asks nothing of a singer until its owner says so.
+    #[test]
+    fn a_singer_needs_no_name_and_a_device_has_no_cap_until_the_file_says_so() {
+        let open = Settings::default().singers.rules();
+        assert!(!open.name_required);
+        assert_eq!(open.max_per_device, None);
+        let json = serde_json::to_string(&Settings::default()).expect("settings serialize");
+        assert!(
+            !json.contains("max_per_device"),
+            "a cap nobody set is not written down: {json}"
+        );
+
+        let venue: Settings =
+            serde_json::from_str(r#"{"singers":{"name_required":true,"max_per_device":3}}"#)
+                .expect("a file that names both");
+        let rules = venue.singers.rules();
+        assert!(rules.name_required);
+        assert_eq!(rules.max_per_device, Some(3));
+    }
+
     #[test]
     fn an_announcement_switched_off_or_of_no_length_is_no_card() {
         let off = AnnouncementSettings {

@@ -117,8 +117,9 @@ other write is `Control`. `ApiState::authorize` takes the method, the path and t
 nothing else: not the peer address, not a map.
 
 **`Access` has a fifth variant, `Request`, ordered between `View` and `Queue`.** `required_access`
-returns it for no route. `Access::ROOM` leaves it out and `has_code` is false for it, so no caller
-holds it. `Access::as_room` reads a stored `request` as `View` and a stored `admin` as `Control`.
+returns it for `POST /singers` and for `PUT /singers/{id}/name`, which `is_singer_name` matches by
+its two ends. `Access::ROOM` leaves it out and `has_code` is false for it, so a caller reaches
+those routes at `Queue` or above. `Access::as_room` reads a stored `request` as `View` and a stored `admin` as `Control`.
 `ApiState` takes the room level through it at start and at each change. The remote's stylesheet
 hides `needs-queue` and `needs-control` under `access-request`, as it does under `access-view`.
 
@@ -475,6 +476,32 @@ never runs beside the test body. Such a test passes whichever way round the snap
 `send_event`, which reports a serialization failure at `error!`. The tap would take a line said while
 feeding a reader and send it straight back to that reader.
 
+
+## Singers
+
+**`km_queue::seats::Seats` is the registry, and it is pure state.** It draws no randomness and
+folds no text. `ops::register_singer` hands it a token from `auth::random_hex` and a name already
+folded by `km_song::text::fold`. So `km-queue` keeps its two dependencies, and every rule has a
+test with fixed values.
+
+**The registry lives under the queue's lock.** Whether a name is free depends on what its seat has
+queued, so `Seats::register` takes a predicate and the machine answers it from `Queue::holds_seat`.
+`QueueEntry`, `QueueRequest` and `QueueEntryDto` each carry `seat`, the id of the entry's singer.
+
+**`Controller` has four methods for it**: `seats`, `seat_register`, `seat_rename` and
+`seat_reissue`. Each returns `SeatError`, and `From<SeatError> for ApiError` maps it once. The
+machine reads `singers.name_required` and `singers.max_per_device` from its settings at each
+registration, before it locks the state.
+
+| Route | Level | Proof |
+|---|---|---|
+| `GET /singers` | `view` | none |
+| `POST /singers` | `request` | none, and it answers with the token |
+| `PUT /singers/{id}/name` | `request` | the seat's token, in the body |
+| `POST /singers/{id}/reissue` | `control` | none, because the level is enough |
+
+The decision is
+[`A singer is a seat, and a token proves it`](../decisions/api-and-network.md#a-singer-is-a-seat-and-a-token-proves-it).
 
 ## Refusal codes
 
