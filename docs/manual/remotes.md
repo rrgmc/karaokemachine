@@ -76,6 +76,9 @@ it to run a night:
 | Stop taking songs near the end | Tap **Stop taking requests**. Songs already waiting still play |
 | Clear everything for another night | Open **Start a new evening** and tap **Empty everything** |
 
+**A bar or a hall runs a night the same way.** [Running a public night](venue.md) has the
+settings for one.
+
 **The owner decides how much a guest's phone can do.** Out of the box, anybody in the room can ask
 for a song. See [Setting it up from a browser](setup.md#decide-what-a-guests-phone-can-do).
 

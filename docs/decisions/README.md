@@ -33,6 +33,7 @@ it are the same entry. How the thing is built is [`ARCHITECTURE.md`](../ARCHITEC
 - [A store opens at its current version or is refused](foundations.md#a-store-opens-at-its-current-version-or-is-refused)
 - [The interface has a locale; a song has a language](foundations.md#the-interface-has-a-locale-a-song-has-a-language)
 - [What a user reads is written in plain application language](foundations.md#what-a-user-reads-is-written-in-plain-application-language)
+- [A hosted public night is served](foundations.md#a-hosted-public-night-is-served)
 
 ## [Audio](audio.md)
 

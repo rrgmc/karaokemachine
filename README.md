@@ -123,7 +123,11 @@ the queue of six waiting songs with the singer who asked for each">
 - **Any phone on the network is a remote**, with no app to install. An offline remote works with the
   machine switched off. See
   [The remotes](https://rrgmc.github.io/karaokemachine/docs/remotes.html).
-- **Three levels for the room**: watch, queue, and queue plus skip. One admin password covers
+- **Singers take turns.** A guest asks for songs from a phone, and the machine keeps one song for
+  each singer in the queue.
+- **A host runs a public night** at a bar or a hall, from a tablet, with no second program. See
+  [Running a public night](https://rrgmc.github.io/karaokemachine/docs/venue.html).
+- **Four levels for the room**: watch, ask, queue out of turn, and skip. One admin password covers
   everything that reconfigures the machine.
 - **Setup from a browser**: songs, pictures, sound banks, and whatever is wrong. See
   [Setting it up from a browser](https://rrgmc.github.io/karaokemachine/docs/setup.html).
@@ -170,7 +174,7 @@ catalog and queue a song.
 | Part | What it covers |
 |---|---|
 | [Getting started](https://rrgmc.github.io/karaokemachine/docs/pictures.html) | What it looks like and what it does. Installing on each platform, the Debian appliance, signing for an iPhone, and removing it. |
-| [Using it](https://rrgmc.github.io/karaokemachine/docs/keyboard.html) | The keyboard, getting songs in, the remotes, watching it in another room, setting it up from a browser, and the song book. |
+| [Using it](https://rrgmc.github.io/karaokemachine/docs/keyboard.html) | The keyboard, getting songs in, the remotes, running a public night, watching it in another room, setting it up from a browser, and the song book. |
 | [For a technical reader](https://rrgmc.github.io/karaokemachine/docs/command-line.html) | The command line, the song file formats, the HTTP API, the tools that make a package, and the lyric sync editor. |
 
 ## Documentation
