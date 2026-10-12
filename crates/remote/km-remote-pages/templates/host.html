@@ -6,14 +6,15 @@
   <h1>{{ "tab-host"|t }}</h1>
 </div>
 
-{# Two columns on a wide screen, because a host reads the requests against the queue. A tablet or a
-   laptop suits this tab better than a phone, and a phone still gets all of it in one column. #}
+{# One column on a phone, two on a tablet held upright and three on a wide one. A host reads the
+   requests against the queue, and on a wide screen the singers stand beside both. The parts are
+   placed by name in `app.css`, so this file says what there is and the stylesheet says where. #}
 <div class="host">
-  <div class="host-col">
 
-    {# Singer, song and the add on one screen: adding a song is what a host does all night. The name
-       stays in the box between songs, so a pile of slips for one singer is typed once. This form
-       sits outside the fragment below, so a refresh never takes a half-typed name. #}
+  {# Singer, song and the add on one screen: adding a song is what a host does all night. The name
+     stays in the box between songs, so a pile of slips for one singer is typed once. This form
+     sits outside the fragment below, so a refresh never takes a half-typed name. #}
+  <div class="host-add">
     <div class="setup-group">
       <div class="pref-row field-row">
         <label for="host-singer">{{ "host-singer"|t }}</label>
@@ -29,19 +30,19 @@
       </div>
       <div id="host-songs"></div>
     </div>
-
-    {{ lists|safe }}
-
-    {# A new evening empties everything, so it takes two presses: the fold, then the button. A
-       dialog would not do, because a phone app's page cannot show one. #}
-    <details class="pref-more">
-      <summary>{{ "host-reset"|t }}</summary>
-      <p class="hint">{{ "host-reset-hint"|t }}</p>
-      <button class="icon-btn danger" hx-post="/host/reset" hx-swap="none">{{ "host-reset-confirm"|t }}</button>
-    </details>
   </div>
 
-  <div class="host-col">
+  {{ lists|safe }}
+
+  {# A new evening empties everything, so it takes two presses: the fold, then the button. A
+     dialog would not do, because a phone app's page cannot show one. #}
+  <details class="pref-more host-reset">
+    <summary>{{ "host-reset"|t }}</summary>
+    <p class="hint">{{ "host-reset-hint"|t }}</p>
+    <button class="icon-btn danger" hx-post="/host/reset" hx-swap="none">{{ "host-reset-confirm"|t }}</button>
+  </details>
+
+  <div class="host-queue">
     <h2 class="list-head">{{ "tab-queue"|t }}</h2>
     {{ queue|safe }}
   </div>

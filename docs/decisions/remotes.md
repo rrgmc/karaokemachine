@@ -310,15 +310,21 @@ that singer's turn, whatever order the host enters songs in.
 **The host's add warns about nothing.** A guest who asks for a song already in the queue is asked
 once. A host who enters it has read the slip.
 
-**Two columns on a wide screen, and one on a phone.** The waiting requests and the singers stand
-beside the queue, because a host reads one against the other. A tablet or a laptop suits the tab
-better than a phone, and a phone still gets all of it.
+**One column on a phone, two on a tablet and three on a wide screen.** A host reads the waiting
+requests against the queue, so from a tablet's width the queue stands beside them. On a large
+tablet held sideways, or a laptop, the singers take a column of their own. Nothing a host is
+watching then scrolls out of sight.
+
+**From a tablet's width up, the tab is sized for a desk.** The buttons are larger and stand
+further apart, and the titles are larger. A host taps all night, and the button that declines a
+request sits beside the two that accept it. Every other tab keeps the phone's sizes, and so does
+this one on a phone.
 
 **A waiting request has three buttons.** One puts it next, one puts it at the end of the queue, and
 one declines it. The queue beside it keeps its move and remove buttons, shown without a toggle.
 
-**A singer's row opens to three actions.** Hand the seat to a phone, merge it into another singer,
-or remove it. The row says whether a phone holds the seat, and how many songs the singer has sung,
+**A singer's row has three actions.** Hand the seat to a phone, merge it into another singer,
+or remove it. A phone folds them behind the row's ⋯, and a tablet shows them on the row. The row says whether a phone holds the seat, and how many songs the singer has sung,
 has in the queue and has waiting.
 
 **Handing a seat to a phone is the reissue.** The host presses it, and the guest types that name
