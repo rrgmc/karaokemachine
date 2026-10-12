@@ -3398,7 +3398,7 @@ async fn pump(state: Remote) {
                     }
                 }
                 Ok(km_api::events::Event::QueueChanged { queue: changed }) => {
-                    queue.entries = changed.entries;
+                    queue.replace(changed.entries);
                     queue.publish(&state);
                 }
                 Ok(km_api::events::Event::SongStarted { .. })
@@ -3531,6 +3531,23 @@ struct QueueFeed {
 }
 
 impl QueueFeed {
+    /// Takes the queue as the machine now reports it.
+    ///
+    /// **An entry that left the head has started, so the time left is its whole length.**
+    /// `queue_changed` arrives before the first `state` of the new song, and the time left this
+    /// holds until then belongs to the song before. An entry that somebody removed from the head
+    /// reads the same way here, and the next `state` corrects it.
+    fn replace(&mut self, entries: Vec<QueueEntryDto>) {
+        let started = self
+            .entries
+            .first()
+            .filter(|head| entries.iter().all(|entry| entry.id != head.id));
+        if let Some(head) = started {
+            self.remaining_ms = head.duration_ms;
+        }
+        self.entries = entries;
+    }
+
     /// The wait each entry shows now.
     fn waits(&self) -> Vec<Option<Wait>> {
         views::queue_waits(&self.entries, self.remaining_ms)
@@ -3595,6 +3612,80 @@ async fn publish_everything(state: &Remote) -> QueueFeed {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The list goes out again when a wait on it reads differently, and only then.
+    ///
+    /// The pump asks this once a second. An answer of *changed* every second would replace the row
+    /// buttons under a finger, and an answer of *never* would leave every wait standing still.
+    #[test]
+    fn the_queue_is_sent_again_only_when_a_wait_changes() {
+        let entry = |id, ahead_ms| QueueEntryDto {
+            id,
+            position: 0,
+            number: SongCode::new(1001),
+            title: "Song".to_owned(),
+            artist: None,
+            singer: None,
+            duration_ms: 180_000,
+            ahead_ms: Some(ahead_ms),
+        };
+        let mut feed = QueueFeed {
+            entries: vec![entry(1, 0), entry(2, 200_000)],
+            remaining_ms: 155_000,
+            sent: Vec::new(),
+        };
+        feed.sent = feed.waits();
+        assert_eq!(
+            feed.sent,
+            vec![Some(Wait::Minutes(3)), Some(Wait::Minutes(6))]
+        );
+
+        // A second later every wait reads the same.
+        feed.remaining_ms = 154_000;
+        assert_eq!(feed.waits(), feed.sent);
+
+        // The first row crosses from three minutes to two, and the second stays at six.
+        feed.remaining_ms = 149_000;
+        assert_eq!(
+            feed.waits(),
+            vec![Some(Wait::Minutes(2)), Some(Wait::Minutes(6))]
+        );
+        assert_ne!(feed.waits(), feed.sent);
+    }
+
+    /// A song that starts takes the time left with it.
+    ///
+    /// `queue_changed` reaches the pump before the new song's first `state`. The waits it sends
+    /// then must count the new song's whole length, and not what was left of the song before.
+    #[test]
+    fn a_song_leaving_the_head_of_the_queue_resets_the_time_left() {
+        let entry = |id, duration_ms, ahead_ms| QueueEntryDto {
+            id,
+            position: 0,
+            number: SongCode::new(1001),
+            title: "Song".to_owned(),
+            artist: None,
+            singer: None,
+            duration_ms,
+            ahead_ms: Some(ahead_ms),
+        };
+        let mut feed = QueueFeed {
+            entries: vec![entry(1, 265_000, 0), entry(2, 298_000, 265_000)],
+            // The song before has three seconds left.
+            remaining_ms: 3_000,
+            sent: Vec::new(),
+        };
+
+        // The first entry starts, and the second is the whole queue.
+        feed.replace(vec![entry(2, 298_000, 0)]);
+        assert_eq!(feed.remaining_ms, 265_000);
+        assert_eq!(feed.waits(), vec![Some(Wait::Minutes(4))]);
+
+        // A song added at the end leaves the time left alone.
+        feed.remaining_ms = 200_000;
+        feed.replace(vec![entry(2, 298_000, 0), entry(3, 180_000, 298_000)]);
+        assert_eq!(feed.remaining_ms, 200_000);
+    }
 
     #[test]
     fn a_bare_request_is_the_signal_to_restore_where_somebody_was() {

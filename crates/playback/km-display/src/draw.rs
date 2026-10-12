@@ -240,6 +240,13 @@ pub struct Frame<'a> {
     pub position_ms: u32,
     /// Song length in milliseconds.
     pub duration_ms: u32,
+    /// Whether [`Self::position_ms`] belongs to the song on the deck.
+    ///
+    /// **The caller owns it**, for the reason it owns [`Self::show_position`]. Through the first
+    /// frames of a song the position still reports the song before it, and only the frame loop can
+    /// tell. The queue overlay takes the whole length as the time left while this is false, so no
+    /// wait is stated from one song's position beside another song's length.
+    pub position_fresh: bool,
     /// Current transposition in semitones.
     pub transpose: i8,
     /// Current tempo as a multiple of the written tempo.
@@ -411,6 +418,17 @@ impl<'a> Frame<'a> {
     ///
     /// The locale is a field rather than an argument here because this constructor is a starting
     /// point somebody adjusts — every caller already sets several fields on the way past, and one
+    /// The time left in the playing song, which every queued song waits for.
+    ///
+    /// The whole length while the position still reports the song before.
+    pub fn time_left_ms(&self) -> u32 {
+        if self.position_fresh {
+            km_queue::wait::remaining_ms(self.position_ms, self.duration_ms)
+        } else {
+            self.duration_ms
+        }
+    }
+
     /// that speaks another language sets this one too.
     pub fn idle(number_entry: &'a NumberEntry) -> Self {
         Self {
@@ -421,6 +439,7 @@ impl<'a> Frame<'a> {
             lyrics: LyricFrame::default(),
             position_ms: 0,
             duration_ms: 0,
+            position_fresh: true,
             transpose: 0,
             tempo_ratio: 1.0,
             melody: None,
@@ -567,7 +586,7 @@ pub fn draw<T: RenderTarget, C>(
             fonts,
             theme,
             frame.queue,
-            km_queue::wait::remaining_ms(frame.position_ms, frame.duration_ms),
+            frame.time_left_ms(),
             layout,
             frame.words(),
         );

@@ -2267,6 +2267,11 @@ of `queue_changed` carries `duration_ms` and `ahead_ms`. `ahead_ms` changes only
 does. The time left in the playing song comes with every `state`, so a client counts the wait down
 between two `queue_changed` events.
 
+**A song that has just started counts for its whole length.** For a moment after a song loads, the
+reported position is still the one the song before stopped at. A wait read from that position is
+wrong for every entry at once. The screen and the remote both take the new song's whole length
+until its own position arrives.
+
 **An entry with no `ahead_ms` shows no wait.** A remote and a machine compare no versions, and a
 zero would read as a turn that is about to come.
 

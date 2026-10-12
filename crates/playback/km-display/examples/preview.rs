@@ -1133,6 +1133,7 @@ fn playing<'a>(
         lyrics: view.frame(timeline, tick),
         position_ms: song.tempo_map.tick_to_ms(tick),
         duration_ms: song.duration_ms(),
+        position_fresh: true,
         transpose: 0,
         tempo_ratio: 1.0,
         melody: None,

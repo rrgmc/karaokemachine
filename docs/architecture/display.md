@@ -610,6 +610,12 @@ accented Latin text, because slicing by byte would panic on a character boundary
 column to its left. The wait column is as wide as the longest wait on show, so both columns keep a
 straight edge. The title takes 56% of the row, and the singer's name is cut to what the wait leaves.
 `draw` passes the time left in the playing song, from the frame's position and length.
+
+**The frame loop says whether that position is fresh**, in `Frame::position_fresh`. On the frame a
+song loads, the position still reports the song before, and it stands still until the device
+reports. `position_is_fresh` holds that figure and clears on the first report that differs. Until
+then `Frame::time_left_ms` gives the whole length, so no wait comes from two songs at once.
+
 `km_queue::wait::ahead_ms` gives the lengths ahead, and `km_queue::Wait` gives the two forms. See
 [`A queued song shows a rough wait`](../decisions/interface.md#a-queued-song-shows-a-rough-wait).
 

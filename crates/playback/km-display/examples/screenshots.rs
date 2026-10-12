@@ -190,6 +190,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         lyrics: view.frame(&song.lyrics, tick),
         position_ms: song.tempo_map.tick_to_ms(tick),
         duration_ms: song.duration_ms(),
+        position_fresh: true,
         transpose: -2,
         tempo_ratio: 1.0,
         melody: Some(true),

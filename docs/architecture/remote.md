@@ -493,7 +493,9 @@ Six things that each decided a piece of the design:
   `QueueFeed` keeps the entries from `queue_changed` and the time left from each `state`. Once a
   second it compares the waits with the ones it sent, as `km_queue::Wait` values. The list goes out
   only when one differs, because the list holds the row buttons. `QueueBlock` is built per language,
-  because each wait is a sentence with a figure in it.
+  because each wait is a sentence with a figure in it. `queue_changed` arrives before the first
+  `state` of a new song. So `QueueFeed::replace` takes the whole length of an entry that left the
+  head as the time left.
 - **A favorites folder is assembled in Rust, not in SQL.** It is a bounded personal list, so pushing
   an `id IN (...)` into the catalog would put the remote's furniture inside the machine's catalog
   for a query never large enough to need SQL's help.
