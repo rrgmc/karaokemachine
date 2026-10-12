@@ -1044,6 +1044,25 @@ because the count depends on the music and not on the rate. The fork sizes the l
 bins, which is the most a spectrum can hold. The same test fails on the published crate. The
 dependency goes back to a version number when upstream carries the fix.
 
+## A key and a tempo belong to one song
+
+**Each song starts at its own key and tempo.** A singer picks a key for one voice and one song. The
+next singer who inherits it starts in a key that nobody chose for them, and nothing on the screen
+says why.
+
+**A key set while nothing plays is for the song that starts next.** A singer may set the key before
+walking to the microphone. That key leaves with the song, as a key set during the song does.
+
+**A demo song takes no key from the room.** Nobody chose a key for a song that the machine picked.
+
+**`playback.transpose` and `playback.tempo_ratio` are the owner's defaults.** Each song starts from
+them, and a change from a remote never writes them. The key stored with a song in its package is
+added to the default.
+
+**The guide melody, the music volume and the lyric offset stay for the next song.** They belong to
+the room and its equipment, which do not change between singers. A change to one of them is stored,
+so it outlives a restart.
+
 ## The bank is chosen by id, not by path
 
 **`audio.soundfont` names the bank id — the slug of a filename — and the SoundFont folder is what says

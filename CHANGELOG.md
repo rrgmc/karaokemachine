@@ -29,6 +29,12 @@ Entries are written for somebody who has the machine. Why any of it is the way i
   video or MP3+G song waits the five seconds in silence. Demo songs are not announced. The
   **This machine** tab has an Announcement pane that changes the length or turns it off.
 
+### Fixed
+
+- **Each song starts at its own key and tempo.** A song started in the key and tempo that the singer
+  before had chosen. A key set while nothing plays still applies to the next song. The music volume,
+  the guide melody and the lyric offset stay as you set them.
+
 ## [1.22.0] - 2026-10-09
 
 ### Added
