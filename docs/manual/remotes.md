@@ -49,8 +49,17 @@ folded until asked for.</sub></td>
 beside each song, and the figure counts down as the playing song runs. The
 queue on the machine's screen shows the same figure.
 
-**The owner decides how much a guest's phone can do.** Out of the box, anybody in the room can queue
-a song. See [Setting it up from a browser](setup.md#decide-what-a-guests-phone-can-do).
+**Singers take turns.** Tap **+** on as many songs as you like. The machine keeps one song for each
+singer in the queue, and your next one goes in when yours starts. The Queue tab lists **Your
+songs**, and says of each whether it is waiting, in the queue, or started. Tap **✕** beside one to
+take it back.
+
+**Your name is optional.** Type it in **Singing as** on the Setup tab, and the queue shows it. Two
+singers cannot hold one name on the same evening. A phone that several people share adds each of
+them under **Add another singer on this phone**, and then chooses who is singing.
+
+**The owner decides how much a guest's phone can do.** Out of the box, anybody in the room can ask
+for a song. See [Setting it up from a browser](setup.md#decide-what-a-guests-phone-can-do).
 
 ## The offline remote
 

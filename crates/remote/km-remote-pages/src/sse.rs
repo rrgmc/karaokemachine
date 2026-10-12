@@ -102,6 +102,13 @@ pub const BANNER: &str = "banner";
 /// somebody's finger and lose whatever was half typed. The form lives outside the swap target, in
 /// `now.html`.
 pub const MACHINE: &str = "machine";
+/// The name of the event that says the requests changed.
+///
+/// **It carries no fragment.** A phone's own songs are its own, and the fan-out renders one copy
+/// for every page in a language. So this only tells a page to ask again, and the page fetches its
+/// own list with its own cookie. Never replayed, for [`TOAST`]'s reason: a page that has just
+/// loaded drew the list a moment ago.
+pub const REQUESTS: &str = "requests";
 /// The name of the event carrying a toast.
 pub const TOAST: &str = "toast";
 

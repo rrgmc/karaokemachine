@@ -23,7 +23,10 @@
 use std::sync::Arc;
 
 use km_api::ApiState;
-use km_api::dto::{AddedToQueueDto, QueueDto, SettingsPatchDto, SongDto, StateDto};
+use km_api::dto::{
+    AddedToQueueDto, QueueDto, RequestDto, RequestsDto, SettingsPatchDto, SingerDto,
+    SingerIssuedDto, SingersDto, SongDto, StateDto,
+};
 use km_api::events::Event;
 use km_api::machine::{Catalog, TransportCommand};
 use km_catalog::SearchQuery;
@@ -356,19 +359,57 @@ impl Machine for OnlineMachine {
             .collect()
     }
 
-    async fn enqueue(
-        &self,
-        number: SongCode,
-        singer: Option<&str>,
-    ) -> Result<AddedToQueueDto, RemoteError> {
+    async fn enqueue(&self, number: SongCode) -> Result<AddedToQueueDto, RemoteError> {
         // Off the runtime, like the JSON route beside it: queueing onto an idle machine loads the
         // song, and for a video that is ffmpeg opening a decoder. See `km_api::ops::off_runtime`.
-        let singer = singer.map(str::to_owned);
+        km_api::ops::off_runtime(&self.0, move |state| km_api::ops::enqueue(state, number))
+            .await
+            .map_err(api_failed)
+    }
+
+    async fn singers(&self) -> Result<SingersDto, RemoteError> {
+        Ok(km_api::ops::singers(&self.0))
+    }
+
+    async fn register_singer(
+        &self,
+        device: &str,
+        name: Option<&str>,
+    ) -> Result<SingerIssuedDto, RemoteError> {
+        km_api::ops::register_singer(&self.0, device, name).map_err(api_failed)
+    }
+
+    async fn rename_singer(
+        &self,
+        id: u64,
+        token: &str,
+        name: &str,
+    ) -> Result<SingerDto, RemoteError> {
+        km_api::ops::rename_singer(&self.0, id, token, name).map_err(api_failed)
+    }
+
+    async fn requests(&self) -> Result<RequestsDto, RemoteError> {
+        Ok(km_api::ops::requests(&self.0))
+    }
+
+    async fn request(
+        &self,
+        singer: u64,
+        token: &str,
+        number: SongCode,
+    ) -> Result<RequestDto, RemoteError> {
+        // Off the runtime, for `enqueue`'s reason: a request accepted onto an idle machine loads
+        // its song.
+        let token = token.to_owned();
         km_api::ops::off_runtime(&self.0, move |state| {
-            km_api::ops::enqueue(state, number, singer.as_deref())
+            km_api::ops::add_request(state, singer, km_queue::Proof::Token(&token), number)
         })
         .await
         .map_err(api_failed)
+    }
+
+    async fn withdraw(&self, request: u64, token: &str) -> Result<RequestDto, RemoteError> {
+        km_api::ops::withdraw_request(&self.0, request, token).map_err(api_failed)
     }
 
     async fn dequeue(&self, entry_id: u64) -> Result<QueueDto, RemoteError> {

@@ -287,7 +287,6 @@
       <!-- Seven digits, which is what a song number runs to: bank * 1000 + slot, the bank at most
            9999 and the slot at most 999. -->
       <input id="queue-number" type="text" inputmode="numeric" maxlength="7" placeholder="song number, e.g. 3005">
-      <input id="queue-singer" placeholder="singer (optional)">
       <button id="do-queue">Queue by number</button>
       <button class="plain" id="do-clear">Clear queue</button>
     </div>
@@ -1064,7 +1063,7 @@ function renderResults(page) {
     const queueCell = row.insertCell();
     const queueButton = document.createElement("button");
     queueButton.textContent = "Queue";
-    queueButton.onclick = () => queueNumber(song.number, $("queue-singer").value);
+    queueButton.onclick = () => queueNumber(song.number);
     queueCell.append(queueButton);
 
     // The one song, on its own. The table above is already most of a `SongDto`, so what this is
@@ -1783,12 +1782,11 @@ function refreshAll() {
   // twice on every restart. `connectLogSocket` and the Reload button are the two ways it arrives.
 }
 
-async function queueNumber(number, singer) {
+async function queueNumber(number) {
   // A string, not an integer, even though a code is all digits: the API takes one spelling and
-  // refuses the other rather than accepting both.
+  // refuses the other rather than accepting both. And no singer: this route adds a song that takes
+  // no turn, and it refuses a body that names one.
   const body = { number: String(number).trim() };
-  const trimmed = (singer || "").trim();
-  if (trimmed) body.singer = trimmed;
   try {
     const added = await api("POST", "/queue", body);
     log(`queued ${added.title} as entry ${added.entry_id} at position ${added.position}`);
@@ -1942,7 +1940,7 @@ $("tags").oninput = updateBookLink;
 $("base").oninput = updateBookLink;
 updateBookLink();
 
-$("do-queue").onclick = () => queueNumber($("queue-number").value, $("queue-singer").value);
+$("do-queue").onclick = () => queueNumber($("queue-number").value);
 $("queue-number").onkeydown = (event) => { if (event.key === "Enter") $("do-queue").click(); };
 $("do-clear").onclick = () => api("DELETE", "/queue").then(renderQueue).catch(() => {});
 

@@ -235,13 +235,61 @@ It is queue, move to the front, and then end what is playing so the front is rea
 calls where `↑ next` is two. The API has no "play this one instead", and giving it one would put a
 remote's furniture inside the machine's queue.
 
-**`↑ next` and `▶ now` need the control level, and adding needs only the queue level.** Adding is
+**`↑ next` and `▶ now` need the control level, and asking needs only the request level.** Asking is
 what this machine offers the whole room, and interrupting is not. The machine enforces that, and a
 phone below the control level is never shown either button. See
-[`Four access levels`](api-and-network.md#four-access-levels-and-the-method-and-path-decide-them).
+[`Five access levels`](api-and-network.md#five-access-levels-and-the-method-and-path-decide-them).
 
 **At the control level the toggle is still off by default.** One guest should not be handed a
 one-tap way to end another guest's song beside every search result. Two taps, remembered per phone.
+
+## The remote asks for a song, and each phone sees its own
+
+**The `+` on a row asks for the song for this phone's singer.** The machine queues it in that
+singer's turn, as
+[`The queue holds one song for each singer`](api-and-network.md#the-queue-holds-one-song-for-each-singer)
+says. The row answers `queued` when the song went in, and `waiting` when the singer already has one
+in the queue. The toast then says the song goes in when theirs starts.
+
+**A phone registers its singer on the first song it asks for.** It sends the name in the "singing
+as" box, or none. No join step comes before the catalog. A name typed in the box registers the
+singer at once. So the remote refuses a held name where it was typed, and not at the first song.
+
+**A phone that holds a singer names that singer.** Typing a name later names the same seat, which
+keeps its place and its waiting songs. A singer keeps a name once it has one, so an empty box
+changes nothing.
+
+**The seat and its token live in an `HttpOnly` cookie.** `km_seats` holds the evening's word, the
+singer who is singing, and each seat's id and token. `km_device` holds an id the phone made for
+itself. A handler reads the token and sends it to the machine. No script and no markup holds one.
+
+**A seat from an earlier evening is dropped without a word.** The machine refuses it, the phone
+asks whether the machine still holds it, and then registers again. A phone asks that question only
+after a refusal, because a missing song answers the same 404.
+
+**One phone holds several singers, and one box is what it shows.** A home passes one phone or one
+tablet around. Adding another singer is a smaller control, folded away under the box, and that
+singer gives a name. The choice between singers appears with the second one. A phone with one
+singer never sees it.
+
+**A phone's own songs are a list on the Queue tab.** Each row says where the request stands:
+waiting, in the queue with its place, started, taken out, or taken back. A waiting or queued song
+has a button that takes it back, and it needs no code.
+
+**That list is fetched and never pushed.** The event stream sends one fragment to every page in a
+language, and this list differs for each phone. So the stream sends a `requests` event with no
+fragment, and the page fetches `/mine` with its own cookie.
+
+**The page carries a rule that marks the phone's rows in the queue.** The queue list is one
+fragment for every phone too. Each row carries its seat's id, and the page a phone loaded holds a
+style rule naming that phone's seats. The wait on the row is then the wait for that singer's song.
+
+**A song with no singer is folded away with the two buttons that interrupt.** It takes no turn, so
+it needs the queue level, and a phone at that level reaches it behind the ⋯.
+`↑ next` and `▶ now` add such a song too, because each one sets a turn aside on purpose.
+
+**Key, tempo, volume and guide melody need the queue level.** A phone at the request level sees
+none of those controls. That keeps one guest's phone off another singer's song.
 
 ## The transport is folded away, and only on the Queue tab
 

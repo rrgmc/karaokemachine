@@ -40,10 +40,22 @@ use crate::model::Mode;
 
 /// Where you were: mode, query, filters, the artist or folder you had opened.
 pub const BROWSE: &str = "km_browse";
-/// What to put in the `singer` field of everything queued from this phone.
+/// The name typed in the "singing as" box, which this phone's first request registers a singer
+/// under. Once the phone holds a singer, the machine holds that singer's name.
 pub const SINGER: &str = "km_singer";
 /// Whether the extra per-row actions are revealed.
 pub const EXTRA: &str = "km_extra";
+/// The id this phone made for itself, which the machine counts a device's singers by.
+///
+/// Random, made the first time this phone registers a singer, and kept a year. It names a browser
+/// and nobody in it: the machine holds no list of people, and this is no account.
+pub const DEVICE: &str = "km_device";
+/// The singers this phone holds: which evening they belong to, which one is singing, and each
+/// one's id and token. See [`PhoneSeats`].
+pub const SEATS: &str = "km_seats";
+/// The most singers one phone holds. A tablet passed round a room has a handful, and the cookie
+/// that carries them has four kilobytes.
+pub const MAX_PHONE_SEATS: usize = 16;
 /// The packages this phone leaves out of its song list, as package ids joined by `.`.
 ///
 /// A preference, so it lasts a year like [`SINGER`]. `.` because a package id is sixteen hexadecimal
@@ -117,7 +129,7 @@ pub struct Anchor {
 /// Everything read off the request.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Prefs {
-    /// The name to file queued songs under.
+    /// The name typed in the "singing as" box. See [`SINGER`].
     pub singer: Option<String>,
     /// Whether the extra row actions are showing.
     pub extra: bool,
@@ -134,6 +146,10 @@ pub struct Prefs {
     pub hidden_packages: Vec<String>,
     /// The access token this phone holds, if it holds one. See [`TOKEN`].
     pub token: Option<String>,
+    /// The id this phone made for itself, once it has registered a singer. See [`DEVICE`].
+    pub device: Option<String>,
+    /// The singers this phone holds. See [`SEATS`].
+    pub seats: PhoneSeats,
 }
 
 impl Prefs {
@@ -151,8 +167,190 @@ impl Prefs {
             token: cookie(headers, TOKEN)
                 .or_else(|| cookie(headers, OWNER_TOKEN))
                 .filter(|token| !token.is_empty()),
+            device: cookie(headers, DEVICE).filter(|id| is_word(id)),
+            seats: cookie(headers, SEATS)
+                .map(|value| PhoneSeats::parse(&value))
+                .unwrap_or_default(),
         }
     }
+}
+
+/// One singer this phone holds: the seat the machine issued, and the token that proves it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PhoneSeat {
+    /// The seat's id on the machine.
+    pub id: u64,
+    /// The token the machine issued for it.
+    pub token: String,
+}
+
+/// The singers this phone holds, as its cookie carries them.
+///
+/// **The token never reaches the page.** The cookie is `HttpOnly`, and a handler reads it and sends
+/// the token to the machine itself. No script and no markup ever holds one.
+///
+/// **The evening rides with the seats.** A seat ends when the machine stops, and ids start again
+/// from zero. An id kept from an earlier evening would name somebody else's seat, so a phone keeps
+/// the machine's word for the evening and drops its seats when that word differs.
+///
+/// The value is `<evening>.<current>.<id>-<token>.<id>-<token>`. Every part is a number or a run
+/// of hexadecimal, so none of it needs escaping.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct PhoneSeats {
+    /// The machine's word for the evening these seats belong to.
+    pub evening: String,
+    /// Which of the seats is singing now, as a seat id.
+    current: Option<u64>,
+    /// Every seat, in the order this phone registered them.
+    seats: Vec<PhoneSeat>,
+}
+
+impl PhoneSeats {
+    /// Reads the cookie. **Anything malformed is dropped rather than refused**, for the reason
+    /// [`anchor`] gives: anybody can edit a cookie, and the answer to a bad one is the page without
+    /// it. A phone with no seats registers one when it next asks for a song.
+    pub fn parse(value: &str) -> Self {
+        let mut parts = value.split('.');
+        let evening = parts.next().unwrap_or("").to_owned();
+        if !is_word(&evening) {
+            return Self::default();
+        }
+        let current = parts.next().and_then(|id| id.parse::<u64>().ok());
+        let mut seats: Vec<PhoneSeat> = Vec::new();
+        for part in parts {
+            let Some((id, token)) = part.split_once('-') else {
+                continue;
+            };
+            let Ok(id) = id.parse::<u64>() else {
+                continue;
+            };
+            if is_word(token)
+                && seats.len() < MAX_PHONE_SEATS
+                && seats.iter().all(|seat| seat.id != id)
+            {
+                seats.push(PhoneSeat {
+                    id,
+                    token: token.to_owned(),
+                });
+            }
+        }
+        Self {
+            evening,
+            current: current.filter(|id| seats.iter().any(|seat| seat.id == *id)),
+            seats,
+        }
+    }
+
+    /// The `Set-Cookie` value that stores these seats, or clears the cookie when there are none.
+    pub fn cookie(&self) -> String {
+        if self.seats.is_empty() || !is_word(&self.evening) {
+            return clear(SEATS);
+        }
+        let mut value = format!(
+            "{}.{}",
+            self.evening,
+            self.current
+                .map_or_else(|| "-".to_owned(), |id| id.to_string())
+        );
+        for seat in &self.seats {
+            value.push_str(&format!(".{}-{}", seat.id, seat.token));
+        }
+        set_pref(SEATS, &value)
+    }
+
+    /// Every seat, in the order this phone registered them.
+    pub fn seats(&self) -> &[PhoneSeat] {
+        &self.seats
+    }
+
+    /// Whether this phone holds no singer.
+    pub fn is_empty(&self) -> bool {
+        self.seats.is_empty()
+    }
+
+    /// The singer who is singing now: the chosen one, or the first where none is chosen.
+    pub fn current(&self) -> Option<&PhoneSeat> {
+        self.current
+            .and_then(|id| self.get(id))
+            .or_else(|| self.seats.first())
+    }
+
+    /// One seat by id, when this phone holds it.
+    pub fn get(&self, id: u64) -> Option<&PhoneSeat> {
+        self.seats.iter().find(|seat| seat.id == id)
+    }
+
+    /// Makes one of this phone's seats the singer. Answers whether the phone holds it.
+    pub fn choose(&mut self, id: u64) -> bool {
+        let held = self.get(id).is_some();
+        if held {
+            self.current = Some(id);
+        }
+        held
+    }
+
+    /// Takes a seat the machine just issued, and makes it the singer.
+    ///
+    /// A seat of another evening empties the list first. A seat this phone already holds takes the
+    /// new token, which is what a name that came back brings.
+    pub fn hold(&mut self, evening: &str, id: u64, token: &str) {
+        if self.evening != evening {
+            self.seats.clear();
+            evening.clone_into(&mut self.evening);
+        }
+        if let Some(seat) = self.seats.iter_mut().find(|seat| seat.id == id) {
+            token.clone_into(&mut seat.token);
+        } else if self.seats.len() < MAX_PHONE_SEATS {
+            self.seats.push(PhoneSeat {
+                id,
+                token: token.to_owned(),
+            });
+        } else {
+            return;
+        }
+        self.current = Some(id);
+    }
+
+    /// Drops one seat, which the machine no longer holds.
+    pub fn drop_seat(&mut self, id: u64) {
+        self.seats.retain(|seat| seat.id != id);
+        if self.current == Some(id) {
+            self.current = None;
+        }
+    }
+
+    /// Keeps the seats the machine still holds, given its word for the evening and its singers.
+    ///
+    /// A different evening drops every seat. Within one evening, a seat whose id the machine does
+    /// not list is dropped. Answers whether anything changed, so a caller knows to set the cookie.
+    pub fn keep_known(&mut self, evening: &str, known: impl Fn(u64) -> bool) -> bool {
+        let before = self.seats.len();
+        if self.evening == evening {
+            self.seats.retain(|seat| known(seat.id));
+        } else {
+            self.seats.clear();
+        }
+        if self.current.is_some_and(|id| self.get(id).is_none()) {
+            self.current = None;
+        }
+        self.seats.len() != before
+    }
+}
+
+/// Whether a value is a short run of letters and digits, which is every id and token kept here.
+fn is_word(value: &str) -> bool {
+    !value.is_empty() && value.len() <= 64 && value.bytes().all(|byte| byte.is_ascii_alphanumeric())
+}
+
+/// A new id for this phone: sixteen random bytes, in hexadecimal.
+///
+/// # Panics
+///
+/// If the operating system will not produce entropy, which is no state a remote can serve from.
+pub fn new_device_id() -> String {
+    let mut bytes = [0_u8; 16];
+    getrandom::fill(&mut bytes).expect("the OS must be able to produce entropy for a device id");
+    bytes.iter().map(|byte| format!("{byte:02x}")).collect()
 }
 
 /// The package ids worth keeping from a list somebody sent: generated ids only, each once, and no
@@ -511,6 +709,76 @@ mod tests {
         // And it comes back out as the same one value: the comma is encoded, so the `&`-separated
         // cookie cannot mistake it for a second parameter.
         assert_eq!(decode("brasil%2Crock"), "brasil,rock");
+    }
+
+    #[test]
+    fn a_phones_seats_round_trip_through_the_cookie() {
+        let mut seats = PhoneSeats::default();
+        seats.hold("ab12", 7, "t0ken7");
+        seats.hold("ab12", 9, "t0ken9");
+        assert_eq!(
+            seats.current().map(|seat| seat.id),
+            Some(9),
+            "the newest sings"
+        );
+        assert!(seats.choose(7));
+        assert!(!seats.choose(8), "a seat this phone does not hold");
+
+        let cookie = seats.cookie();
+        let value = cookie
+            .split(';')
+            .next()
+            .and_then(|pair| pair.split_once('='))
+            .map(|(_, value)| value)
+            .expect("a cookie value");
+        assert_eq!(
+            value, "ab12.7.7-t0ken7.9-t0ken9",
+            "nothing in it needs escaping"
+        );
+        assert_eq!(PhoneSeats::parse(value), seats);
+        assert!(
+            cookie.contains("HttpOnly"),
+            "a token is never a script's to read"
+        );
+    }
+
+    #[test]
+    fn a_seat_of_another_evening_empties_the_list() {
+        let mut seats = PhoneSeats::default();
+        seats.hold("ab12", 7, "old");
+        seats.hold("cd34", 0, "new");
+        assert_eq!(seats.seats().len(), 1);
+        assert_eq!(seats.current().map(|seat| seat.token.as_str()), Some("new"));
+
+        // And a list read against a machine that has restarted keeps nothing.
+        let mut kept = PhoneSeats::parse("ab12.7.7-old");
+        assert!(kept.keep_known("cd34", |_| true));
+        assert!(kept.is_empty());
+        assert!(
+            kept.cookie().contains("Max-Age=0"),
+            "an empty list clears the cookie"
+        );
+    }
+
+    #[test]
+    fn a_seat_the_machine_no_longer_lists_is_dropped() {
+        let mut seats = PhoneSeats::parse("ab12.7.7-a.9-b");
+        assert!(seats.keep_known("ab12", |id| id == 9));
+        assert_eq!(seats.current().map(|seat| seat.id), Some(9));
+        assert!(
+            !seats.keep_known("ab12", |id| id == 9),
+            "nothing left to drop"
+        );
+    }
+
+    #[test]
+    fn a_cookie_somebody_edited_is_read_as_far_as_it_makes_sense() {
+        assert!(PhoneSeats::parse("").is_empty());
+        assert!(PhoneSeats::parse("not a cookie").is_empty());
+        let seats = PhoneSeats::parse("ab12.99.7-a.x-b.7-c.8.9-");
+        assert_eq!(seats.seats().len(), 1, "one well-formed seat, once");
+        assert_eq!(seats.current().map(|seat| seat.id), Some(7));
+        assert_eq!(new_device_id().len(), 32);
     }
 
     #[test]

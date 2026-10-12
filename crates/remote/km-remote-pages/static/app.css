@@ -492,6 +492,7 @@ input[type="search"], input[type="text"], select {
  * above the lowest level carries the level it needs. A class rather than a branch in each template,
  * because the event stream pushes one fragment to every open page whatever each phone's level. The
  * handler behind each button refuses a phone below its level anyway; this is what it is offered. */
+.access-view .needs-request,
 .access-view .needs-queue,
 .access-view .needs-control,
 .access-request .needs-queue,
@@ -992,6 +993,19 @@ label.icon-btn { display: inline-flex; align-items: center; justify-content: cen
 }
 
 .queue-body { flex: 1; min-width: 0; }
+
+/* A phone's own songs sit above the queue under a small heading, so the two lists read as two. */
+.list-head {
+  margin: 0.6rem 0 0.1rem;
+  color: var(--text-dim);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+/* Another singer on this phone is the unusual case, so its control is smaller than the box above
+ * it and folded away. */
+.pref-more { padding: 0.2rem 0 0.4rem; font-size: 0.85rem; }
+.pref-more summary { color: var(--text-dim); cursor: pointer; }
 
 /* The wait keeps its own width and the title gives way, because the wait is what a singer came to
  * this page to read. */

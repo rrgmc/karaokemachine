@@ -157,24 +157,18 @@ fn answer_for(state: &ApiState, request: &Request) -> RequestDto {
 /// **The number is resolved before anything is queued**, so a wrong one is "no such song" rather
 /// than a queue entry with an empty title that fails when its turn comes — which is what punching a
 /// wrong number into a real machine should feel like.
-pub fn enqueue(
-    state: &ApiState,
-    number: SongCode,
-    singer: Option<&str>,
-) -> ApiResult<AddedToQueueDto> {
+pub fn enqueue(state: &ApiState, number: SongCode) -> ApiResult<AddedToQueueDto> {
     let song = state
         .catalog()
         .song(number)?
         .ok_or_else(|| ApiError::not_found(format!("song {number}")))?;
 
-    let singer = singer
-        .map(|singer| singer.trim().to_owned())
-        .filter(|singer| !singer.is_empty());
     let entry_id = state.controller().queue_add(QueueRequest {
         number: song.number,
         title: song.title.clone(),
         artist: song.artist.clone(),
-        singer,
+        // A song with no singer. A singer's song is a request, and `add_request` takes it.
+        singer: None,
         duration_ms: song.duration_ms,
         seat: None,
     })?;
@@ -217,6 +211,7 @@ pub fn singers(state: &ApiState) -> SingersDto {
     SingersDto {
         singers: state.controller().seats().iter().map(Into::into).collect(),
         capacity: km_queue::MAX_SEATS,
+        evening: state.evening().to_owned(),
     }
 }
 
@@ -239,6 +234,7 @@ pub fn register_singer(
     Ok(SingerIssuedDto {
         singer: (&issued.seat).into(),
         token: issued.token,
+        evening: state.evening().to_owned(),
     })
 }
 
@@ -262,6 +258,7 @@ pub fn reissue_singer(state: &ApiState, id: u64) -> ApiResult<SingerIssuedDto> {
     Ok(SingerIssuedDto {
         singer: (&issued.seat).into(),
         token: issued.token,
+        evening: state.evening().to_owned(),
     })
 }
 

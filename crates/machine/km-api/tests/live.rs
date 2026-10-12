@@ -417,9 +417,9 @@ async fn an_admin_route_is_refused_over_a_real_socket_even_from_loopback() {
     );
 }
 
-/// The level check answers on the wire as well: a room that can queue cannot skip.
+/// The level check answers on the wire as well: a room that can ask for a song cannot skip.
 #[tokio::test]
-async fn a_control_route_is_refused_over_a_real_socket_in_a_room_that_only_queues() {
+async fn a_control_route_is_refused_over_a_real_socket_in_a_room_that_only_asks() {
     let server = Server::start(ApiConfig::default().without_mdns()).await;
     let response = server.raw("POST", "/api/v1/transport/skip", None).await;
     assert!(
@@ -427,11 +427,18 @@ async fn a_control_route_is_refused_over_a_real_socket_in_a_room_that_only_queue
         "expected 401, got: {response}"
     );
     let response = server
-        .raw("POST", "/api/v1/queue", Some(r#"{"number":"1001"}"#))
+        .raw("POST", "/api/v1/singers", Some(r#"{"device":"phone-a"}"#))
         .await;
     assert!(
         !response.starts_with("HTTP/1.1 401"),
-        "a room that queues must be able to queue: {response}"
+        "a room that asks must be able to register a singer: {response}"
+    );
+    let response = server
+        .raw("POST", "/api/v1/queue", Some(r#"{"number":"1001"}"#))
+        .await;
+    assert!(
+        response.starts_with("HTTP/1.1 401"),
+        "and a song with no singer needs the queue level: {response}"
     );
 }
 

@@ -31,8 +31,12 @@ choose that level:
 | Room level | A phone with no code can |
 |---|---|
 | Watch only | Browse the songs and see the queue and what is playing. |
-| Queue songs | Also add a song, and change the key, tempo, volume and guide melody. This is the default. |
-| Queue, skip and play now | Also skip, play a song now, use the other transport buttons, and move or remove anybody's song. |
+| Ask for songs, and sing in turn | Also ask for a song. The machine puts one song for each singer in the queue, so the singers take turns. This is the default. |
+| Ask for songs, add a song out of turn, and change key and tempo | Also add a song with no singer, which takes no turn. Also change the key, tempo, volume and guide melody. |
+| All of that, skip and play now | Also skip, play a song now, use the other transport buttons, and move or remove anybody's song. |
+
+**At the default level a guest cannot change the key or the tempo.** That keeps one guest's phone
+off another singer's song. Choose the third level if you want every guest to have those controls.
 
 **Two codes raise one phone at a time above the room level.** Set a **code to queue** and a **code to
 skip** on the same card, and give each to whoever should have it. They type it on the remote's Setup

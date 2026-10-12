@@ -529,9 +529,23 @@ as a module rather than as a handler body.
 **The level check is in the handler, because the online pages never reach the API's.** Every write
 handler asks `Machine::access` for the phone's level before it acts, and a phone below the level gets
 `RemoteError::Unauthorized` as a toast. `OnlineMachine` answers from `ApiState::access_for`, and
-`MachineClient` asks `GET /api/v1/access`. Song actions: `queue` needs the queue level, and `next`
-and `now` need control. Queue rows need control. Of the player controls, key, tempo, volume and
-melody need the queue level, and the transport and the demo need control.
+`MachineClient` asks `GET /api/v1/access`. Song actions: `queue` needs the request level, `plain`
+needs the queue level, and `next` and `now` need control. Queue rows need control, and a phone's own
+row in `/mine` needs the request level. Of the player controls, key, tempo, volume and melody need
+the queue level, and the transport and the demo need control.
+
+**`prefs::PhoneSeats` is the phone's singers, and `handlers::ask_for` is the one path that asks.**
+`PhoneSeats` parses and writes the `km_seats` cookie: the evening's word, the singer who is singing,
+and each seat's id and token. `ask_for` sends the request with the current seat. On a 404 or a 403
+it calls `seat_is_held`, which reads `GET /singers`, and a seat the machine no longer holds is
+dropped and registered again. A phone with no seat registers first. `Machine` has six methods for
+this: `singers`, `register_singer`, `rename_singer`, `requests`, `request` and `withdraw`.
+
+**`/mine` is rendered for one phone, so the hub does not carry it.** `MineBlock` lists the requests
+whose seat the phone holds. The pump publishes `sse::REQUESTS` with no fragment on
+`requests_changed`, and `REPLAYED` leaves it out. `live.js` turns it into a `km:requests` event on
+`<body>`, and the block's `hx-trigger` fetches on that. `MineBlock::own_rows` writes the selector
+that marks the phone's rows in the shared queue list.
 
 **The token rides in the `km_access` cookie**, set by `POST /access` from the code box on the Setup
 tab. `Prefs::token` reads it, and falls back to the owner's `km_token`. The answer is a full refresh,

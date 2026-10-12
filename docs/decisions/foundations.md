@@ -405,7 +405,7 @@ while ignoring whatever the newer build added.
 |---|---|---|
 | `.kmbuild`, the curation database | `PRAGMA user_version`, from `OLDEST_SCHEMA_VERSION` to `SCHEMA_VERSION` | no `songs` table yet, and it is stamped current |
 | `.kmbackup.json`, a curation backup | `format` | always written with the current one |
-| `settings.json`, the machine's settings | `settings_version`, `CURRENT_SETTINGS_VERSION` | no `settings_version` at all, which is what an installer writes |
+| `settings.json`, the machine's settings | `settings_version`, from `OLDEST_SETTINGS_VERSION` to `CURRENT_SETTINGS_VERSION` | no `settings_version` at all, which is what an installer writes |
 
 **A backup is the one store read past a newer number.** A newer backup is read as far as this build
 understands it, and the difference is reported. A backup is what somebody has when the database is

@@ -104,7 +104,7 @@ Query parameters are `Deserialize` structs without
 `deny_unknown_fields`. So a client built against a later version can pass a key this one has not
 heard of, and still get its answer.
 
-## Access: four levels, one predicate
+## Access: five levels, one predicate
 
 **The admin permission is the URL.** `routes::needs_admin_token` tests the request path against
 `/api/v1/admin/`, with the trailing slash, so `/api/v1/adminfoo` is not one. It exempts
@@ -119,12 +119,18 @@ nothing else: not the peer address, not a map.
 **`Access` has a fifth variant, `Request`, ordered between `View` and `Queue`.** `required_access`
 returns it for `POST /singers` and `POST /requests`. It also returns it for
 `PUT /singers/{id}/name` and `POST /requests/{id}/withdraw`, which `is_one_of` matches by their two
-ends. `Access::ROOM` leaves it out and `has_code` is false for it, so a caller reaches
-those routes at `Queue` or above.
+ends. It is the default, so `ApiConfig::default()` and a new `settings.json` both start a room
+there. `Access::ROOM` holds it, and `has_code` is false for it.
 
-**`Access::as_room` reads a stored `request` as `View` and a stored `admin` as `Control`.**
-`ApiState` takes the room level through it at start and at each change. The remote's stylesheet
-hides `needs-queue` and `needs-control` under `access-request`, as it does under `access-view`.
+**`Access::as_room` reads a stored `admin` as `Control`.** `ApiState` takes the room level through
+it at start and at each change. The remote's stylesheet hides `needs-request` under `access-view`,
+and `needs-queue` and `needs-control` under `access-request`.
+
+**`POST /queue` takes a number and nothing else.** `AddToQueueRequest` refuses an unknown field, so
+a body that names a singer is a 400. `ops::enqueue` queues a song with no seat.
+
+**`ApiState::evening` is a random word, new at each start.** `SingersDto` and `SingerIssuedDto`
+carry it, and a phone drops its seats when the word differs.
 
 **The caller's level is the higher of the room's and the token's.** `ApiState` holds the room level
 behind a lock, because the owner changes it while the machine runs. `AdminAuth` holds the admin hash
@@ -134,7 +140,7 @@ changed or cleared ends that level's tokens, and a relabelled level breaks the M
 
 **401 and 403 mean different things.** A 401 says a token would help: there is none, or it does not
 verify. A 403 says the token is valid and too low. The decision is
-[`Four access levels`](../decisions/api-and-network.md#four-access-levels-and-the-method-and-path-decide-them).
+[`Five access levels`](../decisions/api-and-network.md#five-access-levels-and-the-method-and-path-decide-them).
 
 **One middleware, on the *outer* router, and the placement is the only one that works.** Inside
 `nest(API_PREFIX, api)`, axum has already stripped `/api/v1` from the path a layer sees. So a

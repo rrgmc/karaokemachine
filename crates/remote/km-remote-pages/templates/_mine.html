@@ -1,0 +1,21 @@
+<div id="mine" hx-get="/mine" hx-trigger="km:requests from:body" hx-swap="outerHTML">
+{% if !rows.is_empty() %}
+<h2 class="list-head">{{ "mine-heading"|t }}</h2>
+<ul class="song-list">
+  {% for row in rows %}
+  <li class="queue-row mine-row">
+    <div class="queue-body">
+      <div class="song-name">{{ row.title }}</div>
+      <div class="song-sub">{% if several %}{{ row.singer }} &middot; {% endif %}{{ row.state }}</div>
+    </div>
+    {% if row.open %}
+    <div class="song-actions needs-request">
+      <button class="icon-btn danger" aria-label="{{ "mine-withdraw"|t }}" title="{{ "mine-withdraw"|t }}"
+              hx-post="/mine/{{ row.id }}/withdraw" hx-target="#mine" hx-swap="outerHTML">&#10005;</button>
+    </div>
+    {% endif %}
+  </li>
+  {% endfor %}
+</ul>
+{% endif %}
+</div>

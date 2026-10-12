@@ -16,7 +16,8 @@ The API has the same levels as [the setup page](setup.md) gives a phone.
 | A route | Needs |
 |---|---|
 | Any read | Nothing |
-| Adding a song, and the settings patch | The queue level |
+| Registering a singer, asking for a song, and taking one back | The request level, which is the default |
+| Adding a song with no singer, and the settings patch | The queue level |
 | Every other write outside `/api/v1/admin/` | The control level |
 | Anything under `/api/v1/admin/` | The machine's password |
 

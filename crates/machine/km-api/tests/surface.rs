@@ -1075,29 +1075,34 @@ async fn queueing_a_number_that_does_not_exist_fails_before_anything_is_queued()
 #[tokio::test]
 async fn queueing_resolves_the_title_so_a_remote_need_not_re_fetch() {
     let harness = Harness::new();
-    let (status, added) = harness
-        .post("/queue", json!({ "number": "1002", "singer": " Ana " }))
-        .await;
+    let (status, added) = harness.post("/queue", json!({ "number": "1002" })).await;
     assert_eq!(status, StatusCode::CREATED);
     assert_eq!(added["title"], "Song 1002");
     assert_eq!(added["position"], 0);
 
     let queue = harness.ok(Method::GET, "/queue", None).await;
     assert_eq!(queue["len"], 1);
-    // The singer's name is trimmed rather than stored with the spaces a phone keyboard added.
-    assert_eq!(queue["entries"][0]["singer"], "Ana");
     assert_eq!(queue["entries"][0]["id"], added["entry_id"]);
     assert_eq!(queue["capacity"], km_queue::queue::MAX_QUEUED);
 }
 
+/// A song queued here has no singer, and a body that names one is refused.
+///
+/// A dropped name would put that singer's song ahead of everybody's turn with nothing said, so the
+/// client that still sends one hears about it.
 #[tokio::test]
-async fn an_empty_singer_is_stored_as_absent_rather_than_as_an_empty_name() {
+async fn queueing_takes_no_singer_and_says_so() {
     let harness = Harness::new();
-    harness
-        .post("/queue", json!({ "number": "1001", "singer": "   " }))
+    let (status, body) = harness
+        .post("/queue", json!({ "number": "1001", "singer": "Ana" }))
         .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "{body}");
+    assert!(harness.machine.queue_ids().is_empty());
+
+    harness.post("/queue", json!({ "number": "1001" })).await;
     let queue = harness.ok(Method::GET, "/queue", None).await;
     assert!(queue["entries"][0]["singer"].is_null());
+    assert!(queue["entries"][0]["seat"].is_null());
 }
 
 #[tokio::test]
@@ -1181,9 +1186,8 @@ async fn clearing_the_queue_empties_it() {
 #[tokio::test]
 async fn playing_a_queued_song_takes_it_off_the_queue_and_reports_it_as_now_playing() {
     let harness = Harness::new();
-    let (_, added) = harness
-        .post("/queue", json!({ "number": "1001", "singer": "Ana" }))
-        .await;
+    let (ana, token) = register(&harness, "phone-a", Some("Ana")).await;
+    let added = ask(&harness, ana, &token, "1001").await;
 
     let state = harness.ok(Method::POST, "/transport/play", None).await;
     assert_eq!(state["transport"], "playing");
@@ -2488,9 +2492,11 @@ async fn moving_a_package_needs_the_admin_password_where_queueing_does_not() {
         .await;
     assert_eq!(status, StatusCode::UNAUTHORIZED);
 
-    // ...and queueing, next to it, is still open to anybody in the room.
-    let (status, _) = harness.post("/queue", json!({ "number": "1001" })).await;
-    assert!(status.is_success(), "queueing must stay public");
+    // ...and asking for a song, next to it, is still open to anybody in the room.
+    let (status, _) = harness
+        .post("/singers", json!({ "device": "phone-a" }))
+        .await;
+    assert!(status.is_success(), "asking must stay public");
 
     let login = harness
         .ok(
@@ -3687,7 +3693,9 @@ async fn a_machine_with_no_password_is_shut_rather_than_open() {
     assert_eq!(status, StatusCode::NOT_FOUND);
 
     // ...and the public half is untouched, which is what keeps a phone working.
-    let (status, _) = harness.post("/queue", json!({ "number": "1001" })).await;
+    let (status, _) = harness
+        .post("/singers", json!({ "device": "phone-a" }))
+        .await;
     assert_eq!(status, StatusCode::CREATED);
 }
 

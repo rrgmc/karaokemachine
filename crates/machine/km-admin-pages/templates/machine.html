@@ -225,6 +225,7 @@
           {{ "access-room"|t }}
           <select name="room">
             <option value="view"{% if access.room == km_api::Access::View %} selected{% endif %}>{{ "access-view"|t }}</option>
+            <option value="request"{% if access.room == km_api::Access::Request %} selected{% endif %}>{{ "access-request"|t }}</option>
             <option value="queue"{% if access.room == km_api::Access::Queue %} selected{% endif %}>{{ "access-queue"|t }}</option>
             <option value="control"{% if access.room == km_api::Access::Control %} selected{% endif %}>{{ "access-control"|t }}</option>
           </select>

@@ -254,6 +254,7 @@ mod tests {
                 singers: SingersDto {
                     singers: Vec::new(),
                     capacity: km_queue::MAX_SEATS,
+                    evening: String::new(),
                 },
             },
             Event::SongEnded {

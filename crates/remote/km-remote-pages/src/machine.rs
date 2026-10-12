@@ -31,7 +31,8 @@
 use std::collections::HashSet;
 
 use km_api::dto::{
-    AccessDto, AccessGrantDto, AddedToQueueDto, QueueDto, SettingsPatchDto, SongDto, StateDto,
+    AccessDto, AccessGrantDto, AddedToQueueDto, QueueDto, RequestDto, RequestsDto,
+    SettingsPatchDto, SingerDto, SingerIssuedDto, SingersDto, SongDto, StateDto,
 };
 use km_api::events::Event;
 use km_songcode::SongCode;
@@ -610,16 +611,48 @@ pub trait Machine: Send + Sync + 'static {
         from: Option<std::net::IpAddr>,
     ) -> Result<AccessGrantDto, RemoteError>;
 
-    /// Put a song at the back.
+    /// Put a song with no singer at the back. It takes no turn, so it needs the queue level.
     ///
     /// Playing something *next* is this followed by [`move_entry`](Machine::move_entry) to index 0,
     /// done in the handler rather than here — two API calls either way, and keeping the trait to the
     /// operations the API actually has means neither implementation has to fake one.
-    async fn enqueue(
+    async fn enqueue(&self, number: SongCode) -> Result<AddedToQueueDto, RemoteError>;
+
+    /// The evening's singers, and which evening this is.
+    async fn singers(&self) -> Result<SingersDto, RemoteError>;
+
+    /// Registers a singer for this device, and answers with the seat and its token.
+    async fn register_singer(
         &self,
+        device: &str,
+        name: Option<&str>,
+    ) -> Result<SingerIssuedDto, RemoteError>;
+
+    /// Gives a singer a name, or another name. The seat's token is the proof.
+    async fn rename_singer(
+        &self,
+        id: u64,
+        token: &str,
+        name: &str,
+    ) -> Result<SingerDto, RemoteError>;
+
+    /// Every request the evening holds.
+    async fn requests(&self) -> Result<RequestsDto, RemoteError>;
+
+    /// Asks for a song for a singer. The machine queues it in that singer's turn.
+    ///
+    /// A seat the machine does not hold, and a token that does not prove one, both answer
+    /// [`RemoteError::NotFound`] or [`RemoteError::Unauthorized`]. A phone reads either as a seat
+    /// from an earlier evening.
+    async fn request(
+        &self,
+        singer: u64,
+        token: &str,
         number: SongCode,
-        singer: Option<&str>,
-    ) -> Result<AddedToQueueDto, RemoteError>;
+    ) -> Result<RequestDto, RemoteError>;
+
+    /// Takes a request back, waiting or queued. The token of the singer who asked is the proof.
+    async fn withdraw(&self, request: u64, token: &str) -> Result<RequestDto, RemoteError>;
 
     /// Take an entry out, by the id it was given. Never by position — positions shift underneath a
     /// page that has been open for a minute.

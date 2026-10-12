@@ -869,6 +869,14 @@ pub struct SingersDto {
     pub singers: Vec<SingerDto>,
     /// The cap, so a client need not hard-code it.
     pub capacity: usize,
+    /// Which evening this is: a random word, new each time the machine starts.
+    ///
+    /// **A phone keeps it beside the seats it holds.** A seat ends with the evening and ids start
+    /// again from zero, so an id kept from an earlier evening names somebody else's seat. A
+    /// different word here means every seat the phone kept is gone. Empty from a machine that does
+    /// not send it.
+    #[serde(default)]
+    pub evening: String,
 }
 
 /// `POST /singers`.
@@ -892,6 +900,10 @@ pub struct SingerIssuedDto {
     pub singer: SingerDto,
     /// What proves the seat from now on. Any token it held before has ended.
     pub token: String,
+    /// Which evening the seat belongs to, as [`SingersDto::evening`]. A phone keeps it beside the
+    /// token. Empty from a machine that does not send it.
+    #[serde(default)]
+    pub evening: String,
 }
 
 /// `PUT /singers/{id}/name`.
@@ -1037,10 +1049,12 @@ pub struct WithdrawRequest {
 #[serde(deny_unknown_fields)]
 pub struct AddToQueueRequest {
     /// The song number, as punched into the machine.
+    ///
+    /// **And nothing else.** This route adds a song with no singer, which passes the rule that
+    /// gives each singer one song in the queue. A singer's song is a request, through
+    /// `POST /requests`. A body that names a singer is refused, where a dropped name would put that
+    /// singer's song ahead of everybody's turn with nothing said.
     pub number: SongCode,
-    /// Who is singing it, when a remote knows.
-    #[serde(default)]
-    pub singer: Option<String>,
 }
 
 /// What `POST /queue` returns.
@@ -2815,7 +2829,6 @@ mod tests {
         let request: AddToQueueRequest =
             serde_json::from_str(r#"{"number": "1234"}"#).expect("parse");
         assert_eq!(request.number, SongCode::new(1234));
-        assert_eq!(request.singer, None);
 
         // A banked song is asked for the same way, because a code is one string whatever thousand
         // it is in.

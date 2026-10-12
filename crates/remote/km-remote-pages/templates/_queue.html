@@ -8,7 +8,7 @@
 </div>
 <ul class="song-list">
   {% for row in rows %}
-  <li class="queue-row">
+  <li class="queue-row"{% match row.seat() %}{% when Some with (seat) %} data-seat="{{ seat }}"{% when None %}{% endmatch %}>
     <span class="queue-pos">{{ row.position() }}</span>
     <div class="queue-body">
       <div class="song-name">{{ row.title() }}</div>
