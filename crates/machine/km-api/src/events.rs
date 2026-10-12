@@ -248,7 +248,7 @@ mod tests {
                 queue: QueueDto::new(&[]),
             },
             Event::RequestsChanged {
-                requests: RequestsDto::new(&[], &[]),
+                requests: RequestsDto::new(&[], &[], &crate::machine::EveningState::default()),
             },
             Event::SingersChanged {
                 singers: SingersDto {

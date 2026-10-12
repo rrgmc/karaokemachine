@@ -236,6 +236,9 @@ impl From<km_queue::RequestError> for ApiError {
             RequestError::SingerFull => conflict("singer_requests_full"),
             RequestError::Full => conflict("requests_full"),
             RequestError::Finished => conflict("request_finished"),
+            RequestError::Closed => conflict("requests_closed"),
+            RequestError::NotWaiting => conflict("request_not_waiting"),
+            RequestError::QueueFull => Self::queue_full(),
         }
     }
 }

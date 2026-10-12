@@ -580,11 +580,76 @@ pub async fn rename_singer(
 }
 
 /// `POST /api/v1/singers/{id}/reissue`
+///
+/// Opens the seat for another phone to take, and answers with the singer and no token.
 pub async fn reissue_singer(
     State(state): State<ApiState>,
     Segment(id): Segment<u64>,
-) -> ApiResult<Json<SingerIssuedDto>> {
+) -> ApiResult<Json<SingerDto>> {
     Ok(Json(ops::reissue_singer(&state, id)?))
+}
+
+/// `POST /api/v1/singers/hosted`
+///
+/// A singer with no phone, for a caller at the control level.
+pub async fn create_singer(
+    State(state): State<ApiState>,
+    Body(body): Body<crate::dto::CreateSingerRequest>,
+) -> ApiResult<(axum::http::StatusCode, Json<SingerDto>)> {
+    let singer = ops::create_singer(&state, body.name.as_deref())?;
+    Ok((axum::http::StatusCode::CREATED, Json(singer)))
+}
+
+/// `DELETE /api/v1/singers/{id}`
+pub async fn remove_singer(
+    State(state): State<ApiState>,
+    Segment(id): Segment<u64>,
+) -> ApiResult<Json<SingerDto>> {
+    Ok(Json(ops::remove_singer(&state, id)?))
+}
+
+/// `POST /api/v1/singers/{id}/merge`
+pub async fn merge_singers(
+    State(state): State<ApiState>,
+    Segment(id): Segment<u64>,
+    Body(body): Body<crate::dto::MergeSingerRequest>,
+) -> ApiResult<Json<SingerDto>> {
+    Ok(Json(ops::merge_singers(&state, id, body.into)?))
+}
+
+/// `POST /api/v1/requests/{id}/decline`
+pub async fn decline_request(
+    State(state): State<ApiState>,
+    Segment(id): Segment<u64>,
+) -> ApiResult<Json<RequestDto>> {
+    Ok(Json(ops::decline_request(&state, id)?))
+}
+
+/// `POST /api/v1/requests/{id}/accept`
+pub async fn accept_request(
+    State(state): State<ApiState>,
+    Segment(id): Segment<u64>,
+    Body(body): Body<crate::dto::AcceptRequest>,
+) -> ApiResult<Json<RequestDto>> {
+    // Off the runtime, for `add_request`'s reason: a song accepted onto an idle machine loads.
+    let request = ops::off_runtime(&state, move |state| {
+        ops::accept_request(state, id, body.next)
+    })
+    .await?;
+    Ok(Json(request))
+}
+
+/// `PUT /api/v1/requests/accepting`
+pub async fn set_accepting(
+    State(state): State<ApiState>,
+    Body(body): Body<crate::dto::AcceptingRequest>,
+) -> Json<RequestsDto> {
+    Json(ops::set_accepting(&state, body.accepting))
+}
+
+/// `POST /api/v1/evening/reset`
+pub async fn reset_evening(State(state): State<ApiState>) -> Json<RequestsDto> {
+    Json(ops::reset_evening(&state))
 }
 
 /// `GET /api/v1/requests`

@@ -1256,8 +1256,44 @@ impl Controller for TestMachine {
         self.lock().evening.rename(id, token, name)
     }
 
-    fn seat_reissue(&self, id: u64, token: String) -> Result<Issued, SeatError> {
-        self.lock().evening.reissue(id, token)
+    fn seat_open(&self, id: u64) -> Result<Seat, SeatError> {
+        self.lock().evening.open_seat(id)
+    }
+
+    fn seat_create(&self, name: Option<SeatName>) -> Result<Seat, SeatError> {
+        self.lock().evening.create_singer(name)
+    }
+
+    fn seat_remove(&self, id: u64) -> Result<Seat, SeatError> {
+        self.lock().evening.remove_singer(id, Instant::now())
+    }
+
+    fn seat_merge(&self, from: u64, into: u64) -> Result<Seat, SeatError> {
+        self.lock().evening.merge(from, into)
+    }
+
+    fn request_decline(&self, id: u64) -> Result<Request, RequestError> {
+        self.lock().evening.decline(id, Instant::now())
+    }
+
+    fn request_accept(&self, id: u64, next: bool) -> Result<Request, RequestError> {
+        self.lock().evening.accept(id, next, Instant::now())
+    }
+
+    fn evening(&self) -> crate::machine::EveningState {
+        let inner = self.lock();
+        crate::machine::EveningState {
+            accepting: inner.evening.accepting(),
+            sung: inner.evening.sung().to_vec(),
+        }
+    }
+
+    fn set_accepting(&self, accepting: bool) {
+        self.lock().evening.set_accepting(accepting);
+    }
+
+    fn evening_reset(&self) {
+        self.lock().evening.reset();
     }
 
     fn singer_rules(&self) -> crate::machine::SingerRules {

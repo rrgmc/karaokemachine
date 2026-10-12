@@ -5240,45 +5240,68 @@ async fn a_rename_needs_the_seats_token_and_a_free_name() {
     assert_eq!(status, StatusCode::NOT_FOUND);
 }
 
-/// The reissue asks for no proof, so the control level is the check.
+/// A harness whose caller holds no token, in a room at its default level, with both codes set.
+fn a_room_with_a_host() -> Harness {
+    Harness::with_config(
+        ApiConfig::default()
+            .without_mdns()
+            .with_password(SWEEP_PASSWORD)
+            .expect("argon2 hashes a password")
+            .with_codes("sweep-queue", "sweep-control")
+            .expect("argon2 hashes a code"),
+    )
+    .tokenless()
+}
+
+/// The token a host holds, for a harness to act at the control level.
+fn host_token(harness: &Harness) -> Option<String> {
+    harness
+        .state
+        .auth()
+        .issue_for(Access::Control)
+        .map(|grant| grant.token)
+}
+
+/// The reissue asks for no proof, so the control level is the check. It opens the seat: the old
+/// token ends, and the next phone to give the name takes the seat with its songs.
 #[tokio::test]
-async fn a_reissue_needs_the_control_level_and_ends_the_old_token() {
-    let config = ApiConfig::default()
-        .without_mdns()
-        .with_password(SWEEP_PASSWORD)
-        .expect("argon2 hashes a password")
-        .with_codes("sweep-queue", "sweep-control")
-        .expect("argon2 hashes a code");
-    let mut harness = Harness::with_config(config).tokenless();
+async fn a_reissue_opens_the_seat_for_the_next_phone_that_gives_its_name() {
+    let mut harness = a_room_with_a_host();
     let (ana, first_token) = register(&harness, "phone-a", Some("Ana")).await;
     queue_a_song_for(&harness, ana);
     let path = format!("/singers/{ana}/reissue");
 
-    // The room is at the queue level, which registers and does not reissue.
+    // The room is at the request level, which registers and does not reissue.
     let (status, _) = harness.request(Method::POST, &path, None).await;
     assert_eq!(status, StatusCode::UNAUTHORIZED);
 
-    harness.token = harness
-        .state
-        .auth()
-        .issue_for(Access::Control)
-        .map(|grant| grant.token);
+    harness.token = host_token(&harness);
     let (status, body) = harness.request(Method::POST, &path, None).await;
     assert_eq!(status, StatusCode::OK, "{body}");
-    assert_eq!(body["singer"]["id"], ana);
-    let second_token = body["token"].as_str().expect("a token").to_owned();
-    assert_ne!(second_token, first_token);
+    assert_eq!(body["id"], ana);
+    assert_eq!(body["phone"], false, "no phone holds it now");
+    assert!(
+        body.get("token").is_none(),
+        "the token belongs on the singer's phone, and the host gets none: {body}"
+    );
 
     let name = format!("/singers/{ana}/name");
     let (status, _) = harness
         .put(&name, json!({ "token": first_token, "name": "Beto" }))
         .await;
-    assert_eq!(status, StatusCode::FORBIDDEN);
-    let (status, _) = harness
-        .put(&name, json!({ "token": second_token, "name": "Beto" }))
-        .await;
-    assert_eq!(status, StatusCode::OK);
+    assert_eq!(status, StatusCode::FORBIDDEN, "the old token has ended");
 
+    // Another phone gives the name, and gets the seat although it holds a song.
+    harness.token = None;
+    let (again, second_token) = register(&harness, "phone-b", Some("Ana")).await;
+    assert_eq!(again, ana, "the same seat");
+    let waiting = ask(&harness, ana, &second_token, "1002").await;
+    assert_eq!(
+        waiting["state"], "waiting",
+        "behind the song it already had"
+    );
+
+    harness.token = host_token(&harness);
     let (status, _) = harness
         .request(Method::POST, "/singers/9999/reissue", None)
         .await;
@@ -5688,4 +5711,276 @@ async fn a_singer_cap_outside_its_range_is_a_400() {
     }
     let (_, rules) = harness.get("/singers/rules").await;
     assert_eq!(rules["max_waiting"], 10, "and nothing was stored");
+}
+
+// -- the operator --------------------------------------------------------------------------------
+
+/// Every operator route needs the control level, and a room that asks for songs has none of them.
+#[tokio::test]
+async fn the_operators_routes_need_the_control_level() {
+    let harness = a_room_with_a_host();
+    for (method, path, body) in [
+        (
+            Method::POST,
+            "/singers/hosted",
+            Some(json!({ "name": "Ana" })),
+        ),
+        (Method::DELETE, "/singers/0", None),
+        (Method::POST, "/singers/0/merge", Some(json!({ "into": 1 }))),
+        (
+            Method::POST,
+            "/singers/0/requests",
+            Some(json!({ "number": "1001" })),
+        ),
+        (Method::POST, "/requests/0/decline", None),
+        (
+            Method::POST,
+            "/requests/0/accept",
+            Some(json!({ "next": true })),
+        ),
+        (
+            Method::PUT,
+            "/requests/accepting",
+            Some(json!({ "accepting": false })),
+        ),
+        (Method::POST, "/evening/reset", None),
+    ] {
+        let (status, _) = harness.request(method.clone(), path, body).await;
+        assert_eq!(status, StatusCode::UNAUTHORIZED, "{method} {path}");
+    }
+}
+
+/// A singer with no phone: the host creates one, enters songs in any order, and the rule gives the
+/// turns.
+#[tokio::test]
+async fn a_host_creates_a_singer_with_no_phone_and_enters_their_songs() {
+    let mut harness = a_room_with_a_host();
+    harness.token = host_token(&harness);
+
+    let (status, caio) = harness
+        .post("/singers/hosted", json!({ "name": " Caio " }))
+        .await;
+    assert_eq!(status, StatusCode::CREATED, "{caio}");
+    assert_eq!(caio["name"], "Caio");
+    assert_eq!(caio["phone"], false);
+    let id = caio["id"].as_u64().expect("an id");
+
+    let (status, taken) = harness
+        .post("/singers/hosted", json!({ "name": "caio" }))
+        .await;
+    assert_eq!(status, StatusCode::CONFLICT);
+    assert_eq!(taken["error"], "name_taken");
+    let (_, guest) = harness.post("/singers/hosted", json!({})).await;
+    assert_eq!(guest["guest"], 1, "a singer with no name gets a number");
+
+    let path = format!("/singers/{id}/requests");
+    let (_, first) = harness.post(&path, json!({ "number": "1001" })).await;
+    let (_, second) = harness.post(&path, json!({ "number": "1002" })).await;
+    assert_eq!(first["state"], "queued");
+    assert_eq!(second["state"], "waiting");
+
+    // A phone is refused his name while he holds a song, and no token of a phone's proves him.
+    harness.token = None;
+    let (status, body) = harness
+        .post("/singers", json!({ "device": "phone-c", "name": "Caio" }))
+        .await;
+    assert_eq!(status, StatusCode::CONFLICT, "{body}");
+    assert_eq!(body["error"], "name_taken");
+    let (status, _) = harness
+        .post(
+            "/requests",
+            json!({ "singer": id, "token": "", "number": "1003" }),
+        )
+        .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+}
+
+/// The two corrections to the rule: a request refused, and one accepted early.
+#[tokio::test]
+async fn a_host_declines_a_request_and_accepts_one_early() {
+    let mut harness = a_room_with_a_host();
+    let (ana, token) = register(&harness, "phone-a", Some("Ana")).await;
+    let (beto, beto_token) = register(&harness, "phone-b", Some("Beto")).await;
+    let first = ask(&harness, ana, &token, "1001").await;
+    ask(&harness, beto, &beto_token, "1002").await;
+    let unwelcome = ask(&harness, ana, &token, "1003").await;
+    let early = ask(&harness, ana, &token, "1004").await;
+    harness.token = host_token(&harness);
+
+    let (status, declined) = harness
+        .request(
+            Method::POST,
+            &format!("/requests/{}/decline", unwelcome["id"]),
+            None,
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK, "{declined}");
+    assert_eq!(declined["state"], "declined");
+    assert_eq!(queued_numbers(&harness).await, vec!["1001", "1002"]);
+
+    let accept = format!("/requests/{}/accept", early["id"]);
+    let (status, accepted) = harness.post(&accept, json!({ "next": true })).await;
+    assert_eq!(status, StatusCode::OK, "{accepted}");
+    assert_eq!(accepted["state"], "queued");
+    assert_eq!(accepted["position"], 0);
+    assert_eq!(
+        queued_numbers(&harness).await,
+        vec!["1004", "1001", "1002"],
+        "her second song, next"
+    );
+
+    let (status, body) = harness.post(&accept, json!({})).await;
+    assert_eq!(status, StatusCode::CONFLICT);
+    assert_eq!(body["error"], "request_not_waiting");
+    let (status, body) = harness
+        .post(&format!("/requests/{}/accept", first["id"]), json!({}))
+        .await;
+    assert_eq!(status, StatusCode::CONFLICT);
+    assert_eq!(body["error"], "request_not_waiting");
+    let (status, _) = harness.post("/requests/9999/accept", json!({})).await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+}
+
+/// The switch closes the phones. What waits still goes in, and the host still adds.
+#[tokio::test]
+async fn a_closed_evening_refuses_a_phone_and_the_host_still_adds() {
+    let mut harness = a_room_with_a_host();
+    let (ana, token) = register(&harness, "phone-a", Some("Ana")).await;
+    ask(&harness, ana, &token, "1001").await;
+    let (_, list) = harness.get("/requests").await;
+    assert_eq!(list["accepting"], true);
+
+    harness.token = host_token(&harness);
+    let (status, list) = harness
+        .put("/requests/accepting", json!({ "accepting": false }))
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(list["accepting"], false);
+    let (_, slip) = harness
+        .post(
+            &format!("/singers/{ana}/requests"),
+            json!({ "number": "1002" }),
+        )
+        .await;
+    assert_eq!(slip["state"], "waiting", "the host's song is taken");
+
+    harness.token = None;
+    let (status, body) = harness
+        .post(
+            "/requests",
+            json!({ "singer": ana, "token": token, "number": "1003" }),
+        )
+        .await;
+    assert_eq!(status, StatusCode::CONFLICT);
+    assert_eq!(body["error"], "requests_closed");
+    let (_, list) = harness.get("/requests").await;
+    assert_eq!(list["accepting"], false, "and every phone can read that");
+}
+
+#[tokio::test]
+async fn a_host_removes_a_singer_who_went_home() {
+    let mut harness = a_room_with_a_host();
+    let (ana, token) = register(&harness, "phone-a", Some("Ana")).await;
+    let (beto, beto_token) = register(&harness, "phone-b", Some("Beto")).await;
+    ask(&harness, ana, &token, "1001").await;
+    ask(&harness, ana, &token, "1002").await;
+    ask(&harness, beto, &beto_token, "1003").await;
+    harness.token = host_token(&harness);
+
+    let (status, gone) = harness.delete(&format!("/singers/{ana}")).await;
+    assert_eq!(status, StatusCode::OK, "{gone}");
+    assert_eq!(gone["name"], "Ana");
+    assert_eq!(queued_numbers(&harness).await, vec!["1003"]);
+    let (_, singers) = harness.get("/singers").await;
+    assert_eq!(singers["singers"].as_array().expect("singers").len(), 1);
+    let (_, list) = harness.get("/requests").await;
+    let states: Vec<&str> = list["requests"]
+        .as_array()
+        .expect("requests")
+        .iter()
+        .map(|request| request["state"].as_str().expect("a state"))
+        .collect();
+    assert_eq!(states, vec!["declined", "declined", "queued"]);
+
+    let (status, _) = harness.delete(&format!("/singers/{ana}")).await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+}
+
+/// One person registered two names, and the host joins them.
+#[tokio::test]
+async fn a_host_merges_two_singers_into_one() {
+    let mut harness = a_room_with_a_host();
+    let (dave, dave_token) = register(&harness, "phone-a", Some("Dave")).await;
+    let (david, david_token) = register(&harness, "phone-b", Some("David")).await;
+    ask(&harness, dave, &dave_token, "1001").await;
+    ask(&harness, david, &david_token, "1002").await;
+    harness.token = host_token(&harness);
+
+    let (status, kept) = harness
+        .post(&format!("/singers/{dave}/merge"), json!({ "into": david }))
+        .await;
+    assert_eq!(status, StatusCode::OK, "{kept}");
+    assert_eq!(kept["id"], david);
+
+    let (_, queue) = harness.get("/queue").await;
+    for entry in queue["entries"].as_array().expect("entries") {
+        assert_eq!(entry["seat"], david, "{entry}");
+        assert_eq!(entry["singer"], "David", "{entry}");
+    }
+    let (_, singers) = harness.get("/singers").await;
+    assert_eq!(singers["singers"].as_array().expect("singers").len(), 1);
+
+    let (status, _) = harness
+        .post(&format!("/singers/{david}/merge"), json!({ "into": david }))
+        .await;
+    assert_eq!(
+        status,
+        StatusCode::NOT_FOUND,
+        "a singer cannot merge into itself"
+    );
+}
+
+/// A new evening: the record, the requests, the queue and the seats go, and the word changes so
+/// every phone drops what it kept.
+#[tokio::test]
+async fn a_host_starts_a_new_evening_without_a_restart() {
+    let mut harness = a_room_with_a_host();
+    let (ana, token) = register(&harness, "phone-a", Some("Ana")).await;
+    ask(&harness, ana, &token, "1001").await;
+    ask(&harness, ana, &token, "1002").await;
+    harness.token = host_token(&harness);
+    harness.ok(Method::POST, "/transport/play", None).await;
+    harness
+        .put("/requests/accepting", json!({ "accepting": false }))
+        .await;
+
+    let (_, list) = harness.get("/requests").await;
+    assert_eq!(list["sung"], json!([{ "number": "1001", "singer": ana }]));
+    let (_, before) = harness.get("/singers").await;
+
+    let (status, list) = harness.request(Method::POST, "/evening/reset", None).await;
+    assert_eq!(status, StatusCode::OK, "{list}");
+    assert_eq!(list["requests"], json!([]));
+    assert_eq!(list["sung"], json!([]));
+    assert_eq!(list["accepting"], true, "a new evening takes requests");
+    assert!(queued_numbers(&harness).await.is_empty());
+
+    let (_, after) = harness.get("/singers").await;
+    assert_eq!(after["singers"], json!([]));
+    assert_ne!(
+        after["evening"], before["evening"],
+        "a new word for a new evening"
+    );
+
+    // The phone's token proves nothing now, and its name is free.
+    harness.token = None;
+    let (status, _) = harness
+        .post(
+            "/requests",
+            json!({ "singer": ana, "token": token, "number": "1003" }),
+        )
+        .await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    let (again, _) = register(&harness, "phone-a", Some("Ana")).await;
+    assert_ne!(again, ana, "a seat id is never reused");
 }

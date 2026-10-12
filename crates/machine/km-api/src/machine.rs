@@ -20,7 +20,7 @@ use std::sync::Arc;
 use km_catalog::search::SearchQuery;
 use km_catalog::{CatalogSong, InstallReport, InstalledPackage, SongKind};
 use km_queue::Transport;
-use km_queue::evening::{Proof, Request, RequestError, RequestedSong};
+use km_queue::evening::{Proof, Request, RequestError, RequestedSong, Sung};
 use km_queue::mics::{MicChannel, MicPatch};
 use km_queue::queue::{QueueEntry, QueueRequest};
 use km_queue::seats::{Issued, Seat, SeatError, SeatName};
@@ -465,6 +465,25 @@ pub const MAX_DEMO_DELAY_SECS: u32 = 3600;
 /// machine that looks stopped. A bound on what a route may be told and not on what a settings file
 /// may hold, for the reason [`MAX_DEMO_DELAY_SECS`] gives.
 pub const MAX_ANNOUNCEMENT_SECS: u32 = 30;
+
+/// What the evening holds beyond its queue, its singers and their requests.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EveningState {
+    /// Whether a phone may ask for a song.
+    pub accepting: bool,
+    /// Every song that started this evening, in order.
+    pub sung: Vec<Sung>,
+}
+
+impl Default for EveningState {
+    /// An evening that takes requests and has heard nothing yet.
+    fn default() -> Self {
+        Self {
+            accepting: true,
+            sung: Vec::new(),
+        }
+    }
+}
 
 /// The largest number [`Controller::set_singer_rules`] accepts for either of its two caps.
 ///
@@ -1380,8 +1399,20 @@ pub trait Controller: Send + Sync + 'static {
     /// Gives a seat a name, or another name. `token` is the proof.
     fn seat_rename(&self, id: u64, token: &str, name: SeatName) -> Result<Seat, SeatError>;
 
-    /// Gives a seat a new token, whatever it holds. The route's level is the check.
-    fn seat_reissue(&self, id: u64, token: String) -> Result<Issued, SeatError>;
+    /// Opens a seat for another phone to take, whatever it holds. The route's level is the check.
+    ///
+    /// The seat's token ends, and the next registration under its name takes it. See
+    /// [`km_queue::Seats::open`].
+    fn seat_open(&self, id: u64) -> Result<Seat, SeatError>;
+
+    /// Creates a singer who has no phone, for a caller whose level is the check.
+    fn seat_create(&self, name: Option<SeatName>) -> Result<Seat, SeatError>;
+
+    /// Removes a singer who went home: the seat, its queued songs and its waiting ones.
+    fn seat_remove(&self, id: u64) -> Result<Seat, SeatError>;
+
+    /// Joins two seats that are one person. `from` goes, and `into` takes what it held.
+    fn seat_merge(&self, from: u64, into: u64) -> Result<Seat, SeatError>;
 
     /// Every request the evening holds, oldest first.
     fn requests(&self) -> Vec<Request>;
@@ -1399,6 +1430,25 @@ pub trait Controller: Send + Sync + 'static {
 
     /// Takes a request back, for its singer. `token` is the seat's, and it is the proof.
     fn request_withdraw(&self, id: u64, token: &str) -> Result<Request, RequestError>;
+
+    /// Refuses a request, waiting or queued, for a caller whose level is the check.
+    fn request_decline(&self, id: u64) -> Result<Request, RequestError>;
+
+    /// Accepts a waiting request early, at the end of the queue or next.
+    ///
+    /// Its singer then has a second song in the queue. See [`km_queue::Evening::accept`].
+    fn request_accept(&self, id: u64, next: bool) -> Result<Request, RequestError>;
+
+    /// Whether a phone may ask for a song, and every song that started this evening.
+    fn evening(&self) -> EveningState;
+
+    /// Opens or closes the evening to new requests from a phone.
+    fn set_accepting(&self, accepting: bool);
+
+    /// Starts a new evening without a restart: no queue, no requests, no record and no seats.
+    ///
+    /// The song that is playing plays on.
+    fn evening_reset(&self);
 
     /// Drives the transport.
     fn transport(&self, command: TransportCommand) -> Result<(), ControlError>;

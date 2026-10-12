@@ -48,6 +48,11 @@ pub struct Seat {
     /// A label and no name: it tells unnamed seats apart on an operator's page and on the guest's
     /// own phone. A seat that takes a name later keeps the number and shows the name.
     pub guest: Option<u32>,
+    /// Whether a phone holds the seat.
+    ///
+    /// False for a singer an operator created, and for a seat an operator opened for another
+    /// phone to take. Such a seat has no token, so only a caller's level acts for it.
+    pub phone: bool,
 }
 
 /// What the owner's settings ask of a registration.
@@ -106,9 +111,13 @@ struct Held {
     seat: Seat,
     /// The folded name, for the unique-name rule.
     key: Option<String>,
-    /// The device that registered it.
-    device: String,
-    token: String,
+    /// The device that registered it, or `None` while no phone holds it.
+    device: Option<String>,
+    /// What proves the seat, or `None` while no phone holds it.
+    token: Option<String>,
+    /// Whether an operator opened the seat, so the next registration under its name takes it
+    /// whatever it holds.
+    open: bool,
 }
 
 /// The evening's seats.
@@ -150,9 +159,13 @@ impl Seats {
 
     /// Whether a token proves a seat.
     pub fn holds(&self, id: u64, token: &str) -> bool {
-        self.held
-            .iter()
-            .any(|held| held.seat.id == id && same_token(&held.token, token))
+        self.held.iter().any(|held| {
+            held.seat.id == id
+                && held
+                    .token
+                    .as_deref()
+                    .is_some_and(|issued| same_token(issued, token))
+        })
     }
 
     /// Registers a singer for a device, and hands back the seat with its token.
@@ -161,6 +174,9 @@ impl Seats {
     /// back for a phone that lost its token, and it needs nobody. The seat gets `token`, its old
     /// token ends, and the seat moves to this device. While the seat holds a song the name is
     /// refused, because a reclaim by name alone would hand one singer's songs to another.
+    ///
+    /// **A seat an operator opened comes back whatever it holds.** [`Self::open`] is the operator
+    /// saying that the next phone to give this name is the singer's own.
     ///
     /// `holds_song` says whether a seat has a song queued or waiting.
     pub fn register(
@@ -181,28 +197,30 @@ impl Seats {
             if self
                 .held
                 .iter()
-                .any(|held| held.device == device && held.key.is_none())
+                .any(|held| held.device.as_deref() == Some(device) && held.key.is_none())
             {
                 return Err(SeatError::UnnamedTaken);
             }
             self.check_room(device, rules)?;
             self.next_guest += 1;
             let guest = Some(self.next_guest);
-            return Ok(self.push(device, None, guest, token));
+            return Ok(self.push(Some(device), None, guest, Some(token.clone()), token));
         };
         check_name(&name)?;
 
         if let Some(index) = self.index_of_key(&name.key) {
             let held = &self.held[index];
-            if holds_song(held.seat.id) {
+            if !held.open && holds_song(held.seat.id) {
                 return Err(SeatError::NameTaken);
             }
-            if held.device != device {
+            if held.device.as_deref() != Some(device) {
                 self.check_device_room(device, rules)?;
             }
             let held = &mut self.held[index];
-            held.device = device.to_owned();
-            held.token.clone_from(&token);
+            held.device = Some(device.to_owned());
+            held.token = Some(token.clone());
+            held.open = false;
+            held.seat.phone = true;
             held.seat.name = Some(name.shown);
             return Ok(Issued {
                 seat: held.seat.clone(),
@@ -211,7 +229,62 @@ impl Seats {
         }
 
         self.check_room(device, rules)?;
-        Ok(self.push(device, Some(name), None, token))
+        Ok(self.push(Some(device), Some(name), None, Some(token.clone()), token))
+    }
+
+    /// Creates a singer who has no phone, for a caller whose level is the check.
+    ///
+    /// The seat has no token, so nothing but a caller's level acts for it. A name must be free, and
+    /// a singer with none gets a number as a phone's does.
+    pub fn create(&mut self, name: Option<SeatName>) -> Result<Seat, SeatError> {
+        if let Some(name) = &name {
+            check_name(name)?;
+            if self.index_of_key(&name.key).is_some() {
+                return Err(SeatError::NameTaken);
+            }
+        }
+        if self.held.len() >= MAX_SEATS {
+            return Err(SeatError::Full);
+        }
+        let guest = name.is_none().then(|| {
+            self.next_guest += 1;
+            self.next_guest
+        });
+        Ok(self.push(None, name, guest, None, String::new()).seat)
+    }
+
+    /// Opens a seat for another phone to take, whatever it holds. Its token ends.
+    ///
+    /// No proof is asked here, so the caller's level is the check. The next registration under the
+    /// seat's name takes it, with a new token. That is the way back for a singer who lost a token
+    /// while holding a song, the way to move a singer to another phone, and the way to hand an
+    /// operator's singer to a phone. A seat with no name has no name to give, so it is refused.
+    pub fn open(&mut self, id: u64) -> Result<Seat, SeatError> {
+        let index = self.index_of(id).ok_or(SeatError::NotFound)?;
+        let held = &mut self.held[index];
+        if held.key.is_none() {
+            return Err(SeatError::NameRequired);
+        }
+        held.token = None;
+        held.device = None;
+        held.open = true;
+        held.seat.phone = false;
+        Ok(held.seat.clone())
+    }
+
+    /// Takes a seat out of the evening, and hands it back.
+    pub fn remove(&mut self, id: u64) -> Option<Seat> {
+        let index = self.index_of(id)?;
+        Some(self.held.remove(index).seat)
+    }
+
+    /// Ends every seat, for a new evening.
+    ///
+    /// Ids go on counting, so an id a phone kept never names a seat of the new evening. The numbers
+    /// of unnamed singers start again.
+    pub fn clear(&mut self) {
+        self.held.clear();
+        self.next_guest = 0;
     }
 
     /// Gives a seat a name, or another name. The token is the proof.
@@ -221,7 +294,7 @@ impl Seats {
     pub fn rename(&mut self, id: u64, token: &str, name: SeatName) -> Result<Seat, SeatError> {
         check_name(&name)?;
         let index = self.index_of(id).ok_or(SeatError::NotFound)?;
-        if !same_token(&self.held[index].token, token) {
+        if !self.holds(id, token) {
             return Err(SeatError::WrongToken);
         }
         if self
@@ -236,26 +309,14 @@ impl Seats {
         Ok(held.seat.clone())
     }
 
-    /// Gives a seat a new token, whatever it holds. The old token ends.
-    ///
-    /// No proof is asked here, so the caller's level is the check. This is the way back for a
-    /// singer who lost a token while holding a song.
-    pub fn reissue(&mut self, id: u64, token: String) -> Result<Issued, SeatError> {
-        let index = self.index_of(id).ok_or(SeatError::NotFound)?;
-        let held = &mut self.held[index];
-        held.token.clone_from(&token);
-        Ok(Issued {
-            seat: held.seat.clone(),
-            token,
-        })
-    }
-
+    /// Adds a seat. `issued` is what the answer carries, which is empty for a seat with no token.
     fn push(
         &mut self,
-        device: &str,
+        device: Option<&str>,
         name: Option<SeatName>,
         guest: Option<u32>,
-        token: String,
+        token: Option<String>,
+        issued: String,
     ) -> Issued {
         let id = self.next_id;
         // Ids are never reused, for the reason a queue entry's are not.
@@ -268,14 +329,19 @@ impl Seats {
             id,
             name: shown,
             guest,
+            phone: device.is_some(),
         };
         self.held.push(Held {
             seat: seat.clone(),
             key,
-            device: device.to_owned(),
-            token: token.clone(),
+            device: device.map(str::to_owned),
+            token,
+            open: false,
         });
-        Issued { seat, token }
+        Issued {
+            seat,
+            token: issued,
+        }
     }
 
     fn index_of(&self, id: u64) -> Option<usize> {
@@ -303,7 +369,7 @@ impl Seats {
         let on_device = self
             .held
             .iter()
-            .filter(|held| held.device == device)
+            .filter(|held| held.device.as_deref() == Some(device))
             .count();
         if on_device >= max as usize {
             return Err(SeatError::DeviceFull);
@@ -471,22 +537,91 @@ mod tests {
         register(&mut seats, PHONE, None, "t3");
     }
 
+    /// An operator opens a seat, and the next phone to give its name takes it with its songs.
     #[test]
-    fn a_reissue_ends_the_old_token_whatever_the_seat_holds() {
+    fn an_opened_seat_goes_to_the_next_phone_that_gives_its_name() {
         let mut seats = Seats::new();
         let ana = register(&mut seats, PHONE, Some("Ana"), "t1");
+        let holding = |id: u64| id == ana.seat.id;
 
-        let issued = seats
-            .reissue(ana.seat.id, "t2".to_owned())
-            .expect("the seat exists");
-        assert_eq!(issued.seat, ana.seat);
+        let opened = seats.open(ana.seat.id).expect("the seat exists");
+        assert!(!opened.phone, "no phone holds it now");
+        assert!(!seats.holds(ana.seat.id, "t1"), "the old token ends");
+
+        let taken = seats
+            .register(
+                TABLET,
+                name("ana"),
+                "t2".to_owned(),
+                SeatRules::default(),
+                holding,
+            )
+            .expect("an opened seat comes back whatever it holds");
+        assert_eq!(taken.seat.id, ana.seat.id);
+        assert!(taken.seat.phone);
         assert!(seats.holds(ana.seat.id, "t2"));
-        assert!(!seats.holds(ana.seat.id, "t1"));
+
+        // It is open once. A third phone is refused the name again.
+        let again = seats.register(
+            "phone-c",
+            name("Ana"),
+            "t3".to_owned(),
+            SeatRules::default(),
+            holding,
+        );
+        assert_eq!(again, Err(SeatError::NameTaken));
+        assert_eq!(seats.open(9_999), Err(SeatError::NotFound));
+    }
+
+    #[test]
+    fn a_seat_with_no_name_cannot_be_opened() {
+        let mut seats = Seats::new();
+        let guest = register(&mut seats, PHONE, None, "t1");
+        assert_eq!(seats.open(guest.seat.id), Err(SeatError::NameRequired));
+        assert!(seats.holds(guest.seat.id, "t1"), "and it keeps its token");
+    }
+
+    /// An operator's singer has no phone and no token, and a phone takes it by name while it holds
+    /// no song.
+    #[test]
+    fn an_operator_creates_a_singer_with_no_phone() {
+        let mut seats = Seats::new();
+        let hosted = seats.create(name("Ana")).expect("a free name");
+        assert!(!hosted.phone);
+        assert!(!seats.holds(hosted.id, ""), "no token proves it");
+        assert_eq!(seats.create(name("ana")), Err(SeatError::NameTaken));
+
+        let unnamed = seats.create(None).expect("a singer with no name");
+        assert_eq!(unnamed.guest, Some(1));
+        let second = seats
+            .create(None)
+            .expect("and another, because no device holds them");
+        assert_eq!(second.guest, Some(2));
+
+        let taken = register(&mut seats, PHONE, Some("Ana"), "t1");
+        assert_eq!(taken.seat.id, hosted.id);
+        assert!(taken.seat.phone);
+    }
+
+    #[test]
+    fn a_removed_seat_frees_its_name_and_a_new_evening_ends_every_seat() {
+        let mut seats = Seats::new();
+        let ana = register(&mut seats, PHONE, Some("Ana"), "t1");
+        register(&mut seats, TABLET, None, "t2");
 
         assert_eq!(
-            seats.reissue(9_999, "t3".to_owned()),
-            Err(SeatError::NotFound)
+            seats.remove(ana.seat.id).map(|seat| seat.id),
+            Some(ana.seat.id)
         );
+        assert!(seats.remove(ana.seat.id).is_none());
+        let again = register(&mut seats, PHONE, Some("Ana"), "t3");
+        assert_ne!(again.seat.id, ana.seat.id, "ids are never reused");
+
+        seats.clear();
+        assert!(seats.is_empty());
+        let first = register(&mut seats, PHONE, None, "t4");
+        assert_eq!(first.seat.guest, Some(1), "the numbers start again");
+        assert!(first.seat.id > again.seat.id, "and the ids go on counting");
     }
 
     #[test]

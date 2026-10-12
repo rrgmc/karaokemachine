@@ -3086,7 +3086,7 @@ impl Machine {
             queue: km_api::dto::QueueDto::new(&entries),
         });
         self.events.publish(Event::RequestsChanged {
-            requests: km_api::dto::RequestsDto::new(&requests, &entries),
+            requests: km_api::dto::RequestsDto::new(&requests, &entries, &self.evening()),
         });
     }
 
@@ -4504,8 +4504,52 @@ impl Controller for Machine {
         self.lock_state().evening.rename(id, token, name)
     }
 
-    fn seat_reissue(&self, id: u64, token: String) -> Result<Issued, SeatError> {
-        self.lock_state().evening.reissue(id, token)
+    fn seat_open(&self, id: u64) -> Result<Seat, SeatError> {
+        self.lock_state().evening.open_seat(id)
+    }
+
+    fn seat_create(&self, name: Option<SeatName>) -> Result<Seat, SeatError> {
+        self.lock_state().evening.create_singer(name)
+    }
+
+    fn seat_remove(&self, id: u64) -> Result<Seat, SeatError> {
+        self.arm_demo(DemoEvent::Somebody);
+        self.lock_state().evening.remove_singer(id, Instant::now())
+    }
+
+    fn seat_merge(&self, from: u64, into: u64) -> Result<Seat, SeatError> {
+        self.lock_state().evening.merge(from, into)
+    }
+
+    fn request_decline(&self, id: u64) -> Result<Request, RequestError> {
+        self.arm_demo(DemoEvent::Somebody);
+        self.lock_state().evening.decline(id, Instant::now())
+    }
+
+    fn request_accept(&self, id: u64, next: bool) -> Result<Request, RequestError> {
+        let request = self.lock_state().evening.accept(id, next, Instant::now())?;
+        // A song went into the queue, so an idle machine starts it as it starts any other.
+        self.a_song_was_queued();
+        Ok(request)
+    }
+
+    fn evening(&self) -> km_api::machine::EveningState {
+        let state = self.lock_state();
+        km_api::machine::EveningState {
+            accepting: state.evening.accepting(),
+            sung: state.evening.sung().to_vec(),
+        }
+    }
+
+    fn set_accepting(&self, accepting: bool) {
+        self.lock_state().evening.set_accepting(accepting);
+    }
+
+    /// Starts a new evening. The song on the deck is no part of the evening's lists, so it plays
+    /// on, and the queue behind it is empty as it is at a start.
+    fn evening_reset(&self) {
+        self.arm_demo(DemoEvent::Somebody);
+        self.lock_state().evening.reset();
     }
 
     fn requests(&self) -> Vec<Request> {

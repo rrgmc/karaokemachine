@@ -84,7 +84,11 @@ pub fn publish_queue(state: &ApiState) -> QueueDto {
         queue: queue.clone(),
     });
     state.events().publish(Event::RequestsChanged {
-        requests: RequestsDto::new(&state.controller().requests(), &entries),
+        requests: RequestsDto::new(
+            &state.controller().requests(),
+            &entries,
+            &state.controller().evening(),
+        ),
     });
     queue
 }
@@ -98,7 +102,72 @@ fn publish_singers(state: &ApiState) {
 
 /// Every request the evening holds.
 pub fn requests(state: &ApiState) -> RequestsDto {
-    RequestsDto::new(&state.controller().requests(), &state.controller().queue())
+    RequestsDto::new(
+        &state.controller().requests(),
+        &state.controller().queue(),
+        &state.controller().evening(),
+    )
+}
+
+/// Refuses a request, waiting or queued, for a caller whose level is the check.
+pub fn decline_request(state: &ApiState, id: u64) -> ApiResult<RequestDto> {
+    let request = state.controller().request_decline(id)?;
+    publish_queue(state);
+    Ok(answer_for(state, &request))
+}
+
+/// Accepts a waiting request early, at the end of the queue or next.
+pub fn accept_request(state: &ApiState, id: u64, next: bool) -> ApiResult<RequestDto> {
+    let request = state.controller().request_accept(id, next)?;
+    publish_queue(state);
+    Ok(answer_for(state, &request))
+}
+
+/// Opens or closes the evening to new requests from a phone.
+pub fn set_accepting(state: &ApiState, accepting: bool) -> RequestsDto {
+    state.controller().set_accepting(accepting);
+    tracing::info!(accepting, "the evening was opened or closed to requests");
+    publish_queue(state);
+    requests(state)
+}
+
+/// Starts a new evening without a restart.
+///
+/// The machine drops its queue, its requests, its record and every seat, and this takes a new word
+/// for the evening. So each phone drops the seats it kept, as it does after a restart.
+pub fn reset_evening(state: &ApiState) -> RequestsDto {
+    state.controller().evening_reset();
+    state.renew_evening();
+    tracing::info!("a new evening was started");
+    publish_singers(state);
+    publish_queue(state);
+    requests(state)
+}
+
+/// Creates a singer who has no phone, for a caller whose level is the check.
+pub fn create_singer(state: &ApiState, name: Option<&str>) -> ApiResult<SingerDto> {
+    let seat = state.controller().seat_create(name.and_then(seat_name))?;
+    tracing::info!(singer = seat.id, "a singer with no phone was created");
+    publish_singers(state);
+    Ok((&seat).into())
+}
+
+/// Removes a singer who went home, with every song of theirs.
+pub fn remove_singer(state: &ApiState, id: u64) -> ApiResult<SingerDto> {
+    let seat = state.controller().seat_remove(id)?;
+    tracing::info!(singer = seat.id, "a singer was removed");
+    publish_singers(state);
+    publish_queue(state);
+    Ok((&seat).into())
+}
+
+/// Joins two singers who are one person. `from` goes, and the answer is the one who stays.
+pub fn merge_singers(state: &ApiState, from: u64, into: u64) -> ApiResult<SingerDto> {
+    let seat = state.controller().seat_merge(from, into)?;
+    tracing::info!(from, into, "two singers were merged");
+    publish_singers(state);
+    publish_queue(state);
+    Ok((&seat).into())
 }
 
 /// Takes a singer's request for a song by number.
@@ -211,7 +280,7 @@ pub fn singers(state: &ApiState) -> SingersDto {
     SingersDto {
         singers: state.controller().seats().iter().map(Into::into).collect(),
         capacity: km_queue::MAX_SEATS,
-        evening: state.evening().to_owned(),
+        evening: state.evening(),
     }
 }
 
@@ -234,7 +303,7 @@ pub fn register_singer(
     Ok(SingerIssuedDto {
         singer: (&issued.seat).into(),
         token: issued.token,
-        evening: state.evening().to_owned(),
+        evening: state.evening(),
     })
 }
 
@@ -249,17 +318,19 @@ pub fn rename_singer(state: &ApiState, id: u64, token: &str, name: &str) -> ApiR
     Ok((&seat).into())
 }
 
-/// Gives a singer a new token, for a caller whose level is the check.
-pub fn reissue_singer(state: &ApiState, id: u64) -> ApiResult<SingerIssuedDto> {
-    let issued = state
-        .controller()
-        .seat_reissue(id, crate::auth::random_hex(SEAT_TOKEN_BYTES))?;
-    tracing::info!(singer = issued.seat.id, "a singer's token was reissued");
-    Ok(SingerIssuedDto {
-        singer: (&issued.seat).into(),
-        token: issued.token,
-        evening: state.evening().to_owned(),
-    })
+/// Opens a singer's seat for another phone to take, for a caller whose level is the check.
+///
+/// **The answer carries no token.** The caller is the operator, and the token belongs on the
+/// singer's phone. The seat's old token ends here, and the next phone to register under the seat's
+/// name gets a new one, whatever the seat holds.
+pub fn reissue_singer(state: &ApiState, id: u64) -> ApiResult<SingerDto> {
+    let seat = state.controller().seat_open(id)?;
+    tracing::info!(
+        singer = seat.id,
+        "a singer's seat was opened for another phone"
+    );
+    publish_singers(state);
+    Ok((&seat).into())
 }
 
 /// Takes an entry out of the queue.

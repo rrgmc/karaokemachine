@@ -110,6 +110,18 @@ impl Default for RequestRules {
     }
 }
 
+/// A song that started this evening, for the record.
+///
+/// The rule needs no record, and reads none. The record is for a warning on a song somebody
+/// already sang, and for a count of how often each singer has sung.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Sung {
+    /// The catalog code.
+    pub number: SongCode,
+    /// The seat of the singer, or `None` for a song with no singer.
+    pub seat: Option<u64>,
+}
+
 /// Who is asking, and how they prove it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Proof<'a> {
@@ -140,6 +152,15 @@ pub enum RequestError {
     /// The request has already finished.
     #[error("that request has already finished")]
     Finished,
+    /// The machine is taking no new requests from a phone.
+    #[error("the machine is taking no more requests tonight")]
+    Closed,
+    /// The request is not waiting, so it cannot be accepted early.
+    #[error("that request is not waiting")]
+    NotWaiting,
+    /// The queue is at its limit, so nothing can be accepted into it.
+    #[error("the queue is full ({MAX_QUEUED} songs)")]
+    QueueFull,
 }
 
 /// A request as the list holds it.
@@ -151,18 +172,66 @@ struct Held {
 }
 
 /// The queue, the singers and their requests.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct Evening {
     queue: Queue,
     seats: Seats,
     requests: Vec<Held>,
     next_request: u64,
+    /// Every song that started, in order.
+    sung: Vec<Sung>,
+    /// Whether a phone may ask for a song.
+    accepting: bool,
+}
+
+impl Default for Evening {
+    fn default() -> Self {
+        Self {
+            queue: Queue::default(),
+            seats: Seats::default(),
+            requests: Vec::new(),
+            next_request: 0,
+            sung: Vec::new(),
+            accepting: true,
+        }
+    }
 }
 
 impl Evening {
-    /// An evening with nobody in it.
+    /// An evening with nobody in it, taking requests.
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Every song that started this evening, in order.
+    pub fn sung(&self) -> &[Sung] {
+        &self.sung
+    }
+
+    /// Whether a phone may ask for a song.
+    pub fn accepting(&self) -> bool {
+        self.accepting
+    }
+
+    /// Opens or closes the evening to new requests from a phone.
+    ///
+    /// **A request that already waits still enters the queue in its turn**, and a caller whose
+    /// level is the proof still adds one. The switch closes the phones and nothing else.
+    pub fn set_accepting(&mut self, accepting: bool) {
+        self.accepting = accepting;
+    }
+
+    /// Starts a new evening without a restart.
+    ///
+    /// The queue, the requests, the record and every seat go, and the evening takes requests again.
+    /// The song that is playing is no part of this, so it plays on. Ids go on counting, so nothing
+    /// a phone kept names anything of the new evening.
+    pub fn reset(&mut self) {
+        self.queue.clear();
+        self.requests.clear();
+        self.sung.clear();
+        self.seats.clear();
+        self.accepting = true;
     }
 
     /// The waiting songs.
@@ -200,6 +269,10 @@ impl Evening {
     /// Its request reads [`RequestState::Played`], and its singer's next request goes in.
     pub fn pop(&mut self, now: Instant) -> Option<QueueEntry> {
         let entry = self.queue.pop()?;
+        self.sung.push(Sung {
+            number: entry.number,
+            seat: entry.seat,
+        });
         self.entry_left(entry.id, RequestState::Played, now);
         self.settle(now);
         Some(entry)
@@ -268,9 +341,55 @@ impl Evening {
         Ok(seat)
     }
 
-    /// Gives a seat a new token. See [`Seats::reissue`].
-    pub fn reissue(&mut self, id: u64, token: String) -> Result<Issued, SeatError> {
-        self.seats.reissue(id, token)
+    /// Opens a seat for another phone to take. See [`Seats::open`].
+    pub fn open_seat(&mut self, id: u64) -> Result<Seat, SeatError> {
+        self.seats.open(id)
+    }
+
+    /// Creates a singer who has no phone. See [`Seats::create`].
+    pub fn create_singer(&mut self, name: Option<SeatName>) -> Result<Seat, SeatError> {
+        self.seats.create(name)
+    }
+
+    /// Removes a singer who went home: the seat, its queued songs and its waiting ones.
+    ///
+    /// Each of its requests reads [`RequestState::Declined`]. The rule then runs, because the
+    /// entries that left made room.
+    pub fn remove_singer(&mut self, id: u64, now: Instant) -> Result<Seat, SeatError> {
+        let seat = self.seats.remove(id).ok_or(SeatError::NotFound)?;
+        self.queue.remove_seat(id);
+        for held in &mut self.requests {
+            if held.request.seat == id && !held.request.state.is_finished() {
+                held.request.state = RequestState::Declined;
+                held.finished_at = Some(now);
+            }
+        }
+        self.settle(now);
+        Ok(seat)
+    }
+
+    /// Joins two seats that are one person: `from` goes, and `into` takes what it held.
+    ///
+    /// The requests, the queue entries and the record all move. The rule may then find two entries
+    /// for the one singer. It leaves both, and accepts no third while either is there.
+    pub fn merge(&mut self, from: u64, into: u64) -> Result<Seat, SeatError> {
+        if from == into {
+            return Err(SeatError::NotFound);
+        }
+        let kept = self.seats.get(into).cloned().ok_or(SeatError::NotFound)?;
+        self.seats.remove(from).ok_or(SeatError::NotFound)?;
+        self.queue.reseat(from, into, kept.name.as_deref());
+        for held in &mut self.requests {
+            if held.request.seat == from {
+                held.request.seat = into;
+            }
+        }
+        for sung in &mut self.sung {
+            if sung.seat == Some(from) {
+                sung.seat = Some(into);
+            }
+        }
+        Ok(kept)
     }
 
     // -- the requests ----------------------------------------------------------------------------
@@ -291,10 +410,13 @@ impl Evening {
         if self.seats.get(seat).is_none() {
             return Err(RequestError::NoSinger);
         }
-        if let Proof::Token(token) = proof
-            && !self.seats.holds(seat, token)
-        {
-            return Err(RequestError::WrongToken);
+        if let Proof::Token(token) = proof {
+            if !self.seats.holds(seat, token) {
+                return Err(RequestError::WrongToken);
+            }
+            if !self.accepting {
+                return Err(RequestError::Closed);
+            }
         }
         if self.requests.len() >= MAX_REQUESTS {
             return Err(RequestError::Full);
@@ -356,6 +478,64 @@ impl Evening {
         self.finish(id, RequestState::Withdrawn, now);
         self.settle(now);
         Ok(self.held(id).expect("still held").request.clone())
+    }
+
+    /// Refuses a request, for a caller at the control level. Waiting or queued, it reads
+    /// [`RequestState::Declined`], and a queued one leaves the queue.
+    pub fn decline(&mut self, id: u64, now: Instant) -> Result<Request, RequestError> {
+        self.sweep(now);
+        let held = self.held(id).ok_or(RequestError::NotFound)?;
+        let (state, entry) = (held.request.state, held.request.entry);
+        if state.is_finished() {
+            return Err(RequestError::Finished);
+        }
+        if let Some(entry) = entry {
+            self.queue.remove(entry);
+        }
+        self.finish(id, RequestState::Declined, now);
+        self.settle(now);
+        Ok(self.held(id).expect("still held").request.clone())
+    }
+
+    /// Accepts a waiting request early, for a caller at the control level.
+    ///
+    /// Its singer then has a second song in the queue, at the end or next. That makes a second
+    /// round, so a new singer's first song can follow this singer's second. The rule leaves both
+    /// entries where they are, and accepts no third while either is there.
+    pub fn accept(&mut self, id: u64, next: bool, now: Instant) -> Result<Request, RequestError> {
+        self.sweep(now);
+        let index = self
+            .requests
+            .iter()
+            .position(|held| held.request.id == id)
+            .ok_or(RequestError::NotFound)?;
+        let request = &self.requests[index].request;
+        match request.state {
+            RequestState::Waiting => {}
+            state if state.is_finished() => return Err(RequestError::Finished),
+            _ => return Err(RequestError::NotWaiting),
+        }
+        let entry = self
+            .queue
+            .add(QueueRequest {
+                number: request.number,
+                title: request.title.clone(),
+                artist: request.artist.clone(),
+                singer: self
+                    .seats
+                    .get(request.seat)
+                    .and_then(|seat| seat.name.clone()),
+                duration_ms: request.duration_ms,
+                seat: Some(request.seat),
+            })
+            .map_err(|QueueFull::Full| RequestError::QueueFull)?;
+        if next {
+            self.queue.move_to(entry, 0);
+        }
+        let request = &mut self.requests[index].request;
+        request.state = RequestState::Queued;
+        request.entry = Some(entry);
+        Ok(request.clone())
     }
 
     /// Applies the rule: accepts every waiting request whose singer has no entry in the queue.
@@ -907,5 +1087,316 @@ mod tests {
 
         let entry = evening.queue().peek().expect("a queue entry");
         assert_eq!(entry.singer.as_deref(), Some("Ana Paula"));
+    }
+
+    /// A hand-written slip, entered by somebody at the control level.
+    fn slip(evening: &mut Evening, who: &Singer, number: u32, now: Instant) -> Request {
+        evening
+            .request(
+                who.seat,
+                Proof::Level,
+                song(number),
+                RequestRules::default(),
+                now,
+            )
+            .expect("the level is the proof")
+    }
+
+    #[test]
+    fn a_declined_request_never_plays_and_the_next_one_takes_the_turn() {
+        let now = Instant::now();
+        let mut evening = Evening::new();
+        let ana = singer(&mut evening, "Ana");
+        let queued = ask(&mut evening, &ana, 11, now);
+        let unwelcome = ask(&mut evening, &ana, 12, now);
+        let third = ask(&mut evening, &ana, 13, now);
+
+        let declined = evening
+            .decline(unwelcome.id, now)
+            .expect("a waiting request");
+        assert_eq!(declined.state, RequestState::Declined);
+        assert_eq!(numbers(&evening), vec![11], "nothing in the queue moved");
+
+        // A queued one leaves the queue, and her next waiting song goes in.
+        evening.decline(queued.id, now).expect("a queued request");
+        assert_eq!(numbers(&evening), vec![13]);
+        assert_eq!(state_of(&evening, third.id, now), RequestState::Queued);
+
+        assert_eq!(evening.decline(queued.id, now), Err(RequestError::Finished));
+        assert_eq!(evening.decline(9_999, now), Err(RequestError::NotFound));
+    }
+
+    /// An early accept gives a singer a second song in the queue, at the end or next.
+    #[test]
+    fn accepting_early_gives_a_second_song_and_the_rule_adds_no_third() {
+        let now = Instant::now();
+        let mut evening = Evening::new();
+        let ana = singer(&mut evening, "Ana");
+        let beto = singer(&mut evening, "Beto");
+        let first = ask(&mut evening, &ana, 11, now);
+        ask(&mut evening, &beto, 21, now);
+        let second = ask(&mut evening, &ana, 12, now);
+        let third = ask(&mut evening, &ana, 13, now);
+
+        let accepted = evening.accept(second.id, false, now).expect("it waits");
+        assert_eq!(accepted.state, RequestState::Queued);
+        assert_eq!(numbers(&evening), vec![11, 21, 12], "at the end");
+
+        let next = evening.accept(third.id, true, now).expect("it waits");
+        assert_eq!(numbers(&evening), vec![13, 11, 21, 12], "next");
+        assert_eq!(next.entry, evening.queue().peek().map(|entry| entry.id));
+
+        assert_eq!(
+            evening.accept(first.id, false, now),
+            Err(RequestError::NotWaiting),
+            "a queued request has nothing to accept"
+        );
+
+        // One of hers starts, and she still has two there, so nothing more of hers goes in.
+        let fourth = ask(&mut evening, &ana, 14, now);
+        evening.pop(now);
+        assert_eq!(state_of(&evening, fourth.id, now), RequestState::Waiting);
+    }
+
+    #[test]
+    fn a_full_queue_refuses_an_early_accept() {
+        let now = Instant::now();
+        let mut evening = Evening::new();
+        let ana = singer(&mut evening, "Ana");
+        ask(&mut evening, &ana, 5_001, now);
+        let waiting = ask(&mut evening, &ana, 5_002, now);
+        for number in 0..MAX_QUEUED - 1 {
+            evening
+                .add(QueueRequest {
+                    number: SongCode::new(number as u32 + 1),
+                    title: "Generic".to_owned(),
+                    artist: None,
+                    singer: None,
+                    duration_ms: 0,
+                    seat: None,
+                })
+                .expect("add");
+        }
+        assert_eq!(
+            evening.accept(waiting.id, false, now),
+            Err(RequestError::QueueFull)
+        );
+        assert_eq!(state_of(&evening, waiting.id, now), RequestState::Waiting);
+    }
+
+    /// The switch closes the phones. What already waits goes in, and the host still adds.
+    #[test]
+    fn a_closed_evening_refuses_a_phone_and_keeps_what_waits() {
+        let now = Instant::now();
+        let mut evening = Evening::new();
+        let ana = singer(&mut evening, "Ana");
+        ask(&mut evening, &ana, 11, now);
+        let waiting = ask(&mut evening, &ana, 12, now);
+        assert!(evening.accepting());
+
+        evening.set_accepting(false);
+        let refused = evening.request(
+            ana.seat,
+            Proof::Token(&ana.token),
+            song(13),
+            RequestRules::default(),
+            now,
+        );
+        assert_eq!(refused, Err(RequestError::Closed));
+
+        evening.pop(now);
+        assert_eq!(state_of(&evening, waiting.id, now), RequestState::Queued);
+        let last = slip(&mut evening, &ana, 14, now);
+        assert_eq!(
+            last.state,
+            RequestState::Waiting,
+            "the host's song is taken"
+        );
+
+        evening.set_accepting(true);
+        ask(&mut evening, &ana, 15, now);
+    }
+
+    /// A singer who went home: the seat goes, and so does every song of theirs.
+    #[test]
+    fn removing_a_singer_takes_their_songs_and_frees_their_name() {
+        let now = Instant::now();
+        let mut evening = Evening::new();
+        let ana = singer(&mut evening, "Ana");
+        let beto = singer(&mut evening, "Beto");
+        let queued = ask(&mut evening, &ana, 11, now);
+        let waiting = ask(&mut evening, &ana, 12, now);
+        ask(&mut evening, &beto, 21, now);
+
+        let gone = evening.remove_singer(ana.seat, now).expect("the seat");
+        assert_eq!(gone.id, ana.seat);
+        assert_eq!(numbers(&evening), vec![21]);
+        assert_eq!(state_of(&evening, queued.id, now), RequestState::Declined);
+        assert_eq!(state_of(&evening, waiting.id, now), RequestState::Declined);
+        assert!(evening.seats().get(ana.seat).is_none());
+        assert_eq!(
+            evening.remove_singer(ana.seat, now),
+            Err(SeatError::NotFound)
+        );
+        // The name is free for whoever comes next.
+        singer(&mut evening, "Ana");
+    }
+
+    /// One person registered two names. The merge leaves one singer with both songs in the queue,
+    /// and the rule accepts no third.
+    #[test]
+    fn merging_two_singers_moves_everything_to_one() {
+        let now = Instant::now();
+        let mut evening = Evening::new();
+        let dave = singer(&mut evening, "Dave");
+        let david = singer(&mut evening, "David");
+        ask(&mut evening, &dave, 11, now);
+        ask(&mut evening, &david, 21, now);
+        let waiting = ask(&mut evening, &dave, 12, now);
+
+        let kept = evening.merge(dave.seat, david.seat).expect("both exist");
+        assert_eq!(kept.id, david.seat);
+        assert!(evening.seats().get(dave.seat).is_none());
+        let seats: Vec<Option<u64>> = evening.queue().entries().map(|entry| entry.seat).collect();
+        assert_eq!(seats, vec![Some(david.seat), Some(david.seat)]);
+        let names: Vec<Option<&str>> = evening
+            .queue()
+            .entries()
+            .map(|entry| entry.singer.as_deref())
+            .collect();
+        assert_eq!(names, vec![Some("David"), Some("David")]);
+
+        evening.pop(now);
+        assert_eq!(
+            state_of(&evening, waiting.id, now),
+            RequestState::Waiting,
+            "one of his is still in the queue"
+        );
+        evening.pop(now);
+        assert_eq!(state_of(&evening, waiting.id, now), RequestState::Queued);
+        assert_eq!(
+            evening.sung(),
+            &[
+                Sung {
+                    number: SongCode::new(11),
+                    seat: Some(david.seat)
+                },
+                Sung {
+                    number: SongCode::new(21),
+                    seat: Some(david.seat)
+                },
+            ]
+        );
+        assert_eq!(
+            evening.merge(david.seat, david.seat),
+            Err(SeatError::NotFound)
+        );
+        assert_eq!(evening.merge(9_999, david.seat), Err(SeatError::NotFound));
+    }
+
+    /// The record is every song that started, with its singer where it had one.
+    #[test]
+    fn the_record_holds_every_song_that_started() {
+        let now = Instant::now();
+        let mut evening = Evening::new();
+        let ana = singer(&mut evening, "Ana");
+        ask(&mut evening, &ana, 11, now);
+        evening
+            .add(QueueRequest {
+                number: SongCode::new(901),
+                title: "Generic".to_owned(),
+                artist: None,
+                singer: None,
+                duration_ms: 0,
+                seat: None,
+            })
+            .expect("add");
+        assert!(evening.sung().is_empty());
+
+        evening.pop(now);
+        evening.pop(now);
+        let sung: Vec<(u32, Option<u64>)> = evening
+            .sung()
+            .iter()
+            .map(|sung| (sung.number.number(), sung.seat))
+            .collect();
+        assert_eq!(sung, vec![(11, Some(ana.seat)), (901, None)]);
+    }
+
+    /// A new evening starts as the machine starts, and takes requests again.
+    #[test]
+    fn a_new_evening_clears_everything_and_ids_go_on_counting() {
+        let now = Instant::now();
+        let mut evening = Evening::new();
+        let ana = singer(&mut evening, "Ana");
+        let before = ask(&mut evening, &ana, 11, now);
+        ask(&mut evening, &ana, 12, now);
+        evening.pop(now);
+        evening.set_accepting(false);
+
+        evening.reset();
+
+        assert!(evening.queue().is_empty());
+        assert!(evening.seats().is_empty());
+        assert_eq!(evening.requests(now).count(), 0);
+        assert!(evening.sung().is_empty());
+        assert!(evening.accepting());
+
+        let again = singer(&mut evening, "Ana");
+        assert!(again.seat > ana.seat, "a kept seat id names nobody now");
+        let after = ask(&mut evening, &again, 11, now);
+        assert!(after.id > before.id);
+    }
+
+    /// An operator's singer has no phone, and sings in turn like any other.
+    #[test]
+    fn an_operators_singer_takes_turns_with_no_phone() {
+        let now = Instant::now();
+        let mut evening = Evening::new();
+        let hosted = evening
+            .create_singer(Some(SeatName {
+                shown: "Caio".to_owned(),
+                key: "caio".to_owned(),
+            }))
+            .expect("a free name");
+        let caio = Singer {
+            seat: hosted.id,
+            token: String::new(),
+        };
+        assert_eq!(
+            slip(&mut evening, &caio, 31, now).state,
+            RequestState::Queued
+        );
+        assert_eq!(
+            slip(&mut evening, &caio, 32, now).state,
+            RequestState::Waiting
+        );
+        // No token proves the seat, so no phone asks for him.
+        assert_eq!(
+            evening.request(
+                caio.seat,
+                Proof::Token(""),
+                song(33),
+                RequestRules::default(),
+                now
+            ),
+            Err(RequestError::WrongToken)
+        );
+        // He holds a song, so his name is refused to a phone until the operator opens the seat.
+        let phone = |evening: &mut Evening| {
+            evening.register(
+                "phone-c",
+                Some(SeatName {
+                    shown: "Caio".to_owned(),
+                    key: "caio".to_owned(),
+                }),
+                "token-c".to_owned(),
+                SeatRules::default(),
+            )
+        };
+        assert_eq!(phone(&mut evening), Err(SeatError::NameTaken));
+        evening.open_seat(caio.seat).expect("the seat");
+        let taken = phone(&mut evening).expect("an opened seat");
+        assert_eq!(taken.seat.id, caio.seat, "with his songs");
     }
 }

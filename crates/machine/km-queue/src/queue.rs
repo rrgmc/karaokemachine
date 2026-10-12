@@ -192,6 +192,28 @@ impl Queue {
         }
     }
 
+    /// Gives every entry of one seat to another, with the other's name.
+    ///
+    /// For two seats that turn out to be one person. The entries keep their places.
+    pub fn reseat(&mut self, from: u64, into: u64, name: Option<&str>) {
+        for entry in &mut self.entries {
+            if entry.seat == Some(from) {
+                entry.seat = Some(into);
+                entry.singer = name.map(str::to_owned);
+            }
+        }
+    }
+
+    /// Removes every entry of one seat, and hands them back.
+    pub fn remove_seat(&mut self, seat: u64) -> Vec<QueueEntry> {
+        let (gone, kept): (Vec<_>, Vec<_>) = self
+            .entries
+            .drain(..)
+            .partition(|entry| entry.seat == Some(seat));
+        self.entries = kept.into();
+        gone
+    }
+
     /// Whether a song number is already waiting.
     ///
     /// Duplicates are allowed — two people may genuinely want the same song — but a remote may want
