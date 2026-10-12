@@ -117,9 +117,12 @@ other write is `Control`. `ApiState::authorize` takes the method, the path and t
 nothing else: not the peer address, not a map.
 
 **`Access` has a fifth variant, `Request`, ordered between `View` and `Queue`.** `required_access`
-returns it for `POST /singers` and for `PUT /singers/{id}/name`, which `is_singer_name` matches by
-its two ends. `Access::ROOM` leaves it out and `has_code` is false for it, so a caller reaches
-those routes at `Queue` or above. `Access::as_room` reads a stored `request` as `View` and a stored `admin` as `Control`.
+returns it for `POST /singers` and `POST /requests`. It also returns it for
+`PUT /singers/{id}/name` and `POST /requests/{id}/withdraw`, which `is_one_of` matches by their two
+ends. `Access::ROOM` leaves it out and `has_code` is false for it, so a caller reaches
+those routes at `Queue` or above.
+
+**`Access::as_room` reads a stored `request` as `View` and a stored `admin` as `Control`.**
 `ApiState` takes the room level through it at start and at each change. The remote's stylesheet
 hides `needs-queue` and `needs-control` under `access-request`, as it does under `access-view`.
 
@@ -434,8 +437,8 @@ There are two clocks: `Instant` in the registry, and `SystemTime` in `known::Kno
 record a client writes down: id, address, name, and when the machine last answered. Nothing on the
 advertising side changed.
 
-WebSocket events: `state`, `queue_changed`, `song_started`, `song_ended`, `lyric_line`,
-`settings_changed`, `mics_changed`, `wallpaper_changed` and `desync`. **Playback position rides on
+WebSocket events: `state`, `queue_changed`, `requests_changed`, `singers_changed`, `song_started`,
+`song_ended`, `lyric_line`, `settings_changed`, `mics_changed`, `wallpaper_changed` and `desync`. **Playback position rides on
 `state` at about 4 Hz, and per-syllable position is never streamed.** The display reads it from the
 shared atomic, and remotes interpolate locally from the lyric timeline.
 
@@ -484,9 +487,10 @@ folds no text. `ops::register_singer` hands it a token from `auth::random_hex` a
 folded by `km_song::text::fold`. So `km-queue` keeps its two dependencies, and every rule has a
 test with fixed values.
 
-**The registry lives under the queue's lock.** Whether a name is free depends on what its seat has
-queued, so `Seats::register` takes a predicate and the machine answers it from `Queue::holds_seat`.
-`QueueEntry`, `QueueRequest` and `QueueEntryDto` each carry `seat`, the id of the entry's singer.
+**The registry lives in `km_queue::Evening`, beside the queue and the requests.** Whether a name is
+free depends on what its seat has queued or waiting, so `Seats::register` takes a predicate and
+`Evening::register` answers it. `QueueEntry`, `QueueRequest` and `QueueEntryDto` each carry `seat`,
+the id of the entry's singer.
 
 **`Controller` has four methods for it**: `seats`, `seat_register`, `seat_rename` and
 `seat_reissue`. Each returns `SeatError`, and `From<SeatError> for ApiError` maps it once. The
@@ -502,6 +506,40 @@ registration, before it locks the state.
 
 The decision is
 [`A singer is a seat, and a token proves it`](../decisions/api-and-network.md#a-singer-is-a-seat-and-a-token-proves-it).
+
+## Requests, and the one place the rule runs
+
+**`km_queue::Evening` owns the queue, the seats and the requests, and every change goes through
+it.** The rule reads the queue and the request list together. A change made to one behind the
+other's back would leave a singer with two songs or with none. So `Machine` and `TestMachine` hold
+one `Evening` each, and neither holds a `Queue` of its own.
+
+**Each change ends in `Evening::settle`.** `pop`, `remove`, `clear`, `request` and `withdraw` all
+call it. It walks the requests oldest first. It accepts each waiting one whose seat has no entry in
+the queue, while the queue has room. `add` takes a song with no singer and calls nothing, because
+such a song passes the rule.
+
+**The caller hands in the time.** A finished request stays for `FINISHED_FOR`, and `requests(now)`
+leaves an expired one out whether or not `sweep` has dropped it. So the test for it moves a clock
+and waits for nothing.
+
+**A request that goes into the queue starts an idle machine.** `Machine::request_add` calls
+`a_song_was_queued` when the answer reads `Queued`, which is what `queue_add` calls. A request that
+waits put nothing in the queue, so it starts nothing.
+
+**`requests_changed` goes out wherever `queue_changed` does.** `ops::publish_queue` and
+`Machine::publish_queue` each publish the pair, so no caller has to remember the second.
+`RequestsDto::new` takes the queue to look up each queued request's position.
+
+| Route | Level | Proof |
+|---|---|---|
+| `GET /requests` | `view` | none |
+| `POST /requests` | `request` | the singer's token, in the body |
+| `POST /requests/{id}/withdraw` | `request` | the singer's token, in the body |
+| `POST /singers/{id}/requests` | `control` | none, because the level is enough |
+
+The decision is
+[`The queue holds one song for each singer`](../decisions/api-and-network.md#the-queue-holds-one-song-for-each-singer).
 
 ## Refusal codes
 

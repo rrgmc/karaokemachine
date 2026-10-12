@@ -180,6 +180,18 @@ impl Queue {
         self.entries.iter().any(|entry| entry.seat == Some(seat))
     }
 
+    /// Puts a seat's name on each of its entries, or takes it off.
+    ///
+    /// The display draws the singer from the entry, so a seat that takes a name must reach the
+    /// songs it already has here.
+    pub fn relabel_seat(&mut self, seat: u64, name: Option<&str>) {
+        for entry in &mut self.entries {
+            if entry.seat == Some(seat) {
+                entry.singer = name.map(str::to_owned);
+            }
+        }
+    }
+
     /// Whether a song number is already waiting.
     ///
     /// Duplicates are allowed — two people may genuinely want the same song — but a remote may want

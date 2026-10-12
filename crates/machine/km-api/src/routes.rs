@@ -101,8 +101,9 @@ pub fn needs_admin_token(path: &str) -> bool {
 /// * A read needs [`Access::View`], and so do the two login routes.
 /// * The two debug play routes need [`Access::View`]. They exist only in debugging mode, and a
 ///   curation tool drives them with no token. On means open; off means absent.
-/// * `POST /singers` and `PUT /singers/{id}/name` need [`Access::Request`]. They register a singer
-///   and name one, and the second also asks for the seat's own token.
+/// * `POST /singers`, `PUT /singers/{id}/name`, `POST /requests` and
+///   `POST /requests/{id}/withdraw` need [`Access::Request`]. They register a singer, name one, ask
+///   for a song and take one back. All but the first also ask for the seat's own token.
 /// * `POST /queue` and `PUT /settings` need [`Access::Queue`]. They add a song and turn a singer's
 ///   knobs: key, tempo, volume, melody and lyric offset.
 /// * **Every other write needs [`Access::Control`], including one added tomorrow.** A new route is
@@ -125,8 +126,9 @@ pub fn required_access(method: &Method, path: &str) -> Access {
     }
     match (method.as_str(), rest) {
         ("POST", "/debug/play-file" | "/debug/play-upload") => Access::View,
-        ("POST", "/singers") => Access::Request,
+        ("POST", "/singers" | "/requests") => Access::Request,
         ("PUT", path) if is_singer_name(path) => Access::Request,
+        ("POST", path) if is_request_withdraw(path) => Access::Request,
         ("POST", "/queue") | ("PUT", "/settings") => Access::Queue,
         _ => Access::Control,
     }
@@ -137,8 +139,20 @@ pub fn required_access(method: &Method, path: &str) -> Access {
 /// The one route here with a parameter in the middle, so it is matched by its two ends. The seat's
 /// token in the body is what proves the caller, and the level only lets the request in.
 fn is_singer_name(path: &str) -> bool {
-    path.strip_prefix("/singers/")
-        .and_then(|rest| rest.strip_suffix("/name"))
+    is_one_of(path, "/singers/", "/name")
+}
+
+/// Whether a path under [`API_PREFIX`] takes one request back, `/requests/{id}/withdraw`.
+///
+/// For [`is_singer_name`]'s reason: the singer's token in the body is the proof.
+fn is_request_withdraw(path: &str) -> bool {
+    is_one_of(path, "/requests/", "/withdraw")
+}
+
+/// Whether a path is a prefix, one segment and a suffix.
+fn is_one_of(path: &str, prefix: &str, suffix: &str) -> bool {
+    path.strip_prefix(prefix)
+        .and_then(|rest| rest.strip_suffix(suffix))
         .is_some_and(|id| !id.is_empty() && !id.contains('/'))
 }
 
@@ -181,6 +195,10 @@ pub const SURFACE: &[(&str, &str)] = &[
     ("POST", "/singers"),
     ("PUT", "/singers/0/name"),
     ("POST", "/singers/0/reissue"),
+    ("POST", "/singers/0/requests"),
+    ("GET", "/requests"),
+    ("POST", "/requests"),
+    ("POST", "/requests/0/withdraw"),
     ("POST", "/transport/play"),
     ("POST", "/transport/pause"),
     ("POST", "/transport/skip"),
@@ -589,6 +607,12 @@ fn api_router(config: &crate::ApiConfig, capabilities: Capabilities) -> Router<A
         )
         .route("/singers/{id}/name", put(handlers::rename_singer))
         .route("/singers/{id}/reissue", post(handlers::reissue_singer))
+        .route("/singers/{id}/requests", post(handlers::add_singer_request))
+        .route(
+            "/requests",
+            get(handlers::get_requests).post(handlers::add_request),
+        )
+        .route("/requests/{id}/withdraw", post(handlers::withdraw_request))
         .route("/transport/play", post(handlers::play))
         .route("/transport/pause", post(handlers::pause))
         .route("/transport/skip", post(handlers::skip))
@@ -994,6 +1018,12 @@ mod tests {
             (Method::PUT, "/api/v1/singers//name", Access::Control),
             (Method::PUT, "/api/v1/singers/7/8/name", Access::Control),
             (Method::POST, "/api/v1/singers/7/reissue", Access::Control),
+            (Method::POST, "/api/v1/singers/7/requests", Access::Control),
+            (Method::GET, "/api/v1/requests", Access::View),
+            (Method::POST, "/api/v1/requests", Access::Request),
+            (Method::POST, "/api/v1/requests/7/withdraw", Access::Request),
+            (Method::POST, "/api/v1/requests//withdraw", Access::Control),
+            (Method::POST, "/api/v1/requests/7/decline", Access::Control),
             (Method::PUT, "/api/v1/settings", Access::Queue),
             (Method::POST, "/api/v1/transport/skip", Access::Control),
             (Method::POST, "/api/v1/transport/pause", Access::Control),

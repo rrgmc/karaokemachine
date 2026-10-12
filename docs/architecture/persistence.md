@@ -273,10 +273,11 @@ written down at once. `Machine::start` reads it when a song loads, so the song t
 the stretcher it has or lacks. Its default is `true` on a desktop and `false` on Android and iOS,
 through `cfg!`, as `display.number_pad` is.
 
-**`singers` is a section of two keys, and no route writes either.** `singers.name_required` and
-`singers.max_per_device` are what the owner asks of a singer who registers. No route changes them, so
+**`singers` is a section of three keys, and no route writes any.** `singers.name_required` and
+`singers.max_per_device` are what the owner asks of a singer who registers. `singers.max_waiting`
+caps one singer's waiting requests, and it starts at 10. No route changes them, so
 an edit to the file applies from the next start. A file that names neither
-asks for no name and sets no cap.
+asks for no name and sets no cap on a device.
 
 **`announcement` is a section of two keys, and one route writes both.** `announcement.enabled` and
 `announcement.length_secs` say whether a card names each queued song and for how many seconds.

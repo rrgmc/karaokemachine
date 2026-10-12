@@ -43,9 +43,10 @@ use km_catalog::{CatalogSong, InstallReport, InstalledPackage, Library, SongKind
 use km_display::lyrics::MAX_LYRIC_OFFSET_MS;
 use km_kmpkg::Package;
 use km_queue::Transport;
+use km_queue::evening::{Evening, Proof, Request, RequestError, RequestState, RequestedSong};
 use km_queue::mics::{MicBus, MicChannel, MicPatch, MicRegistry};
-use km_queue::queue::{Queue, QueueEntry, QueueFull, QueueRequest};
-use km_queue::seats::{Issued, Seat, SeatError, SeatName, Seats};
+use km_queue::queue::{QueueEntry, QueueFull, QueueRequest};
+use km_queue::seats::{Issued, Seat, SeatError, SeatName};
 use km_song::{ParseOptions, Song};
 use km_songcode::SongCode;
 
@@ -624,10 +625,9 @@ struct AuditionSweep {
 /// Everything about playback that is not inside the engine.
 #[derive(Debug)]
 struct State {
-    queue: Queue,
-    /// The evening's singers. Under the queue's lock, because whether a name is free depends on
-    /// what its seat has queued.
-    seats: Seats,
+    /// The queue, the singers and their requests. One value under one lock, because the rule that
+    /// gives each singer one song in the queue reads all three.
+    evening: Evening,
     loaded: Option<Loaded>,
     settings: ApiSettings,
     mics: MicRegistry,
@@ -977,8 +977,7 @@ impl Machine {
             events,
             advancing: Mutex::new(()),
             state: Mutex::new(State {
-                queue: Queue::new(),
-                seats: Seats::new(),
+                evening: Evening::new(),
                 loaded: None,
                 settings: playback,
                 mics,
@@ -2279,7 +2278,7 @@ impl Machine {
                 state.demo_enabled,
                 state.demo_once,
                 state.loaded.is_some(),
-                state.queue.is_empty(),
+                state.evening.queue().is_empty(),
                 state.demo_resume_at,
                 Instant::now(),
                 foreground,
@@ -2541,9 +2540,9 @@ impl Machine {
     /// [`Machine::advance_if_idle`] or [`Machine::advance_if_idle_or_over_a_demo`], all of which
     /// hold `advancing` for the whole of it.
     fn advance_holding_the_turn(&self) {
-        let attempts = self.lock_state().queue.len();
+        let attempts = self.lock_state().evening.queue().len();
         for _ in 0..=attempts {
-            let Some(entry) = self.lock_state().queue.pop() else {
+            let Some(entry) = self.lock_state().evening.pop(Instant::now()) else {
                 break;
             };
             self.publish_queue();
@@ -3075,11 +3074,48 @@ impl Machine {
         Ok(settings)
     }
 
+    /// Publishes the queue, and the requests beside it for `km_api::ops::publish_queue`'s reason.
     fn publish_queue(&self) {
-        let entries: Vec<QueueEntry> = self.lock_state().queue.entries().cloned().collect();
+        let (entries, requests) = {
+            let state = self.lock_state();
+            let entries: Vec<QueueEntry> = state.evening.queue().entries().cloned().collect();
+            let requests: Vec<Request> = state.evening.requests(Instant::now()).cloned().collect();
+            (entries, requests)
+        };
         self.events.publish(Event::QueueChanged {
             queue: km_api::dto::QueueDto::new(&entries),
         });
+        self.events.publish(Event::RequestsChanged {
+            requests: km_api::dto::RequestsDto::new(&requests, &entries),
+        });
+    }
+
+    /// What follows a song going into the queue, whoever put it there.
+    fn a_song_was_queued(&self) {
+        // Somebody is here, so the next demo waits the full delay. It also spends a hand-pressed
+        // one-shot that has not fired yet, so a *play something* press followed by a queue starts
+        // one song rather than two.
+        self.arm_demo(DemoEvent::Somebody);
+        // Somebody has chosen a song, so sound is coming. The device is not held while the machine
+        // is idle, and bringing a Bluetooth link back up takes about a second — this starts that
+        // now, so it overlaps with whatever else has to happen before the first note.
+        self.engine.send(Command::Wake);
+        // Queue a song on an idle machine and it should start, the way pressing a number on a real
+        // unit does — **and a machine singing to itself counts as idle.** Somebody who queued while
+        // a *person* was singing gets it in turn.
+        //
+        // Both halves of that test live inside `advance_if_idle_or_over_a_demo`, under the same
+        // lock as the pop they guard. Spelled here they are two separate acts, and eight singers
+        // queueing at once then leave one song. `can_play` stays out here because it is a standing
+        // fact about the machine rather than a race — a box with no sound card refuses every time.
+        if self.engine.can_play() && self.advance_if_idle_or_over_a_demo() {
+            // A demo ended, for a reason no other `SongEnded` carries: not finished, not skipped,
+            // not stopped, but stood aside from. Published from the answer rather than from a guess
+            // made before the lock, because only the locked section can see the demo.
+            self.events.publish(Event::SongEnded {
+                reason: EndReason::Yielded,
+            });
+        }
     }
 
     fn publish_settings(&self) {
@@ -3301,7 +3337,7 @@ impl Machine {
     /// do is drop a stream a song had just begun on, which the machine already survives — it is what
     /// an unplugged device does, and `stream_failed` handles it.
     fn output_change_allowed(&self) -> bool {
-        self.engine.transport() == Transport::Idle && self.lock_state().queue.is_empty()
+        self.engine.transport() == Transport::Idle && self.lock_state().evening.queue().is_empty()
     }
 
     /// What is in the wallpaper folder, one row per file.
@@ -4406,59 +4442,41 @@ impl Controller for Machine {
             transport: self.engine.transport(),
             now_playing: state.loaded.as_ref().map(Loaded::describe),
             position_ms: self.engine.position_ms(),
-            queue_len: state.queue.len(),
+            queue_len: state.evening.queue().len(),
             settings: state.settings,
         }
     }
 
     fn queue(&self) -> Vec<QueueEntry> {
-        self.lock_state().queue.entries().cloned().collect()
+        self.lock_state()
+            .evening
+            .queue()
+            .entries()
+            .cloned()
+            .collect()
     }
 
     fn queue_add(&self, request: QueueRequest) -> Result<u64, ControlError> {
         let id = self
             .lock_state()
-            .queue
+            .evening
             .add(request)
             .map_err(|QueueFull::Full| ControlError::QueueFull)?;
-        // Somebody is here, so the next demo waits the full delay. It also spends a hand-pressed
-        // one-shot that has not fired yet, so a *play something* press followed by a queue starts
-        // one song rather than two.
-        self.arm_demo(DemoEvent::Somebody);
-        // Somebody has chosen a song, so sound is coming. The device is not held while the machine
-        // is idle, and bringing a Bluetooth link back up takes about a second — this starts that
-        // now, so it overlaps with whatever else has to happen before the first note.
-        self.engine.send(Command::Wake);
-        // Queue a song on an idle machine and it should start, the way pressing a number on a real
-        // unit does — **and a machine singing to itself counts as idle.** Somebody who queued while
-        // a *person* was singing gets it in turn.
-        //
-        // Both halves of that test live inside `advance_if_idle_or_over_a_demo`, under the same
-        // lock as the pop they guard. Spelled here they are two separate acts, and eight singers
-        // queueing at once then leave one song. `can_play` stays out here because it is a standing
-        // fact about the machine rather than a race — a box with no sound card refuses every time.
-        if self.engine.can_play() && self.advance_if_idle_or_over_a_demo() {
-            // A demo ended, for a reason no other `SongEnded` carries: not finished, not skipped,
-            // not stopped, but stood aside from. Published from the answer rather than from a guess
-            // made before the lock, because only the locked section can see the demo.
-            self.events.publish(Event::SongEnded {
-                reason: EndReason::Yielded,
-            });
-        }
+        self.a_song_was_queued();
         Ok(id)
     }
 
     fn queue_remove(&self, id: u64) -> Result<QueueEntry, ControlError> {
         self.arm_demo(DemoEvent::Somebody);
         self.lock_state()
-            .queue
-            .remove(id)
+            .evening
+            .remove(id, Instant::now())
             .ok_or_else(|| ControlError::NotFound(format!("queue entry {id}")))
     }
 
     fn queue_move(&self, id: u64, to_index: usize) -> Result<(), ControlError> {
         self.arm_demo(DemoEvent::Somebody);
-        if self.lock_state().queue.move_to(id, to_index) {
+        if self.lock_state().evening.move_to(id, to_index) {
             Ok(())
         } else {
             Err(ControlError::NotFound(format!("queue entry {id}")))
@@ -4466,7 +4484,7 @@ impl Controller for Machine {
     }
 
     fn seats(&self) -> Vec<Seat> {
-        self.lock_state().seats.seats().cloned().collect()
+        self.lock_state().evening.seats().seats().cloned().collect()
     }
 
     fn seat_register(
@@ -4477,17 +4495,53 @@ impl Controller for Machine {
     ) -> Result<Issued, SeatError> {
         // Read before the state is locked, so the two locks are never held together.
         let rules = self.lock_settings().singers.rules();
-        let mut state = self.lock_state();
-        let State { seats, queue, .. } = &mut *state;
-        seats.register(device, name, token, rules, |id| queue.holds_seat(id))
+        self.lock_state()
+            .evening
+            .register(device, name, token, rules)
     }
 
     fn seat_rename(&self, id: u64, token: &str, name: SeatName) -> Result<Seat, SeatError> {
-        self.lock_state().seats.rename(id, token, name)
+        self.lock_state().evening.rename(id, token, name)
     }
 
     fn seat_reissue(&self, id: u64, token: String) -> Result<Issued, SeatError> {
-        self.lock_state().seats.reissue(id, token)
+        self.lock_state().evening.reissue(id, token)
+    }
+
+    fn requests(&self) -> Vec<Request> {
+        self.lock_state()
+            .evening
+            .requests(Instant::now())
+            .cloned()
+            .collect()
+    }
+
+    fn request_add(
+        &self,
+        seat: u64,
+        proof: Proof<'_>,
+        song: RequestedSong,
+    ) -> Result<Request, RequestError> {
+        // Read before the state is locked, for `seat_register`'s reason.
+        let rules = self.lock_settings().singers.request_rules();
+        let request =
+            self.lock_state()
+                .evening
+                .request(seat, proof, song, rules, Instant::now())?;
+        // A request that waits put nothing in the queue, so the deck has nothing new to start.
+        if request.state == RequestState::Queued {
+            self.a_song_was_queued();
+        } else {
+            self.arm_demo(DemoEvent::Somebody);
+        }
+        Ok(request)
+    }
+
+    fn request_withdraw(&self, id: u64, token: &str) -> Result<Request, RequestError> {
+        self.arm_demo(DemoEvent::Somebody);
+        self.lock_state()
+            .evening
+            .withdraw(id, token, Instant::now())
     }
 
     fn queue_clear(&self) -> Result<usize, ControlError> {
@@ -4495,7 +4549,7 @@ impl Controller for Machine {
         // `Queue::clear` rather than popping until empty, which is what this did while that method
         // sat unused beside it. Two spellings of one operation, and the queue's own is the one that
         // stays right if the container underneath ever changes.
-        Ok(self.lock_state().queue.clear().len())
+        Ok(self.lock_state().evening.clear(Instant::now()).len())
     }
 
     fn transport(&self, command: TransportCommand) -> Result<(), ControlError> {
@@ -4548,7 +4602,7 @@ impl Controller for Machine {
                     self.engine.send(Command::Wake);
                 } else if loaded {
                     self.engine.send(Command::Play);
-                } else if self.lock_state().queue.is_empty() {
+                } else if self.lock_state().evening.queue().is_empty() {
                     return Err(ControlError::Unavailable(Refusal::coded(
                         NOTHING_QUEUED,
                         "nothing is loaded and nothing is queued",
@@ -4814,7 +4868,7 @@ impl Controller for Machine {
             starts_in_secs: demo_starts_in(
                 state.demo_enabled,
                 state.loaded.is_some(),
-                state.queue.is_empty(),
+                state.evening.queue().is_empty(),
                 state.demo_resume_at,
                 now,
                 self.foreground.load(Ordering::Acquire),
@@ -4946,7 +5000,7 @@ impl Controller for Machine {
             let state = self.lock_state();
             if let Some(why) = why_no_demo(
                 state.loaded.is_some(),
-                state.queue.is_empty(),
+                state.evening.queue().is_empty(),
                 can_play,
                 foreground,
             ) {
@@ -7035,6 +7089,65 @@ mod tests {
         assert!(machine.queue().is_empty(), "and it should leave the queue");
     }
 
+    /// A singer's first request starts on an idle machine as a queued song does, and the turn that
+    /// frees lets the next request in.
+    #[test]
+    fn a_request_on_an_idle_machine_starts_and_the_next_one_takes_the_turn() {
+        let (_scratch, machine, log, codes) = a_machine_with_eight_songs("request-start");
+        let issued = machine
+            .seat_register(
+                "phone-a",
+                Some(SeatName {
+                    shown: "Ana".to_owned(),
+                    key: "ana".to_owned(),
+                }),
+                "token".to_owned(),
+            )
+            .expect("the seat registers");
+        let ask = |code: SongCode| {
+            machine
+                .request_add(
+                    issued.seat.id,
+                    Proof::Token("token"),
+                    RequestedSong {
+                        number: code,
+                        title: format!("Song {}", code.slot()),
+                        artist: None,
+                        duration_ms: 200_000,
+                    },
+                )
+                .expect("the request is taken")
+        };
+
+        let first = ask(codes[0]);
+        assert!(
+            machine.lock_state().loaded.is_some(),
+            "a request on an idle machine should start the song"
+        );
+        assert_eq!(log.count("Load"), 1);
+        assert!(machine.queue().is_empty(), "and it should leave the queue");
+
+        // Her song is playing, so the queue holds none of hers and the second goes straight in.
+        let second = ask(codes[1]);
+        let third = ask(codes[2]);
+        assert_eq!(second.state, RequestState::Queued);
+        assert_eq!(third.state, RequestState::Waiting);
+        assert_eq!(log.count("Load"), 1, "a queued song waits its turn");
+
+        let state_of = |id: u64| {
+            machine
+                .requests()
+                .into_iter()
+                .find(|request| request.id == id)
+                .expect("the request is listed")
+                .state
+        };
+        assert_eq!(state_of(first.id), RequestState::Played);
+        let queued: Vec<SongCode> = machine.queue().iter().map(|entry| entry.number).collect();
+        assert_eq!(queued, vec![codes[1]]);
+        assert_eq!(machine.queue()[0].singer.as_deref(), Some("Ana"));
+    }
+
     /// The loaded song's announcement, for a test to read its instants from.
     fn the_announcement(machine: &Machine) -> announce::Announce {
         machine
@@ -7986,7 +8099,7 @@ mod tests {
             "the deck should be empty"
         );
         assert!(
-            !machine.lock_state().queue.is_empty(),
+            !machine.lock_state().evening.queue().is_empty(),
             "and the queue should not be"
         );
         let loads = log.count("Load");

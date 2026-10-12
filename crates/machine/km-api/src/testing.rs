@@ -15,13 +15,15 @@
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, atomic};
+use std::time::Instant;
 
 use km_catalog::search::SearchQuery;
 use km_catalog::{CatalogSong, DuplicateContent, InstallReport, InstalledPackage};
 use km_queue::Transport;
+use km_queue::evening::{Evening, Proof, Request, RequestError, RequestRules, RequestedSong};
 use km_queue::mics::{MicBus, MicChannel, MicPatch, MicRegistry};
-use km_queue::queue::{Queue, QueueEntry, QueueFull, QueueRequest};
-use km_queue::seats::{Issued, Seat, SeatError, SeatName, SeatRules, Seats};
+use km_queue::queue::{QueueEntry, QueueFull, QueueRequest};
+use km_queue::seats::{Issued, Seat, SeatError, SeatName, SeatRules};
 use km_song::{ParseOptions, Song};
 use km_songcode::SongCode;
 
@@ -212,10 +214,12 @@ struct Inner {
     songs: Vec<CatalogSong>,
     packages: Vec<InstalledPackage>,
     problems: Vec<PackageProblem>,
-    queue: Queue,
-    seats: Seats,
+    /// The queue, the singers and their requests, under the one rule the real machine applies.
+    evening: Evening,
     /// What a real machine reads from its settings.
     seat_rules: SeatRules,
+    /// The same, for one singer's waiting requests.
+    request_rules: RequestRules,
     transport: Transport,
     now_playing: Option<NowPlaying>,
     position_ms: u32,
@@ -296,7 +300,7 @@ struct Inner {
 impl Inner {
     /// The same rule the real machine applies: nothing loaded and nothing waiting.
     fn output_change_allowed(&self) -> bool {
-        self.transport == Transport::Idle && self.queue.is_empty()
+        self.transport == Transport::Idle && self.evening.queue().is_empty()
     }
 
     /// What `GET /audio/outputs` reports, and what `PUT /audio/output` answers with.
@@ -400,9 +404,9 @@ impl TestMachine {
                 debug_stored: false,
                 dev_remote_stored: false,
                 output_level: None,
-                queue: Queue::new(),
-                seats: Seats::new(),
+                evening: Evening::new(),
                 seat_rules: SeatRules::default(),
+                request_rules: RequestRules::default(),
                 transport: Transport::Idle,
                 now_playing: None,
                 position_ms: 0,
@@ -658,6 +662,12 @@ impl TestMachine {
         self.lock().seat_rules = rules;
     }
 
+    /// Sets the owner's cap on one singer's waiting requests, which a real machine reads from
+    /// settings.
+    pub fn set_request_rules(&self, rules: RequestRules) {
+        self.lock().request_rules = rules;
+    }
+
     /// Installs a fault so an error path can be exercised.
     pub fn set_faults(&self, faults: Faults) {
         self.lock().faults = faults;
@@ -699,7 +709,12 @@ impl TestMachine {
 
     /// The queue, for asserting directly rather than through the API.
     pub fn queue_ids(&self) -> Vec<u64> {
-        self.lock().queue.entries().map(|entry| entry.id).collect()
+        self.lock()
+            .evening
+            .queue()
+            .entries()
+            .map(|entry| entry.id)
+            .collect()
     }
 
     /// Moves the playhead, so a `GET /state` can be checked mid-song.
@@ -748,7 +763,7 @@ impl TestMachine {
 impl Inner {
     /// Starts the song at the front of the queue, if there is one.
     fn start_next(&mut self) -> bool {
-        let Some(entry) = self.queue.pop() else {
+        let Some(entry) = self.evening.pop(Instant::now()) else {
             self.transport = Transport::Idle;
             self.now_playing = None;
             self.position_ms = 0;
@@ -1183,13 +1198,13 @@ impl Controller for TestMachine {
             transport: inner.transport,
             now_playing: inner.now_playing.clone(),
             position_ms: inner.position_ms,
-            queue_len: inner.queue.len(),
+            queue_len: inner.evening.queue().len(),
             settings: inner.settings,
         }
     }
 
     fn queue(&self) -> Vec<QueueEntry> {
-        self.lock().queue.entries().cloned().collect()
+        self.lock().evening.queue().entries().cloned().collect()
     }
 
     fn queue_add(&self, request: QueueRequest) -> Result<u64, ControlError> {
@@ -1198,20 +1213,20 @@ impl Controller for TestMachine {
             return Err(ControlError::QueueFull);
         }
         inner
-            .queue
+            .evening
             .add(request)
             .map_err(|QueueFull::Full| ControlError::QueueFull)
     }
 
     fn queue_remove(&self, id: u64) -> Result<QueueEntry, ControlError> {
         self.lock()
-            .queue
-            .remove(id)
+            .evening
+            .remove(id, Instant::now())
             .ok_or_else(|| ControlError::NotFound(format!("queue entry {id}")))
     }
 
     fn queue_move(&self, id: u64, to_index: usize) -> Result<(), ControlError> {
-        if self.lock().queue.move_to(id, to_index) {
+        if self.lock().evening.move_to(id, to_index) {
             Ok(())
         } else {
             Err(ControlError::NotFound(format!("queue entry {id}")))
@@ -1219,14 +1234,11 @@ impl Controller for TestMachine {
     }
 
     fn queue_clear(&self) -> Result<usize, ControlError> {
-        let mut inner = self.lock();
-        let removed = inner.queue.len();
-        while inner.queue.pop().is_some() {}
-        Ok(removed)
+        Ok(self.lock().evening.clear(Instant::now()).len())
     }
 
     fn seats(&self) -> Vec<Seat> {
-        self.lock().seats.seats().cloned().collect()
+        self.lock().evening.seats().seats().cloned().collect()
     }
 
     fn seat_register(
@@ -1237,16 +1249,40 @@ impl Controller for TestMachine {
     ) -> Result<Issued, SeatError> {
         let mut inner = self.lock();
         let rules = inner.seat_rules;
-        let Inner { seats, queue, .. } = &mut *inner;
-        seats.register(device, name, token, rules, |id| queue.holds_seat(id))
+        inner.evening.register(device, name, token, rules)
     }
 
     fn seat_rename(&self, id: u64, token: &str, name: SeatName) -> Result<Seat, SeatError> {
-        self.lock().seats.rename(id, token, name)
+        self.lock().evening.rename(id, token, name)
     }
 
     fn seat_reissue(&self, id: u64, token: String) -> Result<Issued, SeatError> {
-        self.lock().seats.reissue(id, token)
+        self.lock().evening.reissue(id, token)
+    }
+
+    fn requests(&self) -> Vec<Request> {
+        self.lock()
+            .evening
+            .requests(Instant::now())
+            .cloned()
+            .collect()
+    }
+
+    fn request_add(
+        &self,
+        seat: u64,
+        proof: Proof<'_>,
+        song: RequestedSong,
+    ) -> Result<Request, RequestError> {
+        let mut inner = self.lock();
+        let rules = inner.request_rules;
+        inner
+            .evening
+            .request(seat, proof, song, rules, Instant::now())
+    }
+
+    fn request_withdraw(&self, id: u64, token: &str) -> Result<Request, RequestError> {
+        self.lock().evening.withdraw(id, token, Instant::now())
     }
 
     fn transport(&self, command: TransportCommand) -> Result<(), ControlError> {
@@ -1277,7 +1313,7 @@ impl Controller for TestMachine {
                     //
                     // Inlined rather than calling `start_demo_song`, which takes the lock this arm
                     // is holding. The two conditions it would apply are both readable from here.
-                    if inner.demo_enabled && inner.queue.is_empty() {
+                    if inner.demo_enabled && inner.evening.queue().is_empty() {
                         inner.recorded.push(Recorded::DemoStarted);
                         return Ok(());
                     }
@@ -1784,7 +1820,7 @@ impl Controller for TestMachine {
                     "a song is already playing".into(),
                 ));
             }
-            if !inner.queue.is_empty() {
+            if !inner.evening.queue().is_empty() {
                 return Err(ControlError::Unavailable(
                     "there are songs in the queue to play first".into(),
                 ));

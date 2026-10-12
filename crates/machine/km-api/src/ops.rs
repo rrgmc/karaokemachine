@@ -28,7 +28,8 @@
 use std::future::Future;
 
 use crate::dto::{
-    AddedToQueueDto, QueueDto, SettingsDto, SingerDto, SingerIssuedDto, SingersDto, StateDto,
+    AddedToQueueDto, QueueDto, RequestDto, RequestsDto, SettingsDto, SingerDto, SingerIssuedDto,
+    SingersDto, StateDto,
 };
 use km_songcode::SongCode;
 
@@ -36,6 +37,7 @@ use crate::error::{ApiError, ApiResult};
 use crate::events::{EndReason, Event};
 use crate::machine::{SettingsPatch, TransportCommand};
 use crate::server::ApiState;
+use km_queue::evening::{Proof, Request, RequestedSong};
 use km_queue::queue::QueueRequest;
 use km_queue::seats::SeatName;
 
@@ -71,12 +73,83 @@ where
 }
 
 /// Reads the queue, publishes it, and hands it back so the caller can answer with it.
+///
+/// **The requests go out beside it, every time.** A queued request carries its entry's position,
+/// and an entry that leaves lets a waiting request in, so no change to the queue leaves the
+/// request list as it was.
 pub fn publish_queue(state: &ApiState) -> QueueDto {
-    let queue = QueueDto::new(&state.controller().queue());
+    let entries = state.controller().queue();
+    let queue = QueueDto::new(&entries);
     state.events().publish(Event::QueueChanged {
         queue: queue.clone(),
     });
+    state.events().publish(Event::RequestsChanged {
+        requests: RequestsDto::new(&state.controller().requests(), &entries),
+    });
     queue
+}
+
+/// Publishes the singers, after one registered, took a name or got a new token.
+fn publish_singers(state: &ApiState) {
+    state.events().publish(Event::SingersChanged {
+        singers: singers(state),
+    });
+}
+
+/// Every request the evening holds.
+pub fn requests(state: &ApiState) -> RequestsDto {
+    RequestsDto::new(&state.controller().requests(), &state.controller().queue())
+}
+
+/// Takes a singer's request for a song by number.
+///
+/// **The number is resolved before anything is held**, for [`enqueue`]'s reason. The answer says
+/// where the request stands: queued with its place, or waiting.
+pub fn add_request(
+    state: &ApiState,
+    singer: u64,
+    proof: Proof<'_>,
+    number: SongCode,
+) -> ApiResult<RequestDto> {
+    let song = state
+        .catalog()
+        .song(number)?
+        .ok_or_else(|| ApiError::not_found(format!("song {number}")))?;
+    let request = state.controller().request_add(
+        singer,
+        proof,
+        RequestedSong {
+            number: song.number,
+            title: song.title,
+            artist: song.artist,
+            duration_ms: song.duration_ms,
+        },
+    )?;
+    publish_queue(state);
+    Ok(answer_for(state, &request))
+}
+
+/// Takes a request back, for the singer whose token this is.
+pub fn withdraw_request(state: &ApiState, id: u64, token: &str) -> ApiResult<RequestDto> {
+    let request = state.controller().request_withdraw(id, token)?;
+    publish_queue(state);
+    Ok(answer_for(state, &request))
+}
+
+/// One request as an answer, read again after the queue went out.
+///
+/// A request accepted onto an idle machine starts at once, so its entry may already be gone. The
+/// answer then says the song played, which is what the list says.
+fn answer_for(state: &ApiState, request: &Request) -> RequestDto {
+    let current = state
+        .controller()
+        .requests()
+        .into_iter()
+        .find(|held| held.id == request.id);
+    RequestDto::new(
+        current.as_ref().unwrap_or(request),
+        &state.controller().queue(),
+    )
 }
 
 /// Queues a song by number.
@@ -162,6 +235,7 @@ pub fn register_singer(
     )?;
     // The id and never the token: this line reaches the log, and the log reaches the admin page.
     tracing::info!(singer = issued.seat.id, "a singer registered");
+    publish_singers(state);
     Ok(SingerIssuedDto {
         singer: (&issued.seat).into(),
         token: issued.token,
@@ -173,6 +247,9 @@ pub fn rename_singer(state: &ApiState, id: u64, token: &str, name: &str) -> ApiR
     let name = seat_name(name)
         .ok_or_else(|| ApiError::BadRequest("a singer's name cannot be empty".to_owned()))?;
     let seat = state.controller().seat_rename(id, token, name)?;
+    publish_singers(state);
+    // The seat's queued songs took the name, and the screen draws it from the entry.
+    publish_queue(state);
     Ok((&seat).into())
 }
 

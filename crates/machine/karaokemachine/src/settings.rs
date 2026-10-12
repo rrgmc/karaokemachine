@@ -767,7 +767,7 @@ impl DemoSettings {
 ///
 /// A singer is a seat the machine issues for the evening, and the name is its label. Both settings
 /// start open, so a machine works in full with every singer unnamed and any number on one phone.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct SingerSettings {
     /// Whether every singer gives a name.
@@ -781,6 +781,21 @@ pub struct SingerSettings {
     /// id the remote sends, so the cap stops a mistake and not a cheat.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub max_per_device: Option<u32>,
+    /// How many requests one singer may have waiting behind the one in the queue.
+    ///
+    /// **Ten**, which is more turns than one singer gets in an evening of several. A venue sets it
+    /// low, so one table cannot fill the request list.
+    pub max_waiting: u32,
+}
+
+impl Default for SingerSettings {
+    fn default() -> Self {
+        Self {
+            name_required: false,
+            max_per_device: None,
+            max_waiting: km_queue::RequestRules::default().max_waiting,
+        }
+    }
 }
 
 impl SingerSettings {
@@ -789,6 +804,13 @@ impl SingerSettings {
         km_queue::SeatRules {
             name_required: self.name_required,
             max_per_device: self.max_per_device,
+        }
+    }
+
+    /// The cap on one singer's waiting requests, as the evening takes it.
+    pub fn request_rules(self) -> km_queue::RequestRules {
+        km_queue::RequestRules {
+            max_waiting: self.max_waiting,
         }
     }
 }
@@ -1940,12 +1962,16 @@ mod tests {
             "a cap nobody set is not written down: {json}"
         );
 
-        let venue: Settings =
-            serde_json::from_str(r#"{"singers":{"name_required":true,"max_per_device":3}}"#)
-                .expect("a file that names both");
+        assert_eq!(Settings::default().singers.request_rules().max_waiting, 10);
+
+        let venue: Settings = serde_json::from_str(
+            r#"{"singers":{"name_required":true,"max_per_device":3,"max_waiting":2}}"#,
+        )
+        .expect("a file that names all three");
         let rules = venue.singers.rules();
         assert!(rules.name_required);
         assert_eq!(rules.max_per_device, Some(3));
+        assert_eq!(venue.singers.request_rules().max_waiting, 2);
     }
 
     #[test]
