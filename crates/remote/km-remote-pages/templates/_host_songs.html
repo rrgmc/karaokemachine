@@ -1,0 +1,21 @@
+<div id="host-songs">
+{% if asked && songs.is_empty() %}
+  <p class="empty">{{ "host-no-songs"|t }}</p>
+{% endif %}
+{% if !songs.is_empty() %}
+<ul class="song-list">
+  {% for song in songs %}
+  <li class="queue-row">
+    <div class="queue-body">
+      <div class="song-name">{{ song.title }}</div>
+      <div class="song-sub">{{ song.number }}{% match song.artist %}{% when Some with (artist) %} &middot; {{ artist }}{% when None %}{% endmatch %}</div>
+    </div>
+    <div class="song-actions">
+      <button class="icon-btn primary" title="{{ "host-add"|t }}" aria-label="{{ "host-add"|t }}"
+              hx-post="/host/add/{{ song.number }}" hx-include="#host-singer" hx-swap="none">+</button>
+    </div>
+  </li>
+  {% endfor %}
+</ul>
+{% endif %}
+</div>

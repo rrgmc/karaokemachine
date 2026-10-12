@@ -291,6 +291,67 @@ it needs the queue level, and a phone at that level reaches it behind the ⋯.
 **Key, tempo, volume and guide melody need the queue level.** A phone at the request level sees
 none of those controls. That keeps one guest's phone off another singer's song.
 
+## The host's tab is in the singer's remote
+
+**A phone at the control level has a fifth tab, and it is the host's.** A host for one night holds
+the control code and no admin password. So the tab belongs in the singer's remote, and `/admin/`
+stays the owner's page. The link is in every page, and the stylesheet hides it below the control
+level, as it hides each button. A phone below that level that opens `/host` goes to the Setup tab,
+where the code box is.
+
+**Singer, song and the add are on one screen.** Adding a song is what a host does all night. The
+host types a name and searches a song, and each result has a button that adds it for that name.
+The name stays in the box between songs, so a pile of slips for one singer is typed once.
+
+**Typing a name finds a singer first, and makes a new one when none matches.** The comparison is
+the machine's: no case and no accents. A new one is a singer with no phone. The rule gives the song
+that singer's turn, whatever order the host enters songs in.
+
+**The host's add warns about nothing.** A guest who asks for a song already in the queue is asked
+once. A host who enters it has read the slip.
+
+**Two columns on a wide screen, and one on a phone.** The waiting requests and the singers stand
+beside the queue, because a host reads one against the other. A tablet or a laptop suits the tab
+better than a phone, and a phone still gets all of it.
+
+**A waiting request has three buttons.** One puts it next, one puts it at the end of the queue, and
+one declines it. The queue beside it keeps its move and remove buttons, shown without a toggle.
+
+**A singer's row opens to three actions.** Hand the seat to a phone, merge it into another singer,
+or remove it. The row says whether a phone holds the seat, and how many songs the singer has sung,
+has in the queue and has waiting.
+
+**Handing a seat to a phone is the reissue.** The host presses it, and the guest types that name
+on their own phone. The phone takes the seat with its songs. A singer with no name has no button
+for it.
+
+**A new evening takes two presses, and no dialog.** The button sits in a fold. A phone app's page
+cannot show a dialog, so a confirmation that needed one would never be answered.
+
+**The lists are fetched and never pushed.** A host has folds open, and a pushed fragment would
+close them under a finger. The stream sends `requests` and `singers` with no fragment, and the
+page fetches `/host/lists`. The name box and the search stand outside that fragment, so a refresh
+never takes a half-typed name.
+
+## A guest is asked once about a song somebody already has
+
+**A song that is in the queue, or that somebody sang tonight, brings a warning.** The row says
+which of the two it is, and offers *Ask anyway* and a way to leave it. The second press asks for
+the song. The machine itself refuses nothing, because two people may want one song.
+
+**The warning stands in the row until the guest answers.** A badge fades in three seconds, and a
+question that faded would take waiting for an answer.
+
+**The phone decides, and the machine is not asked to.** The remote reads the queue and the record
+of songs sung before it sends the request. A phone that never asks the question still gets its
+song.
+
+## A closed night says so on the phone
+
+**A phone that asks while the host has stopped accepting reads one sentence.** The machine answers
+`requests_closed`, and the remote says the night is closed and no more songs are being taken. The
+`+` stays on every row, because the host may open the night again.
+
 ## The transport is folded away, and only on the Queue tab
 
 **Pause, restart, skip and stop are not on screen until the ▾ beside the song's name is pressed. The

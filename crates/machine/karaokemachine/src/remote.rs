@@ -412,6 +412,52 @@ impl Machine for OnlineMachine {
         km_api::ops::withdraw_request(&self.0, request, token).map_err(api_failed)
     }
 
+    async fn create_singer(&self, name: Option<&str>) -> Result<SingerDto, RemoteError> {
+        km_api::ops::create_singer(&self.0, name).map_err(api_failed)
+    }
+
+    async fn request_for(&self, singer: u64, number: SongCode) -> Result<RequestDto, RemoteError> {
+        // Off the runtime, for `request`'s reason.
+        km_api::ops::off_runtime(&self.0, move |state| {
+            km_api::ops::add_request(state, singer, km_queue::Proof::Level, number)
+        })
+        .await
+        .map_err(api_failed)
+    }
+
+    async fn decline(&self, request: u64) -> Result<RequestDto, RemoteError> {
+        km_api::ops::decline_request(&self.0, request).map_err(api_failed)
+    }
+
+    async fn accept(&self, request: u64, next: bool) -> Result<RequestDto, RemoteError> {
+        // Off the runtime: a song accepted onto an idle machine loads.
+        km_api::ops::off_runtime(&self.0, move |state| {
+            km_api::ops::accept_request(state, request, next)
+        })
+        .await
+        .map_err(api_failed)
+    }
+
+    async fn merge_singers(&self, from: u64, into: u64) -> Result<SingerDto, RemoteError> {
+        km_api::ops::merge_singers(&self.0, from, into).map_err(api_failed)
+    }
+
+    async fn reissue_singer(&self, id: u64) -> Result<SingerDto, RemoteError> {
+        km_api::ops::reissue_singer(&self.0, id).map_err(api_failed)
+    }
+
+    async fn remove_singer(&self, id: u64) -> Result<SingerDto, RemoteError> {
+        km_api::ops::remove_singer(&self.0, id).map_err(api_failed)
+    }
+
+    async fn set_accepting(&self, accepting: bool) -> Result<RequestsDto, RemoteError> {
+        Ok(km_api::ops::set_accepting(&self.0, accepting))
+    }
+
+    async fn reset_evening(&self) -> Result<RequestsDto, RemoteError> {
+        Ok(km_api::ops::reset_evening(&self.0))
+    }
+
     async fn dequeue(&self, entry_id: u64) -> Result<QueueDto, RemoteError> {
         km_api::ops::dequeue(&self.0, entry_id).map_err(api_failed)
     }

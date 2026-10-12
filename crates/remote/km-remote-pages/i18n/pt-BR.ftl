@@ -17,6 +17,8 @@ error-singers-full = A máquina já tem todos os cantores que comporta.
 error-singer-requests-full = Você já tem todas as músicas em espera que a máquina permite.
 error-requests-full = A máquina já guarda todas as músicas que consegue.
 error-request-finished = Essa música já saiu da fila.
+error-requests-closed = A noite está encerrada. Não entram mais músicas.
+error-request-not-waiting = Essa música não está mais esperando.
 error-unauthorized = Isto precisa de um código. Digite um na aba Configuração.
 browse-back = Voltar para as músicas
 error-not-found = Isso não está mais aí.
@@ -297,6 +299,45 @@ singer-add-use = Adicionar
 singer-add-needs-name = Outro cantor precisa de um nome.
 singer-guest = Convidado { $number }
 singer-unnamed = Convidado
+
+## Uma música que alguém já tem
+
+ask-again-queued = Já está na fila.
+ask-again-sung = Já foi cantada hoje.
+ask-again-anyway = Pedir mesmo assim
+ask-again-no = Deixar
+
+## A aba do anfitrião
+
+tab-host = Anfitrião
+host-singer = Para
+host-singer-placeholder = o nome do cantor
+host-song = Música
+host-song-placeholder = título ou artista
+host-add = Colocar para este cantor
+host-no-songs = Nenhuma música encontrada.
+host-needs-singer = Digite primeiro o nome do cantor.
+host-added-queued = { $title } entrou na fila para { $name }.
+host-added-waiting = { $title } espera a vez de { $name }.
+host-accepting-on = Os celulares podem pedir músicas.
+host-accepting-off = Encerrado. Os celulares não podem pedir músicas.
+host-accepting-stop = Parar de aceitar pedidos
+host-accepting-start = Voltar a aceitar pedidos
+host-waiting = Esperando a vez
+host-waiting-none = Nada esperando.
+host-accept = Colocar no fim da fila
+host-accept-next = Colocar como a próxima
+host-decline = Recusar
+host-singers = Cantores
+host-singers-none = Ninguém pediu música.
+host-no-phone = sem celular
+host-singer-counts = { $sung } cantadas, { $queued } na fila, { $waiting } esperando
+host-reissue = Passar para um celular
+host-merge = Juntar com
+host-remove = Remover
+host-reset = Começar uma nova noite
+host-reset-hint = Isto esvazia a fila, os pedidos e os cantores. A música que está tocando continua.
+host-reset-confirm = Esvaziar tudo
 
 ## As músicas que este celular pediu
 

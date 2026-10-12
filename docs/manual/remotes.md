@@ -58,6 +58,24 @@ take it back.
 singers cannot hold one name on the same evening. A phone that several people share adds each of
 them under **Add another singer on this phone**, and then chooses who is singing.
 
+**A song somebody already has brings a question.** Tap **+** on a song that is in the queue, or
+that somebody sang tonight, and the row says so. Tap **Ask anyway** to ask for it, or **✕** to
+leave it.
+
+**A phone with the skip code has a host's tab.** It is the ticked box in the tab bar. A host uses
+it to run a night:
+
+| The host wants to | On the host's tab |
+|---|---|
+| Add a song for a guest with no phone | Type the guest's name, search the song, and tap **+** |
+| Put a waiting song into the queue early | Tap **↑** for next, or **+** for the end of the queue |
+| Refuse a waiting song | Tap **✕** beside it |
+| Move a singer to another phone | Open the singer and tap **Hand to a phone**. The guest then types that name on the new phone |
+| Join two names that are one person | Open one singer, choose the other, and tap **Merge into** |
+| Take out a singer who went home | Open the singer and tap **Remove** |
+| Stop taking songs near the end | Tap **Stop taking requests**. Songs already waiting still play |
+| Clear everything for another night | Open **Start a new evening** and tap **Empty everything** |
+
 **The owner decides how much a guest's phone can do.** Out of the box, anybody in the room can ask
 for a song. See [Setting it up from a browser](setup.md#decide-what-a-guests-phone-can-do).
 

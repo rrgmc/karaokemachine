@@ -44,11 +44,12 @@ use crate::machine::{
 use crate::model::{Mode, PlayerView, SongRow};
 use crate::prefs::{self, PhoneSeat, PhoneSeats, Prefs};
 use crate::views::{
-    self, ArtistLine, BackupPage, Badge, Banner, BrowseBlock, BrowsePage, Chrome, Conn, FolderLine,
-    ListBlock, MachineBlock, MineBlock, MineRow, NowBar, NowPage, PackageSetting, PackagesPage,
-    PhoneSinger, PlayerBlock, PositionBlock, QueueBlock, QueueCount, QueuePage, RestoreDonePage,
-    RestorePage, RowsBlock, SetupPage, ShareConfirmPage, ShareDonePage, SharePage,
-    ShareReceivePage, ShareSendPage, Sheet, SongActions, SongLine, Star, StepHead, Toast,
+    self, ArtistLine, AskAgain, BackupPage, Badge, Banner, BrowseBlock, BrowsePage, Chrome, Conn,
+    FolderLine, HostLists, HostPage, HostRequest, HostSinger, HostSongs, ListBlock, MachineBlock,
+    MineBlock, MineRow, NowBar, NowPage, PackageSetting, PackagesPage, PhoneSinger, PlayerBlock,
+    PositionBlock, QueueBlock, QueueCount, QueuePage, RestoreDonePage, RestorePage, RowsBlock,
+    SetupPage, ShareConfirmPage, ShareDonePage, SharePage, ShareReceivePage, ShareSendPage, Sheet,
+    SongActions, SongLine, Star, StepHead, Toast,
 };
 use crate::{Remote, backup, share, sse};
 
@@ -2026,6 +2027,7 @@ async fn reached_the_front(state: &Remote, number: SongCode, entry_id: u64) -> b
 pub async fn song_action(
     State(state): State<Remote>,
     Path((number, action)): Path<(SongCode, String)>,
+    Query(sure): Query<Sure>,
     headers: HeaderMap,
 ) -> Response {
     let prefs = Prefs::read(&headers);
@@ -2035,6 +2037,16 @@ pub async fn song_action(
         "plain" => Access::Queue,
         _ => Access::Control,
     };
+    // **A warning, and never a refusal.** A song that is in the queue, or that somebody sang
+    // tonight, is asked about once. The guest then asks anyway or picks another, and the machine
+    // itself refuses nothing: two people may want one song.
+    if action == "queue"
+        && sure.sure.is_none()
+        && permit(&state, &prefs, needed).await.is_ok()
+        && let Some(text) = already_heard(&state, number).await
+    {
+        return views::page(&AskAgain { number, text }, locale);
+    }
     // What a request leaves for the phone to keep: its id, and the singers it holds.
     let mut kept: Option<(String, PhoneSeats)> = None;
 
@@ -2204,6 +2216,335 @@ pub async fn song_action(
         keep_seats(&mut response, &device, &seats);
     }
     response
+}
+
+/// Whether the guest already answered the warning about a repeated song.
+#[derive(Debug, Default, Deserialize)]
+pub struct Sure {
+    /// Present on the second press, which asks anyway.
+    #[serde(default)]
+    pub sure: Option<String>,
+}
+
+/// The sentence for a song that is in the queue or was sung tonight, or `None` for a fresh one.
+///
+/// A machine that does not answer warns about nothing, and the request itself then says so.
+async fn already_heard(state: &Remote, number: SongCode) -> Option<&'static str> {
+    let queued = state
+        .machine
+        .queue()
+        .await
+        .is_ok_and(|queue| queue.entries.iter().any(|entry| entry.number == number));
+    if queued {
+        return Some("ask-again-queued");
+    }
+    let sung = state
+        .machine
+        .requests()
+        .await
+        .is_ok_and(|list| list.sung.iter().any(|sung| sung.number == number));
+    sung.then_some("ask-again-sung")
+}
+
+// -- the host's tab ------------------------------------------------------------------------------
+
+/// The host's two lists, as the machine holds them now.
+async fn host_lists(state: &Remote, locale: Locale) -> HostLists {
+    let words = crate::words::messages(locale);
+    let singers = state
+        .machine
+        .singers()
+        .await
+        .map(|known| known.singers)
+        .unwrap_or_default();
+    let list = state.machine.requests().await.ok();
+    let requests = list
+        .as_ref()
+        .map(|list| list.requests.as_slice())
+        .unwrap_or_default();
+    let sung = list
+        .as_ref()
+        .map(|list| list.sung.as_slice())
+        .unwrap_or_default();
+    let label = |id: u64| {
+        singers
+            .iter()
+            .find(|singer| singer.id == id)
+            .map(|singer| views::singer_label(singer, locale))
+            .unwrap_or_default()
+    };
+    use km_api::dto::RequestStateDto as State;
+    let count = |id: u64, state: State| {
+        requests
+            .iter()
+            .filter(|request| request.singer == id && request.state == state)
+            .count() as i64
+    };
+    HostLists {
+        accepting: list.as_ref().is_none_or(|list| list.accepting),
+        singers: singers
+            .iter()
+            .map(|singer| HostSinger {
+                id: singer.id,
+                label: views::singer_label(singer, locale),
+                phone: singer.phone,
+                named: singer.name.is_some(),
+                counts: words
+                    .msg_with(
+                        "host-singer-counts",
+                        &[
+                            (
+                                "sung",
+                                (sung
+                                    .iter()
+                                    .filter(|sung| sung.singer == Some(singer.id))
+                                    .count() as i64)
+                                    .into(),
+                            ),
+                            ("queued", count(singer.id, State::Queued).into()),
+                            ("waiting", count(singer.id, State::Waiting).into()),
+                        ],
+                    )
+                    .into_owned(),
+            })
+            .collect(),
+        waiting: requests
+            .iter()
+            .filter(|request| request.state == State::Waiting)
+            .map(|request| HostRequest {
+                id: request.id,
+                title: request.title.clone(),
+                singer: label(request.singer),
+            })
+            .collect(),
+    }
+}
+
+/// The host's lists as an answer, with a toast where the machine refused.
+async fn host_answer(state: &Remote, locale: Locale, result: Result<(), RemoteError>) -> Response {
+    let lists = host_lists(state, locale).await;
+    match result {
+        Ok(()) => views::page(&lists, locale),
+        Err(error) => views::with_toast(&lists, views::message_for(&error, locale), locale),
+    }
+}
+
+/// `GET /host` — the tab a host runs the night from.
+///
+/// A phone below the control level is sent to the Setup tab, where the code box is.
+pub async fn host(State(state): State<Remote>, headers: HeaderMap) -> Response {
+    let prefs = Prefs::read(&headers);
+    let locale = prefs.locale;
+    if permit(&state, &prefs, Access::Control).await.is_err() {
+        return Redirect::to("/setup").into_response();
+    }
+    let chrome = chrome(&state, "host", &prefs).await;
+    let remaining_ms = player_view(&state).await.remaining_ms();
+    let queue = queue_block(&state, remaining_ms, locale).await;
+    let lists = host_lists(&state, locale).await;
+    views::page(
+        &HostPage {
+            chrome,
+            lists,
+            queue,
+        },
+        locale,
+    )
+}
+
+/// `GET /host/lists` — the singers and the waiting requests, which the page asks for again when
+/// either changes.
+pub async fn host_lists_fragment(State(state): State<Remote>, headers: HeaderMap) -> Response {
+    let prefs = Prefs::read(&headers);
+    let allowed = permit(&state, &prefs, Access::Control).await;
+    host_answer(&state, prefs.locale, allowed).await
+}
+
+/// What a host typed to find a song.
+#[derive(Debug, Default, Deserialize)]
+pub struct HostSearch {
+    /// The words, over title and artist.
+    #[serde(default)]
+    pub q: String,
+}
+
+/// How many songs a host's search shows. A host types more to narrow it.
+const HOST_SONGS: usize = 8;
+
+/// `GET /host/songs?q=` — the songs a host's search found.
+pub async fn host_songs(
+    State(state): State<Remote>,
+    Query(search): Query<HostSearch>,
+    headers: HeaderMap,
+) -> Response {
+    let prefs = Prefs::read(&headers);
+    let text = search.q.trim();
+    let songs = if text.is_empty() || permit(&state, &prefs, Access::Control).await.is_err() {
+        Vec::new()
+    } else {
+        state
+            .songs
+            .search(&BrowseQuery {
+                text: Some(text.to_owned()),
+                limit: HOST_SONGS,
+                ..BrowseQuery::default()
+            })
+            .await
+            .map(|page| page.songs)
+            .unwrap_or_default()
+    };
+    views::page(
+        &HostSongs {
+            songs,
+            asked: !text.is_empty(),
+        },
+        prefs.locale,
+    )
+}
+
+/// `POST /host/add/{number}` — a song for the singer whose name is in the box.
+///
+/// **Typing a name finds a singer first, and makes a new one when none matches.** The comparison
+/// is the machine's own: no case, no accents. A new one is a singer with no phone. The rule then
+/// gives the song that singer's turn, whatever order the host enters songs in.
+pub async fn host_add(
+    State(state): State<Remote>,
+    Path(number): Path<SongCode>,
+    headers: HeaderMap,
+    body: String,
+) -> Response {
+    let prefs = Prefs::read(&headers);
+    let locale = prefs.locale;
+    let words = crate::words::messages(locale);
+    if let Err(refused) = permit(&state, &prefs, Access::Control).await {
+        return views::toast_only(views::message_for(&refused, locale), locale);
+    }
+    let Some(name) = form::field(&body, "singer")
+        .as_deref()
+        .and_then(prefs::tidy_singer)
+    else {
+        return views::toast_only(Toast::warn(words.msg("host-needs-singer")), locale);
+    };
+    let key = fold(&name);
+    let found = state.machine.singers().await.ok().and_then(|known| {
+        known
+            .singers
+            .into_iter()
+            .find(|singer| singer.name.as_deref().is_some_and(|held| fold(held) == key))
+    });
+    let singer = match found {
+        Some(singer) => Ok(singer),
+        None => state.machine.create_singer(Some(&name)).await,
+    };
+    // The toast says the name the machine holds, which is how the screen will show it.
+    let name = singer
+        .as_ref()
+        .ok()
+        .and_then(|singer| singer.name.clone())
+        .unwrap_or(name);
+    let asked = match singer {
+        Ok(singer) => state.machine.request_for(singer.id, number).await,
+        Err(error) => Err(error),
+    };
+    match asked {
+        Ok(request) => {
+            let key = if request.state == km_api::dto::RequestStateDto::Waiting {
+                "host-added-waiting"
+            } else {
+                "host-added-queued"
+            };
+            views::toast_only(
+                Toast::good(words.msg_with(
+                    key,
+                    &[
+                        ("title", request.title.as_str().into()),
+                        ("name", name.as_str().into()),
+                    ],
+                )),
+                locale,
+            )
+        }
+        Err(error) => views::toast_only(views::message_for(&error, locale), locale),
+    }
+}
+
+/// `POST /host/requests/{request}/{action}` — `decline`, `accept` or `next`.
+pub async fn host_request(
+    State(state): State<Remote>,
+    Path((request, action)): Path<(u64, String)>,
+    headers: HeaderMap,
+) -> Response {
+    let prefs = Prefs::read(&headers);
+    let result = match permit(&state, &prefs, Access::Control).await {
+        Err(refused) => Err(refused),
+        Ok(()) => match action.as_str() {
+            "decline" => state.machine.decline(request).await.map(|_| ()),
+            "accept" => state.machine.accept(request, false).await.map(|_| ()),
+            "next" => state.machine.accept(request, true).await.map(|_| ()),
+            _ => return (StatusCode::NOT_FOUND, "no such action").into_response(),
+        },
+    };
+    host_answer(&state, prefs.locale, result).await
+}
+
+/// `POST /host/singers/{singer}/{action}` — `reissue`, `remove` or `merge`.
+///
+/// A merge names the singer who stays in its form, and the one in the path goes.
+pub async fn host_singer(
+    State(state): State<Remote>,
+    Path((singer, action)): Path<(u64, String)>,
+    headers: HeaderMap,
+    body: String,
+) -> Response {
+    let prefs = Prefs::read(&headers);
+    let result = match permit(&state, &prefs, Access::Control).await {
+        Err(refused) => Err(refused),
+        Ok(()) => match action.as_str() {
+            "reissue" => state.machine.reissue_singer(singer).await.map(|_| ()),
+            "remove" => state.machine.remove_singer(singer).await.map(|_| ()),
+            "merge" => match form::field(&body, "into").and_then(|id| id.trim().parse().ok()) {
+                Some(into) => state.machine.merge_singers(singer, into).await.map(|_| ()),
+                None => Err(RemoteError::NotFound),
+            },
+            _ => return (StatusCode::NOT_FOUND, "no such action").into_response(),
+        },
+    };
+    host_answer(&state, prefs.locale, result).await
+}
+
+/// `POST /host/accepting/{switch}` — `on` or `off`.
+pub async fn host_accepting(
+    State(state): State<Remote>,
+    Path(switch): Path<String>,
+    headers: HeaderMap,
+) -> Response {
+    let prefs = Prefs::read(&headers);
+    let result = match permit(&state, &prefs, Access::Control).await {
+        Err(refused) => Err(refused),
+        Ok(()) => state
+            .machine
+            .set_accepting(switch == "on")
+            .await
+            .map(|_| ()),
+    };
+    host_answer(&state, prefs.locale, result).await
+}
+
+/// `POST /host/reset` — a new evening.
+///
+/// **Answers with a full refresh.** Every list on the page is empty afterwards, and the phone's
+/// own singers are gone with the rest.
+pub async fn host_reset(State(state): State<Remote>, headers: HeaderMap) -> Response {
+    let prefs = Prefs::read(&headers);
+    let locale = prefs.locale;
+    let result = match permit(&state, &prefs, Access::Control).await {
+        Err(refused) => Err(refused),
+        Ok(()) => state.machine.reset_evening().await.map(|_| ()),
+    };
+    match result {
+        Ok(()) => (StatusCode::OK, [("hx-refresh", "true")]).into_response(),
+        Err(error) => views::toast_only(views::message_for(&error, locale), locale),
+    }
 }
 
 /// `POST /queue/{entry}/{action}` — `up`, `down` or `remove`.
@@ -3768,6 +4109,11 @@ async fn pump(state: Remote) {
                 Ok(km_api::events::Event::RequestsChanged { .. }) => {
                     for &locale in Locale::ALL {
                         state.hub.publish(locale, sse::REQUESTS, "-");
+                    }
+                }
+                Ok(km_api::events::Event::SingersChanged { .. }) => {
+                    for &locale in Locale::ALL {
+                        state.hub.publish(locale, sse::SINGERS, "-");
                     }
                 }
                 Ok(km_api::events::Event::SongStarted { .. })

@@ -1206,6 +1206,82 @@ pub struct QueuePage {
     pub queue: QueueBlock,
 }
 
+/// `GET /host` — the tab a host runs the night from. Drawn for a phone at the control level.
+#[derive(Template)]
+#[template(path = "host.html")]
+pub struct HostPage {
+    /// Page chrome.
+    pub chrome: Chrome,
+    /// The singers and the requests that wait.
+    pub lists: HostLists,
+    /// The queue, which is the same fragment the Queue tab draws.
+    pub queue: QueueBlock,
+}
+
+/// The host's two lists: the evening's singers, and the requests that wait.
+///
+/// **Fetched by the page and never pushed**, as [`MineBlock`] is. The fragment holds folds that a
+/// host has open, and a push would close them under a finger. The page asks again when
+/// [`crate::sse::REQUESTS`] or [`crate::sse::SINGERS`] arrives.
+#[derive(Template)]
+#[template(path = "_host_lists.html")]
+pub struct HostLists {
+    /// Whether a phone may ask for a song.
+    pub accepting: bool,
+    /// The singers, in the order each registered.
+    pub singers: Vec<HostSinger>,
+    /// The requests that wait, oldest first.
+    pub waiting: Vec<HostRequest>,
+}
+
+/// One singer, as the host's tab draws it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct HostSinger {
+    /// The seat's id.
+    pub id: u64,
+    /// The name, or `Guest 4`.
+    pub label: String,
+    /// Whether a phone holds the seat.
+    pub phone: bool,
+    /// Whether the singer has a name, which a seat needs before a phone can take it.
+    pub named: bool,
+    /// The singer's songs, as one sentence: sung, in the queue and waiting.
+    pub counts: String,
+}
+
+/// One request that waits, as the host's tab draws it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct HostRequest {
+    /// The request's id.
+    pub id: u64,
+    /// The song's title.
+    pub title: String,
+    /// The singer who asked, as a label.
+    pub singer: String,
+}
+
+/// The songs a host's search found, each with a button that adds it for the singer typed above.
+#[derive(Template)]
+#[template(path = "_host_songs.html")]
+pub struct HostSongs {
+    /// The songs.
+    pub songs: Vec<km_api::dto::SongDto>,
+    /// Whether anything was typed. An empty box draws nothing, where no match draws a sentence.
+    pub asked: bool,
+}
+
+/// What a row says when its song is already in the queue or was already sung.
+///
+/// It stays until the guest presses one of its two buttons, where a [`Badge`] fades.
+#[derive(Template)]
+#[template(path = "_ask_again.html")]
+pub struct AskAgain {
+    /// Which song.
+    pub number: SongCode,
+    /// The message id of the sentence: queued, or sung.
+    pub text: &'static str,
+}
+
 /// One singer this phone holds, as the Setup tab draws it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PhoneSinger {

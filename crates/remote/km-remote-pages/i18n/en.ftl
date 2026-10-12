@@ -23,6 +23,8 @@ error-singers-full = The machine has as many singers as it holds.
 error-singer-requests-full = You have as many songs waiting as the machine allows.
 error-requests-full = The machine is holding as many songs as it can.
 error-request-finished = That song has already left the queue.
+error-requests-closed = The night is closed. No more songs are being taken.
+error-request-not-waiting = That song is no longer waiting.
 error-unauthorized = This needs a code. Type one on the Setup tab.
 browse-back = Back to songs
 error-not-found = Not found.
@@ -69,8 +71,8 @@ error-no-demo = This machine cannot start a demo song.
 
 ## The tab bar
 #
-# Three tabs and there is no fourth — see `layout.html`. These are read at a glance, under an icon,
-# on a phone: one word each.
+# Three tabs carry a word, and the host's tab and the gear carry none — see `layout.html`. These
+# are read at a glance, under an icon, on a phone: one word each.
 
 tab-songs = Songs
 tab-now = Now
@@ -350,6 +352,45 @@ singer-add-needs-name = Another singer needs a name.
 # A singer who gave no name. The number tells two of them apart.
 singer-guest = Guest { $number }
 singer-unnamed = Guest
+
+## A song somebody already has
+
+ask-again-queued = Already in the queue.
+ask-again-sung = Already sung tonight.
+ask-again-anyway = Ask anyway
+ask-again-no = Leave it
+
+## The host's tab
+
+tab-host = Host
+host-singer = For
+host-singer-placeholder = the singer's name
+host-song = Song
+host-song-placeholder = title or artist
+host-add = Add for this singer
+host-no-songs = No song matches.
+host-needs-singer = Type the singer's name first.
+host-added-queued = Queued { $title } for { $name }.
+host-added-waiting = { $title } is waiting for { $name }'s turn.
+host-accepting-on = Phones can ask for songs.
+host-accepting-off = Closed. Phones cannot ask for songs.
+host-accepting-stop = Stop taking requests
+host-accepting-start = Take requests again
+host-waiting = Waiting for a turn
+host-waiting-none = Nothing is waiting.
+host-accept = Put it at the end of the queue
+host-accept-next = Put it next
+host-decline = Decline
+host-singers = Singers
+host-singers-none = Nobody has asked for a song.
+host-no-phone = no phone
+host-singer-counts = { $sung } sung, { $queued } in the queue, { $waiting } waiting
+host-reissue = Hand to a phone
+host-merge = Merge into
+host-remove = Remove
+host-reset = Start a new evening
+host-reset-hint = This empties the queue, the requests and the singers. The song that is playing plays on.
+host-reset-confirm = Empty everything
 
 ## The songs this phone asked for
 

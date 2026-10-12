@@ -994,6 +994,32 @@ label.icon-btn { display: inline-flex; align-items: center; justify-content: cen
 
 .queue-body { flex: 1; min-width: 0; }
 
+/* The warning on a song that is queued or was sung stands in for the row's buttons until the guest
+ * answers it, as a badge does for its three seconds. `>` again, so its own two buttons stay. */
+.song-actions:has(.confirm) > .icon-btn { display: none; }
+.badge.confirm {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  white-space: normal;
+}
+
+/* The host's tab: one column on a phone, and two where there is the width, because a host reads
+ * the requests against the queue. */
+.host { display: grid; gap: 1rem; }
+@media (min-width: 48rem) {
+  .host { grid-template-columns: 1fr 1fr; align-items: start; }
+}
+.host-col { min-width: 0; }
+/* The queue's own toggle belongs to the Queue tab, whose checkbox it is a label for. Here the row
+ * buttons are always shown, because correcting the queue is what this tab is for. */
+.host .queue-head { display: none; }
+.host-singer { padding: 0.45rem 0; border-bottom: 1px solid var(--line); }
+.host-singer summary { cursor: pointer; }
+.host-singer summary .song-sub { display: block; }
+.host-singer-actions { display: flex; flex-wrap: wrap; gap: 0.4rem; padding: 0.45rem 0 0.2rem; }
+.closed { color: var(--amber); font-weight: 600; }
+
 /* A phone's own songs sit above the queue under a small heading, so the two lists read as two. */
 .list-head {
   margin: 0.6rem 0 0.1rem;
