@@ -619,6 +619,11 @@ then `Frame::time_left_ms` gives the whole length, so no wait comes from two son
 `km_queue::wait::ahead_ms` gives the lengths ahead, and `km_queue::Wait` gives the two forms. See
 [`A queued song shows a rough wait`](../decisions/interface.md#a-queued-song-shows-a-rough-wait).
 
+**The header counts the waiting requests too.** `Frame::requests_waiting` is the caller's, as
+`Frame::queue` is: the frame loop reads `Machine::requests_waiting` beside `Machine::queue`.
+`queue_count` words the header from the two numbers, and leaves the second out at zero. See
+[`The screen counts the requests that wait`](../decisions/interface.md#the-screen-counts-the-requests-that-wait).
+
 Three details each fix something a rendered frame showed:
 
 - **Full-screen scrim at 82%, then the card twice.** Even a second pass of the ~78% panel left a lyric

@@ -518,6 +518,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             "19-queue-overflowing",
             Frame {
                 queue: &crowd,
+                // More asked for than the queue holds, so the header says both counts.
+                requests_waiting: 7,
                 show_queue_overlay: true,
                 catalog: Some(catalog),
                 ..Frame::idle(&empty_entry)
@@ -1145,6 +1147,7 @@ fn playing<'a>(
         demo: None,
         show_connect_overlay: false,
         queue: &[],
+        requests_waiting: 0,
         show_queue_overlay: false,
         keypad: None,
         performance: None,

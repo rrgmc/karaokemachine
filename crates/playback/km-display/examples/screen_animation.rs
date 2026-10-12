@@ -161,6 +161,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             demo: None,
             show_connect_overlay: false,
             queue: &[],
+            requests_waiting: 0,
             show_queue_overlay: false,
             keypad: None,
             performance: None,

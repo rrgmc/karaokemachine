@@ -284,6 +284,7 @@ pub(crate) fn run(
             // stands on the idle screen rather than appearing for a few seconds after a key press.
             show_connect_overlay: !playing,
             queue: &queue,
+            requests_waiting: 0,
             show_queue_overlay: false,
             faults: crate::display::faults(&machine),
             version: Some(crate::display::VERSION),

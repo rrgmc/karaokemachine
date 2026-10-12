@@ -3074,6 +3074,15 @@ impl Machine {
         Ok(settings)
     }
 
+    /// How many requests wait for a turn, for the count on the screen.
+    pub fn requests_waiting(&self) -> usize {
+        self.lock_state()
+            .evening
+            .requests(Instant::now())
+            .filter(|request| request.state == RequestState::Waiting)
+            .count()
+    }
+
     /// Publishes the queue, and the requests beside it for `km_api::ops::publish_queue`'s reason.
     fn publish_queue(&self) {
         let (entries, requests) = {

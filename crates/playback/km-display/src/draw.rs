@@ -318,6 +318,12 @@ pub struct Frame<'a> {
     pub show_connect_overlay: bool,
     /// Everything waiting, in order. Empty when nothing is queued.
     pub queue: &'a [QueueEntry],
+    /// How many requests wait behind the queue.
+    ///
+    /// The queue holds one song for each singer, so its length says how many singers are in the
+    /// line and not how much singing stands behind it. This count is the rest. It is the one thing
+    /// about requests that the screen shows: which songs wait, and whose, is a phone's to say.
+    pub requests_waiting: usize,
     /// Whether to show the queue over whatever screen is up.
     ///
     /// An overlay rather than a third [`Screen`]. A queue *screen* would replace the lyrics to show
@@ -453,6 +459,7 @@ impl<'a> Frame<'a> {
             demo: None,
             show_connect_overlay: false,
             queue: &[],
+            requests_waiting: 0,
             show_queue_overlay: false,
             faults: Faults::default(),
             flash: None,
@@ -586,6 +593,7 @@ pub fn draw<T: RenderTarget, C>(
             fonts,
             theme,
             frame.queue,
+            frame.requests_waiting,
             frame.time_left_ms(),
             layout,
             frame.words(),
@@ -1522,6 +1530,7 @@ fn draw_queue_overlay<T: RenderTarget, C>(
     fonts: &Fonts,
     theme: &Theme,
     queue: &[QueueEntry],
+    requests_waiting: usize,
     remaining_ms: u32,
     layout: Layout,
     words: &km_locale::Catalog,
@@ -1561,10 +1570,7 @@ fn draw_queue_overlay<T: RenderTarget, C>(
 
     // Omitted when empty: "0 songs waiting" next to "Nothing queued" says the same thing twice.
     if !queue.is_empty() {
-        let count = words.msg_with(
-            crate::words::QUEUE_WAITING,
-            &[("count", (queue.len() as i64).into())],
-        );
+        let count = queue_count(words, queue.len(), requests_waiting);
         draw_text(
             canvas,
             cache,
@@ -1673,6 +1679,25 @@ fn draw_queue_overlay<T: RenderTarget, C>(
             &TextStyle::plain(theme.text_dim, Align::Left),
         );
     }
+}
+
+/// The overlay's count: the songs in the queue, and the requests that wait behind them.
+///
+/// The second half is left out where nothing waits, so a machine with no requests reads as it
+/// always did.
+fn queue_count(words: &km_locale::Catalog, queued: usize, requests_waiting: usize) -> String {
+    let queued = words.msg_with(
+        crate::words::QUEUE_WAITING,
+        &[("count", (queued as i64).into())],
+    );
+    if requests_waiting == 0 {
+        return queued.into_owned();
+    }
+    let behind = words.msg_with(
+        crate::words::QUEUE_REQUESTS,
+        &[("count", (requests_waiting as i64).into())],
+    );
+    format!("{queued}  ·  {behind}")
 }
 
 /// The share of the queue overlay's width that a row's number, title and artist take.
@@ -4384,6 +4409,26 @@ mod tests {
     /// Pixels rather than fractions, unlike the label test above, because
     /// [`Theme::glyph_box_px`] rounds the face's size — so the answer genuinely differs per screen
     /// and there is something to loop over.
+    /// The overlay's header counts the requests that wait, and says nothing of them where none do.
+    #[test]
+    fn the_overlay_counts_the_requests_that_wait_behind_the_queue() {
+        let english = crate::words::messages(km_locale::Locale::English);
+        assert_eq!(queue_count(english, 3, 0), "3 songs waiting");
+        assert_eq!(
+            queue_count(english, 3, 5),
+            "3 songs waiting  ·  5 more asked for"
+        );
+        assert_eq!(
+            queue_count(english, 1, 1),
+            "1 song waiting  ·  1 more asked for"
+        );
+        let portuguese = crate::words::messages(km_locale::Locale::BrazilianPortuguese);
+        assert_eq!(
+            queue_count(portuguese, 2, 1),
+            "2 músicas esperando  ·  mais 1 pedida"
+        );
+    }
+
     #[test]
     fn the_queue_pill_owns_the_corner_and_clears_the_second_row() {
         let theme = Theme::default();

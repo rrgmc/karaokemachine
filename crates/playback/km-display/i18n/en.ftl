@@ -88,6 +88,11 @@ queue-waiting = { $count ->
     [one] { $count } song waiting
    *[other] { $count } songs waiting
  }
+# Songs that singers asked for and that wait for a turn. The queue holds one song for each singer.
+queue-requests = { $count ->
+    [one] { $count } more asked for
+   *[other] { $count } more asked for
+ }
 queue-empty = Nothing queued — enter a song number
 # One row is reserved for this whenever the queue does not fit, so the count is never a surprise.
 queue-overflow = and { $count } more
