@@ -259,6 +259,8 @@ pub(crate) fn run(
                 .now_playing
                 .as_ref()
                 .map_or(0, |now| now.duration_ms),
+            // This picture draws no queue overlay, which is the one reader of the mark.
+            position_fresh: true,
             transpose: crate::display::drawn_adjustments(adjustable, &snapshot.settings).0,
             tempo_ratio: crate::display::drawn_adjustments(adjustable, &snapshot.settings).1,
             melody: snapshot

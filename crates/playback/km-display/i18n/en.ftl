@@ -91,6 +91,10 @@ queue-waiting = { $count ->
 queue-empty = Nothing queued — enter a song number
 # One row is reserved for this whenever the queue does not fit, so the count is never a surprise.
 queue-overflow = and { $count } more
+# How long until a queued song starts. Rough on purpose: it says whether to stay near the microphone.
+# Symbols and no words, because the figure shares a row with a title and a name.
+queue-wait-minutes = ~{ $minutes } min
+queue-wait-soon = < 1 min
 
 ## While a song is playing
 

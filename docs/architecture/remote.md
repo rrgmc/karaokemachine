@@ -488,6 +488,14 @@ Six things that each decided a piece of the design:
 - **The latest value of every state-bearing event is replayed to a new subscriber**, and the queue
   *count* is a different event from the queue *list* — one event cannot be swapped into two places, and
   the badge is on every page while the list is on one.
+- **The pump holds the queue between two events, and sends the list again when a wait changes.** A
+  row's wait is `ahead_ms` plus the time left in the playing song, and the two arrive on two events.
+  `QueueFeed` keeps the entries from `queue_changed` and the time left from each `state`. Once a
+  second it compares the waits with the ones it sent, as `km_queue::Wait` values. The list goes out
+  only when one differs, because the list holds the row buttons. `QueueBlock` is built per language,
+  because each wait is a sentence with a figure in it. `queue_changed` arrives before the first
+  `state` of a new song. So `QueueFeed::replace` takes the whole length of an entry that left the
+  head as the time left.
 - **A favorites folder is assembled in Rust, not in SQL.** It is a bounded personal list, so pushing
   an `id IN (...)` into the catalog would put the remote's furniture inside the machine's catalog
   for a query never large enough to need SQL's help.

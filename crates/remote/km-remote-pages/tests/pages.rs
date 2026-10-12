@@ -552,6 +552,8 @@ impl Machine for StubMachine {
             title: format!("Song {number}"),
             artist: None,
             singer: singer.map(str::to_owned),
+            duration_ms: 180_000,
+            ahead_ms: Some(180_000 * position as u64),
         });
         Ok(AddedToQueueDto {
             entry_id: u64::from(number.number()),
@@ -1717,6 +1719,31 @@ async fn taking_a_song_out_of_the_queue_asks_nothing_and_says_what_the_queue_is_
         body.contains("No song queued"),
         "and the song is actually gone: {body}"
     );
+}
+
+/// Each row says about how long until its song starts.
+///
+/// The stub plays a song of 3:42 at 1:07, so 2:35 is left. The first row waits for that alone, and
+/// the second also waits for the three minutes of the first.
+#[tokio::test]
+async fn each_queue_row_shows_a_rough_wait() {
+    let harness = Harness::offline();
+
+    harness.post("/song/1001/queue").await;
+    harness.post("/song/1002/queue").await;
+
+    let queue = harness.get("/queue").await;
+    let first = queue
+        .find(r#"<span class="queue-wait">~3 min</span>"#)
+        .unwrap_or_else(|| panic!("the first row waits for the playing song: {queue}"));
+    let second = queue
+        .find(r#"<span class="queue-wait">~6 min</span>"#)
+        .unwrap_or_else(|| panic!("the second row also waits for the first: {queue}"));
+    assert!(first < second, "{queue}");
+
+    // The fragment a row's button answers with carries the same figures.
+    let (_, _, republished) = harness.post("/queue/1002/up").await;
+    assert!(republished.contains("queue-wait"), "{republished}");
 }
 
 /// A page that opens on a quiet machine must still be told what is playing, and the bar is a second

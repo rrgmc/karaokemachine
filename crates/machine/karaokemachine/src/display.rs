@@ -1876,6 +1876,9 @@ fn run_with(
     // presses. Only a D-pad move and a touch raise the strip, so a desktop keyboard raises it never
     // and a bar that followed it would be absent from the machine the owner is sitting at.
     let mut position_until: Option<Instant> = None;
+    // The position the audio reported on the frame a song loaded, until the device reports the new
+    // song. See `position_is_fresh`.
+    let mut stale_position: Option<u32> = None;
     // Packages dragged onto the window, installed off this thread, and whatever the last one had to
     // say. Started whether or not anything is ever dropped: one idle worker costs nothing, and the
     // alternative is deciding on the first drop whether the machine is somewhere drops happen.
@@ -2453,6 +2456,8 @@ fn run_with(
         // reporting exactly what the audio has really reached. Same division as the lyric offset.
         let period_ms = machine.period_ms();
         let advancing = snapshot.transport == Transport::Playing;
+        // Kept as reported, because the smoothed figure moves on its own between two reports.
+        let reported_ms = snapshot.position_ms;
         snapshot.position_ms = ms_clock.smooth(snapshot.position_ms, period_ms, advancing, now);
         let song = machine.current_lyric_song();
         let now_kind = snapshot.now_playing.as_ref().map(|now| now.kind);
@@ -2496,6 +2501,12 @@ fn run_with(
                 .now_playing
                 .is_some()
                 .then(|| Instant::now() + POSITION_LINGER);
+            // The same frames, for the queue overlay: a wait read off that pair is wrong for
+            // every entry at once.
+            stale_position = snapshot.now_playing.is_some().then_some(reported_ms);
+        }
+        if position_is_fresh(stale_position, reported_ms) {
+            stale_position = None;
         }
 
         let queue = machine.queue();
@@ -2671,6 +2682,7 @@ fn run_with(
                 ),
             position_ms: snapshot.position_ms,
             duration_ms,
+            position_fresh: stale_position.is_none(),
             transpose: adjustments.0,
             tempo_ratio: adjustments.1,
             // `None` hides the indicator entirely, which is the point: a melody channel that was
@@ -3051,6 +3063,18 @@ fn position_visible(
     duration_ms: u32,
 ) -> bool {
     wanted || held || within_position_window(picture, position_ms, duration_ms)
+}
+
+/// Whether the reported position belongs to the song on the deck.
+///
+/// `stale` is the position the audio reported on the frame the song loaded. That figure is the
+/// song before's, and it stands still until the device reports the new song. The first report that
+/// differs is therefore the new song's. `None` is a song whose position has already moved.
+///
+/// A new song that reports the very figure the song before stopped at stays stale for one more
+/// report, which costs nothing: the overlay then takes the whole length as the time left.
+fn position_is_fresh(stale: Option<u32>, reported_ms: u32) -> bool {
+    stale != Some(reported_ms)
 }
 
 /// Turns a press at a point into an action, and keeps the transport strip alive.
@@ -3514,6 +3538,7 @@ fn queue_number(machine: &Machine, entry: &mut NumberEntry, number: SongCode) {
                 title: song.title,
                 artist: song.artist,
                 singer: None,
+                duration_ms: song.duration_ms,
             };
             match machine.queue_add(request) {
                 Ok(_) => {
@@ -3826,6 +3851,7 @@ mod tests {
                     title: "Something".to_owned(),
                     artist: None,
                     singer: None,
+                    duration_ms: 0,
                 })
                 .expect("the queue takes it");
 
@@ -4154,6 +4180,29 @@ mod tests {
                 "and the middle of a stopped one does"
             );
         }
+    }
+
+    /// A song change holds the queue's waits until the audio reports the new song.
+    ///
+    /// The frame a song loads carries the new length beside the old position. A wait read off that
+    /// pair is wrong for every entry, so the position counts as stale until it moves.
+    #[test]
+    fn a_position_is_stale_until_the_audio_reports_the_new_song() {
+        // The song before stopped at 3:19, and the new song has loaded.
+        let stale = Some(199_000);
+        assert!(
+            !position_is_fresh(stale, 199_000),
+            "the device has not reported"
+        );
+        assert!(
+            position_is_fresh(stale, 20),
+            "the first report of the new song"
+        );
+        // A first song on an idle deck: zero until the device reports.
+        assert!(!position_is_fresh(Some(0), 0));
+        assert!(position_is_fresh(Some(0), 250));
+        // And a song already under way has nothing held against it.
+        assert!(position_is_fresh(None, 199_000));
     }
 
     /// A song change shows the bar while the position still reports the song before it.

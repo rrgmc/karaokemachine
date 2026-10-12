@@ -17,6 +17,9 @@ workspace = true
 # the API, and the offline mode parses exactly these off a socket, so a third description of a song
 # would be a third thing to keep in step. See the header of `km-api`'s `dto` module.
 km-api = { workspace = true }
+# `Wait`, the rule for the two forms a queued song's wait takes. The machine's screen draws the same
+# figure through the same rule.
+km-queue = { workspace = true }
 # `SearchQuery`, `SortOrder` and `fts_match_query`. Both modes build the identical SQL -- the machine
 # against `library.sqlite` and the offline app against its mirror -- so the two can never disagree
 # about what a search means, and neither reimplements FTS5's operator escaping.

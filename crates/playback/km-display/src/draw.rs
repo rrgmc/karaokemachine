@@ -11,7 +11,7 @@ use std::borrow::Cow;
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use km_queue::QueueEntry;
+use km_queue::{QueueEntry, Wait};
 use km_song::{KaraokeFlavor, LyricTimeline};
 use sdl3::pixels::Color;
 use sdl3::render::{BlendMode, Canvas, FRect, RenderTarget, Texture};
@@ -240,6 +240,13 @@ pub struct Frame<'a> {
     pub position_ms: u32,
     /// Song length in milliseconds.
     pub duration_ms: u32,
+    /// Whether [`Self::position_ms`] belongs to the song on the deck.
+    ///
+    /// **The caller owns it**, for the reason it owns [`Self::show_position`]. Through the first
+    /// frames of a song the position still reports the song before it, and only the frame loop can
+    /// tell. The queue overlay takes the whole length as the time left while this is false, so no
+    /// wait is stated from one song's position beside another song's length.
+    pub position_fresh: bool,
     /// Current transposition in semitones.
     pub transpose: i8,
     /// Current tempo as a multiple of the written tempo.
@@ -411,6 +418,17 @@ impl<'a> Frame<'a> {
     ///
     /// The locale is a field rather than an argument here because this constructor is a starting
     /// point somebody adjusts — every caller already sets several fields on the way past, and one
+    /// The time left in the playing song, which every queued song waits for.
+    ///
+    /// The whole length while the position still reports the song before.
+    pub fn time_left_ms(&self) -> u32 {
+        if self.position_fresh {
+            km_queue::wait::remaining_ms(self.position_ms, self.duration_ms)
+        } else {
+            self.duration_ms
+        }
+    }
+
     /// that speaks another language sets this one too.
     pub fn idle(number_entry: &'a NumberEntry) -> Self {
         Self {
@@ -421,6 +439,7 @@ impl<'a> Frame<'a> {
             lyrics: LyricFrame::default(),
             position_ms: 0,
             duration_ms: 0,
+            position_fresh: true,
             transpose: 0,
             tempo_ratio: 1.0,
             melody: None,
@@ -567,6 +586,7 @@ pub fn draw<T: RenderTarget, C>(
             fonts,
             theme,
             frame.queue,
+            frame.time_left_ms(),
             layout,
             frame.words(),
         );
@@ -1492,12 +1512,17 @@ fn tally(words: &km_locale::Catalog, tags: &[&str], counts: &[usize]) -> Option<
 ///
 /// One row per waiting song, with the singer's name on the right where there is one — at a party that
 /// is the column people actually look at, because the question is "am I next", not "what is next".
+///
+/// Each row ends with its wait, which tells a singer whether to stay near the microphone.
+/// `remaining_ms` is the time left in the playing song, and the lengths ahead come from the queue.
+#[allow(clippy::too_many_arguments)]
 fn draw_queue_overlay<T: RenderTarget, C>(
     canvas: &mut Canvas<T>,
     cache: &mut TextCache<C>,
     fonts: &Fonts,
     theme: &Theme,
     queue: &[QueueEntry],
+    remaining_ms: u32,
     layout: Layout,
     words: &km_locale::Catalog,
 ) {
@@ -1578,12 +1603,26 @@ fn draw_queue_overlay<T: RenderTarget, C>(
         (shown, queue.len() - shown)
     };
 
-    // Characters that fit in the left column, from the point size — the same estimate the connect
-    // panel uses. Half the singer column is left free so the two never collide.
-    let text_px = f32::from(theme.text_px(layout.h as u32));
-    let left_chars = (((panel_w - pad * 2.0) * 0.62) / (text_px * 0.5)).max(12.0) as usize;
+    // The wait column is as wide as the longest wait on show, so every wait ends on one edge and
+    // every singer's name ends on another.
+    let small_px = f32::from(theme.small_px(layout.h as u32));
+    let waits: Vec<String> = km_queue::wait::ahead_ms(queue)
+        .take(shown)
+        .map(|ahead_ms| wait_label(words, Wait::of(remaining_ms, ahead_ms)))
+        .collect();
+    let wait_chars = waits.iter().map(|wait| wait.width()).max().unwrap_or(0);
+    let wait_w = (wait_chars + QUEUE_COLUMN_GAP_CHARS) as f32 * small_px * 0.5;
+    let singer_x = right_x - wait_w;
 
-    for (index, entry) in queue.iter().take(shown).enumerate() {
+    // Characters that fit in the left column, from the point size — the same estimate the connect
+    // panel uses. The singer's name takes what the title and the wait leave, less a gap.
+    let inner_w = panel_w - pad * 2.0;
+    let text_px = f32::from(theme.text_px(layout.h as u32));
+    let left_chars = ((inner_w * QUEUE_TITLE_SHARE) / (text_px * 0.5)).max(12.0) as usize;
+    let singer_chars = fit_chars(inner_w * (1.0 - QUEUE_TITLE_SHARE) - wait_w, small_px)
+        .saturating_sub(QUEUE_COLUMN_GAP_CHARS);
+
+    for (index, (entry, wait)) in queue.iter().zip(&waits).enumerate() {
         let row_y = first_row + row_h * index as f32;
 
         let mut left = format!("{}.  {}  {}", index + 1, entry.number, entry.title);
@@ -1605,11 +1644,20 @@ fn draw_queue_overlay<T: RenderTarget, C>(
                 canvas,
                 cache,
                 &fonts.small,
-                singer,
-                (right_x, row_y),
+                &ellipsize(singer, singer_chars),
+                (singer_x, row_y),
                 &TextStyle::plain(theme.accent, Align::Right),
             );
         }
+
+        draw_text(
+            canvas,
+            cache,
+            &fonts.small,
+            wait,
+            (right_x, row_y),
+            &TextStyle::plain(theme.text_dim, Align::Right),
+        );
     }
 
     if overflow > 0 {
@@ -1624,6 +1672,27 @@ fn draw_queue_overlay<T: RenderTarget, C>(
             (text_x, first_row + row_h * shown as f32),
             &TextStyle::plain(theme.text_dim, Align::Left),
         );
+    }
+}
+
+/// The share of the queue overlay's width that a row's number, title and artist take.
+///
+/// The singer's name and the wait share the rest.
+const QUEUE_TITLE_SHARE: f32 = 0.56;
+
+/// The gap between two columns of the queue overlay, in characters of the small face.
+const QUEUE_COLUMN_GAP_CHARS: usize = 2;
+
+/// A queued song's wait, as the overlay words it.
+fn wait_label(words: &km_locale::Catalog, wait: Wait) -> String {
+    match wait {
+        Wait::Soon => words.msg(crate::words::QUEUE_WAIT_SOON).into_owned(),
+        Wait::Minutes(minutes) => words
+            .msg_with(
+                crate::words::QUEUE_WAIT_MINUTES,
+                &[("minutes", i64::from(minutes).into())],
+            )
+            .into_owned(),
     }
 }
 

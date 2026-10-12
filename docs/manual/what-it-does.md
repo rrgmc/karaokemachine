@@ -24,7 +24,8 @@
   television. It moves the highlight only and never the audio, because the microphones are in that
   audio.
 - **Wallpapers** cycling with a crossfade, from a folder of stills or a zip of them.
-- **A queue** with singer names, shown over whatever is playing.
+- **A queue** with singer names, shown over whatever is playing. Each queued song shows about how
+  long until it starts.
 - **An announcement before each queued song.** For five seconds the whole screen shows the title,
   the artist and the singer's name. A song with a long introduction plays under the card. The owner
   can change the length or turn it off.

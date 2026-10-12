@@ -14,6 +14,7 @@
       <div class="song-name">{{ row.title() }}</div>
       <div class="song-sub">{{ row.artist() }}{% match row.singer() %}{% when Some with (singer) %} &middot; {{ singer }}{% when None %}{% endmatch %}</div>
     </div>
+    {% match row.wait %}{% when Some with (wait) %}<span class="queue-wait">{{ wait }}</span>{% when None %}{% endmatch %}
     <div class="song-actions needs-control">
       <button class="icon-btn" aria-label="{{ "queue-move-up"|t }}" title="{{ "queue-move-up"|t }}"
               hx-post="/queue/{{ row.id() }}/up" hx-target="#queue" hx-swap="outerHTML"

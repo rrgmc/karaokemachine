@@ -45,6 +45,10 @@ folded until asked for.</sub></td>
 </tr>
 </table>
 
+**Each queued song shows about how long until it starts.** The Queue tab says `~4 min` or `< 1 min`
+beside each song, and the figure counts down as the playing song runs. The
+queue on the machine's screen shows the same figure.
+
 **The owner decides how much a guest's phone can do.** Out of the box, anybody in the room can queue
 a song. See [Setting it up from a browser](setup.md#decide-what-a-guests-phone-can-do).
 

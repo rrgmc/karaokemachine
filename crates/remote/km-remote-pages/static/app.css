@@ -991,6 +991,15 @@ label.icon-btn { display: inline-flex; align-items: center; justify-content: cen
 
 .queue-body { flex: 1; min-width: 0; }
 
+/* The wait keeps its own width and the title gives way, because the wait is what a singer came to
+ * this page to read. */
+.queue-wait {
+  flex: none;
+  color: var(--text-dim);
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
 /* The ⋯ sits over the right-hand column it reveals, which is what makes it read as belonging to it
  * rather than to the list as a whole. */
 .queue-head { display: flex; justify-content: flex-end; padding: 0.2rem 0 0.35rem; }

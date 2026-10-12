@@ -18,7 +18,9 @@ use askama::Template;
 use axum::http::StatusCode;
 use axum::response::{Html, IntoResponse, Response};
 
+use km_api::dto::QueueEntryDto;
 use km_locale::Locale;
+use km_queue::Wait;
 use km_songcode::SongCode;
 
 use crate::Capabilities;
@@ -1204,6 +1206,56 @@ pub struct QueueBlock {
     pub rows: Vec<QueueRow>,
     /// Whether the machine is reachable, which decides whether the buttons do anything.
     pub online: bool,
+}
+
+impl QueueBlock {
+    /// The list for one queue, worded for one reader.
+    ///
+    /// **Built per language**, as [`MachineBlock`] is, because each row's wait is a sentence with a
+    /// figure in it. `remaining_ms` is the time left in the playing song.
+    #[must_use]
+    pub fn of(entries: &[QueueEntryDto], online: bool, remaining_ms: u32, locale: Locale) -> Self {
+        let words = crate::words::messages(locale);
+        let last = entries.len().saturating_sub(1);
+        let sentence = |wait: Wait| match wait {
+            Wait::Soon => words.msg("queue-wait-soon").into_owned(),
+            Wait::Minutes(minutes) => words
+                .msg_with(
+                    "queue-wait-minutes",
+                    &[("minutes", i64::from(minutes).into())],
+                )
+                .into_owned(),
+        };
+        Self {
+            rows: entries
+                .iter()
+                .zip(queue_waits(entries, remaining_ms))
+                .enumerate()
+                .map(|(index, (entry, wait))| QueueRow {
+                    entry: entry.clone(),
+                    first: index == 0,
+                    last: index == last,
+                    wait: wait.map(&sentence),
+                })
+                .collect(),
+            online,
+        }
+    }
+}
+
+/// The wait each entry shows, which also decides whether the list is worth sending again.
+///
+/// `None` for an entry whose machine sent no figure to state one from.
+#[must_use]
+pub fn queue_waits(entries: &[QueueEntryDto], remaining_ms: u32) -> Vec<Option<Wait>> {
+    entries
+        .iter()
+        .map(|entry| {
+            entry
+                .ahead_ms
+                .map(|ahead_ms| Wait::of(remaining_ms, ahead_ms))
+        })
+        .collect()
 }
 
 // -- sharing a folder, and carrying the collection to a file -------------------------------------

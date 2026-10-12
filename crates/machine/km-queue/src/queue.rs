@@ -25,6 +25,8 @@ pub struct QueueEntry {
     pub artist: Option<String>,
     /// Who asked for it, when a remote says.
     pub singer: Option<String>,
+    /// Length in milliseconds, so the display and the API state a wait without the catalog.
+    pub duration_ms: u32,
 }
 
 impl QueueEntry {
@@ -57,6 +59,8 @@ pub struct QueueRequest {
     pub artist: Option<String>,
     /// Who asked.
     pub singer: Option<String>,
+    /// Length in milliseconds, as the catalog reports it.
+    pub duration_ms: u32,
 }
 
 /// How many songs may wait.
@@ -121,6 +125,7 @@ impl Queue {
             title: request.title,
             artist: request.artist,
             singer: request.singer,
+            duration_ms: request.duration_ms,
         });
         Ok(id)
     }
@@ -182,6 +187,7 @@ mod tests {
             title: format!("Song {number}"),
             artist: Some("Someone".to_owned()),
             singer: None,
+            duration_ms: 180_000,
         }
     }
 
@@ -355,6 +361,7 @@ mod tests {
                 title: "Exagerado".to_owned(),
                 artist: Some("Cazuza".to_owned()),
                 singer: Some("Ana".to_owned()),
+                duration_ms: 0,
             })
             .expect("add");
         let entry = queue.entries().find(|e| e.id == id).expect("entry");
@@ -371,6 +378,7 @@ mod tests {
             title: "Just A Title".to_owned(),
             artist: None,
             singer: None,
+            duration_ms: 0,
         };
         assert_eq!(bare.label(), "1  Just A Title");
     }

@@ -777,6 +777,21 @@ pub struct QueueEntryDto {
     pub artist: Option<String>,
     /// Who asked.
     pub singer: Option<String>,
+    /// Length in milliseconds.
+    ///
+    /// Absent from a machine that does not send it, and zero then.
+    #[serde(default)]
+    pub duration_ms: u32,
+    /// The sum of the lengths of the entries before this one, in milliseconds.
+    ///
+    /// **Half of the wait, and the half that changes only with the queue.** A client adds the time
+    /// left in the playing song, which it reads from the state, so the wait counts down between
+    /// two `queue_changed` events.
+    ///
+    /// `None` from a machine that does not send it. A client then shows no wait, because a zero
+    /// would read as a turn that is about to come.
+    #[serde(default)]
+    pub ahead_ms: Option<u64>,
 }
 
 /// The queue.
@@ -796,14 +811,17 @@ impl QueueDto {
         Self {
             entries: entries
                 .iter()
+                .zip(km_queue::wait::ahead_ms(entries))
                 .enumerate()
-                .map(|(position, entry)| QueueEntryDto {
+                .map(|(position, (entry, ahead_ms))| QueueEntryDto {
                     id: entry.id,
                     position,
                     number: entry.number,
                     title: entry.title.clone(),
                     artist: entry.artist.clone(),
                     singer: entry.singer.clone(),
+                    duration_ms: entry.duration_ms,
+                    ahead_ms: Some(ahead_ms),
                 })
                 .collect(),
             len: entries.len(),
@@ -2335,6 +2353,7 @@ mod tests {
                 title: "First".to_owned(),
                 artist: None,
                 singer: Some("Ana".to_owned()),
+                duration_ms: 180_000,
             },
             QueueEntry {
                 id: 9,
@@ -2342,6 +2361,7 @@ mod tests {
                 title: "Second".to_owned(),
                 artist: Some("Band".to_owned()),
                 singer: None,
+                duration_ms: 240_000,
             },
         ];
         let dto = QueueDto::new(&entries);
@@ -2350,6 +2370,42 @@ mod tests {
         assert_eq!(dto.entries[0].id, 7);
         assert_eq!(dto.entries[1].position, 1);
         assert_eq!(dto.capacity, km_queue::queue::MAX_QUEUED);
+    }
+
+    #[test]
+    fn a_queue_response_gives_each_entry_its_length_and_the_lengths_ahead() {
+        let entry = |id, duration_ms| QueueEntry {
+            id,
+            number: SongCode::new(100),
+            title: "Song".to_owned(),
+            artist: None,
+            singer: None,
+            duration_ms,
+        };
+        let dto = QueueDto::new(&[entry(1, 180_000), entry(2, 240_000), entry(3, 200_000)]);
+        let figures: Vec<(u32, Option<u64>)> = dto
+            .entries
+            .iter()
+            .map(|entry| (entry.duration_ms, entry.ahead_ms))
+            .collect();
+        assert_eq!(
+            figures,
+            vec![
+                (180_000, Some(0)),
+                (240_000, Some(180_000)),
+                (200_000, Some(420_000))
+            ]
+        );
+    }
+
+    /// A remote and a machine compare no versions, so an entry without the two figures still reads.
+    #[test]
+    fn a_queue_entry_without_a_length_still_parses() {
+        let entry: QueueEntryDto = serde_json::from_str(
+            r#"{"id":7,"position":0,"number":"100","title":"First","artist":null,"singer":null}"#,
+        )
+        .expect("an entry from a machine that sends no length");
+        assert_eq!((entry.duration_ms, entry.ahead_ms), (0, None));
     }
 
     #[test]
