@@ -65,6 +65,7 @@ it are the same entry. How the thing is built is [`ARCHITECTURE.md`](../ARCHITEC
 - [Nothing is left sounding](audio.md#nothing-is-left-sounding)
 - [A song ends when its tail is silent](audio.md#a-song-ends-when-its-tail-is-silent)
 - [A recorded song changes key and tempo](audio.md#a-recorded-song-changes-key-and-tempo)
+- [A key and a tempo belong to one song](audio.md#a-key-and-a-tempo-belong-to-one-song)
 
 ## [Songs and suitability](songs.md)
 

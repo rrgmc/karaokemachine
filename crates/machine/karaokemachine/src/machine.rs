@@ -2602,6 +2602,16 @@ impl Machine {
             )));
         }
 
+        // **A key and a tempo set on an idle deck are for the song that starts next.** `go_idle`
+        // put the owner's defaults there when the last song left, so anything else is what the
+        // room asked for since. A song that takes the deck from another gets the defaults, and so
+        // does a demo song, which nobody chose a key for.
+        let set_while_idle = {
+            let state = self.lock_state();
+            (state.loaded.is_none() && !matches!(loaded.origin, Origin::Demo { .. }))
+                .then_some((state.settings.transpose, state.settings.tempo_ratio))
+        };
+
         let (
             transpose,
             tempo_ratio,
@@ -2615,20 +2625,23 @@ impl Machine {
             adjust_recordings,
         ) = {
             let settings = self.lock_settings();
+            let (base_transpose, tempo_ratio) = set_while_idle
+                .unwrap_or((settings.playback.transpose, settings.playback.tempo_ratio));
             (
                 song_transpose
-                    .saturating_add(settings.playback.transpose)
+                    .saturating_add(base_transpose)
                     .clamp(-km_queue::MAX_TRANSPOSE, km_queue::MAX_TRANSPOSE),
-                settings.playback.tempo_ratio,
+                tempo_ratio,
                 // A video has no channel to mute, so the melody is off for one whatever the
                 // setting says. `melody_channel` is already `None` for every video song, so this
                 // needs nothing extra — stated here only because it is easy to read past.
                 settings.playback.melody_enabled && loaded.melody_channel.is_some(),
                 settings.audio.music_volume,
-                // Carried through the reset rather than defaulted. The four above belong to a
-                // performance and start again with each song; this one calibrates the room's
-                // television, which does not change between songs. `update_settings` mirrors every
-                // live change back here, so the stored value is always the current one.
+                // Carried through the reset rather than defaulted, as the melody and the volume
+                // above are. Key and tempo belong to a performance and start again with each song.
+                // These three belong to the room and its equipment, which do not change between
+                // songs. `update_settings` mirrors every live change of them back here, so the
+                // stored value is always the current one.
                 settings.display.lyric_offset(),
                 settings.audio.normalize_media,
                 settings.audio.normalize_midi,
@@ -2643,8 +2656,7 @@ impl Machine {
         // A MIDI song changes key and tempo in its sequencer. A recorded song needs a stretcher,
         // and gets one where the owner's setting allows it.
         //
-        // One that gets none plays at its own key and tempo. The settings go on holding the stored
-        // values through it, because `update_settings` writes them back to the file.
+        // One that gets none plays at its own key and tempo, whatever the settings hold through it.
         loaded.adjustable = adjusts(&loaded.media, adjust_recordings);
 
         // **Only a queued song is announced.** A demo song has no singer walking to a microphone
@@ -2801,16 +2813,29 @@ impl Machine {
 
     /// Unloads and reports an idle machine.
     fn go_idle(&self) {
+        // Read before the state lock, because the two locks are never held at once.
+        let (transpose, tempo_ratio) = {
+            let settings = self.lock_settings();
+            (settings.playback.transpose, settings.playback.tempo_ratio)
+        };
         let had_song = {
             let mut state = self.lock_state();
             state.announced_line = None;
             state.awaiting_stream = None;
             state.announce = None;
-            state.loaded.take().is_some()
+            let had_song = state.loaded.take().is_some();
+            // The key and the tempo leave with the song they were set for. An idle deck that
+            // nobody loaded keeps what the room set for the song to come.
+            if had_song {
+                state.settings.transpose = transpose;
+                state.settings.tempo_ratio = tempo_ratio;
+            }
+            had_song
         };
         self.engine.send(Command::Unload);
         if had_song {
             tracing::debug!("nothing left to play");
+            self.publish_settings();
         }
         // The other half of the pair with `start`: between them they cover every way a song stops
         // being the loaded one, because those are the only two places `state.loaded` is written.
@@ -4599,12 +4624,11 @@ impl Controller for Machine {
 
     fn update_settings(&self, patch: &SettingsPatch) -> Result<ApiSettings, ControlError> {
         let settings = self.apply_settings(patch)?;
-        // Mirror the live values into the persisted defaults, so a key the owner likes survives a
-        // restart. The per-song reset in `start` still applies within a session.
+        // Mirror what belongs to the room into the persisted defaults, so it survives a restart.
+        // Key and tempo belong to one song, so `playback.transpose` and `playback.tempo_ratio` stay
+        // the owner's defaults and `start` reads them for each song.
         {
             let mut stored = self.lock_settings();
-            stored.playback.transpose = settings.transpose;
-            stored.playback.tempo_ratio = settings.tempo_ratio;
             stored.playback.melody_enabled = settings.melody_enabled;
             stored.audio.music_volume = settings.music_volume;
             stored.display.lyric_offset_ms = settings.lyric_offset_ms;
@@ -7486,6 +7510,87 @@ mod tests {
         assert!(!Controller::adjust_recordings(machine.as_ref()));
         assert!(!machine.lock_settings().playback.adjust_recordings);
         assert_eq!(log.count("Set"), commands, "the player is told nothing");
+    }
+
+    fn a_key_and_a_tempo(transpose: i8, tempo_milli: u32) -> SettingsPatch {
+        SettingsPatch {
+            transpose: Some(transpose),
+            tempo_milli: Some(tempo_milli),
+            ..SettingsPatch::default()
+        }
+    }
+
+    /// The next singer does not start in the key the singer before chose.
+    #[test]
+    fn a_song_that_follows_another_starts_at_its_own_key_and_tempo() {
+        let (_scratch, machine, _log, codes) = a_machine_with_eight_songs("key-follows");
+        machine.queue_add(a_request(codes[0])).expect("queue one");
+        machine.queue_add(a_request(codes[1])).expect("queue two");
+        Controller::update_settings(machine.as_ref(), &a_key_and_a_tempo(-3, 1_100))
+            .expect("the first singer's key");
+
+        Controller::transport(machine.as_ref(), TransportCommand::Skip).expect("skip");
+
+        let live = machine.lock_state().settings;
+        let defaults = Settings::default().playback;
+        assert_eq!(live.transpose, defaults.transpose);
+        assert!((live.tempo_ratio - defaults.tempo_ratio).abs() < 0.001);
+    }
+
+    /// The stored key and tempo are the owner's defaults, and a singer's change is not written there.
+    #[test]
+    fn a_key_and_a_tempo_set_during_a_song_are_not_stored() {
+        let (_scratch, machine, _log, codes) = a_machine_with_eight_songs("key-unstored");
+        machine.queue_add(a_request(codes[0])).expect("queue");
+        Controller::update_settings(machine.as_ref(), &a_key_and_a_tempo(4, 900)).expect("a key");
+
+        let stored = machine.lock_settings().playback;
+        let defaults = Settings::default().playback;
+        assert_eq!(stored.transpose, defaults.transpose);
+        assert!((stored.tempo_ratio - defaults.tempo_ratio).abs() < 0.001);
+    }
+
+    /// A singer sets the key before the song starts, and it leaves with that song.
+    #[test]
+    fn a_key_set_on_an_idle_deck_is_for_the_next_song_and_leaves_with_it() {
+        let (_scratch, machine, log, codes) = a_machine_with_eight_songs("key-idle");
+        Controller::update_settings(machine.as_ref(), &a_key_and_a_tempo(2, 1_100))
+            .expect("a key for the song to come");
+
+        machine.queue_add(a_request(codes[0])).expect("queue");
+        let live = machine.lock_state().settings;
+        assert_eq!(live.transpose, 2);
+        assert!((live.tempo_ratio - 1.1).abs() < 0.001);
+        assert_eq!(log.count("Load"), 1);
+
+        Controller::transport(machine.as_ref(), TransportCommand::Stop).expect("stop");
+        let live = machine.lock_state().settings;
+        let defaults = Settings::default().playback;
+        assert_eq!(live.transpose, defaults.transpose);
+        assert!((live.tempo_ratio - defaults.tempo_ratio).abs() < 0.001);
+    }
+
+    /// The volume and the lyric offset belong to the room, so the next song keeps them.
+    #[test]
+    fn the_volume_and_the_lyric_offset_stay_for_the_next_song() {
+        let (_scratch, machine, _log, codes) = a_machine_with_eight_songs("room-stays");
+        machine.queue_add(a_request(codes[0])).expect("queue one");
+        machine.queue_add(a_request(codes[1])).expect("queue two");
+        Controller::update_settings(
+            machine.as_ref(),
+            &SettingsPatch {
+                music_volume_milli: Some(400),
+                lyric_offset_ms: Some(120),
+                ..SettingsPatch::default()
+            },
+        )
+        .expect("the room's settings");
+
+        Controller::transport(machine.as_ref(), TransportCommand::Skip).expect("skip");
+
+        let live = machine.lock_state().settings;
+        assert!((live.music_volume - 0.4).abs() < 0.001);
+        assert_eq!(live.lyric_offset_ms, 120);
     }
 
     #[test]
