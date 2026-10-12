@@ -548,6 +548,12 @@ singer with three counts, and the waiting requests. The pump publishes `sse::SIN
 queue column is the Queue tab's own `QueueBlock`, so the hub updates it. `Machine` has nine
 methods for the host, and each maps to one route at the control level.
 
+**The host's layout is a grid with five named areas**: the add form, the waiting requests, the
+singers, the new-evening fold and the queue. `app.css` places them in one column, in two from
+48 rem and in three from 76 rem. `#host-lists` is `display: contents`, so its two parts are grid
+items and the element is still the swap target. The larger sizes are scoped to `.host` inside the
+48 rem query. A singer's fold is a checkbox and its label, which that query overrides.
+
 **`host_add` finds the singer by `km_song::text::fold` of the typed name.** A name that matches no
 singer goes to `Machine::create_singer`. Then `Machine::request_for` asks for the song, which is
 `POST /singers/{id}/requests`.

@@ -1004,21 +1004,96 @@ label.icon-btn { display: inline-flex; align-items: center; justify-content: cen
   white-space: normal;
 }
 
-/* The host's tab: one column on a phone, and two where there is the width, because a host reads
- * the requests against the queue. */
-.host { display: grid; gap: 1rem; }
-@media (min-width: 48rem) {
-  .host { grid-template-columns: 1fr 1fr; align-items: start; }
+/* The host's tab. Five parts, placed by name: the add form, the waiting requests, the singers, the
+ * fold that starts a new evening, and the queue.
+ *
+ * One column on a phone, in the order a host works: add, then what waits, then who is here. The
+ * queue comes last there, because the Queue tab is one press away. */
+.host {
+  display: grid;
+  gap: 0.6rem 1.25rem;
+  grid-template-areas: "add" "waiting" "singers" "reset" "queue";
 }
-.host-col { min-width: 0; }
+.host > *, .host-waiting, .host-singers { min-width: 0; }
+.host-add { grid-area: add; }
+.host-waiting { grid-area: waiting; }
+.host-singers { grid-area: singers; }
+.host-reset { grid-area: reset; }
+.host-queue { grid-area: queue; }
+/* The fetched fragment draws no box of its own, so its two parts sit in the grid as two columns can
+ * need them to. It stays in the document, which is all a swap target has to do. */
+#host-lists { display: contents; }
+
+/* A tablet held upright: the queue stands beside everything else, because a host reads the
+ * requests against it. */
+@media (min-width: 48rem) {
+  .host {
+    grid-template-columns: 1fr 1fr;
+    grid-template-areas: "add queue" "waiting queue" "singers queue" "reset queue";
+    grid-template-rows: auto auto auto 1fr;
+    align-items: start;
+  }
+}
+
+/* A large tablet on its side, or a laptop: the singers get a column too, so nothing a host is
+ * watching scrolls out of sight. The middle column is the narrow one, because a singer's row is
+ * short. The width is where that column still holds a singer's three actions without crowding. */
+@media (min-width: 76rem) {
+  .host {
+    grid-template-columns: 5fr 4fr 5fr;
+    grid-template-areas: "add singers queue" "waiting singers queue" "waiting reset queue";
+    grid-template-rows: auto auto 1fr;
+  }
+}
+
 /* The queue's own toggle belongs to the Queue tab, whose checkbox it is a label for. Here the row
  * buttons are always shown, because correcting the queue is what this tab is for. */
 .host .queue-head { display: none; }
 .host-singer { padding: 0.45rem 0; border-bottom: 1px solid var(--line); }
-.host-singer summary { cursor: pointer; }
-.host-singer summary .song-sub { display: block; }
-.host-singer-actions { display: flex; flex-wrap: wrap; gap: 0.4rem; padding: 0.45rem 0 0.2rem; }
+.host-singer-head { display: flex; align-items: center; gap: 0.55rem; }
+.host-singer-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.45rem 0 0.2rem;
+}
+/* *Merge into* and the singer it names read as one phrase, so the two stay on one line. The select
+ * takes the width of its longest name and no more: at `100%` it would push the button under it. */
+.host-singer-actions form { flex-wrap: nowrap; min-width: 0; }
+.host-singer-actions select { width: auto; min-width: 0; max-width: 11rem; }
+/* The one that takes a singer out stands apart from the two that do not. */
+.host-singer-actions > .danger { margin-left: auto; }
+/* A singer's three actions are folded away on a phone, where the row has no room for them. */
+.host-singer input:not(:checked) ~ .host-singer-actions { display: none; }
+.host-singer:has(input:checked) .actions-toggle { color: var(--amber); border-color: var(--amber); }
+.host-singer:has(input:focus-visible) .actions-toggle { outline: 2px solid var(--amber); outline-offset: 2px; }
 .closed { color: var(--amber); font-weight: 600; }
+
+/* **From a tablet's width up this is a desk tool, and it is sized for a hand that taps all night.**
+ * The buttons grow past the phone's size and stand further apart, because the three on a waiting
+ * request sit side by side and the third one declines. The titles grow so a host reads them at
+ * arm's length. Scoped to `.host`, so the tab bar and every other page keep the phone's sizes. */
+@media (min-width: 48rem) {
+  .host .icon-btn {
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+    padding: 0.2rem 0.7rem;
+    font-size: 1.05rem;
+  }
+  .host .song-actions { gap: 0.6rem; }
+  .host .song-name { font-size: 1.1rem; }
+  .host .song-sub, .host .queue-wait { font-size: 0.9rem; }
+  .host .queue-row { padding: 0.7rem 0; }
+  .host .list-head { font-size: 0.9rem; }
+  .host input[type="text"], .host input[type="search"], .host select {
+    min-height: 2.75rem;
+    font-size: 1.05rem;
+  }
+  /* There is room on the row, so a singer's actions need no fold. */
+  .host .host-singer .actions-toggle { display: none; }
+  .host .host-singer input ~ .host-singer-actions { display: flex; }
+}
 
 /* A phone's own songs sit above the queue under a small heading, so the two lists read as two. */
 .list-head {

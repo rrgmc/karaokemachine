@@ -1,5 +1,8 @@
+{# Two parts in one fragment, because one fetch brings both. The fragment itself draws no box, so
+   each part is placed in the host's grid as a column of its own. #}
 <div id="host-lists" hx-get="/host/lists" hx-trigger="km:requests from:body, km:singers from:body" hx-swap="outerHTML">
 
+  <div class="host-waiting">
   {# Whether a phone may ask. What already waits still goes into the queue, and this tab still adds. #}
   <div class="pref-row field-row">
     {% if accepting %}
@@ -35,37 +38,47 @@
   </ul>
   {% endif %}
 
+  </div>
+
+  <div class="host-singers">
   <h2 class="list-head">{{ "host-singers"|t }}</h2>
   {% if singers.is_empty() %}
   <p class="empty">{{ "host-singers-none"|t }}</p>
   {% else %}
   <ul class="song-list">
     {% for singer in singers %}
+    {# The three actions are folded behind the ⋯ on a phone, where a row has no room for them, and
+       shown on the row from a tablet's width up. A checkbox and its label, so the fold needs no
+       script. #}
     <li class="host-singer">
-      <details>
-        <summary>
-          <span class="song-name">{{ singer.label }}</span>
-          <span class="song-sub">{% if !singer.phone %}{{ "host-no-phone"|t }} &middot; {% endif %}{{ singer.counts }}</span>
-        </summary>
+      <div class="host-singer-head">
+        <div class="queue-body">
+          <div class="song-name">{{ singer.label }}</div>
+          <div class="song-sub">{% if !singer.phone %}{{ "host-no-phone"|t }} &middot; {% endif %}{{ singer.counts }}</div>
+        </div>
+        <label for="host-singer-{{ singer.id }}" class="icon-btn actions-toggle"
+               title="{{ "row-actions"|t }}">&hellip;</label>
+      </div>
+      <input type="checkbox" id="host-singer-{{ singer.id }}" class="visually-hidden" autocomplete="off">
         <div class="host-singer-actions">
           {% if singer.named %}
           <button class="icon-btn" hx-post="/host/singers/{{ singer.id }}/reissue" hx-target="#host-lists" hx-swap="outerHTML">{{ "host-reissue"|t }}</button>
           {% endif %}
           {% if singers.len() > 1 %}
           <form class="field-row" hx-post="/host/singers/{{ singer.id }}/merge" hx-target="#host-lists" hx-swap="outerHTML">
+            <button class="icon-btn">{{ "host-merge"|t }}</button>
             <select name="into" aria-label="{{ "host-merge"|t }}">
               {% for other in singers %}{% if other.id != singer.id %}
               <option value="{{ other.id }}">{{ other.label }}</option>
               {% endif %}{% endfor %}
             </select>
-            <button class="icon-btn">{{ "host-merge"|t }}</button>
           </form>
           {% endif %}
           <button class="icon-btn danger" hx-post="/host/singers/{{ singer.id }}/remove" hx-target="#host-lists" hx-swap="outerHTML">{{ "host-remove"|t }}</button>
         </div>
-      </details>
     </li>
     {% endfor %}
   </ul>
   {% endif %}
+  </div>
 </div>
