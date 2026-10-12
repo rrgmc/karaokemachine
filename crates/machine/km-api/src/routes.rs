@@ -101,6 +101,8 @@ pub fn needs_admin_token(path: &str) -> bool {
 /// * A read needs [`Access::View`], and so do the two login routes.
 /// * The two debug play routes need [`Access::View`]. They exist only in debugging mode, and a
 ///   curation tool drives them with no token. On means open; off means absent.
+/// * `POST /singers` and `PUT /singers/{id}/name` need [`Access::Request`]. They register a singer
+///   and name one, and the second also asks for the seat's own token.
 /// * `POST /queue` and `PUT /settings` need [`Access::Queue`]. They add a song and turn a singer's
 ///   knobs: key, tempo, volume, melody and lyric offset.
 /// * **Every other write needs [`Access::Control`], including one added tomorrow.** A new route is
@@ -123,9 +125,21 @@ pub fn required_access(method: &Method, path: &str) -> Access {
     }
     match (method.as_str(), rest) {
         ("POST", "/debug/play-file" | "/debug/play-upload") => Access::View,
+        ("POST", "/singers") => Access::Request,
+        ("PUT", path) if is_singer_name(path) => Access::Request,
         ("POST", "/queue") | ("PUT", "/settings") => Access::Queue,
         _ => Access::Control,
     }
+}
+
+/// Whether a path under [`API_PREFIX`] is one singer's name, `/singers/{id}/name`.
+///
+/// The one route here with a parameter in the middle, so it is matched by its two ends. The seat's
+/// token in the body is what proves the caller, and the level only lets the request in.
+fn is_singer_name(path: &str) -> bool {
+    path.strip_prefix("/singers/")
+        .and_then(|rest| rest.strip_suffix("/name"))
+        .is_some_and(|id| !id.is_empty() && !id.contains('/'))
 }
 
 /// Whether the development console and its API are served at all.
@@ -163,6 +177,10 @@ pub const SURFACE: &[(&str, &str)] = &[
     ("DELETE", "/queue"),
     ("DELETE", "/queue/0"),
     ("POST", "/queue/0/move"),
+    ("GET", "/singers"),
+    ("POST", "/singers"),
+    ("PUT", "/singers/0/name"),
+    ("POST", "/singers/0/reissue"),
     ("POST", "/transport/play"),
     ("POST", "/transport/pause"),
     ("POST", "/transport/skip"),
@@ -565,6 +583,12 @@ fn api_router(config: &crate::ApiConfig, capabilities: Capabilities) -> Router<A
         )
         .route("/queue/{entry_id}", delete(handlers::remove_from_queue))
         .route("/queue/{entry_id}/move", post(handlers::move_in_queue))
+        .route(
+            "/singers",
+            get(handlers::get_singers).post(handlers::register_singer),
+        )
+        .route("/singers/{id}/name", put(handlers::rename_singer))
+        .route("/singers/{id}/reissue", post(handlers::reissue_singer))
         .route("/transport/play", post(handlers::play))
         .route("/transport/pause", post(handlers::pause))
         .route("/transport/skip", post(handlers::skip))
@@ -964,6 +988,12 @@ mod tests {
             (Method::POST, LOGIN_PATH, Access::View),
             (Method::POST, ADMIN_LOGIN_PATH, Access::View),
             (Method::POST, "/api/v1/queue", Access::Queue),
+            (Method::GET, "/api/v1/singers", Access::View),
+            (Method::POST, "/api/v1/singers", Access::Request),
+            (Method::PUT, "/api/v1/singers/7/name", Access::Request),
+            (Method::PUT, "/api/v1/singers//name", Access::Control),
+            (Method::PUT, "/api/v1/singers/7/8/name", Access::Control),
+            (Method::POST, "/api/v1/singers/7/reissue", Access::Control),
             (Method::PUT, "/api/v1/settings", Access::Queue),
             (Method::POST, "/api/v1/transport/skip", Access::Control),
             (Method::POST, "/api/v1/transport/pause", Access::Control),

@@ -3627,6 +3627,7 @@ mod tests {
             artist: None,
             singer: None,
             duration_ms: 180_000,
+            seat: None,
             ahead_ms: Some(ahead_ms),
         };
         let mut feed = QueueFeed {
@@ -3667,6 +3668,7 @@ mod tests {
             artist: None,
             singer: None,
             duration_ms,
+            seat: None,
             ahead_ms: Some(ahead_ms),
         };
         let mut feed = QueueFeed {

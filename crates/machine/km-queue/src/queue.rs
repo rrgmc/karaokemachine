@@ -27,6 +27,10 @@ pub struct QueueEntry {
     pub singer: Option<String>,
     /// Length in milliseconds, so the display and the API state a wait without the catalog.
     pub duration_ms: u32,
+    /// The seat of the singer it belongs to, or `None` for a song with no singer.
+    ///
+    /// [`Self::singer`] is the label people read, and this is the identity. See [`crate::seats`].
+    pub seat: Option<u64>,
 }
 
 impl QueueEntry {
@@ -61,6 +65,8 @@ pub struct QueueRequest {
     pub singer: Option<String>,
     /// Length in milliseconds, as the catalog reports it.
     pub duration_ms: u32,
+    /// The seat of the singer it belongs to, or `None` for a song with no singer.
+    pub seat: Option<u64>,
 }
 
 /// How many songs may wait.
@@ -126,6 +132,7 @@ impl Queue {
             artist: request.artist,
             singer: request.singer,
             duration_ms: request.duration_ms,
+            seat: request.seat,
         });
         Ok(id)
     }
@@ -168,6 +175,11 @@ impl Queue {
         self.entries.iter().position(|entry| entry.id == id)
     }
 
+    /// Whether a seat has a song waiting here.
+    pub fn holds_seat(&self, seat: u64) -> bool {
+        self.entries.iter().any(|entry| entry.seat == Some(seat))
+    }
+
     /// Whether a song number is already waiting.
     ///
     /// Duplicates are allowed — two people may genuinely want the same song — but a remote may want
@@ -188,6 +200,7 @@ mod tests {
             artist: Some("Someone".to_owned()),
             singer: None,
             duration_ms: 180_000,
+            seat: None,
         }
     }
 
@@ -362,6 +375,7 @@ mod tests {
                 artist: Some("Cazuza".to_owned()),
                 singer: Some("Ana".to_owned()),
                 duration_ms: 0,
+                seat: None,
             })
             .expect("add");
         let entry = queue.entries().find(|e| e.id == id).expect("entry");
@@ -379,8 +393,28 @@ mod tests {
             artist: None,
             singer: None,
             duration_ms: 0,
+            seat: None,
         };
         assert_eq!(bare.label(), "1  Just A Title");
+    }
+
+    #[test]
+    fn a_seat_holds_a_song_while_one_of_its_entries_waits() {
+        let mut queue = Queue::new();
+        queue.add(request(1)).expect("add");
+        let id = queue
+            .add(QueueRequest {
+                seat: Some(7),
+                ..request(2)
+            })
+            .expect("add");
+        assert!(queue.holds_seat(7));
+        assert!(
+            !queue.holds_seat(8),
+            "a song with no singer belongs to no seat"
+        );
+        queue.remove(id);
+        assert!(!queue.holds_seat(7));
     }
 
     #[test]

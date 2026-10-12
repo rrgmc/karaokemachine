@@ -45,6 +45,7 @@ use km_kmpkg::Package;
 use km_queue::Transport;
 use km_queue::mics::{MicBus, MicChannel, MicPatch, MicRegistry};
 use km_queue::queue::{Queue, QueueEntry, QueueFull, QueueRequest};
+use km_queue::seats::{Issued, Seat, SeatError, SeatName, Seats};
 use km_song::{ParseOptions, Song};
 use km_songcode::SongCode;
 
@@ -624,6 +625,9 @@ struct AuditionSweep {
 #[derive(Debug)]
 struct State {
     queue: Queue,
+    /// The evening's singers. Under the queue's lock, because whether a name is free depends on
+    /// what its seat has queued.
+    seats: Seats,
     loaded: Option<Loaded>,
     settings: ApiSettings,
     mics: MicRegistry,
@@ -974,6 +978,7 @@ impl Machine {
             advancing: Mutex::new(()),
             state: Mutex::new(State {
                 queue: Queue::new(),
+                seats: Seats::new(),
                 loaded: None,
                 settings: playback,
                 mics,
@@ -4460,6 +4465,31 @@ impl Controller for Machine {
         }
     }
 
+    fn seats(&self) -> Vec<Seat> {
+        self.lock_state().seats.seats().cloned().collect()
+    }
+
+    fn seat_register(
+        &self,
+        device: &str,
+        name: Option<SeatName>,
+        token: String,
+    ) -> Result<Issued, SeatError> {
+        // Read before the state is locked, so the two locks are never held together.
+        let rules = self.lock_settings().singers.rules();
+        let mut state = self.lock_state();
+        let State { seats, queue, .. } = &mut *state;
+        seats.register(device, name, token, rules, |id| queue.holds_seat(id))
+    }
+
+    fn seat_rename(&self, id: u64, token: &str, name: SeatName) -> Result<Seat, SeatError> {
+        self.lock_state().seats.rename(id, token, name)
+    }
+
+    fn seat_reissue(&self, id: u64, token: String) -> Result<Issued, SeatError> {
+        self.lock_state().seats.reissue(id, token)
+    }
+
     fn queue_clear(&self) -> Result<usize, ControlError> {
         self.arm_demo(DemoEvent::Somebody);
         // `Queue::clear` rather than popping until empty, which is what this did while that method
@@ -6985,6 +7015,7 @@ mod tests {
             artist: Some("A Singer".to_owned()),
             singer: None,
             duration_ms: 200_000,
+            seat: None,
         }
     }
 

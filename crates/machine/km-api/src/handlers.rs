@@ -34,10 +34,10 @@ use crate::dto::{
     AdminPasswordDto, AdminPasswordRequest, BankDto, BankRequest, DebugDto, DebugRequest, ErrorDto,
     ExportParams, InstallReportDto, InstallRequest, LoginRequest, LoginResponse, LyricsDto,
     MachineLocaleRequest, MachineNameRequest, MicPatchDto, MicsDto, MoveRequest, PackageDto,
-    PackagesDto, PlayFileRequest, PowerDto, QueueDto, RoomAccessRequest, SearchParams,
-    SearchResponse, SeekRequest, SetDemoDelayRequest, SetDemoRequest, SettingsDto,
-    SettingsPatchDto, SongDto, StateDto, UninstallDto, UploadReportDto, effective_limit,
-    export_limit,
+    PackagesDto, PlayFileRequest, PowerDto, QueueDto, RegisterSingerRequest, RenameSingerRequest,
+    RoomAccessRequest, SearchParams, SearchResponse, SeekRequest, SetDemoDelayRequest,
+    SetDemoRequest, SettingsDto, SettingsPatchDto, SingerDto, SingerIssuedDto, SingersDto, SongDto,
+    StateDto, UninstallDto, UploadReportDto, effective_limit, export_limit,
 };
 use crate::error::{ApiError, ApiResult};
 use crate::events::Event;
@@ -552,6 +552,42 @@ pub async fn add_to_queue(
     })
     .await?;
     Ok((axum::http::StatusCode::CREATED, Json(added)))
+}
+
+/// `GET /api/v1/singers`
+pub async fn get_singers(State(state): State<ApiState>) -> Json<SingersDto> {
+    Json(ops::singers(&state))
+}
+
+/// `POST /api/v1/singers`
+pub async fn register_singer(
+    State(state): State<ApiState>,
+    Body(body): Body<RegisterSingerRequest>,
+) -> ApiResult<(axum::http::StatusCode, Json<SingerIssuedDto>)> {
+    let issued = ops::register_singer(&state, &body.device, body.name.as_deref())?;
+    Ok((axum::http::StatusCode::CREATED, Json(issued)))
+}
+
+/// `PUT /api/v1/singers/{id}/name`
+pub async fn rename_singer(
+    State(state): State<ApiState>,
+    Segment(id): Segment<u64>,
+    Body(body): Body<RenameSingerRequest>,
+) -> ApiResult<Json<SingerDto>> {
+    Ok(Json(ops::rename_singer(
+        &state,
+        id,
+        &body.token,
+        &body.name,
+    )?))
+}
+
+/// `POST /api/v1/singers/{id}/reissue`
+pub async fn reissue_singer(
+    State(state): State<ApiState>,
+    Segment(id): Segment<u64>,
+) -> ApiResult<Json<SingerIssuedDto>> {
+    Ok(Json(ops::reissue_singer(&state, id)?))
 }
 
 /// `DELETE /api/v1/queue/{entry_id}`

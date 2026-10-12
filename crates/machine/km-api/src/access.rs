@@ -1,8 +1,8 @@
 //! Who may do what: five levels, and what decides a caller's.
 //!
 //! **Five levels, in a fixed order, and each one includes the ones below it.** A viewer sees the
-//! catalog, the queue and the screen. A requester stands between a viewer and a queuer, and no
-//! route needs that level. A queuer also adds a song and turns a singer's knobs: key,
+//! catalog, the queue and the screen. A requester also registers a singer and names one. A queuer
+//! also adds a song and turns a singer's knobs: key,
 //! tempo, volume, melody and lyric offset. A controller also interrupts: skip, play now, the other
 //! transport buttons, and moving or removing anybody's queue entry. The admin also reconfigures the
 //! machine.
@@ -24,11 +24,10 @@ use serde::{Deserialize, Serialize};
 pub enum Access {
     /// Sees the catalog, the queue and what is playing. Changes nothing.
     View,
-    /// The level between a viewer and a queuer.
+    /// Registers a singer, and names one.
     ///
-    /// **Nothing needs it and nothing grants it.** [`crate::routes::required_access`] names no
-    /// route at this level, so it opens what [`Self::View`] opens. No room is given it and no code
-    /// buys it, so no caller holds it.
+    /// **Nothing grants it by itself.** No room is given it and no code buys it, so a caller
+    /// reaches its routes by holding [`Self::Queue`] or more.
     Request,
     /// Adds a song to the queue, and turns a singer's knobs.
     ///
@@ -55,7 +54,7 @@ impl Access {
     /// The levels a room may be given.
     ///
     /// The admin level is never one of them. [`Self::Request`] is not one either, because a room at
-    /// a level that opens nothing more than [`Self::View`] would be a second name for that level.
+    /// that level registers singers and has no route to ask for a song with.
     pub const ROOM: [Self; 3] = [Self::View, Self::Queue, Self::Control];
 
     /// The word for this level, as it appears in JSON, in a token and in `settings.json`.
@@ -83,7 +82,7 @@ impl Access {
     ///
     /// A settings file is typed by hand, so it can name a level no room holds. The admin level is
     /// read as [`Self::Control`], the highest a room may hold. [`Self::Request`] is read as
-    /// [`Self::View`], which is all it opens.
+    /// [`Self::View`], the room level below it.
     #[must_use]
     pub fn as_room(self) -> Self {
         match self {
@@ -150,7 +149,7 @@ mod tests {
         }
     }
 
-    /// The request level opens nothing of its own, so nothing hands it out.
+    /// No room is given the request level and no code buys it.
     #[test]
     fn nothing_grants_the_request_level() {
         assert!(!Access::Request.is_room_level());

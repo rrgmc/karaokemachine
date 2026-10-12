@@ -21,6 +21,7 @@ use km_catalog::{CatalogSong, DuplicateContent, InstallReport, InstalledPackage}
 use km_queue::Transport;
 use km_queue::mics::{MicBus, MicChannel, MicPatch, MicRegistry};
 use km_queue::queue::{Queue, QueueEntry, QueueFull, QueueRequest};
+use km_queue::seats::{Issued, Seat, SeatError, SeatName, SeatRules, Seats};
 use km_song::{ParseOptions, Song};
 use km_songcode::SongCode;
 
@@ -212,6 +213,9 @@ struct Inner {
     packages: Vec<InstalledPackage>,
     problems: Vec<PackageProblem>,
     queue: Queue,
+    seats: Seats,
+    /// What a real machine reads from its settings.
+    seat_rules: SeatRules,
     transport: Transport,
     now_playing: Option<NowPlaying>,
     position_ms: u32,
@@ -397,6 +401,8 @@ impl TestMachine {
                 dev_remote_stored: false,
                 output_level: None,
                 queue: Queue::new(),
+                seats: Seats::new(),
+                seat_rules: SeatRules::default(),
                 transport: Transport::Idle,
                 now_playing: None,
                 position_ms: 0,
@@ -645,6 +651,11 @@ impl TestMachine {
     /// Wraps this machine in an `Arc`, as the router wants it.
     pub fn shared(self) -> Arc<Self> {
         Arc::new(self)
+    }
+
+    /// Sets the owner's rules for registering a singer, which a real machine reads from settings.
+    pub fn set_seat_rules(&self, rules: SeatRules) {
+        self.lock().seat_rules = rules;
     }
 
     /// Installs a fault so an error path can be exercised.
@@ -1212,6 +1223,30 @@ impl Controller for TestMachine {
         let removed = inner.queue.len();
         while inner.queue.pop().is_some() {}
         Ok(removed)
+    }
+
+    fn seats(&self) -> Vec<Seat> {
+        self.lock().seats.seats().cloned().collect()
+    }
+
+    fn seat_register(
+        &self,
+        device: &str,
+        name: Option<SeatName>,
+        token: String,
+    ) -> Result<Issued, SeatError> {
+        let mut inner = self.lock();
+        let rules = inner.seat_rules;
+        let Inner { seats, queue, .. } = &mut *inner;
+        seats.register(device, name, token, rules, |id| queue.holds_seat(id))
+    }
+
+    fn seat_rename(&self, id: u64, token: &str, name: SeatName) -> Result<Seat, SeatError> {
+        self.lock().seats.rename(id, token, name)
+    }
+
+    fn seat_reissue(&self, id: u64, token: String) -> Result<Issued, SeatError> {
+        self.lock().seats.reissue(id, token)
     }
 
     fn transport(&self, command: TransportCommand) -> Result<(), ControlError> {
@@ -1929,6 +1964,7 @@ mod tests {
             artist: None,
             singer: None,
             duration_ms: 180_000,
+            seat: None,
         }
     }
 

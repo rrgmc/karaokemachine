@@ -317,6 +317,7 @@ it are the same entry. How the thing is built is [`ARCHITECTURE.md`](../ARCHITEC
 ## [The API and the network](api-and-network.md)
 
 - [The URL prefix is the permission](api-and-network.md#the-url-prefix-is-the-permission)
+- [A singer is a seat, and a token proves it](api-and-network.md#a-singer-is-a-seat-and-a-token-proves-it)
 - [Four access levels, and the method and path decide them](api-and-network.md#four-access-levels-and-the-method-and-path-decide-them)
 - [Network reach](api-and-network.md#network-reach)
 - [The machine holds its port, rather than claiming it once](api-and-network.md#the-machine-holds-its-port-rather-than-claiming-it-once)

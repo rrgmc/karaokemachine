@@ -631,7 +631,7 @@ pub fn generate_factory_pin() -> String {
 /// # Panics
 ///
 /// If the operating system will not produce entropy — see [`generate_factory_pin`].
-fn random_hex(bytes: usize) -> String {
+pub(crate) fn random_hex(bytes: usize) -> String {
     let mut buffer = vec![0_u8; bytes];
     getrandom::fill(&mut buffer)
         .expect("the OS must be able to produce entropy for a bearer token");

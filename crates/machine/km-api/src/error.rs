@@ -195,6 +195,32 @@ impl From<ControlError> for ApiError {
     }
 }
 
+impl From<km_queue::SeatError> for ApiError {
+    /// A refusal a singer can provoke is a 409 with a code, so a remote says it in its own words.
+    ///
+    /// A wrong token is a 403 and never a 401: a level's token would not help, and the seat's own
+    /// token is the thing the caller does not hold.
+    fn from(error: km_queue::SeatError) -> Self {
+        use km_queue::SeatError;
+        let conflict = |code| Self::Conflict {
+            code,
+            message: error.to_string(),
+        };
+        match error {
+            SeatError::NameTaken => conflict("name_taken"),
+            SeatError::NameRequired => conflict("name_required"),
+            SeatError::UnnamedTaken => conflict("unnamed_taken"),
+            SeatError::DeviceFull => conflict("device_full"),
+            SeatError::Full => conflict("singers_full"),
+            SeatError::NameUnusable | SeatError::DeviceUnusable => {
+                Self::BadRequest(error.to_string())
+            }
+            SeatError::NotFound => Self::not_found("singer"),
+            SeatError::WrongToken => Self::Forbidden(error.to_string()),
+        }
+    }
+}
+
 impl From<crate::power::PowerError> for ApiError {
     fn from(error: crate::power::PowerError) -> Self {
         use crate::power::PowerError;

@@ -26,6 +26,7 @@ use km_catalog::{CatalogSong, DuplicateContent, InstallReport, InstalledPackage}
 use km_queue::Transport;
 use km_queue::mics::{MicChannel, MicPatch};
 use km_queue::queue::QueueEntry;
+use km_queue::seats::Seat;
 use km_song::Song;
 use km_song::timeline::LyricGranularity;
 use km_songcode::SongCode;
@@ -792,6 +793,11 @@ pub struct QueueEntryDto {
     /// would read as a turn that is about to come.
     #[serde(default)]
     pub ahead_ms: Option<u64>,
+    /// The seat of the singer it belongs to, or `None` for a song with no singer.
+    ///
+    /// A phone picks out its own singers' songs by this id, because a name is a label.
+    #[serde(default)]
+    pub seat: Option<u64>,
 }
 
 /// The queue.
@@ -822,12 +828,79 @@ impl QueueDto {
                     singer: entry.singer.clone(),
                     duration_ms: entry.duration_ms,
                     ahead_ms: Some(ahead_ms),
+                    seat: entry.seat,
                 })
                 .collect(),
             len: entries.len(),
             capacity: km_queue::queue::MAX_QUEUED,
         }
     }
+}
+
+/// One of the evening's singers.
+///
+/// **Never the token.** A token is handed to the caller that registered the seat and to nobody
+/// else, so no list carries one.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SingerDto {
+    /// Opaque, stable for the evening. Never reused.
+    pub id: u64,
+    /// The name people see, when the singer gave one.
+    pub name: Option<String>,
+    /// The number of a singer who gave no name, as in `Guest 4`. A client words the label.
+    pub guest: Option<u32>,
+}
+
+impl From<&Seat> for SingerDto {
+    fn from(seat: &Seat) -> Self {
+        Self {
+            id: seat.id,
+            name: seat.name.clone(),
+            guest: seat.guest,
+        }
+    }
+}
+
+/// `GET /singers`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SingersDto {
+    /// The singers, in the order each registered.
+    pub singers: Vec<SingerDto>,
+    /// The cap, so a client need not hard-code it.
+    pub capacity: usize,
+}
+
+/// `POST /singers`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RegisterSingerRequest {
+    /// An id the remote makes for its device and sends each time.
+    ///
+    /// It counts a device's singers, and it holds the device's one unnamed singer. A remote that
+    /// sends a new id escapes both, so the count stops a mistake and not a cheat.
+    pub device: String,
+    /// The name, or none for a singer who gives none.
+    #[serde(default)]
+    pub name: Option<String>,
+}
+
+/// What `POST /singers` and `POST /singers/{id}/reissue` return.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SingerIssuedDto {
+    /// The singer.
+    pub singer: SingerDto,
+    /// What proves the seat from now on. Any token it held before has ended.
+    pub token: String,
+}
+
+/// `PUT /singers/{id}/name`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RenameSingerRequest {
+    /// The seat's token, which is the proof.
+    pub token: String,
+    /// The new name.
+    pub name: String,
 }
 
 /// `POST /queue`.
@@ -2354,6 +2427,7 @@ mod tests {
                 artist: None,
                 singer: Some("Ana".to_owned()),
                 duration_ms: 180_000,
+                seat: None,
             },
             QueueEntry {
                 id: 9,
@@ -2362,6 +2436,7 @@ mod tests {
                 artist: Some("Band".to_owned()),
                 singer: None,
                 duration_ms: 240_000,
+                seat: None,
             },
         ];
         let dto = QueueDto::new(&entries);
@@ -2381,6 +2456,7 @@ mod tests {
             artist: None,
             singer: None,
             duration_ms,
+            seat: None,
         };
         let dto = QueueDto::new(&[entry(1, 180_000), entry(2, 240_000), entry(3, 200_000)]);
         let figures: Vec<(u32, Option<u64>)> = dto

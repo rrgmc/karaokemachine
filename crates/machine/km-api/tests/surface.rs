@@ -5088,3 +5088,250 @@ async fn a_melody_channel_past_sixteen_is_a_400() {
             .any(|entry| matches!(entry, Recorded::PlayFile(_)))
     );
 }
+
+// -- singers -------------------------------------------------------------------------------------
+
+/// Registers a singer and answers with the id and the token.
+async fn register(harness: &Harness, device: &str, name: Option<&str>) -> (u64, String) {
+    let (status, body) = harness
+        .post("/singers", json!({ "device": device, "name": name }))
+        .await;
+    assert_eq!(status, StatusCode::CREATED, "{body}");
+    (
+        body["singer"]["id"].as_u64().expect("an id"),
+        body["token"].as_str().expect("a token").to_owned(),
+    )
+}
+
+/// A song in the queue that belongs to a seat, which is what makes its name refuse a second phone.
+fn queue_a_song_for(harness: &Harness, seat: u64) {
+    use km_api::Controller as _;
+    harness
+        .machine
+        .queue_add(km_queue::QueueRequest {
+            number: "1001".parse().expect("a song number"),
+            title: "Something".to_owned(),
+            artist: None,
+            singer: None,
+            duration_ms: 180_000,
+            seat: Some(seat),
+        })
+        .expect("the queue takes it");
+}
+
+#[tokio::test]
+async fn a_singer_registers_and_the_list_never_carries_a_token() {
+    let harness = Harness::new();
+    let (status, body) = harness
+        .post("/singers", json!({ "device": "phone-a", "name": " Ana " }))
+        .await;
+    assert_eq!(status, StatusCode::CREATED, "{body}");
+    assert_eq!(body["singer"]["name"], "Ana", "the name is trimmed");
+    assert_eq!(body["singer"]["guest"], Value::Null);
+    let token = body["token"].as_str().expect("a token");
+    assert_eq!(token.len(), 32, "sixteen random bytes, in hex");
+
+    let (status, list) = harness.get("/singers").await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(list["singers"][0]["name"], "Ana");
+    assert_eq!(list["capacity"], km_queue::MAX_SEATS);
+    assert!(
+        !list.to_string().contains(token),
+        "a token is for the caller that registered and nobody else: {list}"
+    );
+}
+
+#[tokio::test]
+async fn a_singer_with_no_name_gets_a_number_and_a_device_holds_one_of_them() {
+    let harness = Harness::new();
+    let (status, first) = harness
+        .post("/singers", json!({ "device": "phone-a" }))
+        .await;
+    assert_eq!(status, StatusCode::CREATED, "{first}");
+    assert_eq!(first["singer"]["name"], Value::Null);
+    assert_eq!(first["singer"]["guest"], 1);
+
+    // A name of spaces alone is no name.
+    let (status, again) = harness
+        .post("/singers", json!({ "device": "phone-a", "name": "   " }))
+        .await;
+    assert_eq!(status, StatusCode::CONFLICT);
+    assert_eq!(again["error"], "unnamed_taken");
+
+    let (_, second) = harness
+        .post("/singers", json!({ "device": "tablet-b" }))
+        .await;
+    assert_eq!(second["singer"]["guest"], 2);
+}
+
+/// The comparison ignores case, surrounding spaces and accents, and the seat's song is what holds
+/// the name against a second phone.
+#[tokio::test]
+async fn a_held_name_is_refused_while_its_seat_holds_a_song() {
+    let harness = Harness::new();
+    let (ana, first_token) = register(&harness, "phone-a", Some("Ana")).await;
+    queue_a_song_for(&harness, ana);
+
+    let (status, body) = harness
+        .post("/singers", json!({ "device": "tablet-b", "name": " aná " }))
+        .await;
+    assert_eq!(status, StatusCode::CONFLICT);
+    assert_eq!(body["error"], "name_taken");
+
+    // The song leaves the queue, and the name comes back with a new token.
+    harness.delete("/queue").await;
+    let (again, second_token) = register(&harness, "tablet-b", Some("ANA")).await;
+    assert_eq!(again, ana, "the same seat");
+    assert_ne!(second_token, first_token);
+
+    let (status, _) = harness
+        .put(
+            &format!("/singers/{ana}/name"),
+            json!({ "token": first_token, "name": "Beto" }),
+        )
+        .await;
+    assert_eq!(status, StatusCode::FORBIDDEN, "the old token has ended");
+}
+
+#[tokio::test]
+async fn a_rename_needs_the_seats_token_and_a_free_name() {
+    let harness = Harness::new();
+    let (guest, token) = register(&harness, "phone-a", None).await;
+    register(&harness, "tablet-b", Some("Ana")).await;
+    let path = format!("/singers/{guest}/name");
+
+    let (status, _) = harness
+        .put(&path, json!({ "token": "0000", "name": "Beto" }))
+        .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+
+    let (status, body) = harness
+        .put(&path, json!({ "token": token, "name": "ana" }))
+        .await;
+    assert_eq!(status, StatusCode::CONFLICT);
+    assert_eq!(body["error"], "name_taken");
+
+    let (status, _) = harness
+        .put(&path, json!({ "token": token, "name": "  " }))
+        .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+
+    let (status, body) = harness
+        .put(&path, json!({ "token": token, "name": "Beto" }))
+        .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(body["id"], guest, "the same seat");
+    assert_eq!(body["name"], "Beto");
+
+    let (status, _) = harness
+        .put(
+            "/singers/9999/name",
+            json!({ "token": token, "name": "Caio" }),
+        )
+        .await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+}
+
+/// The reissue asks for no proof, so the control level is the check.
+#[tokio::test]
+async fn a_reissue_needs_the_control_level_and_ends_the_old_token() {
+    let config = ApiConfig::default()
+        .without_mdns()
+        .with_password(SWEEP_PASSWORD)
+        .expect("argon2 hashes a password")
+        .with_codes("sweep-queue", "sweep-control")
+        .expect("argon2 hashes a code");
+    let mut harness = Harness::with_config(config).tokenless();
+    let (ana, first_token) = register(&harness, "phone-a", Some("Ana")).await;
+    queue_a_song_for(&harness, ana);
+    let path = format!("/singers/{ana}/reissue");
+
+    // The room is at the queue level, which registers and does not reissue.
+    let (status, _) = harness.request(Method::POST, &path, None).await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+
+    harness.token = harness
+        .state
+        .auth()
+        .issue_for(Access::Control)
+        .map(|grant| grant.token);
+    let (status, body) = harness.request(Method::POST, &path, None).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(body["singer"]["id"], ana);
+    let second_token = body["token"].as_str().expect("a token").to_owned();
+    assert_ne!(second_token, first_token);
+
+    let name = format!("/singers/{ana}/name");
+    let (status, _) = harness
+        .put(&name, json!({ "token": first_token, "name": "Beto" }))
+        .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+    let (status, _) = harness
+        .put(&name, json!({ "token": second_token, "name": "Beto" }))
+        .await;
+    assert_eq!(status, StatusCode::OK);
+
+    let (status, _) = harness
+        .request(Method::POST, "/singers/9999/reissue", None)
+        .await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn the_owners_two_rules_refuse_with_a_code_of_their_own() {
+    let harness = Harness::new();
+    harness.machine.set_seat_rules(km_queue::SeatRules {
+        name_required: true,
+        max_per_device: Some(1),
+    });
+
+    let (status, body) = harness
+        .post("/singers", json!({ "device": "phone-a" }))
+        .await;
+    assert_eq!(status, StatusCode::CONFLICT);
+    assert_eq!(body["error"], "name_required");
+
+    register(&harness, "phone-a", Some("Ana")).await;
+    let (status, body) = harness
+        .post("/singers", json!({ "device": "phone-a", "name": "Beto" }))
+        .await;
+    assert_eq!(status, StatusCode::CONFLICT);
+    assert_eq!(body["error"], "device_full");
+}
+
+/// A room at the view level reads the singers and registers none.
+#[tokio::test]
+async fn a_viewer_reads_the_singers_and_registers_none() {
+    let harness = Harness::with_config(
+        ApiConfig::default()
+            .without_mdns()
+            .with_password(SWEEP_PASSWORD)
+            .expect("argon2 hashes a password")
+            .with_room_access(Access::View),
+    )
+    .tokenless();
+
+    let (status, _) = harness.get("/singers").await;
+    assert_eq!(status, StatusCode::OK);
+    let (status, _) = harness
+        .post("/singers", json!({ "device": "phone-a", "name": "Ana" }))
+        .await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn a_registration_that_cannot_be_used_is_a_400() {
+    let harness = Harness::new();
+    for body in [
+        json!({ "device": "", "name": "Ana" }),
+        json!({ "device": "phone-a", "name": "!!!" }),
+        json!({ "device": "phone-a", "name": "a".repeat(41) }),
+        json!({ "device": "phone-a", "singer": "Ana" }),
+        json!({ "name": "Ana" }),
+    ] {
+        let (status, answer) = harness.post("/singers", body.clone()).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{body} answered {answer}");
+    }
+    let (_, list) = harness.get("/singers").await;
+    assert_eq!(list["singers"], json!([]));
+}
