@@ -116,6 +116,12 @@ routes, for the two debug play routes and for any path outside `/api/v1/`. `POST
 other write is `Control`. `ApiState::authorize` takes the method, the path and the headers, and
 nothing else: not the peer address, not a map.
 
+**`Access` has a fifth variant, `Request`, ordered between `View` and `Queue`.** `required_access`
+returns it for no route. `Access::ROOM` leaves it out and `has_code` is false for it, so no caller
+holds it. `Access::as_room` reads a stored `request` as `View` and a stored `admin` as `Control`.
+`ApiState` takes the room level through it at start and at each change. The remote's stylesheet
+hides `needs-queue` and `needs-control` under `access-request`, as it does under `access-view`.
+
 **The caller's level is the higher of the room's and the token's.** `ApiState` holds the room level
 behind a lock, because the owner changes it while the machine runs. `AdminAuth` holds the admin hash
 and the two code hashes. A token is `v2.<level>.<expiry>.<nonce>.<mac>`. The MAC is keyed on the admin

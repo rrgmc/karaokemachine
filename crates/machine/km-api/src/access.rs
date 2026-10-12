@@ -1,7 +1,8 @@
-//! Who may do what: four levels, and what decides a caller's.
+//! Who may do what: five levels, and what decides a caller's.
 //!
-//! **Four levels, in a fixed order, and each one includes the ones below it.** A viewer sees the
-//! catalog, the queue and the screen. A queuer also adds a song and turns a singer's knobs: key,
+//! **Five levels, in a fixed order, and each one includes the ones below it.** A viewer sees the
+//! catalog, the queue and the screen. A requester stands between a viewer and a queuer, and no
+//! route needs that level. A queuer also adds a song and turns a singer's knobs: key,
 //! tempo, volume, melody and lyric offset. A controller also interrupts: skip, play now, the other
 //! transport buttons, and moving or removing anybody's queue entry. The admin also reconfigures the
 //! machine.
@@ -13,7 +14,7 @@
 
 use serde::{Deserialize, Serialize};
 
-/// One of the four levels, lowest first.
+/// One of the five levels, lowest first.
 ///
 /// `Ord` follows the declaration order, so `caller >= needed` is the whole check.
 #[derive(
@@ -23,6 +24,12 @@ use serde::{Deserialize, Serialize};
 pub enum Access {
     /// Sees the catalog, the queue and what is playing. Changes nothing.
     View,
+    /// The level between a viewer and a queuer.
+    ///
+    /// **Nothing needs it and nothing grants it.** [`crate::routes::required_access`] names no
+    /// route at this level, so it opens what [`Self::View`] opens. No room is given it and no code
+    /// buys it, so no caller holds it.
+    Request,
     /// Adds a song to the queue, and turns a singer's knobs.
     ///
     /// **The default room level.** Anybody in the room can queue a song unless the owner says
@@ -37,15 +44,25 @@ pub enum Access {
 
 impl Access {
     /// Every level, lowest first.
-    pub const ALL: [Self; 4] = [Self::View, Self::Queue, Self::Control, Self::Admin];
+    pub const ALL: [Self; 5] = [
+        Self::View,
+        Self::Request,
+        Self::Queue,
+        Self::Control,
+        Self::Admin,
+    ];
 
-    /// The levels a room may be given. The admin level is never one of them.
+    /// The levels a room may be given.
+    ///
+    /// The admin level is never one of them. [`Self::Request`] is not one either, because a room at
+    /// a level that opens nothing more than [`Self::View`] would be a second name for that level.
     pub const ROOM: [Self; 3] = [Self::View, Self::Queue, Self::Control];
 
     /// The word for this level, as it appears in JSON, in a token and in `settings.json`.
     pub fn as_str(self) -> &'static str {
         match self {
             Self::View => "view",
+            Self::Request => "request",
             Self::Queue => "queue",
             Self::Control => "control",
             Self::Admin => "admin",
@@ -59,7 +76,21 @@ impl Access {
 
     /// Whether a room may be given this level.
     pub fn is_room_level(self) -> bool {
-        self != Self::Admin
+        Self::ROOM.contains(&self)
+    }
+
+    /// The room level a stored level is read as.
+    ///
+    /// A settings file is typed by hand, so it can name a level no room holds. The admin level is
+    /// read as [`Self::Control`], the highest a room may hold. [`Self::Request`] is read as
+    /// [`Self::View`], which is all it opens.
+    #[must_use]
+    pub fn as_room(self) -> Self {
+        match self {
+            Self::Admin => Self::Control,
+            Self::Request => Self::View,
+            room => room,
+        }
     }
 
     /// Whether a code grants this level. Only the queue and control levels have one.
@@ -80,7 +111,8 @@ mod tests {
 
     #[test]
     fn the_levels_are_ordered_lowest_first() {
-        assert!(Access::View < Access::Queue);
+        assert!(Access::View < Access::Request);
+        assert!(Access::Request < Access::Queue);
         assert!(Access::Queue < Access::Control);
         assert!(Access::Control < Access::Admin);
     }
@@ -104,5 +136,27 @@ mod tests {
     fn a_room_is_never_given_the_admin_level() {
         assert!(!Access::ROOM.contains(&Access::Admin));
         assert!(!Access::Admin.is_room_level());
+    }
+
+    #[test]
+    fn a_stored_level_is_read_as_one_a_room_may_hold() {
+        assert_eq!(Access::Admin.as_room(), Access::Control);
+        assert_eq!(Access::Request.as_room(), Access::View);
+        for level in Access::ALL {
+            assert!(level.as_room().is_room_level());
+        }
+        for level in Access::ROOM {
+            assert_eq!(level.as_room(), level);
+        }
+    }
+
+    /// The request level opens nothing of its own, so nothing hands it out.
+    #[test]
+    fn nothing_grants_the_request_level() {
+        assert!(!Access::Request.is_room_level());
+        assert!(!Access::Request.has_code());
+        for level in Access::ROOM {
+            assert!(level.is_room_level());
+        }
     }
 }

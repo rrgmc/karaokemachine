@@ -117,6 +117,7 @@ singer-name = Name your songs are queued under
 singer-placeholder = your name
 access-level = This phone can:
 access-view = Watch only
+access-request = Ask for songs
 access-queue = Queue songs
 access-control = Queue, skip and play now
 access-admin = Everything

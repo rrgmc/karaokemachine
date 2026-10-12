@@ -101,6 +101,7 @@ singer-name = Nome com que suas músicas entram na fila
 singer-placeholder = seu nome
 access-level = Este celular pode:
 access-view = Só assistir
+access-request = Pedir músicas
 access-queue = Pôr músicas na fila
 access-control = Pôr na fila, pular e tocar agora
 access-admin = Tudo

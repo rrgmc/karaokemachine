@@ -233,12 +233,12 @@ pub fn delete_soundfont(state: &ApiState, id: &str) -> ApiResult<crate::dto::Sou
 /// Sets what the room gets with no code, written down first and applied second.
 ///
 /// Here rather than in the handler because the owner's page at `/admin/` sets it too. A room is
-/// never given [`crate::Access::Admin`].
+/// given one of [`crate::Access::ROOM`] and no other level.
 pub fn set_room_access(state: &ApiState, room: crate::Access) -> ApiResult<()> {
     if !room.is_room_level() {
-        return Err(ApiError::BadRequest(
-            "a room is never given the admin level".to_owned(),
-        ));
+        return Err(ApiError::BadRequest(format!(
+            "a room is never given the {room} level"
+        )));
     }
     state.controller().set_room_access(room)?;
     state.set_room_access(room);

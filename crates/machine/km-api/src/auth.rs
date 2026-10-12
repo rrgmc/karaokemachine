@@ -259,7 +259,7 @@ impl AdminAuth {
         match level {
             Access::Queue => codes.queue = hash,
             Access::Control => codes.control = hash,
-            Access::View | Access::Admin => {}
+            Access::View | Access::Request | Access::Admin => {}
         }
     }
 
@@ -277,7 +277,7 @@ impl AdminAuth {
         match level {
             Access::Queue => codes.queue.clone(),
             Access::Control => codes.control.clone(),
-            Access::View | Access::Admin => None,
+            Access::View | Access::Request | Access::Admin => None,
         }
     }
 
@@ -481,7 +481,7 @@ impl AdminAuth {
         match level {
             Access::Admin => Some(String::new()),
             Access::Queue | Access::Control => self.code_hash(level),
-            Access::View => None,
+            Access::View | Access::Request => None,
         }
     }
 

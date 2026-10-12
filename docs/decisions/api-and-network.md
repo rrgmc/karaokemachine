@@ -54,6 +54,10 @@ same permission as any other setting: a performance knob a singer reaches for. S
 it to `view` or `control`, and never to `admin`. A queue code and a control code each raise a phone
 to their level. The admin password opens the admin level, as it always does.
 
+**The type holds a fifth level, `request`, between `view` and `queue`, and no caller holds it.** No
+route needs it, so it opens what `view` opens. No room is given it and no code buys it. A settings
+file that names it for the room is read as `view`, as one that names `admin` is read as `control`.
+
 **No accounts.** A karaoke machine's owner hands a code to the people who may skip, and changes it
 when that stops being true. Names and passwords per guest would be a list nobody keeps. The singer
 name a phone queues under stays a label, never an identity.
