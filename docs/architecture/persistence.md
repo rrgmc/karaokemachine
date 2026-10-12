@@ -273,6 +273,11 @@ written down at once. `Machine::start` reads it when a song loads, so the song t
 the stretcher it has or lacks. Its default is `true` on a desktop and `false` on Android and iOS,
 through `cfg!`, as `display.number_pad` is.
 
+**`settings_version` 6 has one step from 5.** `Settings::step_up` reads a stored
+`api.room_access` of `queue` as `request`, and `load` writes the file back. A file below
+`OLDEST_SETTINGS_VERSION` is set aside, as before. A file with no version is a new file and takes
+no step, so a hand-written `queue` stays `queue`.
+
 **`singers` is a section of three keys, and no route writes any.** `singers.name_required` and
 `singers.max_per_device` are what the owner asks of a singer who registers. `singers.max_waiting`
 caps one singer's waiting requests, and it starts at 10. No route changes them, so

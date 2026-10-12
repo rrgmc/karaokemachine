@@ -1141,9 +1141,16 @@ fn peek_machine(paths: &Paths) -> Option<MachineSettings> {
 /// The settings shape this build reads and writes, stamped into every `settings.json` it saves.
 ///
 /// **A change that needs an existing file repaired is the next number**, and one repair step keyed
-/// on it; the counter never starts again. A file naming a lower number is set aside rather than read
-/// — see [`Settings::load`] — by the rule in `A store opens at its current version or is refused`.
-pub const CURRENT_SETTINGS_VERSION: u32 = 5;
+/// on it; the counter never starts again. A file below [`OLDEST_SETTINGS_VERSION`] is set aside
+/// rather than read — see [`Settings::load`] — by the rule in `A store opens at its current version
+/// or is refused`.
+pub const CURRENT_SETTINGS_VERSION: u32 = 6;
+
+/// The oldest settings shape this build reads, by the steps in [`Settings::step_up`].
+///
+/// One step stands between it and [`CURRENT_SETTINGS_VERSION`]: a room level of `queue` reads as
+/// `request`.
+pub const OLDEST_SETTINGS_VERSION: u32 = 5;
 
 /// The version a file with no `settings_version` is read as: the current one.
 ///
@@ -1272,13 +1279,15 @@ impl Settings {
     /// now, in a file written when it meant something else, is a machine configured by accident.
     pub fn load(paths: &Paths) -> (Self, bool) {
         let file = paths.settings_file();
+        // Whether a file of an older version was brought up to this one, which is written back.
+        let mut stepped = false;
         let mut settings = match std::fs::read_to_string(&file) {
             Ok(text) => match serde_json::from_str::<Self>(&text) {
-                Ok(settings) if settings.settings_version < CURRENT_SETTINGS_VERSION => {
+                Ok(settings) if settings.settings_version < OLDEST_SETTINGS_VERSION => {
                     let refused = file.with_extension("json.bad");
                     tracing::error!(
                         found = settings.settings_version,
-                        reads = CURRENT_SETTINGS_VERSION,
+                        reads = OLDEST_SETTINGS_VERSION,
                         kept = %refused.display(),
                         "settings.json is in an older settings version than this build reads; \
                          starting from defaults"
@@ -1286,7 +1295,10 @@ impl Settings {
                     let _ = std::fs::rename(&file, &refused);
                     Self::default()
                 }
-                Ok(settings) => settings,
+                Ok(mut settings) => {
+                    stepped = settings.step_up();
+                    settings
+                }
                 Err(error) => {
                     let broken = file.with_extension("json.bad");
                     tracing::error!(
@@ -1309,7 +1321,7 @@ impl Settings {
         };
 
         // Repairs on the way in, so the rest of the program can assume all of them.
-        let mut changed = false;
+        let mut changed = stepped;
         if settings.machine.instance_id.is_empty() {
             settings.machine.instance_id = km_api::discover::new_instance_id();
             changed = true;
@@ -1373,6 +1385,31 @@ impl Settings {
                 false
             }
         }
+    }
+
+    /// Brings a file of an older version this build reads up to the current one, a step at a time.
+    ///
+    /// Answers whether anything moved, so [`Self::load`] writes the file back. Each step is keyed
+    /// on the number it leaves behind.
+    ///
+    /// **Six: a room level of `queue` reads as `request`.** Until six, `queue` was what a guest's
+    /// phone needed to add a song, and it was the default. From six a guest asks through `request`,
+    /// which is the default, and `queue` adds a song that takes no turn. A stored `queue` cannot say
+    /// whether its owner chose it or never touched it, so it moves. An owner who wants the direct
+    /// queue chooses it again once. `view` and `control` are choices, and they stay.
+    fn step_up(&mut self) -> bool {
+        if self.settings_version >= CURRENT_SETTINGS_VERSION {
+            return false;
+        }
+        if self.settings_version < 6 && self.api.room_access == km_api::Access::Queue {
+            tracing::warn!(
+                "settings.json set the room to the queue level, which now adds a song with no \
+                 singer; the room is at the request level, where a guest asks for a song"
+            );
+            self.api.room_access = km_api::Access::Request;
+        }
+        self.settings_version = CURRENT_SETTINGS_VERSION;
+        true
     }
 
     /// Writes settings out, stamped [`CURRENT_SETTINGS_VERSION`].
@@ -2122,7 +2159,7 @@ mod tests {
             paths.settings_file(),
             format!(
                 r#"{{"settings_version":{},"machine":{{"name":"Sala"}}}}"#,
-                CURRENT_SETTINGS_VERSION - 1
+                OLDEST_SETTINGS_VERSION - 1
             ),
         )
         .expect("write");
@@ -2139,6 +2176,74 @@ mod tests {
         );
         let (again, _) = Settings::load(&paths);
         assert_eq!(again.settings_version, CURRENT_SETTINGS_VERSION);
+    }
+
+    /// A file one version back is read, and its `queue` room becomes the `request` room.
+    ///
+    /// Everything else in it is kept, which is the difference between a step and a refusal.
+    #[test]
+    fn a_stored_queue_room_becomes_the_request_room_once() {
+        let scratch = Scratch::new("room-step");
+        let paths = scratch.paths();
+        paths.create().expect("create");
+        std::fs::write(
+            paths.settings_file(),
+            r#"{"settings_version":5,"machine":{"name":"Sala"},"api":{"room_access":"queue"}}"#,
+        )
+        .expect("write");
+
+        let (loaded, written) = Settings::load(&paths);
+        assert_eq!(
+            loaded.machine.name, "Sala",
+            "the file is read, not set aside"
+        );
+        assert_eq!(loaded.api.room_access, km_api::Access::Request);
+        assert!(written, "and written back at the current version");
+        assert!(!paths.settings_file().with_extension("json.bad").exists());
+
+        // An owner who chooses the direct queue again keeps it at the next start.
+        let mut chosen = loaded;
+        chosen.api.room_access = km_api::Access::Queue;
+        chosen.save(&paths).expect("save");
+        let (again, _) = Settings::load(&paths);
+        assert_eq!(again.settings_version, CURRENT_SETTINGS_VERSION);
+        assert_eq!(again.api.room_access, km_api::Access::Queue);
+    }
+
+    /// A level the owner chose stays as chosen.
+    #[test]
+    fn a_stored_view_or_control_room_stays_through_the_step() {
+        for (word, level) in [
+            ("view", km_api::Access::View),
+            ("control", km_api::Access::Control),
+        ] {
+            let scratch = Scratch::new(&format!("room-kept-{word}"));
+            let paths = scratch.paths();
+            paths.create().expect("create");
+            std::fs::write(
+                paths.settings_file(),
+                format!(r#"{{"settings_version":5,"api":{{"room_access":"{word}"}}}}"#),
+            )
+            .expect("write");
+            let (loaded, _) = Settings::load(&paths);
+            assert_eq!(loaded.api.room_access, level);
+        }
+    }
+
+    /// A file with no version is a new file, so what it says is what its owner means.
+    #[test]
+    fn a_file_with_no_version_keeps_the_room_it_names() {
+        let scratch = Scratch::new("room-unversioned");
+        let paths = scratch.paths();
+        paths.create().expect("create");
+        std::fs::write(paths.settings_file(), r#"{"api":{"room_access":"queue"}}"#).expect("write");
+        let (loaded, _) = Settings::load(&paths);
+        assert_eq!(loaded.api.room_access, km_api::Access::Queue);
+        assert_eq!(
+            Settings::default().api.room_access,
+            km_api::Access::Request,
+            "and a file that names none takes the request level"
+        );
     }
 
     /// A developer's console is not something a karaoke machine publishes on the LAN by default.

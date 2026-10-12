@@ -191,6 +191,11 @@ impl QueueRow {
     pub fn singer(&self) -> Option<&str> {
         self.entry.singer.as_deref()
     }
+
+    /// The seat it belongs to, which is how a phone's page marks its own rows.
+    pub fn seat(&self) -> Option<u64> {
+        self.entry.seat
+    }
 }
 
 /// Everything the player card draws.

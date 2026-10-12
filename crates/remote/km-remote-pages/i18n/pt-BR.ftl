@@ -9,6 +9,14 @@
 
 error-unavailable = A máquina não pode fazer isso agora.
 error-queue-full = A fila está cheia.
+error-name-taken = Outro cantor já usa esse nome. Digite outro na aba Configuração.
+error-name-required = Esta máquina precisa do seu nome. Digite na aba Configuração.
+error-unnamed-taken = Este celular já tem um cantor sem nome. Digite um nome na aba Configuração.
+error-device-full = Este celular já tem todos os cantores que a máquina permite.
+error-singers-full = A máquina já tem todos os cantores que comporta.
+error-singer-requests-full = Você já tem todas as músicas em espera que a máquina permite.
+error-requests-full = A máquina já guarda todas as músicas que consegue.
+error-request-finished = Essa música já saiu da fila.
 error-unauthorized = Isto precisa de um código. Digite um na aba Configuração.
 browse-back = Voltar para as músicas
 error-not-found = Isso não está mais aí.
@@ -79,6 +87,7 @@ youtube-link = Procurar no YouTube
 ## As ações de uma música
 
 song-queue = Colocar na fila
+song-plain = Colocar sem cantor
 song-play-now = Tocar agora
 song-play-next = Tocar em seguida
 song-favorite = Adicionar às favoritas
@@ -102,8 +111,8 @@ singer-placeholder = seu nome
 access-level = Este celular pode:
 access-view = Só assistir
 access-request = Pedir músicas
-access-queue = Pôr músicas na fila
-access-control = Pôr na fila, pular e tocar agora
+access-queue = Pedir músicas, e mudar tom e andamento
+access-control = Tudo isso, pular e tocar agora
 access-admin = Tudo
 access-code = Um código do dono
 access-code-placeholder = código
@@ -245,6 +254,7 @@ song-unfavorite-confirm = Tirar “{ $title }” desta pasta?
 ## O que o botão de uma linha deixa para trás
 
 badge-queued = na fila
+badge-waiting = esperando
 badge-next-up = é a próxima
 badge-playing = tocando
 badge-sent = enviada
@@ -252,6 +262,7 @@ badge-sent = enviada
 ## O que uma ação numa música diz
 
 queued-song = Na fila: { $title }
+asked-waiting = { $title } está esperando. Entra na fila quando sua música começar.
 playing-next-song = Toca em seguida: { $title }
 playing-now-song = Tocando agora: { $title }
 queued-not-moved = { $title } entrou na fila, mas não deu para enviar.
@@ -276,8 +287,27 @@ machine-more-answered =
     }
 
 
-singer-set = Suas músicas vão entrar na fila como { $name }.
+singer-set = Você está cantando como { $name }.
 singer-cleared = Suas músicas vão entrar na fila sem nome.
+singer-keeps-name = Um cantor fica com o nome. Digite outro para trocar.
+singer-choose = Quem está cantando
+singer-add = Adicionar outro cantor neste celular
+singer-add-placeholder = o nome dele
+singer-add-use = Adicionar
+singer-add-needs-name = Outro cantor precisa de um nome.
+singer-guest = Convidado { $number }
+singer-unnamed = Convidado
+
+## As músicas que este celular pediu
+
+mine-heading = Suas músicas
+mine-withdraw = Retirar esta música
+request-waiting = Esperando a sua vez
+request-queued = Na fila, lugar { $place }
+request-accepted = Na fila
+request-played = Começou
+request-declined = Tirada da fila
+request-withdrawn = Retirada
 package-flag-uncurated = sem curadoria
 packages-shown = Pacotes na minha lista de músicas
 packages-shown-hint = Um pacote desmarcado fica fora das buscas, dos artistas e dos filtros neste celular. O número da música e os seus favoritos ainda encontram as músicas dele.

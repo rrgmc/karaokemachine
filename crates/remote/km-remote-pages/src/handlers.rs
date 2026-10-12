@@ -26,7 +26,7 @@ use axum::extract::{Path, Query, State};
 use axum::http::{HeaderMap, StatusCode, header};
 use axum::response::{Html, IntoResponse, Redirect, Response};
 use km_api::Access;
-use km_api::dto::{AccessDto, OriginDto, QueueEntryDto, SettingsPatchDto};
+use km_api::dto::{AccessDto, OriginDto, QueueEntryDto, RequestDto, SettingsPatchDto, SingerDto};
 use km_locale::{Catalog, Locale};
 use km_queue::Wait;
 use km_song::text::fold;
@@ -42,13 +42,13 @@ use crate::machine::{
     Resolution, Scanned, SongPage, SongRef, Transport,
 };
 use crate::model::{Mode, PlayerView, SongRow};
-use crate::prefs::{self, Prefs};
+use crate::prefs::{self, PhoneSeat, PhoneSeats, Prefs};
 use crate::views::{
     self, ArtistLine, BackupPage, Badge, Banner, BrowseBlock, BrowsePage, Chrome, Conn, FolderLine,
-    ListBlock, MachineBlock, NowBar, NowPage, PackageSetting, PackagesPage, PlayerBlock,
-    PositionBlock, QueueBlock, QueueCount, QueuePage, RestoreDonePage, RestorePage, RowsBlock,
-    SetupPage, ShareConfirmPage, ShareDonePage, SharePage, ShareReceivePage, ShareSendPage, Sheet,
-    SongActions, SongLine, Star, StepHead, Toast,
+    ListBlock, MachineBlock, MineBlock, MineRow, NowBar, NowPage, PackageSetting, PackagesPage,
+    PhoneSinger, PlayerBlock, PositionBlock, QueueBlock, QueueCount, QueuePage, RestoreDonePage,
+    RestorePage, RowsBlock, SetupPage, ShareConfirmPage, ShareDonePage, SharePage,
+    ShareReceivePage, ShareSendPage, Sheet, SongActions, SongLine, Star, StepHead, Toast,
 };
 use crate::{Remote, backup, share, sse};
 
@@ -1158,14 +1158,30 @@ pub async fn setup(State(state): State<Remote>, headers: HeaderMap) -> Response 
     let chrome = chrome(&state, "setup", &prefs).await;
     let machine = machine_block(&state, locale).await;
     let packages_tab = package_settings(&state, &prefs).await.len() > 1;
-    views::page(
+    let (seats, known, changed) = known_seats(&state, &prefs).await;
+    let singers = phone_singers(&seats, &known, locale);
+    // The singer who is singing, by the name the machine holds. A phone with no singer shows the
+    // name it typed, which its first request registers.
+    let singing_as = seats
+        .current()
+        .and_then(|seat| known.iter().find(|singer| singer.id == seat.id))
+        .map(|singer| singer.name.clone().unwrap_or_default())
+        .or_else(|| prefs.singer.clone())
+        .unwrap_or_default();
+    let mut response = views::page(
         &SetupPage {
             chrome,
+            singing_as,
+            singers,
             machine,
             packages_tab,
         },
         locale,
-    )
+    );
+    if changed {
+        prefs::attach(response.headers_mut(), seats.cookie());
+    }
+    response
 }
 
 /// `GET /setup/packages` — the Setup tab's second page: which packages this phone searches.
@@ -1283,14 +1299,20 @@ pub async fn queue_page(State(state): State<Remote>, headers: HeaderMap) -> Resp
     let view = player_view(&state).await;
     let queue = queue_block(&state, view.remaining_ms(), locale).await;
     let nowbar = NowBar::of(view);
-    views::page(
+    let (mine, kept) = mine_block(&state, &prefs).await;
+    let mut response = views::page(
         &QueuePage {
             chrome,
             nowbar,
+            mine,
             queue,
         },
         locale,
-    )
+    );
+    if let Some(seats) = kept {
+        prefs::attach(response.headers_mut(), seats.cookie());
+    }
+    response
 }
 
 /// The queue list as it stands, given the time left in the playing song.
@@ -1341,29 +1363,353 @@ pub async fn events(State(state): State<Remote>, headers: HeaderMap) -> Response
     response
 }
 
-/// `POST /singer`
-pub async fn set_singer(headers: HeaderMap, body: String) -> Response {
-    let locale = prefs::locale(&headers);
+/// Sets the two cookies a seat action leaves: this phone's id and the singers it holds.
+fn keep_seats(response: &mut Response, device: &str, seats: &PhoneSeats) {
+    prefs::attach(
+        response.headers_mut(),
+        prefs::set_pref(prefs::DEVICE, device),
+    );
+    prefs::attach(response.headers_mut(), seats.cookie());
+}
+
+/// Registers a singer for this phone, and holds the seat the machine issued.
+async fn register(
+    state: &Remote,
+    device: &str,
+    name: Option<&str>,
+    seats: &mut PhoneSeats,
+) -> Result<PhoneSeat, RemoteError> {
+    let issued = state.machine.register_singer(device, name).await?;
+    seats.hold(&issued.evening, issued.singer.id, &issued.token);
+    Ok(PhoneSeat {
+        id: issued.singer.id,
+        token: issued.token,
+    })
+}
+
+/// Whether the machine still holds a seat this phone kept.
+///
+/// Asked only after the machine refused the seat, so an ordinary request costs one call. A seat of
+/// an earlier evening and a seat somebody removed both read as gone. A machine that will not answer
+/// reads as *still held*, so a phone never throws a seat away over a dropped connection.
+async fn seat_is_held(state: &Remote, seats: &PhoneSeats, id: u64) -> bool {
+    match state.machine.singers().await {
+        Ok(known) => {
+            known.evening == seats.evening && known.singers.iter().any(|singer| singer.id == id)
+        }
+        Err(_) => true,
+    }
+}
+
+/// Asks for a song for the singer this phone has singing, and registers one first where it has
+/// none.
+///
+/// **A phone registers a singer on its first request**, with the name in the "singing as" box or
+/// with none. No join step comes before the catalog.
+///
+/// **A seat the machine refuses is checked before it is dropped.** A 404 is also what a missing
+/// song answers, and dropping a good seat for one would hand its name to the next registration.
+async fn ask_for(
+    state: &Remote,
+    prefs: &Prefs,
+    device: &str,
+    seats: &mut PhoneSeats,
+    number: SongCode,
+) -> Result<RequestDto, RemoteError> {
+    if let Some(seat) = seats.current().cloned() {
+        match state.machine.request(seat.id, &seat.token, number).await {
+            Err(RemoteError::NotFound) if seat_is_held(state, seats, seat.id).await => {
+                return Err(RemoteError::NotFound);
+            }
+            // The seat is gone, or its token ended when the name went to another phone.
+            Err(RemoteError::NotFound | RemoteError::Unauthorized) => seats.drop_seat(seat.id),
+            answer => return answer,
+        }
+    }
+    let seat = register(state, device, prefs.singer.as_deref(), seats).await?;
+    state.machine.request(seat.id, &seat.token, number).await
+}
+
+/// What a row says after its song was asked for, by where the request stands.
+fn asked_outcome(request: &RequestDto, locale: Locale) -> (Badge, Toast) {
+    use km_api::dto::RequestStateDto as State;
+    let words = crate::words::messages(locale);
+    let title = [("title", request.title.as_str().into())];
+    match request.state {
+        State::Waiting => (
+            Badge {
+                level: "badge-good",
+                text: "badge-waiting",
+            },
+            Toast::info(words.msg_with("asked-waiting", &title)),
+        ),
+        // An idle machine took it straight to the deck.
+        State::Played => (
+            Badge {
+                level: "badge-good",
+                text: "badge-playing",
+            },
+            Toast::good(words.msg_with("playing-now-song", &title)),
+        ),
+        _ => (
+            Badge {
+                level: "badge-good",
+                text: "badge-queued",
+            },
+            Toast::good(words.msg_with("queued-song", &title)),
+        ),
+    }
+}
+
+/// The singers this phone holds that the machine still holds, with the machine's list of singers.
+///
+/// A phone with no seats asks the machine nothing. The flag says the phone's list changed, so the
+/// caller sets the cookie.
+async fn known_seats(state: &Remote, prefs: &Prefs) -> (PhoneSeats, Vec<SingerDto>, bool) {
+    let mut seats = prefs.seats.clone();
+    if seats.is_empty() {
+        return (seats, Vec::new(), false);
+    }
+    match state.machine.singers().await {
+        Ok(known) => {
+            let changed = seats.keep_known(&known.evening, |id| {
+                known.singers.iter().any(|singer| singer.id == id)
+            });
+            (seats, known.singers, changed)
+        }
+        // Not answering is not the same as gone. The phone keeps what it has and draws nothing.
+        Err(_) => (seats, Vec::new(), false),
+    }
+}
+
+/// The singers this phone holds, as the Setup tab draws them.
+fn phone_singers(seats: &PhoneSeats, known: &[SingerDto], locale: Locale) -> Vec<PhoneSinger> {
+    let current = seats.current().map(|seat| seat.id);
+    seats
+        .seats()
+        .iter()
+        .filter_map(|seat| known.iter().find(|singer| singer.id == seat.id))
+        .map(|singer| PhoneSinger {
+            id: singer.id,
+            label: views::singer_label(singer, locale),
+            current: Some(singer.id) == current,
+        })
+        .collect()
+}
+
+/// The songs this phone's singers asked for, and the phone's seats where they changed.
+async fn mine_block(state: &Remote, prefs: &Prefs) -> (MineBlock, Option<PhoneSeats>) {
+    let (seats, known, changed) = known_seats(state, prefs).await;
+    let kept = changed.then(|| seats.clone());
+    if seats.is_empty() {
+        return (MineBlock::empty(), kept);
+    }
+    let requests = state
+        .machine
+        .requests()
+        .await
+        .map(|list| list.requests)
+        .unwrap_or_default();
+    let locale = prefs.locale;
+    let rows = requests
+        .iter()
+        .filter(|request| seats.get(request.singer).is_some())
+        .map(|request| MineRow {
+            id: request.id,
+            title: request.title.clone(),
+            singer: known
+                .iter()
+                .find(|singer| singer.id == request.singer)
+                .map(|singer| views::singer_label(singer, locale))
+                .unwrap_or_default(),
+            state: views::request_state(request, locale),
+            open: matches!(
+                request.state,
+                km_api::dto::RequestStateDto::Waiting | km_api::dto::RequestStateDto::Queued
+            ),
+        })
+        .collect();
+    let block = MineBlock {
+        rows,
+        several: seats.seats().len() > 1,
+        seats: seats.seats().iter().map(|seat| seat.id).collect(),
+    };
+    (block, kept)
+}
+
+/// `GET /mine` — the songs this phone's singers asked for.
+///
+/// The page asks when [`sse::REQUESTS`] arrives. See [`MineBlock`].
+pub async fn mine(State(state): State<Remote>, headers: HeaderMap) -> Response {
+    let prefs = Prefs::read(&headers);
+    let (block, kept) = mine_block(&state, &prefs).await;
+    let mut response = views::page(&block, prefs.locale);
+    if let Some(seats) = kept {
+        prefs::attach(response.headers_mut(), seats.cookie());
+    }
+    response
+}
+
+/// `POST /mine/{request}/withdraw` — a singer takes a song back, waiting or queued.
+///
+/// The token is the seat's, read from this phone's cookie, so no control code is asked. The list
+/// comes back either way, from the machine, for [`queue_action`]'s reason.
+pub async fn withdraw_mine(
+    State(state): State<Remote>,
+    Path(request): Path<u64>,
+    headers: HeaderMap,
+) -> Response {
+    let prefs = Prefs::read(&headers);
+    let locale = prefs.locale;
+    let result = match permit(&state, &prefs, Access::Request).await {
+        Err(refused) => Err(refused),
+        Ok(()) => {
+            // The request says whose it is, and the phone holds that singer's token or it does not.
+            let token = state.machine.requests().await.ok().and_then(|list| {
+                list.requests
+                    .iter()
+                    .find(|held| held.id == request)
+                    .and_then(|held| prefs.seats.get(held.singer))
+                    .map(|seat| seat.token.clone())
+            });
+            match token {
+                Some(token) => state.machine.withdraw(request, &token).await.map(|_| ()),
+                None => Err(RemoteError::NotFound),
+            }
+        }
+    };
+    let (block, kept) = mine_block(&state, &prefs).await;
+    let mut response = match result {
+        Ok(()) => views::page(&block, locale),
+        Err(error) => views::with_toast(&block, views::message_for(&error, locale), locale),
+    };
+    if let Some(seats) = kept {
+        prefs::attach(response.headers_mut(), seats.cookie());
+    }
+    response
+}
+
+/// `POST /singer` — the name in the "singing as" box.
+///
+/// **A phone that holds a singer names that singer.** The seat keeps its place, its waiting songs
+/// and its token, and the name must be free. A phone that holds none registers one under the name,
+/// so a name somebody else holds is refused here and not at the first song.
+///
+/// An empty box clears the name this phone typed. A singer who has a name keeps it, because a seat
+/// cannot give its name back.
+pub async fn set_singer(State(state): State<Remote>, headers: HeaderMap, body: String) -> Response {
+    let prefs = Prefs::read(&headers);
+    let locale = prefs.locale;
     let name = form::field(&body, "singer")
         .as_deref()
         .and_then(prefs::tidy_singer);
-    let toast = match &name {
-        Some(name) => Toast::good(
-            crate::words::messages(locale)
-                .msg_with("singer-set", &[("name", name.as_str().into())]),
-        ),
-        None => Toast::info(say(locale, "singer-cleared")),
+    let Some(name) = name else {
+        // **A toast and nothing else.** The name applies to what this phone asks for next, and the
+        // toast is what says so.
+        if !prefs.seats.is_empty() {
+            return views::toast_only(Toast::info(say(locale, "singer-keeps-name")), locale);
+        }
+        let mut response = views::toast_only(Toast::info(say(locale, "singer-cleared")), locale);
+        prefs::attach(response.headers_mut(), prefs::clear(prefs::SINGER));
+        return response;
     };
-    // **A toast and nothing else.** Answering with the queue would look like keeping the rows in
-    // step and would not be: a row prints the singer the *machine* recorded on that entry, not the
-    // name in this cookie, so the swap would change nothing anybody could see. The name
-    // applies to what you queue next, and the toast is what says so.
-    let mut response = views::toast_only(toast, locale);
-    let cookie = match &name {
-        Some(name) => prefs::set_pref(prefs::SINGER, name),
-        None => prefs::clear(prefs::SINGER),
+    if let Err(refused) = permit(&state, &prefs, Access::Request).await {
+        // A phone that may ask for nothing still keeps the name it typed, for the day it may.
+        let mut response = views::toast_only(views::message_for(&refused, locale), locale);
+        prefs::attach(
+            response.headers_mut(),
+            prefs::set_pref(prefs::SINGER, &name),
+        );
+        return response;
+    }
+
+    let device = prefs.device.clone().unwrap_or_else(prefs::new_device_id);
+    let mut seats = prefs.seats.clone();
+    let named = match seats.current().cloned() {
+        Some(seat) => match state
+            .machine
+            .rename_singer(seat.id, &seat.token, &name)
+            .await
+        {
+            Err(RemoteError::NotFound | RemoteError::Unauthorized)
+                if !seat_is_held(&state, &seats, seat.id).await =>
+            {
+                seats.drop_seat(seat.id);
+                register(&state, &device, Some(&name), &mut seats)
+                    .await
+                    .map(|_| ())
+            }
+            answer => answer.map(|_| ()),
+        },
+        None => register(&state, &device, Some(&name), &mut seats)
+            .await
+            .map(|_| ()),
     };
-    prefs::attach(response.headers_mut(), cookie);
+    match named {
+        Ok(()) => {
+            let toast = Toast::good(
+                crate::words::messages(locale)
+                    .msg_with("singer-set", &[("name", name.as_str().into())]),
+            );
+            let mut response = views::toast_only(toast, locale);
+            prefs::attach(
+                response.headers_mut(),
+                prefs::set_pref(prefs::SINGER, &name),
+            );
+            keep_seats(&mut response, &device, &seats);
+            response
+        }
+        Err(error) => views::toast_only(views::message_for(&error, locale), locale),
+    }
+}
+
+/// `POST /singer/add` — another singer on this phone, who gives a name.
+///
+/// **Answers with a full refresh, for [`set_locale`]'s reason.** The choice between singers is
+/// drawn from the second one on, so the form that posted this is not the form the page now needs.
+pub async fn add_singer(State(state): State<Remote>, headers: HeaderMap, body: String) -> Response {
+    let prefs = Prefs::read(&headers);
+    let locale = prefs.locale;
+    let Some(name) = form::field(&body, "singer")
+        .as_deref()
+        .and_then(prefs::tidy_singer)
+    else {
+        return views::toast_only(Toast::warn(say(locale, "singer-add-needs-name")), locale);
+    };
+    if let Err(refused) = permit(&state, &prefs, Access::Request).await {
+        return views::toast_only(views::message_for(&refused, locale), locale);
+    }
+    let device = prefs.device.clone().unwrap_or_else(prefs::new_device_id);
+    let (mut seats, _, _) = known_seats(&state, &prefs).await;
+    match register(&state, &device, Some(&name), &mut seats).await {
+        Ok(_) => {
+            let mut response = (StatusCode::OK, [("hx-refresh", "true")]).into_response();
+            prefs::attach(
+                response.headers_mut(),
+                prefs::set_pref(prefs::SINGER, &name),
+            );
+            keep_seats(&mut response, &device, &seats);
+            response
+        }
+        Err(error) => views::toast_only(views::message_for(&error, locale), locale),
+    }
+}
+
+/// `POST /singer/choose` — which of this phone's singers is singing.
+///
+/// No machine is asked: the choice is this phone's, and every seat in it is one the phone holds.
+pub async fn choose_singer(headers: HeaderMap, body: String) -> Response {
+    let prefs = Prefs::read(&headers);
+    let mut seats = prefs.seats.clone();
+    let chosen = form::field(&body, "singer")
+        .and_then(|id| id.trim().parse::<u64>().ok())
+        .is_some_and(|id| seats.choose(id));
+    let mut response = (StatusCode::OK, [("hx-refresh", "true")]).into_response();
+    if chosen {
+        prefs::attach(response.headers_mut(), seats.cookie());
+        // The box shows the chosen singer's name, which the page reads from the machine.
+        prefs::attach(response.headers_mut(), prefs::clear(prefs::SINGER));
+    }
     response
 }
 
@@ -1672,7 +2018,11 @@ async fn reached_the_front(state: &Remote, number: SongCode, entry_id: u64) -> b
     state.machine.move_entry(entry_id, 0).await.is_ok() || is_on_the_deck(state, number).await
 }
 
-/// `POST /song/{number}/{action}` — `queue`, `next` or `now`.
+/// `POST /song/{number}/{action}` — `queue`, `plain`, `next` or `now`.
+///
+/// **`queue` asks for the song for this phone's singer**, and the machine queues it in that
+/// singer's turn. The other three add a song with no singer, which takes no turn: `plain` puts it at
+/// the end and needs the queue level, and `next` and `now` interrupt and need the control level.
 pub async fn song_action(
     State(state): State<Remote>,
     Path((number, action)): Path<(SongCode, String)>,
@@ -1680,17 +2030,25 @@ pub async fn song_action(
 ) -> Response {
     let prefs = Prefs::read(&headers);
     let locale = prefs.locale;
-    let singer = prefs.singer.as_deref();
-    let needed = if action == "queue" {
-        Access::Queue
-    } else {
-        Access::Control
+    let needed = match action.as_str() {
+        "queue" => Access::Request,
+        "plain" => Access::Queue,
+        _ => Access::Control,
     };
+    // What a request leaves for the phone to keep: its id, and the singers it holds.
+    let mut kept: Option<(String, PhoneSeats)> = None;
 
     let outcome = match permit(&state, &prefs, needed).await {
         Err(refused) => Err(refused),
         Ok(()) => match action.as_str() {
-            "queue" => state.machine.enqueue(number, singer).await.map(|added| {
+            "queue" => {
+                let device = prefs.device.clone().unwrap_or_else(prefs::new_device_id);
+                let mut seats = prefs.seats.clone();
+                let asked = ask_for(&state, &prefs, &device, &mut seats, number).await;
+                kept = Some((device, seats));
+                asked.map(|request| asked_outcome(&request, locale))
+            }
+            "plain" => state.machine.enqueue(number).await.map(|added| {
                 (
                     Badge {
                         level: "badge-good",
@@ -1705,7 +2063,7 @@ pub async fn song_action(
             // Two calls, because the API has no "queue at the front" — and faking one inside the machine
             // trait would mean both implementations doing this same pair anyway. If neither lands the
             // song at the front the badge says so, because a song is still queued either way.
-            "next" => match state.machine.enqueue(number, singer).await {
+            "next" => match state.machine.enqueue(number).await {
                 Ok(added) => {
                     if reached_the_front(&state, number, added.entry_id).await {
                         Ok((
@@ -1743,7 +2101,7 @@ pub async fn song_action(
             // `Unavailable` when nothing is loaded *and* nothing is queued — which cannot be the case
             // here, since a song was just put at the front. Asking first would be a fourth round trip
             // and would still be racing the song that ends between the question and the answer.
-            "now" => match state.machine.enqueue(number, singer).await {
+            "now" => match state.machine.enqueue(number).await {
                 Ok(added) => {
                     let moved = state.machine.move_entry(added.entry_id, 0).await.is_ok();
                     let on_deck = !moved && is_on_the_deck(&state, number).await;
@@ -1815,7 +2173,7 @@ pub async fn song_action(
         },
     };
 
-    match outcome {
+    let mut response = match outcome {
         Ok((badge, toast)) => views::with_toast(&badge, toast, locale),
         // A command the machine never acknowledged is not a failure — the song is almost certainly
         // queued and what is missing is the confirmation. Saying "sent" is the honest answer, and
@@ -1840,7 +2198,12 @@ pub async fn song_action(
         // a song refused while a favorites folder was open would lose its ✕ until the list was
         // drawn again.
         Err(error) => views::toast_only(views::message_for(&error, locale), locale),
+    };
+    // Kept whether or not the song was taken: a singer registered on the way is still this phone's.
+    if let Some((device, seats)) = kept {
+        keep_seats(&mut response, &device, &seats);
     }
+    response
 }
 
 /// `POST /queue/{entry}/{action}` — `up`, `down` or `remove`.
@@ -3400,6 +3763,12 @@ async fn pump(state: Remote) {
                 Ok(km_api::events::Event::QueueChanged { queue: changed }) => {
                     queue.replace(changed.entries);
                     queue.publish(&state);
+                }
+                // No fragment: each open page asks for its own songs. See `sse::REQUESTS`.
+                Ok(km_api::events::Event::RequestsChanged { .. }) => {
+                    for &locale in Locale::ALL {
+                        state.hub.publish(locale, sse::REQUESTS, "-");
+                    }
                 }
                 Ok(km_api::events::Event::SongStarted { .. })
                 | Ok(km_api::events::Event::SongEnded { .. })

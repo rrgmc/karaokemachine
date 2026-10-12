@@ -15,6 +15,14 @@
 
 error-unavailable = The machine cannot do that right now.
 error-queue-full = The queue is full.
+error-name-taken = Another singer has that name. Type another on the Setup tab.
+error-name-required = This machine needs your name. Type it on the Setup tab.
+error-unnamed-taken = This phone already has a singer with no name. Type a name on the Setup tab.
+error-device-full = This phone has as many singers as the machine allows.
+error-singers-full = The machine has as many singers as it holds.
+error-singer-requests-full = You have as many songs waiting as the machine allows.
+error-requests-full = The machine is holding as many songs as it can.
+error-request-finished = That song has already left the queue.
 error-unauthorized = This needs a code. Type one on the Setup tab.
 browse-back = Back to songs
 error-not-found = Not found.
@@ -93,6 +101,7 @@ youtube-link = Find on YouTube
 # reveals, so it names the *act* rather than the button.
 
 song-queue = Add to queue
+song-plain = Add with no singer
 song-play-now = Play now
 song-play-next = Play next
 song-favorite = Add to favorites
@@ -118,8 +127,8 @@ singer-placeholder = your name
 access-level = This phone can:
 access-view = Watch only
 access-request = Ask for songs
-access-queue = Queue songs
-access-control = Queue, skip and play now
+access-queue = Ask for songs, and change key and tempo
+access-control = All of that, skip and play now
 access-admin = Everything
 access-code = A code from the owner
 access-code-placeholder = code
@@ -293,6 +302,7 @@ song-unfavorite-confirm = Remove “{ $title }” from this folder?
 # Two words at most, and they are read at a glance on a row somebody has just pressed.
 
 badge-queued = queued
+badge-waiting = waiting
 badge-next-up = next up
 badge-playing = playing
 badge-sent = sent
@@ -300,6 +310,8 @@ badge-sent = sent
 ## What a song action says
 
 queued-song = Queued: { $title }
+# A singer has one song in the queue at a time. The rest wait, and go in one by one.
+asked-waiting = { $title } is waiting. It goes into the queue when your song starts.
 playing-next-song = Playing next: { $title }
 playing-now-song = Playing now: { $title }
 queued-not-moved = Queued { $title }, but it could not be moved up.
@@ -327,8 +339,28 @@ machine-more-answered =
 
 ## Your name and your folders
 
-singer-set = Your songs will be queued as { $name }.
+singer-set = You are singing as { $name }.
 singer-cleared = Your songs will be queued with no name.
+singer-keeps-name = A singer keeps a name. Type another one to change it.
+singer-choose = Who is singing
+singer-add = Add another singer on this phone
+singer-add-placeholder = their name
+singer-add-use = Add
+singer-add-needs-name = Another singer needs a name.
+# A singer who gave no name. The number tells two of them apart.
+singer-guest = Guest { $number }
+singer-unnamed = Guest
+
+## The songs this phone asked for
+
+mine-heading = Your songs
+mine-withdraw = Take this song back
+request-waiting = Waiting for your turn
+request-queued = In the queue, place { $place }
+request-accepted = In the queue
+request-played = Started
+request-declined = Taken out of the queue
+request-withdrawn = Taken back
 package-flag-uncurated = uncurated
 packages-shown = Packages in my song list
 packages-shown-hint = An unticked package stays out of searches, artists and filters on this phone. A song number and your favorites still find its songs.

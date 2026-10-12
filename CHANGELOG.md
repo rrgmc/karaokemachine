@@ -29,9 +29,30 @@ Entries are written for somebody who has the machine. Why any of it is the way i
   video or MP3+G song waits the five seconds in silence. Demo songs are not announced. The
   **This machine** tab has an Announcement pane that changes the length or turns it off.
 
+- **Singers take turns.** A guest's phone asks for a song, and the machine keeps one song for each
+  singer in the queue. A singer's next song goes in when theirs starts, at the end of the queue. So
+  somebody who asks for five songs sings one, and then waits for everybody else's turn.
+- **The phone's Queue tab lists your own songs.** Each one says whether it is waiting, in the queue
+  or started, and a **✕** takes it back with no code.
+- **A singer's name is theirs for the evening.** Two phones cannot sing under one name. A name is
+  optional, and a singer with none shows no name on the screen.
+- **One phone holds several singers.** The Setup tab adds another singer on the same phone and
+  chooses who is singing.
 - **Each queued song shows about how long until it starts.** The phone's Queue tab and the queue on
   the machine's screen both show `~4 min` or `< 1 min` beside each song. The figure
   counts down as the playing song runs.
+
+### Changed
+
+- **A guest's phone asks for songs by default, and no longer changes the key.** A phone with no
+  code can ask for songs. It cannot change key, tempo, guide melody or music volume, and it cannot
+  add a song out of turn. A machine whose room was at *Queue songs* is now at *Ask for songs*. To
+  give every guest those controls again, open the password tab of the owner's page and choose the
+  level above it. *Watch only* and *skip and play now* stay as you set them.
+- **The queue code now buys the level above asking.** A phone with that code adds a song with no
+  singer, which takes no turn, and changes key and tempo.
+- **`POST /api/v1/queue` takes no `singer`.** It adds a song with no singer, and it refuses a body
+  that names one. A program that queued a named song asks through `POST /api/v1/requests`.
 
 ### Fixed
 

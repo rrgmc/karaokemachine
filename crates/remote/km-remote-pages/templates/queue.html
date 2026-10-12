@@ -10,6 +10,15 @@
 
 {{ nowbar|safe }}
 
+{# This phone's rows in the list below. The list is one fragment for every phone, so the rule
+   that marks a phone's own rows is written here, where the page knows whose phone it is. #}
+{% match mine.own_rows() %}
+{% when Some with (rows) %}<style>{{ rows|safe }} { box-shadow: inset 3px 0 0 var(--amber); }</style>
+{% when None %}
+{% endmatch %}
+
+{{ mine|safe }}
+
 <input type="checkbox" id="queue-actions" class="visually-hidden" autocomplete="off">
 
 {{ queue|safe }}

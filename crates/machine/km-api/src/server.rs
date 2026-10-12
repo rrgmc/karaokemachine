@@ -49,6 +49,12 @@ struct Inner {
     auth: AdminAuth,
     /// What everybody on the network gets with no code. Live, because the owner can change it.
     room_access: RwLock<Access>,
+    /// Which evening this is: a random word, new at every start.
+    ///
+    /// A seat ends with the process and ids start again from zero, so an id a phone kept from an
+    /// earlier run names somebody else's seat now. A phone keeps this word beside its seats and
+    /// drops them when the word differs.
+    evening: String,
 
     connect: RwLock<ConnectInfo>,
     /// Whether the password in force is the one the machine generated for itself.
@@ -161,6 +167,7 @@ impl ApiState {
                 events,
                 auth,
                 room_access,
+                evening: crate::auth::random_hex(8),
 
                 connect,
                 factory_password,
@@ -434,6 +441,11 @@ impl ApiState {
             .read()
             .map(|factory| *factory)
             .unwrap_or(false)
+    }
+
+    /// Which evening this is, as [`crate::dto::SingersDto::evening`] carries it.
+    pub fn evening(&self) -> &str {
+        &self.inner.evening
     }
 
     /// What everybody on the network gets with no code.
@@ -853,6 +865,8 @@ mod tests {
 
     const ADMIN_ROUTE: &str = "/api/v1/admin/demo";
     const PUBLIC_ROUTE: &str = "/api/v1/queue";
+    /// What a guest's phone posts to: a room at its default level reaches it with no code.
+    const ASK_ROUTE: &str = "/api/v1/requests";
 
     fn state_with(config: ApiConfig) -> ApiState {
         ApiState::from_machine(TestMachine::with_catalog(3).shared(), config)
@@ -893,12 +907,18 @@ mod tests {
     const SKIP: &str = "/api/v1/transport/skip";
 
     #[test]
-    fn a_queue_route_needs_nothing_while_the_room_can_queue() {
+    fn asking_for_a_song_needs_nothing_while_the_room_is_at_its_default() {
         let state = passworded();
         assert!(
             state
-                .authorize(&Method::POST, PUBLIC_ROUTE, &HeaderMap::new())
+                .authorize(&Method::POST, ASK_ROUTE, &HeaderMap::new())
                 .is_ok()
+        );
+        // A song with no singer takes no turn, so the default room does not add one.
+        assert!(
+            state
+                .authorize(&Method::POST, PUBLIC_ROUTE, &HeaderMap::new())
+                .is_err()
         );
         let error = state
             .authorize(&Method::POST, SKIP, &HeaderMap::new())
@@ -970,13 +990,21 @@ mod tests {
         assert_eq!(state.room_access(), Access::Control);
     }
 
-    /// The request level opens what the view level opens, so a room that names it is at view.
+    /// A room may sit at the request level, and it asks for songs and adds none out of turn.
     #[test]
-    fn a_room_is_never_left_at_the_request_level() {
+    fn a_room_at_the_request_level_asks_and_does_not_queue() {
         let state = with_codes(Access::Request);
-        assert_eq!(state.room_access(), Access::View);
-        state.set_room_access(Access::Request);
-        assert_eq!(state.room_access(), Access::View);
+        assert_eq!(state.room_access(), Access::Request);
+        assert!(
+            state
+                .authorize(&Method::POST, ASK_ROUTE, &HeaderMap::new())
+                .is_ok()
+        );
+        assert!(
+            state
+                .authorize(&Method::POST, PUBLIC_ROUTE, &HeaderMap::new())
+                .is_err()
+        );
     }
 
     #[test]
@@ -1009,7 +1037,7 @@ mod tests {
         // ...and the public half is unaffected, which is what keeps a phone working.
         assert!(
             state
-                .authorize(&Method::POST, PUBLIC_ROUTE, &HeaderMap::new())
+                .authorize(&Method::POST, ASK_ROUTE, &HeaderMap::new())
                 .is_ok()
         );
     }

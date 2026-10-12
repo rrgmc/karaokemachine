@@ -22,8 +22,10 @@ use std::time::Duration;
 use futures_util::StreamExt;
 use km_api::discover::Discovery;
 use km_api::dto::{
-    AccessDto, AccessGrantDto, AddToQueueRequest, AddedToQueueDto, LoginRequest, MoveRequest,
-    PackagesDto, QueueDto, SettingsPatchDto, SongDto, StateDto,
+    AccessDto, AccessGrantDto, AddRequest, AddToQueueRequest, AddedToQueueDto, LoginRequest,
+    MoveRequest, PackagesDto, QueueDto, RegisterSingerRequest, RenameSingerRequest, RequestDto,
+    RequestsDto, SettingsPatchDto, SingerDto, SingerIssuedDto, SingersDto, SongDto, StateDto,
+    WithdrawRequest,
 };
 use km_api::events::Event;
 use km_remote_pages::machine::{Connection, Machine, RemoteError, Transport, codes};
@@ -503,17 +505,73 @@ impl Machine for MachineClient {
         .await
     }
 
-    async fn enqueue(
-        &self,
-        number: SongCode,
-        singer: Option<&str>,
-    ) -> Result<AddedToQueueDto, RemoteError> {
-        let request = AddToQueueRequest {
-            number,
-            singer: singer.map(str::to_owned),
-        };
+    async fn enqueue(&self, number: SongCode) -> Result<AddedToQueueDto, RemoteError> {
+        let request = AddToQueueRequest { number };
         self.with_api(|api| async move { api.post("/queue", Some(&request)).await })
             .await
+    }
+
+    async fn singers(&self) -> Result<SingersDto, RemoteError> {
+        self.with_api(|api| async move { api.get("/singers").await })
+            .await
+    }
+
+    async fn register_singer(
+        &self,
+        device: &str,
+        name: Option<&str>,
+    ) -> Result<SingerIssuedDto, RemoteError> {
+        let request = RegisterSingerRequest {
+            device: device.to_owned(),
+            name: name.map(str::to_owned),
+        };
+        self.with_api(|api| async move { api.post("/singers", Some(&request)).await })
+            .await
+    }
+
+    async fn rename_singer(
+        &self,
+        id: u64,
+        token: &str,
+        name: &str,
+    ) -> Result<SingerDto, RemoteError> {
+        let request = RenameSingerRequest {
+            token: token.to_owned(),
+            name: name.to_owned(),
+        };
+        self.with_api(|api| async move { api.put(&format!("/singers/{id}/name"), &request).await })
+            .await
+    }
+
+    async fn requests(&self) -> Result<RequestsDto, RemoteError> {
+        self.with_api(|api| async move { api.get("/requests").await })
+            .await
+    }
+
+    async fn request(
+        &self,
+        singer: u64,
+        token: &str,
+        number: SongCode,
+    ) -> Result<RequestDto, RemoteError> {
+        let request = AddRequest {
+            singer,
+            token: token.to_owned(),
+            number,
+        };
+        self.with_api(|api| async move { api.post("/requests", Some(&request)).await })
+            .await
+    }
+
+    async fn withdraw(&self, request: u64, token: &str) -> Result<RequestDto, RemoteError> {
+        let body = WithdrawRequest {
+            token: token.to_owned(),
+        };
+        self.with_api(|api| async move {
+            api.post(&format!("/requests/{request}/withdraw"), Some(&body))
+                .await
+        })
+        .await
     }
 
     async fn dequeue(&self, entry_id: u64) -> Result<QueueDto, RemoteError> {

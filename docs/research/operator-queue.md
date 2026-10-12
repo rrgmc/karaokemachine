@@ -1,7 +1,7 @@
 # Research: a fair queue that an operator can correct
 
 **Findings, and no decision.** A guest's song goes straight into the queue, and
-[`Four access levels, and the method and path decide them`](../decisions/api-and-network.md#four-access-levels-and-the-method-and-path-decide-them)
+[`Five access levels, and the method and path decide them`](../decisions/api-and-network.md#five-access-levels-and-the-method-and-path-decide-them)
 is what lets it. A fair queue would add a level to that entry, change its default and add a surface.
 
 Read on 2026-10-11, from this repository and from the OpenKJ source at commit `47d54f44674f`.

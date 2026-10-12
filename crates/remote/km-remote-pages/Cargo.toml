@@ -20,6 +20,8 @@ km-api = { workspace = true }
 # `Wait`, the rule for the two forms a queued song's wait takes. The machine's screen draws the same
 # figure through the same rule.
 km-queue = { workspace = true }
+# The id a phone makes for itself the first time it registers a singer. See `prefs::DEVICE`.
+getrandom = { workspace = true }
 # `SearchQuery`, `SortOrder` and `fts_match_query`. Both modes build the identical SQL -- the machine
 # against `library.sqlite` and the offline app against its mirror -- so the two can never disagree
 # about what a search means, and neither reimplements FTS5's operator escaping.

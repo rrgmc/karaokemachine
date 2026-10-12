@@ -546,12 +546,8 @@ pub async fn add_to_queue(
 ) -> ApiResult<(axum::http::StatusCode, Json<AddedToQueueDto>)> {
     // Off the runtime: queueing onto an idle machine loads the song, which for a video is ffmpeg
     // opening a decoder. See `ops::off_runtime`.
-    let singer = body.singer.clone();
     let number = body.number;
-    let added = ops::off_runtime(&state, move |state| {
-        ops::enqueue(state, number, singer.as_deref())
-    })
-    .await?;
+    let added = ops::off_runtime(&state, move |state| ops::enqueue(state, number)).await?;
     Ok((axum::http::StatusCode::CREATED, Json(added)))
 }
 

@@ -9,7 +9,7 @@
 //! machine.
 //!
 //! **A caller's level is the higher of two things.** The room level is what everybody on the network
-//! gets with no code at all, and it starts at [`Access::Queue`]. A token is what a code or the admin
+//! gets with no code at all, and it starts at [`Access::Request`]. A token is what a code or the admin
 //! password buys, and it carries its own level. See [`crate::routes::required_access`] for what each
 //! route needs.
 
@@ -27,14 +27,12 @@ pub enum Access {
     View,
     /// Registers a singer and names one, and asks for a song and takes one back.
     ///
-    /// **Nothing grants it by itself.** No room is given it and no code buys it, so a caller
-    /// reaches its routes by holding [`Self::Queue`] or more.
-    Request,
-    /// Adds a song to the queue, and turns a singer's knobs.
-    ///
-    /// **The default room level.** Anybody in the room can queue a song unless the owner says
-    /// otherwise.
+    /// **The default room level.** Anybody in the room asks for a song, and the machine queues it
+    /// in that singer's turn. So a new machine gives its singers turns with no setup. No code buys
+    /// this level, because a room below it is a room where only somebody with a code adds songs.
     #[default]
+    Request,
+    /// Adds a song with no singer, which takes no turn, and turns a singer's knobs.
     Queue,
     /// Interrupts: skip, play now, the transport, and anybody's queue entry.
     Control,
@@ -52,11 +50,8 @@ impl Access {
         Self::Admin,
     ];
 
-    /// The levels a room may be given.
-    ///
-    /// The admin level is never one of them. [`Self::Request`] is not one either: the singer's
-    /// remote asks through the queue level, so a room at this level could ask for nothing from it.
-    pub const ROOM: [Self; 3] = [Self::View, Self::Queue, Self::Control];
+    /// The levels a room may be given. The admin level is never one of them.
+    pub const ROOM: [Self; 4] = [Self::View, Self::Request, Self::Queue, Self::Control];
 
     /// The word for this level, as it appears in JSON, in a token and in `settings.json`.
     pub fn as_str(self) -> &'static str {
@@ -81,16 +76,11 @@ impl Access {
 
     /// The room level a stored level is read as.
     ///
-    /// A settings file is typed by hand, so it can name a level no room holds. The admin level is
-    /// read as [`Self::Control`], the highest a room may hold. [`Self::Request`] is read as
-    /// [`Self::View`], the room level below it.
+    /// A settings file is typed by hand, so it can name the admin level for the room. That is read
+    /// as [`Self::Control`], the highest a room may hold.
     #[must_use]
     pub fn as_room(self) -> Self {
-        match self {
-            Self::Admin => Self::Control,
-            Self::Request => Self::View,
-            room => room,
-        }
+        self.min(Self::Control)
     }
 
     /// Whether a code grants this level. Only the queue and control levels have one.
@@ -117,9 +107,11 @@ mod tests {
         assert!(Access::Control < Access::Admin);
     }
 
+    /// A new machine gives its singers turns with no setup.
     #[test]
-    fn a_fresh_room_can_queue() {
-        assert_eq!(Access::default(), Access::Queue);
+    fn a_fresh_room_can_ask_for_a_song_and_not_queue_one() {
+        assert_eq!(Access::default(), Access::Request);
+        assert!(Access::default() < Access::Queue);
     }
 
     #[test]
@@ -141,7 +133,6 @@ mod tests {
     #[test]
     fn a_stored_level_is_read_as_one_a_room_may_hold() {
         assert_eq!(Access::Admin.as_room(), Access::Control);
-        assert_eq!(Access::Request.as_room(), Access::View);
         for level in Access::ALL {
             assert!(level.as_room().is_room_level());
         }
@@ -150,13 +141,10 @@ mod tests {
         }
     }
 
-    /// No room is given the request level and no code buys it.
+    /// A room may be given the request level, and no code buys it.
     #[test]
-    fn nothing_grants_the_request_level() {
-        assert!(!Access::Request.is_room_level());
+    fn the_request_level_is_a_rooms_and_never_a_codes() {
+        assert!(Access::Request.is_room_level());
         assert!(!Access::Request.has_code());
-        for level in Access::ROOM {
-            assert!(level.is_room_level());
-        }
     }
 }

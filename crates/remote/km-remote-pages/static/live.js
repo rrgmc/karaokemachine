@@ -210,6 +210,11 @@
       source.addEventListener(name, (event) => swap(name, event.data));
     }
     source.addEventListener("toast", (event) => toast(event.data));
+    // The requests changed. A phone's own songs are its own, so this event carries no fragment:
+    // it is turned into a DOM event, and the list on the Queue tab fetches itself on it.
+    source.addEventListener("requests", () => {
+      document.body.dispatchEvent(new Event("km:requests"));
+    });
 
     // A dropped stream is not worth telling anybody about: the browser is already reconnecting, and
     // the machine being unreachable is reported by the banner, which is itself one of these events.

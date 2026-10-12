@@ -8,7 +8,7 @@
 
 **One shared admin password, and everything it guards lives under `/api/v1/admin/`.** A path under
 that prefix demands a valid admin token. A path outside it never needs the admin password, and
-[`Four access levels`](#four-access-levels-and-the-method-and-path-decide-them) decides what else it
+[`Five access levels`](#five-access-levels-and-the-method-and-path-decide-them) decides what else it
 needs. There is nothing to configure for the admin routes and nothing an owner can get wrong.
 
 **There is no `public`/`admin` map in `settings.json`.** A table of route ids is free to drift out of
@@ -80,6 +80,11 @@ a name, for a host who calls each one by the name on the screen. `singers.max_pe
 singers on one device, and a home that passes one phone around wants no cap. The machine counts by
 the id a remote sends, so the cap stops a mistake and not a cheat.
 
+**The machine has a word for the evening, and a phone keeps it beside its seats.** A seat ends
+when the machine stops, and ids start again from zero. An id kept from an earlier evening would
+name somebody else's seat. `GET /singers` and each registration carry a random word that is new at
+every start, and a phone drops its seats when the word differs.
+
 **An evening holds 1,000 seats at most.** A phone at the room level could otherwise fill memory by
 registering singers.
 
@@ -110,7 +115,9 @@ never gets worse because of what another singer did. A new singer waits one roun
 hand stays where they put it.
 
 **A song with no singer passes the rule.** `POST /queue` puts it straight at the end, and it holds
-back no other song. That route needs the `queue` level, which is why it stands above `request`.
+back no other song. That route needs the `queue` level, which is why it stands above `request`. It
+takes a song number and nothing else. A body that names a singer is refused, where a dropped name
+would put that singer's song ahead of every turn with nothing said.
 
 **The rule treats an operator's request as it treats a phone's.** `POST /singers/{id}/requests`
 needs the `control` level and no token. An operator who types in a pile of slips in any order still
@@ -151,42 +158,63 @@ exist the moment the machine starts. A request and a seat end with the process, 
 request carries its entry's position. `singers_changed` goes out when a singer registers, takes a
 name or gets a new token.
 
-## Four access levels, and the method and path decide them
+## Five access levels, and the method and path decide them
 
-**Four levels, each including the ones below it: view, queue, control and admin.**
+**Five levels, each including the ones below it: view, request, queue, control and admin.**
 
 | Level | What it adds |
 |---|---|
 | `view` | Every `GET`: the catalog, the queue, what is playing, the event stream. |
-| `queue` | `POST /queue`, and `PUT /settings` for key, tempo, volume, melody and lyric offset. |
-| `control` | Every other write outside `/admin/`: skip, play now, the transport, any queue entry, the demo, the next picture. |
+| `request` | Registering a singer and naming one, asking for a song, and taking one back. |
+| `queue` | `POST /queue` for a song with no singer, and `PUT /settings` for key, tempo, volume, melody and lyric offset. |
+| `control` | Every other write outside `/admin/`: skip, play now, the transport, any queue entry, any singer's song, the demo, the next picture. |
 | `admin` | Everything under `/api/v1/admin/`. |
 
 **A room level, and two codes.** The room level is what a phone with no code gets, and it starts at
-`queue`. So anybody in the room can queue a song unless the owner says otherwise. An owner may set
-it to `view` or `control`, and never to `admin`. A queue code and a control code each raise a phone
-to their level. The admin password opens the admin level, as it always does.
+`request`. So anybody in the room asks for a song, and the machine queues it in that singer's turn.
+A new machine gives its singers turns with no setup.
 
-**The type holds a fifth level, `request`, between `view` and `queue`.** Four routes need it. They
-register a singer, name one, ask for a song and take one back. No room is given it and no code buys
-it, so a caller reaches those routes at `queue` or above. A settings file that names it for the room is read as
-`view`, as one that names `admin` is read as `control`. See
-[`A singer is a seat, and a token proves it`](#a-singer-is-a-seat-and-a-token-proves-it).
+**An owner may set the room to `view`, `queue` or `control`, and never to `admin`.** A queue code and a control code each raise a phone to their level.
+The admin password opens the admin level, as it always does.
+
+**`request` stands below `queue` because a song with no singer takes no turn.** `POST /queue` puts
+a song straight at the end of the queue, past the rule that gives each singer one song there. A
+guest who could do that would drop the name to get ahead. So a guest asks, and the level that adds
+a song out of turn needs a code or an owner who raised the room. See
+[`The queue holds one song for each singer`](#the-queue-holds-one-song-for-each-singer).
+
+**A guest at `request` does not change the key.** `PUT /settings` is the key, the tempo, the volume
+and the guide melody of whatever is playing. A room at `request` keeps one guest's phone off another
+singer's song. An owner who wants every guest to have those controls raises the room to `queue`.
+
+**No code buys the `request` level.** A room below it is at `view`, where only somebody with a code
+adds a song. A night where the host enters every song is that room, and it needs no setting of its
+own.
+
+**A stored `queue` room became a `request` room once.** `queue` was the default and the level a
+guest needed to add a song. A stored `queue` could not say whether its owner chose it. Settings
+version 6 reads it as `request`, and an owner who wants the direct queue chooses it again. `view`
+and `control` stay as chosen.
+
+**A settings file that names `admin` for the room is read as `control`.**
+
+**A night where only the host enters songs is a room at `view`.** The guests see the queue and
+their place, and ask for nothing. The host holds the control code and adds each song for its singer.
 
 **No accounts.** A karaoke machine's owner hands a code to the people who may skip, and changes it
 when that stops being true. Names and passwords per guest would be a list nobody keeps. The singer
 name a phone queues under stays a label, never an identity.
 
 **The levels are a `match` in code, not a table in settings.** `routes::required_access` reads the
-method and the path. A read needs `view`, two routes need `queue`, and every other write outside
-`/admin/` needs `control`. **A write added tomorrow needs `control` until somebody decides
+method and the path. A read needs `view`, four routes need `request`, two need `queue`, and every
+other write outside `/admin/` needs `control`. **A write added tomorrow needs `control` until somebody decides
 otherwise**, so a new route fails closed. A table of route ids in `settings.json` could drift out of
 step with the router, which is the fault [`The URL prefix is the permission`](#the-url-prefix-is-the-permission)
 answers.
 
-**Interrupting somebody else is `control`, and adding a song is not.** Moving or removing a queue
-entry is `control` too, because the queue holds no owner for an entry. A queuer who adds the wrong
-song asks somebody with the control code to take it out.
+**Interrupting somebody else is `control`, and asking for a song is not.** Moving or removing
+another singer's queue entry is `control` too. A singer takes back a song of their own with the
+seat's token, and needs no code for it.
 
 **A token carries its level, and a code's hash is inside its MAC.** `POST /api/v1/login` takes the
 admin password or either code and answers with a token of the highest level the words open. Changing

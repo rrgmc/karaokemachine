@@ -15,8 +15,9 @@ use std::sync::{Arc, Mutex};
 use axum::body::Body;
 use axum::http::{Method, Request, StatusCode};
 use km_api::dto::{
-    AddedToQueueDto, NowPlayingDto, OriginDto, QueueDto, QueueEntryDto, SettingsDto,
-    SettingsPatchDto, SongDto, StateDto, TransportDto,
+    AddedToQueueDto, NowPlayingDto, OriginDto, QueueDto, QueueEntryDto, RequestDto,
+    RequestStateDto, RequestsDto, SettingsDto, SettingsPatchDto, SingerDto, SingerIssuedDto,
+    SingersDto, SongDto, StateDto, TransportDto,
 };
 use km_api::events::Event;
 use km_remote_pages::machine::{
@@ -331,6 +332,13 @@ fn broken() -> RemoteError {
 #[derive(Clone)]
 struct StubMachine {
     queued: Arc<Mutex<Vec<QueueEntryDto>>>,
+    /// The singers who registered, each with the token it was issued.
+    ///
+    /// Enough of the real rule for a page to draw: a singer's first song goes into the queue and the
+    /// next one waits. Whether the rule is right is `km_queue::evening`'s to test.
+    seats: Arc<Mutex<Vec<(SingerDto, String)>>>,
+    /// Every song a singer asked for.
+    asked: Arc<Mutex<Vec<RequestDto>>>,
     events: broadcast::Sender<Event>,
     /// What every command answers with, when it is not to succeed.
     refuse: Option<RemoteError>,
@@ -361,6 +369,9 @@ struct StubMachine {
     room: km_api::Access,
 }
 
+/// The stub's word for its evening, which a phone keeps beside its seats.
+const STUB_EVENING: &str = "e0e0";
+
 /// The one code the stub knows, and the token it hands back for it.
 const STUB_CODE: &str = "boss";
 const STUB_TOKEN: &str = "stub-control-token";
@@ -370,6 +381,8 @@ impl StubMachine {
         let (events, _) = broadcast::channel(16);
         Self {
             queued: Arc::new(Mutex::new(Vec::new())),
+            seats: Arc::new(Mutex::new(Vec::new())),
+            asked: Arc::new(Mutex::new(Vec::new())),
             events,
             refuse: None,
             refuse_transport: None,
@@ -441,6 +454,30 @@ impl StubMachine {
             Some(error) => Err(error.clone()),
             None => Ok(()),
         }
+    }
+
+    /// Puts a song at the end of the queue, for a singer or for none, and answers with its place.
+    ///
+    /// The entry's id is the song's number, which is what lets a test name a row it queued.
+    fn push(&self, number: SongCode, singer: Option<(u64, Option<String>)>) -> usize {
+        let mut queued = self.queued.lock().expect("lock");
+        let position = queued.len();
+        let (seat, name) = match singer {
+            Some((seat, name)) => (Some(seat), name),
+            None => (None, None),
+        };
+        queued.push(QueueEntryDto {
+            id: u64::from(number.number()),
+            position,
+            number,
+            title: format!("Song {number}"),
+            artist: None,
+            singer: name,
+            duration_ms: 180_000,
+            seat,
+            ahead_ms: Some(180_000 * position as u64),
+        });
+        position
     }
 
     fn queue_dto(&self) -> QueueDto {
@@ -537,31 +574,165 @@ impl Machine for StubMachine {
         Ok(self.queue_dto())
     }
 
-    async fn enqueue(
-        &self,
-        number: SongCode,
-        singer: Option<&str>,
-    ) -> Result<AddedToQueueDto, RemoteError> {
+    async fn enqueue(&self, number: SongCode) -> Result<AddedToQueueDto, RemoteError> {
         self.check()?;
-        let mut queued = self.queued.lock().expect("lock");
-        let position = queued.len();
-        queued.push(QueueEntryDto {
-            id: u64::from(number.number()),
-            position,
-            number,
-            title: format!("Song {number}"),
-            artist: None,
-            singer: singer.map(str::to_owned),
-            duration_ms: 180_000,
-            seat: None,
-            ahead_ms: Some(180_000 * position as u64),
-        });
+        let position = self.push(number, None);
         Ok(AddedToQueueDto {
             entry_id: u64::from(number.number()),
             position,
             title: format!("Song {number}"),
             artist: None,
         })
+    }
+
+    async fn singers(&self) -> Result<SingersDto, RemoteError> {
+        self.check()?;
+        Ok(SingersDto {
+            singers: self
+                .seats
+                .lock()
+                .expect("lock")
+                .iter()
+                .map(|(singer, _)| singer.clone())
+                .collect(),
+            capacity: 1_000,
+            evening: STUB_EVENING.to_owned(),
+        })
+    }
+
+    async fn register_singer(
+        &self,
+        _device: &str,
+        name: Option<&str>,
+    ) -> Result<SingerIssuedDto, RemoteError> {
+        self.check()?;
+        let mut seats = self.seats.lock().expect("lock");
+        if let Some(name) = name
+            && seats
+                .iter()
+                .any(|(singer, _)| singer.name.as_deref() == Some(name))
+        {
+            return Err(RemoteError::Unavailable {
+                code: "name_taken".to_owned(),
+                message: "another singer holds that name".to_owned(),
+            });
+        }
+        let id = seats.len() as u64;
+        let singer = SingerDto {
+            id,
+            name: name.map(str::to_owned),
+            guest: name.is_none().then_some(id as u32 + 1),
+        };
+        let token = format!("t0ken{id}");
+        seats.push((singer.clone(), token.clone()));
+        Ok(SingerIssuedDto {
+            singer,
+            token,
+            evening: STUB_EVENING.to_owned(),
+        })
+    }
+
+    async fn rename_singer(
+        &self,
+        id: u64,
+        token: &str,
+        name: &str,
+    ) -> Result<SingerDto, RemoteError> {
+        self.check()?;
+        let mut seats = self.seats.lock().expect("lock");
+        let Some((singer, held)) = seats.iter_mut().find(|(singer, _)| singer.id == id) else {
+            return Err(RemoteError::NotFound);
+        };
+        if held != token {
+            return Err(RemoteError::Unauthorized);
+        }
+        singer.name = Some(name.to_owned());
+        let singer = singer.clone();
+        for entry in self.queued.lock().expect("lock").iter_mut() {
+            if entry.seat == Some(id) {
+                entry.singer = Some(name.to_owned());
+            }
+        }
+        Ok(singer)
+    }
+
+    async fn requests(&self) -> Result<RequestsDto, RemoteError> {
+        self.check()?;
+        Ok(RequestsDto {
+            requests: self.asked.lock().expect("lock").clone(),
+            capacity: 1_000,
+        })
+    }
+
+    async fn request(
+        &self,
+        singer: u64,
+        token: &str,
+        number: SongCode,
+    ) -> Result<RequestDto, RemoteError> {
+        self.check()?;
+        let name = {
+            let seats = self.seats.lock().expect("lock");
+            let Some((held, issued)) = seats.iter().find(|(held, _)| held.id == singer) else {
+                return Err(RemoteError::NotFound);
+            };
+            if issued != token {
+                return Err(RemoteError::Unauthorized);
+            }
+            held.name.clone()
+        };
+        let has_entry = self
+            .queued
+            .lock()
+            .expect("lock")
+            .iter()
+            .any(|entry| entry.seat == Some(singer));
+        let mut asked = self.asked.lock().expect("lock");
+        let mut request = RequestDto {
+            id: asked.len() as u64,
+            singer,
+            number,
+            title: format!("Song {number}"),
+            artist: None,
+            duration_ms: 180_000,
+            state: RequestStateDto::Waiting,
+            entry_id: None,
+            position: None,
+        };
+        if !has_entry {
+            let position = self.push(number, Some((singer, name)));
+            request.state = RequestStateDto::Queued;
+            request.entry_id = Some(u64::from(number.number()));
+            request.position = Some(position);
+        }
+        asked.push(request.clone());
+        Ok(request)
+    }
+
+    async fn withdraw(&self, request: u64, token: &str) -> Result<RequestDto, RemoteError> {
+        self.check()?;
+        let mut asked = self.asked.lock().expect("lock");
+        let Some(held) = asked.iter_mut().find(|held| held.id == request) else {
+            return Err(RemoteError::NotFound);
+        };
+        let proves = self
+            .seats
+            .lock()
+            .expect("lock")
+            .iter()
+            .any(|(singer, issued)| singer.id == held.singer && issued == token);
+        if !proves {
+            return Err(RemoteError::Unauthorized);
+        }
+        if let Some(entry) = held.entry_id {
+            self.queued
+                .lock()
+                .expect("lock")
+                .retain(|queued| queued.id != entry);
+        }
+        held.state = RequestStateDto::Withdrawn;
+        held.position = None;
+        Ok(held.clone())
     }
 
     async fn dequeue(&self, entry_id: u64) -> Result<QueueDto, RemoteError> {
@@ -5404,4 +5575,376 @@ async fn a_code_is_kept_in_a_cookie_and_a_wrong_one_is_refused() {
 
     let (_, body) = harness.post_form("/access", "code=nope").await;
     assert!(body.contains("not right"), "{body}");
+}
+
+// -- a phone, its singers and their turns ---------------------------------------------------------
+
+/// A browser on one phone: it keeps the cookies a page sets and sends them back.
+///
+/// `Harness::post` sends none, so each of its requests is a phone nobody has seen before. A singer
+/// is this phone's across requests, and only a cookie jar can show that.
+struct Phone<'a> {
+    harness: &'a Harness,
+    cookies: Mutex<Vec<(String, String)>>,
+}
+
+impl<'a> Phone<'a> {
+    fn new(harness: &'a Harness) -> Self {
+        Self {
+            harness,
+            cookies: Mutex::new(Vec::new()),
+        }
+    }
+
+    /// A phone that already holds this cookie, as one that was used on an earlier evening does.
+    fn holding(harness: &'a Harness, name: &str, value: &str) -> Self {
+        let phone = Self::new(harness);
+        phone
+            .cookies
+            .lock()
+            .expect("lock")
+            .push((name.to_owned(), value.to_owned()));
+        phone
+    }
+
+    fn cookie(&self, name: &str) -> Option<String> {
+        self.cookies
+            .lock()
+            .expect("lock")
+            .iter()
+            .find(|(held, _)| held == name)
+            .map(|(_, value)| value.clone())
+    }
+
+    async fn send(&self, mut request: Request<Body>) -> (StatusCode, String) {
+        let header = self
+            .cookies
+            .lock()
+            .expect("lock")
+            .iter()
+            .map(|(name, value)| format!("{name}={value}"))
+            .collect::<Vec<_>>()
+            .join("; ");
+        if !header.is_empty() {
+            request
+                .headers_mut()
+                .insert("Cookie", header.parse().expect("a cookie header"));
+        }
+        let (status, headers, body) = self.harness.send(request).await;
+        let mut cookies = self.cookies.lock().expect("lock");
+        for set in headers.get_all(axum::http::header::SET_COOKIE) {
+            let set = set.to_str().expect("a cookie is text");
+            let (pair, attributes) = set.split_once(';').unwrap_or((set, ""));
+            let (name, value) = pair.split_once('=').expect("a cookie has a name");
+            cookies.retain(|(held, _)| held != name);
+            if !attributes.contains("Max-Age=0") {
+                cookies.push((name.to_owned(), value.to_owned()));
+            }
+        }
+        (status, body)
+    }
+
+    async fn get(&self, path: &str) -> String {
+        self.send(http::get(path)).await.1
+    }
+
+    async fn post(&self, path: &str) -> String {
+        self.send(htmx_post(path, Body::empty())).await.1
+    }
+
+    async fn post_form(&self, path: &str, body: &'static str) -> String {
+        self.send(htmx_post(path, Body::from(body))).await.1
+    }
+}
+
+/// A phone's first song goes into the queue and its second waits, and the phone keeps its singer.
+#[tokio::test]
+async fn a_phones_first_song_is_queued_and_its_second_waits() {
+    let harness = Harness::online();
+    let phone = Phone::new(&harness);
+
+    let first = phone.post("/song/1001/queue").await;
+    assert!(first.contains(">queued<"), "{first}");
+    assert!(phone.cookie("km_device").is_some(), "the phone made an id");
+    let seats = phone.cookie("km_seats").expect("and holds a singer");
+    assert!(seats.starts_with("e0e0.0.0-"), "{seats}");
+
+    let second = phone.post("/song/1002/queue").await;
+    assert!(second.contains(">waiting<"), "{second}");
+    assert!(
+        second.contains("goes into the queue when your song starts"),
+        "the toast says why it waits: {second}"
+    );
+    assert_eq!(
+        phone.cookie("km_seats").as_deref(),
+        Some(seats.as_str()),
+        "the same singer, so no second registration"
+    );
+
+    let queue = phone.get("/queue").await;
+    assert!(queue.contains("Your songs"), "{queue}");
+    assert!(queue.contains("In the queue, place 1"), "{queue}");
+    assert!(queue.contains("Waiting for your turn"), "{queue}");
+    assert!(
+        queue.contains(r#"<li class="queue-row" data-seat="0">"#),
+        "the queued row carries its seat: {queue}"
+    );
+    assert!(
+        queue.contains(r#".queue-row[data-seat="0"]"#),
+        "and this phone's page marks it: {queue}"
+    );
+    assert!(
+        !queue.contains(&seats[seats.rfind('-').expect("a token") + 1..]),
+        "the token stays in the cookie and never reaches the page"
+    );
+}
+
+/// Two phones are two singers, so each one's first song goes straight in.
+#[tokio::test]
+async fn two_phones_are_two_singers() {
+    let harness = Harness::online();
+    let ana = Phone::new(&harness);
+    let beto = Phone::new(&harness);
+
+    assert!(ana.post("/song/1001/queue").await.contains(">queued<"));
+    assert!(beto.post("/song/1002/queue").await.contains(">queued<"));
+
+    // Each phone lists its own song and not the other's.
+    let page = ana.get("/queue").await;
+    let mine = &page[page.find(r#"id="mine""#).expect("the list")
+        ..page.find(r#"id="queue""#).expect("the queue")];
+    assert!(mine.contains("Song 1001"), "{mine}");
+    assert!(!mine.contains("Song 1002"), "{mine}");
+}
+
+/// A phone with no singer draws no list and marks no row.
+#[tokio::test]
+async fn a_phone_that_asked_for_nothing_has_no_list_of_its_own() {
+    let harness = Harness::online();
+    harness.post("/song/1001/queue").await;
+
+    let queue = harness.get("/queue").await;
+    assert!(queue.contains(r#"id="mine""#), "the target stays: {queue}");
+    assert!(!queue.contains("Your songs"), "{queue}");
+    assert!(!queue.contains("<style>"), "{queue}");
+}
+
+/// The singer's own token takes a song back, with no code, and the list says so.
+#[tokio::test]
+async fn a_singer_takes_a_song_back_from_the_queue_tab() {
+    let harness = Harness::with(
+        StubMachine::new().room(km_api::Access::Request),
+        Capabilities::online(),
+    );
+    let phone = Phone::new(&harness);
+    phone.post("/song/1001/queue").await;
+    phone.post("/song/1002/queue").await;
+
+    let queue = phone.get("/queue").await;
+    assert!(
+        queue.contains(r#"hx-post="/mine/1/withdraw""#),
+        "the waiting song can be taken back: {queue}"
+    );
+
+    let list = phone.post("/mine/1/withdraw").await;
+    assert!(list.contains(r#"id="mine""#), "the list comes back: {list}");
+    assert!(list.contains("Taken back"), "{list}");
+    assert!(
+        !list.contains(r#"hx-post="/mine/1/withdraw""#),
+        "and a song taken back has nothing left to press: {list}"
+    );
+
+    // Another phone holds no token for it, so it is refused and nothing changes.
+    let stranger = Phone::new(&harness);
+    let refused = stranger.post("/mine/0/withdraw").await;
+    assert!(refused.contains("toast"), "{refused}");
+    assert!(phone.get("/queue").await.contains("In the queue, place 1"));
+}
+
+/// The name in the box registers the singer, and a name somebody holds is refused where it is typed.
+#[tokio::test]
+async fn a_name_is_the_singers_and_a_held_name_is_refused() {
+    let harness = Harness::online();
+    let ana = Phone::new(&harness);
+    let said = ana.post_form("/singer", "singer=Ana").await;
+    assert!(said.contains("You are singing as Ana"), "{said}");
+    assert!(
+        ana.cookie("km_seats").is_some(),
+        "the name registered a singer"
+    );
+
+    ana.post("/song/1001/queue").await;
+    let queue = ana.get("/queue").await;
+    assert!(queue.contains("&middot; Ana"), "the row names her: {queue}");
+
+    let other = Phone::new(&harness);
+    let refused = other.post_form("/singer", "singer=Ana").await;
+    assert!(
+        refused.contains("Another singer has that name"),
+        "{refused}"
+    );
+    assert!(other.cookie("km_seats").is_none());
+}
+
+/// A guest who types a name later names the same singer, and the song already queued takes it.
+#[tokio::test]
+async fn a_name_typed_later_names_the_same_singer() {
+    let harness = Harness::online();
+    let phone = Phone::new(&harness);
+    phone.post("/song/1001/queue").await;
+    let seats = phone.cookie("km_seats").expect("a singer");
+
+    phone.post_form("/singer", "singer=Beto").await;
+
+    assert_eq!(phone.cookie("km_seats").as_deref(), Some(seats.as_str()));
+    assert!(phone.get("/queue").await.contains("&middot; Beto"));
+    let setup = phone.get("/setup").await;
+    assert!(setup.contains(r#"value="Beto""#), "{setup}");
+
+    // A singer keeps a name, so an empty box changes nothing.
+    let kept = phone.post_form("/singer", "singer=").await;
+    assert!(kept.contains("A singer keeps a name"), "{kept}");
+}
+
+/// One phone holds several singers, and the choice between them appears with the second.
+#[tokio::test]
+async fn a_second_singer_on_one_phone_brings_the_choice() {
+    let harness = Harness::online();
+    let phone = Phone::new(&harness);
+    phone.post_form("/singer", "singer=Ana").await;
+
+    let one = phone.get("/setup").await;
+    assert!(!one.contains(r#"id="singer-choose""#), "{one}");
+    assert!(one.contains(r#"hx-post="/singer/add""#), "{one}");
+
+    let nameless = phone.post_form("/singer/add", "singer=").await;
+    assert!(
+        nameless.contains("Another singer needs a name"),
+        "{nameless}"
+    );
+
+    phone.post_form("/singer/add", "singer=Beto").await;
+    let two = phone.get("/setup").await;
+    assert!(two.contains(r#"id="singer-choose""#), "{two}");
+    assert!(
+        two.contains(r#"<option value="1" selected>Beto</option>"#),
+        "{two}"
+    );
+    assert!(two.contains(r#"<option value="0">Ana</option>"#), "{two}");
+
+    // Each one's first song goes in, because they are two singers.
+    assert!(phone.post("/song/1001/queue").await.contains(">queued<"));
+    phone.post_form("/singer/choose", "singer=0").await;
+    assert!(phone.post("/song/1002/queue").await.contains(">queued<"));
+    assert!(phone.post("/song/1003/queue").await.contains(">waiting<"));
+
+    let queue = phone.get("/queue").await;
+    assert!(
+        queue.contains("Ana &middot; Waiting for your turn"),
+        "{queue}"
+    );
+}
+
+/// A seat kept from an earlier evening is dropped, and the phone registers again without a word.
+#[tokio::test]
+async fn a_singer_from_an_earlier_evening_is_registered_again() {
+    let harness = Harness::online();
+    let phone = Phone::holding(&harness, "km_seats", "ffff.4.4-0ldt0ken");
+
+    let asked = phone.post("/song/1001/queue").await;
+    assert!(asked.contains(">queued<"), "{asked}");
+    let seats = phone.cookie("km_seats").expect("a singer");
+    assert!(
+        seats.starts_with("e0e0.0.0-"),
+        "this evening's seat: {seats}"
+    );
+}
+
+/// What each room level offers a phone with no code.
+#[tokio::test]
+async fn each_room_level_offers_what_it_may_do() {
+    // A room that only watches is told it needs a code, and the machine hears nothing.
+    let watching = Harness::with(
+        StubMachine::new().room(km_api::Access::View),
+        Capabilities::online(),
+    );
+    let refused = watching.post("/song/1001/queue").await.2;
+    assert!(refused.contains("needs a code"), "{refused}");
+    assert!(
+        watching
+            .get("/")
+            .await
+            .contains(r#"<body class="access-view""#)
+    );
+
+    // A room that asks may ask, and may not add a song that takes no turn.
+    let asking = Harness::with(
+        StubMachine::new().room(km_api::Access::Request),
+        Capabilities::online(),
+    );
+    assert!(
+        asking
+            .get("/")
+            .await
+            .contains(r#"<body class="access-request""#)
+    );
+    assert!(asking.post("/song/1001/queue").await.2.contains(">queued<"));
+    let refused = asking.post("/song/1002/plain").await.2;
+    assert!(refused.contains("needs a code"), "{refused}");
+    let refused = asking.post("/control/transpose-up").await.2;
+    assert!(
+        refused.contains("needs a code"),
+        "a singer's knobs need the queue level"
+    );
+
+    // A room that queues may add one with no singer.
+    let queueing = Harness::with(
+        StubMachine::new().room(km_api::Access::Queue),
+        Capabilities::online(),
+    );
+    assert!(
+        queueing
+            .post("/song/1002/plain")
+            .await
+            .2
+            .contains(">queued<")
+    );
+    let queue = queueing.get("/queue").await;
+    assert!(
+        queue.contains(r#"<li class="queue-row">"#),
+        "and that row belongs to no seat: {queue}"
+    );
+}
+
+/// The row's `+` needs the request level, and the song with no singer is folded away beside the two
+/// buttons that interrupt.
+#[tokio::test]
+async fn the_song_row_asks_first_and_folds_the_rest_away() {
+    let harness = Harness::online();
+    let page = harness.get("/").await;
+    assert!(
+        page.contains(r#"class="icon-btn primary needs-request""#),
+        "{page}"
+    );
+    assert!(
+        page.contains(r#"class="icon-btn extra-action needs-queue""#),
+        "{page}"
+    );
+    let css = harness.get("/static/app.css").await;
+    assert!(css.contains(".access-view .needs-request"), "{css}");
+    assert!(css.contains(".access-request .needs-queue"), "{css}");
+}
+
+/// A phone's own songs are fetched and never pushed, so the page has to be told when to ask.
+#[tokio::test]
+async fn the_live_script_asks_again_when_the_requests_change() {
+    let harness = Harness::offline();
+    let script = harness.get("/static/live.js").await;
+    assert!(script.contains(r#""requests""#), "{script}");
+    assert!(script.contains("km:requests"), "{script}");
+    let queue = harness.get("/queue").await;
+    assert!(
+        queue.contains(r#"hx-trigger="km:requests from:body""#),
+        "{queue}"
+    );
 }

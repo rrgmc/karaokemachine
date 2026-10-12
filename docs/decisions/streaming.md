@@ -49,7 +49,7 @@ anything this process can see. So what a stream can publish is what a package ho
 **Public, on the same terms as reading the queue.** It sits outside `/api/v1/admin/`, so no token is
 asked for. That is the judgment [`Network reach`](api-and-network.md#network-reach) already makes
 about a home LAN indoors. Watching is the
-[`view level`](api-and-network.md#four-access-levels-and-the-method-and-path-decide-them), which
+[`view level`](api-and-network.md#five-access-levels-and-the-method-and-path-decide-them), which
 every phone in the room holds whatever the room level is.
 
 **A machine that is not streaming has neither path**, rather than a page explaining itself. That is

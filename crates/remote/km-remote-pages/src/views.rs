@@ -956,6 +956,11 @@ pub struct NowPage {
 pub struct SetupPage {
     /// Page chrome.
     pub chrome: Chrome,
+    /// The name in the "singing as" box: the singer this phone has singing, or the name it typed
+    /// before it asked for a song.
+    pub singing_as: String,
+    /// The singers this phone holds. The choice between them is drawn from the second one on.
+    pub singers: Vec<PhoneSinger>,
     /// Which machine this device is talking to. `None` in the online mode.
     pub machine: Option<MachineBlock>,
     /// Whether the Setup and Packages tabs are drawn at the top. Only when the catalog holds two or
@@ -1195,8 +1200,111 @@ pub struct QueuePage {
     pub chrome: Chrome,
     /// What is playing, above the list.
     pub nowbar: NowBar,
+    /// The songs this phone's singers asked for.
+    pub mine: MineBlock,
     /// The list.
     pub queue: QueueBlock,
+}
+
+/// One singer this phone holds, as the Setup tab draws it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PhoneSinger {
+    /// The seat's id, which is what the choice posts.
+    pub id: u64,
+    /// The name, or `Guest 4` for a singer who gave none.
+    pub label: String,
+    /// Whether this is the one singing now.
+    pub current: bool,
+}
+
+/// The songs this phone's singers asked for, from the asking to the singing.
+///
+/// **Fetched by the page and never pushed.** The fan-out renders one fragment for every page in a
+/// language, and this list differs for each phone. So the page asks for it when it loads, and again
+/// each time [`crate::sse::REQUESTS`] arrives.
+#[derive(Template)]
+#[template(path = "_mine.html")]
+pub struct MineBlock {
+    /// The requests, oldest first.
+    pub rows: Vec<MineRow>,
+    /// Whether this phone holds several singers, which is when a row says whose song it is.
+    pub several: bool,
+    /// The seat ids this phone holds, for the rule that marks its rows in the queue.
+    pub seats: Vec<u64>,
+}
+
+/// One song a singer of this phone asked for.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MineRow {
+    /// The request's id, which is what taking it back posts.
+    pub id: u64,
+    /// The song's title.
+    pub title: String,
+    /// The singer who asked, as a label.
+    pub singer: String,
+    /// Where it stands, as a sentence in the reader's language.
+    pub state: String,
+    /// Whether its singer can still take it back: waiting, or in the queue.
+    pub open: bool,
+}
+
+impl MineBlock {
+    /// A phone with no singer, or one whose singers asked for nothing.
+    #[must_use]
+    pub fn empty() -> Self {
+        Self {
+            rows: Vec::new(),
+            several: false,
+            seats: Vec::new(),
+        }
+    }
+
+    /// The CSS selector for this phone's rows in the queue, or `None` where it holds no singer.
+    ///
+    /// The queue list is one fragment for every phone, so it cannot say which rows are whose. Each
+    /// row carries its seat instead, and the page this phone loaded carries the rule that marks
+    /// its own.
+    pub fn own_rows(&self) -> Option<String> {
+        (!self.seats.is_empty()).then(|| {
+            self.seats
+                .iter()
+                .map(|seat| format!(".queue-row[data-seat=\"{seat}\"]"))
+                .collect::<Vec<_>>()
+                .join(", ")
+        })
+    }
+}
+
+/// The label for a singer: the name, or `Guest 4` in the reader's language.
+#[must_use]
+pub fn singer_label(singer: &km_api::dto::SingerDto, locale: Locale) -> String {
+    match (&singer.name, singer.guest) {
+        (Some(name), _) => name.clone(),
+        (None, Some(number)) => crate::words::messages(locale)
+            .msg_with("singer-guest", &[("number", i64::from(number).into())])
+            .into_owned(),
+        (None, None) => crate::words::messages(locale)
+            .msg("singer-unnamed")
+            .into_owned(),
+    }
+}
+
+/// Where a request stands, as a sentence in the reader's language.
+#[must_use]
+pub fn request_state(request: &km_api::dto::RequestDto, locale: Locale) -> String {
+    use km_api::dto::RequestStateDto as State;
+    let words = crate::words::messages(locale);
+    match (request.state, request.position) {
+        (State::Queued, Some(position)) => words
+            .msg_with("request-queued", &[("place", (position as i64 + 1).into())])
+            .into_owned(),
+        // Accepted, and its entry is not in the queue this answer was read beside.
+        (State::Queued, None) => words.msg("request-accepted").into_owned(),
+        (State::Waiting, _) => words.msg("request-waiting").into_owned(),
+        (State::Played, _) => words.msg("request-played").into_owned(),
+        (State::Declined, _) => words.msg("request-declined").into_owned(),
+        (State::Withdrawn, _) => words.msg("request-withdrawn").into_owned(),
+    }
 }
 
 /// The queue list.
