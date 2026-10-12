@@ -40,8 +40,8 @@ use km_api::dto::{
     BankDto, BankRequest, DebugDto, DemoDto, DevRemoteDto, DevRemoteRequest, EndOnSilenceDto,
     EndOnSilenceRequest, LoginRequest, LoginResponse, MachineLocaleRequest, MachineNameRequest,
     PackagesDto, PerformanceDto, PerformanceRequest, RoomAccessRequest, SetAnnouncementRequest,
-    SetDemoDelayRequest, SetDemoRequest, SettingsDto, SettingsPatchDto, SoundFontDto,
-    SoundFontRequest, SoundFontsDto, UninstallDto, UploadReportDto, WallpapersDto,
+    SetDemoDelayRequest, SetDemoRequest, SettingsDto, SettingsPatchDto, SingerRulesDto,
+    SoundFontDto, SoundFontRequest, SoundFontsDto, UninstallDto, UploadReportDto, WallpapersDto,
 };
 
 /// The machine's own default port, so "a bare host means 8177" is not written down twice.
@@ -87,6 +87,10 @@ pub enum Call<'a> {
     SetDemo,
     /// `PUT` — how long the quiet has to last before the demo starts.
     SetDemoDelay,
+    /// `GET` — what the machine asks of a singer.
+    SingerRules,
+    /// `PUT` — set what the machine asks of a singer.
+    SetSingerRules,
     /// `GET` — whether a queued song is announced, and for how long.
     Announcement,
     /// `PUT` — turn the announcement on or off and set its length.
@@ -229,6 +233,8 @@ impl<'a> Call<'a> {
         Call::Demo,
         Call::SetDemo,
         Call::SetDemoDelay,
+        Call::SingerRules,
+        Call::SetSingerRules,
         Call::Announcement,
         Call::SetAnnouncement,
         Call::Debug,
@@ -276,6 +282,7 @@ impl<'a> Call<'a> {
             | Self::SoundFonts
             | Self::Packages
             | Self::Demo
+            | Self::SingerRules
             | Self::Announcement
             | Self::Debug
             | Self::DevRemote
@@ -294,6 +301,7 @@ impl<'a> Call<'a> {
             | Self::NextWallpaper => reqwest::Method::POST,
             Self::SetDemo
             | Self::SetDemoDelay
+            | Self::SetSingerRules
             | Self::SetAnnouncement
             | Self::SetDebugging
             | Self::SetDevRemote
@@ -364,6 +372,8 @@ impl<'a> Call<'a> {
             Self::Demo => "/demo",
             Self::SetDemo => "/admin/demo",
             Self::SetDemoDelay => "/admin/demo/delay",
+            Self::SingerRules => "/singers/rules",
+            Self::SetSingerRules => "/admin/singers/rules",
             Self::Announcement => "/announcement",
             Self::SetAnnouncement => "/admin/announcement",
             Self::Debug => "/debug",
@@ -885,6 +895,18 @@ impl Client {
     pub async fn set_demo_delay(&self, delay_secs: u32) -> Result<DemoDto, Refused> {
         self.json_with(Call::SetDemoDelay, &SetDemoDelayRequest { delay_secs })
             .await
+    }
+
+    /// What the machine asks of a singer. Public, like [`Self::announcement`].
+    pub async fn singer_rules(&self) -> Result<SingerRulesDto, Refused> {
+        self.get_json(Call::SingerRules).await
+    }
+
+    /// Sets what the machine asks of a singer. All three answers are always written down.
+    ///
+    /// Admin, like [`Self::set_announcement`].
+    pub async fn set_singer_rules(&self, rules: SingerRulesDto) -> Result<SingerRulesDto, Refused> {
+        self.json_with(Call::SetSingerRules, &rules).await
     }
 
     /// Whether the machine announces a queued song before it starts, and for how long.

@@ -510,6 +510,12 @@ registration, before it locks the state.
 | `PUT /singers/{id}/name` | `request` | the seat's token, in the body |
 | `POST /singers/{id}/reissue` | `control` | none, because the level is enough |
 
+**`Controller::singer_rules` and `set_singer_rules` carry the owner's three answers.**
+`GET /singers/rules` reads them at the `view` level, and `PUT /admin/singers/rules` sets them. The
+owner's page posts one form to `/admin/machine/singers`, on the password pane. `SwitchState::singers`
+is an `Option`, because `km-admin` may be talking to a machine that has no such route. That page
+then draws no singers card, where a failed read would have taken the whole pane down.
+
 The decision is
 [`A singer is a seat, and a token proves it`](../decisions/api-and-network.md#a-singer-is-a-seat-and-a-token-proves-it).
 

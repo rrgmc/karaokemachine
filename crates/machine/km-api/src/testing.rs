@@ -1260,6 +1260,35 @@ impl Controller for TestMachine {
         self.lock().evening.reissue(id, token)
     }
 
+    fn singer_rules(&self) -> crate::machine::SingerRules {
+        let inner = self.lock();
+        crate::machine::SingerRules {
+            name_required: inner.seat_rules.name_required,
+            max_per_device: inner.seat_rules.max_per_device,
+            max_waiting: inner.request_rules.max_waiting,
+        }
+    }
+
+    fn set_singer_rules(
+        &self,
+        rules: crate::machine::SingerRules,
+    ) -> Result<crate::machine::SingerRules, ControlError> {
+        if let Some(why) = rules.refusal() {
+            return Err(ControlError::Rejected(why));
+        }
+        {
+            let mut inner = self.lock();
+            inner.seat_rules = SeatRules {
+                name_required: rules.name_required,
+                max_per_device: rules.max_per_device,
+            };
+            inner.request_rules = RequestRules {
+                max_waiting: rules.max_waiting,
+            };
+        }
+        Ok(self.singer_rules())
+    }
+
     fn requests(&self) -> Vec<Request> {
         self.lock()
             .evening

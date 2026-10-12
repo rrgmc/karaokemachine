@@ -404,6 +404,7 @@ impl Switches for ThisMachine {
         let demo = self.0.controller().demo();
         let announcement = self.0.controller().announcement();
         Ok(SwitchState {
+            singers: Some(self.0.controller().singer_rules()),
             announcement_enabled: announcement.enabled,
             announcement_length_secs: announcement.length_secs,
             end_on_silence: self.0.controller().end_on_silence(),
@@ -460,6 +461,13 @@ impl Switches for ThisMachine {
             .set_demo_delay(secs)
             .map(|demo| demo.delay_secs)
             .map_err(refused)
+    }
+
+    async fn set_singer_rules(
+        &self,
+        rules: km_api::machine::SingerRules,
+    ) -> Result<km_api::machine::SingerRules, AdminError> {
+        self.0.controller().set_singer_rules(rules).map_err(refused)
     }
 
     async fn set_announcement(&self, enabled: bool, length_secs: u32) -> Result<u32, AdminError> {

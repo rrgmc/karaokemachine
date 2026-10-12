@@ -331,7 +331,12 @@ impl Switches for RemoteMachine {
             )
             .map_err(fault)?;
 
+        // Asked apart from the seven above and allowed to fail. A machine of an earlier version has
+        // no such route, and its page must still draw: it then shows no singers card.
+        let singers = client.singer_rules().await.ok().map(Into::into);
+
         Ok(SwitchState {
+            singers,
             announcement_enabled: announcement.enabled,
             announcement_length_secs: announcement.length_secs,
             end_on_silence: end_on_silence.enabled,
@@ -385,6 +390,18 @@ impl Switches for RemoteMachine {
             .set_demo_delay(secs)
             .await
             .map(|demo| demo.delay_secs)
+            .map_err(fault)
+    }
+
+    async fn set_singer_rules(
+        &self,
+        rules: km_api::machine::SingerRules,
+    ) -> Result<km_api::machine::SingerRules, AdminError> {
+        self.writing()
+            .await?
+            .set_singer_rules(rules.into())
+            .await
+            .map(Into::into)
             .map_err(fault)
     }
 

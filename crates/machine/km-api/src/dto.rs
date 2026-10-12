@@ -35,8 +35,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::machine::{
     AnnouncementState, AudioOutputs, DemoState, NowPlaying, Origin, OutputLevel, Settings,
-    SettingsPatch, Snapshot, SoundFontBanks, SoundFontChoice, SoundFontStatus, SoundKind,
-    WallpaperSource, WallpaperState,
+    SettingsPatch, SingerRules, Snapshot, SoundFontBanks, SoundFontChoice, SoundFontStatus,
+    SoundKind, WallpaperSource, WallpaperState,
 };
 
 /// What the transport is doing.
@@ -394,6 +394,63 @@ impl From<&DemoState> for DemoDto {
             min_suitability,
             playing,
             starts_in_secs,
+        }
+    }
+}
+
+/// `GET /singers/rules`, and the body and the answer of `PUT /admin/singers/rules`.
+///
+/// **All three fields, always**, for [`SetAnnouncementRequest`]'s reason. `max_per_device` is
+/// `null` for no limit.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SingerRulesDto {
+    /// Whether every singer gives a name.
+    pub name_required: bool,
+    /// How many singers one device may hold, or `null` for no limit.
+    ///
+    /// **Named even when it is `null`.** An absent `Option` reads as `None`, and a body that left
+    /// the cap out would then clear it with nothing said.
+    #[serde(deserialize_with = "named")]
+    pub max_per_device: Option<u32>,
+    /// How many requests one singer may have waiting behind the one in the queue.
+    pub max_waiting: u32,
+}
+
+/// Reads an optional value whose field must still be present.
+///
+/// A field with a `deserialize_with` and no `default` is required, which is the whole of what this
+/// is for: `null` means none, and a missing field is a malformed body.
+fn named<'de, D, T>(deserializer: D) -> Result<Option<T>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: Deserialize<'de>,
+{
+    Option::<T>::deserialize(deserializer)
+}
+
+impl From<SingerRules> for SingerRulesDto {
+    fn from(rules: SingerRules) -> Self {
+        // Destructured; see `From<Settings> for SettingsDto`.
+        let SingerRules {
+            name_required,
+            max_per_device,
+            max_waiting,
+        } = rules;
+        Self {
+            name_required,
+            max_per_device,
+            max_waiting,
+        }
+    }
+}
+
+impl From<SingerRulesDto> for SingerRules {
+    fn from(rules: SingerRulesDto) -> Self {
+        Self {
+            name_required: rules.name_required,
+            max_per_device: rules.max_per_device,
+            max_waiting: rules.max_waiting,
         }
     }
 }

@@ -38,6 +38,9 @@ Entries are written for somebody who has the machine. Why any of it is the way i
   optional, and a singer with none shows no name on the screen.
 - **One phone holds several singers.** The Setup tab adds another singer on the same phone and
   chooses who is singing.
+- **The owner's page sets what the machine asks of a singer.** The password tab has a **Singers**
+  card with three settings. They say whether every singer gives a name, how many singers one phone
+  may add, and how many songs one singer may have waiting.
 - **Each queued song shows about how long until it starts.** The phone's Queue tab and the queue on
   the machine's screen both show `~4 min` or `< 1 min` beside each song. The figure
   counts down as the playing song runs.

@@ -466,6 +466,56 @@ pub const MAX_DEMO_DELAY_SECS: u32 = 3600;
 /// may hold, for the reason [`MAX_DEMO_DELAY_SECS`] gives.
 pub const MAX_ANNOUNCEMENT_SECS: u32 = 30;
 
+/// The largest number [`Controller::set_singer_rules`] accepts for either of its two caps.
+///
+/// A bound on what a route may be told and not on what a settings file may hold, for the reason
+/// [`MAX_DEMO_DELAY_SECS`] gives.
+pub const MAX_SINGER_CAP: u32 = 100;
+
+/// What the owner asks of a singer, as the API reports it.
+///
+/// Three answers, and all three are what the settings file holds. None has a *for this run* half:
+/// they say how the machine is set up for every evening.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SingerRules {
+    /// Whether every singer gives a name.
+    pub name_required: bool,
+    /// How many singers one device may hold, or `None` for no limit.
+    pub max_per_device: Option<u32>,
+    /// How many requests one singer may have waiting behind the one in the queue.
+    pub max_waiting: u32,
+}
+
+impl Default for SingerRules {
+    /// No name asked, no cap on a device, and the queue crate's own cap on waiting requests.
+    fn default() -> Self {
+        Self {
+            name_required: false,
+            max_per_device: None,
+            max_waiting: km_queue::RequestRules::default().max_waiting,
+        }
+    }
+}
+
+impl SingerRules {
+    /// Why a route refuses these, or `None` where it takes them.
+    ///
+    /// Zero singers on a device would refuse every singer, and no cap says the same thing as a
+    /// large one. Zero waiting requests is a real rule: one song at a time, and no second.
+    pub fn refusal(self) -> Option<String> {
+        match self.max_per_device {
+            Some(cap) if cap == 0 || cap > MAX_SINGER_CAP => Some(format!(
+                "{cap} singers on one device is outside the 1 to {MAX_SINGER_CAP} this accepts"
+            )),
+            _ if self.max_waiting > MAX_SINGER_CAP => Some(format!(
+                "{} waiting songs is outside the 0 to {MAX_SINGER_CAP} this accepts",
+                self.max_waiting
+            )),
+            _ => None,
+        }
+    }
+}
+
 /// The announcement before each queued song, as the API reports it.
 ///
 /// One switch and one length, and both are what the settings file holds. The switch has no
@@ -1602,6 +1652,29 @@ pub trait Controller: Send + Sync + 'static {
         let _ = (enabled, length_secs);
         Err(ControlError::Unavailable(
             "this machine has no announcement to set".into(),
+        ))
+    }
+
+    /// What the owner asks of a singer who registers and asks for songs.
+    ///
+    /// Read-only and unfailing. Defaulted to the open rules, which is what a host that sets none
+    /// applies.
+    fn singer_rules(&self) -> SingerRules {
+        SingerRules::default()
+    }
+
+    /// Sets what the owner asks of a singer, and writes all three answers down.
+    ///
+    /// They apply from the next registration and the next request. A singer who already has more
+    /// waiting than a lower cap allows keeps them, and is refused the next one.
+    ///
+    /// Refuses with [`ControlError::Rejected`] whatever [`SingerRules::refusal`] names.
+    ///
+    /// Defaulted to a refusal, so a host that keeps no settings answers honestly.
+    fn set_singer_rules(&self, rules: SingerRules) -> Result<SingerRules, ControlError> {
+        let _ = rules;
+        Err(ControlError::Unavailable(
+            "this machine has no singer rules to set".into(),
         ))
     }
 

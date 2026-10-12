@@ -814,6 +814,10 @@ pub struct MachinePage {
     /// browser refuses exactly what the route refuses and nobody has to discover the cap by being
     /// told no.
     pub demo_delay_max: u32,
+    /// What the machine asks of a singer, or `None` where the machine has no such rules.
+    pub singers: Option<km_api::machine::SingerRules>,
+    /// The largest number either cap's box will take, drawn from `km_api::machine::MAX_SINGER_CAP`.
+    pub singers_cap_max: u32,
     /// Whether a queued song is announced before it starts.
     pub announcement_enabled: bool,
     /// How many seconds the announcement's card stays on the screen.

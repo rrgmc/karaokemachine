@@ -217,6 +217,7 @@ pub const SURFACE: &[(&str, &str)] = &[
     ("GET", "/demo"),
     ("POST", "/demo/start"),
     ("GET", "/announcement"),
+    ("GET", "/singers/rules"),
     ("GET", "/packages"),
     ("GET", "/debug"),
     ("GET", "/dev-remote"),
@@ -247,6 +248,7 @@ pub const SURFACE: &[(&str, &str)] = &[
     ("PUT", "/admin/demo"),
     ("PUT", "/admin/demo/delay"),
     ("PUT", "/admin/announcement"),
+    ("PUT", "/admin/singers/rules"),
     ("POST", "/admin/packages"),
     ("POST", "/admin/packages/upload"),
     ("POST", "/admin/packages/rescan"),
@@ -652,6 +654,7 @@ fn api_router(config: &crate::ApiConfig, capabilities: Capabilities) -> Router<A
         .route("/demo/start", post(handlers::start_demo))
         // Whether a card names each queued song before it starts. Public read, admin write.
         .route("/announcement", get(handlers::get_announcement))
+        .route("/singers/rules", get(handlers::get_singer_rules))
         .route("/packages", get(handlers::get_packages))
         // Reporting whether debugging is on is public; turning it on is not. Using the answer and
         // changing the state are different acts — the same split `/demo` makes one screen over.
@@ -737,6 +740,7 @@ fn api_router(config: &crate::ApiConfig, capabilities: Capabilities) -> Router<A
         // One route for the switch and the length. Both are always written down, so nothing
         // splits them the way `persist` splits the two demo routes above.
         .route("/announcement", put(handlers::put_announcement))
+        .route("/singers/rules", put(handlers::put_singer_rules))
         // **Install is admin.** It names a path on the machine's disk and installs whatever is there,
         // which is the one write a stranger must not be able to perform; `km-package-builder`
         // keeps a password of its own, so nothing about it needs this public.

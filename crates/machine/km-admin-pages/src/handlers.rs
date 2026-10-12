@@ -1008,6 +1008,8 @@ pub async fn machine_page(
             demo_stored: switches.demo_stored,
             demo_delay_secs: switches.demo_delay_secs,
             demo_delay_max: km_api::machine::MAX_DEMO_DELAY_SECS,
+            singers: switches.singers,
+            singers_cap_max: km_api::machine::MAX_SINGER_CAP,
             announcement_enabled: switches.announcement_enabled,
             announcement_length_secs: switches.announcement_length_secs,
             announcement_length_max: km_api::machine::MAX_ANNOUNCEMENT_SECS,
@@ -1920,6 +1922,41 @@ pub async fn set_demo_delay(
     }
 }
 
+/// `POST /admin/machine/singers` — what the machine asks of a singer.
+///
+/// **One form for all three answers**, as the announcement's is: each is always written down.
+///
+/// The two numbers are parsed here and not by the browser, for `set_demo_delay`'s reason. An empty
+/// box for the singers on one phone means no limit.
+pub async fn set_singer_rules(
+    State(state): State<Admin>,
+    headers: HeaderMap,
+    Form(form): Form<SingerRulesForm>,
+) -> Response {
+    let locale = state.locale(&headers);
+    let words = crate::words::messages(locale);
+    let bad = || back_to_pane(Pane::Password, "bad", &words.msg("singers-number-bad"));
+    let max_per_device = match form.max_per_device.trim() {
+        "" => None,
+        typed => match typed.parse::<u32>() {
+            Ok(cap) => Some(cap),
+            Err(_) => return bad(),
+        },
+    };
+    let Ok(max_waiting) = form.max_waiting.trim().parse::<u32>() else {
+        return bad();
+    };
+    let rules = km_api::machine::SingerRules {
+        name_required: form.name_required.is_some(),
+        max_per_device,
+        max_waiting,
+    };
+    match state.switches.set_singer_rules(rules).await {
+        Err(error) => refusal_on(&state, Pane::Password, &error, locale),
+        Ok(_) => back_to_pane(Pane::Password, "good", &words.msg("singers-saved")),
+    }
+}
+
 /// `POST /admin/machine/announcement` — whether a queued song is announced, and for how long.
 ///
 /// **One form for the switch and the length**, where demo mode has two. Both values here are always
@@ -2170,6 +2207,19 @@ pub struct EndOnSilenceForm {
 pub struct AdjustRecordingsForm {
     /// Present when the box is ticked, absent when it is not.
     pub adjust_recordings: Option<String>,
+}
+
+/// What the machine asks of a singer.
+#[derive(Debug, Clone, Default, serde::Deserialize)]
+pub struct SingerRulesForm {
+    /// Present when the box is ticked, absent when it is not.
+    pub name_required: Option<String>,
+    /// How many singers one phone may hold, as typed. Empty for no limit.
+    #[serde(default)]
+    pub max_per_device: String,
+    /// How many songs one singer may have waiting, as typed.
+    #[serde(default)]
+    pub max_waiting: String,
 }
 
 /// Whether a queued song is announced before it starts, and for how long.
