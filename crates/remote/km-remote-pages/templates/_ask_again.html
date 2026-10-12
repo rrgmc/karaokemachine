@@ -1,0 +1,6 @@
+<span class="badge badge-warn confirm">{{ text|t }}
+  <button class="icon-btn" hx-post="/song/{{ number }}/queue?sure=1"
+          hx-target="closest .confirm" hx-swap="outerHTML">{{ "ask-again-anyway"|t }}</button>
+  <button class="icon-btn" type="button" aria-label="{{ "ask-again-no"|t }}" title="{{ "ask-again-no"|t }}"
+          onclick="this.closest('.confirm').remove()">&#10005;</button>
+</span>

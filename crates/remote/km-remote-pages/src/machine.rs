@@ -654,6 +654,35 @@ pub trait Machine: Send + Sync + 'static {
     /// Takes a request back, waiting or queued. The token of the singer who asked is the proof.
     async fn withdraw(&self, request: u64, token: &str) -> Result<RequestDto, RemoteError>;
 
+    // -- what a host does. Each needs the control level, and none needs a singer's token. ---------
+
+    /// Creates a singer who has no phone.
+    async fn create_singer(&self, name: Option<&str>) -> Result<SingerDto, RemoteError>;
+
+    /// Asks for a song for any singer. The rule gives it that singer's turn.
+    async fn request_for(&self, singer: u64, number: SongCode) -> Result<RequestDto, RemoteError>;
+
+    /// Refuses a request, waiting or queued.
+    async fn decline(&self, request: u64) -> Result<RequestDto, RemoteError>;
+
+    /// Accepts a waiting request early, at the end of the queue or next.
+    async fn accept(&self, request: u64, next: bool) -> Result<RequestDto, RemoteError>;
+
+    /// Joins two singers who are one person. `from` goes, and the answer is the one who stays.
+    async fn merge_singers(&self, from: u64, into: u64) -> Result<SingerDto, RemoteError>;
+
+    /// Opens a singer's seat, so the next phone to give that name takes it with its songs.
+    async fn reissue_singer(&self, id: u64) -> Result<SingerDto, RemoteError>;
+
+    /// Removes a singer who went home, with every song of theirs.
+    async fn remove_singer(&self, id: u64) -> Result<SingerDto, RemoteError>;
+
+    /// Opens or closes the evening to new requests from a phone.
+    async fn set_accepting(&self, accepting: bool) -> Result<RequestsDto, RemoteError>;
+
+    /// Starts a new evening: no queue, no requests, no record and no singers.
+    async fn reset_evening(&self) -> Result<RequestsDto, RemoteError>;
+
     /// Take an entry out, by the id it was given. Never by position — positions shift underneath a
     /// page that has been open for a minute.
     async fn dequeue(&self, entry_id: u64) -> Result<QueueDto, RemoteError>;

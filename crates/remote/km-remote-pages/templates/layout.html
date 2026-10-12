@@ -39,6 +39,12 @@
     <span class="tab-icon">&#8801;</span><span>{{ "tab-queue"|t }}</span>
     {{ chrome.queue_count|safe }}
   </a>
+  {# The host's tab, which a phone below the control level is never shown. Narrow and wordless,
+     as the gear beside it is: a host goes there to correct something and comes back. #}
+  <a href="/host" class="tab-setup needs-control {% if chrome.tab == "host" %}active{% endif %}"
+     aria-label="{{ "tab-host"|t }}" title="{{ "tab-host"|t }}">
+    <span class="tab-icon">&#9745;</span>
+  </a>
   {# The one tab with no word under it, and the narrow one. The other three are places to be while
      you are using this; this is where you go to make it work and then leave. The label is still
      there for a screen reader, because a gear on its own has no accessible name -- the same pair of

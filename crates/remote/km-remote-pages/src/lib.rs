@@ -384,6 +384,20 @@ pub fn router(state: Remote) -> Router {
         .route("/singer/add", post(handlers::add_singer))
         .route("/singer/choose", post(handlers::choose_singer))
         .route("/mine", get(handlers::mine))
+        .route("/host", get(handlers::host))
+        .route("/host/lists", get(handlers::host_lists_fragment))
+        .route("/host/songs", get(handlers::host_songs))
+        .route("/host/add/{number}", post(handlers::host_add))
+        .route(
+            "/host/requests/{request}/{action}",
+            post(handlers::host_request),
+        )
+        .route(
+            "/host/singers/{singer}/{action}",
+            post(handlers::host_singer),
+        )
+        .route("/host/accepting/{switch}", post(handlers::host_accepting))
+        .route("/host/reset", post(handlers::host_reset))
         .route("/mine/{request}/withdraw", post(handlers::withdraw_mine))
         .route("/access", post(handlers::set_access))
         .route("/locale", post(handlers::set_locale))

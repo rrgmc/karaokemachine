@@ -541,6 +541,22 @@ it calls `seat_is_held`, which reads `GET /singers`, and a seat the machine no l
 dropped and registered again. A phone with no seat registers first. `Machine` has six methods for
 this: `singers`, `register_singer`, `rename_singer`, `requests`, `request` and `withdraw`.
 
+**The host's tab is `/host`, and its lists are `/host/lists`.** `handlers::host_lists` reads
+`Machine::singers` and `Machine::requests` and builds `HostLists`: the accepting switch, each
+singer with three counts, and the waiting requests. The pump publishes `sse::SINGERS` on
+`singers_changed` as it publishes `sse::REQUESTS`, and the fragment's `hx-trigger` names both. The
+queue column is the Queue tab's own `QueueBlock`, so the hub updates it. `Machine` has nine
+methods for the host, and each maps to one route at the control level.
+
+**`host_add` finds the singer by `km_song::text::fold` of the typed name.** A name that matches no
+singer goes to `Machine::create_singer`. Then `Machine::request_for` asks for the song, which is
+`POST /singers/{id}/requests`.
+
+**`song_action` asks `already_heard` before a guest's request.** It reads the queue and
+`RequestsDto::sung`, and answers with `AskAgain` where the song is in either. The second press
+carries `?sure=1` and skips the question. `AskAgain` targets `closest .confirm` with `outerHTML`,
+so the badge that answers it takes its place.
+
 **`/mine` is rendered for one phone, so the hub does not carry it.** `MineBlock` lists the requests
 whose seat the phone holds. The pump publishes `sse::REQUESTS` with no fragment on
 `requests_changed`, and `REPLAYED` leaves it out. `live.js` turns it into a `km:requests` event on

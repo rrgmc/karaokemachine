@@ -22,7 +22,8 @@ use std::time::Duration;
 use futures_util::StreamExt;
 use km_api::discover::Discovery;
 use km_api::dto::{
-    AccessDto, AccessGrantDto, AddRequest, AddToQueueRequest, AddedToQueueDto, LoginRequest,
+    AcceptRequest, AcceptingRequest, AccessDto, AccessGrantDto, AddRequest, AddSingerRequest,
+    AddToQueueRequest, AddedToQueueDto, CreateSingerRequest, LoginRequest, MergeSingerRequest,
     MoveRequest, PackagesDto, QueueDto, RegisterSingerRequest, RenameSingerRequest, RequestDto,
     RequestsDto, SettingsPatchDto, SingerDto, SingerIssuedDto, SingersDto, SongDto, StateDto,
     WithdrawRequest,
@@ -572,6 +573,73 @@ impl Machine for MachineClient {
                 .await
         })
         .await
+    }
+
+    async fn create_singer(&self, name: Option<&str>) -> Result<SingerDto, RemoteError> {
+        let body = CreateSingerRequest {
+            name: name.map(str::to_owned),
+        };
+        self.with_api(|api| async move { api.post("/singers/hosted", Some(&body)).await })
+            .await
+    }
+
+    async fn request_for(&self, singer: u64, number: SongCode) -> Result<RequestDto, RemoteError> {
+        let body = AddSingerRequest { number };
+        self.with_api(|api| async move {
+            api.post(&format!("/singers/{singer}/requests"), Some(&body))
+                .await
+        })
+        .await
+    }
+
+    async fn decline(&self, request: u64) -> Result<RequestDto, RemoteError> {
+        self.with_api(|api| async move {
+            api.post(&format!("/requests/{request}/decline"), None::<&()>)
+                .await
+        })
+        .await
+    }
+
+    async fn accept(&self, request: u64, next: bool) -> Result<RequestDto, RemoteError> {
+        let body = AcceptRequest { next };
+        self.with_api(|api| async move {
+            api.post(&format!("/requests/{request}/accept"), Some(&body))
+                .await
+        })
+        .await
+    }
+
+    async fn merge_singers(&self, from: u64, into: u64) -> Result<SingerDto, RemoteError> {
+        let body = MergeSingerRequest { into };
+        self.with_api(|api| async move {
+            api.post(&format!("/singers/{from}/merge"), Some(&body))
+                .await
+        })
+        .await
+    }
+
+    async fn reissue_singer(&self, id: u64) -> Result<SingerDto, RemoteError> {
+        self.with_api(|api| async move {
+            api.post(&format!("/singers/{id}/reissue"), None::<&()>)
+                .await
+        })
+        .await
+    }
+
+    async fn remove_singer(&self, id: u64) -> Result<SingerDto, RemoteError> {
+        self.with_api(|api| async move { api.delete(&format!("/singers/{id}")).await })
+            .await
+    }
+
+    async fn set_accepting(&self, accepting: bool) -> Result<RequestsDto, RemoteError> {
+        let body = AcceptingRequest { accepting };
+        self.with_api(|api| async move { api.put("/requests/accepting", &body).await })
+            .await
+    }
+
+    async fn reset_evening(&self) -> Result<RequestsDto, RemoteError> {
+        self.with_api(|api| async move { api.post("/evening/reset", None::<&()>).await })
+            .await
     }
 
     async fn dequeue(&self, entry_id: u64) -> Result<QueueDto, RemoteError> {

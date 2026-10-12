@@ -109,6 +109,9 @@ pub const MACHINE: &str = "machine";
 /// own list with its own cookie. Never replayed, for [`TOAST`]'s reason: a page that has just
 /// loaded drew the list a moment ago.
 pub const REQUESTS: &str = "requests";
+/// The name of the event that says the singers changed. No fragment, for [`REQUESTS`]'s reason:
+/// the host's lists are fetched by the page that shows them.
+pub const SINGERS: &str = "singers";
 /// The name of the event carrying a toast.
 pub const TOAST: &str = "toast";
 

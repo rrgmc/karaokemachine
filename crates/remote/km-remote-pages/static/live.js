@@ -215,6 +215,10 @@
     source.addEventListener("requests", () => {
       document.body.dispatchEvent(new Event("km:requests"));
     });
+    // The same for the singers, which the host's tab lists.
+    source.addEventListener("singers", () => {
+      document.body.dispatchEvent(new Event("km:singers"));
+    });
 
     // A dropped stream is not worth telling anybody about: the browser is already reconnecting, and
     // the machine being unreachable is reported by the banner, which is itself one of these events.

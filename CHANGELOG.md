@@ -38,6 +38,16 @@ Entries are written for somebody who has the machine. Why any of it is the way i
   optional, and a singer with none shows no name on the screen.
 - **One phone holds several singers.** The Setup tab adds another singer on the same phone and
   chooses who is singing.
+- **A host runs the night from a phone.** A phone with the skip code has a host's tab. The host
+  adds a song for a guest with no phone, puts a waiting song into the queue early, or refuses it.
+  The host also moves a singer to another phone, joins two names that are one person, and takes
+  out a singer who went home.
+- **The host stops taking songs near the end.** Phones then read that the night is closed. Songs
+  already waiting still play, and the host still adds one at the desk.
+- **The host starts a new evening without a restart.** It empties the queue, the waiting songs and
+  the singers, and the song that is playing plays on.
+- **A song somebody already has brings a question.** A guest who asks for a song that is in the
+  queue, or that somebody sang tonight, is asked once and can ask anyway.
 - **The owner's page sets what the machine asks of a singer.** The password tab has a **Singers**
   card with three settings. They say whether every singer gives a name, how many singers one phone
   may add, and how many songs one singer may have waiting.

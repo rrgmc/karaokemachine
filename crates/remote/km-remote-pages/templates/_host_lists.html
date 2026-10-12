@@ -1,0 +1,71 @@
+<div id="host-lists" hx-get="/host/lists" hx-trigger="km:requests from:body, km:singers from:body" hx-swap="outerHTML">
+
+  {# Whether a phone may ask. What already waits still goes into the queue, and this tab still adds. #}
+  <div class="pref-row field-row">
+    {% if accepting %}
+    <span>{{ "host-accepting-on"|t }}</span>
+    <button class="icon-btn" hx-post="/host/accepting/off" hx-target="#host-lists" hx-swap="outerHTML">{{ "host-accepting-stop"|t }}</button>
+    {% else %}
+    <span class="closed">{{ "host-accepting-off"|t }}</span>
+    <button class="icon-btn primary" hx-post="/host/accepting/on" hx-target="#host-lists" hx-swap="outerHTML">{{ "host-accepting-start"|t }}</button>
+    {% endif %}
+  </div>
+
+  <h2 class="list-head">{{ "host-waiting"|t }}</h2>
+  {% if waiting.is_empty() %}
+  <p class="empty">{{ "host-waiting-none"|t }}</p>
+  {% else %}
+  <ul class="song-list">
+    {% for request in waiting %}
+    <li class="queue-row">
+      <div class="queue-body">
+        <div class="song-name">{{ request.title }}</div>
+        <div class="song-sub">{{ request.singer }}</div>
+      </div>
+      <div class="song-actions">
+        <button class="icon-btn" title="{{ "host-accept-next"|t }}" aria-label="{{ "host-accept-next"|t }}"
+                hx-post="/host/requests/{{ request.id }}/next" hx-target="#host-lists" hx-swap="outerHTML">&#8593;</button>
+        <button class="icon-btn" title="{{ "host-accept"|t }}" aria-label="{{ "host-accept"|t }}"
+                hx-post="/host/requests/{{ request.id }}/accept" hx-target="#host-lists" hx-swap="outerHTML">+</button>
+        <button class="icon-btn danger" title="{{ "host-decline"|t }}" aria-label="{{ "host-decline"|t }}"
+                hx-post="/host/requests/{{ request.id }}/decline" hx-target="#host-lists" hx-swap="outerHTML">&#10005;</button>
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+
+  <h2 class="list-head">{{ "host-singers"|t }}</h2>
+  {% if singers.is_empty() %}
+  <p class="empty">{{ "host-singers-none"|t }}</p>
+  {% else %}
+  <ul class="song-list">
+    {% for singer in singers %}
+    <li class="host-singer">
+      <details>
+        <summary>
+          <span class="song-name">{{ singer.label }}</span>
+          <span class="song-sub">{% if !singer.phone %}{{ "host-no-phone"|t }} &middot; {% endif %}{{ singer.counts }}</span>
+        </summary>
+        <div class="host-singer-actions">
+          {% if singer.named %}
+          <button class="icon-btn" hx-post="/host/singers/{{ singer.id }}/reissue" hx-target="#host-lists" hx-swap="outerHTML">{{ "host-reissue"|t }}</button>
+          {% endif %}
+          {% if singers.len() > 1 %}
+          <form class="field-row" hx-post="/host/singers/{{ singer.id }}/merge" hx-target="#host-lists" hx-swap="outerHTML">
+            <select name="into" aria-label="{{ "host-merge"|t }}">
+              {% for other in singers %}{% if other.id != singer.id %}
+              <option value="{{ other.id }}">{{ other.label }}</option>
+              {% endif %}{% endfor %}
+            </select>
+            <button class="icon-btn">{{ "host-merge"|t }}</button>
+          </form>
+          {% endif %}
+          <button class="icon-btn danger" hx-post="/host/singers/{{ singer.id }}/remove" hx-target="#host-lists" hx-swap="outerHTML">{{ "host-remove"|t }}</button>
+        </div>
+      </details>
+    </li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+</div>
