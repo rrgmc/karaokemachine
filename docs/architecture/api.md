@@ -499,7 +499,7 @@ free depends on what its seat has queued or waiting, so `Seats::register` takes 
 the id of the entry's singer.
 
 **`Controller` has four methods for it**: `seats`, `seat_register`, `seat_rename` and
-`seat_reissue`. Each returns `SeatError`, and `From<SeatError> for ApiError` maps it once. The
+`seat_open`. Each returns `SeatError`, and `From<SeatError> for ApiError` maps it once. The
 machine reads `singers.name_required` and `singers.max_per_device` from its settings at each
 registration, before it locks the state.
 
@@ -509,6 +509,14 @@ registration, before it locks the state.
 | `POST /singers` | `request` | none, and it answers with the token |
 | `PUT /singers/{id}/name` | `request` | the seat's token, in the body |
 | `POST /singers/{id}/reissue` | `control` | none, because the level is enough |
+| `POST /singers/hosted` | `control` | none |
+| `POST /singers/{id}/merge` | `control` | none |
+| `DELETE /singers/{id}` | `control` | none |
+
+**A seat with no phone has no token and no device.** `Seats::create` makes one for an operator, and
+`Seats::open` turns a phone's seat into one and sets `open`. `Seats::register` lets a name through
+to an open seat whatever it holds, and clears the mark. `Seat::phone` says which kind a seat is,
+and `SingerDto` carries it.
 
 **`Controller::singer_rules` and `set_singer_rules` carry the owner's three answers.**
 `GET /singers/rules` reads them at the `view` level, and `PUT /admin/singers/rules` sets them. The
@@ -549,6 +557,19 @@ waits put nothing in the queue, so it starts nothing.
 | `POST /requests` | `request` | the singer's token, in the body |
 | `POST /requests/{id}/withdraw` | `request` | the singer's token, in the body |
 | `POST /singers/{id}/requests` | `control` | none, because the level is enough |
+| `POST /requests/{id}/decline` | `control` | none |
+| `POST /requests/{id}/accept` | `control` | none |
+| `PUT /requests/accepting` | `control` | none |
+| `POST /evening/reset` | `control` | none |
+
+**`Evening` holds the record and the accepting switch too.** `pop` pushes a `Sung` for each song
+that starts. `request` refuses `Proof::Token` while accepting is off and takes `Proof::Level`.
+`Controller::evening` reads both, and `RequestsDto::new` puts them in `accepting` and `sung`. So
+they travel on `requests_changed`, and no third event exists.
+
+**`ops::reset_evening` does two things.** It calls `Controller::evening_reset`, which is
+`Evening::reset`, and `ApiState::renew_evening`, which takes a new word. Seat ids and request ids
+go on counting through a reset, so nothing a phone kept names anything of the new evening.
 
 The decision is
 [`The queue holds one song for each singer`](../decisions/api-and-network.md#the-queue-holds-one-song-for-each-singer).

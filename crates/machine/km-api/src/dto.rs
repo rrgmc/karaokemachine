@@ -34,9 +34,9 @@ use km_songcode::SongCode;
 use serde::{Deserialize, Serialize};
 
 use crate::machine::{
-    AnnouncementState, AudioOutputs, DemoState, NowPlaying, Origin, OutputLevel, Settings,
-    SettingsPatch, SingerRules, Snapshot, SoundFontBanks, SoundFontChoice, SoundFontStatus,
-    SoundKind, WallpaperSource, WallpaperState,
+    AnnouncementState, AudioOutputs, DemoState, EveningState, NowPlaying, Origin, OutputLevel,
+    Settings, SettingsPatch, SingerRules, Snapshot, SoundFontBanks, SoundFontChoice,
+    SoundFontStatus, SoundKind, WallpaperSource, WallpaperState,
 };
 
 /// What the transport is doing.
@@ -907,6 +907,17 @@ pub struct SingerDto {
     pub name: Option<String>,
     /// The number of a singer who gave no name, as in `Guest 4`. A client words the label.
     pub guest: Option<u32>,
+    /// Whether a phone holds the seat.
+    ///
+    /// False for a singer somebody at the control level created, and for a seat that was opened
+    /// for another phone to take. Only the control level acts for such a singer.
+    #[serde(default = "yes")]
+    pub phone: bool,
+}
+
+/// The default for a field that an earlier machine left out and that was true of it.
+fn yes() -> bool {
+    true
 }
 
 impl From<&Seat> for SingerDto {
@@ -915,8 +926,52 @@ impl From<&Seat> for SingerDto {
             id: seat.id,
             name: seat.name.clone(),
             guest: seat.guest,
+            phone: seat.phone,
         }
     }
+}
+
+/// `POST /singers/hosted`, for a caller whose level is the proof.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CreateSingerRequest {
+    /// The name, or none for a singer who gives none.
+    #[serde(default)]
+    pub name: Option<String>,
+}
+
+/// `POST /singers/{id}/merge`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct MergeSingerRequest {
+    /// The singer who stays, as [`SingerDto::id`]. The one in the path goes.
+    pub into: u64,
+}
+
+/// `POST /requests/{id}/accept`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AcceptRequest {
+    /// Whether the song goes next. Otherwise it goes to the end of the queue.
+    #[serde(default)]
+    pub next: bool,
+}
+
+/// `PUT /requests/accepting`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AcceptingRequest {
+    /// Whether a phone may ask for a song.
+    pub accepting: bool,
+}
+
+/// A song that started this evening.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SungDto {
+    /// The catalog number.
+    pub number: SongCode,
+    /// The singer, as [`SingerDto::id`], or `None` for a song with no singer.
+    pub singer: Option<u64>,
 }
 
 /// `GET /singers`.
@@ -1058,17 +1113,35 @@ pub struct RequestsDto {
     pub requests: Vec<RequestDto>,
     /// The cap on the whole list, so a client need not hard-code it.
     pub capacity: usize,
+    /// Whether a phone may ask for a song. False once somebody at the control level closed the
+    /// evening, and a request that already waits still enters the queue in its turn.
+    #[serde(default = "yes")]
+    pub accepting: bool,
+    /// Every song that started this evening, in order.
+    ///
+    /// A client reads it to warn that a song was already sung, and to count each singer's turns.
+    #[serde(default)]
+    pub sung: Vec<SungDto>,
 }
 
 impl RequestsDto {
     /// The list, with each queued request's place looked up in the queue.
-    pub fn new(requests: &[Request], queue: &[QueueEntry]) -> Self {
+    pub fn new(requests: &[Request], queue: &[QueueEntry], evening: &EveningState) -> Self {
         Self {
             requests: requests
                 .iter()
                 .map(|request| RequestDto::new(request, queue))
                 .collect(),
             capacity: km_queue::MAX_REQUESTS,
+            accepting: evening.accepting,
+            sung: evening
+                .sung
+                .iter()
+                .map(|sung| SungDto {
+                    number: sung.number,
+                    singer: sung.seat,
+                })
+                .collect(),
         }
     }
 }

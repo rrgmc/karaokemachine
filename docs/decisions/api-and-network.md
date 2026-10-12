@@ -67,6 +67,12 @@ machine refuses the same registration while the seat has a song queued or waitin
 alone would hand one singer's songs to another. A caller at the `control` level then reissues the
 seat, with `POST /api/v1/singers/{id}/reissue`.
 
+**A reissue opens the seat, and the singer's own phone takes it.** The seat's token ends, and the
+next phone to register under the seat's name gets the seat with a new token, whatever it holds.
+The answer to the reissue carries no token, because the caller is the operator and the token
+belongs on the singer's phone. The same step moves a singer to another phone, and hands an
+operator's singer to a phone. A seat with no name has no name to give, so it is refused.
+
 **A rename keeps the seat.** `PUT /api/v1/singers/{id}/name` takes the seat's token and a free
 name. The seat keeps its id, its token and whatever it holds. A rename never takes a name from
 another seat, even a free one.
@@ -167,6 +173,56 @@ exist the moment the machine starts. A request and a seat end with the process, 
 **Two events carry it.** `requests_changed` goes out beside every `queue_changed`, because a queued
 request carries its entry's position. `singers_changed` goes out when a singer registers, takes a
 name or gets a new token.
+
+## An operator corrects what the rule did
+
+**The rule runs the night, and an operator acts where it gave the wrong answer.** An operator is a
+caller at the `control` level. Each action is an API route, so the offline remote reaches it over
+HTTP as the machine's own pages do in process. None of them needs the admin password, because a
+host for one night holds the control code and no settings.
+
+| Action | Route | When it is needed |
+|---|---|---|
+| Create a singer | `POST /singers/hosted` | A guest has no phone, or the room is at `view` |
+| Add a song for any singer | `POST /singers/{id}/requests` | The same, and the rule gives the turn |
+| Decline a request | `POST /requests/{id}/decline` | The song is unwelcome |
+| Accept a request early | `POST /requests/{id}/accept` | A singer gets a second song in the queue |
+| Move or remove a queue entry | `POST /queue/{id}/move`, `DELETE /queue/{id}` | The order needs a change |
+| Merge two singers | `POST /singers/{id}/merge` | One person registered two names |
+| Reissue a seat | `POST /singers/{id}/reissue` | A singer lost a token while holding a song |
+| Remove a singer | `DELETE /singers/{id}` | The singer went home |
+| Stop and start accepting | `PUT /requests/accepting` | The night is ending |
+| Start a new evening | `POST /evening/reset` | One night follows another with no restart |
+
+**An operator's singer has no phone and no token.** Nothing but the `control` level acts for that
+singer. A name is optional, as for a phone's singer, and a name must be free.
+
+**A declined request never plays.** Waiting or queued, it reads `declined`, and a queued one leaves
+the queue. The singer's next waiting request then takes the turn.
+
+**An early accept makes a second round.** The singer has two songs in the queue, at the end or
+next. A new singer's first song can then follow that singer's second, which is the cost of never
+moving an entry back. The rule leaves both entries, and accepts no third while either is there.
+
+**A merge moves one singer's requests, entries and record to the other.** The rule may then find
+two entries for the one singer. It leaves both, as after an early accept.
+
+**Removing a singer takes the seat and every song of theirs.** With nobody operating, a singer who
+left early stays in the queue, and each of their songs plays until somebody skips it.
+
+**With accepting off, the machine refuses a new request from a phone.** The refusal is
+`requests_closed`, and the phone says the night is closed. A request that already waits still
+enters the queue in its turn. A caller at the `control` level still adds a song for a singer, so a
+host enters a last one at the desk. `GET /requests` carries `accepting`, and every phone reads it.
+
+**The machine keeps a record of the songs that started.** Each entry is a song number and its
+singer, where it had one. `GET /requests` carries it as `sung`. The rule reads none of it. A remote
+reads it to warn that somebody already sang a song, and to count each singer's turns.
+
+**A new evening starts without a restart.** The queue, the requests, the record and every seat go,
+and the machine takes requests again. The song that is playing plays on. The machine takes a new
+word for the evening, so every phone drops the seats it kept, as it does after a restart. This is
+also how an operator empties the queue, because clearing it lets each singer's next request in.
 
 ## Five access levels, and the method and path decide them
 

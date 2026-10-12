@@ -195,6 +195,13 @@ pub const SURFACE: &[(&str, &str)] = &[
     ("POST", "/singers"),
     ("PUT", "/singers/0/name"),
     ("POST", "/singers/0/reissue"),
+    ("POST", "/singers/hosted"),
+    ("DELETE", "/singers/0"),
+    ("POST", "/singers/0/merge"),
+    ("POST", "/requests/0/decline"),
+    ("POST", "/requests/0/accept"),
+    ("PUT", "/requests/accepting"),
+    ("POST", "/evening/reset"),
     ("POST", "/singers/0/requests"),
     ("GET", "/requests"),
     ("POST", "/requests"),
@@ -609,6 +616,13 @@ fn api_router(config: &crate::ApiConfig, capabilities: Capabilities) -> Router<A
         )
         .route("/singers/{id}/name", put(handlers::rename_singer))
         .route("/singers/{id}/reissue", post(handlers::reissue_singer))
+        .route("/singers/hosted", post(handlers::create_singer))
+        .route("/singers/{id}", delete(handlers::remove_singer))
+        .route("/singers/{id}/merge", post(handlers::merge_singers))
+        .route("/requests/{id}/decline", post(handlers::decline_request))
+        .route("/requests/{id}/accept", post(handlers::accept_request))
+        .route("/requests/accepting", put(handlers::set_accepting))
+        .route("/evening/reset", post(handlers::reset_evening))
         .route("/singers/{id}/requests", post(handlers::add_singer_request))
         .route(
             "/requests",
@@ -1028,6 +1042,12 @@ mod tests {
             (Method::POST, "/api/v1/requests/7/withdraw", Access::Request),
             (Method::POST, "/api/v1/requests//withdraw", Access::Control),
             (Method::POST, "/api/v1/requests/7/decline", Access::Control),
+            (Method::POST, "/api/v1/requests/7/accept", Access::Control),
+            (Method::PUT, "/api/v1/requests/accepting", Access::Control),
+            (Method::POST, "/api/v1/singers/hosted", Access::Control),
+            (Method::DELETE, "/api/v1/singers/7", Access::Control),
+            (Method::POST, "/api/v1/singers/7/merge", Access::Control),
+            (Method::POST, "/api/v1/evening/reset", Access::Control),
             (Method::PUT, "/api/v1/settings", Access::Queue),
             (Method::POST, "/api/v1/transport/skip", Access::Control),
             (Method::POST, "/api/v1/transport/pause", Access::Control),

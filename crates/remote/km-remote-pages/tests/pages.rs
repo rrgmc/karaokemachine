@@ -622,6 +622,7 @@ impl Machine for StubMachine {
             id,
             name: name.map(str::to_owned),
             guest: name.is_none().then_some(id as u32 + 1),
+            phone: true,
         };
         let token = format!("t0ken{id}");
         seats.push((singer.clone(), token.clone()));
@@ -661,6 +662,8 @@ impl Machine for StubMachine {
         Ok(RequestsDto {
             requests: self.asked.lock().expect("lock").clone(),
             capacity: 1_000,
+            accepting: true,
+            sung: Vec::new(),
         })
     }
 

@@ -36,6 +36,7 @@ pub mod wait;
 
 pub use crate::evening::{
     Evening, MAX_REQUESTS, Proof, Request, RequestError, RequestRules, RequestState, RequestedSong,
+    Sung,
 };
 pub use crate::limits::{MAX_TEMPO_RATIO, MAX_TRANSPOSE, MIN_TEMPO_RATIO};
 pub use crate::mics::{MAX_GAIN, MAX_MICS, MicBus, MicChannel, MicError, MicPatch, MicRegistry};

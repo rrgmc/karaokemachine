@@ -53,8 +53,8 @@ struct Inner {
     ///
     /// A seat ends with the process and ids start again from zero, so an id a phone kept from an
     /// earlier run names somebody else's seat now. A phone keeps this word beside its seats and
-    /// drops them when the word differs.
-    evening: String,
+    /// drops them when the word differs. Live, because a new evening may start without a restart.
+    evening: RwLock<String>,
 
     connect: RwLock<ConnectInfo>,
     /// Whether the password in force is the one the machine generated for itself.
@@ -167,7 +167,7 @@ impl ApiState {
                 events,
                 auth,
                 room_access,
-                evening: crate::auth::random_hex(8),
+                evening: RwLock::new(crate::auth::random_hex(8)),
 
                 connect,
                 factory_password,
@@ -444,8 +444,23 @@ impl ApiState {
     }
 
     /// Which evening this is, as [`crate::dto::SingersDto::evening`] carries it.
-    pub fn evening(&self) -> &str {
-        &self.inner.evening
+    pub fn evening(&self) -> String {
+        self.inner
+            .evening
+            .read()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .clone()
+    }
+
+    /// Takes a new word for the evening, because a new one started without a restart.
+    ///
+    /// Every phone then finds that the word it kept differs, and drops the seats it held.
+    pub fn renew_evening(&self) {
+        *self
+            .inner
+            .evening
+            .write()
+            .unwrap_or_else(|poisoned| poisoned.into_inner()) = crate::auth::random_hex(8);
     }
 
     /// What everybody on the network gets with no code.
