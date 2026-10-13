@@ -8,8 +8,14 @@
 //! text: the caller hands in the new token and the name's comparison key. So every rule here is
 //! testable with fixed values, and this crate keeps the two dependencies it has.
 //!
-//! **A seat is no account.** It holds no password and nothing that outlives the process, and the
-//! machine keeps no list of people. It does let the machine tell two phones apart.
+//! **A seat is no account.** It holds no password, and it ends with the evening. It does let the
+//! machine tell two phones apart.
+//!
+//! **A store may keep the seats of one evening.** [`Seats::records`] hands them out and
+//! [`Seats::from_records`] takes them back, tokens included, so a phone keeps its seat when the
+//! machine starts again.
+
+use serde::{Deserialize, Serialize};
 
 /// How many seats one evening may hold.
 ///
@@ -37,7 +43,7 @@ pub struct SeatName {
 }
 
 /// One singer of the evening.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Seat {
     /// Opaque, stable for the evening. Never reused.
     pub id: u64,
@@ -105,25 +111,26 @@ pub enum SeatError {
     WrongToken,
 }
 
-/// A seat as the registry holds it.
-#[derive(Debug, Clone)]
-struct Held {
-    seat: Seat,
+/// A seat as the registry holds it, which is also what a store keeps of it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SeatRecord {
+    /// The seat.
+    pub seat: Seat,
     /// The folded name, for the unique-name rule.
-    key: Option<String>,
+    pub key: Option<String>,
     /// The device that registered it, or `None` while no phone holds it.
-    device: Option<String>,
+    pub device: Option<String>,
     /// What proves the seat, or `None` while no phone holds it.
-    token: Option<String>,
+    pub token: Option<String>,
     /// Whether an operator opened the seat, so the next registration under its name takes it
     /// whatever it holds.
-    open: bool,
+    pub open: bool,
 }
 
 /// The evening's seats.
 #[derive(Debug, Clone, Default)]
 pub struct Seats {
-    held: Vec<Held>,
+    held: Vec<SeatRecord>,
     next_id: u64,
     next_guest: u32,
 }
@@ -132,6 +139,43 @@ impl Seats {
     /// No seats.
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// The seats a store kept, in the order each registered.
+    ///
+    /// Each counter is past every value here, whatever the caller hands in, so no id and no guest
+    /// number is issued twice.
+    pub fn from_records(records: Vec<SeatRecord>, next_id: u64, next_guest: u32) -> Self {
+        let past_every_id = records
+            .iter()
+            .map(|held| held.seat.id + 1)
+            .max()
+            .unwrap_or(0);
+        let last_guest = records
+            .iter()
+            .filter_map(|held| held.seat.guest)
+            .max()
+            .unwrap_or(0);
+        Self {
+            held: records,
+            next_id: next_id.max(past_every_id),
+            next_guest: next_guest.max(last_guest),
+        }
+    }
+
+    /// Every seat with its token, its device and its folded name, for a store to keep.
+    pub fn records(&self) -> &[SeatRecord] {
+        &self.held
+    }
+
+    /// The id the next seat takes.
+    pub fn next_id(&self) -> u64 {
+        self.next_id
+    }
+
+    /// The number the last unnamed singer took.
+    pub fn next_guest(&self) -> u32 {
+        self.next_guest
     }
 
     /// How many singers the evening holds.
@@ -331,7 +375,7 @@ impl Seats {
             guest,
             phone: device.is_some(),
         };
-        self.held.push(Held {
+        self.held.push(SeatRecord {
             seat: seat.clone(),
             key,
             device: device.map(str::to_owned),

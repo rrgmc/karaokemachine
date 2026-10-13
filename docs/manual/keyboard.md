@@ -81,6 +81,17 @@ writes nothing to the log. The machine forgets `F12` and `Ctrl+F12` when it clos
 | `Ctrl+Q` | Stop the machine |
 | `Ctrl+1`–`Ctrl+9` | Change to another SoundFont bank that `debug.soundfonts` names, to compare them |
 
+**A machine that kept its evening through a restart waits for one of two keys.** The screen says
+so, and it plays nothing until then.
+
+| Key | Letter key | What it does |
+|---|---|---|
+| `F1` | `Space` | Go on with the evening, from the first song in the queue |
+| `F4`, twice | `N`, twice | Start a new evening, with an empty queue and no singers |
+
+The second press must follow within eight seconds. Any other key keeps the evening.
+[Running a public night](venue.md#after-a-power-cut-or-a-restart) has the setting.
+
 **`D`** starts a song at once and then plays songs by itself. If a song plays or waits in the
 queue, demo mode takes over when the queue is empty. Turning it off lets the current song finish. It
 lasts until the machine closes, and the `/admin/` page makes it permanent. With it on, `N` on a quiet

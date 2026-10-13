@@ -38,10 +38,11 @@ use km_api::dto::{
     AccessCodeRequest, AccessDto, AdjustRecordingsDto, AdjustRecordingsRequest, AdminPasswordDto,
     AdminPasswordRequest, AnnouncementDto, AudioLevelRequest, AudioOutputRequest, AudioOutputsDto,
     BankDto, BankRequest, DebugDto, DemoDto, DevRemoteDto, DevRemoteRequest, EndOnSilenceDto,
-    EndOnSilenceRequest, LoginRequest, LoginResponse, MachineLocaleRequest, MachineNameRequest,
-    PackagesDto, PerformanceDto, PerformanceRequest, RoomAccessRequest, SetAnnouncementRequest,
-    SetDemoDelayRequest, SetDemoRequest, SettingsDto, SettingsPatchDto, SingerRulesDto,
-    SoundFontDto, SoundFontRequest, SoundFontsDto, UninstallDto, UploadReportDto, WallpapersDto,
+    EndOnSilenceRequest, KeepEveningDto, KeepEveningRequest, LoginRequest, LoginResponse,
+    MachineLocaleRequest, MachineNameRequest, PackagesDto, PerformanceDto, PerformanceRequest,
+    RoomAccessRequest, SetAnnouncementRequest, SetDemoDelayRequest, SetDemoRequest, SettingsDto,
+    SettingsPatchDto, SingerRulesDto, SoundFontDto, SoundFontRequest, SoundFontsDto, UninstallDto,
+    UploadReportDto, WallpapersDto,
 };
 
 /// The machine's own default port, so "a bare host means 8177" is not written down twice.
@@ -115,6 +116,10 @@ pub enum Call<'a> {
     AdjustRecordings,
     /// `PUT` — say whether a recorded song changes key and tempo.
     SetAdjustRecordings,
+    /// `GET` — whether the evening outlives the machine's process.
+    KeepEvening,
+    /// `PUT` — say whether the evening outlives the machine's process.
+    SetKeepEvening,
     /// `GET` — the output devices the machine has, and which one it is using.
     AudioOutputs,
     /// `PUT` — choose the output device.
@@ -247,6 +252,8 @@ impl<'a> Call<'a> {
         Call::SetEndOnSilence,
         Call::AdjustRecordings,
         Call::SetAdjustRecordings,
+        Call::KeepEvening,
+        Call::SetKeepEvening,
         Call::AudioOutputs,
         Call::SetAudioOutput,
         Call::SetAudioLevel,
@@ -289,6 +296,7 @@ impl<'a> Call<'a> {
             | Self::Performance
             | Self::EndOnSilence
             | Self::AdjustRecordings
+            | Self::KeepEvening
             | Self::AudioOutputs
             | Self::Settings
             | Self::Locale
@@ -308,6 +316,7 @@ impl<'a> Call<'a> {
             | Self::SetPerformance
             | Self::SetEndOnSilence
             | Self::SetAdjustRecordings
+            | Self::SetKeepEvening
             | Self::SetAudioOutput
             | Self::SetAudioLevel
             | Self::SetSettings
@@ -386,6 +395,8 @@ impl<'a> Call<'a> {
             Self::SetEndOnSilence => "/admin/playback/end-on-silence",
             Self::AdjustRecordings => "/playback/adjust-recordings",
             Self::SetAdjustRecordings => "/admin/playback/adjust-recordings",
+            Self::KeepEvening => "/evening/keep",
+            Self::SetKeepEvening => "/admin/evening/keep",
             // The read is public and the write is not, which is the split every pair here has. The
             // singular on the write is the machine's own spelling: `/audio/outputs` is the list and
             // `/audio/output` is the one in force.
@@ -830,6 +841,17 @@ impl Client {
             &AdjustRecordingsRequest { enabled },
         )
         .await
+    }
+
+    /// Whether the evening outlives the machine's process.
+    pub async fn keep_evening(&self) -> Result<KeepEveningDto, Refused> {
+        self.get_json(Call::KeepEvening).await
+    }
+
+    /// Says whether the evening outlives the machine's process. The machine writes it down.
+    pub async fn set_keep_evening(&self, enabled: bool) -> Result<KeepEveningDto, Refused> {
+        self.json_with(Call::SetKeepEvening, &KeepEveningRequest { enabled })
+            .await
     }
 
     /// The output devices the machine has, and which one is sounding.

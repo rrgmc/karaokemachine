@@ -406,6 +406,7 @@ while ignoring whatever the newer build added.
 | `.kmbuild`, the curation database | `PRAGMA user_version`, from `OLDEST_SCHEMA_VERSION` to `SCHEMA_VERSION` | no `songs` table yet, and it is stamped current |
 | `.kmbackup.json`, a curation backup | `format` | always written with the current one |
 | `settings.json`, the machine's settings | `settings_version`, from `OLDEST_SETTINGS_VERSION` to `CURRENT_SETTINGS_VERSION` | no `settings_version` at all, which is what an installer writes |
+| `evening.json`, the evening a machine keeps | `version`, from `OLDEST_EVENING_VERSION` to `CURRENT_EVENING_VERSION` | no file at all, which is an evening that nobody kept |
 
 **A backup is the one store read past a newer number.** A newer backup is read as far as this build
 understands it, and the difference is reported. A backup is what somebody has when the database is
@@ -416,6 +417,10 @@ same path an unreadable file takes, and the machine starts from defaults. A box 
 that will not come up is the worse failure by a distance. And the file is still there for whoever
 wants what was in it. A build only ever writes its own shape. So every file this build writes is
 stamped with the current version, whatever the value in memory says.
+
+**A refused `evening.json` does not stop the machine either.** It is set aside as
+`evening.json.bad`, and the machine reads the earlier copy or starts an empty evening. A file with
+no `version` is refused, because the machine writes each one with a version.
 
 **A store with no number is judged on its shape**: the columns and tables every query reads. The
 offline remote's `favorites.sqlite` is somebody's work. In an older shape it is refused and left

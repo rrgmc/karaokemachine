@@ -75,6 +75,8 @@ it to run a night:
 | Take out a singer who went home | Open the singer and tap **Remove** |
 | Stop taking songs near the end | Tap **Stop taking requests**. Songs already waiting still play |
 | Clear everything for another night | Open **Start a new evening** and tap **Empty everything** |
+| Go on after a restart, where the machine kept the night | Tap **Continue this evening** at the top |
+| Clear a night that the machine kept | Tap **Start a new evening** at the top |
 
 **A bar or a hall runs a night the same way.** [Running a public night](venue.md) has the
 settings for one.

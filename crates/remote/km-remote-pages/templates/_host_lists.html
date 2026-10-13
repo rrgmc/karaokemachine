@@ -3,6 +3,17 @@
 <div id="host-lists" hx-get="/host/lists" hx-trigger="km:requests from:body, km:singers from:body" hx-swap="outerHTML">
 
   <div class="host-waiting">
+  {# A machine that kept an evening across a restart starts no song until somebody chooses. Both
+     choices are here, at the top, because the host of another day wants the old list gone first. #}
+  {% if kept %}
+  <div class="setup-group host-kept">
+    <p class="closed">{{ "host-kept"|t }}</p>
+    <div class="pref-row field-row">
+      <button class="icon-btn primary" hx-post="/host/continue" hx-target="#host-lists" hx-swap="outerHTML">{{ "host-kept-continue"|t }}</button>
+      <button class="icon-btn danger" hx-post="/host/reset" hx-swap="none">{{ "host-reset"|t }}</button>
+    </div>
+  </div>
+  {% endif %}
   {# Whether a phone may ask. What already waits still goes into the queue, and this tab still adds. #}
   <div class="pref-row field-row">
     {% if accepting %}

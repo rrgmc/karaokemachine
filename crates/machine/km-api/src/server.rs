@@ -49,11 +49,12 @@ struct Inner {
     auth: AdminAuth,
     /// What everybody on the network gets with no code. Live, because the owner can change it.
     room_access: RwLock<Access>,
-    /// Which evening this is: a random word, new at every start.
+    /// Which evening this is: a random word, new with every evening.
     ///
-    /// A seat ends with the process and ids start again from zero, so an id a phone kept from an
-    /// earlier run names somebody else's seat now. A phone keeps this word beside its seats and
-    /// drops them when the word differs. Live, because a new evening may start without a restart.
+    /// An id a phone kept from an earlier evening names somebody else's seat now. A phone keeps
+    /// this word beside its seats and drops them when the word differs. Live, because a new
+    /// evening may start without a restart. A controller that holds a word of its own is asked
+    /// first, which is how a kept evening keeps its word across a restart.
     evening: RwLock<String>,
 
     connect: RwLock<ConnectInfo>,
@@ -119,6 +120,11 @@ impl std::fmt::Debug for ApiState {
     }
 }
 
+/// A word for a new evening: eight random bytes in hexadecimal.
+pub fn new_evening_word() -> String {
+    crate::auth::random_hex(8)
+}
+
 impl ApiState {
     /// Builds the state around a machine, with a fresh event channel.
     pub fn new(
@@ -167,7 +173,7 @@ impl ApiState {
                 events,
                 auth,
                 room_access,
-                evening: RwLock::new(crate::auth::random_hex(8)),
+                evening: RwLock::new(new_evening_word()),
 
                 connect,
                 factory_password,
@@ -445,6 +451,9 @@ impl ApiState {
 
     /// Which evening this is, as [`crate::dto::SingersDto::evening`] carries it.
     pub fn evening(&self) -> String {
+        if let Some(word) = self.inner.controller.evening_word() {
+            return word;
+        }
         self.inner
             .evening
             .read()
@@ -456,11 +465,13 @@ impl ApiState {
     ///
     /// Every phone then finds that the word it kept differs, and drops the seats it held.
     pub fn renew_evening(&self) {
+        let word = new_evening_word();
+        self.inner.controller.set_evening_word(&word);
         *self
             .inner
             .evening
             .write()
-            .unwrap_or_else(|poisoned| poisoned.into_inner()) = crate::auth::random_hex(8);
+            .unwrap_or_else(|poisoned| poisoned.into_inner()) = word;
     }
 
     /// What everybody on the network gets with no code.

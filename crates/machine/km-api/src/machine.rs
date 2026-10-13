@@ -473,6 +473,10 @@ pub struct EveningState {
     pub accepting: bool,
     /// Every song that started this evening, in order.
     pub sung: Vec<Sung>,
+    /// Whether the machine holds an evening it kept across a restart, and starts no song yet.
+    ///
+    /// Somebody then chooses: play continues the evening, and a new evening empties it.
+    pub waiting_for_host: bool,
 }
 
 impl Default for EveningState {
@@ -481,6 +485,7 @@ impl Default for EveningState {
         Self {
             accepting: true,
             sung: Vec::new(),
+            waiting_for_host: false,
         }
     }
 }
@@ -1449,6 +1454,40 @@ pub trait Controller: Send + Sync + 'static {
     ///
     /// The song that is playing plays on.
     fn evening_reset(&self);
+
+    /// The evening's word, for a host that holds it.
+    ///
+    /// A machine that keeps its evening across a restart holds the word, so a phone finds the same
+    /// one and keeps its seats. Defaulted to `None`, and the API then holds a word of its own.
+    fn evening_word(&self) -> Option<String> {
+        None
+    }
+
+    /// Tells the host the word a new evening took. Defaulted to do nothing.
+    fn set_evening_word(&self, word: &str) {
+        let _ = word;
+    }
+
+    /// Whether the evening outlives the machine's process.
+    ///
+    /// Defaulted off, which is what a host with no store does.
+    fn keep_evening(&self) -> bool {
+        false
+    }
+
+    /// Say whether the evening outlives the machine's process.
+    ///
+    /// Installation configuration, written down at once, for [`Self::set_end_on_silence`]'s reason.
+    /// On, the machine writes the evening it holds now. Off, it removes what it kept, so a later
+    /// switch on brings back no earlier night. The answer is what the machine stored.
+    ///
+    /// Has a default that refuses, for a host with no store.
+    fn set_keep_evening(&self, enabled: bool) -> Result<bool, ControlError> {
+        let _ = enabled;
+        Err(ControlError::Unavailable(
+            "this host keeps no evening".into(),
+        ))
+    }
 
     /// Drives the transport.
     fn transport(&self, command: TransportCommand) -> Result<(), ControlError>;

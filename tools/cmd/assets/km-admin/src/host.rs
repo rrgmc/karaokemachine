@@ -334,6 +334,8 @@ impl Switches for RemoteMachine {
         // Asked apart from the seven above and allowed to fail. A machine of an earlier version has
         // no such route, and its page must still draw: it then shows no singers card.
         let singers = client.singer_rules().await.ok().map(Into::into);
+        // On the same terms: an earlier machine keeps no evening, and its page draws no card.
+        let keep_evening = client.keep_evening().await.ok().map(|kept| kept.enabled);
 
         Ok(SwitchState {
             singers,
@@ -341,6 +343,7 @@ impl Switches for RemoteMachine {
             announcement_length_secs: announcement.length_secs,
             end_on_silence: end_on_silence.enabled,
             adjust_recordings: adjust_recordings.enabled,
+            keep_evening,
             debug_running: debug.enabled,
             debug_stored: debug.stored,
             dev_remote_stored: dev_remote.enabled,
@@ -427,6 +430,15 @@ impl Switches for RemoteMachine {
         self.writing()
             .await?
             .set_adjust_recordings(on)
+            .await
+            .map(|stored| stored.enabled)
+            .map_err(fault)
+    }
+
+    async fn set_keep_evening(&self, on: bool) -> Result<bool, AdminError> {
+        self.writing()
+            .await?
+            .set_keep_evening(on)
             .await
             .map(|stored| stored.enabled)
             .map_err(fault)

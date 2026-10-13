@@ -786,6 +786,12 @@ pub struct SingerSettings {
     /// **Ten**, which is more turns than one singer gets in an evening of several. A venue sets it
     /// low, so one table cannot fill the request list.
     pub max_waiting: u32,
+    /// Whether the evening outlives the machine's process.
+    ///
+    /// **Off.** A home machine starts with an empty queue, and a list from another day is clutter
+    /// there. A venue turns it on, so a power cut does not end the night for every guest. The
+    /// machine then keeps the queue, the singers and their requests in `evening.json`.
+    pub keep_evening: bool,
 }
 
 impl Default for SingerSettings {
@@ -794,6 +800,7 @@ impl Default for SingerSettings {
             name_required: false,
             max_per_device: None,
             max_waiting: km_queue::RequestRules::default().max_waiting,
+            keep_evening: false,
         }
     }
 }
@@ -2009,6 +2016,21 @@ mod tests {
         assert!(rules.name_required);
         assert_eq!(rules.max_per_device, Some(3));
         assert_eq!(venue.singers.request_rules().max_waiting, 2);
+    }
+
+    /// A machine starts each evening empty until its owner asks it to keep one.
+    #[test]
+    fn an_evening_ends_with_the_process_until_the_file_says_otherwise() {
+        assert!(!Settings::default().singers.keep_evening);
+        let before: Settings =
+            serde_json::from_str(r#"{"singers":{"max_waiting":2}}"#).expect("parse");
+        assert!(!before.singers.keep_evening, "a file without the key");
+        let kept: Settings =
+            serde_json::from_str(r#"{"singers":{"keep_evening":true}}"#).expect("parse");
+        assert!(kept.singers.keep_evening);
+        let ended: Settings =
+            serde_json::from_str(r#"{"singers":{"keep_evening":false}}"#).expect("parse");
+        assert!(!ended.singers.keep_evening);
     }
 
     #[test]

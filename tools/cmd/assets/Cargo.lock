@@ -2256,6 +2256,7 @@ name = "km-queue"
 version = "1.22.0"
 dependencies = [
  "km-songcode",
+ "serde",
  "thiserror 2.0.20",
 ]
 

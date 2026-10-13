@@ -11,9 +11,10 @@
 use std::collections::VecDeque;
 
 use km_songcode::SongCode;
+use serde::{Deserialize, Serialize};
 
 /// A queued song.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct QueueEntry {
     /// Opaque, stable for the entry's lifetime. Never reused.
     pub id: u64,
@@ -94,6 +95,22 @@ impl Queue {
     /// An empty queue.
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// A queue holding `entries` in play order, for a store that kept them.
+    ///
+    /// The next id is past every id here, whatever `next_id` says, so no id is issued twice.
+    pub fn from_parts(entries: Vec<QueueEntry>, next_id: u64) -> Self {
+        let past_every_id = entries.iter().map(|entry| entry.id + 1).max().unwrap_or(0);
+        Self {
+            entries: entries.into(),
+            next_id: next_id.max(past_every_id),
+        }
+    }
+
+    /// The id the next entry takes.
+    pub fn next_id(&self) -> u64 {
+        self.next_id
     }
 
     /// How many songs are waiting.

@@ -13,6 +13,15 @@ Entries are written for somebody who has the machine. Why any of it is the way i
 
 ### Added
 
+- **A machine can keep the night through a restart.** A venue turns on *Keep the queue and the
+  singers when the machine restarts*, on the password tab. After a power cut the machine starts
+  with its queue, its singers and their waiting songs, and each phone still holds its singer. The
+  song that was playing is first in the queue. The setting starts off, so a home machine starts
+  with an empty queue.
+- **A machine that kept the night plays nothing until somebody chooses.** `Space` at the machine
+  goes on with the night, and so does **Continue this evening** on the host's tab. `N` pressed
+  twice clears the list, and so does **Start a new evening**. The machine also keeps a copy from
+  about a minute before, for a list that a power cut damaged.
 - **A video, an MP3+G song and a song with recorded audio change key and tempo.** The key and tempo
   buttons on the phone work for them as they do for a MIDI song. A song left at its own key and
   tempo sounds exactly as it did. The change needs more processing, so it starts off on a
