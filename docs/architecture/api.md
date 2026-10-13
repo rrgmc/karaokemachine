@@ -56,6 +56,11 @@ tempo**, and `GET /api/v1/playback/adjust-recordings` reads it. The pair has the
 above. `Controller::set_adjust_recordings` writes `playback.adjust_recordings` and sends the player
 nothing, because a song takes its stretcher when it loads.
 
+**`PUT /api/v1/admin/evening/keep` says whether the evening outlives the machine's process**, and
+`GET /api/v1/evening/keep` reads it. The pair has the shape of the pair above.
+`Controller::set_keep_evening` writes `singers.keep_evening` and brings `evening.json` into line.
+[`The evening a machine keeps`](persistence.md#the-evening-a-machine-keeps) has the file.
+
 **`NowPlaying::adjustable` is what a client reads, and not the kind.** It is true for a MIDI song,
 and for a recorded song the machine gave a stretcher. `transpose_available` and `tempo_available`
 carry it on the wire. `km_api::machine` names `MAX_TRANSPOSE`, `MIN_TEMPO_RATIO` and
@@ -567,8 +572,15 @@ that starts. `request` refuses `Proof::Token` while accepting is off and takes `
 `Controller::evening` reads both, and `RequestsDto::new` puts them in `accepting` and `sung`. So
 they travel on `requests_changed`, and no third event exists.
 
+**`waiting_for_host` travels the same way.** It is true while a machine holds an evening that it
+kept across a restart, and has started no song. A client at the `control` level then offers two
+routes that exist already. `POST /transport/play` continues the evening, and `POST /evening/reset`
+empties it. The pop that starts a song publishes `requests_changed`, so every client sees the wait
+end.
+
 **`ops::reset_evening` does two things.** It calls `Controller::evening_reset`, which is
-`Evening::reset`, and `ApiState::renew_evening`, which takes a new word. Seat ids and request ids
+`Evening::reset`, and `ApiState::renew_evening`, which takes a new word.
+`Machine::start_new_evening` does both for the television's keyboard, which has no `ApiState`. Seat ids and request ids
 go on counting through a reset, so nothing a phone kept names anything of the new evening.
 
 The decision is

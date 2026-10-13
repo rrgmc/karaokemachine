@@ -13,6 +13,11 @@ the list below names.
   The search terms go to that service, and with them the API key you gave it, if any. The pictures
   then download from the addresses the service returns.
 
+**The machine writes singers' names to a file only where you ask it to keep the evening.** With
+that setting on, the names and the songs each singer asked for are in `evening.json` and
+`evening.previous.json`, in the machine's data folder. A new evening removes both files, and so
+does turning the setting off. Neither file leaves the computer.
+
 A download sends a plain request and nothing that identifies you. **On your own network**, the
 machine answers the HTTP API and announces itself over mDNS, and the remotes and tools reach it there.
 A *YouTube* link in a remote or the package builder opens your browser only when you click it.

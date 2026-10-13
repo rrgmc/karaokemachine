@@ -622,12 +622,40 @@ struct AuditionSweep {
     tries: u8,
 }
 
+/// What this process last wrote to `evening.json`.
+#[derive(Debug, Default)]
+struct EveningStore {
+    /// The evening the file holds, or `None` when this process has written none.
+    written: Option<crate::evening_store::Kept>,
+    /// Whether the last write failed, so one failure is logged once and not every second.
+    failing: bool,
+    /// When the file last became the earlier copy, or `None` when this process has kept none.
+    ///
+    /// `None` at a start, so the first write keeps the file the machine has just read. That file
+    /// is the one known to be sound.
+    rotated_at: Option<Instant>,
+}
+
 /// Everything about playback that is not inside the engine.
 #[derive(Debug)]
 struct State {
     /// The queue, the singers and their requests. One value under one lock, because the rule that
     /// gives each singer one song in the queue reads all three.
     evening: Evening,
+    /// The evening's word, which a phone keeps beside its seats.
+    ///
+    /// Held here and not by the API, because a kept evening keeps its word across a restart.
+    evening_word: String,
+    /// The entry of the song the deck last took from the queue.
+    ///
+    /// An entry that started is in no list, and `loaded` keeps its label without its seat. A kept
+    /// evening needs the whole entry, to put the song back at the front after a restart.
+    playing_entry: Option<QueueEntry>,
+    /// Set while the machine holds an evening it kept across a restart, and nobody has chosen.
+    ///
+    /// A queued song starts nothing while it is set, so a restart in an empty room plays nothing.
+    /// Play ends it, and so does a new evening. Never written down: a second restart waits again.
+    held_for_host: bool,
     loaded: Option<Loaded>,
     settings: ApiSettings,
     mics: MicRegistry,
@@ -712,6 +740,12 @@ struct State {
 /// The karaoke machine.
 pub struct Machine {
     paths: Paths,
+    /// What `evening.json` holds, as far as this process knows.
+    ///
+    /// One lock for the write, the switch and the shutdown, so a write that began before the
+    /// switch went off cannot put the file back. Taken before the settings and the state, and
+    /// never while either is held.
+    evening_store: Mutex<EveningStore>,
     settings: Mutex<Settings>,
     library: Mutex<Library>,
     /// Open archives, by package id. A package's manifest is parsed once rather than on every song.
@@ -976,8 +1010,12 @@ impl Machine {
             engine,
             events,
             advancing: Mutex::new(()),
+            evening_store: Mutex::new(EveningStore::default()),
             state: Mutex::new(State {
                 evening: Evening::new(),
+                evening_word: km_api::server::new_evening_word(),
+                playing_entry: None,
+                held_for_host: false,
                 loaded: None,
                 settings: playback,
                 mics,
@@ -2542,7 +2580,21 @@ impl Machine {
     fn advance_holding_the_turn(&self) {
         let attempts = self.lock_state().evening.queue().len();
         for _ in 0..=attempts {
-            let Some(entry) = self.lock_state().evening.pop(Instant::now()) else {
+            let popped = {
+                let mut state = self.lock_state();
+                let entry = state.evening.pop(Instant::now());
+                if entry.is_some() {
+                    // One lock for the pop and the note of it, so a kept evening never sees an
+                    // entry that is in neither place. A song is starting, so the wait is over.
+                    state.playing_entry = entry.clone();
+                    if std::mem::take(&mut state.held_for_host) {
+                        // Said once, so the log shows when the wait ended.
+                        tracing::info!("somebody pressed play; the kept evening goes on");
+                    }
+                }
+                entry
+            };
+            let Some(entry) = popped else {
                 break;
             };
             self.publish_queue();
@@ -3105,6 +3157,11 @@ impl Machine {
         // one-shot that has not fired yet, so a *play something* press followed by a queue starts
         // one song rather than two.
         self.arm_demo(DemoEvent::Somebody);
+        // A machine that holds a kept evening starts nothing until somebody at it chooses. A
+        // phone's request must not start a night in a room the host has not reached.
+        if self.lock_state().held_for_host {
+            return;
+        }
         // Somebody has chosen a song, so sound is coming. The device is not held while the machine
         // is idle, and bringing a Bluetooth link back up takes about a second — this starts that
         // now, so it overlaps with whatever else has to happen before the first note.
@@ -3607,6 +3664,187 @@ impl Machine {
         drop(settings);
         if let Err(error) = snapshot.save(&self.paths) {
             tracing::error!(%error, "could not write settings on shutdown");
+        }
+        self.keep_evening_tick();
+    }
+
+    fn lock_evening_store(&self) -> MutexGuard<'_, EveningStore> {
+        self.evening_store
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
+
+    /// The evening and its word as they stand, with the song on the deck when the queue gave it.
+    fn evening_now(&self) -> crate::evening_store::Kept {
+        let state = self.lock_state();
+        let playing = match (&state.loaded, &state.playing_entry) {
+            (
+                Some(Loaded {
+                    origin: Origin::Catalog { entry_id, .. },
+                    ..
+                }),
+                Some(entry),
+            ) if entry.id == *entry_id => Some(entry.clone()),
+            _ => None,
+        };
+        crate::evening_store::Kept {
+            word: state.evening_word.clone(),
+            evening: state.evening.snapshot(playing, Instant::now()),
+        }
+    }
+
+    /// Writes `kept` to `evening.json` and notes what the file now holds.
+    ///
+    /// At most once in [`crate::evening_store::KEEP_PREVIOUS_EVERY`], the file first becomes the
+    /// earlier copy.
+    fn write_evening(&self, store: &mut EveningStore, kept: crate::evening_store::Kept) {
+        let now = Instant::now();
+        if store.rotated_at.is_none_or(|at| {
+            now.saturating_duration_since(at) >= crate::evening_store::KEEP_PREVIOUS_EVERY
+        }) {
+            crate::evening_store::rotate(
+                &self.paths.evening_file(),
+                &self.paths.evening_previous_file(),
+            );
+            store.rotated_at = Some(now);
+        }
+        match crate::evening_store::write(&self.paths.evening_file(), &kept) {
+            Ok(()) => {
+                store.written = Some(kept);
+                store.failing = false;
+            }
+            Err(error) if !store.failing => {
+                store.failing = true;
+                tracing::error!(%error, "could not write evening.json; the evening is not kept");
+            }
+            Err(_) => {}
+        }
+    }
+
+    /// Loads the evening the machine kept, when `singers.keep_evening` is on and a file is there.
+    ///
+    /// **Call it after [`Self::install_startup_packages`] and before anything serves the API.** The
+    /// startup prune of the catalog then runs against an empty queue, and no phone meets an evening
+    /// that is about to change under it.
+    ///
+    /// **The earlier copy is read when the file is absent or cannot be used**, so a write that a
+    /// power cut damaged costs a minute of the night.
+    ///
+    /// **The machine then waits.** A kept queue starts no song until somebody presses play, and a
+    /// new evening empties it. A song that has left the catalog stays in the queue, and the machine
+    /// passes over it when its turn comes.
+    pub fn restore_evening(&self) {
+        if !self.lock_settings().singers.keep_evening {
+            return;
+        }
+        // The file first, and the earlier copy when the file is absent or cannot be used.
+        let read = [
+            self.paths.evening_file(),
+            self.paths.evening_previous_file(),
+        ]
+        .into_iter()
+        .find_map(|path| {
+            let kept = crate::evening_store::load(&path)?;
+            match Evening::restore(kept.evening, Instant::now()) {
+                Ok(evening) => Some((evening, kept.word)),
+                Err(error) => {
+                    crate::evening_store::set_aside(&path, &error.to_string());
+                    None
+                }
+            }
+        });
+        let Some((evening, word)) = read else {
+            return;
+        };
+        let songs = evening.queue().len();
+        let singers = evening.seats().len();
+        let mut state = self.lock_state();
+        state.held_for_host = songs > 0;
+        state.evening = evening;
+        state.evening_word = word;
+        state.playing_entry = None;
+        drop(state);
+        tracing::info!(
+            songs,
+            singers,
+            "the evening this machine kept was loaded; it waits for somebody to press play"
+        );
+    }
+
+    /// Writes the evening to `evening.json` when it differs from what the file holds.
+    ///
+    /// Called once a second by a thread of its own, and once more at shutdown. **It compares and
+    /// does not ask who changed what**, so a change from the keypad, from a phone, from a song
+    /// starting and from a finished request expiring all reach the file by this one road.
+    ///
+    /// The write is outside the state lock, because it waits for the disk.
+    pub fn keep_evening_tick(&self) {
+        let mut store = self.lock_evening_store();
+        if !self.lock_settings().singers.keep_evening {
+            return;
+        }
+        let kept = self.evening_now();
+        if store.written.as_ref() == Some(&kept) {
+            return;
+        }
+        self.write_evening(&mut store, kept);
+    }
+
+    /// How many songs and singers a kept evening holds while the machine waits, for the screen.
+    ///
+    /// `None` when the machine is not waiting.
+    /// Removes the file and its earlier copy, so no start reads an evening that has ended.
+    fn forget_the_kept_evening(&self, store: &mut EveningStore) {
+        for path in [
+            self.paths.evening_file(),
+            self.paths.evening_previous_file(),
+        ] {
+            if let Err(error) = crate::evening_store::remove(&path) {
+                tracing::error!(%error, file = %path.display(), "could not remove a kept evening");
+            }
+        }
+        store.written = None;
+        store.failing = false;
+        // Nothing is left to keep, so the next write keeps none.
+        store.rotated_at = Some(Instant::now());
+    }
+
+    pub fn kept_evening_waiting(&self) -> Option<(usize, usize)> {
+        let state = self.lock_state();
+        state
+            .held_for_host
+            .then(|| (state.evening.queue().len(), state.evening.seats().len()))
+    }
+
+    /// Starts a new evening from the machine's own keyboard, and tells every remote.
+    ///
+    /// What `POST /evening/reset` does, for a caller with no API in reach: a new word, so each
+    /// phone drops the seats it kept, and the events a remote redraws from.
+    pub fn start_new_evening(&self) {
+        Controller::evening_reset(self);
+        Controller::set_evening_word(self, &km_api::server::new_evening_word());
+        tracing::info!("a new evening was started at the machine");
+        let (seats, word) = {
+            let state = self.lock_state();
+            let seats: Vec<Seat> = state.evening.seats().seats().cloned().collect();
+            (seats, state.evening_word.clone())
+        };
+        self.events.publish(Event::SingersChanged {
+            singers: km_api::dto::SingersDto {
+                singers: seats.iter().map(Into::into).collect(),
+                capacity: km_queue::MAX_SEATS,
+                evening: word,
+            },
+        });
+        self.publish_queue();
+    }
+}
+
+impl State {
+    /// Ends the wait for the host when the kept queue is empty, because nothing is left to start.
+    fn release_an_emptied_hold(&mut self) {
+        if self.evening.queue().is_empty() {
+            self.held_for_host = false;
         }
     }
 }
@@ -4477,10 +4715,10 @@ impl Controller for Machine {
 
     fn queue_remove(&self, id: u64) -> Result<QueueEntry, ControlError> {
         self.arm_demo(DemoEvent::Somebody);
-        self.lock_state()
-            .evening
-            .remove(id, Instant::now())
-            .ok_or_else(|| ControlError::NotFound(format!("queue entry {id}")))
+        let mut state = self.lock_state();
+        let removed = state.evening.remove(id, Instant::now());
+        state.release_an_emptied_hold();
+        removed.ok_or_else(|| ControlError::NotFound(format!("queue entry {id}")))
     }
 
     fn queue_move(&self, id: u64, to_index: usize) -> Result<(), ControlError> {
@@ -4523,7 +4761,10 @@ impl Controller for Machine {
 
     fn seat_remove(&self, id: u64) -> Result<Seat, SeatError> {
         self.arm_demo(DemoEvent::Somebody);
-        self.lock_state().evening.remove_singer(id, Instant::now())
+        let mut state = self.lock_state();
+        let removed = state.evening.remove_singer(id, Instant::now());
+        state.release_an_emptied_hold();
+        removed
     }
 
     fn seat_merge(&self, from: u64, into: u64) -> Result<Seat, SeatError> {
@@ -4532,7 +4773,10 @@ impl Controller for Machine {
 
     fn request_decline(&self, id: u64) -> Result<Request, RequestError> {
         self.arm_demo(DemoEvent::Somebody);
-        self.lock_state().evening.decline(id, Instant::now())
+        let mut state = self.lock_state();
+        let declined = state.evening.decline(id, Instant::now());
+        state.release_an_emptied_hold();
+        declined
     }
 
     fn request_accept(&self, id: u64, next: bool) -> Result<Request, RequestError> {
@@ -4547,6 +4791,7 @@ impl Controller for Machine {
         km_api::machine::EveningState {
             accepting: state.evening.accepting(),
             sung: state.evening.sung().to_vec(),
+            waiting_for_host: state.held_for_host,
         }
     }
 
@@ -4556,9 +4801,53 @@ impl Controller for Machine {
 
     /// Starts a new evening. The song on the deck is no part of the evening's lists, so it plays
     /// on, and the queue behind it is empty as it is at a start.
+    ///
+    /// A kept evening forgets that song, so a restart does not put it at the front of the new
+    /// evening. Both files of the old evening go and the emptied one is written at once, so no
+    /// power cut brings the old one back.
     fn evening_reset(&self) {
         self.arm_demo(DemoEvent::Somebody);
-        self.lock_state().evening.reset();
+        {
+            let mut store = self.lock_evening_store();
+            let mut state = self.lock_state();
+            state.evening.reset();
+            state.playing_entry = None;
+            state.held_for_host = false;
+            drop(state);
+            self.forget_the_kept_evening(&mut store);
+        }
+        self.keep_evening_tick();
+    }
+
+    fn evening_word(&self) -> Option<String> {
+        Some(self.lock_state().evening_word.clone())
+    }
+
+    fn set_evening_word(&self, word: &str) {
+        self.lock_state().evening_word = word.to_owned();
+        self.keep_evening_tick();
+    }
+
+    fn keep_evening(&self) -> bool {
+        self.lock_settings().singers.keep_evening
+    }
+
+    /// Stores the switch and writes it down, and brings `evening.json` into line with it.
+    ///
+    /// On, the evening the machine holds is written now. Off, the file and its earlier copy go, so
+    /// a later switch on brings back no earlier night.
+    fn set_keep_evening(&self, enabled: bool) -> Result<bool, ControlError> {
+        let mut store = self.lock_evening_store();
+        self.lock_settings().singers.keep_evening = enabled;
+        self.save_settings();
+        if enabled {
+            let kept = self.evening_now();
+            self.write_evening(&mut store, kept);
+        } else {
+            self.forget_the_kept_evening(&mut store);
+        }
+        tracing::info!(enabled, "keeping the evening across a restart was switched");
+        Ok(enabled)
     }
 
     fn requests(&self) -> Vec<Request> {
@@ -4592,9 +4881,10 @@ impl Controller for Machine {
 
     fn request_withdraw(&self, id: u64, token: &str) -> Result<Request, RequestError> {
         self.arm_demo(DemoEvent::Somebody);
-        self.lock_state()
-            .evening
-            .withdraw(id, token, Instant::now())
+        let mut state = self.lock_state();
+        let withdrawn = state.evening.withdraw(id, token, Instant::now());
+        state.release_an_emptied_hold();
+        withdrawn
     }
 
     fn queue_clear(&self) -> Result<usize, ControlError> {
@@ -4602,7 +4892,10 @@ impl Controller for Machine {
         // `Queue::clear` rather than popping until empty, which is what this did while that method
         // sat unused beside it. Two spellings of one operation, and the queue's own is the one that
         // stays right if the container underneath ever changes.
-        Ok(self.lock_state().evening.clear(Instant::now()).len())
+        let mut state = self.lock_state();
+        let removed = state.evening.clear(Instant::now()).len();
+        state.release_an_emptied_hold();
+        Ok(removed)
     }
 
     fn transport(&self, command: TransportCommand) -> Result<(), ControlError> {
@@ -8324,6 +8617,365 @@ mod tests {
     }
 
     /// A video song has no MIDI events, so nothing is carried and nothing is claimed.
+    /// Settings for a machine that keeps its evening, with no announcement to wait through.
+    fn keeping_the_evening() -> Settings {
+        let mut settings = Settings::default();
+        settings.announcement.enabled = false;
+        settings.singers.keep_evening = true;
+        settings
+    }
+
+    /// The machine a restart gives: the same data directory, the same package, an evening loaded.
+    fn started_again(root: &Scratch, settings: Settings) -> (Arc<Machine>, CommandLog) {
+        let (engine, log) = Engine::recording();
+        let machine = Arc::new(
+            Machine::new(
+                Paths::rooted_at(root.path()),
+                settings,
+                engine,
+                Events::new(),
+            )
+            .expect("build a machine"),
+        );
+        machine
+            .install(&root.join("vol1.kmpkg"))
+            .expect("install the package");
+        machine.restore_evening();
+        (machine, log)
+    }
+
+    fn queued_numbers(machine: &Machine) -> Vec<SongCode> {
+        machine.queue().iter().map(|entry| entry.number).collect()
+    }
+
+    fn playing_number(machine: &Machine) -> Option<SongCode> {
+        match machine
+            .lock_state()
+            .loaded
+            .as_ref()
+            .map(|loaded| &loaded.origin)
+        {
+            Some(Origin::Catalog { number, .. }) => Some(*number),
+            _ => None,
+        }
+    }
+
+    /// One singer with a song playing and one queued, and a song with no singer behind them.
+    fn an_evening_under_way(machine: &Machine, codes: &[SongCode]) -> Issued {
+        let issued = machine
+            .seat_register(
+                "phone-a",
+                Some(SeatName {
+                    shown: "Ana".to_owned(),
+                    key: "ana".to_owned(),
+                }),
+                "token".to_owned(),
+            )
+            .expect("the seat registers");
+        for code in &codes[..2] {
+            machine
+                .request_add(
+                    issued.seat.id,
+                    Proof::Token("token"),
+                    RequestedSong {
+                        number: *code,
+                        title: format!("Song {}", code.slot()),
+                        artist: None,
+                        duration_ms: 200_000,
+                    },
+                )
+                .expect("the request is taken");
+        }
+        machine.queue_add(a_request(codes[2])).expect("queue");
+        assert_eq!(playing_number(machine), Some(codes[0]));
+        assert_eq!(queued_numbers(machine), vec![codes[1], codes[2]]);
+        issued
+    }
+
+    /// The write follows a change and nothing else, which is what makes a check each second cheap.
+    #[test]
+    fn a_kept_evening_is_written_when_it_changes_and_not_again() {
+        let (scratch, machine, _log, codes) =
+            a_machine_with_eight_songs_under("keep-write", keeping_the_evening());
+        let file = scratch.join("evening.json");
+
+        machine.keep_evening_tick();
+        assert!(file.exists(), "the first look writes the evening as it is");
+
+        std::fs::remove_file(&file).expect("remove");
+        machine.keep_evening_tick();
+        assert!(!file.exists(), "nothing changed, so nothing is written");
+
+        // The keypad's road, which passes no API and publishes no event.
+        machine.queue_add(a_request(codes[0])).expect("queue");
+        machine.keep_evening_tick();
+        let kept = crate::evening_store::load(&file).expect("the change was written");
+        assert_eq!(
+            kept.evening.playing.map(|entry| entry.number),
+            Some(codes[0]),
+            "with the song that took the deck"
+        );
+    }
+
+    #[test]
+    fn a_machine_that_keeps_no_evening_writes_no_file() {
+        let (scratch, machine, _log, codes) = a_machine_with_eight_songs("keep-off");
+        machine.queue_add(a_request(codes[0])).expect("queue");
+        machine.keep_evening_tick();
+        machine.persist();
+        assert!(!scratch.join("evening.json").exists());
+    }
+
+    /// A restart gives the evening back, with the song that was playing first, and starts nothing.
+    #[test]
+    fn a_machine_started_again_holds_the_evening_and_waits_for_play() {
+        let (scratch, machine, _log, codes) =
+            a_machine_with_eight_songs_under("keep-restart", keeping_the_evening());
+        let issued = an_evening_under_way(&machine, &codes);
+        let word = Controller::evening_word(machine.as_ref()).expect("a machine holds its word");
+        machine.keep_evening_tick();
+        drop(machine);
+
+        let (machine, log) = started_again(&scratch, keeping_the_evening());
+
+        assert_eq!(
+            queued_numbers(&machine),
+            vec![codes[0], codes[1], codes[2]],
+            "the song that was playing is first"
+        );
+        assert_eq!(playing_number(&machine), None, "and nothing started");
+        assert_eq!(log.count("Load"), 0);
+        assert!(Controller::evening(machine.as_ref()).waiting_for_host);
+        assert_eq!(machine.kept_evening_waiting(), Some((3, 1)));
+        assert_eq!(
+            Controller::evening_word(machine.as_ref()),
+            Some(word),
+            "a phone finds the word it kept"
+        );
+        assert!(
+            Controller::evening(machine.as_ref()).sung.is_empty(),
+            "the song that starts again has not been sung"
+        );
+        machine
+            .seat_rename(
+                issued.seat.id,
+                "token",
+                SeatName {
+                    shown: "Ana Paula".to_owned(),
+                    key: "ana paula".to_owned(),
+                },
+            )
+            .expect("the token a phone kept still proves the seat");
+
+        // A song queued while the machine waits starts nothing.
+        machine.queue_add(a_request(codes[3])).expect("queue");
+        assert_eq!(playing_number(&machine), None);
+        assert_eq!(log.count("Load"), 0);
+
+        Controller::transport(machine.as_ref(), TransportCommand::Play).expect("play");
+        assert_eq!(playing_number(&machine), Some(codes[0]));
+        assert!(!Controller::evening(machine.as_ref()).waiting_for_host);
+        assert_eq!(machine.kept_evening_waiting(), None);
+    }
+
+    /// The other choice: a new evening empties what was kept, on the disk as in memory.
+    #[test]
+    fn a_new_evening_ends_the_wait_and_empties_what_was_kept() {
+        let (scratch, machine, _log, codes) =
+            a_machine_with_eight_songs_under("keep-new-evening", keeping_the_evening());
+        an_evening_under_way(&machine, &codes);
+        let word = Controller::evening_word(machine.as_ref());
+        machine.keep_evening_tick();
+        drop(machine);
+        let (machine, log) = started_again(&scratch, keeping_the_evening());
+        assert!(Controller::evening(machine.as_ref()).waiting_for_host);
+
+        machine.start_new_evening();
+
+        assert!(!Controller::evening(machine.as_ref()).waiting_for_host);
+        assert!(machine.queue().is_empty());
+        assert!(machine.seats().is_empty());
+        assert_ne!(Controller::evening_word(machine.as_ref()), word);
+        assert_eq!(log.count("Load"), 0);
+        let kept = crate::evening_store::load(&scratch.join("evening.json")).expect("a file");
+        assert!(kept.evening.queue.is_empty(), "written at once");
+        assert!(kept.evening.seats.is_empty());
+        assert_eq!(Some(kept.word), Controller::evening_word(machine.as_ref()));
+
+        // And the machine is an ordinary one again: a queued song starts.
+        machine.queue_add(a_request(codes[4])).expect("queue");
+        assert_eq!(playing_number(&machine), Some(codes[4]));
+    }
+
+    /// A kept queue that somebody empties by hand leaves nothing to wait for.
+    #[test]
+    fn the_wait_ends_when_the_kept_queue_is_emptied() {
+        let (scratch, machine, _log, codes) =
+            a_machine_with_eight_songs_under("keep-emptied", keeping_the_evening());
+        // A second song, because the first takes the deck and the deck is not kept without it.
+        machine.queue_add(a_request(codes[0])).expect("queue");
+        machine.queue_add(a_request(codes[1])).expect("queue");
+        machine.keep_evening_tick();
+        drop(machine);
+        let (machine, _log) = started_again(&scratch, keeping_the_evening());
+        assert_eq!(machine.kept_evening_waiting(), Some((2, 0)));
+
+        Controller::queue_clear(machine.as_ref()).expect("clear");
+
+        assert!(!Controller::evening(machine.as_ref()).waiting_for_host);
+        machine.queue_add(a_request(codes[2])).expect("queue");
+        assert_eq!(playing_number(&machine), Some(codes[2]));
+    }
+
+    /// A song that left the catalog between two runs is passed over when its turn comes.
+    #[test]
+    fn a_kept_song_that_left_the_catalog_is_passed_over() {
+        let (scratch, machine, _log, codes) =
+            a_machine_with_eight_songs_under("keep-vanished", keeping_the_evening());
+        drop(machine);
+        let gone = SongCode::in_bank(codes[0].bank(), 900).expect("a code no song holds");
+        let mut evening = Evening::new();
+        evening.add(a_request(gone)).expect("add");
+        evening.add(a_request(codes[1])).expect("add");
+        crate::evening_store::write(
+            &scratch.join("evening.json"),
+            &crate::evening_store::Kept {
+                word: "0123abcd".to_owned(),
+                evening: evening.snapshot(None, Instant::now()),
+            },
+        )
+        .expect("write");
+
+        let (machine, _log) = started_again(&scratch, keeping_the_evening());
+        assert_eq!(queued_numbers(&machine), vec![gone, codes[1]]);
+
+        Controller::transport(machine.as_ref(), TransportCommand::Play).expect("play");
+        assert_eq!(playing_number(&machine), Some(codes[1]));
+    }
+
+    /// A file this build cannot use is set aside, and the machine starts as an empty one does.
+    #[test]
+    fn a_kept_evening_that_cannot_be_used_is_set_aside() {
+        let (scratch, machine, _log, _codes) =
+            a_machine_with_eight_songs_under("keep-refused", keeping_the_evening());
+        drop(machine);
+        std::fs::write(scratch.join("evening.json"), "{ not json").expect("write");
+
+        let (machine, _log) = started_again(&scratch, keeping_the_evening());
+
+        assert!(machine.queue().is_empty());
+        assert!(!Controller::evening(machine.as_ref()).waiting_for_host);
+        assert!(scratch.join("evening.json.bad").exists());
+    }
+
+    /// A power cut can damage the file being written. The earlier copy then gives the night back.
+    #[test]
+    fn a_damaged_file_gives_way_to_the_earlier_copy() {
+        let (scratch, machine, _log, codes) =
+            a_machine_with_eight_songs_under("keep-previous", keeping_the_evening());
+        machine.queue_add(a_request(codes[0])).expect("queue");
+        machine.queue_add(a_request(codes[1])).expect("queue");
+        machine.keep_evening_tick();
+        drop(machine);
+
+        // The first write after a start keeps the file that start has just read.
+        let (machine, _log) = started_again(&scratch, keeping_the_evening());
+        assert!(!scratch.join("evening.previous.json").exists());
+        machine.queue_add(a_request(codes[2])).expect("queue");
+        machine.keep_evening_tick();
+        let earlier = crate::evening_store::load(&scratch.join("evening.previous.json"))
+            .expect("the earlier copy");
+        assert_eq!(earlier.evening.queue.len(), 1, "as the first run left it");
+        drop(machine);
+
+        std::fs::write(scratch.join("evening.json"), "\0\0\0").expect("damage");
+        let (machine, _log) = started_again(&scratch, keeping_the_evening());
+
+        assert_eq!(
+            queued_numbers(&machine),
+            vec![codes[0], codes[1]],
+            "the evening of the earlier copy"
+        );
+        assert!(Controller::evening(machine.as_ref()).waiting_for_host);
+        assert!(scratch.join("evening.json.bad").exists());
+    }
+
+    /// An evening that ended leaves no copy for a later start to read.
+    #[test]
+    fn a_new_evening_and_the_switch_off_remove_the_earlier_copy() {
+        let (scratch, machine, _log, codes) =
+            a_machine_with_eight_songs_under("keep-previous-gone", keeping_the_evening());
+        let previous = scratch.join("evening.previous.json");
+        machine.queue_add(a_request(codes[0])).expect("queue");
+        machine.queue_add(a_request(codes[1])).expect("queue");
+        machine.keep_evening_tick();
+        drop(machine);
+        let (machine, _log) = started_again(&scratch, keeping_the_evening());
+        machine.queue_add(a_request(codes[2])).expect("queue");
+        machine.keep_evening_tick();
+        assert!(previous.exists());
+
+        machine.start_new_evening();
+        assert!(!previous.exists(), "a new evening");
+        machine.queue_add(a_request(codes[3])).expect("queue");
+        machine.keep_evening_tick();
+        assert!(
+            !previous.exists(),
+            "and the next write keeps nothing of the old one"
+        );
+
+        std::fs::write(&previous, "left by hand").expect("write");
+        Controller::set_keep_evening(machine.as_ref(), false).expect("switch");
+        assert!(!previous.exists(), "the switch off");
+    }
+
+    /// The switch brings the file into line at once, both ways.
+    #[test]
+    fn switching_the_keeping_writes_the_evening_or_removes_it() {
+        let (scratch, machine, _log, codes) = a_machine_with_eight_songs("keep-switch");
+        let file = scratch.join("evening.json");
+        machine.queue_add(a_request(codes[0])).expect("queue");
+        machine.queue_add(a_request(codes[1])).expect("queue");
+        assert!(!Controller::keep_evening(machine.as_ref()));
+
+        assert!(Controller::set_keep_evening(machine.as_ref(), true).expect("switch"));
+        assert!(Controller::keep_evening(machine.as_ref()));
+        assert!(machine.lock_settings().singers.keep_evening);
+        let kept = crate::evening_store::load(&file).expect("written with no wait for a look");
+        assert_eq!(kept.evening.queue.len(), 1);
+        let (reloaded, _) = Settings::load(&Paths::rooted_at(scratch.path()));
+        assert!(
+            reloaded.singers.keep_evening,
+            "and the switch is written down"
+        );
+
+        assert!(!Controller::set_keep_evening(machine.as_ref(), false).expect("switch"));
+        assert!(
+            !file.exists(),
+            "so a later switch on brings back no earlier night"
+        );
+        machine.keep_evening_tick();
+        assert!(!file.exists());
+    }
+
+    /// With the switch off, a file from an earlier night is not loaded.
+    #[test]
+    fn a_machine_that_keeps_no_evening_loads_none() {
+        let (scratch, machine, _log, codes) =
+            a_machine_with_eight_songs_under("keep-ignored", keeping_the_evening());
+        machine.queue_add(a_request(codes[0])).expect("queue");
+        machine.queue_add(a_request(codes[1])).expect("queue");
+        machine.keep_evening_tick();
+        drop(machine);
+
+        let mut off = Settings::default();
+        off.announcement.enabled = false;
+        let (machine, _log) = started_again(&scratch, off);
+
+        assert!(machine.queue().is_empty());
+        assert!(!Controller::evening(machine.as_ref()).waiting_for_host);
+    }
+
     #[test]
     fn a_song_with_no_events_carries_no_corrections() {
         assert!(fixes_for(&[], "a video").is_empty());

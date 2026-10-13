@@ -117,6 +117,8 @@ pub enum Recorded {
     EndOnSilenceSet(bool),
     /// Key and tempo for a recorded song was switched.
     AdjustRecordingsSet(bool),
+    /// Keeping the evening across a restart was switched.
+    KeepEveningSet(bool),
     /// The admin password was set, or cleared when this is `None`.
     ///
     /// The hash and the factory PIN, in that order. The hash rather than the password, which is
@@ -278,6 +280,10 @@ struct Inner {
     end_on_silence: bool,
     /// Whether a recorded song changes key and tempo. Held so a read follows a write.
     adjust_recordings: bool,
+    /// Whether the evening outlives the process. Held so a read follows a write.
+    keep_evening: bool,
+    /// Whether this machine holds a kept evening and starts no song yet. A test sets it.
+    waiting_for_host: bool,
     /// What debugging and the development console are set to in settings.
     ///
     /// **Stored only, with no running twin**, which is the opposite arrangement to the panel above
@@ -401,6 +407,8 @@ impl TestMachine {
                 performance_overlay: false,
                 end_on_silence: true,
                 adjust_recordings: true,
+                keep_evening: false,
+                waiting_for_host: false,
                 debug_stored: false,
                 dev_remote_stored: false,
                 output_level: None,
@@ -660,6 +668,11 @@ impl TestMachine {
     /// Sets the owner's rules for registering a singer, which a real machine reads from settings.
     pub fn set_seat_rules(&self, rules: SeatRules) {
         self.lock().seat_rules = rules;
+    }
+
+    /// Says the machine holds a kept evening and starts no song yet, as after a restart.
+    pub fn set_waiting_for_host(&self, waiting: bool) {
+        self.lock().waiting_for_host = waiting;
     }
 
     /// Sets the owner's cap on one singer's waiting requests, which a real machine reads from
@@ -1285,6 +1298,7 @@ impl Controller for TestMachine {
         crate::machine::EveningState {
             accepting: inner.evening.accepting(),
             sung: inner.evening.sung().to_vec(),
+            waiting_for_host: inner.waiting_for_host,
         }
     }
 
@@ -1293,7 +1307,20 @@ impl Controller for TestMachine {
     }
 
     fn evening_reset(&self) {
-        self.lock().evening.reset();
+        let mut inner = self.lock();
+        inner.evening.reset();
+        inner.waiting_for_host = false;
+    }
+
+    fn keep_evening(&self) -> bool {
+        self.lock().keep_evening
+    }
+
+    fn set_keep_evening(&self, enabled: bool) -> Result<bool, ControlError> {
+        let mut inner = self.lock();
+        inner.keep_evening = enabled;
+        inner.recorded.push(Recorded::KeepEveningSet(enabled));
+        Ok(enabled)
     }
 
     fn singer_rules(&self) -> crate::machine::SingerRules {

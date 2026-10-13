@@ -1226,6 +1226,8 @@ pub struct HostPage {
 #[derive(Template)]
 #[template(path = "_host_lists.html")]
 pub struct HostLists {
+    /// Whether the machine holds an evening it kept across a restart, and waits for a choice.
+    pub kept: bool,
     /// Whether a phone may ask for a song.
     pub accepting: bool,
     /// The singers, in the order each registered.

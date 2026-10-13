@@ -92,6 +92,53 @@ removing a package is different and is written **immediately**. It is a delibera
 Losing it would mean the catalog silently shrinking on the next start, and hard-killing the process
 just after an install would otherwise produce exactly that.
 
+## The evening a machine keeps
+
+**`evening.json` exists only while `singers.keep_evening` is on.** `evening_store` reads and writes
+it, and `Machine` decides when. The file holds a `version`, the evening's word and a
+`km_queue::EveningSnapshot`. The decision is
+[`The machine can keep the evening across a restart`](../decisions/api-and-network.md#the-machine-can-keep-the-evening-across-a-restart).
+
+**The snapshot holds no time.** `Evening::snapshot` leaves out `finished_at`, and
+`Evening::restore` starts each finished request's ten minutes again. So two snapshots of an
+unchanged evening are equal, and the writer compares them.
+
+**One thread writes, and it compares before it writes.** `km-evening` calls
+`Machine::keep_evening_tick` once a second. The tick takes a snapshot under the state lock,
+releases the lock, and writes when the snapshot differs from the last one written. About twenty
+methods change an evening, and the keypad reaches one of them past the API. A comparison covers
+each of them, and a method added later.
+
+**The write waits for the disk, so it has a thread of its own.** `km_api::files::replace` syncs
+the file before the rename. `poll` runs twenty times a second and must not wait for that.
+
+**`Machine::write_evening` keeps an earlier copy.** At most once in `KEEP_PREVIOUS_EVERY`, it
+renames `evening.json` to `evening.previous.json` before the write. The first write after a start
+does that too, so the copy is the file that the start read. `Machine::restore_evening` reads the
+file and then the copy, and takes the first that `Evening::restore` accepts.
+
+**One lock orders the writer, the switch and the shutdown.** `Machine::evening_store` is taken
+before the settings and the state. A tick that read the switch as on then cannot write the file
+back after `set_keep_evening(false)` removed it.
+
+**`State::playing_entry` is what puts the playing song back.** `advance_holding_the_turn` sets it
+under the lock that pops the entry. `Loaded` holds the song's label and not its seat, so the
+snapshot needs the whole entry. `Machine::evening_now` uses the entry only while `loaded` names
+the same entry id.
+
+**`restore_evening` runs after `install_startup_packages` and before the API.** The startup prune
+of the catalog then finds an empty queue, as its own comment says. No phone meets an evening that
+changes under it.
+
+**`State::held_for_host` is the wait, and nothing writes it down.** `restore_evening` sets it when
+the kept queue holds a song. `a_song_was_queued` starts nothing while it is set. The pop in
+`advance_holding_the_turn` clears it, and so do `evening_reset` and a kept queue that somebody
+empties.
+
+**The machine holds the evening's word.** `Controller::evening_word` answers with it, and
+`ApiState::evening` asks the controller before it reads its own. `ApiState::renew_evening` tells
+the controller the new word. A `Controller` with no word, such as the test double, answers `None`.
+
 ## One machine per data directory
 
 **`machine.lock` in the data directory, held open for the life of the run.** `Claim::take` is the
@@ -272,6 +319,11 @@ recorded song changes key and tempo. It gets `PUT /api/v1/admin/playback/adjust-
 written down at once. `Machine::start` reads it when a song loads, so the song that is playing keeps
 the stretcher it has or lacks. Its default is `true` on a desktop and `false` on Android and iOS,
 through `cfg!`, as `display.number_pad` is.
+
+**`singers.keep_evening` is the ninth, and its counterpart is a file.** It says whether the
+evening outlives the process. It gets `PUT /api/v1/admin/evening/keep` and is written down at once.
+`Machine::set_keep_evening` writes `evening.json` when the switch goes on, and removes it and its
+earlier copy when the switch goes off.
 
 **`settings_version` 6 has one step from 5.** `Settings::step_up` reads a stored
 `api.room_access` of `queue` as `request`, and `load` writes the file back. A file below

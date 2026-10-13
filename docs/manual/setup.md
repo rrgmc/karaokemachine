@@ -51,3 +51,9 @@ Clearing or changing a code takes that level back from every phone that used it.
 | Every singer gives a name | A phone must type a name before its first song. Turn it on where a host calls each singer by name. |
 | Singers on one phone | The most singers one phone may add. Leave it empty for no limit, which suits a home that passes one phone around. |
 | Songs one singer may have waiting | The most songs a singer may have waiting behind the one in the queue. It starts at 10. |
+
+**The same tab says whether the machine keeps the night through a restart.** The
+**The evening after a restart** card has one box, and it starts off. With the box ticked, the
+machine starts with the queue, the singers and the waiting songs it had. It then plays nothing
+until somebody presses play. [Running a public night](venue.md#after-a-power-cut-or-a-restart) says
+what the host does next.

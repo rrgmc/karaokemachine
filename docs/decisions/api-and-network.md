@@ -45,13 +45,13 @@ name. `POST /api/v1/singers` registers one and answers with a random token. The 
 people see, and the token is what proves. Without the token, anybody could type a held name and act
 as that singer.
 
-**A seat is no account.** It holds no password, and it ends with the process, as the queue does.
-The machine stores no list of people, and a name is free again the next evening. It does let the
-machine tell two phones apart.
+**A seat is no account.** It holds no password, and it ends with the evening, as the queue does.
+The machine holds the seats of one evening and of no other, and a name is free again the next
+evening. It does let the machine tell two phones apart.
 
 **The machine stores the token and compares it.** It needs no signature, because nothing has to
 read it without the machine. A stored token also ends with the evening, where a signed one would
-outlive a restart. No list of singers carries a token.
+outlive it. No list of singers carries a token.
 
 **A name is optional.** A singer who gives none gets a number, as in `Guest 4`, and a client words
 the label. One device holds one unnamed singer at most, so people who share a tablet can tell their
@@ -96,9 +96,10 @@ them at once. Each cap goes up to 100, and an empty box for the singers on one p
 A new rule applies from the next registration and the next request.
 
 **The machine has a word for the evening, and a phone keeps it beside its seats.** A seat ends
-when the machine stops, and ids start again from zero. An id kept from an earlier evening would
-name somebody else's seat. `GET /singers` and each registration carry a random word that is new at
-every start, and a phone drops its seats when the word differs.
+with the evening. An id kept from an earlier evening would name somebody else's seat. `GET /singers`
+and each registration carry a random word that is new with every evening. A phone drops its seats
+when the word differs. A start of the machine is a new evening, unless
+[the machine kept the one before](#the-machine-can-keep-the-evening-across-a-restart).
 
 **An evening holds 1,000 seats at most.** A phone at the room level could otherwise fill memory by
 registering singers.
@@ -168,7 +169,7 @@ of zero still gives each singer one song in the queue. The codes are `requests_f
 frees.
 
 **The rule needs no record of the evening.** It reads the queue and the request list, and both
-exist the moment the machine starts. A request and a seat end with the process, as the queue does.
+exist the moment the machine starts. A request and a seat end with the evening, as the queue does.
 
 **Two events carry it.** `requests_changed` goes out beside every `queue_changed`, because a queued
 request carries its entry's position. `singers_changed` goes out when a singer registers, takes a
@@ -221,8 +222,62 @@ reads it to warn that somebody already sang a song, and to count each singer's t
 
 **A new evening starts without a restart.** The queue, the requests, the record and every seat go,
 and the machine takes requests again. The song that is playing plays on. The machine takes a new
-word for the evening, so every phone drops the seats it kept, as it does after a restart. This is
-also how an operator empties the queue, because clearing it lets each singer's next request in.
+word for the evening, so every phone drops the seats it kept. This is also how an operator empties
+the queue, because clearing it lets each singer's next request in.
+
+## The machine can keep the evening across a restart
+
+**An evening ends with the process, unless the owner asks the machine to keep it.**
+`singers.keep_evening` starts off. A home machine starts with an empty queue, and a list from
+another day is clutter there. A venue turns it on, because a power cut otherwise ends the night
+for every guest.
+
+**A kept evening is the whole evening.** The machine keeps the queue, the seats with their tokens,
+the requests, the record of the songs that started, and `accepting`. It keeps the evening's word,
+so a phone finds the word it holds and keeps its seats. It keeps each id counter, so no id names
+two things.
+
+**The song that was playing goes back to the front of the queue.** It starts again from its
+beginning, for the same singer. A restart then costs no singer a turn.
+
+**A machine that kept an evening waits for somebody.** It starts no song until somebody presses
+play, and a song that a phone queues starts nothing. A machine that restarts in an empty room
+must play to nobody. `GET /requests` carries `waiting_for_host` while the machine waits.
+
+**The wait offers two choices, on the television and on the host's tab.** Play continues the
+evening. A new evening empties it, which is what the host of another day wants first. On the
+television the skip key asks, and a second press answers. One press by accident would otherwise
+end a night.
+
+**The machine discards no evening for its age.** A machine with no network can hold the wrong
+time, and a wrong time would discard a night that somebody wants.
+
+**The machine writes `evening.json` when the evening changes.** The file is in the data directory.
+Once a second, a thread compares the evening with what the file holds, and writes on a difference.
+It does not ask who made the change. So a change from the keypad, from a phone, from a song that
+starts and from a request that expires all reach the file. A power cut loses one second at most.
+
+**A second file holds the evening from an earlier write.** A power cut can damage the file that
+the machine is writing. At most once a minute, `evening.json` becomes `evening.previous.json`
+before the next write. A start that cannot use the first file reads the second.
+
+**A file that the build cannot read is set aside, and the machine starts an empty evening.** The
+file becomes `evening.json.bad`.
+[`A store opens at its current version or is refused`](foundations.md#a-store-opens-at-its-current-version-or-is-refused)
+gives the rule for its version.
+
+**A new evening and the switch off remove both files.** No later start then reads an evening that
+ended.
+
+**A seat's token is in the file as the machine holds it.** A token proves one singer's seat for
+one evening. The factory PIN is in `settings.json` on the same terms.
+
+**A song that left the catalog stays in a kept queue.** The machine passes over it when its turn
+comes, as it does for a queued song whose package went.
+
+**One route reads the switch and one writes it.** `GET /api/v1/evening/keep` is public.
+`PUT /api/v1/admin/evening/keep` writes the switch at once. Turned on, the machine writes the
+evening that it holds now.
 
 ## Five access levels, and the method and path decide them
 

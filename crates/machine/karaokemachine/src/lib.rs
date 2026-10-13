@@ -55,6 +55,7 @@ mod connect;
 mod display;
 mod dropped;
 mod engine;
+mod evening_store;
 mod fetch;
 mod firstrun;
 mod handed;
@@ -98,6 +99,12 @@ use crate::settings::{Paths, Settings};
 /// state tick is too slow for this: a quarter-second of silence between songs is what a party
 /// notices.
 pub const POLL_INTERVAL: std::time::Duration = std::time::Duration::from_millis(50);
+
+/// How often a machine that keeps its evening looks for a change to write down.
+///
+/// A second is the most an evening loses to a power cut. A phone that registered inside it
+/// registers again, and nobody at a venue notices a write this rare.
+const KEEP_EVENING_INTERVAL: std::time::Duration = std::time::Duration::from_secs(1);
 
 /// How long a shutdown waits for the poll thread to finish its pass.
 ///
@@ -337,6 +344,9 @@ pub fn run(paths: Paths, config: Settings, options: Options) -> anyhow::Result<(
 
     let machine = Arc::new(Machine::new(paths, config, audio, events.clone())?);
     machine.install_startup_packages();
+    // After the packages, so the catalog's startup prune runs against an empty queue. Before the
+    // API, so no phone meets an evening that is about to change under it.
+    machine.restore_evening();
     // The tick box a setup program was given, carried out once. After the packages rather than
     // before, because installing them is what the machine is *for* and a 261.7 MiB download must not
     // stand in front of a catalog appearing — this returns as soon as the download has started,
@@ -544,6 +554,23 @@ pub fn run(paths: Paths, config: Settings, options: Options) -> anyhow::Result<(
                 let _ = stopped_tx.send(());
             })?
     };
+
+    // -- the kept evening ------------------------------------------------------------------------
+    // A thread of its own, because a write waits for the disk and `poll` must not. Nothing waits
+    // for it at shutdown: `machine.persist()` writes the evening once more, and one lock orders
+    // that write with this thread's.
+    {
+        let machine = Arc::clone(&machine);
+        let shutdown = Arc::clone(&shutdown);
+        std::thread::Builder::new()
+            .name("km-evening".to_owned())
+            .spawn(move || {
+                while !shutdown.load(Ordering::Acquire) {
+                    machine.keep_evening_tick();
+                    std::thread::sleep(KEEP_EVENING_INTERVAL);
+                }
+            })?;
+    }
 
     // -- the display, or waiting ------------------------------------------------------------------
     let settings = machine.settings();

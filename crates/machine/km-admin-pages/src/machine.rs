@@ -356,6 +356,10 @@ pub struct SwitchState {
     pub end_on_silence: bool,
     /// Whether a recorded song changes key and tempo.
     pub adjust_recordings: bool,
+    /// Whether the evening outlives the machine's process.
+    ///
+    /// `None` from a machine that has no such route, and the page then draws no card for it.
+    pub keep_evening: Option<bool>,
 }
 
 /// The facts the information panel draws, which are the machine saying what it is.
@@ -692,6 +696,9 @@ pub trait Switches: Send + Sync + 'static {
 
     /// Say whether a recorded song changes key and tempo, answering with what the machine stored.
     async fn set_adjust_recordings(&self, on: bool) -> Result<bool, AdminError>;
+
+    /// Say whether the evening outlives the machine's process, answering with what it stored.
+    async fn set_keep_evening(&self, on: bool) -> Result<bool, AdminError>;
 }
 
 /// The Sound tab: where the sound comes out, and which bank supplies the instruments.

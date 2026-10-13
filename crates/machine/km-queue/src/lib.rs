@@ -23,8 +23,8 @@
 //! catalog, the queue, the API, the display and both remotes all have to name cannot live inside
 //! any one of them.
 //!
-//! It takes `km-songcode` and `thiserror` and nothing else, and the absence of anything heavier is the
-//! property worth protecting — see the note at the foot of `Cargo.toml`.
+//! It takes `km-songcode`, `serde` and `thiserror` and nothing else. The absence of anything heavier
+//! is the property worth protecting — see the note at the foot of `Cargo.toml`.
 
 pub mod evening;
 pub mod limits;
@@ -35,12 +35,14 @@ pub mod transport;
 pub mod wait;
 
 pub use crate::evening::{
-    Evening, MAX_REQUESTS, Proof, Request, RequestError, RequestRules, RequestState, RequestedSong,
-    Sung,
+    Evening, EveningSnapshot, MAX_REQUESTS, Proof, Request, RequestError, RequestRules,
+    RequestState, RequestedSong, RestoreError, Sung,
 };
 pub use crate::limits::{MAX_TEMPO_RATIO, MAX_TRANSPOSE, MIN_TEMPO_RATIO};
 pub use crate::mics::{MAX_GAIN, MAX_MICS, MicBus, MicChannel, MicError, MicPatch, MicRegistry};
 pub use crate::queue::{MAX_QUEUED, Queue, QueueEntry, QueueFull, QueueRequest};
-pub use crate::seats::{Issued, MAX_SEATS, Seat, SeatError, SeatName, SeatRules, Seats};
+pub use crate::seats::{
+    Issued, MAX_SEATS, Seat, SeatError, SeatName, SeatRecord, SeatRules, Seats,
+};
 pub use crate::transport::Transport;
 pub use crate::wait::Wait;

@@ -287,6 +287,24 @@
     {% when None %}
     {% endmatch %}
 
+    {# Beside the singers, because it is their evening the machine keeps. A machine with no such
+       route answers `None`, and the card is not drawn. #}
+    {% match keep_evening %}
+    {% when Some with (kept) %}
+    <section class="card">
+      <h2>{{ "keep-evening-heading"|t }}</h2>
+      <p class="hint">{{ "keep-evening-hint"|t }}</p>
+      <form method="post" action="/admin/machine/keep-evening">
+        <label class="check">
+          <input type="checkbox" name="keep_evening" value="yes"{% if kept %} checked{% endif %}>
+          {{ "keep-evening-enabled"|t }}
+        </label>
+        <button type="submit">{{ "keep-evening-save"|t }}</button>
+      </form>
+    </section>
+    {% when None %}
+    {% endmatch %}
+
     <section class="card">
       <h2>{{ "sessions-heading"|t }}</h2>
       <p class="hint">{{ "sessions-explained"|t }}</p>

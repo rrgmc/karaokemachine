@@ -19,13 +19,19 @@
 //!
 //! Pure state, as [`crate::queue`] and [`crate::seats`] are. The caller hands in the time, so the
 //! rule about how long a finished request stays is testable without waiting.
+//!
+//! **A store may keep an evening.** [`Evening::snapshot`] hands out everything an evening holds,
+//! and [`Evening::restore`] builds the evening again from it. The machine does that across a
+//! restart when its owner asks for it, and this module opens no file.
 
+use std::collections::HashSet;
 use std::time::{Duration, Instant};
 
 use km_songcode::SongCode;
+use serde::{Deserialize, Serialize};
 
 use crate::queue::{MAX_QUEUED, Queue, QueueEntry, QueueFull, QueueRequest};
-use crate::seats::{Issued, Seat, SeatError, SeatName, SeatRules, Seats};
+use crate::seats::{Issued, MAX_SEATS, Seat, SeatError, SeatName, SeatRecord, SeatRules, Seats};
 
 /// How many requests the list may hold, finished ones included.
 ///
@@ -39,7 +45,8 @@ pub const MAX_REQUESTS: usize = 1_000;
 pub const FINISHED_FOR: Duration = Duration::from_secs(10 * 60);
 
 /// Where a request stands, from the asking to the singing.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum RequestState {
     /// The singer already has a song in the queue, or the queue is full.
     Waiting,
@@ -61,7 +68,7 @@ impl RequestState {
 }
 
 /// One song a singer asked for, through its whole course.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Request {
     /// Opaque, stable for the evening. Never reused, and it orders requests by age.
     pub id: u64,
@@ -114,7 +121,7 @@ impl Default for RequestRules {
 ///
 /// The rule needs no record, and reads none. The record is for a warning on a song somebody
 /// already sang, and for a count of how often each singer has sung.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Sung {
     /// The catalog code.
     pub number: SongCode,
@@ -161,6 +168,45 @@ pub enum RequestError {
     /// The queue is at its limit, so nothing can be accepted into it.
     #[error("the queue is full ({MAX_QUEUED} songs)")]
     QueueFull,
+}
+
+/// Everything an evening holds, as a store keeps it.
+///
+/// It holds no time. A finished request carries its state alone, and [`Evening::restore`] starts
+/// its [`FINISHED_FOR`] again. So two snapshots of an unchanged evening are equal, and a store
+/// compares them to learn whether it has anything to write.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EveningSnapshot {
+    /// The waiting songs, in play order.
+    pub queue: Vec<QueueEntry>,
+    /// The id the next queue entry takes.
+    pub queue_next: u64,
+    /// The seats, in the order each registered.
+    pub seats: Vec<SeatRecord>,
+    /// The id the next seat takes.
+    pub seats_next: u64,
+    /// The number the last unnamed singer took.
+    pub guests_next: u32,
+    /// The requests, oldest first.
+    pub requests: Vec<Request>,
+    /// The id the next request takes.
+    pub requests_next: u64,
+    /// Every song that started, in order.
+    pub sung: Vec<Sung>,
+    /// Whether a phone may ask for a song.
+    pub accepting: bool,
+    /// The entry of the song that is playing, when it came from the queue.
+    ///
+    /// [`Evening::restore`] puts it back at the front, so a singer loses no turn to a restart.
+    pub playing: Option<QueueEntry>,
+}
+
+/// Why a snapshot was refused.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+pub enum RestoreError {
+    /// Two records of one kind carry the same id, so an id would name two things.
+    #[error("two {0} carry the same id")]
+    DuplicateId(&'static str),
 }
 
 /// A request as the list holds it.
@@ -232,6 +278,106 @@ impl Evening {
         self.sung.clear();
         self.seats.clear();
         self.accepting = true;
+    }
+
+    /// Everything the evening holds, for a store to keep.
+    ///
+    /// `playing` is the entry of the song that is playing, when it came from the queue. A finished
+    /// request whose [`FINISHED_FOR`] has passed is left out.
+    pub fn snapshot(&self, playing: Option<QueueEntry>, now: Instant) -> EveningSnapshot {
+        EveningSnapshot {
+            queue: self.queue.entries().cloned().collect(),
+            queue_next: self.queue.next_id(),
+            seats: self.seats.records().to_vec(),
+            seats_next: self.seats.next_id(),
+            guests_next: self.seats.next_guest(),
+            requests: self.requests(now).cloned().collect(),
+            requests_next: self.next_request,
+            sung: self.sung.clone(),
+            accepting: self.accepting,
+            playing,
+        }
+    }
+
+    /// Builds the evening a snapshot describes.
+    ///
+    /// **The song that was playing goes back to the front.** [`Self::pop`] recorded it as sung and
+    /// its request as played, and both are put back, because the song starts again.
+    ///
+    /// **No id is issued twice.** Each counter ends past every id the snapshot holds, whatever the
+    /// snapshot says the counter was. A snapshot in which two records share an id is refused.
+    ///
+    /// The lists are cut to their caps. A queued request whose entry is absent waits again, and the
+    /// rule then runs. A finished request stays for [`FINISHED_FOR`] from `now`.
+    pub fn restore(snapshot: EveningSnapshot, now: Instant) -> Result<Self, RestoreError> {
+        let EveningSnapshot {
+            mut queue,
+            queue_next,
+            mut seats,
+            seats_next,
+            guests_next,
+            mut requests,
+            requests_next,
+            mut sung,
+            accepting,
+            playing,
+        } = snapshot;
+
+        if let Some(playing) = playing {
+            let record = Sung {
+                number: playing.number,
+                seat: playing.seat,
+            };
+            if sung.last() == Some(&record) {
+                sung.pop();
+            }
+            for request in &mut requests {
+                if request.entry == Some(playing.id) && request.state == RequestState::Played {
+                    request.state = RequestState::Queued;
+                }
+            }
+            queue.insert(0, playing);
+        }
+        queue.truncate(MAX_QUEUED);
+        seats.truncate(MAX_SEATS);
+        requests.truncate(MAX_REQUESTS);
+
+        distinct("queue entries", queue.iter().map(|entry| entry.id))?;
+        distinct("seats", seats.iter().map(|held| held.seat.id))?;
+        distinct("requests", requests.iter().map(|request| request.id))?;
+
+        let queued: HashSet<u64> = queue.iter().map(|entry| entry.id).collect();
+        let past_every_request = requests
+            .iter()
+            .map(|request| request.id + 1)
+            .max()
+            .unwrap_or(0);
+        let requests = requests
+            .into_iter()
+            .map(|mut request| {
+                let in_queue = request.entry.is_some_and(|entry| queued.contains(&entry));
+                if request.state == RequestState::Queued && !in_queue {
+                    request.state = RequestState::Waiting;
+                    request.entry = None;
+                }
+                let finished_at = request.state.is_finished().then_some(now);
+                Held {
+                    request,
+                    finished_at,
+                }
+            })
+            .collect();
+
+        let mut evening = Self {
+            queue: Queue::from_parts(queue, queue_next),
+            seats: Seats::from_records(seats, seats_next, guests_next),
+            requests,
+            next_request: requests_next.max(past_every_request),
+            sung,
+            accepting,
+        };
+        evening.settle(now);
+        Ok(evening)
     }
 
     /// The waiting songs.
@@ -603,6 +749,17 @@ impl Evening {
     fn sweep(&mut self, now: Instant) {
         self.requests.retain(|held| !expired(held, now));
     }
+}
+
+/// Refuses a list in which two records share an id.
+fn distinct(what: &'static str, ids: impl Iterator<Item = u64>) -> Result<(), RestoreError> {
+    let mut seen = HashSet::new();
+    for id in ids {
+        if !seen.insert(id) {
+            return Err(RestoreError::DuplicateId(what));
+        }
+    }
+    Ok(())
 }
 
 /// Whether a finished request has stayed its [`FINISHED_FOR`].
@@ -1398,5 +1555,236 @@ mod tests {
         evening.open_seat(caio.seat).expect("the seat");
         let taken = phone(&mut evening).expect("an opened seat");
         assert_eq!(taken.seat.id, caio.seat, "with his songs");
+    }
+
+    /// An evening with two singers, one song sung, two queued and one waiting.
+    fn a_busy_evening(now: Instant) -> (Evening, Singer, Singer) {
+        let mut evening = Evening::new();
+        let ana = singer(&mut evening, "Ana");
+        let beto = singer(&mut evening, "Beto");
+        ask(&mut evening, &ana, 11, now);
+        ask(&mut evening, &beto, 21, now);
+        ask(&mut evening, &ana, 12, now);
+        ask(&mut evening, &ana, 13, now);
+        evening.pop(now);
+        evening.set_accepting(false);
+        (evening, ana, beto)
+    }
+
+    fn generic(number: u32) -> QueueRequest {
+        QueueRequest {
+            number: SongCode::new(number),
+            title: "Generic".to_owned(),
+            artist: None,
+            singer: None,
+            duration_ms: 0,
+            seat: None,
+        }
+    }
+
+    #[test]
+    fn a_restored_evening_holds_what_the_snapshot_held() {
+        let now = Instant::now();
+        let (evening, ana, beto) = a_busy_evening(now);
+
+        let snapshot = evening.snapshot(None, now);
+        let restored = Evening::restore(snapshot.clone(), now).expect("a sound snapshot");
+
+        assert_eq!(numbers(&restored), vec![21, 12]);
+        assert_eq!(restored.sung(), evening.sung());
+        assert!(!restored.accepting());
+        assert!(restored.seats().holds(ana.seat, &ana.token));
+        assert!(restored.seats().holds(beto.seat, &beto.token));
+        let requests: Vec<Request> = restored.requests(now).cloned().collect();
+        assert_eq!(requests, evening.requests(now).cloned().collect::<Vec<_>>());
+        assert_eq!(
+            restored.snapshot(None, now),
+            snapshot,
+            "nothing changed on the way through"
+        );
+    }
+
+    #[test]
+    fn a_snapshot_of_an_unchanged_evening_equals_the_one_before() {
+        let now = Instant::now();
+        let (evening, ..) = a_busy_evening(now);
+        let later = now + Duration::from_secs(60);
+        assert_eq!(evening.snapshot(None, now), evening.snapshot(None, later));
+    }
+
+    #[test]
+    fn a_snapshot_survives_its_written_form() {
+        let now = Instant::now();
+        let (mut evening, ..) = a_busy_evening(now);
+        let playing = evening.pop(now);
+        let snapshot = evening.snapshot(playing, now);
+
+        let written = serde_json::to_string(&snapshot).expect("it serializes");
+        let read: EveningSnapshot = serde_json::from_str(&written).expect("it parses");
+
+        assert_eq!(read, snapshot);
+    }
+
+    #[test]
+    fn a_restored_evening_issues_no_id_twice() {
+        let now = Instant::now();
+        let (evening, ana, beto) = a_busy_evening(now);
+        let before = evening.snapshot(None, now);
+        let mut restored = Evening::restore(before.clone(), now).expect("a sound snapshot");
+        restored.set_accepting(true);
+
+        let caio = singer(&mut restored, "Caio");
+        let request = ask(&mut restored, &caio, 31, now);
+
+        assert!(caio.seat > ana.seat.max(beto.seat));
+        assert!(before.requests.iter().all(|old| old.id < request.id));
+        let entry = request.entry.expect("it went straight in");
+        assert!(before.queue.iter().all(|old| old.id < entry));
+    }
+
+    /// The song that was playing starts again, so it is first, unsung, and its request is queued.
+    #[test]
+    fn the_song_that_was_playing_goes_back_to_the_front() {
+        let now = Instant::now();
+        let mut evening = Evening::new();
+        let ana = singer(&mut evening, "Ana");
+        let beto = singer(&mut evening, "Beto");
+        let first = ask(&mut evening, &ana, 11, now);
+        ask(&mut evening, &beto, 21, now);
+        let playing = evening.pop(now).expect("Ana's song starts");
+        assert_eq!(evening.sung().len(), 1);
+
+        let restored = Evening::restore(evening.snapshot(Some(playing.clone()), now), now)
+            .expect("a sound snapshot");
+
+        assert_eq!(numbers(&restored), vec![11, 21]);
+        let front = restored.queue().peek().expect("a queue entry");
+        assert_eq!(front, &playing, "with its id and its seat");
+        assert!(restored.sung().is_empty(), "it has not been sung");
+        assert_eq!(state_of(&restored, first.id, now), RequestState::Queued);
+    }
+
+    /// A record that is not the playing song's stays, as after two seats were joined.
+    #[test]
+    fn a_record_of_another_song_stays_when_the_playing_song_returns() {
+        let now = Instant::now();
+        let mut evening = Evening::new();
+        let ana = singer(&mut evening, "Ana");
+        ask(&mut evening, &ana, 11, now);
+        let mut playing = evening.pop(now).expect("Ana's song starts");
+        playing.seat = None;
+
+        let restored =
+            Evening::restore(evening.snapshot(Some(playing), now), now).expect("a sound snapshot");
+
+        assert_eq!(numbers(&restored), vec![11]);
+        assert_eq!(restored.sung().len(), 1);
+    }
+
+    #[test]
+    fn a_snapshot_with_one_id_on_two_records_is_refused() {
+        let now = Instant::now();
+        let (evening, ..) = a_busy_evening(now);
+
+        let mut entries = evening.snapshot(None, now);
+        entries.queue[1].id = entries.queue[0].id;
+        assert_eq!(
+            Evening::restore(entries, now).err(),
+            Some(RestoreError::DuplicateId("queue entries"))
+        );
+
+        let mut seats = evening.snapshot(None, now);
+        seats.seats[1].seat.id = seats.seats[0].seat.id;
+        assert_eq!(
+            Evening::restore(seats, now).err(),
+            Some(RestoreError::DuplicateId("seats"))
+        );
+
+        let mut requests = evening.snapshot(None, now);
+        requests.requests[1].id = requests.requests[0].id;
+        assert_eq!(
+            Evening::restore(requests, now).err(),
+            Some(RestoreError::DuplicateId("requests"))
+        );
+    }
+
+    #[test]
+    fn a_counter_behind_its_ids_is_raised() {
+        let now = Instant::now();
+        let (evening, ..) = a_busy_evening(now);
+        let mut snapshot = evening.snapshot(None, now);
+        snapshot.queue_next = 0;
+        snapshot.seats_next = 0;
+        snapshot.guests_next = 0;
+        snapshot.requests_next = 0;
+        let highest_entry = snapshot.queue.iter().map(|entry| entry.id).max();
+        let highest_seat = snapshot.seats.iter().map(|held| held.seat.id).max();
+        let highest_request = snapshot.requests.iter().map(|request| request.id).max();
+
+        let raised = Evening::restore(snapshot, now)
+            .expect("a sound snapshot")
+            .snapshot(None, now);
+
+        assert!(Some(raised.queue_next) > highest_entry);
+        assert!(Some(raised.seats_next) > highest_seat);
+        assert!(Some(raised.requests_next) > highest_request);
+    }
+
+    /// A queued request with no entry would never play, so it waits and the rule places it.
+    #[test]
+    fn a_queued_request_with_no_entry_waits_again() {
+        let now = Instant::now();
+        let mut evening = Evening::new();
+        let ana = singer(&mut evening, "Ana");
+        let request = ask(&mut evening, &ana, 11, now);
+        let mut snapshot = evening.snapshot(None, now);
+        snapshot.queue.clear();
+
+        let restored = Evening::restore(snapshot, now).expect("a sound snapshot");
+
+        assert_eq!(numbers(&restored), vec![11], "the rule accepted it again");
+        let again = restored
+            .requests(now)
+            .find(|held| held.id == request.id)
+            .expect("the request is listed");
+        assert_eq!(again.state, RequestState::Queued);
+        assert_ne!(again.entry, request.entry, "under a new entry");
+    }
+
+    #[test]
+    fn a_restored_finished_request_stays_for_the_fixed_time_again() {
+        let start = Instant::now();
+        let (evening, ..) = a_busy_evening(start);
+        let late = start + FINISHED_FOR - Duration::from_secs(1);
+        let snapshot = evening.snapshot(None, late);
+        assert_eq!(snapshot.requests.len(), 4, "the played one is still listed");
+
+        let restored = Evening::restore(snapshot, late).expect("a sound snapshot");
+
+        let just_before = late + FINISHED_FOR - Duration::from_secs(1);
+        assert_eq!(restored.requests(just_before).count(), 4);
+        assert_eq!(restored.requests(late + FINISHED_FOR).count(), 3);
+        assert_eq!(
+            evening.snapshot(None, start + FINISHED_FOR).requests.len(),
+            3,
+            "and a snapshot leaves out one whose time has passed"
+        );
+    }
+
+    #[test]
+    fn a_snapshot_past_a_cap_is_cut_to_it() {
+        let now = Instant::now();
+        let mut evening = Evening::new();
+        for number in 0..MAX_QUEUED {
+            evening.add(generic(number as u32 + 1)).expect("add");
+        }
+        let playing = evening.pop(now).expect("a song starts");
+        evening.add(generic(9_000)).expect("room for one");
+
+        let restored =
+            Evening::restore(evening.snapshot(Some(playing), now), now).expect("a sound snapshot");
+
+        assert_eq!(restored.queue().len(), MAX_QUEUED);
+        assert_eq!(numbers(&restored)[0], 1, "the playing song is first");
     }
 }

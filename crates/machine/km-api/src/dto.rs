@@ -1122,6 +1122,12 @@ pub struct RequestsDto {
     /// A client reads it to warn that a song was already sung, and to count each singer's turns.
     #[serde(default)]
     pub sung: Vec<SungDto>,
+    /// Whether the machine holds an evening it kept across a restart, and starts no song yet.
+    ///
+    /// A client at the control level then offers two choices. Play continues the evening, and
+    /// `POST /evening/reset` empties it.
+    #[serde(default)]
+    pub waiting_for_host: bool,
 }
 
 impl RequestsDto {
@@ -1142,6 +1148,7 @@ impl RequestsDto {
                     singer: sung.seat,
                 })
                 .collect(),
+            waiting_for_host: evening.waiting_for_host,
         }
     }
 }
@@ -2363,6 +2370,21 @@ pub struct AdjustRecordingsDto {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct AdjustRecordingsRequest {
+    /// What to set it to.
+    pub enabled: bool,
+}
+
+/// `GET /evening/keep` and the reply to `PUT /admin/evening/keep`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct KeepEveningDto {
+    /// Whether the evening outlives the machine's process.
+    pub enabled: bool,
+}
+
+/// `PUT /admin/evening/keep`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct KeepEveningRequest {
     /// What to set it to.
     pub enabled: bool,
 }

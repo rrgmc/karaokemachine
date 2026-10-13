@@ -1015,6 +1015,7 @@ pub async fn machine_page(
             announcement_length_max: km_api::machine::MAX_ANNOUNCEMENT_SECS,
             end_on_silence: switches.end_on_silence,
             adjust_recordings: switches.adjust_recordings,
+            keep_evening: switches.keep_evening,
             power: identity.power,
         },
         locale,
@@ -2011,6 +2012,28 @@ pub async fn set_end_on_silence(
     }
 }
 
+/// `POST /admin/machine/keep-evening` — whether the evening outlives the machine's process.
+///
+/// One box and no `persist` beside it, for the reason [`set_end_on_silence`] has none. It sits on
+/// the password pane, beside what the machine asks of a singer. The notice says what the machine
+/// stored.
+pub async fn set_keep_evening(
+    State(state): State<Admin>,
+    headers: HeaderMap,
+    Form(form): Form<KeepEveningForm>,
+) -> Response {
+    let words = crate::words::messages(state.locale(&headers));
+    match state
+        .switches
+        .set_keep_evening(form.keep_evening.is_some())
+        .await
+    {
+        Err(error) => refusal_on(&state, Pane::Password, &error, state.locale(&headers)),
+        Ok(true) => back_to_pane(Pane::Password, "good", &words.msg("keep-evening-on")),
+        Ok(false) => back_to_pane(Pane::Password, "good", &words.msg("keep-evening-off")),
+    }
+}
+
 /// `POST /admin/machine/adjust-recordings` — whether a recorded song changes key and tempo.
 ///
 /// One box and no `persist` beside it, for the reason [`set_end_on_silence`] has none. The notice
@@ -2207,6 +2230,13 @@ pub struct EndOnSilenceForm {
 pub struct AdjustRecordingsForm {
     /// Present when the box is ticked, absent when it is not.
     pub adjust_recordings: Option<String>,
+}
+
+/// Whether the evening outlives the machine's process.
+#[derive(Debug, Clone, Default, serde::Deserialize)]
+pub struct KeepEveningForm {
+    /// Present when the box is ticked, absent when it is not.
+    pub keep_evening: Option<String>,
 }
 
 /// What the machine asks of a singer.

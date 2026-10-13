@@ -643,6 +643,19 @@ interaction and both of those are ambient.
 **Not built, deliberately:** removing or reordering from the overlay. It is informational, and a remote
 is a better instrument for that than a D-pad.
 
+## The line for a kept evening
+
+**A machine that waits with a kept evening says so on the flash band.** `Machine::kept_evening_waiting`
+answers with the songs and the singers while the machine waits. `kept_evening_line` makes the
+sentence, and it names both keys. The line has no deadline, because it stands for as long as the
+machine waits. A newer flash wins over it, as a flash wins over the faults line.
+
+**`NewEveningQuestion` takes the skip key while the machine waits.** The first press asks, and a
+second press inside `NEW_EVENING_CONFIRM` calls `Machine::start_new_evening`. Any other key
+withdraws the question. A repeat of a held key is no second press, so a key held down ends no
+evening. Play needs no code here: `TogglePause` sends `TransportCommand::Play`, and the pop that
+follows ends the wait.
+
 ## The queue count in the corner, and what a pill costs
 
 `frame.queue.len()` again: the same number the overlay's header states, from the same field, so the

@@ -1562,6 +1562,29 @@ pub async fn put_adjust_recordings(
     Ok(Json(crate::dto::AdjustRecordingsDto { enabled }))
 }
 
+/// `GET /api/v1/evening/keep`
+///
+/// Whether the evening outlives the machine's process. Public, like the switches above.
+pub async fn get_keep_evening(State(state): State<ApiState>) -> Json<crate::dto::KeepEveningDto> {
+    Json(crate::dto::KeepEveningDto {
+        enabled: state.controller().keep_evening(),
+    })
+}
+
+/// `PUT /api/v1/admin/evening/keep`
+///
+/// Under `/admin/` because it is installation configuration and is written down. The reply is what
+/// the machine stored. See [`Controller::set_keep_evening`].
+///
+/// [`Controller::set_keep_evening`]: crate::machine::Controller::set_keep_evening
+pub async fn put_keep_evening(
+    State(state): State<ApiState>,
+    Body(body): Body<crate::dto::KeepEveningRequest>,
+) -> ApiResult<Json<crate::dto::KeepEveningDto>> {
+    let enabled = state.controller().set_keep_evening(body.enabled)?;
+    Ok(Json(crate::dto::KeepEveningDto { enabled }))
+}
+
 /// `GET /api/v1/performance`
 ///
 /// Whether the frame-statistics panel is on the machine's own screen. Public, like the two switches

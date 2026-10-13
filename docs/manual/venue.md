@@ -7,10 +7,14 @@ machine did.
 **The night needs no second program and no account.** A guest installs nothing, and the machine
 forgets the singers when the host starts a new evening.
 
+**A venue's machine can keep the night through a power cut.** Turn on
+*Keep the queue and the singers when the machine restarts*, and a restart loses nothing. See
+[After a power cut or a restart](#after-a-power-cut-or-a-restart).
+
 ## Set the machine up once
 
-**The owner sets six things before the doors open.** All six are on the password tab of the setup
-pages. See [Setting it up from a browser](setup.md#decide-what-a-guests-phone-can-do).
+**The owner sets seven things before the doors open.** All seven are on the password tab of the
+setup pages. See [Setting it up from a browser](setup.md#decide-what-a-guests-phone-can-do).
 
 | Setting | At a venue | Why |
 |---|---|---|
@@ -20,6 +24,7 @@ pages. See [Setting it up from a browser](setup.md#decide-what-a-guests-phone-ca
 | Code to queue | Set none, or keep it | It adds a song out of turn, and it changes the key of any singer's song |
 | Every singer gives a name | On | The host calls each singer by the name on the screen |
 | Songs one singer may have waiting | A low number, such as 2 | One table cannot fill the list of waiting songs |
+| Keep the queue and the singers when the machine restarts | On | A power cut does not end the night |
 
 **Choose *Watch only* for the room where the host enters every song.** Guests then read the queue
 on their phones and ask at the desk. The host adds each song on the host's tab.
@@ -71,6 +76,29 @@ that wait still play, and the host still adds one.
 **For the next night, open *Start a new evening* and tap *Empty everything*.** That empties the
 queue, the waiting songs and the singers. The machine does not restart.
 
+## After a power cut or a restart
+
+**With the setting on, the machine starts with the night it had.** The queue, the singers and the
+waiting songs are all there. Each guest's phone still holds its singer, so nobody types a name
+again. The song that was playing is first in the queue, and it starts from its beginning.
+
+**The machine plays nothing until somebody chooses.** Its screen says that an earlier evening is
+here, and how many songs and singers it holds. The host's tab says the same at its top. A guest
+can still ask for a song, and that song waits with the others.
+
+| To | At the machine | On the host's tab |
+|---|---|---|
+| Go on with the night | Press `Space` or `F1` | Tap **Continue this evening** |
+| Clear a list from another day | Press `N` or `F4`, and press it again when the screen asks | Tap **Start a new evening** |
+
+**The machine keeps a list until somebody clears it.** It does not clear a list because the list
+is old. So the host of the next day clears it before the doors open.
+
+**The machine loses one second of the night at most.** It also keeps a copy from about a minute
+before. If a power cut damages the newest list, the machine starts with that copy.
+
+**With the setting off, every start is an empty machine.** That suits a home.
+
 ## Two limits of the network
 
 **Every phone must reach the machine over the venue's network.** Some guest networks keep each
@@ -87,4 +115,4 @@ that wants only its own guests to ask keeps strangers off the network, or sets t
 itself, as it does for any other music it plays.
 
 **The machine does not rate a singer**, and it keeps no record of who sang after a new evening
-starts.
+starts. A new evening also removes the list that the machine kept for a restart.

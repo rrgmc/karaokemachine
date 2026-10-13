@@ -527,6 +527,7 @@ pub fn router(state: Admin) -> Router {
             "/machine/adjust-recordings",
             post(handlers::set_adjust_recordings),
         )
+        .route("/machine/keep-evening", post(handlers::set_keep_evening))
         .route("/machine/password", post(handlers::set_password))
         .route("/machine/sessions", post(handlers::reset_sessions))
         .route("/machine/access", post(handlers::set_room_access))

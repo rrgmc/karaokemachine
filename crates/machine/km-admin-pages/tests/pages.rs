@@ -299,6 +299,7 @@ async fn every_page_route_is_asked_about_before_it_runs() {
         ("POST", "/admin/machine/singers"),
         ("POST", "/admin/machine/end-on-silence"),
         ("POST", "/admin/machine/adjust-recordings"),
+        ("POST", "/admin/machine/keep-evening"),
         ("POST", "/admin/machine/password"),
         ("POST", "/admin/machine/sessions"),
         ("POST", "/admin/machine/debug"),
@@ -594,6 +595,44 @@ async fn key_and_tempo_for_recorded_songs_is_a_box_on_the_machine_page() {
         .await;
         assert!(status.is_redirection(), "{surface}: {status}");
         assert!(state.controller().adjust_recordings(), "{surface}");
+    }
+}
+
+/// Keeping the evening is one box on the password pane, beside what the machine asks of a singer.
+#[tokio::test]
+async fn keeping_the_evening_is_a_box_on_the_machine_page() {
+    for host in BOTH_HOSTS {
+        let surface = host.name();
+        let (app, state) = nested_as(
+            host,
+            TestMachine::with_catalog(6),
+            Arc::new(SpyGuard::default()),
+        );
+
+        let (status, body) = get(&app, "/admin/machine").await;
+        assert_eq!(status, StatusCode::OK, "{surface}");
+        assert!(
+            body.contains(r#"action="/admin/machine/keep-evening""#),
+            "{surface}: {body}"
+        );
+        assert!(
+            body.contains(r#"name="keep_evening" value="yes">"#),
+            "off until its owner says otherwise, {surface}: {body}"
+        );
+
+        let (status, _) = post_form(&app, "/admin/machine/keep-evening", "keep_evening=yes").await;
+        assert!(status.is_redirection(), "{surface}: {status}");
+        assert!(state.controller().keep_evening(), "{surface}");
+        let (_, body) = get(&app, "/admin/machine").await;
+        assert!(
+            body.contains(r#"name="keep_evening" value="yes" checked"#),
+            "{surface}: {body}"
+        );
+
+        // An unticked box posts nothing, which turns it off.
+        let (status, _) = post_form(&app, "/admin/machine/keep-evening", "").await;
+        assert!(status.is_redirection(), "{surface}: {status}");
+        assert!(!state.controller().keep_evening(), "{surface}");
     }
 }
 
@@ -2857,6 +2896,11 @@ async fn a_save_comes_back_to_the_pane_it_was_made_on() {
         ("/admin/machine/demo-delay", "delay_secs=45", "demo"),
         ("/admin/machine/end-on-silence", "", "demo"),
         ("/admin/machine/adjust-recordings", "", "demo"),
+        (
+            "/admin/machine/keep-evening",
+            "keep_evening=yes",
+            "password",
+        ),
         ("/admin/machine/debug", "enabled=yes", "debug"),
         ("/admin/machine/sessions", "", "password"),
     ] {

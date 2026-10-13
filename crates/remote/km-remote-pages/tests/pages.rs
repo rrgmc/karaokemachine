@@ -341,6 +341,8 @@ struct StubMachine {
     asked: Arc<Mutex<Vec<RequestDto>>>,
     /// Whether a phone may ask, which a host switches.
     accepting: Arc<Mutex<bool>>,
+    /// Whether the machine holds a kept evening and waits, as after a restart.
+    waiting_for_host: Arc<Mutex<bool>>,
     events: broadcast::Sender<Event>,
     /// What every command answers with, when it is not to succeed.
     refuse: Option<RemoteError>,
@@ -386,6 +388,7 @@ impl StubMachine {
             seats: Arc::new(Mutex::new(Vec::new())),
             asked: Arc::new(Mutex::new(Vec::new())),
             accepting: Arc::new(Mutex::new(true)),
+            waiting_for_host: Arc::new(Mutex::new(false)),
             events,
             refuse: None,
             refuse_transport: None,
@@ -718,6 +721,7 @@ impl Machine for StubMachine {
             capacity: 1_000,
             accepting: *self.accepting.lock().expect("lock"),
             sung: Vec::new(),
+            waiting_for_host: *self.waiting_for_host.lock().expect("lock"),
         })
     }
 
@@ -881,6 +885,7 @@ impl Machine for StubMachine {
         self.asked.lock().expect("lock").clear();
         self.seats.lock().expect("lock").clear();
         *self.accepting.lock().expect("lock") = true;
+        *self.waiting_for_host.lock().expect("lock") = false;
         self.requests().await
     }
 
@@ -938,6 +943,7 @@ impl Machine for StubMachine {
         if let Some(error) = &self.refuse_transport {
             return Err(error.clone());
         }
+        *self.waiting_for_host.lock().expect("lock") = false;
         self.state().await
     }
 
@@ -6310,6 +6316,48 @@ async fn a_host_starts_a_new_evening() {
     assert!(lists.contains("Nobody has asked for a song"), "{lists}");
     assert!(lists.contains("Nothing is waiting"), "{lists}");
     assert!(harness.get("/queue").await.contains("No song queued"));
+}
+
+/// A machine that kept an evening offers the host two choices at the top, and only while it waits.
+#[tokio::test]
+async fn a_kept_evening_offers_the_host_two_choices_while_the_machine_waits() {
+    let harness = Harness::online();
+    let lists = harness.get("/host/lists").await;
+    assert!(
+        !lists.contains("host-kept"),
+        "no card on an ordinary night: {lists}"
+    );
+
+    let stub = StubMachine::new();
+    *stub.waiting_for_host.lock().expect("lock") = true;
+    let harness = Harness::with(stub, Capabilities::online());
+    let lists = harness.get("/host/lists").await;
+    assert!(
+        lists.contains("The machine kept an earlier evening"),
+        "{lists}"
+    );
+    assert!(lists.contains(r#"hx-post="/host/continue""#), "{lists}");
+    assert!(lists.contains(r#"hx-post="/host/reset""#), "{lists}");
+    let card = lists.find("host-kept").expect("the card");
+    let switch = lists.find("/host/accepting/").expect("the switch");
+    assert!(card < switch, "the choices come first: {lists}");
+
+    let (status, _, lists) = harness.post("/host/continue").await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(!lists.contains("host-kept"), "play ended the wait: {lists}");
+}
+
+/// The other choice is the new evening every host has, and it ends the wait too.
+#[tokio::test]
+async fn a_new_evening_ends_a_kept_evenings_wait() {
+    let stub = StubMachine::new();
+    *stub.waiting_for_host.lock().expect("lock") = true;
+    let harness = Harness::with(stub, Capabilities::online());
+
+    let (status, headers, _) = harness.post("/host/reset").await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(headers.contains_key("hx-refresh"));
+    assert!(!harness.get("/host/lists").await.contains("host-kept"));
 }
 
 /// The host's search draws songs with a button that carries the name in the box.

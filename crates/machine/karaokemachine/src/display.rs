@@ -375,6 +375,87 @@ const FLASH_DONE: Duration = Duration::from_secs(6);
 /// there and it carries a reason to read rather than a result to notice.
 const FLASH_FAILED: Duration = Duration::from_secs(12);
 
+/// How long the screen waits for the second press that starts a new evening.
+///
+/// Long enough to read one line and press the key again. The question then goes, so a key
+/// pressed by accident ends no evening a minute later.
+const NEW_EVENING_CONFIRM: Duration = Duration::from_secs(8);
+
+/// The question a machine asks before a key empties an evening it kept.
+///
+/// **Two presses of the skip key start a new evening, and one press starts none.** A machine that
+/// kept an evening across a restart waits for somebody to choose. Play continues the evening.
+/// The skip key empties it, and that key does nothing else on an idle machine. One press by
+/// accident would end a night, so the first press asks and the second answers.
+///
+/// Pure state, as [`NumberEntry`] is. The caller hands in the time.
+#[derive(Debug, Default)]
+struct NewEveningQuestion {
+    /// When the question goes, or `None` while nobody has asked.
+    until: Option<Instant>,
+}
+
+/// What a key did to [`NewEveningQuestion`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum NewEveningAnswer {
+    /// The key is no part of the question, and does what it always does.
+    Other,
+    /// The question is on the screen, and the key did nothing else.
+    Asked,
+    /// The second press: start the new evening.
+    Confirmed,
+}
+
+impl NewEveningQuestion {
+    /// Whether the question is on the screen.
+    fn asked(&self, now: Instant) -> bool {
+        self.until.is_some_and(|until| now < until)
+    }
+
+    /// Takes a key while a kept evening waits.
+    ///
+    /// A held key repeats, and a repeat must not answer the question its first press asked. Any
+    /// other key withdraws the question and keeps the evening.
+    fn press(&mut self, action: &DisplayAction, repeat: bool, now: Instant) -> NewEveningAnswer {
+        if !matches!(action, DisplayAction::Skip) {
+            self.until = None;
+            return NewEveningAnswer::Other;
+        }
+        if repeat {
+            return NewEveningAnswer::Asked;
+        }
+        if self.asked(now) {
+            self.until = None;
+            return NewEveningAnswer::Confirmed;
+        }
+        self.until = Some(now + NEW_EVENING_CONFIRM);
+        NewEveningAnswer::Asked
+    }
+
+    /// Withdraws the question, because no kept evening waits.
+    fn withdraw(&mut self) {
+        self.until = None;
+    }
+}
+
+/// The line a machine shows while it holds a kept evening and waits for somebody to choose.
+fn kept_evening_line(songs: usize, singers: usize, asked: bool) -> String {
+    if asked {
+        return "press N again to start a new evening · any other key keeps this one".to_owned();
+    }
+    let songs = match songs {
+        1 => "1 song".to_owned(),
+        songs => format!("{songs} songs"),
+    };
+    let singers = match singers {
+        1 => "1 singer".to_owned(),
+        singers => format!("{singers} singers"),
+    };
+    format!(
+        "an earlier evening is here: {songs}, {singers} · SPACE continues it · N starts a new one"
+    )
+}
+
 /// `SDL_TOUCH_MOUSEID`: the `which` on a mouse event SDL invented from a touch.
 ///
 /// SDL delivers **both** for one tap. `SDL_HINT_TOUCH_MOUSE_EVENTS` defaults on, so a finger produces
@@ -1884,6 +1965,8 @@ fn run_with(
     // alternative is deciding on the first drop whether the machine is somewhere drops happen.
     let mut installer = DropInstaller::spawn(Arc::clone(&machine));
     let mut flash: Option<Flashed> = None;
+    // The question before a key empties an evening the machine kept across a restart.
+    let mut new_evening = NewEveningQuestion::default();
     // What the window title was last built from, rather than the title itself. `SDL_SetWindowTitle`
     // is a round trip to the window manager, so it is worth making only when the song changes —
     // and comparing the two names a song is drawn from costs nothing, where composing the string to
@@ -2054,6 +2137,24 @@ fn run_with(
                     // that appeared for `PAUSE` and not for `KEY +` would be a rule nobody could
                     // learn. Before the `match` below, because several of its arms `continue`.
                     position_until = Some(Instant::now() + POSITION_LINGER);
+                    // A machine that kept an evening waits for one of two keys. Play continues the
+                    // evening by the road it always takes, and the skip key asks before it empties
+                    // it. Before the `match` below, because the skip key must not reach `handle`.
+                    if machine.kept_evening_waiting().is_some() {
+                        match new_evening.press(&action, repeat, Instant::now()) {
+                            NewEveningAnswer::Other => {}
+                            NewEveningAnswer::Asked => continue,
+                            NewEveningAnswer::Confirmed => {
+                                machine.start_new_evening();
+                                flash = Some(Flashed {
+                                    text: "a new evening started".to_owned(),
+                                    kind: km_display::FlashKind::Done,
+                                    until: Some(Instant::now() + FLASH_DONE),
+                                });
+                                continue;
+                            }
+                        }
+                    }
                     // A television remote's D-pad arrives here as arrow keys, and its OK button as
                     // Return — SDL translates both. So the remote needs no handling of its own; it
                     // needs the arrows to move a highlight and Return to press what is highlighted.
@@ -2626,7 +2727,16 @@ fn run_with(
         // It is also the honest ordering for the case that matters most: a package that will not
         // install produces a *flash* saying why, and leaving the standing line above it would put a
         // count and a reason on screen about the same file, in two different voices.
-        let faults = if flash.is_none() {
+        // A kept evening that waits says so in the same place, and a newer flash wins over it for
+        // the same reason. It stands for as long as the machine waits, so it has no deadline.
+        let kept_evening = machine.kept_evening_waiting();
+        if kept_evening.is_none() {
+            new_evening.withdraw();
+        }
+        let kept_evening_line = kept_evening.map(|(songs, singers)| {
+            kept_evening_line(songs, singers, new_evening.asked(Instant::now()))
+        });
+        let faults = if flash.is_none() && kept_evening_line.is_none() {
             faults(&machine)
         } else {
             km_display::Faults::default()
@@ -2706,10 +2816,18 @@ fn run_with(
             requests_waiting,
             show_queue_overlay: show_queue,
             faults,
-            flash: flash.as_ref().map(|flash| km_display::Flash {
-                text: &flash.text,
-                kind: flash.kind,
-            }),
+            flash: flash
+                .as_ref()
+                .map(|flash| km_display::Flash {
+                    text: &flash.text,
+                    kind: flash.kind,
+                })
+                .or_else(|| {
+                    kept_evening_line.as_deref().map(|text| km_display::Flash {
+                        text,
+                        kind: km_display::FlashKind::Working,
+                    })
+                }),
             announcement: announced.as_ref().map(announcement_for),
             keypad: (!keypad.is_empty()).then_some(keypad),
             soundfont_label: soundfont_label.as_deref(),
@@ -3652,6 +3770,76 @@ pub fn catalog_is_empty(machine: &Machine) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// One press asks and changes nothing. The same key again, in time, is the answer.
+    #[test]
+    fn a_new_evening_takes_two_presses_of_the_skip_key() {
+        let now = Instant::now();
+        let mut question = NewEveningQuestion::default();
+        assert!(!question.asked(now));
+
+        assert_eq!(
+            question.press(&DisplayAction::Skip, false, now),
+            NewEveningAnswer::Asked
+        );
+        assert!(question.asked(now));
+        assert_eq!(
+            question.press(&DisplayAction::Skip, false, now + Duration::from_secs(1)),
+            NewEveningAnswer::Confirmed
+        );
+        assert!(!question.asked(now), "and the question is answered");
+    }
+
+    /// A held key repeats, and a repeat is no second press.
+    #[test]
+    fn a_held_skip_key_asks_and_never_answers() {
+        let now = Instant::now();
+        let mut question = NewEveningQuestion::default();
+        question.press(&DisplayAction::Skip, false, now);
+        for _ in 0..30 {
+            assert_eq!(
+                question.press(&DisplayAction::Skip, true, now),
+                NewEveningAnswer::Asked
+            );
+        }
+        assert!(question.asked(now), "the question is still open");
+    }
+
+    #[test]
+    fn another_key_or_a_wait_withdraws_the_question() {
+        let now = Instant::now();
+        let mut question = NewEveningQuestion::default();
+
+        question.press(&DisplayAction::Skip, false, now);
+        assert_eq!(
+            question.press(&DisplayAction::ToggleQueue, false, now),
+            NewEveningAnswer::Other,
+            "the other key does what it always does"
+        );
+        assert!(!question.asked(now));
+        assert_eq!(
+            question.press(&DisplayAction::Skip, false, now),
+            NewEveningAnswer::Asked,
+            "so the next press asks again"
+        );
+
+        let late = now + NEW_EVENING_CONFIRM;
+        assert!(!question.asked(late));
+        assert_eq!(
+            question.press(&DisplayAction::Skip, false, late),
+            NewEveningAnswer::Asked,
+            "a press after the wait asks again"
+        );
+    }
+
+    #[test]
+    fn the_kept_evening_line_counts_and_names_both_keys() {
+        let line = kept_evening_line(3, 1, false);
+        assert!(line.contains("3 songs, 1 singer"), "{line}");
+        assert!(line.contains("SPACE") && line.contains('N'), "{line}");
+        assert!(kept_evening_line(1, 2, false).contains("1 song, 2 singers"));
+        assert!(kept_evening_line(3, 1, true).contains("again"));
+    }
 
     /// A key or tempo badge names what the song is playing at, and a song that cannot change plays
     /// at its own.

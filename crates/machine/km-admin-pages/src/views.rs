@@ -828,6 +828,8 @@ pub struct MachinePage {
     pub end_on_silence: bool,
     /// Whether a recorded song changes key and tempo.
     pub adjust_recordings: bool,
+    /// Whether the evening outlives the machine's process, or `None` to draw no card.
+    pub keep_evening: Option<bool>,
     /// Whether this host can be shut down and restarted, and so whether the card exists.
     ///
     /// **Absent rather than disabled**, which is this page's standing rule: a grayed control invites

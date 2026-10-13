@@ -2281,6 +2281,7 @@ async fn host_lists(state: &Remote, locale: Locale) -> HostLists {
             .count() as i64
     };
     HostLists {
+        kept: list.as_ref().is_some_and(|list| list.waiting_for_host),
         accepting: list.as_ref().is_none_or(|list| list.accepting),
         singers: singers
             .iter()
@@ -2526,6 +2527,18 @@ pub async fn host_accepting(
             .set_accepting(switch == "on")
             .await
             .map(|_| ()),
+    };
+    host_answer(&state, prefs.locale, result).await
+}
+
+/// `POST /host/continue` — play, for a machine that waits with an evening it kept.
+///
+/// The machine starts the first song of the kept queue, and its wait ends with that.
+pub async fn host_continue(State(state): State<Remote>, headers: HeaderMap) -> Response {
+    let prefs = Prefs::read(&headers);
+    let result = match permit(&state, &prefs, Access::Control).await {
+        Err(refused) => Err(refused),
+        Ok(()) => state.machine.transport(Transport::Play).await.map(|_| ()),
     };
     host_answer(&state, prefs.locale, result).await
 }

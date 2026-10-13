@@ -397,6 +397,16 @@ impl Paths {
         self.data_dir.join("library.sqlite")
     }
 
+    /// The evening a machine keeps across a restart, when `singers.keep_evening` is on.
+    pub fn evening_file(&self) -> PathBuf {
+        self.data_dir.join("evening.json")
+    }
+
+    /// The copy of the kept evening from an earlier write, read when [`Self::evening_file`] fails.
+    pub fn evening_previous_file(&self) -> PathBuf {
+        self.data_dir.join("evening.previous.json")
+    }
+
     /// The folder `--log-file` writes this run's log into.
     ///
     /// **Deliberately not made by [`Paths::create`]**, unlike the packages and wallpapers folders

@@ -397,6 +397,7 @@ pub fn router(state: Remote) -> Router {
             post(handlers::host_singer),
         )
         .route("/host/accepting/{switch}", post(handlers::host_accepting))
+        .route("/host/continue", post(handlers::host_continue))
         .route("/host/reset", post(handlers::host_reset))
         .route("/mine/{request}/withdraw", post(handlers::withdraw_mine))
         .route("/access", post(handlers::set_access))

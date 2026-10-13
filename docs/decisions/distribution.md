@@ -1588,10 +1588,9 @@ differs, so it would keep a second packages folder, and songs pushed to one woul
 the other.
 
 **A switch waits for an idle machine, because a switch restarts it.** SDL starts the machine once
-per process, so each screen runs the machine in a process of its own. The queue lives in memory, and
-ending the process loses it. So the switch works only with no song loaded and nobody waiting.
-Otherwise it says why and changes nothing. Carrying a queue across would mean persisting it, which
-is a change to the machine rather than to the headset shell.
+per process, so each screen runs the machine in a process of its own. Ending the process ends the
+evening, unless the owner turned `singers.keep_evening` on. So the switch works only with no song
+loaded and nobody waiting. Otherwise it says why and changes nothing.
 
 **A `.kmpkg` opened on a headset goes to the machine already running.** Two machines at once would
 fight over one port and one catalog. So the file finds whichever screen holds the machine, and with
