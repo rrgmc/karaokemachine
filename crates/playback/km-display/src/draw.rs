@@ -1620,18 +1620,32 @@ fn draw_queue_overlay<T: RenderTarget, C>(
     let wait_w = (wait_chars + QUEUE_COLUMN_GAP_CHARS) as f32 * small_px * 0.5;
     let singer_x = right_x - wait_w;
 
-    // Characters that fit in the left column, from the point size — the same estimate the connect
-    // panel uses. The singer's name takes what the title and the wait leave, less a gap.
+    // Characters that fit, from the point size — the same estimate the connect panel uses. The
+    // singer column is as wide as the longest name on show, up to a cap, and the title takes the
+    // rest. A short name therefore leaves the title most of the row.
     let inner_w = panel_w - pad * 2.0;
     let text_px = f32::from(theme.text_px(layout.h as u32));
-    let left_chars = ((inner_w * QUEUE_TITLE_SHARE) / (text_px * 0.5)).max(12.0) as usize;
-    let singer_chars = fit_chars(inner_w * (1.0 - QUEUE_TITLE_SHARE) - wait_w, small_px)
-        .saturating_sub(QUEUE_COLUMN_GAP_CHARS);
+    let longest_singer = queue
+        .iter()
+        .take(shown)
+        .filter_map(|entry| entry.singer.as_deref())
+        .map(|singer| singer.width())
+        .max()
+        .unwrap_or(0);
+    let singer_chars = longest_singer.min(fit_chars(inner_w * QUEUE_SINGER_SHARE, small_px));
+    let singer_w = if singer_chars == 0 {
+        0.0
+    } else {
+        (singer_chars + QUEUE_COLUMN_GAP_CHARS) as f32 * small_px * 0.5
+    };
+    let left_chars = ((inner_w - wait_w - singer_w) / (text_px * 0.5)).max(12.0) as usize;
 
     for (index, (entry, wait)) in queue.iter().zip(&waits).enumerate() {
         let row_y = first_row + row_h * index as f32;
 
-        let mut left = format!("{}.  {}  {}", index + 1, entry.number, entry.title);
+        // The place and no song number. A singer looks for their turn, and a song number only
+        // queues a song.
+        let mut left = format!("{}.  {}", index + 1, entry.title);
         if let Some(artist) = &entry.artist {
             left.push_str(" — ");
             left.push_str(artist);
@@ -1700,10 +1714,10 @@ fn queue_count(words: &km_locale::Catalog, queued: usize, requests_waiting: usiz
     format!("{queued}  ·  {behind}")
 }
 
-/// The share of the queue overlay's width that a row's number, title and artist take.
+/// The most of the queue overlay's width that the singer's name may take.
 ///
-/// The singer's name and the wait share the rest.
-const QUEUE_TITLE_SHARE: f32 = 0.56;
+/// The title and artist take whatever the singer and the wait leave.
+const QUEUE_SINGER_SHARE: f32 = 0.3;
 
 /// The gap between two columns of the queue overlay, in characters of the small face.
 const QUEUE_COLUMN_GAP_CHARS: usize = 2;
