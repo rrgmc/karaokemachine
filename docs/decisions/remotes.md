@@ -290,8 +290,8 @@ the queue as more of their own songs. The heading and the heavier rule above it 
 so a phone that asked for nothing sees the queue as before.
 
 **Below the queue, every phone lists the songs that wait for a turn, folded.** A guest asks how
-long a table's second song will take, and the queue alone does not show it. The list is folded by
-default, because the queue is what a guest came to read. A checkbox outside the fetched block holds
+long a table's second song will take, and the queue alone does not show it. The list starts
+folded, because the queue is what a guest came to read. A checkbox outside the fetched block holds
 the fold, so a refresh does not close it.
 
 **That list is fetched and never pushed.** The event stream sends one fragment to every page in a
@@ -332,8 +332,8 @@ that singer's turn, whatever order the host enters songs in.
 
 **A song on the Songs tab has a button that sends it to the host's add form.** A host at the
 control level browses the catalog as a guest does. The button opens the singers tab with that song
-in the song box and its + beside it, so the host picks the singer and adds it. The song is looked
-up by number, so a similar title does not stand in for it.
+in the song box and its + beside it. The host then picks the singer and adds it. The remote looks
+the song up by number, so a similar title does not stand in for it.
 
 **The name box offers the evening's named singers, and tapping a singer's name fills it.** A host
 adding for somebody who is here picks the name rather than typing it again. A typed name still
