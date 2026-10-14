@@ -300,6 +300,7 @@ async fn every_page_route_is_asked_about_before_it_runs() {
         ("POST", "/admin/machine/end-on-silence"),
         ("POST", "/admin/machine/adjust-recordings"),
         ("POST", "/admin/machine/keep-evening"),
+        ("POST", "/admin/machine/linked-packages"),
         ("POST", "/admin/machine/password"),
         ("POST", "/admin/machine/sessions"),
         ("POST", "/admin/machine/debug"),
@@ -595,6 +596,57 @@ async fn key_and_tempo_for_recorded_songs_is_a_box_on_the_machine_page() {
         .await;
         assert!(status.is_redirection(), "{surface}: {status}");
         assert!(state.controller().adjust_recordings(), "{surface}");
+    }
+}
+
+/// Allowing linked packages is one box on the password pane, and the page has no box for the folder.
+#[tokio::test]
+async fn allowing_linked_packages_is_a_box_on_the_machine_page() {
+    for host in BOTH_HOSTS {
+        let surface = host.name();
+        let (app, state) = nested_as(
+            host,
+            TestMachine::with_catalog(6),
+            Arc::new(SpyGuard::default()),
+        );
+
+        let (status, body) = get(&app, "/admin/machine").await;
+        assert_eq!(status, StatusCode::OK, "{surface}");
+        assert!(
+            body.contains(r#"action="/admin/machine/linked-packages""#),
+            "{surface}: {body}"
+        );
+        assert!(
+            body.contains(r#"name="linked_packages" value="yes">"#),
+            "off until its owner says otherwise, {surface}: {body}"
+        );
+        assert!(
+            body.contains("No folder is set"),
+            "the card says the switch alone installs nothing, {surface}: {body}"
+        );
+        assert!(
+            !body.contains(r#"name="dir""#) && !body.contains(r#"name="folder""#),
+            "no page sets the folder, {surface}: {body}"
+        );
+
+        let (status, _) = post_form(
+            &app,
+            "/admin/machine/linked-packages",
+            "linked_packages=yes",
+        )
+        .await;
+        assert!(status.is_redirection(), "{surface}: {status}");
+        assert!(state.controller().linked_packages().enabled, "{surface}");
+        let (_, body) = get(&app, "/admin/machine").await;
+        assert!(
+            body.contains(r#"name="linked_packages" value="yes" checked"#),
+            "{surface}: {body}"
+        );
+
+        // An unticked box posts nothing, which turns it off.
+        let (status, _) = post_form(&app, "/admin/machine/linked-packages", "").await;
+        assert!(status.is_redirection(), "{surface}: {status}");
+        assert!(!state.controller().linked_packages().enabled, "{surface}");
     }
 }
 
@@ -2899,6 +2951,11 @@ async fn a_save_comes_back_to_the_pane_it_was_made_on() {
         (
             "/admin/machine/keep-evening",
             "keep_evening=yes",
+            "password",
+        ),
+        (
+            "/admin/machine/linked-packages",
+            "linked_packages=yes",
             "password",
         ),
         ("/admin/machine/debug", "enabled=yes", "debug"),

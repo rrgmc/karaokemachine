@@ -341,6 +341,12 @@ evening outlives the process. It gets `PUT /api/v1/admin/evening/keep` and is wr
 `Machine::set_keep_evening` writes `evening.json` when the switch goes on, and removes it and its
 earlier copy when the switch goes off.
 
+**`linked_packages.enabled` is the tenth, and its counterpart is the catalog.** It gets
+`PUT /api/v1/admin/linked-packages` and is written down at once. `Machine::set_linked_packages`
+then runs the scan, so a linked package in a scanned folder is installed or dropped by the same
+request. **`linked_packages.dir` has no route.** Whoever can edit the settings file sets the folder
+the machine reads from.
+
 **`settings_version` 6 has one step from 5.** `Settings::step_up` reads a stored
 `api.room_access` of `queue` as `request`, and `load` writes the file back. A file below
 `OLDEST_SETTINGS_VERSION` is set aside, as before. A file with no version is a new file and takes

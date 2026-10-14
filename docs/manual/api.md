@@ -37,6 +37,9 @@ The two debug play routes are the exception. They are open whenever debugging mo
 
 - **`POST /api/v1/admin/packages` installs a package without a restart.** Removing one through the
   API deletes its `.kmpkg`.
+- **`PUT /api/v1/admin/linked-packages` says whether the machine takes
+  [linked packages](songs.md#linked-packages)**, with `{"enabled": true}`.
+  `GET /api/v1/linked-packages` reads it. No route sets the folder.
 - **`GET /api/v1/songs/book.pdf` returns the song book**, and takes `?language=`, `?package=` and
   `?name=`. `km-pack book` prints one from `.kmpkg` files that no machine has installed.
 

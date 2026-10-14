@@ -82,6 +82,14 @@ impl RemoteMachine {
 /// because a page has to say them in the reader's language and this program is talking to a machine
 /// that may not share one; the other two arrive already worded — by the machine, which is the
 /// authority on what a name may be, or by this program about its own disk.
+/// What the machine answered about linked packages, as the shared page takes it.
+fn linked_state(answer: km_api::dto::LinkedPackagesDto) -> km_api::machine::LinkedPackages {
+    km_api::machine::LinkedPackages {
+        enabled: answer.enabled,
+        folder: answer.folder,
+    }
+}
+
 fn fault(refused: Refused) -> AdminError {
     match refused {
         // A machine nobody has chosen, and one that will not answer, are the same thing to a page:
@@ -336,6 +344,8 @@ impl Switches for RemoteMachine {
         let singers = client.singer_rules().await.ok().map(Into::into);
         // On the same terms: an earlier machine keeps no evening, and its page draws no card.
         let keep_evening = client.keep_evening().await.ok().map(|kept| kept.enabled);
+        // On the same terms: an earlier machine has no linked packages, and its page draws no card.
+        let linked_packages = client.linked_packages().await.ok().map(linked_state);
 
         Ok(SwitchState {
             singers,
@@ -344,6 +354,7 @@ impl Switches for RemoteMachine {
             end_on_silence: end_on_silence.enabled,
             adjust_recordings: adjust_recordings.enabled,
             keep_evening,
+            linked_packages,
             debug_running: debug.enabled,
             debug_stored: debug.stored,
             dev_remote_stored: dev_remote.enabled,
@@ -441,6 +452,18 @@ impl Switches for RemoteMachine {
             .set_keep_evening(on)
             .await
             .map(|stored| stored.enabled)
+            .map_err(fault)
+    }
+
+    async fn set_linked_packages(
+        &self,
+        on: bool,
+    ) -> Result<km_api::machine::LinkedPackages, AdminError> {
+        self.writing()
+            .await?
+            .set_linked_packages(on)
+            .await
+            .map(linked_state)
             .map_err(fault)
     }
 }

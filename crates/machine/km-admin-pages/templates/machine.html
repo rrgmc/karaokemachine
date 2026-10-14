@@ -305,6 +305,31 @@
     {% when None %}
     {% endmatch %}
 
+    {# On this pane because it is a permission the owner gives. The folder has no box here: no page
+       points the machine at a folder on its own disk. A machine with no such route answers `None`,
+       and the card is not drawn. #}
+    {% match linked_packages %}
+    {% when Some with (linked) %}
+    <section class="card">
+      <h2>{{ "linked-packages-heading"|t }}</h2>
+      <p class="hint">{{ "linked-packages-hint"|t }}</p>
+      {% if linked.folder_unset %}
+      <p class="hint">{{ "linked-packages-folder-unset"|t }}</p>
+      {% endif %}
+      {% if linked.folder_missing %}
+      <p class="hint">{{ "linked-packages-folder-missing"|t }}</p>
+      {% endif %}
+      <form method="post" action="/admin/machine/linked-packages">
+        <label class="check">
+          <input type="checkbox" name="linked_packages" value="yes"{% if linked.enabled %} checked{% endif %}>
+          {{ "linked-packages-enabled"|t }}
+        </label>
+        <button type="submit">{{ "linked-packages-save"|t }}</button>
+      </form>
+    </section>
+    {% when None %}
+    {% endmatch %}
+
     <section class="card">
       <h2>{{ "sessions-heading"|t }}</h2>
       <p class="hint">{{ "sessions-explained"|t }}</p>

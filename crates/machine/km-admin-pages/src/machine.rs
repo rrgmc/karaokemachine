@@ -360,6 +360,10 @@ pub struct SwitchState {
     ///
     /// `None` from a machine that has no such route, and the page then draws no card for it.
     pub keep_evening: Option<bool>,
+    /// Whether the machine takes linked packages, and whether it has a folder to play them from.
+    ///
+    /// `None` from a machine that has no such route, and the page then draws no card for it.
+    pub linked_packages: Option<km_api::machine::LinkedPackages>,
 }
 
 /// The facts the information panel draws, which are the machine saying what it is.
@@ -699,6 +703,14 @@ pub trait Switches: Send + Sync + 'static {
 
     /// Say whether the evening outlives the machine's process, answering with what it stored.
     async fn set_keep_evening(&self, on: bool) -> Result<bool, AdminError>;
+
+    /// Say whether the machine takes linked packages, answering with what it stored.
+    ///
+    /// The folder is not set through this seam. See `Controller::set_linked_packages`.
+    async fn set_linked_packages(
+        &self,
+        on: bool,
+    ) -> Result<km_api::machine::LinkedPackages, AdminError>;
 }
 
 /// The Sound tab: where the sound comes out, and which bank supplies the instruments.

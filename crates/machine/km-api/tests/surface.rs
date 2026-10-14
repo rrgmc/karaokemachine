@@ -4165,6 +4165,61 @@ async fn keeping_the_evening_is_public_to_read_and_admin_to_switch() {
     assert_eq!(body["enabled"], true, "{body}");
 }
 
+/// Allowing linked packages is public to read and admin to switch, and the read follows.
+#[tokio::test]
+async fn allowing_linked_packages_is_public_to_read_and_admin_to_switch() {
+    let mut harness = Harness::with_password("carols1975")
+        .at_the_machine()
+        .tokenless();
+
+    let body = harness.ok(Method::GET, "/linked-packages", None).await;
+    assert_eq!(body["enabled"], false, "{body}");
+    assert_eq!(body["folder"], "unset", "{body}");
+
+    let (status, _) = harness
+        .put("/admin/linked-packages", json!({ "enabled": true }))
+        .await;
+    assert_eq!(
+        status,
+        StatusCode::UNAUTHORIZED,
+        "switching it needs a token"
+    );
+
+    harness.log_in("carols1975").await;
+    let (status, body) = harness
+        .put(
+            "/admin/linked-packages",
+            json!({ "enabled": true, "dir": "/tunes/karaoke" }),
+        )
+        .await;
+    assert_ne!(
+        status,
+        StatusCode::OK,
+        "no route takes a folder for the machine to read from: {body}"
+    );
+
+    let (status, body) = harness
+        .put("/admin/linked-packages", json!({ "enabled": true }))
+        .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(body["enabled"], true, "{body}");
+    assert!(
+        body.get("dir").is_none(),
+        "the folder's path is not in the answer: {body}"
+    );
+    assert!(
+        harness
+            .machine
+            .recorded()
+            .iter()
+            .any(|entry| matches!(entry, Recorded::LinkedPackagesSet(true))),
+        "the switch did not reach the controller"
+    );
+
+    let body = harness.ok(Method::GET, "/linked-packages", None).await;
+    assert_eq!(body["enabled"], true, "{body}");
+}
+
 /// A kept evening that waits says so in the request list, and a new evening ends the wait.
 #[tokio::test]
 async fn the_request_list_says_when_a_kept_evening_waits_for_the_host() {

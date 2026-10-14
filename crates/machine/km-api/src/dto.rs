@@ -2389,6 +2389,32 @@ pub struct KeepEveningRequest {
     pub enabled: bool,
 }
 
+/// `GET /linked-packages` and the reply to `PUT /admin/linked-packages`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LinkedPackagesDto {
+    /// Whether the owner allows linked packages.
+    pub enabled: bool,
+    /// Whether the machine has a folder to play them from: `unset`, `missing` or `ready`.
+    pub folder: crate::machine::LinkedFolder,
+}
+
+impl From<crate::machine::LinkedPackages> for LinkedPackagesDto {
+    fn from(state: crate::machine::LinkedPackages) -> Self {
+        Self {
+            enabled: state.enabled,
+            folder: state.folder,
+        }
+    }
+}
+
+/// `PUT /admin/linked-packages`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct LinkedPackagesRequest {
+    /// What to set it to.
+    pub enabled: bool,
+}
+
 /// `POST /debug/play-file`.
 ///
 /// `PartialEq` without `Eq` since the corrections arrived: a fix this build cannot read is held as

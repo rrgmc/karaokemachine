@@ -711,8 +711,12 @@ that chooses its own root is what
 [the path checks](#a-linked-file-is-read-only-from-inside-one-folder) refuse. Every linked package
 therefore names its files below the same folder.
 
+**The owner's page has the switch.** It is a box on the *This machine* tab, and
+`PUT /api/v1/admin/linked-packages` behind it. The card says when no folder is set, because the
+switch alone then installs nothing.
+
 **The folder is set in `settings.json` and nowhere else**, as `package_dirs` is. No route can point
-the machine at a folder. `--show-paths` prints it, on a line that begins `linked`. It is a folder
+the machine at a folder, and no route answers where the folder is. `--show-paths` prints it, on a line that begins `linked`. It is a folder
 and not a file, so
 [`Only debug. names a file`](foundations.md#only-debug-names-a-file) holds.
 

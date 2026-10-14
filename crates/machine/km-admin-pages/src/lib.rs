@@ -528,6 +528,10 @@ pub fn router(state: Admin) -> Router {
             post(handlers::set_adjust_recordings),
         )
         .route("/machine/keep-evening", post(handlers::set_keep_evening))
+        .route(
+            "/machine/linked-packages",
+            post(handlers::set_linked_packages),
+        )
         .route("/machine/password", post(handlers::set_password))
         .route("/machine/sessions", post(handlers::reset_sessions))
         .route("/machine/access", post(handlers::set_room_access))

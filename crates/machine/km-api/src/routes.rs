@@ -232,6 +232,7 @@ pub const SURFACE: &[(&str, &str)] = &[
     ("GET", "/playback/end-on-silence"),
     ("GET", "/playback/adjust-recordings"),
     ("GET", "/evening/keep"),
+    ("GET", "/linked-packages"),
     ("GET", "/events"),
     ("POST", "/login"),
     ("GET", "/access"),
@@ -268,6 +269,7 @@ pub const SURFACE: &[(&str, &str)] = &[
     ("PUT", "/admin/playback/end-on-silence"),
     ("PUT", "/admin/playback/adjust-recordings"),
     ("PUT", "/admin/evening/keep"),
+    ("PUT", "/admin/linked-packages"),
 ];
 
 /// The routes mounted only while debugging mode is on.
@@ -693,6 +695,7 @@ fn api_router(config: &crate::ApiConfig, capabilities: Capabilities) -> Router<A
         )
         // Whether the evening outlives the machine's process. The same split.
         .route("/evening/keep", get(handlers::get_keep_evening))
+        .route("/linked-packages", get(handlers::get_linked_packages))
         .route("/events", get(handlers::events))
         // Any code or the admin password, for a token of the level it opens. Open, like
         // `/admin/login`, and behind the same rate limiter.
@@ -794,7 +797,8 @@ fn api_router(config: &crate::ApiConfig, capabilities: Capabilities) -> Router<A
             "/playback/adjust-recordings",
             put(handlers::put_adjust_recordings),
         )
-        .route("/evening/keep", put(handlers::put_keep_evening));
+        .route("/evening/keep", put(handlers::put_keep_evening))
+        .route("/linked-packages", put(handlers::put_linked_packages));
 
     // Turning the box off, and starting the application again. Mounted only where the host supplied
     // a way to do either, so a machine that cannot answers 404 on all three — the shape the
@@ -1055,6 +1059,8 @@ mod tests {
             (Method::POST, "/api/v1/evening/reset", Access::Control),
             (Method::GET, "/api/v1/evening/keep", Access::View),
             (Method::PUT, "/api/v1/admin/evening/keep", Access::Admin),
+            (Method::GET, "/api/v1/linked-packages", Access::View),
+            (Method::PUT, "/api/v1/admin/linked-packages", Access::Admin),
             (Method::PUT, "/api/v1/settings", Access::Queue),
             (Method::POST, "/api/v1/transport/skip", Access::Control),
             (Method::POST, "/api/v1/transport/pause", Access::Control),

@@ -830,6 +830,8 @@ pub struct MachinePage {
     pub adjust_recordings: bool,
     /// Whether the evening outlives the machine's process, or `None` to draw no card.
     pub keep_evening: Option<bool>,
+    /// The linked-packages card, or `None` to draw none.
+    pub linked_packages: Option<LinkedPackagesCard>,
     /// Whether this host can be shut down and restarted, and so whether the card exists.
     ///
     /// **Absent rather than disabled**, which is this page's standing rule: a grayed control invites
@@ -837,6 +839,31 @@ pub struct MachinePage {
     /// appliance* — is not something anybody can do from this page. On a desktop or a phone the
     /// section is simply not part of the document.
     pub power: bool,
+}
+
+/// The card that says whether the machine takes linked packages.
+///
+/// A flag for each sentence the card can add, so the template names every key it draws and the
+/// catalog's parity test sees them all.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct LinkedPackagesCard {
+    /// Whether the owner allows linked packages.
+    pub enabled: bool,
+    /// The settings name no folder, so the switch alone installs nothing.
+    pub folder_unset: bool,
+    /// The settings name a folder that is not there.
+    pub folder_missing: bool,
+}
+
+impl From<km_api::machine::LinkedPackages> for LinkedPackagesCard {
+    fn from(state: km_api::machine::LinkedPackages) -> Self {
+        use km_api::machine::LinkedFolder;
+        Self {
+            enabled: state.enabled,
+            folder_unset: state.folder == LinkedFolder::Unset,
+            folder_missing: state.folder == LinkedFolder::Missing,
+        }
+    }
 }
 
 /// The last page a browser gets before the machine stops answering it.

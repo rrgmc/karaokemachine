@@ -13,11 +13,15 @@ shows it beside its address. Anyone in the room can read it, and nobody outside 
 
 Change it on the *This machine* tab. Every tab links to that tab until you do.
 
+**The same tab says whether the machine takes linked packages.** The **Linked packages** card has
+one box, and it starts off. [Getting songs in](songs.md#linked-packages) says what a linked package
+is, and how to set the folder its songs play from.
+
 ## The five tabs
 
 | Tab | What you do there |
 |---|---|
-| **This machine** | Set its name, where to reach it, the password, demo mode, the announcement before each song and the screen language. Choose whether a song ends when the rest of it is silent, and whether a recorded song changes key and tempo. Sign out every phone and browser at once. Turn debugging on and off. |
+| **This machine** | Set its name, where to reach it, the password, demo mode, the announcement before each song and the screen language. Choose whether a song ends when the rest of it is silent, whether a recorded song changes key and tempo, and whether the machine takes linked packages. Sign out every phone and browser at once. Turn debugging on and off. |
 | **Songs** | See the installed packages, how many songs each holds, and the thousand its numbers sit in. Add or remove a package. |
 | **Pictures** | See the pictures in the rotation and the one that shows, and add more. Your own pictures replace the ones that came with the machine. |
 | **Sound** | Choose the sound bank that plays and the audio output, and add a `.sf2`. |

@@ -189,6 +189,49 @@ async fn keeping_the_evening_reaches_its_own_route() {
     );
 }
 
+/// The box reaches `PUT /api/v1/admin/linked-packages` with the token and one field.
+#[tokio::test]
+async fn allowing_linked_packages_reaches_its_own_route() {
+    let (server, state, _dir) = common::signed_in().await;
+
+    Mock::given(method("PUT"))
+        .and(path("/api/v1/admin/linked-packages"))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_json(serde_json::json!({ "enabled": true, "folder": "unset" })),
+        )
+        .mount(&server)
+        .await;
+
+    let (status, body) = post_form(
+        &state,
+        "/admin/machine/linked-packages",
+        "linked_packages=yes",
+    )
+    .await;
+    assert!(status.is_redirection(), "{status} {body}");
+
+    let sent = server
+        .received_requests()
+        .await
+        .expect("recorded")
+        .into_iter()
+        .find(|request| request.url.path() == "/api/v1/admin/linked-packages")
+        .expect("the switch never reached the admin route");
+    assert_eq!(
+        sent.headers
+            .get("authorization")
+            .map(|v| v.to_str().unwrap()),
+        Some("Bearer a-token"),
+        "the switch went without the token it needs"
+    );
+    assert_eq!(
+        sent.body_json::<serde_json::Value>().expect("a JSON body"),
+        serde_json::json!({ "enabled": true }),
+        "one field, and no folder: no page sets where the machine reads from"
+    );
+}
+
 /// The announcement reaches `PUT /api/v1/admin/announcement` with its switch and its length.
 #[tokio::test]
 async fn the_announcement_reaches_its_route_with_both_values() {

@@ -4892,6 +4892,42 @@ impl Controller for Machine {
         Ok(enabled)
     }
 
+    fn linked_packages(&self) -> km_api::machine::LinkedPackages {
+        use km_api::machine::LinkedFolder;
+        // The inherent method, which answers the settings. This one answers a page.
+        let settings = Machine::linked_packages(self);
+        km_api::machine::LinkedPackages {
+            enabled: settings.enabled,
+            folder: match &settings.dir {
+                None => LinkedFolder::Unset,
+                Some(dir) if dir.is_dir() => LinkedFolder::Ready,
+                Some(_) => LinkedFolder::Missing,
+            },
+        }
+    }
+
+    /// Stores the switch, then scans the packages again so the catalog follows it.
+    ///
+    /// On, a linked package already in a scanned folder is installed now. Off, the scan refuses
+    /// it, and its songs go once nothing is playing or queued.
+    fn set_linked_packages(
+        &self,
+        enabled: bool,
+    ) -> Result<km_api::machine::LinkedPackages, ControlError> {
+        self.lock_settings().linked_packages.enabled = enabled;
+        self.save_settings();
+        // A linked package is cached with the folder it was given, and the gate is asked at every
+        // load, so the cache needs no clearing here.
+        let report = self.rescan_now();
+        tracing::info!(
+            enabled,
+            installed = report.installed,
+            removed = report.removed.len(),
+            "linked packages were switched"
+        );
+        Ok(Controller::linked_packages(self))
+    }
+
     fn requests(&self) -> Vec<Request> {
         self.lock_state()
             .evening
@@ -9190,6 +9226,50 @@ mod tests {
             .err()
             .expect("the cached package is not kept for another folder");
         assert!(refused.to_string().contains("is not there"), "{refused}");
+    }
+
+    #[test]
+    fn the_switch_is_written_down_and_the_catalog_follows_it() {
+        use km_api::machine::LinkedFolder;
+
+        let (_root, machine, _package_path, library, _codes) =
+            a_machine_and_a_linked_package("linked-switch", Settings::default());
+        let fresh = Controller::linked_packages(machine.as_ref());
+        assert!(!fresh.enabled);
+        assert_eq!(fresh.folder, LinkedFolder::Unset);
+
+        // On with no folder: stored, and still nothing installs.
+        let stored = Controller::set_linked_packages(machine.as_ref(), true).expect("switch");
+        assert!(stored.enabled);
+        assert_eq!(stored.folder, LinkedFolder::Unset);
+        assert!(machine.lock_library().packages().expect("list").is_empty());
+        assert_eq!(machine.package_problems().len(), 1);
+
+        machine.lock_settings().linked_packages.dir = Some(library.join("not-there"));
+        assert_eq!(
+            Controller::linked_packages(machine.as_ref()).folder,
+            LinkedFolder::Missing
+        );
+
+        // With the folder, the switch installs what was waiting in the packages folder.
+        machine.lock_settings().linked_packages.dir = Some(library);
+        let stored = Controller::set_linked_packages(machine.as_ref(), true).expect("switch");
+        assert_eq!(stored.folder, LinkedFolder::Ready);
+        assert_eq!(machine.lock_library().packages().expect("list").len(), 1);
+        assert!(machine.package_problems().is_empty());
+
+        let (reloaded, _) = Settings::load(machine.paths());
+        assert!(
+            reloaded.linked_packages.enabled,
+            "the switch is written down"
+        );
+
+        let stored = Controller::set_linked_packages(machine.as_ref(), false).expect("switch");
+        assert!(!stored.enabled);
+        assert!(
+            machine.lock_library().packages().expect("list").is_empty(),
+            "off, and nothing playing: the songs go at once"
+        );
     }
 
     #[test]

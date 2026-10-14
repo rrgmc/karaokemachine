@@ -1585,6 +1585,30 @@ pub async fn put_keep_evening(
     Ok(Json(crate::dto::KeepEveningDto { enabled }))
 }
 
+/// `GET /api/v1/linked-packages`
+///
+/// Whether this machine takes linked packages, and whether it has a folder to play them from.
+/// Public, like the switches above. The folder's path is not in the answer.
+pub async fn get_linked_packages(
+    State(state): State<ApiState>,
+) -> Json<crate::dto::LinkedPackagesDto> {
+    Json(state.controller().linked_packages().into())
+}
+
+/// `PUT /api/v1/admin/linked-packages`
+///
+/// Under `/admin/` because it is installation configuration and is written down. The reply is what
+/// the machine stored. The folder is not set here. See [`Controller::set_linked_packages`].
+///
+/// [`Controller::set_linked_packages`]: crate::machine::Controller::set_linked_packages
+pub async fn put_linked_packages(
+    State(state): State<ApiState>,
+    Body(body): Body<crate::dto::LinkedPackagesRequest>,
+) -> ApiResult<Json<crate::dto::LinkedPackagesDto>> {
+    let stored = state.controller().set_linked_packages(body.enabled)?;
+    Ok(Json(stored.into()))
+}
+
 /// `GET /api/v1/performance`
 ///
 /// Whether the frame-statistics panel is on the machine's own screen. Public, like the two switches

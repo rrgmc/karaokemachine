@@ -119,6 +119,8 @@ pub enum Recorded {
     AdjustRecordingsSet(bool),
     /// Keeping the evening across a restart was switched.
     KeepEveningSet(bool),
+    /// The linked-packages switch was set.
+    LinkedPackagesSet(bool),
     /// The admin password was set, or cleared when this is `None`.
     ///
     /// The hash and the factory PIN, in that order. The hash rather than the password, which is
@@ -282,6 +284,8 @@ struct Inner {
     adjust_recordings: bool,
     /// Whether the evening outlives the process. Held so a read follows a write.
     keep_evening: bool,
+    /// Whether linked packages are allowed. Held so a read follows a write.
+    linked_packages: bool,
     /// Whether this machine holds a kept evening and starts no song yet. A test sets it.
     waiting_for_host: bool,
     /// What debugging and the development console are set to in settings.
@@ -408,6 +412,7 @@ impl TestMachine {
                 end_on_silence: true,
                 adjust_recordings: true,
                 keep_evening: false,
+                linked_packages: false,
                 waiting_for_host: false,
                 debug_stored: false,
                 dev_remote_stored: false,
@@ -1321,6 +1326,26 @@ impl Controller for TestMachine {
         inner.keep_evening = enabled;
         inner.recorded.push(Recorded::KeepEveningSet(enabled));
         Ok(enabled)
+    }
+
+    fn linked_packages(&self) -> crate::machine::LinkedPackages {
+        crate::machine::LinkedPackages {
+            enabled: self.lock().linked_packages,
+            // An in-memory machine has no disk, so it never has a folder.
+            folder: crate::machine::LinkedFolder::Unset,
+        }
+    }
+
+    fn set_linked_packages(
+        &self,
+        enabled: bool,
+    ) -> Result<crate::machine::LinkedPackages, ControlError> {
+        {
+            let mut inner = self.lock();
+            inner.linked_packages = enabled;
+            inner.recorded.push(Recorded::LinkedPackagesSet(enabled));
+        }
+        Ok(self.linked_packages())
     }
 
     fn singer_rules(&self) -> crate::machine::SingerRules {
