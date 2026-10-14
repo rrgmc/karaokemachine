@@ -2913,13 +2913,13 @@ async fn a_field_row_lets_its_field_shrink_so_the_button_is_not_pushed_off() {
         "and the button has somewhere to go: {css}"
     );
 
-    // The singer's name, the access code and the language picker. All three are on the Setup tab;
-    // the Queue tab carries none.
+    // The singer's name, the level with its button, the access code and the language picker. All
+    // four are on the Setup tab; the Queue tab carries none.
     let setup = harness.get("/setup").await;
     assert_eq!(
         setup.matches(r#"class="pref-row field-row"#).count(),
-        3,
-        "both rows on the Setup tab: {setup}"
+        4,
+        "every row on the Setup tab: {setup}"
     );
     let queue = harness.get("/queue").await;
     assert!(
@@ -5738,6 +5738,14 @@ async fn a_code_is_kept_in_a_cookie_and_a_wrong_one_is_refused() {
     let harness = Harness::with(
         StubMachine::new().room(km_api::Access::Queue),
         Capabilities::online(),
+    );
+    // The level shows, and the code box waits folded behind its button.
+    let setup = harness.get("/setup").await;
+    assert!(
+        setup.contains(
+            r#"<input type="checkbox" id="access-edit" class="visually-hidden" autocomplete="off""#
+        ) && setup.contains(r#"<label for="access-edit" class="icon-btn">Enter a code</label>"#),
+        "{setup}"
     );
     let request = Request::builder()
         .method(Method::POST)

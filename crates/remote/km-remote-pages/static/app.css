@@ -1190,6 +1190,13 @@ label.icon-btn { display: inline-flex; align-items: center; justify-content: cen
 .singer-current { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 #singer-edit:focus-visible ~ .singer-shown label { outline: 2px solid var(--amber); outline-offset: 2px; }
 
+/* The phone's level shows, and the code box stays folded until the button opens it. A code that
+ * works reloads the page, so the box folds again. */
+#access-edit:not(:checked) ~ .access-form,
+#access-edit:checked ~ .access-shown { display: none; }
+.access-current { flex: 1; min-width: 0; }
+#access-edit:focus-visible ~ .access-shown label { outline: 2px solid var(--amber); outline-offset: 2px; }
+
 /* The songs that wait for a turn, under a rule like the one above the queue, and folded until the
  * heading is pressed. `#waiting-open` sits outside the block a refresh replaces. */
 .waiting-head {

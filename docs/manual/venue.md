@@ -59,9 +59,9 @@ a turn. See [The keyboard](keyboard.md).
 
 ## What the host does
 
-**The host types the code to skip on the remote's Setup tab.** The remote then shows the host's
-tab, which is the ticked box in the tab bar. A tablet or a laptop shows the queue, the waiting songs
-and the singers side by side.
+**The host types the code to skip on the remote's Setup tab.** Tap **Enter a code**, type it, and
+tap **Use**. The remote then shows the host's tab, which is the ticked box in the tab bar. The
+controls stand at the top, and two tabs below them hold the queue and the singers.
 
 **The host corrects, and the machine does the rest.** The host adds a song for a guest with no
 phone, puts a waiting song in early, and refuses one. The host also moves a singer to another

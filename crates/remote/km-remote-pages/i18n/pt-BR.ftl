@@ -121,6 +121,7 @@ access-admin = Tudo
 access-code = Um código do dono
 access-code-placeholder = código
 access-code-use = Usar
+access-code-open = Digitar código
 access-code-wrong = Esse código não está certo.
 
 ## Tocando agora

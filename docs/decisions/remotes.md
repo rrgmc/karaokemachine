@@ -854,6 +854,10 @@ tempo, and the event stream.
 the remote at once. Somebody given a code types it on the Setup tab, and the tab says what the phone
 can do. A login page in front of the remote would stop a guest who needs no code at all.
 
+**The tab shows the level, and the code box folds behind a button.** Few guests ever type a code,
+so an open box reads as a step everybody must take. A code that works reloads the page, which folds
+the box again. A wrong code leaves it open with the toast.
+
 **The code buys a token, kept in an `HttpOnly` cookie named `km_access`.** Not `km_token`, which is
 the owner's page's cookie on the same origin, because a code typed here must not sign the owner out
 there. The remote reads `km_token` when `km_access` is absent, so an owner signed in at `/admin/` has

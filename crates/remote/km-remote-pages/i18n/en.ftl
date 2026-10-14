@@ -137,6 +137,7 @@ access-admin = Everything
 access-code = A code from the owner
 access-code-placeholder = code
 access-code-use = Use
+access-code-open = Enter a code
 access-code-wrong = That code is not right.
 
 ## Now playing
