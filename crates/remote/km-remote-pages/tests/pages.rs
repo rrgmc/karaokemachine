@@ -5307,6 +5307,14 @@ async fn the_setup_tab_is_on_both_remotes_and_carries_what_each_one_has() {
         body.contains(r#"href="/admin""#),
         "the owner's door, on the machine's own remote: {body}"
     );
+    let before = &body[..body.find(r#"href="/admin""#).expect("the door")];
+    let group = &before[before
+        .rfind(r#"<div class="setup-group"#)
+        .expect("its group")..];
+    assert!(
+        group.starts_with(r#"<div class="setup-group needs-control">"#),
+        "shown from the control level up: {group}"
+    );
     assert!(
         body.contains("Needs the machine&#39;s password"),
         "a link that always ends in a prompt says so before the tap: {body}"
@@ -5395,7 +5403,7 @@ async fn the_setup_tab_leads_with_the_machine_and_rules_off_each_group_after_it(
     let body = Harness::online().get("/setup").await;
     assert!(!body.contains(r#"class="machine-card""#), "{body}");
     assert_eq!(
-        body.matches(r#"class="setup-group""#).count(),
+        body.matches(r#"class="setup-group"#).count(),
         2,
         "the preferences and the owner's page are each a group: {body}"
     );

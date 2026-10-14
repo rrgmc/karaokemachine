@@ -107,7 +107,8 @@ Entries are written for somebody who has the machine. Why any of it is the way i
   host's Songs tab has a 👤 on each song, which opens that tab with the song ready to add.
 - **A saved name folds its box away on the Setup tab.** The tab shows the name, and **Change**
   opens the box again. The code box folds the same way: the tab shows what the phone can do, and
-  **Enter a code** opens the box.
+  **Enter a code** opens the box. *Set this machine up* shows only to a phone with the code to
+  skip.
 - **A phone with several singers chooses who is singing on the Songs tab.** The choice stands above
   the list, so the + on a song is for the singer shown there.
 - **Each singer's name has a colour of its own.** It is the same colour in the queue, among the
