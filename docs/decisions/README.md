@@ -324,6 +324,7 @@ it are the same entry. How the thing is built is [`ARCHITECTURE.md`](../ARCHITEC
 - [A row holding a field survives its longest translation](remotes.md#a-row-holding-a-field-survives-its-longest-translation)
 - [Active tag filters are a strip under the filter row, with a way out of all of them](remotes.md#active-tag-filters-are-a-strip-under-the-filter-row-with-a-way-out-of-all-of-them)
 - [The A–Z picker covers artists, and is still offline only](remotes.md#the-az-picker-covers-artists-and-is-still-offline-only)
+- [On a phone, the machine shows its own remote over the screen](remotes.md#on-a-phone-the-machine-shows-its-own-remote-over-the-screen)
 
 ## [The API and the network](api-and-network.md)
 

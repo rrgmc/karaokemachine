@@ -84,6 +84,10 @@ settings for one.
 **The owner decides how much a guest's phone can do.** Out of the box, anybody in the room can ask
 for a song. See [Setting it up from a browser](setup.md#decide-what-a-guests-phone-can-do).
 
+**A phone running the machine shows this remote over its own screen.** Press **Menu** in the top
+right corner, then **Choose songs**. The song plays on behind it. Press **Close** or Back to return
+to the lyrics. A second app would take the screen away, and the machine pauses when that happens.
+
 ## The offline remote
 
 **The offline remote is a separate program**, `km-remote`. It keeps its own copy of a machine's

@@ -17,6 +17,9 @@ songs survive a restart.
 - **Drag the file onto the machine's window.** It shows `installing …`, then how many songs went in.
 - **Copy the file into the packages folder yourself.** `F10` opens the folder, and `Ctrl+F10` reads
   it again, so the songs play without a restart.
+- **On an Android phone or tablet, press Menu, then Install a package.** The file browser opens,
+  and the machine installs the package you choose. A song that is playing pauses while the browser
+  is open.
 - **Add it from a browser**, on the **Songs** tab of [the setup page](setup.md).
 - **Send it through [the API](api.md).**
 

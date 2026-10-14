@@ -88,7 +88,9 @@ Ours:
 
 | File | Why it differs from SDL's template |
 |---|---|
-| `MainActivity.java` | Names the libraries to load, in order: `SDL3`, `SDL3_ttf`, `km_app`. SDL's default would look for `main`. |
+| `MainActivity.java` | Names the libraries to load, in order: `SDL3`, `SDL3_ttf`, `km_app`. SDL's default would look for `main`. Also stages an opened or picked `.kmpkg`, and lets `PhoneShell` take Back first. |
+| `Loopback.java` | The machine's address on this device, read from its `settings.json`. Both flavours' WebViews use it. Java, because the `flat` APK compiles no Kotlin. |
+| `flat/…/PhoneShell.java` | The Menu button a phone or tablet shows over the machine: the machine's own remote in a WebView, and the package picker. Plain views in the activity's window, because a second window takes the focus and SDL parks its thread. The `headset` flavour carries an empty twin. |
 | `AndroidManifest.xml` | `INTERNET` and `CHANGE_WIFI_MULTICAST_STATE` for the API and mDNS; `screenOrientation="userLandscape"`, so a rotation cannot rebuild the GL surface mid-song — but see below, because **the manifest does not settle this on its own**; touch marked `required="false"`, so the app installs on a television that has none. |
 | `app/build.gradle` | No native build. `minSdk 26`, ABI filters matching what cargo actually builds, and the staging check. |
 
