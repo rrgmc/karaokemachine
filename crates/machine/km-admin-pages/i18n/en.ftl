@@ -63,6 +63,7 @@ bank-remove = Remove { $bank }
 column-file = File
 column-size = Size
 package-flag-uncurated = uncurated
+package-flag-linked = linked
 column-version = Version
 output-heading = Where the sound comes out
 output-hint = The machine remembers this.

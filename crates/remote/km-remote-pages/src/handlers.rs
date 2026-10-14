@@ -1209,6 +1209,7 @@ async fn package_settings(state: &Remote, prefs: &Prefs) -> Vec<PackageSetting> 
         .map(|row| PackageSetting {
             shown: !prefs.hidden_packages.contains(&row.id),
             uncurated: row.flags.is_uncurated(),
+            linked: row.flags.is_linked(),
             songs: words
                 .msg_with("count-songs", &[("count", row.songs.into())])
                 .into_owned(),

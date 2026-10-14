@@ -743,6 +743,19 @@ reason about why a file is absent.
 **Uninstalling deletes the package file and no song file.** The folder for linked files is not one
 of the folders `Paths::is_mine_to_delete` names, and the reader hands out no path to delete.
 
+## A linked package says so everywhere but the television
+
+**Every list of packages that marks `uncurated` marks `linked`, in the same place.** That is the
+HTTP API, the admin pages, the remote's list of packages, `km-pack inspect`, `km-pack check` and the
+listing beside a package. A package can carry both marks.
+
+**The person reading those lists is the one who has to act on it.** A linked package plays nothing
+without its folder. Somebody who copies the `.kmpkg` to another machine, or tidies the folder, has
+to know that the songs are not in the file.
+
+**The television does not draw it**, for the reason it does not draw `uncurated`. It lists no
+packages, and a singer picks a song and not a file.
+
 ## A package's id asks for a bank; the machine assigns one
 
 **The machine decides, and it takes a free request.** A bank is a **slot** with no meaning. The

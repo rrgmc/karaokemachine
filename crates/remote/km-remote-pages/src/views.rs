@@ -993,6 +993,8 @@ pub struct PackageSetting {
     /// **One field per flag the page draws**, so each label is a key the template names and the
     /// catalog parity tests can see.
     pub uncurated: bool,
+    /// Whether it keeps its song files outside itself, which the row marks with a badge.
+    pub linked: bool,
 }
 
 /// The `#machine` block: which machine, how it was found, and what can be done about it.

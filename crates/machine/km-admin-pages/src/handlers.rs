@@ -1716,6 +1716,7 @@ pub async fn remove_picture(
 fn flag_label(words: &km_locale::Catalog, name: &str) -> Option<String> {
     match name {
         "uncurated" => Some(words.msg("package-flag-uncurated").into_owned()),
+        "linked" => Some(words.msg("package-flag-linked").into_owned()),
         _ => None,
     }
 }

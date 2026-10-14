@@ -352,6 +352,7 @@ request-played = Começou
 request-declined = Tirada da fila
 request-withdrawn = Retirada
 package-flag-uncurated = sem curadoria
+package-flag-linked = vinculado
 packages-shown = Pacotes na minha lista de músicas
 packages-shown-hint = Um pacote desmarcado fica fora das buscas, dos artistas e dos filtros neste celular. O número da música e os seus favoritos ainda encontram as músicas dele.
 packages-hidden-saved = Sua lista de músicas deixa de fora os pacotes desmarcados.

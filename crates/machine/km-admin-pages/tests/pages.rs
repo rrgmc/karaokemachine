@@ -1241,6 +1241,31 @@ async fn an_uncurated_package_is_marked_on_the_songs_tab() {
     );
 }
 
+/// A linked package carries its badge on the Songs tab, beside any other flag it has.
+#[tokio::test]
+async fn a_linked_package_is_marked_on_the_songs_tab() {
+    let words = km_admin_pages::words::messages(km_locale::Locale::English);
+    let linked = words.msg("package-flag-linked").into_owned();
+    let uncurated = words.msg("package-flag-uncurated").into_owned();
+
+    let machine = TestMachine::with_catalog(2);
+    machine.set_package_flags(
+        "vol1",
+        km_kmpkg::PackageFlags::LINKED.with(km_kmpkg::PackageFlags::UNCURATED),
+    );
+    let (app, _) = nested_as(Host::Machine, machine, Arc::new(SpyGuard::default()));
+    let (status, flagged) = get(&app, "/admin/songs").await;
+    assert_eq!(status, StatusCode::OK);
+    for label in [linked, uncurated] {
+        assert!(
+            flagged.contains(&format!(
+                r#"<span class="badge badge-quiet">{label}</span>"#
+            )),
+            "{label}: {flagged}"
+        );
+    }
+}
+
 #[tokio::test]
 async fn a_tools_capabilities_take_the_machines_own_controls_away() {
     // A tool's capabilities over the *same* implementation, which is the point: nothing about the
