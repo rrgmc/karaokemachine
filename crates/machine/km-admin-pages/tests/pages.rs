@@ -1265,7 +1265,7 @@ async fn a_linked_package_is_marked_on_the_songs_tab() {
         );
     }
     assert!(
-        flagged.contains("anywhere in the folder for linked packages"),
+        flagged.contains("anywhere in the linked folder"),
         "a package with no folder of its own says it reaches the whole folder: {flagged}"
     );
 }
@@ -1279,7 +1279,7 @@ async fn a_linked_package_names_the_folder_it_plays_from() {
     let (app, _) = nested_as(Host::Machine, machine, Arc::new(SpyGuard::default()));
     let (_, page) = get(&app, "/admin/songs").await;
     assert!(page.contains("cdg/Rigmar"), "{page}");
-    assert!(!page.contains("anywhere in the folder"), "{page}");
+    assert!(!page.contains("anywhere in the linked folder"), "{page}");
 
     // A package that holds its songs says nothing about a folder.
     let (plain, _) = nested_as(
@@ -1288,7 +1288,7 @@ async fn a_linked_package_names_the_folder_it_plays_from() {
         Arc::new(SpyGuard::default()),
     );
     let (_, page) = get(&plain, "/admin/songs").await;
-    assert!(!page.contains("folder for linked packages"), "{page}");
+    assert!(!page.contains("Plays from"), "{page}");
 }
 
 #[tokio::test]
