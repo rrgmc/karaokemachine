@@ -58,117 +58,45 @@
   {% endif %}
 </section>
 
-{# **The errands, one at a time**, and the pattern is `km-package-builder`'s `.curate` strip by
-   way of `km-admin`'s copy of it: flat radio siblings and `:checked ~`, no JavaScript. Two things
+{# **The settings, one topic at a time**, and the pattern is `km-package-builder`'s `.curate` strip
+   by way of `km-admin`'s copy of it: flat radio siblings and `:checked ~`, no JavaScript. Two things
    about it are load-bearing rather than stylistic.
 
    **The radios are flat siblings of the panes.** A strip that wrapped each pane would need `:has()`
    to reach sideways out of itself, and `.pane { display: none }` is unconditional -- so a browser
    that could not evaluate that would show *no* pane and this tab's whole settings half would be
    gone. `:checked ~` has worked for a decade, and a stylesheet that fails to load leaves every
-   section on the page, which is exactly the arrangement this replaces.
+   section on the page.
 
-   **They sit outside every form.** There are five `POST` forms below, and a radio inside one of them
-   would post a `machine-tab` key nobody reads. A test asserts this by position.
+   **They sit outside every form.** A radio inside a form would post a `machine-tab` key nobody
+   reads. A test asserts this by position.
 
-   **The order is `km-admin`'s**, because `Two admin surfaces, one vocabulary` requires that a page
-   existing on both be named the same, in the same case, in the same place. Language is the one pane
-   with no counterpart there -- that tool has no say over what the television speaks -- so it goes
-   last rather than displacing anything.
+   **A pane is a topic, named for what it holds**, everyday first and the developer's last. Both
+   hosts draw the same five, because `Two admin surfaces, one vocabulary` requires a page on both to
+   be named the same in the same place. A card one host lacks leaves its pane, never the strip.
 
-   Debugging opens, because it is the one pane that is never empty.
+   General opens, because it is the one pane that is never empty.
 
-   **A save comes back to the pane it was made on.** A notice about a rename, read underneath a debug
-   switch, is a notice about a page somebody is no longer looking at. The pane rides in the
-   redirect's query string, is checked against a fixed list of names by `handlers::back_pane`, and an
-   unknown one opens Debugging -- so nothing a caller sends reaches the `checked` attribute or the
-   redirect. `Pane::drawn` is the other half: a pane whose radio this host does not render would
-   leave no pane open at all, `display: none` being unconditional. #}
+   **A save comes back to the pane it was made on.** The pane rides in the redirect's query string,
+   is checked against a fixed list of names by `handlers::back_pane`, and an unknown one opens
+   General -- so nothing a caller sends reaches the `checked` attribute or the redirect. #}
 <div class="settings">
-  {# Each radio is gated with its pane and its label, all three together. A radio whose pane is
-     absent is a label that opens nothing, and the strip's whole shape is that pressing one shows
-     one. #}
-  <input type="radio" name="machine-tab" id="machine-tab-debug"{% if pane.is(Pane::Debug) %} checked{% endif %}>
-  <input type="radio" name="machine-tab" id="machine-tab-name"{% if pane.is(Pane::Name) %} checked{% endif %}>
-  <input type="radio" name="machine-tab" id="machine-tab-password"{% if pane.is(Pane::Password) %} checked{% endif %}>
-  <input type="radio" name="machine-tab" id="machine-tab-demo"{% if pane.is(Pane::Demo) %} checked{% endif %}>
-  <input type="radio" name="machine-tab" id="machine-tab-announcement"{% if pane.is(Pane::Announcement) %} checked{% endif %}>
-  {% if chrome.capabilities.screen_language %}
-  <input type="radio" name="machine-tab" id="machine-tab-language"{% if pane.is(Pane::Language) %} checked{% endif %}>
-  {% endif %}
+  <input type="radio" name="machine-tab" id="machine-tab-general"{% if pane.is(Pane::General) %} checked{% endif %}>
+  <input type="radio" name="machine-tab" id="machine-tab-access"{% if pane.is(Pane::Access) %} checked{% endif %}>
+  <input type="radio" name="machine-tab" id="machine-tab-singers"{% if pane.is(Pane::Singers) %} checked{% endif %}>
+  <input type="radio" name="machine-tab" id="machine-tab-playback"{% if pane.is(Pane::Playback) %} checked{% endif %}>
+  <input type="radio" name="machine-tab" id="machine-tab-developer"{% if pane.is(Pane::Developer) %} checked{% endif %}>
 
-  {# Labels rather than buttons, so a click is the radio's own and needs nothing bound to it. The
-     words are the headings they replace, which is why the strip needs no heading of its own -- and
-     why these keys are the existing card headings rather than new ones of their own. #}
+  {# Labels rather than buttons, so a click is the radio's own and needs nothing bound to it. #}
   <nav class="tabstrip">
-    <label for="machine-tab-debug">{{ "debug-heading"|t }}</label>
-    <label for="machine-tab-name">{{ "machine-name"|t }}</label>
-    <label for="machine-tab-password">{{ "password-field"|t }}</label>
-    <label for="machine-tab-demo">{{ "demo-heading"|t }}</label>
-    <label for="machine-tab-announcement">{{ "announcement-heading"|t }}</label>
-    {% if chrome.capabilities.screen_language %}
-    <label for="machine-tab-language">{{ "locale-machine"|t }}</label>
-    {% endif %}
+    <label for="machine-tab-general">{{ "pane-general"|t }}</label>
+    <label for="machine-tab-access">{{ "pane-access"|t }}</label>
+    <label for="machine-tab-singers">{{ "pane-singers"|t }}</label>
+    <label for="machine-tab-playback">{{ "pane-playback"|t }}</label>
+    <label for="machine-tab-developer">{{ "pane-developer"|t }}</label>
   </nav>
 
-  {# **Three switches on one pane, and they belong together rather than being crowded together.**
-     All three open something a machine in a living room should not have open, and two of them are
-     one condition: `/dev/` and its passwordless API need the console switch *and* debugging. A pane
-     that separated those would let somebody turn one on, see nothing happen, and have nowhere to
-     find out why -- which is what the third line of the console card says out loud.
-
-     Each switch reads the *stored* value, not the running one. The running value is a snapshot taken
-     when the router was built and cannot move, so a switch drawn from it said `Turn debugging on`
-     both before the press and after it. The panel is the exception and says so: it mounts nothing,
-     so there is only one value and it changes now. #}
-  <div class="pane debug">
-    <section class="card">
-      <h2>{{ "debug-heading"|t }}</h2>
-      <p class="hint">{{ "debug-explained"|t }}</p>
-      {% if chrome.debug_stored != chrome.debug_enabled %}
-      <p class="banner banner-warn">{{ "switch-after-restart"|t }}</p>
-      {% endif %}
-      <form method="post" action="/admin/machine/debug">
-        <input type="hidden" name="enabled" value="{% if chrome.debug_stored %}no{% else %}yes{% endif %}">
-        <button type="submit">
-          {% if chrome.debug_stored %}{{ "debug-turn-off"|t }}{% else %}{{ "debug-turn-on"|t }}{% endif %}
-        </button>
-      </form>
-    </section>
-
-    <section class="card">
-      <h2>{{ "console-heading"|t }}</h2>
-      <p class="hint">{{ "console-explained"|t }}</p>
-      {# Two reasons the console is not being served, and they want different sentences. Debugging
-         off is a switch somebody still has to press; both switches on is a restart somebody still
-         has to do. One condition covering both blamed the wrong one, and told an owner looking at
-         `Turn debugging off` that debugging was off. #}
-      {% if chrome.dev_remote_stored && !chrome.debug_stored %}
-      <p class="banner banner-warn">{{ "console-needs-debugging"|t }}</p>
-      {% else if chrome.dev_remote_stored != chrome.dev_remote_served %}
-      <p class="banner banner-warn">{{ "switch-after-restart"|t }}</p>
-      {% endif %}
-      <form method="post" action="/admin/machine/dev-remote">
-        <input type="hidden" name="enabled" value="{% if chrome.dev_remote_stored %}no{% else %}yes{% endif %}">
-        <button type="submit">
-          {% if chrome.dev_remote_stored %}{{ "console-turn-off"|t }}{% else %}{{ "console-turn-on"|t }}{% endif %}
-        </button>
-      </form>
-    </section>
-
-    <section class="card">
-      <h2>{{ "performance-heading"|t }}</h2>
-      <p class="hint">{{ "performance-explained"|t }}</p>
-      <form method="post" action="/admin/machine/performance">
-        <input type="hidden" name="enabled" value="{% if chrome.performance_overlay %}no{% else %}yes{% endif %}">
-        <button type="submit">
-          {% if chrome.performance_overlay %}{{ "performance-turn-off"|t }}{% else %}{{ "performance-turn-on"|t }}{% endif %}
-        </button>
-      </form>
-    </section>
-  </div>
-
-  <div class="pane name">
+  <div class="pane general">
     <section class="card">
       <h2>{{ "machine-name"|t }}</h2>
       <p class="hint">{{ "machine-name-hint"|t }}</p>
@@ -180,12 +108,47 @@
         <button type="submit">{{ "action-rename"|t }}</button>
       </form>
     </section>
+
+    {# What the *television* speaks, which is not what this page is in. Both hosts draw it where
+       they can set it: the machine sets it in process, and a tool sends
+       `PUT /admin/machine/locale`. The heading says which of the two languages it means, because
+       confusing them is the likeliest misreading of the whole feature. #}
+    {% if chrome.capabilities.screen_language %}
+    <section class="card">
+      <h2>{{ "locale-machine"|t }}</h2>
+      <form method="post" action="/admin/machine/locale" class="inline">
+        <select name="locale" aria-label="{{ "locale-machine"|t }}">
+          {% for choice in locales %}
+          <option value="{{ choice.tag }}"{% if choice.chosen %} selected{% endif %}>{{ choice.name }}</option>
+          {% endfor %}
+        </select>
+        <button type="submit">{{ "locale-save"|t }}</button>
+      </form>
+    </section>
+    {% endif %}
+
+    {# Last on its pane, and only where the host can do either. It is the only pair of controls
+       here that ends the session, so it stands away from the password on another pane. Restart
+       first, because it is the safer of the two. #}
+    {% if power %}
+    <section class="card">
+      <h2>{{ "power-heading"|t }}</h2>
+      <form method="post" action="/admin/machine/power/restart" class="inline">
+        <button type="submit">{{ "power-restart"|t }}</button>
+      </form>
+      <p class="hint">{{ "power-restart-hint"|t }}</p>
+      {# A link and not a form, because `GET` asks and `POST` does — the same pair every removal on
+         these pages uses, so the confirmation adds no second URL for anything to learn. #}
+      <p><a href="/admin/machine/power/off" class="danger">{{ "power-shutdown"|t }}</a></p>
+      <p class="hint">{{ "power-shutdown-hint"|t }}</p>
+    </section>
+    {% endif %}
   </div>
 
-  {# **Signing out everywhere shares this pane rather than taking one of its own.** They are
-     different acts -- an owner whose phone went missing should not have to pick a new password and
-     then tell the house what it is -- and they are the same errand, which is what a tab names. #}
-  <div class="pane password">
+  {# **Signing out everywhere shares this pane with the password.** They are different acts -- an
+     owner whose phone went missing should not have to pick a new password and then tell the house
+     what it is -- and they are the same topic: who gets in. #}
+  <div class="pane access">
     <section class="card">
       <h2>{{ "password-field"|t }}</h2>
       {% if chrome.factory_password %}
@@ -262,8 +225,18 @@
     {% when None %}
     {% endmatch %}
 
-    {# What the machine asks of a singer, beside the level that lets a phone ask at all. One form,
-       because all three answers are written down together. #}
+    <section class="card">
+      <h2>{{ "sessions-heading"|t }}</h2>
+      <p class="hint">{{ "sessions-explained"|t }}</p>
+      <form method="post" action="/admin/machine/sessions">
+        <button type="submit" class="danger">{{ "sessions-reset"|t }}</button>
+      </form>
+    </section>
+  </div>
+
+  <div class="pane singers">
+    {# What the machine asks of a singer, and the order their songs take. One form, because all
+       four answers are written down together. #}
     {% match singers %}
     {% when Some with (rules) %}
     <section class="card">
@@ -291,6 +264,7 @@
       </form>
     </section>
     {% when None %}
+    <p class="empty">{{ "pane-singers-none"|t }}</p>
     {% endmatch %}
 
     {# Beside the singers, because it is their evening the machine keeps. A machine with no such
@@ -310,42 +284,28 @@
     </section>
     {% when None %}
     {% endmatch %}
-
-    {# On this pane because it is a permission the owner gives. The folder has no box here: no page
-       points the machine at a folder on its own disk. A machine with no such route answers `None`,
-       and the card is not drawn. #}
-    {% match linked_packages %}
-    {% when Some with (linked) %}
-    <section class="card">
-      <h2>{{ "linked-packages-heading"|t }}</h2>
-      <p class="hint">{{ "linked-packages-hint"|t }}</p>
-      {% if linked.folder_unset %}
-      <p class="hint">{{ "linked-packages-folder-unset"|t }}</p>
-      {% endif %}
-      {% if linked.folder_missing %}
-      <p class="hint">{{ "linked-packages-folder-missing"|t }}</p>
-      {% endif %}
-      <form method="post" action="/admin/machine/linked-packages">
-        <label class="check">
-          <input type="checkbox" name="linked_packages" value="yes"{% if linked.enabled %} checked{% endif %}>
-          {{ "linked-packages-enabled"|t }}
-        </label>
-        <button type="submit">{{ "linked-packages-save"|t }}</button>
-      </form>
-    </section>
-    {% when None %}
-    {% endmatch %}
-
-    <section class="card">
-      <h2>{{ "sessions-heading"|t }}</h2>
-      <p class="hint">{{ "sessions-explained"|t }}</p>
-      <form method="post" action="/admin/machine/sessions">
-        <button type="submit" class="danger">{{ "sessions-reset"|t }}</button>
-      </form>
-    </section>
   </div>
 
-  <div class="pane demo">
+  {# What happens around and during a song. The announcement before it, the demo when nobody
+     sings, and two choices about how a song ends and sounds. #}
+  <div class="pane playback">
+    {# One form, where demo mode has two. Both values are always written down, so one Save means
+       one thing for both. #}
+    <section class="card">
+      <h2>{{ "announcement-heading"|t }}</h2>
+      <p class="hint">{{ "announcement-hint"|t }}</p>
+      <form method="post" action="/admin/machine/announcement">
+        <label class="check">
+          <input type="checkbox" name="enabled" value="yes"{% if announcement_enabled %} checked{% endif %}>
+          {{ "announcement-enabled"|t }}
+        </label>
+        <label for="announcement-length">{{ "announcement-length-label"|t }}</label>
+        <input type="number" id="announcement-length" name="length_secs" value="{{ announcement_length_secs }}"
+               min="1" max="{{ announcement_length_max }}" step="1" inputmode="numeric">
+        <button type="submit">{{ "announcement-save"|t }}</button>
+      </form>
+    </section>
+
     <section class="card">
       <h2>{{ "demo-heading"|t }}</h2>
       <p class="hint">{{ "demo-hint"|t }}</p>
@@ -395,62 +355,62 @@
     </section>
   </div>
 
-  {# One form, where demo mode has two. Both values are always written down, so one Save means one
-     thing for both. #}
-  <div class="pane announcement">
-    <section class="card">
-      <h2>{{ "announcement-heading"|t }}</h2>
-      <p class="hint">{{ "announcement-hint"|t }}</p>
-      <form method="post" action="/admin/machine/announcement">
-        <label class="check">
-          <input type="checkbox" name="enabled" value="yes"{% if announcement_enabled %} checked{% endif %}>
-          {{ "announcement-enabled"|t }}
-        </label>
-        <label for="announcement-length">{{ "announcement-length-label"|t }}</label>
-        <input type="number" id="announcement-length" name="length_secs" value="{{ announcement_length_secs }}"
-               min="1" max="{{ announcement_length_max }}" step="1" inputmode="numeric">
-        <button type="submit">{{ "announcement-save"|t }}</button>
-      </form>
-    </section>
-  </div>
+  {# **Three switches on one pane, and they belong together rather than being crowded together.**
+     All three open something a machine in a living room should not have open, and two of them are
+     one condition: `/dev/` and its passwordless API need the console switch *and* debugging. A pane
+     that separated those would let somebody turn one on, see nothing happen, and have nowhere to
+     find out why -- which is what the third line of the console card says out loud.
 
-  {# What the *television* speaks, which is not what this page is in. Both hosts draw it: the
-     machine sets it in process, and a tool sends `PUT /admin/machine/locale`. The heading says
-     which of the two languages it means, because confusing them is the likeliest misreading of the
-     whole feature. #}
-  {% if chrome.capabilities.screen_language %}
-  <div class="pane language">
+     Each switch reads the *stored* value, not the running one. The running value is a snapshot taken
+     when the router was built and cannot move, so a switch drawn from it said `Turn debugging on`
+     both before the press and after it. The panel is the exception and says so: it mounts nothing,
+     so there is only one value and it changes now. #}
+  <div class="pane developer">
     <section class="card">
-      <h2>{{ "locale-machine"|t }}</h2>
-      <form method="post" action="/admin/machine/locale" class="inline">
-        <select name="locale" aria-label="{{ "locale-machine"|t }}">
-          {% for choice in locales %}
-          <option value="{{ choice.tag }}"{% if choice.chosen %} selected{% endif %}>{{ choice.name }}</option>
-          {% endfor %}
-        </select>
-        <button type="submit">{{ "locale-save"|t }}</button>
+      <h2>{{ "debug-heading"|t }}</h2>
+      <p class="hint">{{ "debug-explained"|t }}</p>
+      {% if chrome.debug_stored != chrome.debug_enabled %}
+      <p class="banner banner-warn">{{ "switch-after-restart"|t }}</p>
+      {% endif %}
+      <form method="post" action="/admin/machine/debug">
+        <input type="hidden" name="enabled" value="{% if chrome.debug_stored %}no{% else %}yes{% endif %}">
+        <button type="submit">
+          {% if chrome.debug_stored %}{{ "debug-turn-off"|t }}{% else %}{{ "debug-turn-on"|t }}{% endif %}
+        </button>
+      </form>
+    </section>
+
+    <section class="card">
+      <h2>{{ "console-heading"|t }}</h2>
+      <p class="hint">{{ "console-explained"|t }}</p>
+      {# Two reasons the console is not being served, and they want different sentences. Debugging
+         off is a switch somebody still has to press; both switches on is a restart somebody still
+         has to do. One condition covering both blamed the wrong one, and told an owner looking at
+         `Turn debugging off` that debugging was off. #}
+      {% if chrome.dev_remote_stored && !chrome.debug_stored %}
+      <p class="banner banner-warn">{{ "console-needs-debugging"|t }}</p>
+      {% else if chrome.dev_remote_stored != chrome.dev_remote_served %}
+      <p class="banner banner-warn">{{ "switch-after-restart"|t }}</p>
+      {% endif %}
+      <form method="post" action="/admin/machine/dev-remote">
+        <input type="hidden" name="enabled" value="{% if chrome.dev_remote_stored %}no{% else %}yes{% endif %}">
+        <button type="submit">
+          {% if chrome.dev_remote_stored %}{{ "console-turn-off"|t }}{% else %}{{ "console-turn-on"|t }}{% endif %}
+        </button>
+      </form>
+    </section>
+
+    <section class="card">
+      <h2>{{ "performance-heading"|t }}</h2>
+      <p class="hint">{{ "performance-explained"|t }}</p>
+      <form method="post" action="/admin/machine/performance">
+        <input type="hidden" name="enabled" value="{% if chrome.performance_overlay %}no{% else %}yes{% endif %}">
+        <button type="submit">
+          {% if chrome.performance_overlay %}{{ "performance-turn-off"|t }}{% else %}{{ "performance-turn-on"|t }}{% endif %}
+        </button>
       </form>
     </section>
   </div>
-  {% endif %}
 </div>
-
-{# Last on the page on purpose, and only where the host can do either. Every card above it is a
-   setting; this one is the only pair of controls that ends the session, and putting a `danger`
-   control up beside the password field is a misclick waiting to happen. Restart first, because it
-   is the safer of the two. #}
-{% if power %}
-<section class="card">
-  <h2>{{ "power-heading"|t }}</h2>
-  <form method="post" action="/admin/machine/power/restart" class="inline">
-    <button type="submit">{{ "power-restart"|t }}</button>
-  </form>
-  <p class="hint">{{ "power-restart-hint"|t }}</p>
-  {# A link and not a form, because `GET` asks and `POST` does — the same pair every removal on
-     these pages uses, so the confirmation adds no second URL for anything to learn. #}
-  <p><a href="/admin/machine/power/off" class="danger">{{ "power-shutdown"|t }}</a></p>
-  <p class="hint">{{ "power-shutdown-hint"|t }}</p>
-</section>
-{% endif %}
 
 {% endblock %}

@@ -14,6 +14,15 @@ tab-songs = Songs
 tab-sound = Sound
 tab-pictures = Pictures
 
+## The panes on This machine
+
+pane-general = General
+pane-access = Access
+pane-singers = Singers and queue
+pane-playback = Playback
+pane-developer = Developer
+pane-singers-none = This machine has no singer settings.
+
 ## Signing in
 
 sign-in = Sign in

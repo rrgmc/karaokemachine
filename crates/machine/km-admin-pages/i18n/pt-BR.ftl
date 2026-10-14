@@ -13,6 +13,15 @@ tab-songs = Músicas
 tab-sound = Som
 tab-pictures = Imagens
 
+## Os painéis de Esta máquina
+
+pane-general = Geral
+pane-access = Acesso
+pane-singers = Cantores e fila
+pane-playback = Reprodução
+pane-developer = Desenvolvedor
+pane-singers-none = Esta máquina não tem ajustes de cantores.
+
 ## Entrar
 
 sign-in = Entrar

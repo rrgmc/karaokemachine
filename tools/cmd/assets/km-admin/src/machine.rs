@@ -149,7 +149,7 @@ pub enum Call<'a> {
     /// `POST` — end every outstanding session on the machine, this program's included.
     ///
     /// **Arrived with the shared page rather than with a feature.** *Sign out everywhere* shares the
-    /// password pane on the machine's own surface — two different acts, one errand — so serving that
+    /// Access pane on the machine's own surface — two different acts, one errand — so serving that
     /// markup means being able to answer both. An owner whose phone went missing should not have to
     /// pick a new password and then tell the house what it is.
     ResetSessions,

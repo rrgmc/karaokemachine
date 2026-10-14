@@ -532,7 +532,7 @@ and `SingerDto` carries it.
 
 **`Controller::singer_rules` and `set_singer_rules` carry the owner's three answers.**
 `GET /singers/rules` reads them at the `view` level, and `PUT /admin/singers/rules` sets them. The
-owner's page posts one form to `/admin/machine/singers`, on the password pane. `SwitchState::singers`
+owner's page posts one form to `/admin/machine/singers`, on the Singers and queue pane. `SwitchState::singers`
 is an `Option`, because `km-admin` may be talking to a machine that has no such route. That page
 then draws no singers card, where a failed read would have taken the whole pane down.
 

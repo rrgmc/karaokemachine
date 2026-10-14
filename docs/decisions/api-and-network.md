@@ -86,9 +86,9 @@ a name, for a host who calls each one by the name on the screen. `singers.max_pe
 singers on one device, and a home that passes one phone around wants no cap. The machine counts by
 the id a remote sends, so the cap stops a mistake and not a cheat.
 
-**The owner sets them on the password tab, beside the room level.** The level says whether a phone
-may ask, and these say what the machine asks of a singer who does. `singers.max_waiting` is the
-third answer on the same form.
+**The owner sets them on the Singers and queue pane.** The room level, on the Access pane, says
+whether a phone may ask, and these say what the machine asks of a singer who does.
+`singers.max_waiting` and `singers.queue_order` are the third and fourth answers on the same form.
 
 **One route reads the three and one writes them.** `GET /api/v1/singers/rules` is public, so a
 remote can ask for a name before the first song. `PUT /api/v1/admin/singers/rules` takes the three together and writes

@@ -599,9 +599,9 @@ async fn key_and_tempo_for_recorded_songs_is_a_box_on_the_machine_page() {
     }
 }
 
-/// Allowing linked packages is one box on the password pane, and the page has no box for the folder.
+/// Allowing linked packages is one box on the Songs page, and the page has no box for the folder.
 #[tokio::test]
-async fn allowing_linked_packages_is_a_box_on_the_machine_page() {
+async fn allowing_linked_packages_is_a_box_on_the_songs_page() {
     for host in BOTH_HOSTS {
         let surface = host.name();
         let (app, state) = nested_as(
@@ -610,7 +610,7 @@ async fn allowing_linked_packages_is_a_box_on_the_machine_page() {
             Arc::new(SpyGuard::default()),
         );
 
-        let (status, body) = get(&app, "/admin/machine").await;
+        let (status, body) = get(&app, "/admin/songs").await;
         assert_eq!(status, StatusCode::OK, "{surface}");
         assert!(
             body.contains(r#"action="/admin/machine/linked-packages""#),
@@ -637,7 +637,7 @@ async fn allowing_linked_packages_is_a_box_on_the_machine_page() {
         .await;
         assert!(status.is_redirection(), "{surface}: {status}");
         assert!(state.controller().linked_packages().enabled, "{surface}");
-        let (_, body) = get(&app, "/admin/machine").await;
+        let (_, body) = get(&app, "/admin/songs").await;
         assert!(
             body.contains(r#"name="linked_packages" value="yes" checked"#),
             "{surface}: {body}"
@@ -650,7 +650,7 @@ async fn allowing_linked_packages_is_a_box_on_the_machine_page() {
     }
 }
 
-/// Keeping the evening is one box on the password pane, beside what the machine asks of a singer.
+/// Keeping the evening is one box on the singers pane, beside what the machine asks of a singer.
 #[tokio::test]
 async fn keeping_the_evening_is_a_box_on_the_machine_page() {
     for host in BOTH_HOSTS {
@@ -1057,11 +1057,11 @@ async fn the_machine_tabs_errands_are_a_strip_outside_every_form() {
     );
 
     for pane in [
-        "pane debug",
-        "pane name",
-        "pane password",
-        "pane demo",
-        "pane language",
+        "pane general",
+        "pane access",
+        "pane singers",
+        "pane playback",
+        "pane developer",
     ] {
         assert!(body.contains(pane), "{pane} is missing: {body}");
     }
@@ -1869,7 +1869,7 @@ async fn a_machine_on_its_factory_password_says_so_on_every_page() {
                 "{surface}: {path} does not carry the banner"
             );
             assert!(
-                body.contains(r#"href="/admin/machine?pane=password""#),
+                body.contains(r#"href="/admin/machine?pane=access""#),
                 "{surface}: {path}'s banner does not link to the pane that fixes it"
             );
         }
@@ -1882,10 +1882,10 @@ async fn the_factory_password_banner_opens_the_pane_it_names() {
     for host in BOTH_HOSTS {
         let surface = host.name();
         let (app, _) = nested_as_with_password(host, Arc::new(SpyGuard::default()));
-        let (status, body) = get(&app, "/admin/machine?pane=password").await;
+        let (status, body) = get(&app, "/admin/machine?pane=access").await;
         assert_eq!(status, StatusCode::OK, "{surface}");
         assert!(
-            body.contains(r#"id="machine-tab-password" checked"#),
+            body.contains(r#"id="machine-tab-access" checked"#),
             "{surface} opened something other than the pane the banner names: {body}"
         );
     }
@@ -1910,10 +1910,10 @@ async fn a_tool_with_no_token_keeps_the_pane_and_says_what_is_missing() {
     });
     let (app, _) = nested_as_with_password(Host::Tool, guard);
 
-    let (status, body) = get(&app, "/admin/machine?pane=password").await;
+    let (status, body) = get(&app, "/admin/machine?pane=access").await;
     assert_eq!(status, StatusCode::OK);
     assert!(
-        body.contains(r#"id="machine-tab-password" checked"#),
+        body.contains(r#"id="machine-tab-access" checked"#),
         "the pane the link asked for was taken away: {body}"
     );
     assert!(
@@ -2971,7 +2971,54 @@ async fn a_tool_says_whether_it_is_logged_in_and_the_machine_does_not() {
 }
 
 /// Every pane a radio names, for the count below and for the fallback above it.
-const EVERY_PANE: [&str; 5] = ["debug", "name", "password", "demo", "language"];
+const EVERY_PANE: [&str; 5] = ["general", "access", "singers", "playback", "developer"];
+
+/// Each card sits on the pane named for its topic.
+#[tokio::test]
+async fn each_card_sits_on_the_pane_named_for_its_topic() {
+    for host in BOTH_HOSTS {
+        let surface = host.name();
+        let (app, _) = nested_as(
+            host,
+            TestMachine::with_catalog(6),
+            Arc::new(SpyGuard::default()),
+        );
+        let (_, body) = get(&app, "/admin/machine").await;
+        let pane_of = |action: &str| {
+            let at = body
+                .find(&format!(r#"action="{action}""#))
+                .unwrap_or_else(|| panic!("{surface}: no form for {action}"));
+            // The panes stand in strip order, so the last one opened before the form holds it.
+            EVERY_PANE
+                .into_iter()
+                .rev()
+                .find(|pane| {
+                    body.find(&format!(r#"<div class="pane {pane}">"#))
+                        .is_some_and(|start| start < at)
+                })
+                .expect("a pane before the form")
+        };
+        for (action, pane) in [
+            ("/admin/machine/name", "general"),
+            ("/admin/machine/password", "access"),
+            ("/admin/machine/access", "access"),
+            ("/admin/machine/sessions", "access"),
+            ("/admin/machine/singers", "singers"),
+            ("/admin/machine/keep-evening", "singers"),
+            ("/admin/machine/announcement", "playback"),
+            ("/admin/machine/demo", "playback"),
+            ("/admin/machine/end-on-silence", "playback"),
+            ("/admin/machine/adjust-recordings", "playback"),
+            ("/admin/machine/debug", "developer"),
+        ] {
+            assert_eq!(pane_of(action), pane, "{surface}: {action}");
+        }
+        assert!(
+            !body.contains(r#"action="/admin/machine/linked-packages""#),
+            "{surface}: linked packages is on the Songs page"
+        );
+    }
+}
 
 /// Exactly one pane opens, on either host and whatever a query string asked for.
 ///
@@ -2988,8 +3035,8 @@ async fn exactly_one_pane_opens_whatever_was_asked_for() {
         for asked in [
             "",
             "?pane=login",
-            "?pane=language",
-            "?pane=demo",
+            "?pane=password",
+            "?pane=playback",
             "?pane=nonsense",
         ] {
             let (app, _) = nested_as_with_password(host, Arc::new(SpyGuard::default()));
@@ -3017,23 +3064,14 @@ async fn exactly_one_pane_opens_whatever_was_asked_for() {
 #[tokio::test]
 async fn a_save_comes_back_to_the_pane_it_was_made_on() {
     for (path, body, pane) in [
-        ("/admin/machine/name", "name=Living+Room", "name"),
-        ("/admin/machine/demo", "enabled=yes", "demo"),
-        ("/admin/machine/demo-delay", "delay_secs=45", "demo"),
-        ("/admin/machine/end-on-silence", "", "demo"),
-        ("/admin/machine/adjust-recordings", "", "demo"),
-        (
-            "/admin/machine/keep-evening",
-            "keep_evening=yes",
-            "password",
-        ),
-        (
-            "/admin/machine/linked-packages",
-            "linked_packages=yes",
-            "password",
-        ),
-        ("/admin/machine/debug", "enabled=yes", "debug"),
-        ("/admin/machine/sessions", "", "password"),
+        ("/admin/machine/name", "name=Living+Room", "general"),
+        ("/admin/machine/demo", "enabled=yes", "playback"),
+        ("/admin/machine/demo-delay", "delay_secs=45", "playback"),
+        ("/admin/machine/end-on-silence", "", "playback"),
+        ("/admin/machine/adjust-recordings", "", "playback"),
+        ("/admin/machine/keep-evening", "keep_evening=yes", "singers"),
+        ("/admin/machine/debug", "enabled=yes", "developer"),
+        ("/admin/machine/sessions", "", "access"),
     ] {
         let (app, _) = nested_with_password(Arc::new(SpyGuard::default()));
         let said = post_form_to(&app, path, body).await;
@@ -3051,13 +3089,13 @@ async fn a_save_comes_back_to_the_pane_it_was_made_on() {
     }
 }
 
-/// A pane nobody wrote down opens Debugging, and nothing that arrived is echoed into the page.
+/// A pane nobody wrote down opens General, and nothing that arrived is echoed into the page.
 ///
 /// The value comes off a query string and is interpolated into a redirect, so `handlers::back_pane`
 /// answers with an enum and the URL is built from `Pane::id`. This is that, asserted: an unknown
 /// name is a fallback rather than an opening for markup.
 #[tokio::test]
-async fn an_unknown_pane_opens_debugging_and_is_never_echoed() {
+async fn an_unknown_pane_opens_general_and_is_never_echoed() {
     let (app, _) = nested_with_password(Arc::new(SpyGuard::default()));
     let (status, body) = get(
         &app,
@@ -3066,7 +3104,7 @@ async fn an_unknown_pane_opens_debugging_and_is_never_echoed() {
     .await;
     assert_eq!(status, StatusCode::OK);
     assert!(
-        body.contains(r#"id="machine-tab-debug" checked"#),
+        body.contains(r#"id="machine-tab-general" checked"#),
         "an unknown pane did not fall back to the one that is never empty"
     );
     assert!(

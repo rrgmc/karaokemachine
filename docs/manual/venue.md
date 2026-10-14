@@ -13,8 +13,9 @@ forgets the singers when the host starts a new evening.
 
 ## Set the machine up once
 
-**The owner sets eight things before the doors open.** All eight are on the password tab of the
-setup pages. See [Setting it up from a browser](setup.md#decide-what-a-guests-phone-can-do).
+**The owner sets eight things before the doors open.** All eight are on the setup pages' *This
+machine* tab, under **Access** and **Singers and queue**. See
+[Setting it up from a browser](setup.md#decide-what-a-guests-phone-can-do).
 
 | Setting | At a venue | Why |
 |---|---|---|

@@ -339,32 +339,29 @@ a.danger {
 
 /* One arm per tab, and they have to be written out: a selector cannot ask which radio is checked
  * without naming it. */
-#machine-tab-debug:checked ~ .pane.debug,
-#machine-tab-name:checked ~ .pane.name,
-#machine-tab-password:checked ~ .pane.password,
-#machine-tab-demo:checked ~ .pane.demo,
-#machine-tab-announcement:checked ~ .pane.announcement,
-#machine-tab-language:checked ~ .pane.language {
+#machine-tab-general:checked ~ .pane.general,
+#machine-tab-access:checked ~ .pane.access,
+#machine-tab-singers:checked ~ .pane.singers,
+#machine-tab-playback:checked ~ .pane.playback,
+#machine-tab-developer:checked ~ .pane.developer {
   display: block;
 }
 
-#machine-tab-debug:checked ~ .tabstrip label[for="machine-tab-debug"],
-#machine-tab-name:checked ~ .tabstrip label[for="machine-tab-name"],
-#machine-tab-password:checked ~ .tabstrip label[for="machine-tab-password"],
-#machine-tab-demo:checked ~ .tabstrip label[for="machine-tab-demo"],
-#machine-tab-announcement:checked ~ .tabstrip label[for="machine-tab-announcement"],
-#machine-tab-language:checked ~ .tabstrip label[for="machine-tab-language"] {
+#machine-tab-general:checked ~ .tabstrip label[for="machine-tab-general"],
+#machine-tab-access:checked ~ .tabstrip label[for="machine-tab-access"],
+#machine-tab-singers:checked ~ .tabstrip label[for="machine-tab-singers"],
+#machine-tab-playback:checked ~ .tabstrip label[for="machine-tab-playback"],
+#machine-tab-developer:checked ~ .tabstrip label[for="machine-tab-developer"] {
   color: var(--text);
   border-bottom-color: var(--accent);
 }
 
 /* Keyboard users get the focus ring the hidden input would otherwise take with it. */
-#machine-tab-debug:focus-visible ~ .tabstrip label[for="machine-tab-debug"],
-#machine-tab-name:focus-visible ~ .tabstrip label[for="machine-tab-name"],
-#machine-tab-password:focus-visible ~ .tabstrip label[for="machine-tab-password"],
-#machine-tab-demo:focus-visible ~ .tabstrip label[for="machine-tab-demo"],
-#machine-tab-announcement:focus-visible ~ .tabstrip label[for="machine-tab-announcement"],
-#machine-tab-language:focus-visible ~ .tabstrip label[for="machine-tab-language"] {
+#machine-tab-general:focus-visible ~ .tabstrip label[for="machine-tab-general"],
+#machine-tab-access:focus-visible ~ .tabstrip label[for="machine-tab-access"],
+#machine-tab-singers:focus-visible ~ .tabstrip label[for="machine-tab-singers"],
+#machine-tab-playback:focus-visible ~ .tabstrip label[for="machine-tab-playback"],
+#machine-tab-developer:focus-visible ~ .tabstrip label[for="machine-tab-developer"] {
   outline: 2px solid var(--accent);
   outline-offset: -2px;
 }

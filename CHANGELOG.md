@@ -19,10 +19,10 @@ Entries are written for somebody who has the machine. Why any of it is the way i
   file browser. A television shows no menu.
 
 - **A machine can keep the night through a restart.** A venue turns on *Keep the queue and the
-  singers when the machine restarts*, on the password tab. After a power cut the machine starts
-  with its queue, its singers and their waiting songs, and each phone still holds its singer. The
-  song that was playing is first in the queue. The setting starts off, so a home machine starts
-  with an empty queue.
+  singers when the machine restarts*, on the Singers and queue pane. After a power cut the machine
+  starts with its queue, its singers and their waiting songs, and each phone still holds its
+  singer. The song that was playing is first in the queue. The setting starts off, so a home
+  machine starts with an empty queue.
 - **A package can name its songs and hold none of them.** A *linked* package plays song files from
   one folder on the machine's disk, so a library that already sits in a folder is stored once.
   KM Simple Package and `km-package-builder` each have a box that builds one, and so does
@@ -76,9 +76,9 @@ Entries are written for somebody who has the machine. Why any of it is the way i
   the singers, and the song that is playing plays on.
 - **A song somebody already has brings a question.** A guest who asks for a song that is in the
   queue, or that somebody sang tonight, is asked once and can ask anyway.
-- **The owner's page sets what the machine asks of a singer.** The password tab has a **Singers**
-  card with three settings. They say whether every singer gives a name, how many singers one phone
-  may add, and how many songs one singer may have waiting.
+- **The owner's page sets what the machine asks of a singer.** The Singers and queue pane has a
+  **Singers** card. It says whether every singer gives a name, how many singers one phone may add,
+  and how many songs one singer may have waiting.
 - **The queue on the machine's screen counts the songs that wait behind it.** Its header reads
   *3 songs waiting · 5 more asked for*, so the room sees how much singing is still to come.
 - **Each queued song shows about how long until it starts.** The phone's Queue tab and the queue on
@@ -90,8 +90,12 @@ Entries are written for somebody who has the machine. Why any of it is the way i
 - **A guest's phone asks for songs by default, and no longer changes the key.** A phone with no
   code can ask for songs. It cannot change key, tempo, guide melody or music volume, and it cannot
   add a song out of turn. A machine whose room was at *Queue songs* is now at *Ask for songs*. To
-  give every guest those controls again, open the password tab of the owner's page and choose the
+  give every guest those controls again, open the Access pane of the owner's page and choose the
   level above it. *Watch only* and *skip and play now* stay as you set them.
+- **This machine groups its settings in five panes, each named for its topic.** General holds the
+  name, the screen language and the power. Access holds the password, who may do what and signing
+  out. Singers and queue, Playback and Developer follow. Linked packages sits on the Songs tab.
+  The machine's own page and km-admin show the same five.
 - **Songs play in the order asked unless the owner chooses turns.** A guest's + puts the song at the
   end of the queue, named or not, however many that guest has asked for. **Queue order** sits on
   the Singers card of the owner's page and of km-admin. **Singers take turns** keeps one song for
