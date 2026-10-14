@@ -4,17 +4,18 @@
 #
 #   tools/dev/screenshots.sh              # everything this machine can do
 #   tools/dev/screenshots.sh --display    # the three SDL pictures only: no servers, no browser
-#   tools/dev/screenshots.sh --web        # the four browser pictures only
+#   tools/dev/screenshots.sh --web        # the five browser pictures only
 #   tools/dev/screenshots.sh --keep       # leave the servers up afterwards, for a manual look
 #
-# Eight pictures, from four surfaces:
+# Nine pictures, from four surfaces:
 #
 #   screen-playing.png       screen-idle-connect.png   screen-queue.png     the television
 #   remote-browse.png        remote-now.png            remote-queue.png     the singer's remote
+#   remote-host.png                                                         the host's tab
 #   remote-offline.png                                                      the offline remote
 #   package-builder-songs.png                                               km-package-builder
 #
-# The ninth picture in docs/images, screen-singing.webp, is tools/dev/screen-animation.sh's. It shows
+# The tenth picture in docs/images, screen-singing.webp, is tools/dev/screen-animation.sh's. It shows
 # a released carol rather than the corpus, so it needs neither this script nor a corpus.
 #
 # Why a script and not a paragraph in the README: a screenshot is a build product with no build. Left
@@ -236,7 +237,10 @@ freeze() {
 }
 
 api() { curl -sS "$@"; }
-api_post() { curl -sS -X POST "$API$1" -H 'content-type: application/json' -d "${2:-}" >/dev/null; }
+api_post() {
+  curl -sS -X POST "$API$1" -H 'content-type: application/json' \
+    ${TOKEN:+-H "authorization: Bearer $TOKEN"} -d "${2:-}" >/dev/null
+}
 
 wait_for() {
   for _ in $(seq 1 100); do
@@ -386,9 +390,13 @@ cargo run -q -p km-pack -- build "$SHOT_DIR/favorites.kmspec.yaml" \
 # `Machine::ensure_bank` reads before anything else, so it is the same act as an owner moving a
 # package with `PUT /api/v1/packages/{id}/bank` and needs no password to perform. `library.sqlite`
 # is deleted below, so bank 1 is always free to claim.
+#
+# **`room_access` is `queue`, so the phone pictures show the key and tempo**, which a guest at the
+# default `request` level does not see. The host's tab needs more than any room level gives, so the
+# run sets an admin password below and signs in with it.
 cat >"$MACHINE_DIR/settings.json" <<JSON
 {
-  "api": { "bind": "127.0.0.1:8277", "advertise_mdns": false },
+  "api": { "bind": "127.0.0.1:8277", "advertise_mdns": false, "room_access": "queue" },
   "audio": { "soundfont": "$REPO/assets/soundfont/GeneralUser-GS.sf2", "music_volume": 0.0 },
   "display": { "enabled": false },
   "machine": { "name": "KaraokeMachine", "locale": "en" },
@@ -400,6 +408,12 @@ JSON
 # with each other.
 rm -f "$MACHINE_DIR/library.sqlite"
 
+# The settings file holds an argon2 hash, so the password goes in through the machine's own flag,
+# which writes it and exits. The machine listens on loopback only, and the file is rewritten each run.
+ADMIN_PASSWORD="screenshots"
+cargo run -q -p karaokemachine -- --data-dir "$MACHINE_DIR" --set-password "$ADMIN_PASSWORD" \
+  >>"$SHOT_DIR/machine.log" 2>&1 || warn "could not set the admin password; see $SHOT_DIR/machine.log"
+
 echo "starting the machine (headless, :8277)"
 cargo run -q -p karaokemachine -- --headless --data-dir "$MACHINE_DIR" \
   >"$SHOT_DIR/machine.log" 2>&1 &
@@ -408,6 +422,12 @@ wait_for "$API/discover" || {
   echo "screenshots: the machine never answered; see $SHOT_DIR/machine.log" >&2
   exit 1
 }
+
+# One token at the admin level, which includes control. It moves the transport, and as the remote's
+# `km_access` cookie it opens the host's tab.
+TOKEN=$(curl -sS -X POST "$API/login" -H 'content-type: application/json' \
+  -d "{\"password\":\"$ADMIN_PASSWORD\"}" | tr ',' '\n' | sed -n 's/.*"token":"\([^"]*\)".*/\1/p')
+[ -n "$TOKEN" ] || warn "could not sign in; the transport stays put and remote-host.png is left out"
 SONG_COUNT=$(api "$API/discover" | tr ',' '\n' | sed -n 's/.*"song_count":\([0-9]*\).*/\1/p')
 note "$SONG_COUNT songs"
 
@@ -563,9 +583,9 @@ QUEUE_LIST
 api_post /transport/seek '{"ms":72000}'
 api_post /transport/pause
 curl -sS -X PUT "$API/settings" -H 'content-type: application/json' \
-  -d '{"music_volume":0.8}' >/dev/null
+  ${TOKEN:+-H "authorization: Bearer $TOKEN"} -d '{"music_volume":0.8}' >/dev/null
 curl -sS -X PUT "$API/settings" -H 'content-type: application/json' \
-  -d '{"transpose":-2}' >/dev/null
+  ${TOKEN:+-H "authorization: Bearer $TOKEN"} -d '{"transpose":-2}' >/dev/null
 note "playing #$PLAYING, paused at 1:12, key -2"
 
 # ------------------------------------------------------- the display pictures
@@ -712,6 +732,12 @@ if [ "$DO_WEB" = 1 ]; then
     p=$(freeze now "$REMOTE/now" "$REMOTE/") && shot "$OUT/remote-now.png" 500 540 2 "file:///$p"
     p=$(freeze queue "$REMOTE/queue" "$REMOTE/" -H 'Cookie: km_singer=Nina') &&
       shot "$OUT/remote-queue.png" 500 540 2 "file:///$p"
+    # The host's tab, at a tablet's width because a host runs the night from one. The tab sets the
+    # queue beside the waiting songs there. The token stands in for a typed code.
+    if [ -n "$TOKEN" ]; then
+      p=$(freeze host "$REMOTE/host" "$REMOTE/" -H "Cookie: km_access=$TOKEN") &&
+        shot "$OUT/remote-host.png" 1024 720 1 "file:///$p"
+    fi
     # `remote-offline.png` is the offline remote's own songs list, and every difference from
     # `remote-browse.png` beside it is the point: a favorites mode where the machine's remote offers
     # the printed Book, the A–Z picker, and a star on every row. Both remotes carry three mode
@@ -745,6 +771,7 @@ expected_size() {
   case "$(basename "$1")" in
     screen-*) printf '1920x1080' ;;
     package-builder-*) printf '1440x900' ;;
+    remote-host.png) printf '1024x720' ;;
     remote-*) printf '1000x1080' ;;
   esac
 }

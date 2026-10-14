@@ -93,6 +93,11 @@ a turn. See [The keyboard](keyboard.md).
 tap **Use**. The remote then shows the host's tab, which is the ticked box in the tab bar. The
 controls stand at the top, and two tabs below them hold the queue and the singers.
 
+<p align="center"><img src="../images/remote-host.png" width="720" alt="The host's tab on a tablet:
+the playing song with play, restart, skip and stop buttons, then the Queue tab with six songs by
+place, title, artist and singer, each with its wait and buttons to move it up, move it down or take
+it out, and beside them the list of songs waiting for a turn"></p>
+
 **The host corrects, and the machine does the rest.** The host adds a song for a guest with no
 phone, puts a waiting song in early, and refuses one. The host also moves a singer to another
 phone, joins two names that are one person, and removes a singer who went home.

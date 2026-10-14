@@ -61,10 +61,7 @@ to the queue"></td>
 <td width="25%"><img src="docs/images/remote-now.png" alt="The remote's now-playing page: the song,
 the singer it was queued for, a progress bar, and steppers for key and tempo, a music volume slider
 and a guide-melody toggle"></td>
-<td width="25%"><img src="docs/images/remote-queue.png" alt="The remote's queue page: the song
-playing across the top with its transport folded away behind a toggle, then the queued songs by
-position, title, artist and the singer who asked for each, their move and remove buttons folded away
-behind a second toggle"></td>
+<td width="25%"><img src="docs/images/remote-queue.png" alt="The remote's queue page: the song playing across the top, then six queued songs by position, title, artist and the singer who asked for each, in that singer's colour, with about how long until each starts"></td>
 <td width="25%"><img src="docs/images/remote-offline.png" alt="The offline remote showing its song
 list, with a favorites mode, an A to Z picker, and a star beside each song for filing it as a
 favorite"></td>
@@ -72,8 +69,7 @@ favorite"></td>
 <tr>
 <td><sub><b>Search and ask for a song</b> from any phone. No app to install.</sub></td>
 <td><sub><b>The song as it plays</b> — key, tempo, guide melody, music volume.</sub></td>
-<td><sub><b>Who is up next</b>, changeable by anyone with the skip level. The controls stay
-folded until asked for.</sub></td>
+<td><sub><b>Who is up next</b>, and about when. Each singer has a colour of their own.</sub></td>
 <td><sub><b>The offline remote</b> adds favorites and an A–Z picker, and works with the machine
 switched off.</sub></td>
 </tr>
