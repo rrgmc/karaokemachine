@@ -14,6 +14,7 @@
 mod container;
 mod flags;
 pub mod language;
+pub mod linked;
 pub mod manifest;
 mod siblings;
 pub mod tag;
