@@ -13,7 +13,7 @@ show the mark.
 
 ## A package that holds no songs
 
-**Every tool here can build a linked package.** It names each song file by its path in the folder
+**Three tools build a linked package.** It names each song file by its path in the folder
 you built from, and holds none of them. The machine plays the songs from that folder, or from a copy
 of it. [Getting songs in](songs.md#linked-packages) says how to set the machine up for one.
 

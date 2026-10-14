@@ -26,7 +26,7 @@ Type the song's number and press `Enter`. The number comes from the remote's sea
 song number in blue, a disc in the corner counting the songs waiting, and a panel giving the
 machine's address on the network beside a QR code"></td>
 <td width="50%"><img src="../images/screen-queue.png" alt="The queue overlay drawn over a dimmed
-playing screen, listing four waiting songs by number and title with the singer who asked for each in
+playing screen, listing four waiting songs by place and title with the singer who asked for each in
 blue at the right"></td>
 </tr>
 <tr>

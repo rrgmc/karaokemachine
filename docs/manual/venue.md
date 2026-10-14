@@ -1,8 +1,8 @@
 # Running a public night
 
 A bar, a hall or a party of strangers runs on the same machine as a living room. Guests ask for
-songs from their own phones, and the machine puts the singers in turn. A host corrects what the
-machine did.
+songs from their own phones, and the owner sets the singers to take turns. A host corrects what
+the machine did.
 
 **The night needs no second program and no account.** A guest installs nothing, and the machine
 forgets the singers when the host starts a new evening.
@@ -20,7 +20,7 @@ machine* tab, under **Access** and **Singers and queue**. See
 | Setting | At a venue | Why |
 |---|---|---|
 | The admin password | Set one of your own, and keep it | The machine shows its first password on its own screen, where every guest reads it |
-| Room level | *Ask for songs* | Each table asks from a phone |
+| Room level | *Ask for songs*, the default | Each table asks from a phone |
 | Queue order | *Singers take turns* | Each singer gets a turn. The default plays songs in the order asked, so one table could fill the queue |
 | Code to skip | Set one, and give it to the host | It opens the host's tab |
 | Code to queue | Set none, or keep it | It adds a song out of turn, and it changes the key of any singer's song |
@@ -68,9 +68,9 @@ the package names.
    it starts. Below the queue, **Waiting for a turn** lists every singer's waiting songs. Tap it
    to open the list.
 
-**The machine keeps one song for each singer in the queue.** A second song waits until the first
-one starts, and then it goes to the end of the queue. So a table that asks for five songs sings one,
-and then waits for every other singer's turn.
+**With turns on, the machine keeps one song for each singer in the queue.** A second song waits
+until the first one starts, and then it goes to the end of the queue. So a table that asks for five
+songs sings one, and then waits for every other singer's turn.
 
 **No guest's phone changes another singer's song.** At this room level a phone cannot change the
 key, the tempo or the volume, and it cannot skip.
@@ -78,7 +78,7 @@ key, the tempo or the volume, and it cannot skip.
 ## What the room sees
 
 **The machine names each singer before the song.** For five seconds the whole screen shows the
-title and the singer's name.
+title, the artist and the singer's name. Demo songs are not announced.
 
 **While a song plays, the line under its title names the next song and its singer.** The singer's
 name is blue, so the next singer finds it from across the room.
