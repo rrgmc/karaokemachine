@@ -321,6 +321,11 @@ The name stays in the box between songs, so a pile of slips for one singer is ty
 the machine's: no case and no accents. A new one is a singer with no phone. The rule gives the song
 that singer's turn, whatever order the host enters songs in.
 
+**The name box offers the evening's named singers, and tapping a singer's name fills it.** A host
+adding for somebody who is here picks the name rather than typing it again. A typed name still
+works, so a new singer needs no step of their own. A singer with no name is not offered, because
+the box finds a singer by name.
+
 **The host's add warns about nothing.** A guest who asks for a song already in the queue is asked
 once. A host who enters it has read the slip.
 

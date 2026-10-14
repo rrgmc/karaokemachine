@@ -101,6 +101,7 @@ Entries are written for somebody who has the machine. Why any of it is the way i
   phone's list when it ends.
 - **The host's tab shows the song that plays, with its controls always open.** Stop, skip, restart
   and pause are at the top. Each singer takes one short line, and the actions open from the ⋯.
+  The name box offers the singers who are here, and tapping a singer's name fills it.
 - **The queue on the machine's screen gives the title more room.** A row shows the place, the
   title and the artist, and no song number. The singer's name takes only the room it needs.
 

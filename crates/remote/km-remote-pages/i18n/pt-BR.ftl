@@ -312,6 +312,7 @@ ask-again-no = Deixar
 tab-host = Anfitrião
 host-singer = Para
 host-singer-placeholder = o nome do cantor
+host-pick-singer = Adicionar a próxima música para este cantor
 host-song = Música
 host-song-placeholder = título ou artista
 host-add = Colocar para este cantor

@@ -52,6 +52,11 @@
   </div>
 
   <div class="host-singers">
+  {# The name box above offers these, so a host picks a singer who is here rather than typing the
+     name again. It sits in this fragment, so the choice follows the singers as they change. #}
+  <datalist id="host-singer-names">
+    {% for singer in singers %}{% if singer.named %}<option value="{{ singer.label }}"></option>{% endif %}{% endfor %}
+  </datalist>
   <h2 class="list-head">{{ "host-singers"|t }}</h2>
   {% if singers.is_empty() %}
   <p class="empty">{{ "host-singers-none"|t }}</p>
@@ -63,7 +68,15 @@
     <li class="host-singer">
       <div class="host-singer-head">
         <div class="queue-body">
+          {% if singer.named %}
+          {# Tapping the name puts it in the box above and moves on to the song, so the next song
+             the host adds is this singer's. #}
+          <button type="button" class="song-name pick-singer" title="{{ "host-pick-singer"|t }}"
+                  data-name="{{ singer.label }}"
+                  onclick="document.getElementById('host-singer').value = this.dataset.name; document.getElementById('host-song').focus()">{{ singer.label }}</button>
+          {% else %}
           <div class="song-name">{{ singer.label }}</div>
+          {% endif %}
           <div class="song-sub">{% if !singer.phone %}{{ "host-no-phone"|t }} &middot; {% endif %}{{ singer.counts }}</div>
         </div>
         <label for="host-singer-{{ singer.id }}" class="icon-btn actions-toggle"

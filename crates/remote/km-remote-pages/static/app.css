@@ -1059,6 +1059,19 @@ label.icon-btn { display: inline-flex; align-items: center; justify-content: cen
 .host-singer .queue-body { display: flex; align-items: baseline; gap: 0.5rem; }
 .host-singer .song-name { flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .host-singer .song-sub { white-space: nowrap; }
+/* A named singer's name is a button that fills the name box, so it reads as a link. */
+.pick-singer {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-weight: 500;
+  text-align: left;
+  text-decoration: underline dotted var(--text-dim);
+  text-underline-offset: 0.2em;
+  cursor: pointer;
+}
 .host-singer-actions {
   display: flex;
   flex-wrap: wrap;

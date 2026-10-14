@@ -6247,6 +6247,17 @@ async fn a_host_adds_songs_for_a_singer_by_name() {
         lists.contains("Song 1002"),
         "the waiting one is listed: {lists}"
     );
+    assert!(
+        lists.contains(r#"<datalist id="host-singer-names">"#)
+            && lists.contains(r#"<option value="Caio"></option>"#),
+        "the name box offers the singer: {lists}"
+    );
+    assert!(
+        lists.contains(r#"class="song-name pick-singer""#) && lists.contains(r#"data-name="Caio""#),
+        "and tapping the name picks the singer: {lists}"
+    );
+    let page = harness.get("/host").await;
+    assert!(page.contains(r#"list="host-singer-names""#), "{page}");
 }
 
 /// The two corrections to the rule, from the list of waiting requests.

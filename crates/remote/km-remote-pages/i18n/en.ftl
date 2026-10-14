@@ -365,6 +365,7 @@ ask-again-no = Leave it
 tab-host = Host
 host-singer = For
 host-singer-placeholder = the singer's name
+host-pick-singer = Add the next song for this singer
 host-song = Song
 host-song-placeholder = title or artist
 host-add = Add for this singer
