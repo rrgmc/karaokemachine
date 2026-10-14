@@ -20,18 +20,22 @@ the portable copies and the remote on its own.
 
 ## What changed
 
-<!-- platform: linux-arm64 -->
-- **A Raspberry Pi can install the machine and its tools.** This release has every Linux file for
-  arm64 as well: both `.deb` files, the tarball and the portable copy.
-<!-- /platform -->
-- **`km-admin` asks for the machine's password only when it needs it.** The opening page picks a
-  machine, and *Connect* goes straight in when this computer has its password.
-- **`km-admin` finds a saved password again after you pick another machine.**
-- **This page opens with one file for each platform.** Each row of the table above links the whole
-  machine for one system.
-- **The manual says what each system asks when you install.**
-- **The curation tool shows a package's tags under its name**, and its delete prompt names the
-  package.
+- **A host runs the night from a phone.** A phone with the skip code adds songs for guests,
+  accepts or refuses waiting songs, and manages the singers.
+- **A venue can make the singers take turns.** The queue then holds one song for each singer, so
+  nobody sings five songs in a row.
+- **A guest's phone asks for songs by default.** The host puts them in the queue. A guest's phone
+  does not change the key or the tempo.
+- **The machine announces each queued song.** The title, the artist and the singer's name fill the
+  screen for five seconds before it starts.
+- **A machine can keep the night through a restart.** After a power cut it starts with its queue
+  and its singers.
+- **Videos, MP3+G songs and songs with recorded audio change key and tempo.**
+- **A linked package plays songs from a folder already on the machine**, so a library is stored
+  once.
+- **The packaging tools read a song from a zip.**
+- **The recommended instrument bank installs.** Its publisher replaced the file, and the version
+  before this one refuses it.
 
 ## Every file
 
