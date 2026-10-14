@@ -1833,7 +1833,7 @@ async fn the_controls_toggle_holds_its_state_outside_the_fragment_the_pump_repla
 
     let queue = harness.get("/queue").await;
     let toggle = queue
-        .find(r#"class="icon-btn controls-toggle""#)
+        .find(r#"class="icon-btn controls-toggle needs-control""#)
         .expect("the queue page carries the controls toggle");
     let label = &queue[toggle..];
     let label = &label[..label.find("</label>").expect("the toggle's label closes") + 8];
@@ -5937,6 +5937,21 @@ async fn a_phones_list_names_the_song_that_plays_and_drops_the_sung_ones() {
     assert!(
         mine.contains("km:nowplaying from:body"),
         "the list asks again when the song changes: {mine}"
+    );
+}
+
+/// The ▾ opens nothing but the transport, so it hides wherever the transport does.
+#[tokio::test]
+async fn the_now_bar_toggle_needs_the_control_level() {
+    let harness = Harness::online();
+    let queue = harness.get("/queue").await;
+    assert!(
+        queue.contains(r#"class="icon-btn controls-toggle needs-control""#),
+        "{queue}"
+    );
+    assert!(
+        queue.contains(r#"<div class="transport needs-control">"#),
+        "{queue}"
     );
 }
 
