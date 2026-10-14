@@ -159,6 +159,8 @@ it are the same entry. How the thing is built is [`ARCHITECTURE.md`](../ARCHITEC
 - [A package file can say which set it is a volume of](packaging.md#a-package-file-can-say-which-set-it-is-a-volume-of)
 - [A package's header carries flags, and an unknown one is kept](packaging.md#a-packages-header-carries-flags-and-an-unknown-one-is-kept)
 - [An uncurated package says so everywhere but the television](packaging.md#an-uncurated-package-says-so-everywhere-but-the-television)
+- [A linked package keeps its song files outside itself](packaging.md#a-linked-package-keeps-its-song-files-outside-itself)
+- [A linked file is read only from inside one folder](packaging.md#a-linked-file-is-read-only-from-inside-one-folder)
 - [A package's id asks for a bank; the machine assigns one](packaging.md#a-packages-id-asks-for-a-bank-the-machine-assigns-one)
 - [A package's bank comes from its id, and from nothing else](packaging.md#a-packages-bank-comes-from-its-id-and-from-nothing-else)
 - [Bank 0 is the machine's own](packaging.md#bank-0-is-the-machines-own)

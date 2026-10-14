@@ -23,6 +23,16 @@ into the window and never extracts it.
 A bit this build does not know passes through unchanged. `PackageFlags::names` is the one map from a
 bit to a word.
 
+**A linked package has the same layout and a directory of another kind.** Its container version is
+2, and each song file is a record with the `linked` method. The record holds a path, a real length
+and a CRC, with no bytes behind it. `Package::with_linked_dir` says which folder the paths are
+below. `read_entry_whole` and `window` branch on the method, and `km_kmpkg::linked::open` reads the
+file.
+
+**The four reader functions keep their signatures**, so a caller reads a linked song as it reads any
+other. A read with no folder given is `PackageError::LinkedDirUnset`. `Package::graphics_name` names
+a song's `.cdg` for either type.
+
 **The directory is the only table**, so no second copy of a length can disagree with it, and there
 is nothing to cross-check. A stored entry is a contiguous byte range, and the directory says where it
 starts. So a decoder reads the package *as a file* from an offset.

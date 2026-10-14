@@ -109,6 +109,8 @@ the description a package was built from builds it again.
 ## Where a song's media lives
 
 **Inside the `.kmpkg`, as an uncompressed entry the decoder seeks into. A package is one file.**
+[A linked package](#a-linked-package-keeps-its-song-files-outside-itself) is the one exception, and
+its owner chooses it.
 
 A stored entry is a byte range, and the directory says where it begins. To play a video, the machine
 opens the package once to learn `(start, len)` and drops it. Then it reads the package **as a file**
@@ -159,6 +161,9 @@ MP3+G song's audio are stored, and the manifest, the MIDI and the `.cdg` are def
 the directory rather than a byte window, so it takes either method. A rebuild carries across whatever
 it found rather than imposing the rule afresh.
 
+**A linked file is neither.** It is a file on the disk, so a decoder seeks into it as it seeks into
+a stored entry.
+
 **What stays stored is not negotiable:** a compressed entry has no byte range to seek into.
 Compressing video or MP3 would break playback outright rather than merely cost something. It would
 save nothing anyway, because both are entropy-coded already.
@@ -195,6 +200,11 @@ a section of its own, because an id collision is a worse failure than a leak.
   They belong to the files' publishers rather than to the person packaging them. The stored bytes
   being the source's exact bytes is what `content_hash` means. A `lyric_preview` is the exception,
   and it is redacted for the *file's* author rather than for the packager's sake.
+
+- **A linked package names each song file by its path below one folder.** The folder and file names
+  of a library are in it, and the folder's own location is not. That is the cost of
+  [keeping the files outside](#a-linked-package-keeps-its-song-files-outside-itself). A person who
+  builds one chooses it, and a package that bundles its files records none of them.
 
 **The id is the opposite case and is refused**, because there the fault is one the machine cannot work
 around.
@@ -590,6 +600,11 @@ knows. A page reads the names, and the number keeps what the names cannot say.
 **A rebuild writes a fresh header.** Copied entries keep their bytes, but whoever rebuilds passes
 the flags on through `PackageBuilder::set_flags`.
 
+**A flag that changes how the file is read also changes the container version.** `linked` is the
+one, and
+[`A linked package keeps its song files outside itself`](#a-linked-package-keeps-its-song-files-outside-itself)
+says why.
+
 ## An uncurated package says so everywhere but the television
 
 **The first flag is `uncurated`: a package built straight from a folder, with nobody reviewing its
@@ -612,6 +627,78 @@ not read it.
 set or clear one. A person who reviews the songs rebuilds the package, and
 [`Importing an uncurated package keeps the flag`](curation.md#importing-an-uncurated-package-keeps-the-flag)
 says what the curation tool does then.
+
+## A linked package keeps its song files outside itself
+
+**The second flag is `linked`: a package that holds no song file.** Each song file is a path below
+one folder, and the machine's owner says which folder. A person whose library already sits on a disk
+as loose files then stores it once. A package that bundles its files stores it a second time.
+
+**The type is exclusive.** A package bundles every song file or none. A package that bundles its
+files and carries one linked record is refused, and so is a linked package that holds one song file's
+bytes. A reader therefore never decides, song by song, where to look.
+
+**What the builder derives stays inside.** That is `manifest.json`, and the lyric timeline of an
+UltraStar or LRC song. No file on the disk holds a timeline, and
+[`The machine never reads an UltraStar file`](song-sources.md) still holds. A `.txt` or an `.lrc` is
+never linked.
+
+**A linked file is a directory record with no bytes.** The record's name is the path, with forward
+slashes. Its method is `linked`, its offset and its stored length are zero, and its real length and
+CRC-32 are the file's own at the build. `km-pack check --verify --linked-dir <folder>` compares each
+file against them, so a file that changed after the build can be found. A song's own entry in the
+manifest names the same path.
+
+**A linked `.cdg` keeps its own name.** A real pair is `song.mp3` beside `song.CDG`, so the rule
+[`graphics_entry_for`](#where-a-songs-media-lives) applies inside a package cannot name it. The
+reader finds it by the rule a folder is paired by, among the linked files beside the audio. The
+builder refuses a pair that rule does not join.
+
+**A linked package is written in container version 2, and the flag alone would not do.** A reader
+keeps a flag it does not know. A build without `linked` would therefore open the package and look
+for bytes that are not there. That build refuses version 2, and says a newer program wrote the file. A package
+that bundles its files stays at version 1, and every machine in service still opens it. A header
+whose flag and version disagree is refused.
+
+**The flag follows the contents, and a caller cannot set it.** `PackageBuilder::new_linked` writes
+one, and `PackageBuilder::set_flags` neither adds the bit nor clears it. A rebuild carries each
+linked record across unchanged, and a song is never carried between the two types.
+
+**A linked build changes no file.** It never re-encodes a video, because the result would have
+nowhere to go. A song inside a `.zip` is skipped, because it is not a file a path can name.
+
+## A linked file is read only from inside one folder
+
+**A path in a package is a claim somebody else wrote, and the machine joins it onto a real folder.**
+A path that climbs, an absolute path, or a link inside the folder could each make the machine read a
+file its owner never offered. Two checks answer that, and each sees what the other cannot.
+
+**The words are checked when the package opens.** `km_kmpkg::linked::check` refuses, in this order:
+
+1. an empty path, a path over 1024 bytes, or a name over 255 bytes;
+2. a control character;
+3. a backslash, which is a separator on one platform and a letter on another;
+4. a colon, which covers a drive letter, a UNC prefix and an alternate data stream;
+5. a leading `/`;
+6. an empty name, `.` or `..`;
+7. a name ending in a dot or a space, which Windows removes;
+8. a Windows device name such as `NUL` or `COM1`, in any case and with any extension.
+
+Every platform applies every rule, so a package opens on all of them or on none. **The check refuses
+and never repairs**, for the reason `is_safe_path` gives: a repaired path opens a file other than the
+one named.
+
+**The disk is asked at every read.** `linked::open` resolves the folder and the joined path, with
+every symbolic link and junction followed. The resolved file must lie below the resolved folder. It
+then opens the resolved path, and asks the open handle whether it is a regular file. A link that
+stays inside the folder is followed, and one that leaves is refused.
+
+**Nothing answers a path.** `linked::open` gives a file already open for reading. No caller holds a
+name it could write to or delete, so uninstalling a linked package cannot remove a song file.
+
+**What stays possible is a local process replacing a folder between the comparison and the open.** A
+package cannot do that. A hostile package is what this guards against, and a program already running
+on the machine reads the owner's files without one.
 
 ## A package's id asks for a bank; the machine assigns one
 
