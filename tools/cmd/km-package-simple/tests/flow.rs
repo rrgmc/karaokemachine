@@ -204,6 +204,67 @@ async fn a_ticked_box_builds_a_linked_package_over_the_folder_that_was_read() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn the_paths_of_a_linked_package_can_start_above_the_folder_that_was_read() {
+    let library = Scratch::new("flow-linked-base");
+    let bytes = km_song::testing::soft_karaoke();
+    let folder = library.join("collection");
+    std::fs::create_dir_all(folder.join("rock")).expect("a folder");
+    std::fs::write(folder.join("rock").join("a.kar"), &bytes).expect("write");
+    let out = Scratch::new("flow-linked-base-out");
+
+    let app = App::new(None, "http://127.0.0.1:0/".to_owned());
+    let (status, _) = post(&app, "/folder", &format!("path={}", form_value(&folder))).await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+    settled(&app).await;
+
+    let page = get(&app, "/").await;
+    assert!(
+        page.contains("rock/a.kar"),
+        "the folder itself to start: {page}"
+    );
+    let preview = get(
+        &app,
+        &format!("/linked-path?linked_base={}", form_value(&library)),
+    )
+    .await;
+    assert!(preview.contains("collection/rock/a.kar"), "{preview}");
+    let refused = get(
+        &app,
+        &format!(
+            "/linked-path?linked_base={}",
+            form_value(&folder.join("rock"))
+        ),
+    )
+    .await;
+    assert!(refused.contains(r#"class="error""#), "{refused}");
+
+    let body = format!(
+        "name=Party&version=1.0.0&publisher=&language=und&linked=yes&linked_base={}&out_dir={}",
+        form_value(&library),
+        form_value(&out)
+    );
+    let (status, _) = post(&app, "/build", &body).await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+    settled(&app).await;
+    assert!(
+        matches!(app.lock().phase, Phase::Built(_)),
+        "{:?}",
+        app.lock().error
+    );
+
+    let package = km_kmpkg::Package::open(out.join("party-1.0.0.kmpkg")).expect("open the package");
+    assert_eq!(package.linked_root(), Some("collection/rock"));
+    assert_eq!(package.manifest().songs[0].file, "a.kar");
+    assert_eq!(
+        package
+            .with_linked_dir(library.path())
+            .read_song(1)
+            .expect("read through the folder above"),
+        bytes
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn a_post_from_another_site_is_refused() {
     let app = App::new(None, "http://127.0.0.1:0/".to_owned());
     let request = Request::post("/quit")

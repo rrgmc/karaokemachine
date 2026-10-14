@@ -29,6 +29,9 @@ pub const SAID_KEYS: &[&str] = &[
     "said-nothing-kept",
     "said-no-name",
     "said-reveal-failed",
+    "said-linked-base-missing",
+    "said-linked-base-outside",
+    "said-linked-base-name",
 ];
 
 /// The stylesheet.
@@ -54,6 +57,7 @@ pub fn router(app: Arc<App>) -> Router {
         .route("/songs/keep", post(keep))
         .route("/songs/leave-out-low", post(leave_out_low))
         .route("/build", post(build))
+        .route("/linked-path", get(linked_path))
         .route("/back", post(back))
         .route("/close", post(close))
         .route("/reveal", post(reveal))
@@ -228,7 +232,7 @@ fn picker_start(
             .last_folder
             .clone()
             .filter(|folder| folder.is_dir()),
-        views::PickFor::OutDir => None,
+        views::PickFor::OutDir | views::PickFor::LinkedBase => None,
     };
     current.or_else(last).or_else(km_folders::start)
 }
@@ -317,6 +321,9 @@ struct BuildForm {
     out_dir: String,
     /// Present when the box is ticked, absent when it is not.
     linked: Option<String>,
+    /// The folder a linked package's paths start at. Empty means the folder that was read.
+    #[serde(default)]
+    linked_base: String,
 }
 
 /// `POST /build`: write the packages.
@@ -333,10 +340,55 @@ async fn build(
         language: form.language.trim().to_owned(),
         out_dir: std::path::PathBuf::from(form.out_dir.trim()),
         linked: form.linked.is_some(),
+        linked_base: base_or_folder(&app, &form.linked_base),
     };
     match app.build(form) {
         Ok(()) => refresh(),
         Err(key) => refresh_saying(&app, &headers, key),
+    }
+}
+
+/// The base folder box's value, or the folder that was read when the box is empty.
+fn base_or_folder(app: &App, value: &str) -> std::path::PathBuf {
+    let value = value.trim();
+    if value.is_empty() {
+        app.lock()
+            .session
+            .as_ref()
+            .map(|session| session.folder.clone())
+            .unwrap_or_default()
+    } else {
+        std::path::PathBuf::from(value)
+    }
+}
+
+#[derive(Debug, Default, Deserialize)]
+struct LinkedPathQuery {
+    #[serde(default)]
+    linked_base: String,
+}
+
+/// `GET /linked-path`: what a linked package's first path will be, for one base folder.
+///
+/// Resolving the folders reads the disk, so it runs on a blocking thread.
+async fn linked_path(
+    State(app): State<Arc<App>>,
+    headers: HeaderMap,
+    Query(query): Query<LinkedPathQuery>,
+) -> Response {
+    let locale = locale_of(&app, &headers);
+    let base = base_or_folder(&app, &query.linked_base);
+    let draw = move || {
+        let inner = app.lock();
+        inner
+            .session
+            .as_ref()
+            .map(|session| views::linked_path(session, &base, crate::words::messages(locale)))
+    };
+    match tokio::task::spawn_blocking(draw).await {
+        Ok(Some(fragment)) => views::render(&fragment, locale),
+        Ok(None) => StatusCode::NOT_FOUND.into_response(),
+        Err(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
     }
 }
 

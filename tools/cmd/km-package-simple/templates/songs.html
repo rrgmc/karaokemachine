@@ -35,11 +35,24 @@
      file by its path in the folder that was read, so that folder is the one a machine plays from. #}
   <label><input type="checkbox" name="linked" value="yes"{% if form.linked %} checked{% endif %}> {{ "form-linked"|t }}</label>
   <p class="hint">{{ "form-linked-hint"|t }}</p>
+  {# The folder that was read by default. A folder above it puts the folders between them at the
+     front of every path, so the package shares the machine's folder with packages built from
+     there. #}
+  <div class="fields">
+    <label class="wide" for="linked_base">{{ "form-linked-base"|t }}</label>
+    <div class="row wide">
+      <input id="linked_base" name="linked_base" value="{{ form.linked_base }}">
+      <button type="button" class="quiet" hx-get="/folders" hx-target="#browse-linked_base" hx-swap="innerHTML"
+              hx-vals='js:{"for": "linked_base", "current": document.getElementById("linked_base").value}'>{{ "action-browse"|t }}&hellip;</button>
+    </div>
+  </div>
+  {{ linked_path|safe }}
   <button type="submit">{{ "action-build"|t }}</button>
 </form>
 {# Empty until Browse is pressed. Outside the form, because the picker holds a form of its own and
    Enter in its filter box would otherwise build. #}
 <div id="browse-out_dir"></div>
+<div id="browse-linked_base"></div>
 
 {{ list|safe }}
 {% endblock %}

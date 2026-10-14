@@ -4,13 +4,15 @@
 //! arrives in a template as a finished string. A template names only keys that take no variables.
 //! That is the rule `km_locale::filters` states for every page in this repository.
 
+use std::path::Path;
+
 use askama::Template;
 use axum::http::StatusCode;
 use axum::response::{Html, IntoResponse, Response};
 use km_locale::{Catalog, Locale, filters};
 
 use crate::app::{Built, Inner, Phase};
-use crate::session::{PackageForm, UNDETERMINED};
+use crate::session::{PackageForm, Session, UNDETERMINED};
 
 /// How many song rows one page of the list holds.
 ///
@@ -117,6 +119,8 @@ pub struct SongsPage {
     pub error: Option<String>,
     /// The package form.
     pub form: FormView,
+    /// What a linked package's first path will be, redrawn as the base folder changes.
+    pub linked_path: LinkedPathFragment,
     /// The list, which a toggle redraws on its own.
     pub list: SongList,
 }
@@ -133,6 +137,8 @@ pub struct FormView {
     pub out_dir: String,
     /// Whether the linked box is ticked.
     pub linked: bool,
+    /// The folder a linked package's paths start at.
+    pub linked_base: String,
     /// The language picker, the chosen one marked.
     pub languages: Vec<LanguageOption>,
 }
@@ -233,6 +239,45 @@ pub struct FileView {
     pub songs: String,
 }
 
+/// What a linked package's first path will be, under the base folder box.
+#[derive(Template)]
+#[template(path = "_linked_path.html")]
+pub struct LinkedPathFragment {
+    /// The first kept song's path below the machine's folder for linked packages.
+    pub example: Option<String>,
+    /// `Set that folder to N:\…, or a copy of it.`
+    pub machine_folder: String,
+    /// Why the base folder cannot be used, instead of the two lines above.
+    pub error: Option<String>,
+}
+
+/// The fragment for one base folder, which is the folder that was read when the box is empty.
+#[must_use]
+pub fn linked_path(session: &Session, base: &Path, words: &Catalog) -> LinkedPathFragment {
+    let base = if base.as_os_str().is_empty() {
+        session.folder.as_path()
+    } else {
+        base
+    };
+    match crate::session::linked_prefix(&session.folder, base) {
+        Ok(prefix) => LinkedPathFragment {
+            example: session.linked_example(&prefix),
+            machine_folder: words
+                .msg_with(
+                    "linked-path-machine",
+                    &[("folder", base.display().to_string().into())],
+                )
+                .into_owned(),
+            error: None,
+        },
+        Err(key) => LinkedPathFragment {
+            example: None,
+            machine_folder: String::new(),
+            error: Some(words.msg(key).into_owned()),
+        },
+    }
+}
+
 /// Which box a folder picker fills.
 ///
 /// **A closed set, so the query cannot name an element.** The value reaches an `id` and a
@@ -243,6 +288,8 @@ pub enum PickFor {
     Path,
     /// The folder the packages go to, in the package form.
     OutDir,
+    /// The folder a linked package's paths start at, in the package form.
+    LinkedBase,
 }
 
 impl PickFor {
@@ -252,6 +299,7 @@ impl PickFor {
         match value {
             "path" => Some(Self::Path),
             "out_dir" => Some(Self::OutDir),
+            "linked_base" => Some(Self::LinkedBase),
             _ => None,
         }
     }
@@ -262,6 +310,7 @@ impl PickFor {
         match self {
             Self::Path => "path",
             Self::OutDir => "out_dir",
+            Self::LinkedBase => "linked_base",
         }
     }
 }
@@ -398,6 +447,7 @@ pub fn page(inner: &Inner, locale: Locale, windowed: bool, page: usize) -> Respo
                     folder: session.folder.display().to_string(),
                     error: inner.error.clone(),
                     form: form_view(form),
+                    linked_path: linked_path(session, &form.linked_base, words),
                     list: song_list(inner, words, page),
                 },
                 locale,
@@ -471,6 +521,7 @@ fn form_view(form: &PackageForm) -> FormView {
         publisher: form.publisher.clone().unwrap_or_default(),
         out_dir: form.out_dir.display().to_string(),
         linked: form.linked,
+        linked_base: form.linked_base.display().to_string(),
         languages,
     }
 }
