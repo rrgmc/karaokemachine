@@ -11,6 +11,12 @@ Entries are written for somebody who has the machine. Why any of it is the way i
 
 ## [Unreleased]
 
+### Changed
+
+- **The recommended instrument bank downloads from this project's own release page.** Its
+  publisher replaces the file at one address with each new version, and each replacement stopped
+  the download in every release.
+
 ## [1.23.0] - 2026-10-14
 
 ### Added

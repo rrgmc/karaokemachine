@@ -256,7 +256,7 @@ which is why it is a mark on a full row rather than a shorter list.
 
 **Exactly one, and a test holds it.** A second recommendation is not a stronger one; it is a list, and
 the other eight rows are already that. It is a separate field from `rank` because they answer
-different questions: an ordering, and a suggestion. The recommended bank is a 261.7 MiB download.
+different questions: an ordering, and a suggestion. The recommended bank is a 261.8 MiB download.
 That is exactly the case where a future list might reasonably put something smaller first while
 still recommending it.
 
@@ -365,8 +365,23 @@ See the `exclude` note in the root manifest.
 
 ## Where a bank may be fetched from
 
-**Every bank is fetched from the publisher's own address, pinned by a digest, and none of them is
-mirrored from here.** `assets/` holds exactly one bank, which is the bundled one.
+**Every bank is fetched from the publisher's own address, pinned by a digest, except the recommended
+one.** `assets/` holds exactly one bank, which is the bundled one.
+
+**The recommended bank is fetched from a copy on a release of this repository.** Its publisher
+replaces the file at one SourceForge address with each new version. A digest then refuses every
+download, in every shipped release, and a fresh install's first start fails. The copy is the
+publisher's archive, unchanged, on a release of its own named `bank-colombogmgs2-<version>`. That
+release is never marked latest, so the machine's download page stays where it is.
+
+**A new version is a new release, never a replaced asset.** A shipped release keeps fetching the
+version it was pinned to. The next release moves the row after `task release:bank` and a listening
+pass.
+
+**Hosting it makes this repository its redistributor**, and the terms are the ones §8 rates
+*doubtful*. The archive's `LICENSE.txt` states CC-BY-SA 4.0, and the release page names the author
+and the license. The bank's own credits name other banks among its sample sources. That doubt is
+accepted for the one bank every setup program requests by default, and for no other row.
 
 **Every row prints what its own file says about its terms.** §8 of the bank survey read that out of
 each file's own bytes. `license` carries the finding beside the name rather than behind anything. It

@@ -348,7 +348,7 @@ pub fn run(paths: Paths, config: Settings, options: Options) -> anyhow::Result<(
     // API, so no phone meets an evening that is about to change under it.
     machine.restore_evening();
     // The tick box a setup program was given, carried out once. After the packages rather than
-    // before, because installing them is what the machine is *for* and a 261.7 MiB download must not
+    // before, because installing them is what the machine is *for* and a 261.8 MiB download must not
     // stand in front of a catalog appearing — this returns as soon as the download has started,
     // and the poll loop follows it from there.
     machine.start_first_run_soundfont();

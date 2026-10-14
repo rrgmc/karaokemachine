@@ -958,7 +958,7 @@ fetches nothing, ever.** There is no WebView2 analogue to fetch, because `WKWebV
 operating system. The next carrier has to argue its way past this row too.
 
 **The instrument-bank tick box does not change this, and that is why the tick box has the shape it
-has.** `Offering the recommended bank at install time` adds a 261.7 MiB download to what a fresh
+has.** `Offering the recommended bank at install time` adds a 261.8 MiB download to what a fresh
 install ends up with. It adds nothing at all to what setup fetches. Both carriers write two lines of
 JSON naming the bank, and the machine downloads it on its first start.
 
@@ -973,7 +973,7 @@ start, fetches it through the downloader it already has, and chooses it.
 measurably not the best available.** GeneralUser GS is 30.9 MiB and shipped because it can be. The
 bank survey found three of fifteen redistributable, and
 [`soundfont-banks.conf`](../../crates/machine/km-banks/data/soundfont-banks.conf) carries the terms
-row by row. ColomboGMGS2 is 261.7 MiB. It was judged the best of the sixty-eight measured, and it is
+row by row. ColomboGMGS2 is 261.8 MiB. It was judged the best of the sixty-eight measured, and it is
 [`recommended`](repository.md#which-banks-the-machine-offers) on its row. Without this it arrives
 only for people who already knew instrument banks were a thing they could have an opinion about.
 
@@ -1019,9 +1019,10 @@ tag.
 A bank that cannot be fetched fails on the first start of every fresh install, three times, and then
 the request is removed.
 
-**Its address names a file and not a revision.** The publisher can replace the archive behind it, and
-then both digests in the table refuse the download. The host can also stop answering. The table
-alone cannot show either fault, because a digest is compared only when somebody downloads the bank.
+**Its address can stop answering, and the table alone cannot show it.** A digest is compared only
+when somebody downloads the bank. The address is a release of this repository, so the file behind it
+does not change. See
+[`Where a bank may be fetched from`](repository.md#where-a-bank-may-be-fetched-from).
 
 **The check runs the machine's own downloader.** It is an ignored test in `fetch.rs` that calls the
 function a first start calls. A host may answer one client with the file and another with a page, so
