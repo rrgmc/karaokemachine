@@ -7,7 +7,7 @@ color, with the M in amber">
 
 A karaoke machine that behaves like a commercial home unit: pick a song by number, it plays, and the
 words highlight in time. It runs full-screen on a television, and any phone on the network is a
-remote: search the catalog, queue a song, change the key, skip.
+remote: search the catalog and ask for a song, and with a code change the key or skip.
 
 A song is one of five things:
 
@@ -70,7 +70,7 @@ list, with a favorites mode, an A to Z picker, and a star beside each song for f
 favorite"></td>
 </tr>
 <tr>
-<td><sub><b>Search and queue</b> from any phone. No app to install.</sub></td>
+<td><sub><b>Search and ask for a song</b> from any phone. No app to install.</sub></td>
 <td><sub><b>The song as it plays</b> — key, tempo, guide melody, music volume.</sub></td>
 <td><sub><b>Who is up next</b>, changeable by anyone with the skip level. The controls stay
 folded until asked for.</sub></td>
@@ -123,11 +123,11 @@ the queue of six waiting songs with the singer who asked for each">
 - **Any phone on the network is a remote**, with no app to install. An offline remote works with the
   machine switched off. See
   [The remotes](https://rrgmc.github.io/karaokemachine/docs/remotes.html).
-- **Singers take turns.** A guest asks for songs from a phone, and the machine keeps one song for
-  each singer in the queue.
+- **Songs play in the order asked, or singers take turns.** A guest asks for songs from a phone. A
+  venue chooses turns, and the machine then keeps one song for each singer in the queue.
 - **A host runs a public night** at a bar or a hall, from a tablet, with no second program. See
   [Running a public night](https://rrgmc.github.io/karaokemachine/docs/venue.html).
-- **Four levels for the room**: watch, ask, queue out of turn, and skip. One admin password covers
+- **Four levels for the room**: watch, ask, add a song with no singer, and skip. One admin password covers
   everything that reconfigures the machine.
 - **Setup from a browser**: songs, pictures, sound banks, and whatever is wrong. See
   [Setting it up from a browser](https://rrgmc.github.io/karaokemachine/docs/setup.html).
