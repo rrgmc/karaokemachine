@@ -2199,3 +2199,34 @@ about a list short enough to have been assumed short.
 **A letter with no artists under it names the letter.** The wildcard arm answers *No artists — is a
 package installed?*. That is a wrong and alarming thing to tell somebody who pressed `Q` on a corpus
 with thousands of them.
+
+## On a phone, the machine shows its own remote over the screen
+
+**A phone or a tablet running the machine has a Menu button at the top centre.** *Choose songs*
+shows the machine's own remote over the screen, and *Install a package* opens the system file
+browser. Back or *Close* hides the remote again. A television and a headset show no button.
+
+**The button stays out of what the machine draws.** The song's title fills the top left corner, and
+the key, the melody and the queue counter fill the top right. The open remote's own controls reach
+every edge of the page. So *Close* stands in a narrow strip to the right of the page, and covers
+none of it.
+
+**The remote stays in the machine's window, so the song plays on.** Another application takes the
+screen, and [`Leaving the screen stops the music`](interface.md#leaving-the-screen-stops-the-music).
+A view inside the activity takes neither the screen nor the window focus, so SDL keeps drawing. The
+button and its items are plain views for the same reason. A popup menu is a window of its own, and
+SDL parks its thread when the focus goes.
+
+**The page is the one every phone gets, over loopback.** The headset's queue panel does the same,
+under [`What the machine *is*, on a headset`](distribution.md#what-the-machine-is-on-a-headset). The
+page comes from this process, so no network stands between it and the machine. It is therefore the
+served remote, without favorites or the A–Z picker. Embedding the offline remote would add a second
+server and a second copy of the catalog on the phone.
+
+**One APK still serves phones and televisions.** The button needs a touch screen, and Android's
+television mode turns it off. A third APK would add a release carrier and buy nothing a check at run
+time does not.
+
+**The file browser is another activity, so the song pauses while it is open.** That is the rule for
+every trip away. A package is rarely installed mid-song. The machine stages the chosen file exactly
+as a `.kmpkg` opened from a file manager. It refuses a file of any other name before reading it.

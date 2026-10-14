@@ -53,6 +53,21 @@ public class MainActivity extends SDLActivity {
     private AudioFocus focus;
 
     /**
+     * What a phone adds over the machine, or null where nothing was added.
+     *
+     * <p>Null on a television and on a headset. See {@link PhoneShell}.
+     */
+    private PhoneShell shell;
+
+    /**
+     * The request code for the package picker.
+     *
+     * <p>SDL's own file dialog arrives at {@link #onActivityResult} too, under a code it numbers
+     * from zero. A code far above that keeps the two apart.
+     */
+    private static final int PICK_PACKAGE = 0x4B4D;
+
+    /**
      * The native libraries to load, in dependency order.
      *
      * <p>Order matters and the defaults are wrong for us. {@code SDLActivity} would load
@@ -93,7 +108,58 @@ public class MainActivity extends SDLActivity {
         super.onCreate(savedInstanceState);
         // After the libraries are loaded, because the listener it builds calls a native.
         focus = new AudioFocus(this);
+        // After SDL has built its layout, because the controls go over it.
+        shell = PhoneShell.attach(this);
         open(opened);
+    }
+
+    /**
+     * Closes the phone's remote before Back leaves the machine.
+     *
+     * <p>Leaving takes the screen away, and the machine pauses its song when that happens. A singer
+     * pressing Back on the remote means "close this", and never "pause the song".
+     */
+    @Override
+    public void onBackPressed() {
+        if (shell != null && shell.back()) {
+            return;
+        }
+        super.onBackPressed();
+    }
+
+    /**
+     * Opens the system's file browser to choose a package. Called from {@link PhoneShell}.
+     *
+     * <p>The type is every type, because Android has no MIME entry for {@code .kmpkg}. The
+     * extension check in {@link #stage} refuses anything else, as it does for a file opened from a
+     * file manager.
+     *
+     * <p>The browser is an activity of its own, so the machine leaves the screen and pauses its
+     * song while it is open. That is the rule for every trip away, and this one is no exception.
+     */
+    void choosePackage() {
+        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType("*/*");
+        try {
+            startActivityForResult(intent, PICK_PACKAGE);
+        } catch (RuntimeException error) {
+            Log.e(TAG, "no file browser answers on this device", error);
+        }
+    }
+
+    /** A package chosen in the file browser, staged as an opened document is. */
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        if (requestCode != PICK_PACKAGE) {
+            super.onActivityResult(requestCode, resultCode, data);
+            return;
+        }
+        if (resultCode != RESULT_OK || data == null || data.getData() == null) {
+            return;
+        }
+        final Uri uri = data.getData();
+        new Thread(() -> stage(uri), "km-stage-package").start();
     }
 
     /**
