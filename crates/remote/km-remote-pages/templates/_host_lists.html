@@ -1,10 +1,10 @@
-{# Two parts in one fragment, because one fetch brings both. The fragment itself draws no box, so
-   each part is placed in the host's grid as a column of its own. #}
+{# Four parts in one fragment, because one fetch brings them all. The fragment itself draws no box,
+   so each part is placed in the host's grid, in the tab it belongs to. #}
 <div id="host-lists" hx-get="/host/lists" hx-trigger="km:requests from:body, km:singers from:body" hx-swap="outerHTML">
 
-  <div class="host-waiting">
   {# A machine that kept an evening across a restart starts no song until somebody chooses. Both
-     choices are here, at the top, because the host of another day wants the old list gone first. #}
+     choices stand above either tab, because the host of another day wants the old list gone
+     first. #}
   {% if kept %}
   <div class="setup-group host-kept">
     <p class="closed">{{ "host-kept"|t }}</p>
@@ -14,8 +14,9 @@
     </div>
   </div>
   {% endif %}
+
   {# Whether a phone may ask. What already waits still goes into the queue, and this tab still adds. #}
-  <div class="pref-row field-row">
+  <div class="pref-row field-row host-accepting">
     {% if accepting %}
     <span>{{ "host-accepting-on"|t }}</span>
     <button class="icon-btn" hx-post="/host/accepting/off" hx-target="#host-lists" hx-swap="outerHTML">{{ "host-accepting-stop"|t }}</button>
@@ -25,6 +26,7 @@
     {% endif %}
   </div>
 
+  <div class="host-waiting">
   <h2 class="list-head">{{ "host-waiting"|t }}</h2>
   {% if waiting.is_empty() %}
   <p class="empty">{{ "host-waiting-none"|t }}</p>

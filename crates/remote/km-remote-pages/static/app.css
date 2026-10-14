@@ -1007,47 +1007,79 @@ label.icon-btn { display: inline-flex; align-items: center; justify-content: cen
   white-space: normal;
 }
 
-/* The host's tab. Five parts, placed by name: the add form, the waiting requests, the singers, the
- * fold that starts a new evening, and the queue.
+/* The host's tab. The bar with the transport stands above two tabs, and each tab shows its own
+ * parts, placed by name.
  *
- * One column on a phone, in the order a host works: add, then what waits, then who is here. The
- * queue comes last there, because the Queue tab is one press away. */
+ * - **Queue**: the queue, and the requests that wait for a turn beside it.
+ * - **Singers**: the add form, the singers, the switch that closes requests, and the fold that
+ *   starts a new evening.
+ *
+ * A kept evening stands above either tab, because nothing plays until the host answers it. */
+.host-tabs {
+  display: flex;
+  gap: 0.4rem;
+  margin: 0.4rem 0 0.8rem;
+  border-bottom: 1px solid var(--line);
+}
+.host-tabs label {
+  padding: 0.5rem 1rem;
+  border-bottom: 3px solid transparent;
+  color: var(--text-dim);
+  font-weight: 600;
+  cursor: pointer;
+  user-select: none;
+}
+#host-tab-queue:checked ~ .host-tabs label[for="host-tab-queue"],
+#host-tab-singers:checked ~ .host-tabs label[for="host-tab-singers"] {
+  color: var(--text);
+  border-bottom-color: var(--amber);
+}
+#host-tab-queue:focus-visible ~ .host-tabs label[for="host-tab-queue"],
+#host-tab-singers:focus-visible ~ .host-tabs label[for="host-tab-singers"] {
+  outline: 2px solid var(--amber);
+  outline-offset: 2px;
+}
+
 .host {
   display: grid;
   gap: 0.6rem 1.25rem;
-  grid-template-areas: "add" "waiting" "singers" "reset" "queue";
+  align-items: start;
 }
 .host > *, .host-waiting, .host-singers { min-width: 0; }
-.host-add { grid-area: add; }
-.host-waiting { grid-area: waiting; }
-.host-singers { grid-area: singers; }
-.host-reset { grid-area: reset; }
+.host-kept { grid-area: kept; }
 .host-queue { grid-area: queue; }
-/* The fetched fragment draws no box of its own, so its two parts sit in the grid as two columns can
- * need them to. It stays in the document, which is all a swap target has to do. */
+.host-waiting { grid-area: waiting; }
+.host-add { grid-area: add; }
+.host-singers { grid-area: singers; }
+.host-accepting { grid-area: accepting; }
+.host-reset { grid-area: reset; }
+/* The fetched fragment draws no box of its own, so its parts sit in the grid wherever their tab
+ * places them. It stays in the document, which is all a swap target has to do. */
 #host-lists { display: contents; }
 
-/* A tablet held upright: the queue stands beside everything else, because a host reads the
- * requests against it. */
+/* One column on a phone: the queue first, then what waits. */
+#host-tab-queue:checked ~ .host { grid-template-areas: "kept" "queue" "waiting"; }
+#host-tab-queue:checked ~ .host :is(.host-add, .host-singers, .host-accepting, .host-reset) {
+  display: none;
+}
+/* The add form first, because adding a song is what a host does all night. */
+#host-tab-singers:checked ~ .host { grid-template-areas: "kept" "add" "singers" "accepting" "reset"; }
+#host-tab-singers:checked ~ .host :is(.host-queue, .host-waiting) { display: none; }
+
+/* From a tablet's width, each tab takes two columns. The requests stand beside the queue, because a
+ * host reads one against the other. The singers stand beside the add form. */
 @media (min-width: 48rem) {
-  .host {
+  .host { grid-template-columns: 3fr 2fr; }
+  #host-tab-queue:checked ~ .host {
+    grid-template-areas: "kept kept" "queue waiting";
+  }
+  #host-tab-singers:checked ~ .host {
     grid-template-columns: 1fr 1fr;
-    grid-template-areas: "add queue" "waiting queue" "singers queue" "reset queue";
+    grid-template-areas: "kept kept" "add singers" "accepting singers" "reset singers";
     grid-template-rows: auto auto auto 1fr;
-    align-items: start;
   }
 }
 
-/* A large tablet on its side, or a laptop: the singers get a column too, so nothing a host is
- * watching scrolls out of sight. The middle column is the narrow one, because a singer's row is
- * short. The width is where that column still holds a singer's three actions without crowding. */
-@media (min-width: 76rem) {
-  .host {
-    grid-template-columns: 5fr 4fr 5fr;
-    grid-template-areas: "add singers queue" "waiting singers queue" "waiting reset queue";
-    grid-template-rows: auto auto 1fr;
-  }
-}
 
 /* The queue's own toggle belongs to the Queue tab, whose checkbox it is a label for. Here the row
  * buttons are always shown, because correcting the queue is what this tab is for. */

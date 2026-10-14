@@ -13,12 +13,24 @@
   {{ nowbar|safe }}
 </div>
 
-{# One column on a phone, two on a tablet held upright and three on a wide one. A host reads the
-   requests against the queue, and on a wide screen the singers stand beside both. The parts are
-   placed by name in `app.css`, so this file says what there is and the stylesheet says where. #}
+{# Two tabs below the bar, chosen by two radio buttons that stand before `.host`. The stylesheet
+   shows the chosen tab's parts and places them by name, so this file says what there is and
+   `app.css` says where. Radios and no script, as the bar above uses a checkbox. The queue is the
+   first tab and the chosen one, because a host watches it all night. #}
+<input type="radio" name="host-tab" id="host-tab-queue" class="visually-hidden" checked autocomplete="off">
+<input type="radio" name="host-tab" id="host-tab-singers" class="visually-hidden" autocomplete="off">
+<div class="host-tabs">
+  <label for="host-tab-queue">{{ "tab-queue"|t }}</label>
+  <label for="host-tab-singers">{{ "host-singers"|t }}</label>
+</div>
+
 <div class="host">
 
-  {# Singer, song and the add on one screen: adding a song is what a host does all night. The name
+  <div class="host-queue">
+    {{ queue|safe }}
+  </div>
+
+  {# Singer, song and the add together: adding a song is what a host does all night. The name
      stays in the box between songs, so a pile of slips for one singer is typed once. This form
      sits outside the fragment below, so a refresh never takes a half-typed name. #}
   <div class="host-add">
@@ -48,11 +60,6 @@
     <p class="hint">{{ "host-reset-hint"|t }}</p>
     <button class="icon-btn danger" hx-post="/host/reset" hx-swap="none">{{ "host-reset-confirm"|t }}</button>
   </details>
-
-  <div class="host-queue">
-    <h2 class="list-head">{{ "tab-queue"|t }}</h2>
-    {{ queue|safe }}
-  </div>
 </div>
 
 {% endblock %}

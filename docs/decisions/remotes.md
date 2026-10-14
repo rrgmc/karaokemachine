@@ -329,10 +329,13 @@ the box finds a singer by name.
 **The host's add warns about nothing.** A guest who asks for a song already in the queue is asked
 once. A host who enters it has read the slip.
 
-**One column on a phone, two on a tablet and three on a wide screen.** A host reads the waiting
-requests against the queue, so from a tablet's width the queue stands beside them. On a large
-tablet held sideways, or a laptop, the singers take a column of their own. Nothing a host is
-watching then scrolls out of sight.
+**Below the bar, the tab has two tabs of its own: the queue and the singers.** One page held too
+much for a host to read at a glance. The queue tab holds the queue and the requests that wait for
+a turn. The singers tab holds the add form, the singers, the switch that closes requests, and the
+new evening. A kept evening stands above both, because nothing plays until the host answers it.
+
+**One column on a phone, and two from a tablet's width.** A host reads the waiting requests
+against the queue, so the requests stand beside it. The singers stand beside the add form.
 
 **From a tablet's width up, the tab is sized for a desk.** The buttons are larger and stand
 further apart, and the titles are larger. A host taps all night, and the button that declines a

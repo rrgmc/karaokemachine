@@ -6216,6 +6216,11 @@ async fn the_hosts_tab_is_for_the_control_level() {
         "with its transport open: {page}"
     );
     assert!(page.contains("/control/skip"), "{page}");
+    assert!(
+        page.contains(r#"id="host-tab-queue" class="visually-hidden" checked"#)
+            && page.contains(r#"id="host-tab-singers""#),
+        "two tabs below it, the queue chosen: {page}"
+    );
 }
 
 /// A host types a name and adds songs for it. The name finds the singer again, however it is typed,
