@@ -11,6 +11,8 @@ Entries are written for somebody who has the machine. Why any of it is the way i
 
 ## [Unreleased]
 
+## [1.23.0] - 2026-10-14
+
 ### Added
 
 - **A phone running the machine chooses songs without leaving it.** On an Android phone or
@@ -128,6 +130,8 @@ Entries are written for somebody who has the machine. Why any of it is the way i
 
 ### Fixed
 
+- **The recommended instrument bank installs.** Its publisher replaced the file, and the machine
+  refused the new one as damaged.
 - **Each song starts at its own key and tempo.** A song started in the key and tempo that the singer
   before had chosen. A key set while nothing plays still applies to the next song. The music volume,
   the guide melody and the lyric offset stay as you set them.
