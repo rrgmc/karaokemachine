@@ -514,7 +514,7 @@ Portuguese rather than a word-for-word rendering of the plain English — see
 ## A hosted public night is served
 
 **The machine serves a night at a bar or a hall, beside the home it is built for.** The owner sets
-it up once, guests ask from their own phones, and the rule puts the singers in turn. A host
+it up once, guests ask from their own phones, and the singers take turns. A host
 corrects what the rule did. No part of the night needs a second program.
 
 **A venue is a use of the home machine, and it is no second product.** Every piece is one a home
@@ -522,16 +522,18 @@ uses: the room level, the two codes, the seats, the request list and the host's 
 changes settings and nothing else. The manual's venue chapter is therefore the whole of its
 surface.
 
-**Six settings make a venue.**
+**Eight settings make a venue.**
 
 | Setting | Value at a venue | Reason |
 |---|---|---|
 | The admin password | Set, and held by the owner | The factory password shows on the screen, and a host for one night needs no settings |
 | The room level | `request`, or `view` where the host enters every song | `request` lets each table ask from a phone |
+| The queue order | `turns` | The default plays songs in the order asked, so one table could fill the queue |
 | The control code | Set, and held by the host | It declines, accepts early, reorders and acts for a singer |
 | The queue code | Not handed out | It opens `PUT /settings` and the song with no singer, which passes the rule |
 | A required name | On | The host calls each singer by the name on the screen |
 | The cap on one singer's waiting requests | Low | One table cannot fill the request list |
+| Keeping the evening across a restart | On | A power cut does not end the night |
 
 **The night needs no host at the desk.** The rule accepts requests with nobody watching. A host
 who leaves loses the corrections and nothing else.

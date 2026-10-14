@@ -90,8 +90,8 @@ the id a remote sends, so the cap stops a mistake and not a cheat.
 whether a phone may ask, and these say what the machine asks of a singer who does.
 `singers.max_waiting` and `singers.queue_order` are the third and fourth answers on the same form.
 
-**One route reads the three and one writes them.** `GET /api/v1/singers/rules` is public, so a
-remote can ask for a name before the first song. `PUT /api/v1/admin/singers/rules` takes the three together and writes
+**One route reads the four and one writes them.** `GET /api/v1/singers/rules` is public, so a
+remote can ask for a name before the first song. `PUT /api/v1/admin/singers/rules` takes the four together and writes
 them at once. Each cap goes up to 100, and an empty box for the singers on one phone is no limit.
 A new rule applies from the next registration and the next request.
 
@@ -172,7 +172,7 @@ the machine accepts it.
 
 | State | Meaning |
 |---|---|
-| `waiting` | The singer already has a song in the queue, or the queue is full |
+| `waiting` | The queue is full, or under turns the singer already has a song in it |
 | `queued` | Accepted, with the entry's id and position |
 | `played` | The song started |
 | `declined` | Somebody at the `control` level took it out |
@@ -320,15 +320,15 @@ evening that it holds now.
 | `admin` | Everything under `/api/v1/admin/`. |
 
 **A room level, and two codes.** The room level is what a phone with no code gets, and it starts at
-`request`. So anybody in the room asks for a song, and the machine queues it in that singer's turn.
-A new machine gives its singers turns with no setup.
+`request`. So anybody in the room asks for a song, and the machine queues it in the order the owner
+chose.
 
 **An owner may set the room to `view`, `queue` or `control`, and never to `admin`.** A queue code and a control code each raise a phone to their level.
 The admin password opens the admin level, as it always does.
 
-**`request` stands below `queue` because a song with no singer takes no turn.** `POST /queue` puts
-a song straight at the end of the queue, past the rule that gives each singer one song there. A
-guest who could do that would drop the name to get ahead. So a guest asks, and the level that adds
+**`request` stands below `queue` because a song with no singer takes no turn.** Under turns,
+`POST /queue` puts a song straight at the end of the queue, past the rule that gives each singer one
+song there. A guest who could do that would drop the name to get ahead. So a guest asks, and the level that adds
 a song out of turn needs a code or an owner who raised the room. See
 [`The queue holds one song for each singer`](#the-queue-holds-one-song-for-each-singer).
 
@@ -976,8 +976,8 @@ unsafe.
 
 ## `/admin/` is the owner's page, and it is a third surface on purpose
 
-**A page at `/admin/` with four tabs, served by the machine itself and behind its own admin
-password.** The tabs are Songs, Pictures, Sound and This machine. Without the page, songs arrive by
+**A page at `/admin/` with its own tabs, served by the machine itself and behind its own admin
+password.** The tabs are This machine, Songs, Pictures, Sound and Problems. Without the page, songs arrive by
 routes that each assume a command line, a path already known or a file already in hand. The name
 reaches the network with nothing able to set it.
 
@@ -1489,7 +1489,7 @@ does. An appliance under a television has an owner's page and no text editor. A 
 a switch that house cannot reach.
 
 **It is not a field on `PUT /api/v1/settings`.** That route holds what belongs to a performance: the
-key, the tempo, the guide melody. A singer's phone may turn those. How every song ends is
+key, the tempo, the guide melody. A phone at the `queue` level may turn those. How every song ends is
 installation configuration, in the family of the demo delay. So it is written to settings at once
 and has no `persist`.
 
