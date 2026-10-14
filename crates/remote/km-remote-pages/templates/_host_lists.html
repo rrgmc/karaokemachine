@@ -58,9 +58,8 @@
   {% else %}
   <ul class="song-list">
     {% for singer in singers %}
-    {# The three actions are folded behind the ⋯ on a phone, where a row has no room for them, and
-       shown on the row from a tablet's width up. A checkbox and its label, so the fold needs no
-       script. #}
+    {# The three actions are folded behind the ⋯ at every width, so a long list of singers stays one
+       line each. A checkbox and its label, so the fold needs no script. #}
     <li class="host-singer">
       <div class="host-singer-head">
         <div class="queue-body">

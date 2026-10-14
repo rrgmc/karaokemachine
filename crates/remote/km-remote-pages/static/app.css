@@ -1052,8 +1052,13 @@ label.icon-btn { display: inline-flex; align-items: center; justify-content: cen
 /* The queue's own toggle belongs to the Queue tab, whose checkbox it is a label for. Here the row
  * buttons are always shown, because correcting the queue is what this tab is for. */
 .host .queue-head { display: none; }
-.host-singer { padding: 0.45rem 0; border-bottom: 1px solid var(--line); }
+/* A night can have dozens of singers, so a singer takes one short line: the name, then the counts
+ * beside it. The actions stay folded behind the ⋯ at every width. */
+.host-singer { padding: 0.15rem 0; border-bottom: 1px solid var(--line); }
 .host-singer-head { display: flex; align-items: center; gap: 0.55rem; }
+.host-singer .queue-body { display: flex; align-items: baseline; gap: 0.5rem; }
+.host-singer .song-name { flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.host-singer .song-sub { white-space: nowrap; }
 .host-singer-actions {
   display: flex;
   flex-wrap: wrap;
@@ -1093,9 +1098,9 @@ label.icon-btn { display: inline-flex; align-items: center; justify-content: cen
     min-height: 2.75rem;
     font-size: 1.05rem;
   }
-  /* There is room on the row, so a singer's actions need no fold. */
-  .host .host-singer .actions-toggle { display: none; }
-  .host .host-singer input ~ .host-singer-actions { display: flex; }
+  /* A singer's row stays one short line, so its toggle keeps the phone's size. */
+  .host .host-singer .actions-toggle { min-width: 2.1rem; min-height: 2.1rem; padding: 0.1rem 0.4rem; }
+  .host .host-singer .song-name { font-size: 1rem; }
 }
 
 /* A phone's own songs sit above the queue under a small heading, so the two lists read as two. */
