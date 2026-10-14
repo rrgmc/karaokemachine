@@ -1056,6 +1056,14 @@ impl Machine {
         self.lock_settings().debug.packages.clone()
     }
 
+    /// Whether linked packages are welcome here now, and the folder their song files are in.
+    ///
+    /// Cloned for the reason [`Machine::debug_packages`] gives. It is read at each use and never
+    /// kept, so turning linked packages off holds for the next song as well as the next install.
+    pub(crate) fn linked_packages(&self) -> crate::settings::LinkedPackagesSettings {
+        self.lock_settings().linked_packages.clone()
+    }
+
     /// Which wallpaper folder is in force now, and which rule chose it.
     ///
     /// Asked at every rescan rather than once at startup, because the choice is made **by
@@ -2963,7 +2971,10 @@ impl Machine {
             let graphics = package
                 .graphics_bytes(u32::from(number.slot()))
                 .map_err(|error| CatalogError::Failed(format!("song {number}: {error}")))?;
-            let graphics_name = km_kmpkg::graphics_entry_for(&audio_name);
+            // Asked of the package, because a linked `.cdg` keeps the name its file has.
+            let graphics_name = package
+                .graphics_name(u32::from(number.slot()))
+                .map_err(|error| CatalogError::Failed(format!("song {number}: {error}")))?;
             let rate = match self.engine.sample_rate() {
                 0 => 48_000,
                 rate => rate,
@@ -3023,13 +3034,33 @@ impl Machine {
 
     /// An open package, from the cache or freshly opened.
     fn open_package(&self, id: &str, path: &Path) -> Result<Arc<Package>, CatalogError> {
-        if let Some(package) = self.lock_packages().get(id) {
-            return Ok(Arc::clone(package));
-        }
-        // The same doubled path `install` above had: `PackageError` names the file itself.
-        let package =
-            Package::open(path).map_err(|error| CatalogError::Failed(error.to_string()))?;
-        let package = Arc::new(package);
+        let cached = self.lock_packages().get(id).cloned();
+        let package = match cached {
+            // A package that bundles its files is the same whatever the settings say.
+            Some(package) if !package.is_linked() => return Ok(package),
+            Some(package) => package,
+            // The same doubled path `install` above had: `PackageError` names the file itself.
+            None => Arc::new(
+                Package::open(path).map_err(|error| CatalogError::Failed(error.to_string()))?,
+            ),
+        };
+        // **Asked at every load, cached or not.** A linked package installed while they were
+        // allowed must stop playing when the owner turns them off, and must follow a folder the
+        // owner changes. The cache therefore keeps a linked package only for the folder it was
+        // given.
+        let package = if package.is_linked() {
+            let settings = self.linked_packages();
+            let folder = settings
+                .folder()
+                .map_err(|refusal| CatalogError::Failed(format!("package '{id}': {refusal}")))?;
+            if package.linked_dir() == Some(folder) {
+                package
+            } else {
+                Arc::new(Package::clone(&package).with_linked_dir(folder))
+            }
+        } else {
+            package
+        };
         self.lock_packages()
             .insert(id.to_owned(), Arc::clone(&package));
         Ok(package)
@@ -4306,8 +4337,13 @@ impl Catalog for Machine {
         // in the write folder. A dropped file reaches it directly, a double-clicked `.kmpkg` reaches
         // it from `cli` before there is a machine at all, and this is how the API route reaches it
         // from another crate.
-        let (destination, _id) = crate::dropped::adopt(&self.paths, &self.debug_packages(), path)
-            .map_err(CatalogError::Rejected)?;
+        let (destination, _id) = crate::dropped::adopt(
+            &self.paths,
+            &self.debug_packages(),
+            &self.linked_packages(),
+            path,
+        )
+        .map_err(CatalogError::Rejected)?;
         self.install(&destination)
     }
 
@@ -4319,6 +4355,12 @@ impl Catalog for Machine {
         // a bare colon, which reads as no reason at all.
         let package =
             Package::open(path).map_err(|error| CatalogError::Rejected(error.to_string()))?;
+        // Before the bank is reserved, so a package this machine will not take leaves nothing
+        // behind. The path leads the sentence, as it leads every `PackageError`, and the Problems
+        // tab takes it off again.
+        self.linked_packages()
+            .admit(&package)
+            .map_err(|refusal| CatalogError::Rejected(format!("{}: {refusal}", path.display())))?;
         let now = timestamp();
         // Where it goes, decided before the install because the install writes the bank into every
         // song's number. Taken outside the library lock — it takes that lock itself, and the rule
@@ -5616,9 +5658,13 @@ impl Controller for Machine {
             // rename. See `dropped::place`. It matters most on this route — what a client called the
             // file it sent decides nothing about where it lands.
             Upload::Package => {
-                let (destination, _id) =
-                    crate::dropped::adopt(&self.paths, &self.debug_packages(), staged)
-                        .map_err(ControlError::Rejected)?;
+                let (destination, _id) = crate::dropped::adopt(
+                    &self.paths,
+                    &self.debug_packages(),
+                    &self.linked_packages(),
+                    staged,
+                )
+                .map_err(ControlError::Rejected)?;
                 let report = self
                     .install(&destination)
                     .map_err(|error| ControlError::Unavailable(error.to_string().into()))?;
@@ -8979,5 +9025,187 @@ mod tests {
     #[test]
     fn a_song_with_no_events_carries_no_corrections() {
         assert!(fixes_for(&[], "a video").is_empty());
+    }
+
+    /// A machine, a folder of eight song files, and a linked package of them in the folder the
+    /// machine scans. Nothing is installed.
+    fn a_machine_and_a_linked_package(
+        name: &str,
+        settings: Settings,
+    ) -> (Scratch, Arc<Machine>, PathBuf, PathBuf, Vec<SongCode>) {
+        let root = Scratch::new(&format!("machine-{name}"));
+        let library = root.join("library");
+        let (engine, _log) = Engine::recording();
+        let machine = Arc::new(
+            Machine::new(
+                Paths::rooted_at(root.path()),
+                settings,
+                engine,
+                Events::new(),
+            )
+            .expect("build a machine"),
+        );
+
+        let mut builder = km_kmpkg::PackageBuilder::new_linked(
+            km_kmpkg::PackageMeta {
+                id: km_kmpkg::EXAMPLE_ID.to_owned(),
+                name: "Volume One".to_owned(),
+                version: "1.0.0".to_owned(),
+                publisher: None,
+                created: None,
+                volume: None,
+            },
+            Some(library.clone()),
+        );
+        for (index, midi) in fixtures().into_iter().enumerate() {
+            let number = u32::try_from(index).expect("eight fits") + 1;
+            let source = root.write(format!("library/songs/{number}.mid"), &midi);
+            builder
+                .add_midi_linked(an_entry(number), &source, &midi)
+                .expect("link a song");
+        }
+        let folder = machine.paths().packages_write_dir();
+        std::fs::create_dir_all(&folder).expect("make the packages folder");
+        let package_path = folder.join("vol1.kmpkg");
+        builder.write(&package_path).expect("write the package");
+
+        let bank = km_kmpkg::PackageMeta::suggested_bank(km_kmpkg::EXAMPLE_ID);
+        let codes = (1..=8)
+            .map(|slot| SongCode::in_bank(bank, slot).expect("a code in the package's bank"))
+            .collect();
+        (root, machine, package_path, library, codes)
+    }
+
+    /// Settings that take linked packages from `library` under a scratch folder not made yet.
+    fn linked_packages_on(machine: &Machine, library: &Path) {
+        let mut settings = machine.lock_settings();
+        settings.linked_packages.enabled = true;
+        settings.linked_packages.dir = Some(library.to_path_buf());
+    }
+
+    #[test]
+    fn a_linked_package_is_refused_while_the_switch_is_off() {
+        let (_root, machine, package_path, library, _codes) =
+            a_machine_and_a_linked_package("linked-off", Settings::default());
+
+        let refused = machine.install(&package_path).expect_err("off by default");
+        assert!(
+            matches!(&refused, CatalogError::Rejected(why) if why.contains("turned off")),
+            "{refused}"
+        );
+
+        machine.lock_settings().linked_packages.enabled = true;
+        let refused = machine.install(&package_path).expect_err("no folder set");
+        assert!(refused.to_string().contains("no folder set"), "{refused}");
+
+        machine.lock_settings().linked_packages.dir = Some(library.join("not-there"));
+        let refused = machine.install(&package_path).expect_err("no such folder");
+        assert!(refused.to_string().contains("is not there"), "{refused}");
+
+        assert!(
+            machine.lock_library().packages().expect("list").is_empty(),
+            "nothing went into the catalog"
+        );
+    }
+
+    #[test]
+    fn a_refused_linked_package_is_a_standing_problem_that_says_why() {
+        let (_root, machine, _package_path, _library, _codes) =
+            a_machine_and_a_linked_package("linked-problem", Settings::default());
+
+        machine.rescan_now();
+        let problems = machine.package_problems();
+        assert_eq!(problems.len(), 1, "{problems:?}");
+        assert_eq!(
+            problems[0].reason,
+            "it is a linked package, and linked packages are turned off on this machine",
+            "the reason does not repeat the file's path"
+        );
+        assert_eq!(
+            problems[0].package_id.as_deref(),
+            Some(km_kmpkg::EXAMPLE_ID)
+        );
+    }
+
+    #[test]
+    fn a_linked_package_installs_and_plays_from_its_folder() {
+        let (_root, machine, package_path, library, codes) =
+            a_machine_and_a_linked_package("linked-plays", Settings::default());
+        linked_packages_on(&machine, &library);
+
+        let report = machine.install(&package_path).expect("install");
+        assert_eq!(report.songs_added, 8);
+        let installed = machine.lock_library().packages().expect("list");
+        assert!(installed[0].flags.is_linked(), "the catalog keeps the flag");
+
+        machine.queue_add(a_request(codes[2])).expect("queue");
+        assert_eq!(
+            machine
+                .lock_state()
+                .loaded
+                .as_ref()
+                .map(|loaded| loaded.title.clone()),
+            Some("Song 3".to_owned()),
+            "the song was read from the folder and loaded"
+        );
+    }
+
+    #[test]
+    fn turning_linked_packages_off_stops_the_next_song_and_drops_them_at_the_next_pass() {
+        let (_root, machine, _package_path, library, codes) =
+            a_machine_and_a_linked_package("linked-turned-off", Settings::default());
+        linked_packages_on(&machine, &library);
+        machine.rescan_now();
+        assert!(machine.load_from_catalog(codes[0]).expect("load").is_some());
+
+        machine.lock_settings().linked_packages.enabled = false;
+        let refused = machine
+            .load_from_catalog(codes[0])
+            .err()
+            .expect("the package is cached, and the gate is asked anyway");
+        assert!(refused.to_string().contains("turned off"), "{refused}");
+
+        machine.rescan_now();
+        assert!(
+            machine.lock_library().packages().expect("list").is_empty(),
+            "an idle machine drops the songs it will not play"
+        );
+        assert_eq!(machine.package_problems().len(), 1);
+    }
+
+    #[test]
+    fn a_linked_song_follows_the_folder_the_owner_sets() {
+        let (root, machine, _package_path, library, codes) =
+            a_machine_and_a_linked_package("linked-folder-moves", Settings::default());
+        linked_packages_on(&machine, &library);
+        machine.rescan_now();
+        assert!(machine.load_from_catalog(codes[0]).expect("load").is_some());
+
+        // An empty folder: the package is still welcome, and its files are not here.
+        let empty = root.join("empty");
+        std::fs::create_dir_all(&empty).expect("make the folder");
+        machine.lock_settings().linked_packages.dir = Some(empty);
+        let refused = machine
+            .load_from_catalog(codes[0])
+            .err()
+            .expect("the cached package is not kept for another folder");
+        assert!(refused.to_string().contains("is not there"), "{refused}");
+    }
+
+    #[test]
+    fn uninstalling_a_linked_package_leaves_its_song_files() {
+        let (_root, machine, package_path, library, _codes) =
+            a_machine_and_a_linked_package("linked-uninstall", Settings::default());
+        linked_packages_on(&machine, &library);
+        machine.rescan_now();
+
+        machine.uninstall(km_kmpkg::EXAMPLE_ID).expect("uninstall");
+        assert!(!package_path.exists(), "the package file is the machine's");
+        for number in 1..=8 {
+            assert!(
+                library.join(format!("songs/{number}.mid")).is_file(),
+                "song file {number} belongs to whoever put it there"
+            );
+        }
     }
 }

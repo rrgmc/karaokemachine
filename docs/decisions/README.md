@@ -161,6 +161,7 @@ it are the same entry. How the thing is built is [`ARCHITECTURE.md`](../ARCHITEC
 - [An uncurated package says so everywhere but the television](packaging.md#an-uncurated-package-says-so-everywhere-but-the-television)
 - [A linked package keeps its song files outside itself](packaging.md#a-linked-package-keeps-its-song-files-outside-itself)
 - [A linked file is read only from inside one folder](packaging.md#a-linked-file-is-read-only-from-inside-one-folder)
+- [Linked packages are off until the owner turns them on](packaging.md#linked-packages-are-off-until-the-owner-turns-them-on)
 - [A package's id asks for a bank; the machine assigns one](packaging.md#a-packages-id-asks-for-a-bank-the-machine-assigns-one)
 - [A package's bank comes from its id, and from nothing else](packaging.md#a-packages-bank-comes-from-its-id-and-from-nothing-else)
 - [Bank 0 is the machine's own](packaging.md#bank-0-is-the-machines-own)

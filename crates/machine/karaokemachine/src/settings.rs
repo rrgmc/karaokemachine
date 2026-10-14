@@ -548,6 +548,93 @@ impl WallpaperSettings {
     }
 }
 
+/// Whether this machine takes linked packages, and where their song files are.
+///
+/// A linked package holds no song file. It names each one by a path, and the machine reads that
+/// path below [`Self::dir`] and nowhere else. See `Linked packages are off until the owner turns
+/// them on` in `docs/decisions/packaging.md`.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct LinkedPackagesSettings {
+    /// Whether a linked package may be installed and played.
+    ///
+    /// **Off.** A linked package makes the machine read files from a folder on its own disk, at
+    /// paths somebody else wrote. An owner who built the package, or trusts whoever did, turns it
+    /// on.
+    pub enabled: bool,
+    /// The one folder every linked package's song files are read from.
+    ///
+    /// **One folder, and a folder.** A second root would need each package to say which one it
+    /// means, and a path in a package that chooses a folder is the thing the checks refuse. `None`
+    /// means no folder is set, and a linked package is then refused whatever [`Self::enabled`]
+    /// says.
+    ///
+    /// **Nothing is deleted from here.** Uninstalling a linked package removes the package file,
+    /// and the song files belong to whoever put them there.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub dir: Option<PathBuf>,
+}
+
+/// Why this machine will not take a linked package.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LinkedRefusal {
+    /// The owner has not turned linked packages on.
+    Off,
+    /// The settings name no folder for the song files.
+    NoFolder,
+    /// The folder the settings name is not there.
+    FolderMissing,
+}
+
+impl std::fmt::Display for LinkedRefusal {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Self::Off => {
+                "it is a linked package, and linked packages are turned off on this machine"
+            }
+            Self::NoFolder => {
+                "it is a linked package, and this machine has no folder set for linked packages"
+            }
+            Self::FolderMissing => {
+                "it is a linked package, and the folder set for linked packages is not there"
+            }
+        })
+    }
+}
+
+impl LinkedPackagesSettings {
+    /// The folder linked song files are read from, or why a linked package is refused.
+    ///
+    /// **The one gate.** Installing, taking a handed-in file and loading a song each ask it, so
+    /// the three cannot disagree about whether a linked package is welcome.
+    ///
+    /// # Errors
+    ///
+    /// The first of the three reasons that holds, in the order an owner would fix them.
+    pub fn folder(&self) -> Result<&Path, LinkedRefusal> {
+        if !self.enabled {
+            return Err(LinkedRefusal::Off);
+        }
+        let dir = self.dir.as_deref().ok_or(LinkedRefusal::NoFolder)?;
+        if !dir.is_dir() {
+            return Err(LinkedRefusal::FolderMissing);
+        }
+        Ok(dir)
+    }
+
+    /// Whether a package of this type is welcome here. One that bundles its files always is.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::folder`], for a linked package.
+    pub fn admit(&self, package: &km_kmpkg::Package) -> Result<(), LinkedRefusal> {
+        if package.is_linked() {
+            self.folder()?;
+        }
+        Ok(())
+    }
+}
+
 /// Playback defaults, applied to each new song.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 #[serde(default)]
@@ -1230,6 +1317,10 @@ pub struct Settings {
     /// not. `--show-paths` says so beside each one.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub package_dirs: Vec<PathBuf>,
+    /// Whether this machine takes linked packages, and the one folder their song files are in.
+    /// See [`LinkedPackagesSettings`].
+    #[serde(default)]
+    pub linked_packages: LinkedPackagesSettings,
     /// The block of a thousand each package's songs are dialled in, by package **id**.
     ///
     /// `{"brasil-vol2": 3}` makes that package's song 500 into 3500, which is how two packages that
@@ -2016,6 +2107,39 @@ mod tests {
         assert!(rules.name_required);
         assert_eq!(rules.max_per_device, Some(3));
         assert_eq!(venue.singers.request_rules().max_waiting, 2);
+    }
+
+    /// A machine takes no linked package until its owner both allows them and names a folder.
+    #[test]
+    fn linked_packages_are_off_until_the_file_allows_them_and_names_a_folder() {
+        let fresh = Settings::default().linked_packages;
+        assert!(!fresh.enabled);
+        assert_eq!(fresh.folder(), Err(LinkedRefusal::Off));
+
+        let allowed: Settings =
+            serde_json::from_str(r#"{"linked_packages":{"enabled":true}}"#).expect("parse");
+        assert_eq!(
+            allowed.linked_packages.folder(),
+            Err(LinkedRefusal::NoFolder),
+            "allowing them is not enough"
+        );
+
+        let scratch = km_testkit::Scratch::new("linked-settings");
+        let mut named = allowed.linked_packages.clone();
+        named.dir = Some(scratch.join("not-there"));
+        assert_eq!(named.folder(), Err(LinkedRefusal::FolderMissing));
+        named.dir = Some(scratch.path().to_path_buf());
+        assert_eq!(named.folder(), Ok(scratch.path()));
+
+        // A folder with the switch off is still off: the folder is not what allows them.
+        named.enabled = false;
+        assert_eq!(named.folder(), Err(LinkedRefusal::Off));
+
+        let written = serde_json::to_string(&Settings::default()).expect("write");
+        assert!(
+            written.contains(r#""linked_packages":{"enabled":false}"#),
+            "{written}"
+        );
     }
 
     /// A machine starts each evening empty until its owner asks it to keep one.

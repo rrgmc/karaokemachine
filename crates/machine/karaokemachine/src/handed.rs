@@ -176,8 +176,13 @@ pub(crate) enum Next {
 /// Copies it in, then either hands it to the machine already running here or leaves it for startup.
 pub(crate) fn take(paths: &Paths, settings: &Settings, path: &Path) -> anyhow::Result<Next> {
     let path = absolute(path);
-    let (destination, id) = crate::dropped::adopt(paths, &settings.debug.packages, &path)
-        .map_err(|reason| anyhow::anyhow!("{} could not be taken in: {reason}", path.display()))?;
+    let (destination, id) = crate::dropped::adopt(
+        paths,
+        &settings.debug.packages,
+        &settings.linked_packages,
+        &path,
+    )
+    .map_err(|reason| anyhow::anyhow!("{} could not be taken in: {reason}", path.display()))?;
 
     match machine_here(settings) {
         Running::Machine(base) => {

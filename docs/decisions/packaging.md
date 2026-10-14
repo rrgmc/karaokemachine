@@ -700,6 +700,45 @@ name it could write to or delete, so uninstalling a linked package cannot remove
 package cannot do that. A hostile package is what this guards against, and a program already running
 on the machine reads the owner's files without one.
 
+## Linked packages are off until the owner turns them on
+
+**A machine refuses a linked package unless `linked_packages.enabled` is true and
+`linked_packages.dir` names a folder that is there.** Both start unset. A linked package makes the
+machine read files from its own disk at paths somebody else wrote, so its owner says yes first.
+
+**The folder is one folder.** A second would need each package to say which one it means. A path
+that chooses its own root is what
+[the path checks](#a-linked-file-is-read-only-from-inside-one-folder) refuse. Every linked package
+therefore names its files below the same folder.
+
+**The folder is set in `settings.json` and nowhere else**, as `package_dirs` is. No route can point
+the machine at a folder. `--show-paths` prints it, on a line that begins `linked`. It is a folder
+and not a file, so
+[`Only debug. names a file`](foundations.md#only-debug-names-a-file) holds.
+
+**One gate answers three places**, and each asks it afresh:
+
+- **An install**, by any route. The package is refused before a bank is reserved for it. A package
+  found by the scan becomes a standing problem, which says which of the three reasons holds.
+- **A file handed in**: an upload, a drop on the window, a double-click. It is refused before it is
+  copied into the packages folder.
+- **A song about to play.** A linked package installed while they were allowed stops playing when
+  the owner turns them off. The song is skipped, as any song that will not load is.
+
+**Turning them off removes the songs at the next pass.** The scan refuses the package, and
+[`The catalog is what the folders hold`](#the-catalog-is-what-the-folders-hold) then drops its
+rows, once nothing is playing or queued. The package keeps its bank, so turning them on again brings
+the same numbers back.
+
+**A missing song file is not a missing package.** The scan reads a manifest and no song file, so a
+linked package installs while its folder holds none of its songs. Each such song fails when
+somebody asks for it. That is
+[`No removable media`](foundations.md#no-removable-media) applied to a file: the machine does not
+reason about why a file is absent.
+
+**Uninstalling deletes the package file and no song file.** The folder for linked files is not one
+of the folders `Paths::is_mine_to_delete` names, and the reader hands out no path to delete.
+
 ## A package's id asks for a bank; the machine assigns one
 
 **The machine decides, and it takes a free request.** A bank is a **slot** with no meaning. The
