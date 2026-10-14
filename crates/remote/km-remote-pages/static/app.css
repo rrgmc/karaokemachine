@@ -1103,6 +1103,14 @@ label.icon-btn { display: inline-flex; align-items: center; justify-content: cen
   font-weight: 600;
 }
 
+/* The rule above the whole queue is heavier than the line between two rows, so this phone's own
+ * songs end visibly before everybody's begin. */
+.list-head.mine-end {
+  margin-top: 1.2rem;
+  padding-top: 0.6rem;
+  border-top: 3px solid var(--line);
+}
+
 /* Another singer on this phone is the unusual case, so its control is smaller than the box above
  * it and folded away. */
 .pref-more { padding: 0.2rem 0 0.4rem; font-size: 0.85rem; }

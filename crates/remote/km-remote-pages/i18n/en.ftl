@@ -397,6 +397,7 @@ host-reset-confirm = Empty everything
 ## The songs this phone asked for
 
 mine-heading = Your songs
+mine-queue-heading = The whole queue
 mine-withdraw = Take this song back
 request-waiting = Waiting for your turn
 request-queued = In the queue, place { $place }

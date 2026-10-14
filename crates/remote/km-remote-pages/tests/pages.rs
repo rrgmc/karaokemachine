@@ -5865,6 +5865,10 @@ async fn a_phones_first_song_is_queued_and_its_second_waits() {
 
     let queue = phone.get("/queue").await;
     assert!(queue.contains("Your songs"), "{queue}");
+    assert!(
+        queue.contains("The whole queue"),
+        "the queue below the list has a heading of its own: {queue}"
+    );
     assert!(queue.contains("In the queue, place 1"), "{queue}");
     assert!(queue.contains("Waiting for your turn"), "{queue}");
     assert!(
@@ -5908,6 +5912,7 @@ async fn a_phone_that_asked_for_nothing_has_no_list_of_its_own() {
     let queue = harness.get("/queue").await;
     assert!(queue.contains(r#"id="mine""#), "the target stays: {queue}");
     assert!(!queue.contains("Your songs"), "{queue}");
+    assert!(!queue.contains("The whole queue"), "{queue}");
     assert!(!queue.contains("<style>"), "{queue}");
 }
 

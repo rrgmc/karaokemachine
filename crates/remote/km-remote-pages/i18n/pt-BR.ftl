@@ -344,6 +344,7 @@ host-reset-confirm = Esvaziar tudo
 ## As músicas que este celular pediu
 
 mine-heading = Suas músicas
+mine-queue-heading = A fila completa
 mine-withdraw = Retirar esta música
 request-waiting = Esperando a sua vez
 request-queued = Na fila, lugar { $place }
