@@ -75,10 +75,10 @@ pub struct ApiSettings {
     /// without changing the password. It has to be here rather than in memory: an epoch that did not
     /// survive a restart would quietly un-revoke every session an owner had just ended.
     pub session_epoch: u64,
-    /// What everybody on the network gets with no code: `view`, `queue` or `control`.
+    /// What everybody on the network gets with no code: `view`, `request`, `queue` or `control`.
     ///
-    /// `queue` unless the owner says otherwise, so anybody in the room can queue a song. `admin` is
-    /// never a room level, and the API reads it as `control`.
+    /// `request` unless the owner says otherwise, so anybody in the room can ask for a song. `admin`
+    /// is never a room level, and the API reads it as `control`.
     pub room_access: km_api::Access,
     /// `argon2` hash of the code that opens the queue level. `None` means there is no such code.
     pub queue_code_hash: Option<String>,
