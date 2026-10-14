@@ -2370,7 +2370,11 @@ async fn host_answer(state: &Remote, locale: Locale, result: Result<(), RemoteEr
 /// `GET /host` — the tab a host runs the night from.
 ///
 /// A phone below the control level is sent to the Setup tab, where the code box is.
-pub async fn host(State(state): State<Remote>, headers: HeaderMap) -> Response {
+pub async fn host(
+    State(state): State<Remote>,
+    Query(sent): Query<HostSent>,
+    headers: HeaderMap,
+) -> Response {
     let prefs = Prefs::read(&headers);
     let locale = prefs.locale;
     if permit(&state, &prefs, Access::Control).await.is_err() {
@@ -2381,15 +2385,42 @@ pub async fn host(State(state): State<Remote>, headers: HeaderMap) -> Response {
     let queue = queue_block(&state, view.remaining_ms(), locale).await;
     let nowbar = NowBar::of(view);
     let lists = host_lists(&state, locale).await;
+    // A song sent from the Songs tab is looked up by its number, so the box holds that song and no
+    // other with a similar title. A number that finds nothing opens the tab as usual.
+    let sent = match sent.song {
+        Some(code) => state
+            .songs
+            .song(code)
+            .await
+            .ok()
+            .flatten()
+            .map(|song| views::SentSong {
+                title: song.title.clone(),
+                found: HostSongs {
+                    songs: vec![song],
+                    asked: true,
+                },
+            }),
+        None => None,
+    };
     views::page(
         &HostPage {
             chrome,
             nowbar,
             lists,
             queue,
+            sent,
         },
         locale,
     )
+}
+
+/// `GET /host?song=<number>` — the song the Songs tab sent to the host's add form.
+#[derive(Debug, Default, Deserialize)]
+pub struct HostSent {
+    /// The song's number.
+    #[serde(default)]
+    pub song: Option<SongCode>,
 }
 
 /// `GET /host/lists` — the singers and the waiting requests, which the page asks for again when

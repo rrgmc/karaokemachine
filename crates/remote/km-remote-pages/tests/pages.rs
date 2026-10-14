@@ -6321,6 +6321,31 @@ async fn a_host_adds_songs_for_a_singer_by_name() {
     );
 }
 
+/// A song sent from the Songs tab opens the host's singers tab with that song ready to add.
+#[tokio::test]
+async fn a_song_sent_from_the_songs_tab_waits_on_the_hosts_add_form() {
+    let harness = Harness::online();
+    let songs = harness.get("/").await;
+    assert!(songs.contains(r#"href="/host?song=1001""#), "{songs}");
+
+    let page = harness.get("/host?song=1001").await;
+    assert!(
+        page.contains(r#"id="host-tab-singers" class="visually-hidden" checked"#),
+        "the singers tab is chosen: {page}"
+    );
+    assert!(page.contains(r#"value="Tempo Perdido""#), "{page}");
+    assert!(
+        page.contains(r#"hx-post="/host/add/1001""#),
+        "the song waits with its +: {page}"
+    );
+
+    let plain = harness.get("/host").await;
+    assert!(
+        plain.contains(r#"id="host-tab-queue" class="visually-hidden" checked"#),
+        "{plain}"
+    );
+}
+
 /// The two corrections to the rule, from the list of waiting requests.
 #[tokio::test]
 async fn a_host_accepts_a_waiting_song_early_or_declines_it() {

@@ -70,6 +70,7 @@ it to run a night:
 | The host wants to | On the host's tab |
 |---|---|
 | Add a song for a guest with no phone | Type the guest's name, search the song, and tap **+** |
+| Add a song found on the Songs tab | Tap **👤** on the song, choose the singer, and tap **+** |
 | Put a waiting song into the queue early | Tap **↑** for next, or **+** for the end of the queue |
 | Refuse a waiting song | Tap **✕** beside it |
 | Move a singer to another phone | Open the singer and tap **Hand to a phone**. The guest then types that name on the new phone |

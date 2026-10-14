@@ -16,9 +16,10 @@
 {# Two tabs below the bar, chosen by two radio buttons that stand before `.host`. The stylesheet
    shows the chosen tab's parts and places them by name, so this file says what there is and
    `app.css` says where. Radios and no script, as the bar above uses a checkbox. The queue is the
-   first tab and the chosen one, because a host watches it all night. #}
-<input type="radio" name="host-tab" id="host-tab-queue" class="visually-hidden" checked autocomplete="off">
-<input type="radio" name="host-tab" id="host-tab-singers" class="visually-hidden" autocomplete="off">
+   first tab and the chosen one, because a host watches it all night. A song sent from the Songs
+   tab chooses the singers tab instead, where the add form is. #}
+<input type="radio" name="host-tab" id="host-tab-queue" class="visually-hidden"{% if sent.is_none() %} checked{% endif %} autocomplete="off">
+<input type="radio" name="host-tab" id="host-tab-singers" class="visually-hidden"{% if sent.is_some() %} checked{% endif %} autocomplete="off">
 <div class="host-tabs">
   <label for="host-tab-queue">{{ "tab-queue"|t }}</label>
   <label for="host-tab-singers">{{ "host-singers"|t }}</label>
@@ -44,10 +45,14 @@
         <label for="host-song">{{ "host-song"|t }}</label>
         <input type="search" id="host-song" name="q" autocomplete="off" enterkeyhint="search"
                placeholder="{{ "host-song-placeholder"|t }}" aria-label="{{ "host-song"|t }}"
+               {% match sent %}{% when Some with (song) %}value="{{ song.title }}"{% when None %}{% endmatch %}
                hx-get="/host/songs" hx-trigger="input changed delay:300ms, search"
                hx-target="#host-songs" hx-swap="outerHTML">
       </div>
-      <div id="host-songs"></div>
+      {% match sent %}
+      {% when Some with (song) %}{{ song.found|safe }}
+      {% when None %}<div id="host-songs"></div>
+      {% endmatch %}
     </div>
   </div>
 

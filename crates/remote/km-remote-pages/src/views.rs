@@ -1245,6 +1245,17 @@ pub struct HostPage {
     pub lists: HostLists,
     /// The queue, which is the same fragment the Queue tab draws.
     pub queue: QueueBlock,
+    /// The song a host sent here from the Songs tab, drawn under the song box ready to add. Its
+    /// presence also opens the singers tab, where the add form is.
+    pub sent: Option<SentSong>,
+}
+
+/// A song sent to the host's tab from the Songs tab.
+pub struct SentSong {
+    /// The title, put in the song box.
+    pub title: String,
+    /// The song alone, as the box's search would list it.
+    pub found: HostSongs,
 }
 
 /// The host's two lists: the evening's singers, and the requests that wait.

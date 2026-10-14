@@ -105,6 +105,7 @@ youtube-link = Find on YouTube
 song-queue = Add to queue
 song-plain = Add with no singer
 song-play-now = Play now
+song-for-singer = Add for a singer on the host's tab
 song-play-next = Play next
 song-favorite = Add to favorites
 song-favorited = In a favorites folder

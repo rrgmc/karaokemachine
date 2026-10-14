@@ -325,6 +325,11 @@ The name stays in the box between songs, so a pile of slips for one singer is ty
 the machine's: no case and no accents. A new one is a singer with no phone. The rule gives the song
 that singer's turn, whatever order the host enters songs in.
 
+**A song on the Songs tab has a button that sends it to the host's add form.** A host at the
+control level browses the catalog as a guest does. The button opens the singers tab with that song
+in the song box and its + beside it, so the host picks the singer and adds it. The song is looked
+up by number, so a similar title does not stand in for it.
+
 **The name box offers the evening's named singers, and tapping a singer's name fills it.** A host
 adding for somebody who is here picks the name rather than typing it again. A typed name still
 works, so a new singer needs no step of their own. A singer with no name is not offered, because

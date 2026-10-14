@@ -91,6 +91,7 @@ youtube-link = Procurar no YouTube
 song-queue = Colocar na fila
 song-plain = Colocar sem cantor
 song-play-now = Tocar agora
+song-for-singer = Adicionar para um cantor na aba do anfitrião
 song-play-next = Tocar em seguida
 song-favorite = Adicionar às favoritas
 song-favorited = Está numa pasta de favoritas
