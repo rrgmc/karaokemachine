@@ -2486,7 +2486,7 @@ what the other remembered. That is the same argument that put the name there rat
 crate.
 
 **The label and the tooltip say which of two languages it means**, and so does the *Screen language*
-card on the *This machine* tab's General pane. That one is the television's, in a room; this one is this browser's,
+card on the General pane. That one is the television's, in a room; this one is this browser's,
 on this computer. Confusing the two is the likeliest misreading of either, which is why neither is
 labelled just *Language*. The confirmation is worded in the language just chosen, so somebody who picked the
 wrong one finds out at once.

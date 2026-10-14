@@ -54,9 +54,9 @@ Entries are written for somebody who has the machine. Why any of it is the way i
   video or MP3+G song waits the five seconds in silence. Demo songs are not announced. The
   Playback pane of the owner's page changes the length or turns it off.
 
-- **A venue can make the singers take turns.** Songs play in the order asked unless the owner
-  chooses **Singers take turns** under **Queue order**, on the Singers card of the owner's page and
-  of km-admin. The machine then keeps one song for each singer in the queue. A singer's next song
+- **A venue can make the singers take turns.** Songs play in the order asked by default. The
+  owner chooses **Singers take turns** under **Queue order**, on the Singers card of the owner's page
+  and of km-admin. The machine then keeps one song for each singer in the queue. A singer's next song
   goes in at the end of the queue when theirs starts. So somebody who asks for five songs sings one,
   and then waits for everybody else's turn.
 - **The phone's Queue tab lists your own songs.** Each one says whether it is waiting, in the queue
@@ -79,8 +79,8 @@ Entries are written for somebody who has the machine. Why any of it is the way i
 - **A song somebody already has brings a question.** A guest who asks for a song that is in the
   queue, or that somebody sang tonight, is asked once and can ask anyway.
 - **The owner's page sets what the machine asks of a singer.** The Singers and queue pane has a
-  **Singers** card. It says whether every singer gives a name, how many singers one phone may add,
-  how many songs one singer may have waiting, and the queue order.
+  **Singers** card. It sets the queue order, and whether every singer gives a name. It also caps the
+  singers on one phone and the songs one singer may have waiting.
 - **The queue on the machine's screen counts the songs that wait behind it.** Its header reads
   *3 songs waiting · 5 more asked for*, so the room sees how much singing is still to come.
 - **Each queued song shows about how long until it starts.** The phone's Queue tab and the queue on

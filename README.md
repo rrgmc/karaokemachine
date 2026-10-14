@@ -7,7 +7,7 @@ color, with the M in amber">
 
 A karaoke machine that behaves like a commercial home unit: pick a song by number, it plays, and the
 words highlight in time. It runs full-screen on a television, and any phone on the network is a
-remote: search the catalog and ask for a song, and with a code change the key or skip.
+remote. A phone searches the catalog and asks for a song, and with a code it changes the key or skips.
 
 A song is one of five things:
 
