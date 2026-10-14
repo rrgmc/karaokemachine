@@ -52,7 +52,7 @@ somebody you trust. Two things turn it on:
    "linked_packages": { "enabled": true, "dir": "<your karaoke folder>" }
    ```
 
-2. **Tick the box.** The **Linked packages** card is on the **This machine** tab of
+2. **Tick the box.** The **Linked packages** card is on the **Songs** tab of
    [the setup page](setup.md). The line above ticks it too.
 
 **Each linked package plays from one folder of its own, inside that folder.** The package names
