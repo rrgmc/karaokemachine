@@ -423,33 +423,39 @@ pub async fn browse(
         None => PAGE,
     };
 
-    let block = match browse_block(&state, &params, &prefs, span, anchor.map(|a| a.row), &tag).await
-    {
-        Ok(block) => block,
-        Err(error) => return failure(&error, locale),
-    };
+    let mut block =
+        match browse_block(&state, &params, &prefs, span, anchor.map(|a| a.row), &tag).await {
+            Ok(block) => block,
+            Err(error) => return failure(&error, locale),
+        };
 
-    let mut response = match wanted_fragment(&params, &headers) {
+    let fragment = wanted_fragment(&params, &headers);
+    // The choice between singers is in the block, so it comes with every drawing of the whole
+    // block and with none of the list alone.
+    let mut seats_changed = None;
+    if matches!(fragment, None | Some("browse")) {
+        let (seats, known, changed) = known_seats(&state, &prefs).await;
+        block.singers = phone_singers(&seats, &known, locale);
+        seats_changed = changed.then_some(seats);
+    }
+    let mut response = match fragment {
         Some("browse") => views::page(&block, locale),
         Some("list") => views::page(&block.list, locale),
         Some("rows") => views::page(&block.list.rows, locale),
         _ => {
             let chrome = chrome(&state, "browse", &prefs).await;
-            let (seats, known, changed) = known_seats(&state, &prefs).await;
-            let mut response = views::page(
+            views::page(
                 &BrowsePage {
                     chrome,
                     browse: block,
-                    singers: phone_singers(&seats, &known, locale),
                 },
                 locale,
-            );
-            if changed {
-                prefs::attach(response.headers_mut(), seats.cookie());
-            }
-            response
+            )
         }
     };
+    if let Some(seats) = seats_changed {
+        prefs::attach(response.headers_mut(), seats.cookie());
+    }
 
     // Remember where this left somebody. Cleared rather than stored when everything is back at its
     // defaults, so a phone that has been reset stops sending a cookie saying "normal".
@@ -735,6 +741,7 @@ async fn browse_block(
             rows,
             not_here: unplaced,
         },
+        singers: Vec::new(),
     })
 }
 

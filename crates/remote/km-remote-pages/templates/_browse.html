@@ -158,6 +158,10 @@
 
   </div>
 
+  {# Right above the list as well as on the Setup tab, because the + on a song asks for the
+     singer it names. #}
+  {% include "_singer_choose.html" %}
+
   {{ list|safe }}
 
 </div>

@@ -383,6 +383,11 @@ input[type="search"], input[type="text"], select {
  * otherwise be its flex basis, exactly as `.filter-row select` does below. */
 .pref-row select { flex: 1; width: auto; min-width: 6rem; }
 
+/* Above the song list the choice between singers takes the filter row's size, so it reads as part
+ * of the list's controls and not as a setting. */
+#browse .singer-choose { margin: 0.2rem 0 0.4rem; }
+#browse .singer-choose select { flex: 0 1 auto; min-width: 8.5rem; padding: 0.3rem 0.4rem; font-size: 0.85rem; }
+
 /* The filter row: the language picker, the A–Z picker and the ⋯ toggle, with no heading over them.
  * It wraps, because three controls plus a long language name does not fit one line on the narrowest
  * phone worth supporting and a horizontal scroller inside a vertical one is a gesture fight — which

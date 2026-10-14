@@ -6097,6 +6097,10 @@ async fn a_second_singer_on_one_phone_brings_the_choice() {
         songs.contains(r#"<option value="1" selected>Beto</option>"#),
         "the Songs tab offers the choice too: {songs}"
     );
+    assert!(
+        songs.find(r#"id="singer-choose""#) > songs.find(r#"id="browse""#),
+        "inside the block a mode change redraws, right above the list: {songs}"
+    );
 
     // Each one's first song goes in, because they are two singers.
     assert!(phone.post("/song/1001/queue").await.contains(">queued<"));

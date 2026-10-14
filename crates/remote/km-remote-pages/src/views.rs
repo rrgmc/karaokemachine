@@ -381,9 +381,6 @@ pub struct BrowsePage {
     pub chrome: Chrome,
     /// The whole browse block.
     pub browse: BrowseBlock,
-    /// The singers this phone holds. With two or more, the page offers the choice above the list,
-    /// so the + on a song is for the singer shown there.
-    pub singers: Vec<PhoneSinger>,
 }
 
 /// The `#browse` block: the bar, and the list under it.
@@ -431,6 +428,9 @@ pub struct BrowseBlock {
     pub package_problems: Vec<String>,
     /// The list.
     pub list: ListBlock,
+    /// The singers this phone holds. With two or more, the choice stands right above the list, so
+    /// the + on a song is for the singer shown there. Filled only where the whole block is drawn.
+    pub singers: Vec<PhoneSinger>,
 }
 
 impl BrowseBlock {
@@ -1885,6 +1885,7 @@ mod tests {
                     anchor: None,
                 },
             },
+            singers: Vec::new(),
         };
         assert_eq!(block(Capabilities::online()).modes().len(), 2);
         assert_eq!(block(Capabilities::offline()).modes().len(), 3);
