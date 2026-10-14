@@ -49,7 +49,7 @@ use crate::views::{
     MineBlock, MineRow, NowBar, NowPage, PackageSetting, PackagesPage, PhoneSinger, PlayerBlock,
     PositionBlock, QueueBlock, QueueCount, QueuePage, RestoreDonePage, RestorePage, RowsBlock,
     SetupPage, ShareConfirmPage, ShareDonePage, SharePage, ShareReceivePage, ShareSendPage, Sheet,
-    SongActions, SongLine, Star, StepHead, Toast,
+    SingerName, SongActions, SongLine, Star, StepHead, Toast,
 };
 use crate::{Remote, backup, share, sse};
 
@@ -1178,7 +1178,10 @@ pub async fn setup(State(state): State<Remote>, headers: HeaderMap) -> Response 
     let mut response = views::page(
         &SetupPage {
             chrome,
-            singing_as,
+            singer_name: SingerName {
+                singing_as,
+                oob: false,
+            },
             singers,
             machine,
             packages_tab,
@@ -1680,7 +1683,12 @@ pub async fn set_singer(State(state): State<Remote>, headers: HeaderMap, body: S
                 crate::words::messages(locale)
                     .msg_with("singer-set", &[("name", name.as_str().into())]),
             );
-            let mut response = views::toast_only(toast, locale);
+            // The name block comes back with the box folded away, now that there is a name.
+            let block = SingerName {
+                singing_as: name.clone(),
+                oob: true,
+            };
+            let mut response = views::oob_with_toast(&block, toast, locale);
             prefs::attach(
                 response.headers_mut(),
                 prefs::set_pref(prefs::SINGER, &name),

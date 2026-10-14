@@ -124,6 +124,7 @@ queue-empty-hint = No song queued. Tap
 queue-wait-minutes = ~{ $minutes } min
 queue-wait-soon = < 1 min
 singing-as = Singing as
+singer-change = Change
 singer-name = Name your songs are queued under
 singer-placeholder = your name
 access-level = This phone can:

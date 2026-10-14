@@ -54,13 +54,7 @@
    group that is on both remotes, which is why the rule above it is drawn by the group before it
    rather than by this one. #}
 <div class="setup-group">
-  <form class="pref-row field-row" hx-post="/singer">
-    <label for="singer">{{ "singing-as"|t }}</label>
-    <input type="text" id="singer" name="singer" value="{{ singing_as }}"
-           placeholder="{{ "singer-placeholder"|t }}" autocomplete="given-name" enterkeyhint="done"
-           aria-label="{{ "singer-name"|t }}">
-    <button class="icon-btn">{{ "machine-save"|t }}</button>
-  </form>
+  {{ singer_name|safe }}
 
   {% include "_singer_choose.html" %}
 

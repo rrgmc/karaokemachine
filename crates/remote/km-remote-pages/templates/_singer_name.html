@@ -1,0 +1,21 @@
+{# The singer's name, and the box that changes it. Once the phone has a name, the box folds away
+   behind Change, so the Setup tab says who is singing rather than offering to edit it. A saved name
+   redraws this block, which closes the box again. #}
+<div id="singer-name"{% if oob %} hx-swap-oob="true"{% endif %}>
+  {% if !singing_as.is_empty() %}
+  <input type="checkbox" id="singer-edit" class="visually-hidden" autocomplete="off"
+         aria-label="{{ "singer-change"|t }}">
+  <div class="pref-row field-row singer-shown">
+    <span>{{ "singing-as"|t }}</span>
+    <b class="singer-current">{{ singing_as }}</b>
+    <label for="singer-edit" class="icon-btn">{{ "singer-change"|t }}</label>
+  </div>
+  {% endif %}
+  <form class="pref-row field-row singer-form" hx-post="/singer">
+    <label for="singer">{{ "singing-as"|t }}</label>
+    <input type="text" id="singer" name="singer" value="{{ singing_as }}"
+           placeholder="{{ "singer-placeholder"|t }}" autocomplete="given-name" enterkeyhint="done"
+           aria-label="{{ "singer-name"|t }}">
+    <button class="icon-btn">{{ "machine-save"|t }}</button>
+  </form>
+</div>

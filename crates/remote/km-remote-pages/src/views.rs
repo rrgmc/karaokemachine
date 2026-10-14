@@ -959,9 +959,8 @@ pub struct NowPage {
 pub struct SetupPage {
     /// Page chrome.
     pub chrome: Chrome,
-    /// The name in the "singing as" box: the singer this phone has singing, or the name it typed
-    /// before it asked for a song.
-    pub singing_as: String,
+    /// The singer's name and the box that changes it.
+    pub singer_name: SingerName,
     /// The singers this phone holds. The choice between them is drawn from the second one on.
     pub singers: Vec<PhoneSinger>,
     /// Which machine this device is talking to. `None` in the online mode.
@@ -969,6 +968,29 @@ pub struct SetupPage {
     /// Whether the Setup and Packages tabs are drawn at the top. Only when the catalog holds two or
     /// more packages: hiding the only package leaves nothing to search.
     pub packages_tab: bool,
+}
+
+/// The singer's name on the Setup tab, with the box that changes it folded behind a button.
+///
+/// Drawn in the page, and again out of band when a name is saved, which folds the box away.
+#[derive(Template)]
+#[template(path = "_singer_name.html")]
+pub struct SingerName {
+    /// The singer this phone has singing, or the name it typed before it asked for a song. Empty
+    /// means no name yet, and the box stands open.
+    pub singing_as: String,
+    /// Whether this is the out-of-band copy that a saved name answers with.
+    pub oob: bool,
+}
+
+/// A fragment that swaps itself out of band, and a toast.
+///
+/// For a form whose own content stays as it is, while one block elsewhere on the page changes.
+pub fn oob_with_toast<O: Template>(oob_template: &O, toast: Toast, locale: Locale) -> Response {
+    match render(oob_template, locale) {
+        Ok(extra) => Html(format!("{extra}{}", oob(toast, locale))).into_response(),
+        Err(error) => template_error(&error),
+    }
 }
 
 /// The Setup tab's Packages page: which packages this phone's song list leaves out.

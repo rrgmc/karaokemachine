@@ -54,7 +54,8 @@ singer in the queue, and your next one goes in when yours starts. The Queue tab 
 songs**, and says of each whether it is waiting, in the queue, or playing now. A song leaves the list when it
 ends. Tap **✕** beside one to take it back.
 
-**Your name is optional.** Type it in **Singing as** on the Setup tab, and the queue shows it. Two
+**Your name is optional.** Type it in **Singing as** on the Setup tab, and the queue shows it.
+Once it is saved, the box folds away, and **Change** opens it again. Two
 singers cannot hold one name on the same evening. A phone that several people share adds each of
 them under **Add another singer on this phone**, and then chooses who is singing. **Who is
 singing** stands on the Setup tab and above the list on the Songs tab.

@@ -1178,6 +1178,13 @@ label.icon-btn { display: inline-flex; align-items: center; justify-content: cen
   border-top: 3px solid var(--line);
 }
 
+/* A phone with a name shows it, and the box that changes it stays folded until Change is pressed.
+ * The checkbox sits inside the block a saved name redraws, so a save folds the box again. */
+#singer-edit:not(:checked) ~ .singer-form,
+#singer-edit:checked ~ .singer-shown { display: none; }
+.singer-current { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+#singer-edit:focus-visible ~ .singer-shown label { outline: 2px solid var(--amber); outline-offset: 2px; }
+
 /* Another singer on this phone is the unusual case, so its control is smaller than the box above
  * it and folded away. */
 .pref-more { padding: 0.2rem 0 0.4rem; font-size: 0.85rem; }

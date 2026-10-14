@@ -108,6 +108,7 @@ queue-empty-hint = A fila está vazia. Ache uma música na aba Músicas e toque 
 queue-wait-minutes = ~{ $minutes } min
 queue-wait-soon = < 1 min
 singing-as = Cantando como
+singer-change = Trocar
 singer-name = Nome com que suas músicas entram na fila
 singer-placeholder = seu nome
 access-level = Este celular pode:

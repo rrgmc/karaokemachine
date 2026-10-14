@@ -267,6 +267,9 @@ itself. A handler reads the token and sends it to the machine. No script and no 
 asks whether the machine still holds it, and then registers again. A phone asks that question only
 after a refusal, because a missing song answers the same 404.
 
+**A saved name folds its box away behind Change.** The Setup tab then says who is singing, and a
+stray tap does not edit the name. A phone with no name shows the box open.
+
 **One phone holds several singers, and one box is what it shows.** A home passes one phone or one
 tablet around. Adding another singer is a smaller control, folded away under the box, and that
 singer gives a name. The choice between singers appears with the second one. It stands on the

@@ -2917,7 +2917,7 @@ async fn a_field_row_lets_its_field_shrink_so_the_button_is_not_pushed_off() {
     // the Queue tab carries none.
     let setup = harness.get("/setup").await;
     assert_eq!(
-        setup.matches(r#"class="pref-row field-row""#).count(),
+        setup.matches(r#"class="pref-row field-row"#).count(),
         3,
         "both rows on the Setup tab: {setup}"
     );
@@ -6005,11 +6005,27 @@ async fn a_singer_takes_a_song_back_from_the_queue_tab() {
 async fn a_name_is_the_singers_and_a_held_name_is_refused() {
     let harness = Harness::online();
     let ana = Phone::new(&harness);
+    let blank = ana.get("/setup").await;
+    assert!(
+        !blank.contains(r#"id="singer-edit""#),
+        "with no name the box stands open: {blank}"
+    );
     let said = ana.post_form("/singer", "singer=Ana").await;
     assert!(said.contains("You are singing as Ana"), "{said}");
     assert!(
+        said.contains(r#"<div id="singer-name" hx-swap-oob="true">"#)
+            && said.contains(r#"<b class="singer-current">Ana</b>"#),
+        "the saved name comes back with the box folded: {said}"
+    );
+    assert!(
         ana.cookie("km_seats").is_some(),
         "the name registered a singer"
+    );
+    let named = ana.get("/setup").await;
+    assert!(
+        named.contains(r#"id="singer-edit""#)
+            && named.contains(r#"<b class="singer-current">Ana</b>"#),
+        "a named phone shows the name and folds the box: {named}"
     );
 
     ana.post("/song/1001/queue").await;
@@ -6021,6 +6037,10 @@ async fn a_name_is_the_singers_and_a_held_name_is_refused() {
     assert!(
         refused.contains("Another singer has that name"),
         "{refused}"
+    );
+    assert!(
+        !refused.contains(r#"id="singer-name""#),
+        "a refused name leaves the box open: {refused}"
     );
     assert!(other.cookie("km_seats").is_none());
 }
