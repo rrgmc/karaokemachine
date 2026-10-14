@@ -131,6 +131,8 @@ pub struct FormView {
     pub publisher: String,
     /// The folder the packages go to.
     pub out_dir: String,
+    /// Whether the linked box is ticked.
+    pub linked: bool,
     /// The language picker, the chosen one marked.
     pub languages: Vec<LanguageOption>,
 }
@@ -215,6 +217,8 @@ pub struct BuiltPage {
     pub files: Vec<FileView>,
     /// The folder they are in, which Show in folder opens.
     pub out_dir: String,
+    /// Whether the packages are linked, so the page says they need the folder of songs.
+    pub linked: bool,
     /// `2 songs did not go in`, or empty.
     pub skipped_heading: String,
     /// Each song that did not go in, in `km-pack`'s words.
@@ -466,6 +470,7 @@ fn form_view(form: &PackageForm) -> FormView {
         version: form.version.clone(),
         publisher: form.publisher.clone().unwrap_or_default(),
         out_dir: form.out_dir.display().to_string(),
+        linked: form.linked,
         languages,
     }
 }
@@ -599,6 +604,7 @@ fn built_page(chrome: Chrome, inner: &Inner, built: &Built, words: &Catalog) -> 
             .as_ref()
             .map(|form| form.out_dir.display().to_string())
             .unwrap_or_default(),
+        linked: inner.form.as_ref().is_some_and(|form| form.linked),
         skipped_heading: if built.skipped.is_empty() {
             String::new()
         } else {

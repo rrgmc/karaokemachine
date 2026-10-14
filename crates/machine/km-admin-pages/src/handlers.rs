@@ -469,6 +469,18 @@ pub async fn songs_page(
                     .iter()
                     .filter_map(|name| flag_label(words, name))
                     .collect(),
+                // Said for every linked package, so one that reaches the whole folder says so too.
+                // That is the package an owner most wants to notice.
+                reads_from: listing
+                    .flag_names
+                    .iter()
+                    .any(|name| name == "linked")
+                    .then(|| match &listing.linked_root {
+                        Some(folder) => words
+                            .msg_with("package-reads-from", &[("folder", folder.as_str().into())])
+                            .into_owned(),
+                        None => words.msg("package-reads-from-all").into_owned(),
+                    }),
                 title,
                 id: listing.id,
                 version: listing.version,
@@ -1016,6 +1028,7 @@ pub async fn machine_page(
             end_on_silence: switches.end_on_silence,
             adjust_recordings: switches.adjust_recordings,
             keep_evening: switches.keep_evening,
+            linked_packages: switches.linked_packages.map(Into::into),
             power: identity.power,
         },
         locale,
@@ -1715,6 +1728,7 @@ pub async fn remove_picture(
 fn flag_label(words: &km_locale::Catalog, name: &str) -> Option<String> {
     match name {
         "uncurated" => Some(words.msg("package-flag-uncurated").into_owned()),
+        "linked" => Some(words.msg("package-flag-linked").into_owned()),
         _ => None,
     }
 }
@@ -2034,6 +2048,45 @@ pub async fn set_keep_evening(
     }
 }
 
+/// `POST /admin/machine/linked-packages` — whether the machine takes linked packages.
+///
+/// One box and no `persist` beside it, for the reason [`set_end_on_silence`] has none. The folder
+/// has no box: it is set in the machine's settings file. The notice says what the machine stored,
+/// and says when the switch alone installs nothing.
+pub async fn set_linked_packages(
+    State(state): State<Admin>,
+    headers: HeaderMap,
+    Form(form): Form<LinkedPackagesForm>,
+) -> Response {
+    use km_api::machine::LinkedFolder;
+    let words = crate::words::messages(state.locale(&headers));
+    match state
+        .switches
+        .set_linked_packages(form.linked_packages.is_some())
+        .await
+    {
+        Err(error) => refusal_on(&state, Pane::Password, &error, state.locale(&headers)),
+        Ok(stored) if !stored.enabled => {
+            back_to_pane(Pane::Password, "good", &words.msg("linked-packages-off"))
+        }
+        Ok(stored) => match stored.folder {
+            LinkedFolder::Ready => {
+                back_to_pane(Pane::Password, "good", &words.msg("linked-packages-on"))
+            }
+            LinkedFolder::Unset => back_to_pane(
+                Pane::Password,
+                "bad",
+                &words.msg("linked-packages-on-no-folder"),
+            ),
+            LinkedFolder::Missing => back_to_pane(
+                Pane::Password,
+                "bad",
+                &words.msg("linked-packages-on-folder-missing"),
+            ),
+        },
+    }
+}
+
 /// `POST /admin/machine/adjust-recordings` — whether a recorded song changes key and tempo.
 ///
 /// One box and no `persist` beside it, for the reason [`set_end_on_silence`] has none. The notice
@@ -2237,6 +2290,13 @@ pub struct AdjustRecordingsForm {
 pub struct KeepEveningForm {
     /// Present when the box is ticked, absent when it is not.
     pub keep_evening: Option<String>,
+}
+
+/// Whether the machine takes linked packages.
+#[derive(Debug, Clone, Default, serde::Deserialize)]
+pub struct LinkedPackagesForm {
+    /// Present when the box is ticked, absent when it is not.
+    pub linked_packages: Option<String>,
 }
 
 /// What the machine asks of a singer.

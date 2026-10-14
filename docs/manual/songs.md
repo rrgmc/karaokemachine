@@ -32,6 +32,42 @@ A rebuilt package of the same name replaces the old one.
 machine uninstalls it at the next start or the next `Ctrl+F10`. Removing a package on the **Songs**
 tab deletes its `.kmpkg`.
 
+## Linked packages
+
+**A linked package holds no song.** It names each song file by a path, and the machine plays the
+files from one folder on its own disk. It suits a library that already sits in a folder: a normal
+package would hold a second copy of every file. The package lists of the machine mark it *linked*.
+
+**The machine takes none until you allow it.** A linked package makes the machine read files from
+its disk, at paths that whoever built the package wrote. Allow it for packages you built, or from
+somebody you trust. Two things turn it on:
+
+1. **Set the folder.** Close the machine, and add this to `settings.json`, with your own folder.
+   `karaokemachine --show-paths` says where `settings.json` is.
+
+   ```json
+   "linked_packages": { "enabled": true, "dir": "<your karaoke folder>" }
+   ```
+
+2. **Tick the box.** The **Linked packages** card is on the **This machine** tab of
+   [the setup page](setup.md). The line above ticks it too.
+
+**Each linked package plays from one folder of its own, inside that folder.** The package names
+it, and the **Songs** tab shows it under the package. A package built from `cdg/Rigmar` in your
+library needs `cdg/Rigmar` inside the folder you set, with the same files in it. The machine reads
+nothing outside the package's folder. A package whose folder is missing does not install, and the
+**Problems** tab names the folder.
+
+**A package whose songs share no folder plays from anywhere in the folder you set.** The **Songs**
+tab says so. Install such a package from somebody else only if you trust them with that folder.
+
+Install a linked package the way you install any other. A package the machine refuses is listed on
+the **Problems** tab, with the reason.
+
+- **A song whose file is missing does not play**, and the machine goes to the next song.
+- **Removing a linked package deletes the package file.** Your song files stay where they are.
+- **Unticking the box removes the songs of every linked package**, once nothing is playing.
+
 ## The carol package
 
 **One package is available to download: sixteen Christmas carols.** Every one is public domain.

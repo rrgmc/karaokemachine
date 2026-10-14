@@ -219,6 +219,15 @@ pub struct Manifest {
     pub package: PackageMeta,
     /// The songs it contains.
     pub songs: Vec<SongEntry>,
+    /// The one folder a linked package's song files are all below, relative to the machine's folder
+    /// for linked files. Every linked path in the package is relative to it.
+    ///
+    /// `None` is the machine's folder itself, and it is what a package that bundles its files
+    /// always has. A package from somebody else can then reach its own folder and nothing beside
+    /// it. See `A linked package reads from one folder of its own` in
+    /// `docs/decisions/packaging.md`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub linked_root: Option<String>,
 }
 
 /// Identification for a package.
@@ -1156,6 +1165,7 @@ impl Manifest {
             format: FORMAT_VERSION_MIDI_ONLY,
             package,
             songs: Vec::new(),
+            linked_root: None,
         }
     }
 

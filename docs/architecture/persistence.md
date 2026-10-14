@@ -214,6 +214,22 @@ that rather than dismissing it. `packages.uninstall` ships **admin**. The deleti
 `debug.packages` is refused outright, because a file the owner keeps somewhere of their own is not
 the machine's to remove.
 
+### The folder linked packages play from
+
+**`settings.linked_packages` holds a switch and one folder**: `enabled`, which starts false, and
+`dir`, which starts unset. `LinkedPackagesSettings::folder` is the one gate. It answers the folder,
+or which of three reasons refuses a linked package. They are off, no folder is set, or the folder is
+not there.
+
+**Three callers ask it, and none keeps the answer.** `Machine::install` asks before it reserves a
+bank. `dropped::adopt` asks before it copies a handed-in file. `Machine::open_package` asks at every
+load, for a cached package too, and then attaches the folder with `Package::with_linked_dir`. The
+cache keeps a linked package only for the folder it was given, so a changed `dir` holds for the next
+song.
+
+**Nothing is deleted from that folder.** It is not among the folders `Paths::is_mine_to_delete`
+names, and `km_kmpkg::linked::open` returns an open file and no path.
+
 ## Which settings reach the API
 
 `km_api`'s settings are **the knobs that belong to a performance** and that a phone in somebody's hand
@@ -324,6 +340,12 @@ through `cfg!`, as `display.number_pad` is.
 evening outlives the process. It gets `PUT /api/v1/admin/evening/keep` and is written down at once.
 `Machine::set_keep_evening` writes `evening.json` when the switch goes on, and removes it and its
 earlier copy when the switch goes off.
+
+**`linked_packages.enabled` is the tenth, and its counterpart is the catalog.** It gets
+`PUT /api/v1/admin/linked-packages` and is written down at once. `Machine::set_linked_packages`
+then runs the scan, so a linked package in a scanned folder is installed or dropped by the same
+request. **`linked_packages.dir` has no route.** Whoever can edit the settings file sets the folder
+the machine reads from.
 
 **`settings_version` 6 has one step from 5.** `Settings::step_up` reads a stored
 `api.room_access` of `queue` as `request`, and `load` writes the file back. A file below

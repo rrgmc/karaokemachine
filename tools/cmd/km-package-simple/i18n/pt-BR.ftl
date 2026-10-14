@@ -46,6 +46,8 @@ form-publisher = Editor
 form-language = Idioma das músicas sem idioma
 form-out = Gravar na pasta
 form-language-hint = Uma música cujo arquivo não diz o idioma fica neste. Indeterminado é a resposta honesta quando você não sabe.
+form-linked = Montar pacotes vinculados, que não contêm arquivos de música
+form-linked-hint = Um pacote vinculado indica cada música pelo caminho dela na pasta que você escolheu. Ele só toca em uma máquina configurada para aceitar pacotes vinculados, a partir dessa pasta ou de uma cópia dela. Uma música dentro de um zip fica de fora.
 action-build = Criar
 
 songs-summary = { $count ->
@@ -96,6 +98,7 @@ built-heading = { $count ->
    *[other] { $count } pacotes gravados.
   }
 built-uncurated = Cada um é marcado como sem curadoria.
+built-linked = Cada um é vinculado. Ele não contém arquivos de música, então a máquina também precisa da pasta de músicas.
 built-listing = Uma lista das músicas fica ao lado de cada pacote, em um arquivo .txt com o mesmo nome.
 built-skipped = { $count ->
     [0] { $count } músicas não entraram

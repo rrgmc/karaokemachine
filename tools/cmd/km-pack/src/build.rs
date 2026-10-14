@@ -262,7 +262,7 @@ pub fn build(
         .as_deref()
         .and_then(Language::parse);
 
-    let mut builder = PackageBuilder::new(PackageMeta {
+    let meta = PackageMeta {
         id: spec.package.id.clone(),
         name: spec.package.name.clone(),
         version: spec.package.version.clone(),
@@ -274,7 +274,18 @@ pub fn build(
                 .unwrap_or_else(crate::timestamp),
         ),
         volume: spec.package.volume.clone(),
-    });
+    };
+    // A linked package names each song file by its path below the folder `file:` values resolve
+    // against. That folder is the one a machine's owner then sets for linked packages.
+    let linked = spec.package.linked;
+    let mut builder = if linked {
+        PackageBuilder::new_linked(meta, Some(options.base.to_path_buf()))
+    } else {
+        PackageBuilder::new(meta)
+    };
+    // A linked build changes no file, so it re-encodes nothing: the result would have nowhere to
+    // go. A video the machine cannot play at all is still refused.
+    let transcode = spec.package.transcode && !linked;
 
     let mut outcome = BuildOutcome {
         out_path: out.clone(),
@@ -304,7 +315,11 @@ pub fn build(
     let scratch = ScratchDir(out.with_extension("kmpkg.build"));
     // Looked up once for the whole build, and only if something might need it.
     // `km-package-builder` used to probe ffmpeg once per video.
-    let encoders = video_encoders(spec, &mut on);
+    let encoders = if transcode {
+        video_encoders(spec, &mut on)
+    } else {
+        None
+    };
 
     if on(BuildEvent::Starting {
         songs: spec.songs.len(),
@@ -387,7 +402,7 @@ pub fn build(
                 &source,
                 scratch.path(),
                 number,
-                spec.package.transcode,
+                transcode,
                 encoders.as_ref(),
                 options.dry_run,
                 options.measure_loudness,
@@ -424,6 +439,8 @@ pub fn build(
                 options.measure_loudness,
                 &mut outcome,
             )
+        } else if linked && crate::is_zip_candidate(&source) {
+            Err("a zipped song has no file a linked package can name".to_owned())
         } else if crate::is_zip_candidate(&source) {
             add_zip(
                 &mut builder,
@@ -501,6 +518,12 @@ pub fn build(
         options.flags.with(km_kmpkg::PackageFlags::UNCURATED)
     } else {
         options.flags
+    };
+    // The description decides the type, so the listing below says what the header says.
+    let flags = if linked {
+        flags.with(km_kmpkg::PackageFlags::LINKED)
+    } else {
+        flags.without(km_kmpkg::PackageFlags::LINKED)
     };
     builder.set_flags(flags);
     builder
@@ -645,10 +668,17 @@ fn add_midi(
     };
     apply_edits(&mut entry, &edits, &detected);
 
+    if builder.is_linked() {
+        builder
+            .add_midi_linked(entry, source, &bytes)
+            .map_err(|error| error.to_string())?;
+    } else {
+        builder
+            .add(entry, bytes)
+            .map_err(|error| error.to_string())?;
+    }
+    // After the add, so a file a linked package refuses does not hide a later copy of itself.
     hashes.insert(hash, number);
-    builder
-        .add(entry, bytes)
-        .map_err(|error| error.to_string())?;
     Ok(None)
 }
 
@@ -1007,6 +1037,7 @@ mod tests {
                 transcode: true,
                 out: None,
                 uncurated: false,
+                linked: false,
             },
             root: None,
             songs,
@@ -1518,5 +1549,125 @@ mod tests {
         )
         .expect_err("refused");
         assert!(format!("{error:#}").contains("nowhere to write"));
+    }
+
+    /// A description that asks for a linked package, over one folder of songs.
+    fn linked_spec(songs: Vec<SpecSong>) -> Spec {
+        let mut spec = spec_for(songs);
+        spec.package.linked = true;
+        spec
+    }
+
+    #[test]
+    fn a_linked_build_names_each_file_by_its_path_and_holds_none() {
+        let scratch = Scratch::new("linked-build");
+        let bytes = km_song::testing::soft_karaoke();
+        scratch.write("library/rock/a.kar", &bytes);
+        let library = scratch.join("library");
+        let out = scratch.join("vol1.kmpkg");
+
+        let outcome = run_with(
+            &linked_spec(vec![SpecSong {
+                file: "rock/a.kar".to_owned(),
+                number: Some(7),
+                ..SpecSong::default()
+            }]),
+            &library,
+            &out,
+            true,
+        );
+        assert_eq!(outcome.written, 1, "{:?}", outcome.skipped);
+
+        let package = km_kmpkg::Package::open(&out).expect("open");
+        assert!(package.is_linked());
+        assert_eq!(
+            package.linked_root(),
+            Some("rock"),
+            "the folder its one song is in"
+        );
+        assert_eq!(package.manifest().songs[0].file, "a.kar");
+        assert_eq!(km_kmpkg::linked_file_count(&out).expect("count"), 1);
+        assert!(
+            matches!(
+                package.read_song(7),
+                Err(km_kmpkg::PackageError::LinkedDirUnset { .. })
+            ),
+            "the song's bytes are not in it"
+        );
+        assert_eq!(
+            package
+                .with_linked_dir(&library)
+                .read_song(7)
+                .expect("read through the folder"),
+            bytes
+        );
+        let text = std::fs::read_to_string(listing_path(&out)).expect("listing");
+        assert!(text.contains("Linked: "), "{text}");
+    }
+
+    #[test]
+    fn a_linked_build_skips_what_it_cannot_name() {
+        let scratch = Scratch::new("linked-build-skips");
+        scratch.write("library/a.kar", km_song::testing::soft_karaoke());
+        let outside = scratch.write("elsewhere/b.kar", km_song::testing::lyric_events());
+        scratch.write("library/c.zip", b"not read");
+        let out = scratch.join("vol1.kmpkg");
+
+        let outcome = run(
+            &linked_spec(vec![
+                SpecSong {
+                    file: "a.kar".to_owned(),
+                    ..SpecSong::default()
+                },
+                SpecSong {
+                    // A description may name a file anywhere, and a linked package may not.
+                    file: outside.display().to_string(),
+                    ..SpecSong::default()
+                },
+                SpecSong {
+                    file: "c.zip".to_owned(),
+                    ..SpecSong::default()
+                },
+            ]),
+            &scratch.join("library"),
+            &out,
+        );
+
+        assert_eq!(outcome.written, 1);
+        let why: Vec<&str> = outcome
+            .skipped
+            .iter()
+            .map(|skipped| skipped.why.as_str())
+            .collect();
+        assert_eq!(why.len(), 2, "{why:?}");
+        assert!(why[0].contains("outside the folder"), "{why:?}");
+        assert!(why[1].contains("zipped song"), "{why:?}");
+    }
+
+    #[test]
+    fn a_build_that_bundles_its_files_ignores_a_linked_flag_handed_in() {
+        let scratch = Scratch::new("linked-flag-handed-in");
+        scratch.write("a.kar", km_song::testing::soft_karaoke());
+        let out = scratch.join("vol1.kmpkg");
+        build(
+            &spec_for(vec![SpecSong {
+                file: "a.kar".to_owned(),
+                ..SpecSong::default()
+            }]),
+            &BuildOptions {
+                base: scratch.path(),
+                out: Some(&out),
+                dry_run: false,
+                measure_loudness: false,
+                write_listing: false,
+                flags: km_kmpkg::PackageFlags::LINKED,
+            },
+            |_| ControlFlow::Continue(()),
+        )
+        .expect("build");
+
+        let package = km_kmpkg::Package::open(&out).expect("open");
+        assert!(!package.is_linked(), "the description decides the type");
+        assert!(package.read_song(1).is_ok(), "and the song is inside it");
     }
 }

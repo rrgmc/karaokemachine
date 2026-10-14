@@ -14,6 +14,7 @@
 mod container;
 mod flags;
 pub mod language;
+pub mod linked;
 pub mod manifest;
 mod siblings;
 pub mod tag;
@@ -27,6 +28,7 @@ use crate::container::{CappedRead, Container, ContainerError, Method, Writer};
 
 pub use crate::flags::PackageFlags;
 pub use crate::language::{Language, TABLE_REVISION as LANGUAGE_TABLE_REVISION};
+pub use crate::linked::LinkedPathError;
 pub use crate::manifest::EditedField;
 pub use crate::manifest::{
     BreakdownRecord, EXAMPLE_ID, FORMAT_VERSION, FORMAT_VERSION_LRC, FORMAT_VERSION_MEDIA,
@@ -263,6 +265,32 @@ pub enum PackageError {
         /// Why the entry is not a timeline.
         source: serde_json::Error,
     },
+    /// A linked package's file could not be read from the folder linked files are read from.
+    #[error("song {number}: {source}")]
+    Linked {
+        /// The song number, or zero when the file is not asked for as one song's.
+        number: u32,
+        /// Why the path was refused or the file was not read.
+        source: LinkedPathError,
+    },
+    /// A linked package was asked for a file, and nobody said which folder linked files are in.
+    ///
+    /// A machine attaches the folder its owner configured. A tool takes it as an argument.
+    #[error("song {number} names the linked file {file}, and no folder for linked files was given")]
+    LinkedDirUnset {
+        /// The song number.
+        number: u32,
+        /// The path it named.
+        file: String,
+    },
+    /// A file cannot be a linked package's song file, or a builder was asked to mix the two types.
+    #[error("{path} cannot go into this package: {reason}")]
+    CannotLink {
+        /// The file or the entry involved.
+        path: String,
+        /// Why not.
+        reason: String,
+    },
 }
 
 fn format_problems(problems: &[ManifestProblem]) -> String {
@@ -281,6 +309,50 @@ pub struct Package {
     path: PathBuf,
     manifest: Manifest,
     flags: PackageFlags,
+    /// The folder a linked package's song files are read from, when somebody has said.
+    linked_dir: Option<PathBuf>,
+}
+
+/// The entries a linked package still holds inside itself.
+///
+/// **Only what the builder derives.** The manifest is one, and so is the lyric timeline of an
+/// UltraStar or LRC song, which no file on the disk holds. Every other entry is a song file, and in
+/// a linked package a song file is a path.
+fn bundled_in_a_linked_package(manifest: &Manifest) -> std::collections::BTreeSet<String> {
+    let mut names: std::collections::BTreeSet<String> = manifest
+        .songs
+        .iter()
+        .filter(|song| song.kind.carries_timeline())
+        .map(|song| lyrics_entry_for(&song.file))
+        .collect();
+    names.insert(MANIFEST_PATH.to_owned());
+    names
+}
+
+/// The linked `.cdg` that pairs with a linked MP3, among the linked names of one package.
+///
+/// A real pair on a disk is not tidy: `song.mp3` sits beside `song.CDG`. The rule is the one a
+/// folder is paired by, [`sibling_among`], asked of the linked files in the audio's own folder.
+fn linked_graphics_among<'a>(audio: &str, names: impl Iterator<Item = &'a str>) -> Option<&'a str> {
+    let (folder, bare) = match audio.rsplit_once('/') {
+        Some((folder, bare)) => (Some(folder), bare),
+        None => (None, audio),
+    };
+    let beside: Vec<&'a str> = names
+        .filter(|name| match (folder, name.rsplit_once('/')) {
+            (Some(folder), Some((other, _))) => other == folder,
+            (None, None) => true,
+            _ => false,
+        })
+        .collect();
+    let bares: Vec<&str> = beside
+        .iter()
+        .map(|name| name.rsplit_once('/').map_or(*name, |(_, bare)| bare))
+        .collect();
+    let found = sibling_among(bare, std::slice::from_ref(&GRAPHICS_EXTENSION), &bares)?;
+    beside
+        .into_iter()
+        .find(|name| name.rsplit_once('/').map_or(*name, |(_, bare)| bare) == found)
 }
 
 impl Package {
@@ -309,16 +381,142 @@ impl Package {
             });
         }
 
+        // **The type is exclusive.** The container already refused a linked record in a package
+        // that bundles its files. This is the other half: a linked package bundles no song file.
+        // A folder in a package that bundles its files would mean nothing, and is a sign the file
+        // was not written by this program.
+        if manifest.linked_root.is_some() && !container.flags().is_linked() {
+            return Err(PackageError::Archive {
+                path: display,
+                message: "it names a folder for linked files and is not a linked package"
+                    .to_owned(),
+            });
+        }
+        if container.flags().is_linked() {
+            // The package's own folder is a path somebody else wrote, held to the same rules.
+            if let Some(root) = &manifest.linked_root
+                && let Err(error) = linked::check(root)
+            {
+                return Err(PackageError::Archive {
+                    path: display,
+                    message: error.to_string(),
+                });
+            }
+            let bundled = bundled_in_a_linked_package(&manifest);
+            if let Some(stray) = container
+                .entries()
+                .find(|entry| entry.method != Method::Linked && !bundled.contains(&entry.name))
+            {
+                return Err(PackageError::Archive {
+                    path: display,
+                    message: format!(
+                        "it is a linked package and it holds the bytes of {}",
+                        stray.name
+                    ),
+                });
+            }
+        }
+
         Ok(Self {
             path: path.to_path_buf(),
             manifest,
             flags: container.flags(),
+            linked_dir: None,
         })
     }
 
     /// The header's flags word, unknown bits included.
     pub fn flags(&self) -> PackageFlags {
         self.flags
+    }
+
+    /// Whether the package keeps its song files outside itself. See [`PackageFlags::LINKED`].
+    pub fn is_linked(&self) -> bool {
+        self.flags.is_linked()
+    }
+
+    /// Says which folder a linked package's song files are read from.
+    ///
+    /// Nothing is checked here. Each read resolves the folder and the file again, because either
+    /// can change while the package stays open. See [`linked::open`].
+    ///
+    /// A package that bundles its files ignores the folder.
+    #[must_use]
+    pub fn with_linked_dir(mut self, dir: impl Into<PathBuf>) -> Self {
+        self.linked_dir = Some(dir.into());
+        self
+    }
+
+    /// The folder linked files are read from, when one was given.
+    pub fn linked_dir(&self) -> Option<&Path> {
+        self.linked_dir.as_deref()
+    }
+
+    /// The package's own folder inside the folder for linked files, or `None` for that folder
+    /// itself. See [`Manifest::linked_root`].
+    pub fn linked_root(&self) -> Option<&str> {
+        self.manifest.linked_root.as_deref()
+    }
+
+    /// Opens one linked file from the folder that was given.
+    fn linked_file(&self, number: u32, name: &str) -> Result<linked::LinkedFile, PackageError> {
+        let dir = self
+            .linked_dir
+            .as_deref()
+            .ok_or_else(|| PackageError::LinkedDirUnset {
+                number,
+                file: name.to_owned(),
+            })?;
+        linked::open_in(dir, self.linked_root(), name)
+            .map_err(|source| PackageError::Linked { number, source })
+    }
+
+    /// The name of an MP3+G song's graphics entry.
+    ///
+    /// A package that bundles its files derives it by rule, with [`graphics_entry_for`]. A linked
+    /// package records the `.cdg` under the name the file has on the disk, so the name is found
+    /// among the linked files beside the audio.
+    pub fn graphics_name(&self, number: u32) -> Result<String, PackageError> {
+        let entry = self
+            .manifest
+            .song(number)
+            .ok_or(PackageError::NoSuchSong(number))?;
+        if !entry.kind.is_cdg() {
+            return Err(PackageError::NotMedia {
+                number,
+                file: entry.file.clone(),
+            });
+        }
+        if !self.is_linked() {
+            return Ok(graphics_entry_for(&entry.file));
+        }
+        let display = self.path.display().to_string();
+        let container = open_container(&self.path, &display)?;
+        Self::companion_in(&container, entry.kind, &entry.file).ok_or_else(|| {
+            PackageError::MissingEntry {
+                number,
+                file: graphics_entry_for(&entry.file),
+            }
+        })
+    }
+
+    /// The entry a song keeps beside its audio, as this container names it.
+    ///
+    /// [`companion_entry_for`] answers for a package that bundles its files. A linked `.cdg` keeps
+    /// the name its file has, so it is looked for among the linked records.
+    fn companion_in<R: Read + Seek>(
+        container: &Container<R>,
+        kind: SongKind,
+        file: &str,
+    ) -> Option<String> {
+        if kind.is_cdg() && container.flags().is_linked() {
+            let linked = container
+                .entries()
+                .filter(|entry| entry.method == Method::Linked)
+                .map(|entry| entry.name.as_str());
+            return linked_graphics_among(file, linked).map(str::to_owned);
+        }
+        companion_entry_for(kind, file)
     }
 
     /// Whether the package was built straight from a folder. See [`PackageFlags::UNCURATED`].
@@ -390,8 +588,9 @@ impl Package {
                     // **Both halves, because half a pair is not a degraded song.** An MP3 with no
                     // `.cdg` or no timeline has no words in it at all, which is the same reason a
                     // bare audio file is not a song source.
-                    || companion_entry_for(song.kind, &song.file)
-                        .is_some_and(|companion| !container.contains(&companion))
+                    || (companion_entry_for(song.kind, &song.file).is_some()
+                        && Self::companion_in(&container, song.kind, &song.file)
+                            .is_none_or(|companion| !container.contains(&companion)))
                     // Written by a newer build. Its files cannot be looked for, because what they
                     // are is exactly what is not understood.
                     || matches!(song.kind, SongKind::Unknown)
@@ -446,7 +645,7 @@ impl Package {
                 file: entry.file.clone(),
             });
         }
-        self.read_entry_whole(number, &graphics_entry_for(&entry.file), MAX_GRAPHICS_BYTES)
+        self.read_entry_whole(number, &self.graphics_name(number)?, MAX_GRAPHICS_BYTES)
     }
 
     /// An UltraStar or LRC song's lyric timeline, in milliseconds from the start of its audio.
@@ -507,19 +706,26 @@ impl Package {
             })?
             .clone();
 
-        container
-            .read_entry(&entry, limit)
-            .map_err(|error| match error {
-                CappedRead::TooLarge => PackageError::EntryTooLarge {
-                    path: display,
-                    entry: name.to_owned(),
-                    limit,
-                },
-                CappedRead::Io(source) => PackageError::Io {
-                    path: display,
-                    source,
-                },
-            })
+        let capped = if entry.method == Method::Linked {
+            // The same ceiling as a bundled entry, counted as the bytes arrive: a file on a disk
+            // can be any size, whatever the package recorded for it.
+            let file = self.linked_file(number, name)?;
+            let declared = file.len();
+            container::read_capped(&mut file.into_file(), declared, limit)
+        } else {
+            container.read_entry(&entry, limit)
+        };
+        capped.map_err(|error| match error {
+            CappedRead::TooLarge => PackageError::EntryTooLarge {
+                path: display,
+                entry: name.to_owned(),
+                limit,
+            },
+            CappedRead::Io(source) => PackageError::Io {
+                path: display,
+                source,
+            },
+        })
     }
 
     /// Every media entry the archive holds, with its size and how it is stored.
@@ -538,7 +744,7 @@ impl Package {
                 continue;
             }
             names.push(song.file.clone());
-            names.extend(companion_entry_for(song.kind, &song.file));
+            names.extend(Self::companion_in(&container, song.kind, &song.file));
         }
 
         let mut entries = Vec::with_capacity(names.len());
@@ -548,6 +754,7 @@ impl Package {
             };
             entries.push(MediaEntry {
                 stored: inner.method == Method::Stored,
+                linked: inner.method == Method::Linked,
                 size: inner.real_len,
                 name,
             });
@@ -583,6 +790,19 @@ impl Package {
                     number,
                     file: name.to_owned(),
                 })?;
+            if inner.method == Method::Linked {
+                // A file on the disk is a byte range from zero to its end, so it is the same window
+                // a stored entry is. The length is the file's own and not the one the package
+                // recorded, because the file is what the decoder reads.
+                let linked = self.linked_file(number, name)?;
+                return Ok(EntryWindow {
+                    len: linked.len(),
+                    file: linked.into_file(),
+                    start: 0,
+                    pos: 0,
+                    name: name.to_owned(),
+                });
+            }
             if inner.method != Method::Stored {
                 return Err(PackageError::NotStored {
                     number,
@@ -731,6 +951,8 @@ pub struct MediaEntry {
     /// Whether it is stored uncompressed, which is the only way it can be seeked into. Required of
     /// the entries [`is_seekable_entry`] names; the `.cdg` is deflated and this is `false` for it.
     pub stored: bool,
+    /// Whether it is a file outside the package, which a decoder seeks into as it does a stored one.
+    pub linked: bool,
 }
 
 /// The graphics entry that pairs with an MP3+G song's audio entry.
@@ -1019,6 +1241,20 @@ enum Content {
         /// Its name in that package. The same name it will have here.
         entry: String,
     },
+    /// A file a linked package names and does not hold. It is read once, for its length and CRC.
+    Linked(PathBuf),
+}
+
+/// Which of the two package types a builder writes.
+#[derive(Debug)]
+enum Linking {
+    /// Every song file's bytes go into the package.
+    Bundled,
+    /// No song file's bytes go in. Each one is a path below `base`.
+    ///
+    /// `base` is the folder a machine's owner later names as the folder for linked files. It is
+    /// `None` when every song is carried across from another linked package, which needs no folder.
+    Linked { base: Option<PathBuf> },
 }
 
 /// One entry waiting to be written.
@@ -1050,11 +1286,79 @@ pub fn damaged_entries(path: &Path) -> Result<Vec<String>, PackageError> {
     let entries: Vec<container::Entry> = container.entries().cloned().collect();
     let mut damaged = Vec::new();
     for entry in entries {
+        // A linked file is not in the package. [`damaged_linked_files`] asks about those.
+        if entry.method == Method::Linked {
+            continue;
+        }
         let intact = container
             .verify(&entry)
             .map_err(|error| container_error(error, &display))?;
         if !intact {
             damaged.push(entry.name);
+        }
+    }
+    Ok(damaged)
+}
+
+/// How many files a package links to, which is zero for one that bundles its song files.
+///
+/// # Errors
+///
+/// If the file cannot be opened or is not a package.
+pub fn linked_file_count(path: &Path) -> Result<usize, PackageError> {
+    let display = path.display().to_string();
+    let container = open_container(path, &display)?;
+    Ok(container
+        .entries()
+        .filter(|entry| entry.method == Method::Linked)
+        .count())
+}
+
+/// The linked files that are missing from `dir`, or are not the files the package was built from.
+///
+/// Each linked record carries the length and the CRC its file had at the build. A name in the list
+/// is a file that is gone, cannot be read from inside `dir`, or holds other bytes. The songs
+/// recorded for it, such as its duration and its loudness, describe the file as it was.
+///
+/// **It reads every linked file whole**, so it is what `km-pack check --verify` does.
+///
+/// # Errors
+///
+/// If the package cannot be opened or is not a package. A linked file that cannot be read is an
+/// answer and not an error.
+pub fn damaged_linked_files(path: &Path, dir: &Path) -> Result<Vec<String>, PackageError> {
+    let display = path.display().to_string();
+    let mut container = open_container(path, &display)?;
+    // Read without validating, so a package `Package::open` refuses can still be compared.
+    let root = serde_json::from_str::<Manifest>(&read_manifest_bytes(&mut container, &display)?)
+        .ok()
+        .and_then(|manifest| manifest.linked_root);
+
+    let mut damaged = Vec::new();
+    let mut buffer = vec![0_u8; 1 << 20];
+    for entry in container
+        .entries()
+        .filter(|entry| entry.method == Method::Linked)
+    {
+        let intact = linked::open_in(dir, root.as_deref(), &entry.name).is_ok_and(|file| {
+            let mut file = file.into_file();
+            let mut crc = crc32fast::Hasher::new();
+            let mut total = 0_u64;
+            loop {
+                match file.read(&mut buffer) {
+                    Ok(0) => break,
+                    Ok(read) => {
+                        crc.update(&buffer[..read]);
+                        total += read as u64;
+                    }
+                    Err(error) if error.kind() == std::io::ErrorKind::Interrupted => {}
+                    Err(_) => return false,
+                }
+            }
+            total == entry.real_len && crc.finalize() == entry.crc
+        });
+        if !intact {
+            damaged.push(entry.name.clone());
         }
     }
     Ok(damaged)
@@ -1110,25 +1414,147 @@ pub struct PackageBuilder {
     manifest: Manifest,
     files: Vec<Pending>,
     flags: PackageFlags,
+    linking: Linking,
 }
 
 impl PackageBuilder {
-    /// Starts an empty package.
+    /// Starts an empty package that bundles its song files.
     pub fn new(package: PackageMeta) -> Self {
         Self {
             manifest: Manifest::new(package),
             files: Vec::new(),
             flags: PackageFlags::NONE,
+            linking: Linking::Bundled,
         }
+    }
+
+    /// Starts an empty linked package, whose song files stay on the disk below `base`.
+    ///
+    /// `base` is the folder a machine's owner names as the folder for linked files. Each song file
+    /// is recorded as its path below it, and a file outside it is refused. The name a caller gives
+    /// an entry is ignored for a song file, because the file already has one.
+    ///
+    /// `None` is for a rebuild that carries every song across from another linked package with
+    /// [`PackageBuilder::add_media_copied`]. It adds no file of its own, so it needs no folder.
+    ///
+    /// **The type is exclusive.** [`PackageBuilder::add`] refuses, because bytes in memory are not
+    /// a file to link to, and so does a source inside an archive.
+    pub fn new_linked(package: PackageMeta, base: Option<PathBuf>) -> Self {
+        Self {
+            manifest: Manifest::new(package),
+            files: Vec::new(),
+            flags: PackageFlags::LINKED,
+            linking: Linking::Linked { base },
+        }
+    }
+
+    /// Whether this builder writes a linked package.
+    pub fn is_linked(&self) -> bool {
+        matches!(self.linking, Linking::Linked { .. })
     }
 
     /// Sets the flags word the header carries.
     ///
     /// **A rebuild does not inherit a source package's flags.** Entries copied from one keep their
     /// bytes, but the header is written fresh, so whoever rebuilds passes the flags on here.
+    ///
+    /// [`PackageFlags::LINKED`] is not the caller's to choose. It follows the builder's own type,
+    /// so the flag and the contents cannot disagree.
     pub fn set_flags(&mut self, flags: PackageFlags) -> &mut Self {
-        self.flags = flags;
+        self.flags = if self.is_linked() {
+            flags.with(PackageFlags::LINKED)
+        } else {
+            flags.without(PackageFlags::LINKED)
+        };
         self
+    }
+
+    /// The path a linked package records for `source`: its place below the builder's folder.
+    ///
+    /// Both sides are resolved first, so a source reached through a link is recorded where it
+    /// really is, and a source outside the folder is refused whatever its spelling.
+    fn linked_name(&self, source: &Path) -> Result<String, PackageError> {
+        let cannot = |reason: &str| PackageError::CannotLink {
+            path: source.display().to_string(),
+            reason: reason.to_owned(),
+        };
+        let Linking::Linked { base: Some(base) } = &self.linking else {
+            return Err(cannot("this builder was given no folder for linked files"));
+        };
+        let io = |path: &Path, source: std::io::Error| PackageError::Io {
+            path: path.display().to_string(),
+            source,
+        };
+        let base = base.canonicalize().map_err(|error| io(base, error))?;
+        let resolved = source.canonicalize().map_err(|error| io(source, error))?;
+        let below = resolved
+            .strip_prefix(&base)
+            .map_err(|_| cannot("it is outside the folder the linked files are in"))?;
+        let mut name = String::new();
+        for component in below.components() {
+            let std::path::Component::Normal(part) = component else {
+                return Err(cannot("its path below the folder is not a plain one"));
+            };
+            let part = part
+                .to_str()
+                .ok_or_else(|| cannot("its name is not text a package can record"))?;
+            if !name.is_empty() {
+                name.push('/');
+            }
+            name.push_str(part);
+        }
+        // The same rule a reader applies, so a package is never written that will not open.
+        linked::check(&name).map_err(|error| cannot(&error.to_string()))?;
+        Ok(name)
+    }
+
+    /// What one media source becomes in this builder: its entry name and where its bytes are.
+    ///
+    /// A package that bundles its files keeps `name` and takes the bytes. A linked package records
+    /// the file's own path and takes nothing.
+    fn media_pending(&self, name: &str, source: Source) -> Result<Pending, PackageError> {
+        if !self.is_linked() {
+            return Ok(Pending {
+                name: name.to_owned(),
+                content: source.into_content(),
+            });
+        }
+        match source {
+            Source::Path(path) => Ok(Pending {
+                name: self.linked_name(&path)?,
+                content: Content::Linked(path),
+            }),
+            Source::Entry(inside) => Err(PackageError::CannotLink {
+                path: inside.name(),
+                reason: "it is inside an archive, and a linked package names a file on the disk"
+                    .to_owned(),
+            }),
+        }
+    }
+
+    /// Adds a MIDI song to a linked package, from the file it stays in.
+    ///
+    /// `midi` is the file's bytes, which the caller has read to analyze the song. They give the
+    /// content hash and are then dropped.
+    pub fn add_midi_linked(
+        &mut self,
+        mut entry: SongEntry,
+        source: &Path,
+        midi: &[u8],
+    ) -> Result<&SongEntry, PackageError> {
+        if self.manifest.song(entry.number).is_some() {
+            return Err(PackageError::DuplicateNumber(entry.number));
+        }
+        entry.kind = SongKind::Midi;
+        entry.file = self.linked_name(source)?;
+        entry.content_hash = Some(content_hash(midi));
+
+        self.files.push(Pending {
+            name: entry.file.clone(),
+            content: Content::Linked(source.to_path_buf()),
+        });
+        self.manifest.songs.push(entry);
+        Ok(self.manifest.songs.last().expect("just pushed"))
     }
 
     /// Adds a song, choosing its path inside the archive.
@@ -1137,6 +1563,12 @@ impl PackageBuilder {
     pub fn add(&mut self, mut entry: SongEntry, midi: Vec<u8>) -> Result<&SongEntry, PackageError> {
         if self.manifest.song(entry.number).is_some() {
             return Err(PackageError::DuplicateNumber(entry.number));
+        }
+        if self.is_linked() {
+            return Err(PackageError::CannotLink {
+                path: format!("song {}", entry.number),
+                reason: "a linked package holds no song's bytes".to_owned(),
+            });
         }
         entry.kind = SongKind::Midi;
         if entry.file.trim().is_empty() {
@@ -1174,14 +1606,12 @@ impl PackageBuilder {
         if self.manifest.song(entry.number).is_some() {
             return Err(PackageError::DuplicateNumber(entry.number));
         }
+        let pending = self.media_pending(name, Source::Path(source.to_path_buf()))?;
         entry.kind = SongKind::Video;
-        entry.file = name.to_owned();
+        entry.file = pending.name.clone();
         entry.content_hash = content_hash;
 
-        self.files.push(Pending {
-            name: name.to_owned(),
-            content: Content::File(source.to_path_buf()),
-        });
+        self.files.push(pending);
         self.manifest.songs.push(entry);
         Ok(self.manifest.songs.last().expect("just pushed"))
     }
@@ -1221,18 +1651,24 @@ impl PackageBuilder {
         if self.manifest.song(entry.number).is_some() {
             return Err(PackageError::DuplicateNumber(entry.number));
         }
+        let audio = self.media_pending(name, audio)?;
+        let graphics = self.media_pending(&graphics_entry_for(name), graphics)?;
+        // A reader finds a linked `.cdg` by the pairing rule, among the files beside the audio. A
+        // pair that rule does not join would build a song with no words in it.
+        if self.is_linked()
+            && linked_graphics_among(&audio.name, std::iter::once(graphics.name.as_str())).is_none()
+        {
+            return Err(PackageError::CannotLink {
+                path: graphics.name,
+                reason: format!("it is not the graphics file beside {}", audio.name),
+            });
+        }
         entry.kind = SongKind::Cdg;
-        entry.file = name.to_owned();
+        entry.file = audio.name.clone();
         entry.content_hash = content_hash;
 
-        self.files.push(Pending {
-            name: name.to_owned(),
-            content: audio.into_content(),
-        });
-        self.files.push(Pending {
-            name: graphics_entry_for(name),
-            content: graphics.into_content(),
-        });
+        self.files.push(audio);
+        self.files.push(graphics);
         self.manifest.songs.push(entry);
         Ok(self.manifest.songs.last().expect("just pushed"))
     }
@@ -1285,17 +1721,24 @@ impl PackageBuilder {
         if self.manifest.song(entry.number).is_some() {
             return Err(PackageError::DuplicateNumber(entry.number));
         }
+        let audio = self.media_pending(name, audio)?;
         entry.kind = kind;
-        entry.file = name.to_owned();
+        entry.file = audio.name.clone();
         entry.content_hash = content_hash;
 
+        // The timeline is the builder's own work and no file holds it, so it goes inside a linked
+        // package too, under the name the audio's path gives it.
         let json = serde_json::to_vec(timeline).expect("a lyric timeline serializes");
+        let lyrics = lyrics_entry_for(&audio.name);
+        if lyrics == MANIFEST_PATH {
+            return Err(PackageError::CannotLink {
+                path: audio.name,
+                reason: format!("its lyric timeline would take the name {MANIFEST_PATH}"),
+            });
+        }
+        self.files.push(audio);
         self.files.push(Pending {
-            name: name.to_owned(),
-            content: audio.into_content(),
-        });
-        self.files.push(Pending {
-            name: lyrics_entry_for(name),
+            name: lyrics,
             content: Content::Bytes(json),
         });
         self.manifest.songs.push(entry);
@@ -1324,9 +1767,28 @@ impl PackageBuilder {
             return Err(PackageError::DuplicateNumber(entry.number));
         }
         debug_assert!(
-            !entry.kind.is_midi(),
-            "add_media_copied is for a song whose bytes are media"
+            !entry.kind.is_midi() || from.is_linked(),
+            "add_media_copied is for a song whose bytes are media, or whose file is linked"
         );
+        if self.is_linked() != from.is_linked() {
+            return Err(PackageError::CannotLink {
+                path: entry.file,
+                reason: "a linked package and one that bundles its files do not mix".to_owned(),
+            });
+        }
+        // A record's path is relative to its package's own folder, so it is carried with that
+        // folder, and two packages with two folders do not mix.
+        if from.is_linked() {
+            let root = from.linked_root().map(str::to_owned);
+            if self.manifest.songs.is_empty() {
+                self.manifest.linked_root = root;
+            } else if self.manifest.linked_root != root {
+                return Err(PackageError::CannotLink {
+                    path: entry.file,
+                    reason: "its package reads from another folder".to_owned(),
+                });
+            }
+        }
         self.files.push(Pending {
             name: entry.file.clone(),
             content: Content::Copied {
@@ -1334,7 +1796,13 @@ impl PackageBuilder {
                 entry: entry.file.clone(),
             },
         });
-        if let Some(companion) = companion_entry_for(entry.kind, &entry.file) {
+        let companion = if entry.kind.is_cdg() && from.is_linked() {
+            // A linked `.cdg` keeps the name its file has, so the source package is asked for it.
+            Some(from.graphics_name(entry.number)?)
+        } else {
+            companion_entry_for(entry.kind, &entry.file)
+        };
+        if let Some(companion) = companion {
             self.files.push(Pending {
                 name: companion.clone(),
                 content: Content::Copied {
@@ -1345,6 +1813,40 @@ impl PackageBuilder {
         }
         self.manifest.songs.push(entry);
         Ok(self.manifest.songs.last().expect("just pushed"))
+    }
+
+    /// Moves the folder every linked file shares out of the paths and into
+    /// [`Manifest::linked_root`].
+    ///
+    /// **Only for a fresh build**, which has a folder of its own: the paths it recorded are below
+    /// that folder, and the deepest folder they share becomes the package's own. A rebuild carries
+    /// its source's records and root unchanged. The timeline entries move with their audio, because
+    /// each is named from its audio's path.
+    fn settle_linked_root(&mut self) {
+        if !matches!(self.linking, Linking::Linked { base: Some(_) }) {
+            return;
+        }
+        let Some(root) = linked::common_folder(
+            self.files
+                .iter()
+                .filter(|pending| matches!(pending.content, Content::Linked(_)))
+                .map(|pending| pending.name.as_str()),
+        ) else {
+            return;
+        };
+        let prefix = format!("{root}/");
+        let strip = |name: &mut String| {
+            if let Some(rest) = name.strip_prefix(&prefix) {
+                *name = rest.to_owned();
+            }
+        };
+        for pending in &mut self.files {
+            strip(&mut pending.name);
+        }
+        for song in &mut self.manifest.songs {
+            strip(&mut song.file);
+        }
+        self.manifest.linked_root = Some(root);
     }
 
     /// Songs added so far.
@@ -1387,6 +1889,7 @@ impl PackageBuilder {
 
         // Decided here rather than at construction, because it depends on what was added.
         self.manifest.format = self.manifest.required_format();
+        self.settle_linked_root();
 
         let problems = self.manifest.problems();
         if !problems.is_empty() {
@@ -1410,7 +1913,17 @@ impl PackageBuilder {
         })?;
 
         let fault = |error: ContainerError| container_error(error, &display);
-        let mut writer = Writer::with_flags(file, self.flags).map_err(fault)?;
+        // Set again here, so a builder cannot write a flag its contents contradict.
+        let linked = self.is_linked();
+        let flags = if linked {
+            self.flags.with(PackageFlags::LINKED)
+        } else {
+            self.flags.without(PackageFlags::LINKED)
+        };
+        let mut writer = Writer::with_flags(file, flags).map_err(fault)?;
+        let bundled_when_linked = bundled_in_a_linked_package(&self.manifest);
+        // A file two songs share is one linked record, because a directory names each entry once.
+        let mut linked_names: std::collections::BTreeSet<&str> = std::collections::BTreeSet::new();
 
         // Opened once each and reused, though in practice a rebuild reads exactly one.
         let mut sources: std::collections::HashMap<PathBuf, Container<std::fs::File>> =
@@ -1418,6 +1931,21 @@ impl PackageBuilder {
 
         for pending in &self.files {
             match &pending.content {
+                Content::Linked(source) => {
+                    if !linked_names.insert(pending.name.as_str()) {
+                        continue;
+                    }
+                    let handle = std::fs::File::open(source).map_err(|error| PackageError::Io {
+                        path: source.display().to_string(),
+                        source: error,
+                    })?;
+                    writer
+                        .link_entry(
+                            &pending.name,
+                            &mut std::io::BufReader::with_capacity(1 << 20, handle),
+                        )
+                        .map_err(fault)?;
+                }
                 Content::Bytes(bytes) => {
                     // MIDI deflates: measured over the corpus it comes down by about 70% — 71.8%
                     // across 400 `.kar`, 68.4% across 300 `.mid`. MIDI is **not** "mostly already
@@ -1520,6 +2048,24 @@ impl PackageBuilder {
                             file: entry.clone(),
                         })?
                         .clone();
+                    // The type is exclusive, and the source is a package somebody else may have
+                    // written. A linked package takes a linked record or one of the entries a
+                    // builder derives, and a package that bundles its files takes no linked record.
+                    let fits = if linked {
+                        held.method == Method::Linked || bundled_when_linked.contains(entry)
+                    } else {
+                        held.method != Method::Linked
+                    };
+                    if !fits {
+                        return Err(PackageError::CannotLink {
+                            path: entry.clone(),
+                            reason: "a linked package and one that bundles its files do not mix"
+                                .to_owned(),
+                        });
+                    }
+                    if held.method == Method::Linked && !linked_names.insert(entry.as_str()) {
+                        continue;
+                    }
                     // A byte copy: no decode, no re-encode, flat memory. This is what keeps
                     // correcting one title in a 20 GB package a copy of 20 GB rather than a
                     // re-encode of it.
@@ -2989,6 +3535,444 @@ mod tests {
             Some("zz"),
             "the raw value is handed back untouched -- the wire is open though the type is closed"
         );
+    }
+
+    /// A folder of song files, and a linked package built from one of each kind in it.
+    ///
+    /// The `.cdg` has an upper-case extension, as a real pair on a disk often does.
+    fn a_linked_package(dir: &Scratch) -> (PathBuf, PathBuf) {
+        let library = dir.join("library");
+        dir.write("library/midi/one.mid", b"midi bytes");
+        dir.write("library/video/two.mp4", pattern(5_000));
+        dir.write("library/discs/three.mp3", pattern(7_000));
+        dir.write("library/discs/three.CDG", pattern(2_400));
+        dir.write("library/words/four.mp3", pattern(9_000));
+
+        let path = dir.join("vol1.kmpkg");
+        let mut builder = PackageBuilder::new_linked(meta(), Some(library.clone()));
+        builder
+            .add_midi_linked(entry(1), &library.join("midi/one.mid"), b"midi bytes")
+            .expect("midi");
+        builder
+            .add_video_source(
+                entry(2),
+                "media/0002.mp4",
+                &library.join("video/two.mp4"),
+                Some("b".repeat(32)),
+            )
+            .expect("video");
+        builder
+            .add_cdg_source(
+                entry(3),
+                "media/0003.mp3",
+                &library.join("discs/three.mp3"),
+                &library.join("discs/three.CDG"),
+                Some("c".repeat(32)),
+            )
+            .expect("cdg");
+        builder
+            .add_timeline_source(
+                SongKind::UltraStar,
+                entry(4),
+                "media/0004.mp3",
+                &library.join("words/four.mp3"),
+                &a_timeline(),
+                Some("d".repeat(32)),
+            )
+            .expect("ultrastar");
+        builder.write(&path).expect("write");
+        (path, library)
+    }
+
+    fn read_all(mut reader: impl Read) -> Vec<u8> {
+        let mut bytes = Vec::new();
+        reader.read_to_end(&mut bytes).expect("read");
+        bytes
+    }
+
+    #[test]
+    fn a_linked_package_round_trips_and_reads_through_its_folder() {
+        let dir = temp_dir("linked-round-trip");
+        let (path, library) = a_linked_package(&dir);
+
+        let package = Package::open(&path)
+            .expect("open")
+            .with_linked_dir(&library);
+        assert!(package.is_linked());
+        assert_eq!(
+            package.flags().names().collect::<Vec<_>>(),
+            ["linked"],
+            "the builder sets the flag itself"
+        );
+        let files: Vec<&str> = package
+            .manifest()
+            .songs
+            .iter()
+            .map(|song| song.file.as_str())
+            .collect();
+        assert_eq!(
+            files,
+            [
+                "midi/one.mid",
+                "video/two.mp4",
+                "discs/three.mp3",
+                "words/four.mp3"
+            ],
+            "each song names its own file's path and not a name the builder made up"
+        );
+
+        assert_eq!(package.read_song(1).expect("midi"), b"midi bytes");
+        let video = package.media_reader(2).expect("video");
+        assert_eq!(video.name(), "video/two.mp4");
+        assert_eq!(read_all(video), pattern(5_000));
+        assert_eq!(
+            read_all(package.media_reader(3).expect("audio")),
+            pattern(7_000)
+        );
+        assert_eq!(package.lyric_timeline(4).expect("timeline"), a_timeline());
+        assert!(package.missing_entries().expect("walk").is_empty());
+        assert!(
+            damaged_entries(&path).expect("verify").is_empty(),
+            "the entries inside a linked package are still verified"
+        );
+        assert!(
+            damaged_linked_files(&path, &library)
+                .expect("verify")
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn a_linked_package_holds_no_song_file() {
+        let dir = temp_dir("linked-holds-nothing");
+        let (path, _) = a_linked_package(&dir);
+
+        let container = Container::open(std::fs::File::open(&path).expect("open")).expect("read");
+        let bundled: Vec<&str> = container
+            .entries()
+            .filter(|entry| entry.method != Method::Linked)
+            .map(|entry| entry.name.as_str())
+            .collect();
+        assert_eq!(bundled, ["words/four.json", MANIFEST_PATH]);
+        assert_eq!(linked_file_count(&path).expect("count"), 5);
+        assert!(
+            std::fs::metadata(&path).expect("size").len() < 5_000,
+            "smaller than its one video, because the video is not in it"
+        );
+    }
+
+    #[test]
+    fn a_linked_cdg_is_found_whatever_case_its_extension_has() {
+        let dir = temp_dir("linked-cdg-case");
+        let (path, library) = a_linked_package(&dir);
+
+        let package = Package::open(&path)
+            .expect("open")
+            .with_linked_dir(&library);
+        assert_eq!(package.graphics_name(3).expect("name"), "discs/three.CDG");
+        assert_eq!(package.graphics_bytes(3).expect("graphics"), pattern(2_400));
+
+        let media = package.media_entries().expect("entries");
+        assert!(media.iter().any(|entry| entry.name == "discs/three.CDG"));
+        assert!(
+            media
+                .iter()
+                .filter(|entry| entry.name != "words/four.json")
+                .all(|entry| entry.linked && !entry.stored),
+            "every song file is linked, and only the timeline is inside"
+        );
+    }
+
+    #[test]
+    fn a_linked_package_with_no_folder_given_refuses_the_read() {
+        let dir = temp_dir("linked-no-folder");
+        let (path, _) = a_linked_package(&dir);
+
+        let package = Package::open(&path).expect("it opens, because opening reads no song file");
+        assert!(matches!(
+            package.read_song(1),
+            Err(PackageError::LinkedDirUnset { number: 1, .. })
+        ));
+        assert!(matches!(
+            package.media_reader(2),
+            Err(PackageError::LinkedDirUnset { number: 2, .. })
+        ));
+        assert_eq!(
+            package.lyric_timeline(4).expect("timeline"),
+            a_timeline(),
+            "the timeline is inside the package and needs no folder"
+        );
+    }
+
+    #[test]
+    fn a_linked_file_that_is_gone_is_a_refused_read_and_a_damaged_file() {
+        let dir = temp_dir("linked-gone");
+        let (path, library) = a_linked_package(&dir);
+        std::fs::remove_file(library.join("video/two.mp4")).expect("remove");
+        std::fs::write(library.join("midi/one.mid"), b"other bytes").expect("change");
+
+        let package = Package::open(&path)
+            .expect("open")
+            .with_linked_dir(&library);
+        assert!(matches!(
+            package.media_reader(2),
+            Err(PackageError::Linked {
+                number: 2,
+                source: LinkedPathError::NotFound(_)
+            })
+        ));
+        assert_eq!(
+            damaged_linked_files(&path, &library).expect("verify"),
+            ["midi/one.mid", "video/two.mp4"],
+            "a changed file and a missing one are both reported"
+        );
+    }
+
+    #[test]
+    fn a_linked_package_keeps_the_folder_its_files_share_as_its_own() {
+        let dir = temp_dir("linked-own-folder");
+        let library = dir.join("library");
+        let first = dir.write("library/cdg/Rigmar/a.mid", b"first");
+        let second = dir.write("library/cdg/Rigmar/disc 2/b.mid", b"second");
+        dir.write("library/cdg/Sunfly/c.mid", b"another collection");
+
+        let path = dir.join("vol1.kmpkg");
+        let mut builder = PackageBuilder::new_linked(meta(), Some(library.clone()));
+        builder
+            .add_midi_linked(entry(1), &first, b"first")
+            .expect("first");
+        builder
+            .add_midi_linked(entry(2), &second, b"second")
+            .expect("second");
+        builder.write(&path).expect("write");
+
+        let package = Package::open(&path)
+            .expect("open")
+            .with_linked_dir(&library);
+        assert_eq!(package.linked_root(), Some("cdg/Rigmar"));
+        let files: Vec<&str> = package
+            .manifest()
+            .songs
+            .iter()
+            .map(|song| song.file.as_str())
+            .collect();
+        assert_eq!(
+            files,
+            ["a.mid", "disc 2/b.mid"],
+            "each path is below the folder"
+        );
+        assert_eq!(package.read_song(2).expect("read"), b"second");
+        assert!(
+            damaged_linked_files(&path, &library)
+                .expect("verify")
+                .is_empty()
+        );
+
+        // A rebuild keeps the folder with the records it carries.
+        let rebuilt = dir.join("vol1-edited.kmpkg");
+        let mut again = PackageBuilder::new_linked(meta(), None);
+        for song in &package.manifest().songs {
+            again
+                .add_media_copied(song.clone(), &package)
+                .expect("carry");
+        }
+        again.write(&rebuilt).expect("write");
+        let rebuilt = Package::open(&rebuilt)
+            .expect("open")
+            .with_linked_dir(&library);
+        assert_eq!(rebuilt.linked_root(), Some("cdg/Rigmar"));
+        assert_eq!(rebuilt.read_song(1).expect("read"), b"first");
+    }
+
+    #[test]
+    fn a_linked_package_reads_nothing_beside_its_own_folder() {
+        let dir = temp_dir("linked-own-folder-only");
+        let library = dir.join("library");
+        let song = dir.write("library/Rigmar/a.mid", b"mine");
+        dir.write("library/Sunfly/b.mid", b"another collection");
+
+        let path = dir.join("vol1.kmpkg");
+        let mut builder = PackageBuilder::new_linked(meta(), Some(library.clone()));
+        builder
+            .add_midi_linked(entry(1), &song, b"mine")
+            .expect("add");
+        builder.write(&path).expect("write");
+
+        let package = Package::open(&path)
+            .expect("open")
+            .with_linked_dir(&library);
+        assert_eq!(package.linked_root(), Some("Rigmar"));
+        // A path reaching for the other collection climbs out of the package's folder.
+        assert!(matches!(
+            linked::open_in(&library, package.linked_root(), "../Sunfly/b.mid"),
+            Err(LinkedPathError::BadComponent(_))
+        ));
+
+        std::fs::remove_dir_all(library.join("Rigmar")).expect("remove the folder");
+        assert!(matches!(
+            package.read_song(1),
+            Err(PackageError::Linked {
+                source: LinkedPathError::FolderMissing(_),
+                ..
+            })
+        ));
+    }
+
+    #[test]
+    fn a_package_that_bundles_its_files_and_names_a_folder_is_refused() {
+        let dir = temp_dir("bundled-with-folder");
+        let path = dir.join("vol1.kmpkg");
+        let mut song = entry(1);
+        song.file = "midi/1.mid".to_owned();
+        let mut manifest = Manifest::new(meta());
+        manifest.songs = vec![song];
+        manifest.linked_root = Some("Rigmar".to_owned());
+        let file = std::fs::File::create(&path).expect("create");
+        let mut writer = Writer::new(file).expect("header");
+        writer
+            .write_entry("midi/1.mid", Method::Deflate, b"midi")
+            .expect("entry");
+        writer
+            .write_entry(
+                MANIFEST_PATH,
+                Method::Deflate,
+                serde_json::to_string(&manifest).expect("json").as_bytes(),
+            )
+            .expect("manifest");
+        writer.finish().expect("finish");
+        assert!(matches!(
+            Package::open(&path),
+            Err(PackageError::Archive { message, .. }) if message.contains("not a linked package")
+        ));
+    }
+
+    #[test]
+    fn a_package_mixing_bundled_and_linked_song_files_is_refused() {
+        let dir = temp_dir("linked-mixed");
+        let path = dir.join("vol1.kmpkg");
+
+        let mut manifest = Manifest::new(meta());
+        let mut linked = entry(1);
+        linked.file = "midi/one.mid".to_owned();
+        let mut bundled = entry(2);
+        bundled.file = "midi/2.mid".to_owned();
+        manifest.songs = vec![linked, bundled];
+        manifest.format = manifest.required_format();
+
+        let file = std::fs::File::create(&path).expect("create");
+        let mut writer = Writer::with_flags(file, PackageFlags::LINKED).expect("header");
+        writer
+            .link_entry("midi/one.mid", &mut &b"midi"[..])
+            .expect("link");
+        writer
+            .write_entry("midi/2.mid", Method::Deflate, b"midi")
+            .expect("entry");
+        writer
+            .write_entry(
+                MANIFEST_PATH,
+                Method::Deflate,
+                serde_json::to_string(&manifest).expect("json").as_bytes(),
+            )
+            .expect("manifest");
+        writer.finish().expect("finish");
+
+        assert!(matches!(
+            Package::open(&path),
+            Err(PackageError::Archive { message, .. }) if message.contains("midi/2.mid")
+        ));
+    }
+
+    #[test]
+    fn a_linked_builder_refuses_what_is_not_a_file_below_its_folder() {
+        let dir = temp_dir("linked-builder-refuses");
+        let library = dir.join("library");
+        dir.write("library/one.mid", b"midi");
+        let outside = dir.write("elsewhere/two.mp4", pattern(100));
+
+        let mut builder = PackageBuilder::new_linked(meta(), Some(library));
+        assert!(
+            matches!(
+                builder.add(entry(1), b"midi".to_vec()),
+                Err(PackageError::CannotLink { .. })
+            ),
+            "bytes in memory are not a file to link to"
+        );
+        assert!(matches!(
+            builder.add_video_source(entry(2), "media/0002.mp4", &outside, None),
+            Err(PackageError::CannotLink { reason, .. }) if reason.contains("outside")
+        ));
+        assert!(matches!(
+            builder.add_cdg_source_from(
+                entry(3),
+                "media/0003.mp3",
+                held(&pattern(10)),
+                held(&pattern(10)),
+                None
+            ),
+            Err(PackageError::CannotLink { reason, .. }) if reason.contains("archive")
+        ));
+        assert!(builder.is_empty(), "a refused song leaves nothing behind");
+    }
+
+    #[test]
+    fn the_linked_flag_follows_the_builder_and_not_the_caller() {
+        let dir = temp_dir("linked-flag-follows");
+        let (linked_path, _) = a_linked_package(&dir);
+        assert!(read_flags(&linked_path).expect("flags").is_linked());
+
+        let path = dir.join("bundled.kmpkg");
+        let mut builder = PackageBuilder::new(meta());
+        builder.set_flags(PackageFlags::LINKED.with(PackageFlags::UNCURATED));
+        builder.add(entry(1), b"midi".to_vec()).expect("add");
+        builder.write(&path).expect("write");
+        let flags = read_flags(&path).expect("flags");
+        assert!(!flags.is_linked(), "its files are inside it");
+        assert!(flags.is_uncurated(), "the other flags are the caller's");
+    }
+
+    #[test]
+    fn a_rebuild_of_a_linked_package_bundles_nothing() {
+        let dir = temp_dir("linked-rebuild");
+        let (path, library) = a_linked_package(&dir);
+        let source = Package::open(&path).expect("open");
+
+        let rebuilt = dir.join("vol1-edited.kmpkg");
+        let mut builder = PackageBuilder::new_linked(meta(), None);
+        for song in &source.manifest().songs {
+            let mut song = song.clone();
+            song.title = format!("{} (corrected)", song.title);
+            builder.add_media_copied(song, &source).expect("carry");
+        }
+        builder.write(&rebuilt).expect("write");
+
+        let package = Package::open(&rebuilt)
+            .expect("open")
+            .with_linked_dir(&library);
+        assert!(package.is_linked());
+        assert_eq!(linked_file_count(&rebuilt).expect("count"), 5);
+        assert_eq!(package.manifest().songs[0].title, "Song 1 (corrected)");
+        assert_eq!(package.read_song(1).expect("midi"), b"midi bytes");
+        assert_eq!(package.graphics_bytes(3).expect("graphics"), pattern(2_400));
+        assert_eq!(package.lyric_timeline(4).expect("timeline"), a_timeline());
+        assert!(
+            damaged_linked_files(&rebuilt, &library)
+                .expect("verify")
+                .is_empty(),
+            "the length and the CRC came across with each record"
+        );
+    }
+
+    #[test]
+    fn a_song_is_not_carried_between_the_two_types() {
+        let dir = temp_dir("linked-no-crossing");
+        let (linked_path, _) = a_linked_package(&dir);
+        let linked = Package::open(&linked_path).expect("open");
+
+        let mut bundling = PackageBuilder::new(meta());
+        assert!(matches!(
+            bundling.add_media_copied(linked.manifest().songs[1].clone(), &linked),
+            Err(PackageError::CannotLink { .. })
+        ));
     }
 
     /// Pulls the manifest back out of a written package, to assert on what was actually stored.

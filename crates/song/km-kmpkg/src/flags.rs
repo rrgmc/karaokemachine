@@ -25,11 +25,19 @@ impl PackageFlags {
     /// says so everywhere but the television` in `docs/decisions/packaging.md`.
     pub const UNCURATED: Self = Self(1 << 0);
 
+    /// The package holds no song file. Each one is a path below a folder the machine's owner names.
+    ///
+    /// A machine installs one only when its owner allows linked packages. Every surface that lists
+    /// packages shows it, except the television. See `A linked package keeps its song files outside
+    /// itself` in `docs/decisions/packaging.md`.
+    pub const LINKED: Self = Self(1 << 1);
+
     /// Every bit this build has a name for, with that name.
     ///
     /// **The one place a bit is mapped to a word.** The API, the admin pages, the remotes and
     /// `km-pack` all read it, so a new flag is a new line here and a new label in each catalog.
-    const KNOWN: [(Self, &'static str); 1] = [(Self::UNCURATED, "uncurated")];
+    const KNOWN: [(Self, &'static str); 2] =
+        [(Self::UNCURATED, "uncurated"), (Self::LINKED, "linked")];
 
     /// The word exactly as the header holds it, unknown bits included.
     #[must_use]
@@ -55,6 +63,12 @@ impl PackageFlags {
         Self(self.0 | other.0)
     }
 
+    /// This word with every bit of `other` cleared.
+    #[must_use]
+    pub const fn without(self, other: Self) -> Self {
+        Self(self.0 & !other.0)
+    }
+
     /// Whether no bit is set.
     #[must_use]
     pub const fn is_empty(self) -> bool {
@@ -65,6 +79,12 @@ impl PackageFlags {
     #[must_use]
     pub const fn is_uncurated(self) -> bool {
         self.contains(Self::UNCURATED)
+    }
+
+    /// Whether the package keeps its song files outside itself.
+    #[must_use]
+    pub const fn is_linked(self) -> bool {
+        self.contains(Self::LINKED)
     }
 
     /// The names of the set bits this build knows, in bit order.

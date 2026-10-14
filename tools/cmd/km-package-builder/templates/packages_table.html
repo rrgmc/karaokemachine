@@ -30,9 +30,12 @@
       {# **The marks take a line of their own**, so every name starts and ends at the same place
          however many lists its package draws on. #}
       <td><a href="/packages/{{ p.row.id }}">{{ p.row.name }}</a>
-        {% if p.volumes.is_some() || !p.sources.is_empty() %}
+        {% if p.volumes.is_some() || !p.sources.is_empty() || p.linked %}
         <div class="marks">
           {% match p.volumes %}{% when Some with (said) %}<span class="tag">{{ said }}</span>{% when None %}{% endmatch %}
+          {# A linked package is not a file somebody can hand over on its own, so the list says
+             which ones build that way. #}
+          {% if p.linked %}<span class="tag">{{ "packages-linked"|t }}</span>{% endif %}
           {% for name in p.sources %}<span class="tag">{{ name }}</span>{% endfor %}
         </div>
         {% endif %}</td>

@@ -275,6 +275,13 @@ struct BuildArgs {
     /// length and language. It is for whoever is handed the package and has no tool to open it.
     #[arg(long)]
     listing: bool,
+    /// Build a linked package, which holds no song file.
+    ///
+    /// The package names each song file by its path below the description's root. A machine plays
+    /// the songs from the one folder its owner sets for linked packages, and that folder holds the
+    /// same files at the same paths. The same as `linked: true` in the description.
+    #[arg(long)]
+    linked: bool,
 }
 
 #[derive(Args)]
@@ -306,6 +313,12 @@ struct CheckArgs {
     /// describe itself properly?*
     #[arg(long)]
     verify: bool,
+    /// The folder a linked package's song files are in, so `--verify` can compare them too.
+    ///
+    /// A linked package records each file's length and checksum when it is built. Without this
+    /// folder, `--verify` checks what is inside the package and says how many files it left alone.
+    #[arg(long, value_name = "FOLDER")]
+    linked_dir: Option<PathBuf>,
 }
 
 #[derive(Args)]
@@ -327,6 +340,11 @@ struct ReanalyzeArgs {
     /// still has none.
     #[arg(long)]
     no_loudness: bool,
+    /// The folder a linked package's song files are in.
+    ///
+    /// Re-analyzing reads every song, so a linked package needs the folder its files are in.
+    #[arg(long, value_name = "FOLDER")]
+    linked_dir: Option<PathBuf>,
 }
 
 fn main() -> Result<()> {
@@ -528,6 +546,40 @@ fn export(args: &ExportArgs) -> Result<()> {
     Ok(())
 }
 
+/// A builder for a rebuild of `package`: the same type of package, with the same flags.
+///
+/// The header is written fresh, so the flags are passed on here. A linked package rebuilds as a
+/// linked one, and needs no folder, because each record is carried across as it is.
+fn rebuilding(package: &Package) -> PackageBuilder {
+    let meta = package.manifest().package.clone();
+    let mut builder = if package.is_linked() {
+        PackageBuilder::new_linked(meta, None)
+    } else {
+        PackageBuilder::new(meta)
+    };
+    builder.set_flags(package.flags());
+    builder
+}
+
+/// Carries one MIDI song into a rebuild.
+///
+/// A package that bundles its files reads the song and writes it again, with a fresh hash. A linked
+/// package carries the record across, and `bytes` goes unread: the file is where it was.
+fn carry_midi(
+    builder: &mut PackageBuilder,
+    package: &Package,
+    mut entry: km_kmpkg::SongEntry,
+    bytes: impl FnOnce() -> Result<Vec<u8>>,
+) -> Result<()> {
+    if package.is_linked() {
+        builder.add_media_copied(entry, package)?;
+    } else {
+        entry.content_hash = None;
+        builder.add(entry, bytes()?)?;
+    }
+    Ok(())
+}
+
 fn apply(args: &ApplyArgs) -> Result<()> {
     let package = Package::open(&args.package)
         .with_context(|| format!("opening {}", args.package.display()))?;
@@ -553,7 +605,7 @@ fn apply(args: &ApplyArgs) -> Result<()> {
     }
 
     let manifest = package.manifest().clone();
-    let mut builder = PackageBuilder::new(manifest.package.clone());
+    let mut builder = rebuilding(&package);
     let mut changes = 0usize;
     let mut unmatched: Vec<u32> = edits.keys().copied().collect();
 
@@ -569,9 +621,9 @@ fn apply(args: &ApplyArgs) -> Result<()> {
         // correcting one title now moves the whole archive. Going through `read_song` here is what
         // used to fail outright on any package holding a video song.
         if song.kind.is_midi() {
-            let bytes = package.read_song(song.number)?;
-            entry.content_hash = None;
-            builder.add(entry, bytes)?;
+            carry_midi(&mut builder, &package, entry, || {
+                Ok(package.read_song(song.number)?)
+            })?;
         } else {
             builder.add_media_copied(entry, &package)?;
         }
@@ -678,7 +730,7 @@ fn edit(args: &EditArgs) -> Result<()> {
         melody: None,
     };
 
-    let mut builder = PackageBuilder::new(manifest.package.clone());
+    let mut builder = rebuilding(&package);
     let mut changed = 0usize;
     for song in &manifest.songs {
         let mut entry = song.clone();
@@ -695,9 +747,9 @@ fn edit(args: &EditArgs) -> Result<()> {
         // correcting one title now moves the whole archive. Going through `read_song` here is what
         // used to fail outright on any package holding a video song.
         if song.kind.is_midi() {
-            let bytes = package.read_song(song.number)?;
-            entry.content_hash = None;
-            builder.add(entry, bytes)?;
+            carry_midi(&mut builder, &package, entry, || {
+                Ok(package.read_song(song.number)?)
+            })?;
         } else {
             builder.add_media_copied(entry, &package)?;
         }
@@ -833,7 +885,8 @@ fn describe(args: &SpecArgs) -> Result<()> {
 /// Every decision about what goes in the package was made when the description was written, which is
 /// the point of having one.
 fn build(args: &BuildArgs) -> Result<()> {
-    let spec = km_pack::Spec::read(&args.spec)?;
+    let mut spec = km_pack::Spec::read(&args.spec)?;
+    spec.package.linked |= args.linked;
     let base = spec.base(&args.spec);
 
     let outcome = km_pack::build::build(
@@ -1216,6 +1269,7 @@ fn inspect(args: &InspectArgs) -> Result<()> {
     println!("  version    {}", manifest.package.version);
     println!("  songs      {}", manifest.songs.len());
     print_flags(package.flags(), "  flags      ");
+    print_linked_root(package.flags(), package.linked_root(), "  folder     ");
 
     let values: Vec<u8> = manifest
         .songs
@@ -1341,6 +1395,17 @@ fn print_flags(flags: km_kmpkg::PackageFlags, label: &str) {
     }
 }
 
+/// Prints which folder a linked package plays its songs from, and nothing for any other package.
+fn print_linked_root(flags: km_kmpkg::PackageFlags, root: Option<&str>, label: &str) {
+    if !flags.is_linked() {
+        return;
+    }
+    match root {
+        Some(root) => println!("{label}{root}"),
+        None => println!("{label}the whole folder for linked files"),
+    }
+}
+
 fn check(args: &CheckArgs) -> Result<()> {
     // Read unchecked first, so a package that will not open still gets diagnosed rather than just
     // refused. Telling somebody "invalid" without saying why is useless.
@@ -1352,6 +1417,7 @@ fn check(args: &CheckArgs) -> Result<()> {
     let flags = km_kmpkg::read_flags(&args.package)
         .with_context(|| format!("reading {}", args.package.display()))?;
     print_flags(flags, "  flags ");
+    print_linked_root(flags, manifest.linked_root.as_deref(), "  folder ");
 
     let problems = manifest.problems();
     if problems.is_empty() {
@@ -1391,12 +1457,13 @@ fn check(args: &CheckArgs) -> Result<()> {
             let bytes: u64 = media.iter().map(|entry| entry.size).sum();
             compressed = media
                 .iter()
-                .filter(|entry| is_seekable_entry(&entry.name) && !entry.stored)
+                // A linked file is a file on the disk, which a decoder seeks into as it is.
+                .filter(|entry| is_seekable_entry(&entry.name) && !entry.stored && !entry.linked)
                 .map(|entry| entry.name.clone())
                 .collect();
             let deflated: Vec<&MediaEntry> = media
                 .iter()
-                .filter(|entry| !is_seekable_entry(&entry.name) && !entry.stored)
+                .filter(|entry| !is_seekable_entry(&entry.name) && !entry.stored && !entry.linked)
                 .collect();
             println!(
                 "  media  {} entries, {}{}",
@@ -1449,6 +1516,38 @@ fn check(args: &CheckArgs) -> Result<()> {
                 println!("    ... and {} more", damaged.len() - 5);
             }
             println!("    the package was damaged after it was built; fetch or build it again");
+        }
+
+        // A linked package's song files are outside it, so they are compared only when somebody
+        // says where they are. Saying how many went unchecked keeps "every entry matches" honest.
+        let linked = km_kmpkg::linked_file_count(&args.package)?;
+        match &args.linked_dir {
+            _ if linked == 0 => {}
+            None => println!(
+                "  {linked} linked file(s) were not compared; give --linked-dir <folder> to \
+                 compare them"
+            ),
+            Some(dir) => {
+                let changed = km_kmpkg::damaged_linked_files(&args.package, dir)?;
+                if changed.is_empty() {
+                    println!("  every linked file is the file the package was built from");
+                } else {
+                    println!(
+                        "  {} of {linked} linked file(s) are missing or have changed",
+                        changed.len()
+                    );
+                    for name in changed.iter().take(5) {
+                        println!("    ! {name}");
+                    }
+                    if changed.len() > 5 {
+                        println!("    ... and {} more", changed.len() - 5);
+                    }
+                    println!(
+                        "    a changed file still plays; build the package again to describe it \
+                         as it is"
+                    );
+                }
+            }
         }
     }
 
@@ -1688,9 +1787,17 @@ fn media_suitability(package: &Package, song: &km_kmpkg::SongEntry) -> km_kmpkg:
 fn reanalyze(args: &ReanalyzeArgs) -> Result<()> {
     let package = Package::open(&args.package)
         .with_context(|| format!("opening {}", args.package.display()))?;
+    let package = match (&args.linked_dir, package.is_linked()) {
+        (Some(dir), _) => package.with_linked_dir(dir),
+        (None, true) => bail!(
+            "{} is a linked package, so its songs are not inside it: give --linked-dir <folder>",
+            args.package.display()
+        ),
+        (None, false) => package,
+    };
     let manifest = package.manifest().clone();
 
-    let mut builder = PackageBuilder::new(manifest.package.clone());
+    let mut builder = rebuilding(&package);
     let mut changed = 0usize;
 
     for song in &manifest.songs {
@@ -1768,8 +1875,7 @@ fn reanalyze(args: &ReanalyzeArgs) -> Result<()> {
             // worth dropping: keeping it preserves the number a singer already knows.
             Err(error) => eprintln!("  {:>8}  could not re-parse: {error}", song.number),
         }
-        entry.content_hash = None;
-        builder.add(entry, bytes)?;
+        carry_midi(&mut builder, &package, entry, || Ok(bytes))?;
     }
 
     if args.dry_run {

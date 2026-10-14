@@ -106,6 +106,24 @@ pub struct Curated {
 /// parsing, the analysis, an ffmpeg re-encode, writing the archive — needs no database at all, which
 /// is what lets a build run on a thread of its own without holding the connection for the minutes it
 /// takes.
+/// The folder a linked build of this volume would play its songs from, below the corpus root.
+///
+/// `None` is the whole folder for linked files, which is what a volume whose songs share no folder
+/// gets. The build decides it with the same function, over the files it links, so the page and the
+/// file agree. An UltraStar song links the MP3 its text names, which almost always sits beside the
+/// text.
+pub fn linked_root_for(db: &Db, package_id: &str, volume: u32) -> Result<Option<String>, DbError> {
+    let members = db.package_members(package_id, volume)?;
+    let paths: Vec<String> = members
+        .iter()
+        .filter_map(|member| member.path.as_deref())
+        .map(km_pack::spec::slashed)
+        .collect();
+    Ok(km_kmpkg::linked::common_folder(
+        paths.iter().map(String::as_str),
+    ))
+}
+
 pub fn spec_for(db: &Db, package_id: &str, volume: u32) -> Result<Curated, DbError> {
     let package = db.package_volume(package_id, volume)?;
     let members = db.package_members(package_id, volume)?;
@@ -189,6 +207,9 @@ pub fn spec_for(db: &Db, package_id: &str, volume: u32) -> Result<Curated, DbErr
                 // works when the description is carried to the appliance.
                 out: package.out_path.as_deref().map(km_pack::spec::slashed),
                 uncurated: false,
+                // The curator's choice for this package. The corpus root below is then the folder
+                // a machine's owner sets for linked packages, or a copy of it.
+                linked: db.linked(package_id)?,
             },
             // The corpus root, named absolutely: a description written out of this database may be
             // saved anywhere, and the songs it names do not move with it.
@@ -819,6 +840,11 @@ pub fn import(db: &mut Db, path: &Path) -> Result<ImportReport, DbError> {
     db.ensure_volume(&package_id, volume, &manifest.package.id, &now)?;
     db.update_package(&row)?;
     db.add_package_flags(&package_id, package.flags())?;
+    // A linked package imports as one that builds linked. The flag itself is never read back from
+    // `flags`: a build takes its type from this choice, which the curator can change.
+    if package.is_linked() {
+        db.set_linked(&package_id, true)?;
+    }
 
     let mut report = ImportReport {
         package_id: row.id.clone(),
@@ -1184,6 +1210,66 @@ mod tests {
                 .expect("open")
                 .is_uncurated(),
             "a build of an imported uncurated package keeps the mark"
+        );
+    }
+
+    /// A package set to build linked writes a linked file over the corpus, and that file imports
+    /// back as a package that builds linked.
+    #[test]
+    fn a_package_set_linked_builds_linked_and_imports_back_linked() {
+        let scratch = Scratch::new("linked-source");
+        let (db, id) = corpus(&scratch);
+        let out = scratch.join("vol1.kmpkg");
+        {
+            let mut guard = db.lock();
+            package_with(&mut guard, std::slice::from_ref(&id));
+            assert!(
+                !guard.linked(km_kmpkg::EXAMPLE_ID).expect("linked"),
+                "off until somebody asks"
+            );
+            guard
+                .set_linked(km_kmpkg::EXAMPLE_ID, true)
+                .expect("choose linked");
+        }
+        let report = build_now(&db, km_kmpkg::EXAMPLE_ID, &out);
+        assert_eq!(report.written, 1, "{:?}", report.skipped);
+
+        let package = km_kmpkg::Package::open(&out).expect("open");
+        assert!(package.is_linked());
+        assert_eq!(km_kmpkg::linked_file_count(&out).expect("count"), 1);
+        assert_eq!(
+            package.linked_root().map(str::to_owned),
+            linked_root_for(&db.lock(), km_kmpkg::EXAMPLE_ID, 1).expect("root"),
+            "the page names the folder the build then uses"
+        );
+        // The corpus root is the folder the paths are below, so the song reads through it.
+        let root = db.lock().root().to_path_buf();
+        let number = package.manifest().songs[0].number;
+        assert!(
+            package
+                .with_linked_dir(root)
+                .read_song(number)
+                .is_ok_and(|bytes| !bytes.is_empty())
+        );
+
+        let second = Scratch::new("linked-import");
+        let (fresh, _) = corpus(&second);
+        import(&mut fresh.lock(), &out).expect("import");
+        assert!(
+            fresh.lock().linked(km_kmpkg::EXAMPLE_ID).expect("linked"),
+            "an imported linked package builds linked"
+        );
+
+        // The choice is the curator's, so it can be taken back, whatever the file said.
+        fresh
+            .lock()
+            .set_linked(km_kmpkg::EXAMPLE_ID, false)
+            .expect("choose bundled");
+        let rebuilt = second.join("rebuilt.kmpkg");
+        build_now(&fresh, km_kmpkg::EXAMPLE_ID, &rebuilt);
+        assert!(
+            !km_kmpkg::Package::open(&rebuilt).expect("open").is_linked(),
+            "the flag the import kept does not decide the next build"
         );
     }
 

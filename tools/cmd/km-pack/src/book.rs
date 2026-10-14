@@ -390,6 +390,7 @@ mod tests {
                     volume: None,
                 },
                 songs,
+                linked_root: None,
             },
         }
     }

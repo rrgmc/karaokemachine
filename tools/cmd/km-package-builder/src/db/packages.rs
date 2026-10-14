@@ -650,6 +650,35 @@ impl Db {
         )? != 0)
     }
 
+    /// Whether a build of this package writes a linked package.
+    ///
+    /// Read through its own method for the reason [`Self::raise_version`] gives.
+    pub fn linked(&self, package_id: &str) -> Result<bool, DbError> {
+        Ok(self.conn.query_row(
+            "SELECT linked FROM packages WHERE id = ?1",
+            params![package_id],
+            |row| row.get::<_, i64>(0),
+        )? != 0)
+    }
+
+    /// The ids of the packages whose builds write a linked package, for a list that marks them.
+    pub fn linked_package_ids(&self) -> Result<std::collections::BTreeSet<String>, DbError> {
+        let mut statement = self
+            .conn
+            .prepare("SELECT id FROM packages WHERE linked != 0")?;
+        let rows = statement.query_map([], |row| row.get::<_, String>(0))?;
+        Ok(rows.collect::<Result<_, _>>()?)
+    }
+
+    /// Says whether a build of this package writes a linked package.
+    pub fn set_linked(&self, package_id: &str, linked: bool) -> Result<(), DbError> {
+        self.conn.execute(
+            "UPDATE packages SET linked = ?2 WHERE id = ?1",
+            params![package_id, linked],
+        )?;
+        Ok(())
+    }
+
     /// Says whether a build of this package raises its patch number first.
     pub fn set_raise_version(&self, package_id: &str, raise: bool) -> Result<(), DbError> {
         self.conn.execute(

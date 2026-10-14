@@ -263,6 +263,7 @@ mod tests {
                 transcode: true,
                 out: None,
                 uncurated: true,
+                linked: false,
             },
             root: None,
             songs: (1..=songs)

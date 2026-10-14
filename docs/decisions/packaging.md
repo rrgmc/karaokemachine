@@ -109,6 +109,8 @@ the description a package was built from builds it again.
 ## Where a song's media lives
 
 **Inside the `.kmpkg`, as an uncompressed entry the decoder seeks into. A package is one file.**
+[A linked package](#a-linked-package-keeps-its-song-files-outside-itself) is the one exception, and
+its owner chooses it.
 
 A stored entry is a byte range, and the directory says where it begins. To play a video, the machine
 opens the package once to learn `(start, len)` and drops it. Then it reads the package **as a file**
@@ -159,6 +161,9 @@ MP3+G song's audio are stored, and the manifest, the MIDI and the `.cdg` are def
 the directory rather than a byte window, so it takes either method. A rebuild carries across whatever
 it found rather than imposing the rule afresh.
 
+**A linked file is neither.** It is a file on the disk, so a decoder seeks into it as it seeks into
+a stored entry.
+
 **What stays stored is not negotiable:** a compressed entry has no byte range to seek into.
 Compressing video or MP3 would break playback outright rather than merely cost something. It would
 save nothing anyway, because both are entropy-coded already.
@@ -195,6 +200,11 @@ a section of its own, because an id collision is a worse failure than a leak.
   They belong to the files' publishers rather than to the person packaging them. The stored bytes
   being the source's exact bytes is what `content_hash` means. A `lyric_preview` is the exception,
   and it is redacted for the *file's* author rather than for the packager's sake.
+
+- **A linked package names each song file by its path below one folder.** The folder and file names
+  of a library are in it, and the folder's own location is not. That is the cost of
+  [keeping the files outside](#a-linked-package-keeps-its-song-files-outside-itself). A person who
+  builds one chooses it, and a package that bundles its files records none of them.
 
 **The id is the opposite case and is refused**, because there the fault is one the machine cannot work
 around.
@@ -590,6 +600,11 @@ knows. A page reads the names, and the number keeps what the names cannot say.
 **A rebuild writes a fresh header.** Copied entries keep their bytes, but whoever rebuilds passes
 the flags on through `PackageBuilder::set_flags`.
 
+**A flag that changes how the file is read also changes the container version.** `linked` is the
+one, and
+[`A linked package keeps its song files outside itself`](#a-linked-package-keeps-its-song-files-outside-itself)
+says why.
+
 ## An uncurated package says so everywhere but the television
 
 **The first flag is `uncurated`: a package built straight from a folder, with nobody reviewing its
@@ -612,6 +627,173 @@ not read it.
 set or clear one. A person who reviews the songs rebuilds the package, and
 [`Importing an uncurated package keeps the flag`](curation.md#importing-an-uncurated-package-keeps-the-flag)
 says what the curation tool does then.
+
+## A linked package keeps its song files outside itself
+
+**The second flag is `linked`: a package that holds no song file.** Each song file is a path below
+one folder, and the machine's owner says which folder. A person whose library already sits on a disk
+as loose files then stores it once. A package that bundles its files stores it a second time.
+
+**The type is exclusive.** A package bundles every song file or none. A package that bundles its
+files and carries one linked record is refused, and so is a linked package that holds one song file's
+bytes. A reader therefore never decides, song by song, where to look.
+
+**What the builder derives stays inside.** That is `manifest.json`, and the lyric timeline of an
+UltraStar or LRC song. No file on the disk holds a timeline, and
+[`The machine never reads an UltraStar file`](song-sources.md) still holds. A `.txt` or an `.lrc` is
+never linked.
+
+**A linked file is a directory record with no bytes.** The record's name is the path, with forward
+slashes. Its method is `linked`, its offset and its stored length are zero, and its real length and
+CRC-32 are the file's own at the build. `km-pack check --verify --linked-dir <folder>` compares each
+file against them, so a file that changed after the build can be found. A song's own entry in the
+manifest names the same path. The path is relative to
+[the package's own folder](#a-linked-package-reads-from-one-folder-of-its-own).
+
+**A linked `.cdg` keeps its own name.** A real pair is `song.mp3` beside `song.CDG`, so the rule
+[`graphics_entry_for`](#where-a-songs-media-lives) applies inside a package cannot name it. The
+reader finds it by the rule a folder is paired by, among the linked files beside the audio. The
+builder refuses a pair that rule does not join.
+
+**A linked package is written in container version 2, and the flag alone would not do.** A reader
+keeps a flag it does not know. A build without `linked` would therefore open the package and look
+for bytes that are not there. That build refuses version 2, and says a newer program wrote the file. A package
+that bundles its files stays at version 1, and every machine in service still opens it. A header
+whose flag and version disagree is refused.
+
+**The flag follows the contents, and a caller cannot set it.** `PackageBuilder::new_linked` writes
+one, and `PackageBuilder::set_flags` neither adds the bit nor clears it. A rebuild carries each
+linked record across unchanged, and a song is never carried between the two types.
+
+**A linked build changes no file.** It never re-encodes a video, because the result would have
+nowhere to go. A song inside a `.zip` is skipped, because it is not a file a path can name.
+
+## A linked package reads from one folder of its own
+
+**A linked package names one folder, its `linked_root`, and every path in it is below that
+folder.** The machine reads the package's files from that folder inside its folder for linked
+files, and from nowhere else. A package downloaded from a stranger can then reach its own collection
+and nothing beside it. Another collection the owner keeps in the same folder is out of its reach.
+
+**The builder works the folder out.** It is the deepest folder that every linked file shares,
+counting whole folder names only. The builder takes it off the front of each path. Two examples,
+with the corpus root at `<your karaoke folder>`:
+
+| The songs come from | The package's folder | A path in the package |
+|---|---|---|
+| `cdg/Rigmar/` only | `cdg/Rigmar` | `song.mp3` |
+| `cdg/Rigmar/` and `cdg/Sunfly/` | `cdg` | `Rigmar/song.mp3` |
+| `cdg/Rigmar/` and `Ingles2/` | none: the whole folder | `cdg/Rigmar/song.mp3` |
+
+**A package whose songs share no folder reaches the whole folder**, and every list says so. That is
+the price of mixing collections in one package. It is the package an owner most wants to notice
+before installing one from somebody else. So the *This machine*'s Songs tab, `km-pack inspect`,
+`km-pack check` and the listing beside a package each name the folder, or say it is the whole one.
+`km-package-builder`'s Build tab says which before the build.
+
+**The folder is checked as a path is**, when the package opens. At each read the machine resolves
+it, and it must lie inside the folder for linked files. A link in its place cannot widen what the
+package reaches. A package that bundles its files and names a folder is refused.
+
+**A package whose folder is missing is refused at install, by the folder's name.** It is one look at
+the disk, and no song file is read. The Problems tab then says which folder to put in place.
+
+**A rebuild keeps the folder with the records it carries.** Two linked packages with two folders
+do not mix in one rebuild.
+
+**A package cannot be told to read from another folder.** Moving a collection means moving it to
+where the package expects it. A per-package folder setting is possible later, and it would be a
+setting the owner writes and never one a package chooses.
+
+## A linked file is read only from inside one folder
+
+**A path in a package is a claim somebody else wrote, and the machine joins it onto a real folder.**
+A path that climbs, an absolute path, or a link inside the folder could each make the machine read a
+file its owner never offered. Two checks answer that, and each sees what the other cannot.
+
+**The words are checked when the package opens.** `km_kmpkg::linked::check` refuses, in this order:
+
+1. an empty path, a path over 1024 bytes, or a name over 255 bytes;
+2. a control character;
+3. a backslash, which is a separator on one platform and a letter on another;
+4. a colon, which covers a drive letter, a UNC prefix and an alternate data stream;
+5. a leading `/`;
+6. an empty name, `.` or `..`;
+7. a name ending in a dot or a space, which Windows removes;
+8. a Windows device name such as `NUL` or `COM1`, in any case and with any extension.
+
+Every platform applies every rule, so a package opens on all of them or on none. **The check refuses
+and never repairs**, for the reason `is_safe_path` gives: a repaired path opens a file other than the
+one named.
+
+**The disk is asked at every read.** `linked::open` resolves the folder and the joined path, with
+every symbolic link and junction followed. The resolved file must lie below the resolved folder. It
+then opens the resolved path, and asks the open handle whether it is a regular file. A link that
+stays inside the folder is followed, and one that leaves is refused.
+
+**Nothing answers a path.** `linked::open` gives a file already open for reading. No caller holds a
+name it could write to or delete, so uninstalling a linked package cannot remove a song file.
+
+**What stays possible is a local process replacing a folder between the comparison and the open.** A
+package cannot do that. A hostile package is what this guards against, and a program already running
+on the machine reads the owner's files without one.
+
+## Linked packages are off until the owner turns them on
+
+**A machine refuses a linked package unless `linked_packages.enabled` is true and
+`linked_packages.dir` names a folder that is there.** Both start unset. A linked package makes the
+machine read files from its own disk at paths somebody else wrote, so its owner says yes first.
+
+**The folder is one folder.** A second would need each package to say which one it means. A path
+that chooses its own root is what
+[the path checks](#a-linked-file-is-read-only-from-inside-one-folder) refuse. Every linked package
+therefore names its files below the same folder.
+
+**The owner's page has the switch.** It is a box on the *This machine* tab, and
+`PUT /api/v1/admin/linked-packages` behind it. The card says when no folder is set, because the
+switch alone then installs nothing.
+
+**The folder is set in `settings.json` and nowhere else**, as `package_dirs` is. No route can point
+the machine at a folder, and no route answers where the folder is. `--show-paths` prints it, on a line that begins `linked`. It is a folder
+and not a file, so
+[`Only debug. names a file`](foundations.md#only-debug-names-a-file) holds.
+
+**One gate answers three places**, and each asks it afresh:
+
+- **An install**, by any route. The package is refused before a bank is reserved for it. A package
+  found by the scan becomes a standing problem, which says which reason holds. The fourth reason is
+  a package whose own folder is not in the folder for linked files.
+- **A file handed in**: an upload, a drop on the window, a double-click. It is refused before it is
+  copied into the packages folder.
+- **A song about to play.** A linked package installed while they were allowed stops playing when
+  the owner turns them off. The song is skipped, as any song that will not load is.
+
+**Turning them off removes the songs at the next pass.** The scan refuses the package, and
+[`The catalog is what the folders hold`](#the-catalog-is-what-the-folders-hold) then drops its
+rows, once nothing is playing or queued. The package keeps its bank, so turning them on again brings
+the same numbers back.
+
+**A missing song file is not a missing package.** The scan reads a manifest and no song file, so a
+linked package installs while its folder holds none of its songs. Each such song fails when
+somebody asks for it. That is
+[`No removable media`](foundations.md#no-removable-media) applied to a file: the machine does not
+reason about why a file is absent.
+
+**Uninstalling deletes the package file and no song file.** The folder for linked files is not one
+of the folders `Paths::is_mine_to_delete` names, and the reader hands out no path to delete.
+
+## A linked package says so everywhere but the television
+
+**Every list of packages that marks `uncurated` marks `linked`, in the same place.** That is the
+HTTP API, the admin pages, the remote's list of packages, `km-pack inspect`, `km-pack check` and the
+listing beside a package. A package can carry both marks.
+
+**The person reading those lists is the one who has to act on it.** A linked package plays nothing
+without its folder. Somebody who copies the `.kmpkg` to another machine, or tidies the folder, has
+to know that the songs are not in the file.
+
+**The television does not draw it**, for the reason it does not draw `uncurated`. It lists no
+packages, and a singer picks a song and not a file.
 
 ## A package's id asks for a bank; the machine assigns one
 

@@ -325,6 +325,7 @@ fn write_spec(options: &Options, built: &[Built]) -> Result<()> {
             transcode: false,
             out: Some(format!("{}.kmpkg", selection::PACKAGE_ID)),
             uncurated: false,
+            linked: false,
         },
         // No `root:`, deliberately. `out:` resolves against the description's base, and the base
         // is `root:` where there is one -- so a root of `songs` would put the built package inside

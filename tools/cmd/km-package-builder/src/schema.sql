@@ -871,6 +871,12 @@ CREATE TABLE IF NOT EXISTS packages (
     -- Defaults to on, because a version nobody remembers to raise is a label that says nothing, and
     -- the cost of it being wrong is one number in a field anybody can edit.
     raise_version  INTEGER NOT NULL DEFAULT 1,
+    -- Builds a linked package: one that holds no song file, and names each by its path below the
+    -- corpus root. A column of its own and not a bit of `flags`, because `flags` holds what an
+    -- imported file said and this is a choice the curator makes for the next build.
+    --
+    -- Defaults to off, because a package that bundles its files plays on any machine.
+    linked         INTEGER NOT NULL DEFAULT 0,
     -- How a volume's number is written after the package's name once there are two volumes: `{n}` is
     -- the number, so `vol{n}` names them `Brasil vol1`, `Brasil vol2`. Always holds `{n}`, because
     -- without it every volume would take one name and one file.

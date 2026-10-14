@@ -18,6 +18,16 @@ Entries are written for somebody who has the machine. Why any of it is the way i
   with its queue, its singers and their waiting songs, and each phone still holds its singer. The
   song that was playing is first in the queue. The setting starts off, so a home machine starts
   with an empty queue.
+- **A package can name its songs and hold none of them.** A *linked* package plays song files from
+  one folder on the machine's disk, so a library that already sits in a folder is stored once.
+  KM Simple Package and `km-package-builder` each have a box that builds one, and so does
+  `km-pack build --linked`. The package lists mark it *linked*.
+- **A machine takes a linked package only when you allow it.** The *This machine* tab has a
+  **Linked packages** box, and it starts off. The folder the songs play from is
+  `linked_packages.dir` in `settings.json`. Each package plays only from its own folder inside it,
+  and the **Songs** tab names that folder. A linked package it refuses is on the **Problems** tab,
+  with the reason. Removing one deletes the package
+  and leaves the song files.
 - **A machine that kept the night plays nothing until somebody chooses.** `Space` at the machine
   goes on with the night, and so does **Continue this evening** on the host's tab. `N` pressed
   twice clears the list, and so does **Start a new evening**. The machine also keeps a copy from

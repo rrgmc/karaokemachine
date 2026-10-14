@@ -38,11 +38,11 @@ use km_api::dto::{
     AccessCodeRequest, AccessDto, AdjustRecordingsDto, AdjustRecordingsRequest, AdminPasswordDto,
     AdminPasswordRequest, AnnouncementDto, AudioLevelRequest, AudioOutputRequest, AudioOutputsDto,
     BankDto, BankRequest, DebugDto, DemoDto, DevRemoteDto, DevRemoteRequest, EndOnSilenceDto,
-    EndOnSilenceRequest, KeepEveningDto, KeepEveningRequest, LoginRequest, LoginResponse,
-    MachineLocaleRequest, MachineNameRequest, PackagesDto, PerformanceDto, PerformanceRequest,
-    RoomAccessRequest, SetAnnouncementRequest, SetDemoDelayRequest, SetDemoRequest, SettingsDto,
-    SettingsPatchDto, SingerRulesDto, SoundFontDto, SoundFontRequest, SoundFontsDto, UninstallDto,
-    UploadReportDto, WallpapersDto,
+    EndOnSilenceRequest, KeepEveningDto, KeepEveningRequest, LinkedPackagesDto,
+    LinkedPackagesRequest, LoginRequest, LoginResponse, MachineLocaleRequest, MachineNameRequest,
+    PackagesDto, PerformanceDto, PerformanceRequest, RoomAccessRequest, SetAnnouncementRequest,
+    SetDemoDelayRequest, SetDemoRequest, SettingsDto, SettingsPatchDto, SingerRulesDto,
+    SoundFontDto, SoundFontRequest, SoundFontsDto, UninstallDto, UploadReportDto, WallpapersDto,
 };
 
 /// The machine's own default port, so "a bare host means 8177" is not written down twice.
@@ -120,6 +120,10 @@ pub enum Call<'a> {
     KeepEvening,
     /// `PUT` — say whether the evening outlives the machine's process.
     SetKeepEvening,
+    /// `GET` — whether the machine takes linked packages.
+    LinkedPackages,
+    /// `PUT` — say whether the machine takes linked packages.
+    SetLinkedPackages,
     /// `GET` — the output devices the machine has, and which one it is using.
     AudioOutputs,
     /// `PUT` — choose the output device.
@@ -254,6 +258,8 @@ impl<'a> Call<'a> {
         Call::SetAdjustRecordings,
         Call::KeepEvening,
         Call::SetKeepEvening,
+        Call::LinkedPackages,
+        Call::SetLinkedPackages,
         Call::AudioOutputs,
         Call::SetAudioOutput,
         Call::SetAudioLevel,
@@ -297,6 +303,7 @@ impl<'a> Call<'a> {
             | Self::EndOnSilence
             | Self::AdjustRecordings
             | Self::KeepEvening
+            | Self::LinkedPackages
             | Self::AudioOutputs
             | Self::Settings
             | Self::Locale
@@ -317,6 +324,7 @@ impl<'a> Call<'a> {
             | Self::SetEndOnSilence
             | Self::SetAdjustRecordings
             | Self::SetKeepEvening
+            | Self::SetLinkedPackages
             | Self::SetAudioOutput
             | Self::SetAudioLevel
             | Self::SetSettings
@@ -397,6 +405,8 @@ impl<'a> Call<'a> {
             Self::SetAdjustRecordings => "/admin/playback/adjust-recordings",
             Self::KeepEvening => "/evening/keep",
             Self::SetKeepEvening => "/admin/evening/keep",
+            Self::LinkedPackages => "/linked-packages",
+            Self::SetLinkedPackages => "/admin/linked-packages",
             // The read is public and the write is not, which is the split every pair here has. The
             // singular on the write is the machine's own spelling: `/audio/outputs` is the list and
             // `/audio/output` is the one in force.
@@ -851,6 +861,17 @@ impl Client {
     /// Says whether the evening outlives the machine's process. The machine writes it down.
     pub async fn set_keep_evening(&self, enabled: bool) -> Result<KeepEveningDto, Refused> {
         self.json_with(Call::SetKeepEvening, &KeepEveningRequest { enabled })
+            .await
+    }
+
+    /// Whether the machine takes linked packages, and whether it has a folder to play them from.
+    pub async fn linked_packages(&self) -> Result<LinkedPackagesDto, Refused> {
+        self.get_json(Call::LinkedPackages).await
+    }
+
+    /// Says whether the machine takes linked packages. The machine writes it down.
+    pub async fn set_linked_packages(&self, enabled: bool) -> Result<LinkedPackagesDto, Refused> {
+        self.json_with(Call::SetLinkedPackages, &LinkedPackagesRequest { enabled })
             .await
     }
 

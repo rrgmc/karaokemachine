@@ -1925,6 +1925,13 @@ pub struct PackageDto {
     /// `docs/decisions/packaging.md`.
     #[serde(default)]
     pub flag_names: Vec<String>,
+    /// A linked package's own folder inside the machine's folder for linked files.
+    ///
+    /// Absent for a package that bundles its files, and for a linked package that reads from the
+    /// whole folder. A page says which. It names a folder inside the package's own reach, and never
+    /// where the machine's folder is.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub linked_root: Option<String>,
 }
 
 impl PackageDto {
@@ -1947,6 +1954,7 @@ impl PackageDto {
             removable,
             flags: package.flags.bits(),
             flag_names: package.flags.names().map(str::to_owned).collect(),
+            linked_root: package.linked_root.clone(),
         }
     }
 }
@@ -2389,6 +2397,32 @@ pub struct KeepEveningRequest {
     pub enabled: bool,
 }
 
+/// `GET /linked-packages` and the reply to `PUT /admin/linked-packages`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LinkedPackagesDto {
+    /// Whether the owner allows linked packages.
+    pub enabled: bool,
+    /// Whether the machine has a folder to play them from: `unset`, `missing` or `ready`.
+    pub folder: crate::machine::LinkedFolder,
+}
+
+impl From<crate::machine::LinkedPackages> for LinkedPackagesDto {
+    fn from(state: crate::machine::LinkedPackages) -> Self {
+        Self {
+            enabled: state.enabled,
+            folder: state.folder,
+        }
+    }
+}
+
+/// `PUT /admin/linked-packages`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct LinkedPackagesRequest {
+    /// What to set it to.
+    pub enabled: bool,
+}
+
 /// `POST /debug/play-file`.
 ///
 /// `PartialEq` without `Eq` since the corrections arrived: a fix this build cannot read is held as
@@ -2805,6 +2839,7 @@ mod tests {
             installed_at: "2026-08-23".to_owned(),
             bank: 1,
             flags: km_kmpkg::PackageFlags::NONE,
+            linked_root: None,
         };
         let json = serde_json::to_string(&PackageDto::new(&package, false)).expect("json");
         assert!(!json.contains("private"));
@@ -2827,6 +2862,7 @@ mod tests {
             installed_at: "2026-08-23".to_owned(),
             bank: 1,
             flags: km_kmpkg::PackageFlags::from_bits(0b1001),
+            linked_root: None,
         };
         let json = serde_json::to_string(&PackageDto::new(&package, true)).expect("json");
         assert!(json.contains("\"flags\":9"), "{json}");

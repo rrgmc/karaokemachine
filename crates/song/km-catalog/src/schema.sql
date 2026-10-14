@@ -60,7 +60,11 @@ CREATE TABLE IF NOT EXISTS packages (
     bank         INTEGER NOT NULL DEFAULT 0,
     -- The package header's flags word, whole and with unknown bits kept, so a new flag needs no
     -- column. See `A package's header carries flags, and an unknown one is kept`.
-    flags        INTEGER NOT NULL DEFAULT 0
+    flags        INTEGER NOT NULL DEFAULT 0,
+    -- A linked package's own folder inside the machine's folder for linked files. NULL for that
+    -- folder itself, and for every package that bundles its files. See `A linked package reads from
+    -- one folder of its own`.
+    linked_root  TEXT
 );
 
 -- Two packages may not share a bank, or their songs would not have distinct numbers after all.

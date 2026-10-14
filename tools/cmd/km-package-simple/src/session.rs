@@ -221,6 +221,9 @@ pub struct PackageForm {
     pub language: String,
     /// Where the packages are written.
     pub out_dir: PathBuf,
+    /// Whether the packages are linked: they hold no song file, and name each one by its path in
+    /// the folder that was read.
+    pub linked: bool,
 }
 
 impl PackageForm {
@@ -240,6 +243,8 @@ impl PackageForm {
             publisher: None,
             language: UNDETERMINED.to_owned(),
             out_dir: folder.parent().unwrap_or(folder).to_path_buf(),
+            // Off, because a package that holds its songs plays on any machine.
+            linked: false,
         }
     }
 }
@@ -432,6 +437,8 @@ impl Session {
                 transcode: true,
                 out: None,
                 uncurated: true,
+                // The folder that was read is the folder the paths are below.
+                linked: form.linked,
             },
             root: None,
             songs,
@@ -623,6 +630,24 @@ mod tests {
             Some("und")
         );
         assert_eq!(planned[0].out, PathBuf::from("/tunes/karaoke-1.0.0.kmpkg"));
+    }
+
+    #[test]
+    fn a_plan_is_linked_only_when_the_form_asks() {
+        let planned = session(2).plan(&form(), "0123456789abcdef".to_owned());
+        assert!(!planned[0].spec.package.linked, "off until somebody asks");
+
+        let linked = PackageForm {
+            linked: true,
+            ..form()
+        };
+        let planned = session(1000).plan(&linked, "0123456789abcdef".to_owned());
+        assert_eq!(planned.len(), 2);
+        assert!(
+            planned.iter().all(|volume| volume.spec.package.linked),
+            "every volume of a linked package is linked"
+        );
+        assert!(planned.iter().all(|volume| volume.spec.package.uncurated));
     }
 
     #[test]

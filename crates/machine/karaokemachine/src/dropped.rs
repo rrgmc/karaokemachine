@@ -255,7 +255,12 @@ impl DropInstaller {
 /// path is one unbreakable word and would take the whole line the reason needs.
 fn install(machine: &Arc<Machine>, path: &Path) -> Result<String, String> {
     let debug_packages = machine.debug_packages();
-    let (destination, _id) = adopt(machine.paths(), &debug_packages, path)?;
+    let (destination, _id) = adopt(
+        machine.paths(),
+        &debug_packages,
+        &machine.linked_packages(),
+        path,
+    )?;
     let report = machine
         .install(&destination)
         .map_err(|error| error.to_string())?;
@@ -285,6 +290,7 @@ fn install(machine: &Arc<Machine>, path: &Path) -> Result<String, String> {
 pub(crate) fn adopt(
     paths: &Paths,
     debug_packages: &[PathBuf],
+    linked: &crate::settings::LinkedPackagesSettings,
     path: &Path,
 ) -> Result<(PathBuf, String), String> {
     // Opened before anything is copied. A file that will not open is refused here for the price of
@@ -302,6 +308,11 @@ pub(crate) fn adopt(
         let package = km_kmpkg::Package::open(path).map_err(|error| {
             reason_without_path(&path.display().to_string(), &error.to_string())
         })?;
+        // Refused before the copy, as a file that will not open is. A linked package this machine
+        // will not take would otherwise sit in the packages folder and be reported at every start.
+        linked
+            .admit(&package)
+            .map_err(|refusal| refusal.to_string())?;
         let meta = &package.manifest().package;
         (meta.file_stem(), meta.id.clone())
     };
@@ -1125,5 +1136,71 @@ mod tests {
         assert!(matches!(installer.poll(), Some(DropStatus::Done(_))));
         assert_eq!(installer.outstanding, 1);
         assert!(installer.poll().is_none());
+    }
+
+    #[test]
+    fn a_handed_in_linked_package_is_refused_before_it_is_copied() {
+        let scratch = Scratch::new("adopt-linked");
+        let library = scratch.join("library");
+        let song = scratch.write("library/a.mid", b"MThd");
+        let source = scratch.join("downloads").join("vol1.kmpkg");
+        fs::create_dir_all(source.parent().expect("a parent")).expect("the downloads folder");
+
+        let mut builder = km_kmpkg::PackageBuilder::new_linked(
+            km_kmpkg::PackageMeta {
+                id: "1f4a9c8e2b7d0356".to_owned(),
+                name: "Vol 1".to_owned(),
+                version: "1.0.0".to_owned(),
+                publisher: None,
+                created: None,
+                volume: None,
+            },
+            Some(library.clone()),
+        );
+        builder
+            .add_midi_linked(
+                km_kmpkg::SongEntry {
+                    number: 1,
+                    kind: km_kmpkg::SongKind::Midi,
+                    title: "A Song".to_owned(),
+                    artist: None,
+                    language: Some("und".to_owned()),
+                    file: String::new(),
+                    duration_ms: 1_000,
+                    lyric_encoding: None,
+                    default_transpose: 0,
+                    lyrics_hidden: false,
+                    fixes: Vec::new(),
+                    melody: None,
+                    melody_abstained: None,
+                    suitability: None,
+                    lyric_preview: Vec::new(),
+                    tags: Vec::new(),
+                    loudness: None,
+                    content_hash: None,
+                    edited: Vec::new(),
+                },
+                &song,
+                b"MThd",
+            )
+            .expect("link a song");
+        builder.write(&source).expect("write the package");
+
+        let paths = Paths::rooted_at(scratch.join("data"));
+        let off = crate::settings::LinkedPackagesSettings::default();
+        let refused = adopt(&paths, &[], &off, &source).expect_err("off by default");
+        assert!(refused.contains("turned off"), "{refused}");
+        assert!(
+            fs::read_dir(paths.packages_write_dir()).map_or(0, Iterator::count) == 0,
+            "nothing was copied into the packages folder"
+        );
+
+        let on = crate::settings::LinkedPackagesSettings {
+            enabled: true,
+            dir: Some(library),
+        };
+        let (destination, id) = adopt(&paths, &[], &on, &source).expect("taken in");
+        assert_eq!(id, "1f4a9c8e2b7d0356");
+        assert!(destination.is_file());
     }
 }

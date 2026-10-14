@@ -3,6 +3,9 @@
 <h1>{{ heading }}</h1>
 <p class="mono">{{ out_dir }}</p>
 <p class="hint">{{ "built-uncurated"|t }}</p>
+{% if linked %}
+<p class="hint">{{ "built-linked"|t }}</p>
+{% endif %}
 <ul class="files">
   {% for file in files %}
   <li><span class="mono">{{ file.name }}</span> {{ file.songs }}</li>

@@ -1535,6 +1535,31 @@ the file.
 volume of the same package brought in. A bit this build does not know stays too. See
 [`A package's header carries flags, and an unknown one is kept`](packaging.md#a-packages-header-carries-flags-and-an-unknown-one-is-kept).
 
+## Each builder can write a linked package
+
+**A box on the build form chooses a linked package, in both tools that build from a page.** It
+starts unticked in each, because a package that holds its songs plays on any machine. See
+[`A linked package keeps its song files outside itself`](packaging.md#a-linked-package-keeps-its-song-files-outside-itself).
+
+**The folder the tool reads is the folder the paths are below.** In `km-package-builder` that is the
+corpus root, and in `km-package-simple` it is the folder somebody chose. The machine's owner sets
+that folder, or a copy of it, as the folder for linked packages. The package keeps the deepest
+folder its songs share as
+[its own](packaging.md#a-linked-package-reads-from-one-folder-of-its-own).
+
+**The Build tab names that folder before the build**, beside the linked box. A package whose songs
+share no folder is one that reaches the whole folder, and the tab says so.
+
+**The curation tool keeps the choice with the package.** It is the `linked` column of `packages`, so
+the box comes back as the last build left it. Every volume of a package builds the same way.
+The Packages page marks such a package. `km-package-simple` keeps nothing, and asks at each build.
+
+**The choice is not a bit of the row's `flags`.** That word holds what an imported file said, and
+the tool only adds to it. A build takes its type from the column, which a curator can change. An
+imported linked package sets the column, so it builds linked until somebody unticks the box.
+
+**A linked build leaves a zipped song out and re-encodes no video**, and the form says so.
+
 ## A package holds volumes
 
 **A package is what a curator names, and a volume is what a build writes.** A package holds one volume

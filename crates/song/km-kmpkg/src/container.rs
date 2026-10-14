@@ -46,11 +46,21 @@ use crate::PackageFlags;
 /// one stops at the end of the name instead of filling the screen with a video.
 pub(crate) const MAGIC: [u8; 8] = [b'K', b'M', b'P', b'K', b'G', 0x1a, 0x00, 0x00];
 
-/// The container this build writes and the only one it reads.
+/// The container a package that bundles its song files is written in.
 ///
 /// Separate from the manifest's own `format`, which says what *kind of songs* a package holds. This
 /// says how to find them.
 pub(crate) const CONTAINER_VERSION: u16 = 1;
+
+/// The container a linked package is written in.
+///
+/// **A number of its own, because a flag cannot refuse.** An unknown flag bit is kept, so a build
+/// that does not know [`PackageFlags::LINKED`] would open such a package and look for bytes that are
+/// not in it. That build refuses this number, and says a newer program wrote the file.
+///
+/// A package that bundles its song files stays at [`CONTAINER_VERSION`], so every machine in service
+/// still opens it.
+pub(crate) const CONTAINER_VERSION_LINKED: u16 = 2;
 
 /// Magic, version, flags, and two zero bytes, so the first entry stays where it is.
 pub(crate) const HEADER_LEN: u64 = 16;
@@ -95,6 +105,8 @@ pub(crate) enum Method {
     Stored,
     /// Deflated, so the entry has to be read from its start.
     Deflate,
+    /// Not in the package. The name is a path below the folder linked files are read from.
+    Linked,
 }
 
 impl Method {
@@ -103,6 +115,7 @@ impl Method {
         match self {
             Self::Stored => 0,
             Self::Deflate => 1,
+            Self::Linked => 2,
         }
     }
 
@@ -111,6 +124,7 @@ impl Method {
         match code {
             0 => Some(Self::Stored),
             1 => Some(Self::Deflate),
+            2 => Some(Self::Linked),
             _ => None,
         }
     }
@@ -123,9 +137,10 @@ pub(crate) struct Entry {
     pub(crate) name: String,
     /// How its bytes are held.
     pub(crate) method: Method,
-    /// Where its bytes begin, from the start of the package.
+    /// Where its bytes begin, from the start of the package. Zero for a linked entry.
     pub(crate) offset: u64,
-    /// How many bytes it occupies. For a stored entry this is also [`Entry::real_len`].
+    /// How many bytes it occupies. For a stored entry this is also [`Entry::real_len`], and for a
+    /// linked entry it is zero.
     pub(crate) stored_len: u64,
     /// How many bytes it becomes.
     pub(crate) real_len: u64,
@@ -217,7 +232,7 @@ impl<R: Read + Seek> Container<R> {
             return Err(ContainerError::NotAPackage);
         }
         let version = u16::from_le_bytes([header[8], header[9]]);
-        if version != CONTAINER_VERSION {
+        if version != CONTAINER_VERSION && version != CONTAINER_VERSION_LINKED {
             return Err(ContainerError::UnsupportedContainer(version));
         }
         let flags = PackageFlags::from_bits(u32::from_le_bytes(
@@ -225,6 +240,14 @@ impl<R: Read + Seek> Container<R> {
                 .try_into()
                 .expect("four bytes"),
         ));
+        // The number and the flag say one thing twice. A file where they disagree was not written
+        // by this program.
+        let linked = version == CONTAINER_VERSION_LINKED;
+        if linked != flags.is_linked() {
+            return Err(ContainerError::Malformed(
+                "its header disagrees with itself about whether it is a linked package".to_owned(),
+            ));
+        }
 
         reader.seek(SeekFrom::Start(total - FOOTER_LEN))?;
         let mut footer = [0_u8; FOOTER_LEN as usize];
@@ -256,7 +279,7 @@ impl<R: Read + Seek> Container<R> {
         let mut directory = vec![0_u8; directory_len as usize];
         reader.read_exact(&mut directory)?;
 
-        let (entries, order) = parse_directory(&directory, directory_at)?;
+        let (entries, order) = parse_directory(&directory, directory_at, linked)?;
         Ok(Self {
             reader,
             flags,
@@ -296,6 +319,11 @@ impl<R: Read + Seek> Container<R> {
             .map_err(CappedRead::Io)?;
         let mut ranged = (&mut self.reader).take(entry.stored_len);
         match entry.method {
+            // The bytes are on the disk beside the package, and the caller reads them from there.
+            Method::Linked => Err(CappedRead::Io(std::io::Error::new(
+                std::io::ErrorKind::Unsupported,
+                format!("{} is a linked file and is not in the package", entry.name),
+            ))),
             Method::Stored => read_capped(&mut ranged, entry.real_len, limit),
             Method::Deflate => {
                 // Inflated through the same ceiling, counting the bytes that *arrive*: deflate
@@ -341,6 +369,12 @@ impl<R: Read + Seek> Container<R> {
             count: 0,
         };
         match entry.method {
+            Method::Linked => {
+                return Err(ContainerError::Malformed(format!(
+                    "{} is a linked file and is not in the package",
+                    entry.name
+                )));
+            }
             Method::Stored => {
                 std::io::copy(&mut ranged, &mut sink)?;
             }
@@ -396,6 +430,7 @@ impl Write for CappedSink {
 fn parse_directory(
     directory: &[u8],
     directory_at: u64,
+    linked: bool,
 ) -> Result<(BTreeMap<String, Entry>, Vec<String>), ContainerError> {
     let malformed = |what: &str| ContainerError::Malformed(what.to_owned());
 
@@ -434,17 +469,38 @@ fn parse_directory(
         let crc = u32::from_le_bytes(take(at, 4)?.try_into().expect("four bytes"));
         at += 4;
 
-        // In `u64` throughout, and checked against where the directory begins rather than against
-        // the file's length: an entry reaching into the directory is as wrong as one reaching past
-        // the end, and only this comparison catches it.
-        let end = offset.checked_add(stored_len).ok_or_else(|| {
-            ContainerError::Malformed(format!("{name} claims a length that overflows the package"))
-        })?;
-        if offset < HEADER_LEN || end > directory_at {
-            return Err(ContainerError::Malformed(format!(
-                "{name} ends at {end} and the package's entries end at {directory_at}; it is \
-                 truncated"
-            )));
+        if method == Method::Linked {
+            // A linked record in a package that bundles its files would make an ordinary package
+            // read from the disk around it.
+            if !linked {
+                return Err(ContainerError::Malformed(format!(
+                    "{name} is a linked file in a package that is not linked"
+                )));
+            }
+            if offset != 0 || stored_len != 0 {
+                return Err(ContainerError::Malformed(format!(
+                    "{name} is a linked file and claims bytes inside the package"
+                )));
+            }
+            // The words of the path are checked before anything can follow it. Where it leads on a
+            // disk is asked at each read. See [`crate::linked`].
+            crate::linked::check(&name)
+                .map_err(|error| ContainerError::Malformed(error.to_string()))?;
+        } else {
+            // In `u64` throughout, and checked against where the directory begins rather than
+            // against the file's length: an entry reaching into the directory is as wrong as one
+            // reaching past the end, and only this comparison catches it.
+            let end = offset.checked_add(stored_len).ok_or_else(|| {
+                ContainerError::Malformed(format!(
+                    "{name} claims a length that overflows the package"
+                ))
+            })?;
+            if offset < HEADER_LEN || end > directory_at {
+                return Err(ContainerError::Malformed(format!(
+                    "{name} ends at {end} and the package's entries end at {directory_at}; it is \
+                     truncated"
+                )));
+            }
         }
         // A stored entry whose two lengths disagree would make a window read on into whatever
         // follows it.
@@ -499,7 +555,13 @@ impl<W: Write> Writer<W> {
     pub(crate) fn with_flags(mut writer: W, flags: PackageFlags) -> Result<Self, ContainerError> {
         let mut header = [0_u8; HEADER_LEN as usize];
         header[..8].copy_from_slice(&MAGIC);
-        header[8..10].copy_from_slice(&CONTAINER_VERSION.to_le_bytes());
+        // The flag decides the number, so the two cannot disagree in a file this writes.
+        let version = if flags.is_linked() {
+            CONTAINER_VERSION_LINKED
+        } else {
+            CONTAINER_VERSION
+        };
+        header[8..10].copy_from_slice(&version.to_le_bytes());
         header[FLAGS_AT..FLAGS_AT + 4].copy_from_slice(&flags.bits().to_le_bytes());
         writer.write_all(&header)?;
         Ok(Self {
@@ -538,6 +600,11 @@ impl<W: Write> Writer<W> {
             count: 0,
         };
         let real_len = match method {
+            Method::Linked => {
+                return Err(ContainerError::Malformed(format!(
+                    "{name} is a linked file, and a linked file's bytes are not written"
+                )));
+            }
             Method::Stored => copy_hashing(source, &mut counted, &mut crc)?,
             Method::Deflate => {
                 let mut encoder = DeflateEncoder::new(&mut counted, DEFLATE_LEVEL);
@@ -559,6 +626,29 @@ impl<W: Write> Writer<W> {
         Ok(real_len)
     }
 
+    /// Records one linked file, reading it to learn its length and its CRC and writing none of it.
+    ///
+    /// `name` is the path below the folder linked files are read from. The length and the CRC are
+    /// what `km-pack check --verify` compares a file against, so a file changed after the build can
+    /// be found.
+    pub(crate) fn link_entry(
+        &mut self,
+        name: &str,
+        source: &mut impl Read,
+    ) -> Result<u64, ContainerError> {
+        let mut crc = Hasher::new();
+        let real_len = copy_hashing(source, &mut std::io::sink(), &mut crc)?;
+        self.entries.push(Entry {
+            name: name.to_owned(),
+            method: Method::Linked,
+            offset: 0,
+            stored_len: 0,
+            real_len,
+            crc: crc.finalize(),
+        });
+        Ok(real_len)
+    }
+
     /// Takes one entry across from another package without decoding it.
     ///
     /// **A byte copy: no decode, no re-encode, flat memory.** This is what keeps correcting one title
@@ -570,6 +660,14 @@ impl<W: Write> Writer<W> {
         source: &mut (impl Read + Seek),
         entry: &Entry,
     ) -> Result<(), ContainerError> {
+        if entry.method == Method::Linked {
+            // A linked record has no bytes to move. The record is the whole of it.
+            self.entries.push(Entry {
+                name: name.to_owned(),
+                ..entry.clone()
+            });
+            return Ok(());
+        }
         source.seek(SeekFrom::Start(entry.offset))?;
         let offset = self.at;
         let mut ranged = source.take(entry.stored_len);
@@ -782,11 +880,109 @@ mod tests {
     #[test]
     fn a_container_from_a_newer_build_names_itself_rather_than_being_read_wrong() {
         let mut bytes = written(&[("manifest.json", Method::Deflate, b"{}")]);
-        bytes[8..10].copy_from_slice(&(CONTAINER_VERSION + 1).to_le_bytes());
+        bytes[8..10].copy_from_slice(&(CONTAINER_VERSION_LINKED + 1).to_le_bytes());
         assert!(matches!(
             Container::open(Cursor::new(bytes)),
-            Err(ContainerError::UnsupportedContainer(v)) if v == CONTAINER_VERSION + 1
+            Err(ContainerError::UnsupportedContainer(v)) if v == CONTAINER_VERSION_LINKED + 1
         ));
+    }
+
+    /// A linked container holding one linked record and a manifest.
+    fn written_linked(name: &str) -> Vec<u8> {
+        let mut writer =
+            Writer::with_flags(Cursor::new(Vec::new()), PackageFlags::LINKED).expect("header");
+        writer
+            .link_entry(name, &mut &b"the file's bytes"[..])
+            .expect("link");
+        writer
+            .write_entry("manifest.json", Method::Deflate, b"{}")
+            .expect("manifest");
+        writer.finish().expect("finish").into_inner()
+    }
+
+    #[test]
+    fn a_linked_record_holds_a_length_and_a_crc_and_no_bytes() {
+        let bytes = written_linked("rock/song.mid");
+        assert_eq!(
+            u16::from_le_bytes([bytes[8], bytes[9]]),
+            CONTAINER_VERSION_LINKED
+        );
+
+        let container = Container::open(Cursor::new(bytes)).expect("open");
+        assert!(container.flags().is_linked());
+        let entry = container.entry("rock/song.mid").expect("the record");
+        assert_eq!(entry.method, Method::Linked);
+        assert_eq!((entry.offset, entry.stored_len), (0, 0));
+        assert_eq!(entry.real_len, 16);
+        assert_eq!(entry.crc, crc32fast::hash(b"the file's bytes"));
+    }
+
+    #[test]
+    fn a_package_that_bundles_its_files_stays_at_the_first_container() {
+        let bytes = written(&[("manifest.json", Method::Deflate, b"{}")]);
+        assert_eq!(u16::from_le_bytes([bytes[8], bytes[9]]), CONTAINER_VERSION);
+    }
+
+    #[test]
+    fn a_linked_record_in_a_version_one_container_is_refused() {
+        // The header of a package that bundles its files, over a directory with a linked record.
+        let mut bytes = written_linked("rock/song.mid");
+        bytes[8..10].copy_from_slice(&CONTAINER_VERSION.to_le_bytes());
+        bytes[FLAGS_AT..FLAGS_AT + 4].copy_from_slice(&0_u32.to_le_bytes());
+        assert!(matches!(
+            Container::open(Cursor::new(bytes)),
+            Err(ContainerError::Malformed(message)) if message.contains("not linked")
+        ));
+    }
+
+    #[test]
+    fn a_header_whose_flag_and_number_disagree_is_refused() {
+        let mut flagged = written(&[("manifest.json", Method::Deflate, b"{}")]);
+        flagged[FLAGS_AT..FLAGS_AT + 4].copy_from_slice(&PackageFlags::LINKED.bits().to_le_bytes());
+        assert!(matches!(
+            Container::open(Cursor::new(flagged)),
+            Err(ContainerError::Malformed(message)) if message.contains("disagrees")
+        ));
+
+        let mut numbered = written(&[("manifest.json", Method::Deflate, b"{}")]);
+        numbered[8..10].copy_from_slice(&CONTAINER_VERSION_LINKED.to_le_bytes());
+        assert!(matches!(
+            Container::open(Cursor::new(numbered)),
+            Err(ContainerError::Malformed(message)) if message.contains("disagrees")
+        ));
+    }
+
+    #[test]
+    fn a_linked_record_whose_path_climbs_is_refused_when_the_package_opens() {
+        for name in ["../secret.mid", "/tunes/song.mid", "D:/song.mid", "nul.mid"] {
+            // The writer does not check a name, which is what lets a hostile one be written here.
+            let bytes = written_linked(name);
+            assert!(
+                matches!(
+                    Container::open(Cursor::new(bytes)),
+                    Err(ContainerError::Malformed(_))
+                ),
+                "{name}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_linked_record_carried_across_stays_a_record() {
+        let source = written_linked("rock/song.mid");
+        let from = Container::open(Cursor::new(source.clone())).expect("open");
+        let entry = from.entry("rock/song.mid").expect("the record").clone();
+
+        let mut writer =
+            Writer::with_flags(Cursor::new(Vec::new()), PackageFlags::LINKED).expect("header");
+        writer
+            .raw_copy("rock/song.mid", &mut Cursor::new(source), &entry)
+            .expect("copy");
+        let copied = Container::open(Cursor::new(writer.finish().expect("finish").into_inner()))
+            .expect("open the copy");
+        let carried = copied.entry("rock/song.mid").expect("the record");
+        assert_eq!(carried.method, Method::Linked);
+        assert_eq!((carried.real_len, carried.crc), (entry.real_len, entry.crc));
     }
 
     #[test]

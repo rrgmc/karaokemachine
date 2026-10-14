@@ -1741,6 +1741,14 @@ cargo km-pack-video spec ./songs --out v.yaml --no-transcode
   Nobody has reviewed a walk of a folder. Delete the line once somebody has. `inspect` and `check`
   print a package's flags by name, and so does the listing beside the package. See
   [`An uncurated package says so everywhere but the television`](docs/decisions/packaging.md#an-uncurated-package-says-so-everywhere-but-the-television).
+- **`build --linked`, or `linked: true` in the description, writes a linked package.** It holds no
+  song file. The deepest folder below `root` that its songs share becomes the package's own folder,
+  and each path is below that. `inspect`, `check` and the listing name the folder. A file outside
+  `root` and a song inside a `.zip` are skipped with a reason, and no video is re-encoded.
+
+  `check --verify --linked-dir <folder>` compares each file with the length and checksum the build
+  recorded. `reanalyze` needs `--linked-dir` too, and `apply` and `edit` do not. See
+  [`A linked package keeps its song files outside itself`](docs/decisions/packaging.md#a-linked-package-keeps-its-song-files-outside-itself).
 - **`book` needs no `video` feature and no ffmpeg**, unlike every other command that meets a video
   song. A book is manifest metadata and never opens a song's bytes.
 

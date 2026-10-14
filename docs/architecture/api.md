@@ -61,6 +61,13 @@ nothing, because a song takes its stretcher when it loads.
 `Controller::set_keep_evening` writes `singers.keep_evening` and brings `evening.json` into line.
 [`The evening a machine keeps`](persistence.md#the-evening-a-machine-keeps) has the file.
 
+**`PUT /api/v1/admin/linked-packages` says whether the machine takes linked packages**, and
+`GET /api/v1/linked-packages` reads it. Both answer `enabled` and `folder`, which is `unset`,
+`missing` or `ready`. The folder's path is in neither answer, and the request takes `enabled` alone.
+`Controller::set_linked_packages` writes `linked_packages.enabled` and scans the packages again.
+The path is not under `/packages/`, where it would take the place of a package whose id is
+`linked`.
+
 **`NowPlaying::adjustable` is what a client reads, and not the kind.** It is true for a MIDI song,
 and for a recorded song the machine gave a stretcher. `transpose_available` and `tempo_available`
 carry it on the wire. `km_api::machine` names `MAX_TRANSPOSE`, `MIN_TEMPO_RATIO` and

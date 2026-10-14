@@ -5375,8 +5375,14 @@ async fn packages_table(
     state: &State,
     oob: bool,
 ) -> Result<crate::views::PackagesTable, crate::db::DbError> {
-    let (packages, links) = state
-        .reading(|db| Ok((db.packages()?, db.package_sources_all()?)))
+    let (packages, links, linked) = state
+        .reading(|db| {
+            Ok((
+                db.packages()?,
+                db.package_sources_all()?,
+                db.linked_package_ids()?,
+            ))
+        })
         .await?;
     let locale = state.locale();
     Ok(crate::views::PackagesTable {
@@ -5388,7 +5394,8 @@ async fn packages_table(
                     .filter(|link| link.package_id == row.id)
                     .map(|link| link.favorite_name.clone())
                     .collect();
-                crate::views::PackageListRow::new(row, sources, locale)
+                let builds_linked = linked.contains(&row.id);
+                crate::views::PackageListRow::new(row, sources, builds_linked, locale)
             })
             .collect(),
         oob,
@@ -5720,18 +5727,22 @@ async fn build_pane_for(
     oob: bool,
 ) -> Result<crate::views::BuildPane, DbError> {
     let lookup = package.id.clone();
-    let (volumes, raise_version) = state
-        .reading(move |db| Ok((db.package_volumes(&lookup)?, db.raise_version(&lookup)?)))
+    let volume = package.volume;
+    let (volumes, raise_version, linked, linked_root) = state
+        .reading(move |db| {
+            Ok((
+                db.package_volumes(&lookup)?,
+                db.raise_version(&lookup)?,
+                db.linked(&lookup)?,
+                crate::build::linked_root_for(db, &lookup, volume)?,
+            ))
+        })
         .await?;
     let root = root_of(state)?;
-    Ok(crate::views::BuildPane::new(
-        &root,
-        package,
-        &volumes,
-        raise_version,
-        oob,
-        state.locale(),
-    ))
+    Ok(
+        crate::views::BuildPane::new(&root, package, &volumes, raise_version, oob, state.locale())
+            .building_linked(linked, linked_root.as_deref(), state.locale()),
+    )
 }
 
 /// `POST /packages/{id}/delete`
@@ -5772,18 +5783,29 @@ pub async fn package(
                     db.package_held(&lookup, volume)?,
                 ),
                 db.languages_present()?,
-                db.raise_version(&lookup)?,
+                (
+                    db.raise_version(&lookup)?,
+                    db.linked(&lookup)?,
+                    crate::build::linked_root_for(db, &lookup, volume)?,
+                ),
                 // In the same closure as the rest, so the sources editor costs no extra round trip.
                 db.favorites()?,
                 db.package_sources(&lookup)?,
             ))
         })
         .await;
-    let (package, volumes, (members, held), present, raise_version, favorites, sources) =
-        match loaded {
-            Ok(loaded) => loaded,
-            Err(error) => return failed_page(error, &state, "packages"),
-        };
+    let (
+        package,
+        volumes,
+        (members, held),
+        present,
+        (raise_version, linked, linked_root),
+        favorites,
+        sources,
+    ) = match loaded {
+        Ok(loaded) => loaded,
+        Err(error) => return failed_page(error, &state, "packages"),
+    };
     let root = match root_of(&state) {
         Ok(root) => root,
         Err(error) => return failed_page(error, &state, "packages"),
@@ -5806,7 +5828,8 @@ pub async fn package(
                 raise_version,
                 false,
                 state.locale(),
-            ),
+            )
+            .building_linked(linked, linked_root.as_deref(), state.locale()),
             volume_strip: crate::views::VolumeStrip::new(
                 package.id.clone(),
                 &volumes,
@@ -6974,8 +6997,13 @@ pub async fn build_all(
         .filter(|folder| !folder.is_empty())
         .map(PathBuf::from);
     let package = id.clone();
+    // The linked box is in the same form, so an absent key is an unticked box.
+    let linked = fields.has("linked");
     if let Err(error) = state
-        .blocking(move |db| db.set_raise_version(&package, raise))
+        .blocking(move |db| {
+            db.set_raise_version(&package, raise)?;
+            db.set_linked(&package, linked)
+        })
         .await
     {
         return failure(error, state.locale());
@@ -7042,8 +7070,13 @@ pub async fn build_package(
         }
     };
     let package = id.clone();
+    // The linked box is in the same form, so an absent key is an unticked box.
+    let linked = fields.has("linked");
     if let Err(error) = state
-        .blocking(move |db| db.set_raise_version(&package, raise))
+        .blocking(move |db| {
+            db.set_raise_version(&package, raise)?;
+            db.set_linked(&package, linked)
+        })
         .await
     {
         return failure(error, state.locale());

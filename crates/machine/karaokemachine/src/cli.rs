@@ -904,6 +904,29 @@ pub fn main(shell: Shell) -> anyhow::Result<()> {
                 }
             ));
         }
+        // The folder linked packages play from, when the settings say anything about them. A word
+        // of its own and never `packages`, for the reason the line above gives: no package goes
+        // in this folder, and `deploy.sh` must not copy one there.
+        let linked = peek_settings(&paths)
+            .map(|settings| settings.linked_packages)
+            .unwrap_or_default();
+        match &linked.dir {
+            Some(dir) => say(format!(
+                "linked     {}   (from settings.linked_packages.dir — nothing is deleted from \
+                 here){}",
+                dir.display(),
+                match linked.folder() {
+                    Ok(_) => "",
+                    Err(crate::settings::LinkedRefusal::Off) =>
+                        "   (linked packages are turned off)",
+                    Err(_) => "   (missing — a linked package is refused)",
+                }
+            )),
+            None if linked.enabled => say(
+                "linked     no folder set   (set linked_packages.dir — a linked package is refused)",
+            ),
+            None => {}
+        }
         // The wallpapers, which this command did not name at all until the owner got a folder of
         // their own to put some in. Two lines rather than one, and the second is the useful half:
         // the first says what is on screen, the second says where to put something else. "I dropped

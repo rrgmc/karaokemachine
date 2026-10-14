@@ -121,6 +121,33 @@ pub enum CatalogError {
     Failed(String),
 }
 
+/// Whether a machine has a folder to play linked packages from.
+///
+/// A code, so the page that shows it writes the sentence in its own language. The folder's path is
+/// never part of the answer: it is a place on the machine's disk, and a page has no use for it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum LinkedFolder {
+    /// The settings name no folder.
+    Unset,
+    /// The settings name a folder that is not there.
+    Missing,
+    /// The folder is there.
+    Ready,
+}
+
+/// Whether a machine takes linked packages, and whether it has a folder to play them from.
+///
+/// A linked package is installed only when both hold: [`Self::enabled`], and a folder that is
+/// [`LinkedFolder::Ready`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct LinkedPackages {
+    /// Whether the owner allows linked packages.
+    pub enabled: bool,
+    /// What the settings say about the folder.
+    pub folder: LinkedFolder,
+}
+
 /// A package the machine found and could not install.
 ///
 /// **A fault, not a decision**, which is why it is remembered separately from the ignore list and
@@ -1486,6 +1513,33 @@ pub trait Controller: Send + Sync + 'static {
         let _ = enabled;
         Err(ControlError::Unavailable(
             "this host keeps no evening".into(),
+        ))
+    }
+
+    /// Whether this machine takes linked packages, and whether it has a folder to play them from.
+    ///
+    /// Defaulted to off with no folder, which is what a host with no settings file answers.
+    fn linked_packages(&self) -> LinkedPackages {
+        LinkedPackages {
+            enabled: false,
+            folder: LinkedFolder::Unset,
+        }
+    }
+
+    /// Say whether this machine takes linked packages.
+    ///
+    /// Installation configuration, written down at once, for [`Self::set_end_on_silence`]'s reason.
+    /// The machine then scans its packages again. Turned on, a linked package in its folders is
+    /// installed. Turned off, its songs go when nothing is playing or queued. The answer is what
+    /// the machine stored.
+    ///
+    /// **The folder is not set here.** No route points a machine at a folder on its own disk.
+    ///
+    /// Has a default that refuses, for a host with no packages of its own.
+    fn set_linked_packages(&self, enabled: bool) -> Result<LinkedPackages, ControlError> {
+        let _ = enabled;
+        Err(ControlError::Unavailable(
+            "this host takes no packages".into(),
         ))
     }
 

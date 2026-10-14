@@ -215,6 +215,7 @@ impl Songs for ThisMachine {
                             // Not measured here. See `Listing::bytes`.
                             bytes: None,
                             flag_names: package.flags.names().map(str::to_owned).collect(),
+                            linked_root: package.linked_root.clone(),
                             id: package.id,
                             name: package.name,
                             version: package.version,
@@ -246,6 +247,7 @@ impl Songs for ThisMachine {
                 // Measured here and nowhere else: this is the page asking whether to delete it.
                 bytes: state.catalog().package_bytes(&package),
                 flag_names: package.flags.names().map(str::to_owned).collect(),
+                linked_root: package.linked_root.clone(),
                 id: package.id,
                 name: package.name,
                 version: package.version,
@@ -410,6 +412,7 @@ impl Switches for ThisMachine {
             end_on_silence: self.0.controller().end_on_silence(),
             adjust_recordings: self.0.controller().adjust_recordings(),
             keep_evening: Some(self.0.controller().keep_evening()),
+            linked_packages: Some(self.0.controller().linked_packages()),
             debug_running: self.0.config().debug_enabled,
             debug_stored: developer.debug,
             dev_remote_stored: developer.dev_remote,
@@ -492,6 +495,13 @@ impl Switches for ThisMachine {
 
     async fn set_keep_evening(&self, on: bool) -> Result<bool, AdminError> {
         self.0.controller().set_keep_evening(on).map_err(refused)
+    }
+
+    async fn set_linked_packages(
+        &self,
+        on: bool,
+    ) -> Result<km_api::machine::LinkedPackages, AdminError> {
+        self.0.controller().set_linked_packages(on).map_err(refused)
     }
 }
 
