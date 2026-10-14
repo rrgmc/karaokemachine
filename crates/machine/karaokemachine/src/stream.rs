@@ -198,7 +198,7 @@ pub(crate) fn run(
                 .and_then(km_kmpkg::Language::parse)
                 .map(|language| language.name().to_owned()),
         });
-        let next_up = queue.first().map(km_queue::QueueEntry::label);
+        let next_song = queue.first().map(km_queue::QueueEntry::song_label);
         let playing = snapshot.now_playing.is_some();
         let has_own_picture = now_kind.is_some_and(|kind| !kind.draws_words());
         let is_midi = now_kind.is_some_and(|kind| kind.is_midi());
@@ -274,7 +274,10 @@ pub(crate) fn run(
             connect: Some(&connect),
             catalog,
             number_entry: &entry,
-            next_up: next_up.as_deref(),
+            next_up: next_song.as_deref().map(|song| km_display::NextUp {
+                song,
+                singer: queue.first().and_then(|entry| entry.singer.as_deref()),
+            }),
             demo: snapshot
                 .now_playing
                 .as_ref()

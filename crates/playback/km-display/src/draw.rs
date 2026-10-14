@@ -96,10 +96,28 @@ pub struct SongInfo {
     pub language: Option<String>,
 }
 
+/// The song queued next, as the `next:` row names it.
+///
+/// **The singer apart from the song**, so the row draws the singer's name in the accent colour, the
+/// one the queue overlay names singers in. A singer looks along that row for their own name.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct NextUp<'a> {
+    /// The song: its title, and its artist where there is one.
+    pub song: &'a str,
+    /// Who asked for it, if anybody did.
+    pub singer: Option<&'a str>,
+}
+
+impl<'a> From<&'a str> for NextUp<'a> {
+    /// A song with no singer.
+    fn from(song: &'a str) -> Self {
+        Self { song, singer: None }
+    }
+}
+
 /// The card that names a song before it starts.
 ///
-/// **Structured, where [`Frame::next_up`] is one joined string.** That row is a single small line
-/// and ellipsizes as one. The card gives each fact a row and a face of its own, so the singer's name
+/// **Structured, where [`Frame::next_up`] is one small line.** That row ellipsizes as one. The card gives each fact a row and a face of its own, so the singer's name
 /// is never what a long title pushes off the end.
 ///
 /// The caller owns the clock, as it does for a [`Flash`]. How long the card stays and whether the
@@ -301,7 +319,7 @@ pub struct Frame<'a> {
     /// The song-number keypad.
     pub number_entry: &'a NumberEntry,
     /// What is queued next, if anything.
-    pub next_up: Option<&'a str>,
+    pub next_up: Option<NextUp<'a>>,
     /// Why music is playing when nobody asked for it, when that is the case.
     ///
     /// Resolved by the caller into a finished sentence, the same seam [`Self::soundfont_label`]
@@ -2970,6 +2988,9 @@ fn draw_playing<T: RenderTarget, C>(
     // measured against nothing, a long one overhangs the right margin and SDL clips it. The room is
     // the whole row, except while the developer marker is right-aligned across the band from it —
     // see `NEXT_UP_MARKED_WIDTH`, which is everything that marker leaves.
+    //
+    // The singer's name follows the song in the accent colour, as the queue overlay draws it. The
+    // song gives way first, so a long title never pushes the name off the row.
     if let Some(next) = frame.next_up {
         let width = (layout.w - layout.margin * 2.0)
             * if frame.developer_mode.is_some() {
@@ -2977,19 +2998,33 @@ fn draw_playing<T: RenderTarget, C>(
             } else {
                 1.0
             };
-        draw_text(
+        let room = fit_chars(width, small_px);
+        let singer = next.singer.map(|singer| format!("  {singer}"));
+        let singer_chars = singer
+            .as_deref()
+            .map_or(0, |singer| singer.width().min(room / 2));
+        let song = frame
+            .words()
+            .msg_with(crate::words::NEXT_UP, &[("title", next.song.into())]);
+        let row_y = layout.h * NEXT_UP_TOP;
+        let drawn = draw_text(
             canvas,
             cache,
             &fonts.small,
-            &ellipsize(
-                &frame
-                    .words()
-                    .msg_with(crate::words::NEXT_UP, &[("title", next.into())]),
-                fit_chars(width, small_px),
-            ),
-            (layout.margin, layout.h * NEXT_UP_TOP),
+            &ellipsize(&song, room.saturating_sub(singer_chars).max(8)),
+            (layout.margin, row_y),
             &left(theme.text_dim),
         );
+        if let Some(singer) = singer {
+            draw_text(
+                canvas,
+                cache,
+                &fonts.small,
+                &ellipsize(&singer, singer_chars),
+                (layout.margin + drawn, row_y),
+                &left(theme.accent),
+            );
+        }
     }
 
     // --- key, tempo and melody indicators, top right ---

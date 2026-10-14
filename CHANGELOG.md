@@ -111,7 +111,8 @@ Entries are written for somebody who has the machine. Why any of it is the way i
 - **Each singer's name has a colour of its own.** It is the same colour in the queue, among the
   waiting songs and in the list of singers, so a singer's songs stand out.
 - **The queue on the machine's screen gives the title more room.** A row shows the place, the
-  title and the artist, and no song number. The singer's name takes only the room it needs.
+  title and the artist, and no song number. The singer's name takes only the room it needs. The
+  *next:* line names the singer in the same blue.
 
 ### Fixed
 

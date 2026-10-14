@@ -357,7 +357,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 transpose: -3,
                 tempo_ratio: 1.1,
                 melody: Some(true),
-                next_up: Some("10235  Another Song"),
+                next_up: Some("Another Song".into()),
                 ..playing(&info, &song.lyrics, &view, mid_first, &empty_entry, &song)
             },
         ),
@@ -373,7 +373,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             // that came out looking deliberate.
             "06b-playing-demo",
             Frame {
-                next_up: Some("10235  Another Song"),
+                next_up: Some("Another Song".into()),
                 demo: Some("DEMO · QUEUE to sing next"),
                 connect: Some(&reachable),
                 ..playing(&info, &song.lyrics, &view, mid_first, &empty_entry, &song)
@@ -385,7 +385,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             // empty corner and both lines back at full width.
             "06c-playing-demo-no-network",
             Frame {
-                next_up: Some("10235  Another Song"),
+                next_up: Some("Another Song".into()),
                 demo: Some("DEMO · QUEUE to sing next"),
                 connect: Some(&stranded),
                 ..playing(&info, &song.lyrics, &view, mid_first, &empty_entry, &song)
@@ -542,7 +542,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             Frame {
                 transpose: -3,
                 melody: Some(true),
-                next_up: Some("10235  Another Song"),
+                next_up: Some("Another Song".into()),
                 soundfont_label: Some("sf 3/5 MuseScore General — from the next MIDI song"),
                 ..playing(&info, &song.lyrics, &view, mid_second, &empty_entry, &song)
             },
@@ -964,7 +964,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         frame.picture = true;
         frame.show_position = show_position;
         frame.keypad = keypad;
-        frame.next_up = Some("Bola de Meia, Bola de Gude — Ana");
+        frame.next_up = Some(km_display::NextUp {
+            song: "Bola de Meia, Bola de Gude",
+            singer: Some("Ana"),
+        });
         frame.queue = &waiting;
         // Part way through, because a bar at zero draws only its track and the track alone says
         // nothing about how far along the song is. Two fifths shows both halves of it.
