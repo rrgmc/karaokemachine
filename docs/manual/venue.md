@@ -34,6 +34,30 @@ on their phones and ask at the desk. The host adds each song on the host's tab.
 **A host for one night needs the code to skip and nothing else.** The admin password stays with the
 owner, because a host changes no setting.
 
+## Play a large collection from its own folder
+
+**A venue's collection can stay in the folders it already has.** A normal package holds a copy of
+every song file. For a collection of thousands of songs, that copy doubles the disk it takes. A
+*linked package* holds no song file. It names each file by its path, and the machine plays the file
+from where it is.
+
+1. **Keep the collection in one folder on the machine's disk**, or on a drive the machine reaches.
+2. **Build a linked package for each part of it.** Each packaging tool has a box for this. See
+   [A package that holds no songs](packaging.md#a-package-that-holds-no-songs).
+3. **Allow linked packages on the machine.** Name the folder in `settings.json`, and tick the box on
+   the **Songs** tab. See [Linked packages](songs.md#linked-packages).
+4. **Install each package** the way you install any other.
+
+**Guests see no difference.** A linked package's songs are searched, numbered and queued like any
+others.
+
+**Do not move or rename the song files after you build the package.** A song whose file is missing
+does not play, and the machine goes to the next song in the queue. A package whose whole folder is
+missing does not install. The **Problems** tab names it, so check that tab before the doors open.
+
+**A new song in the folder needs a new build of its package.** The machine plays only the files
+the package names.
+
 ## What a guest does
 
 1. **Open the remote.** Point a phone's camera at the QR code on the machine's idle screen.
