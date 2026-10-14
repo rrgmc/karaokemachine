@@ -1,18 +1,19 @@
-//! The C surface: two functions, and nothing that thinks.
+//! The C surface: three functions, and nothing that thinks.
 //!
 //! | C | What it does |
 //! |---|---|
 //! | `km_machine_configure(support, documents)` | records the container's two directories |
+//! | `km_machine_open_package(path)` | queues a package chosen in the shell's file browser |
 //! | `SDL_main(argc, argv)` | runs the machine, and does not return until it stops |
 //!
 //! Its pair is `include/km_machine.h`, which is hand-written and committed. `tests/header_matches.rs`
 //! is what stops the two drifting: a C symbol has no mangling, so a changed *signature* still links
 //! and would go wrong only on a device.
 //!
-//! **Two, where the offline remote's shell has six**, and the difference is which side owns the
-//! screen. That shell polls a state machine so Swift can draw a view; here SDL draws everything and
-//! the shell's whole job is to name two directories and start it. There is no state to poll and
-//! no string to hand back, so the ownership rules that shell needed do not arise.
+//! **Three, where the offline remote's shell has six**, and the difference is which side owns the
+//! screen. That shell polls a state machine so Swift can draw a view. Here SDL draws everything, and
+//! the shell names two directories, starts the machine, and passes on a chosen package. There is no
+//! state to poll and no string to hand back, so the ownership rules that shell needed do not arise.
 //!
 //! # What the boundary still costs
 //!
@@ -105,6 +106,26 @@ pub unsafe extern "C" fn km_machine_configure(support: *const c_char, documents:
         };
         tracing::info!(%support, %documents, "the container named its directories");
         km_app::ioscfg::publish(&support, &documents);
+    });
+}
+
+/// Installs a package the person chose in the shell's file browser.
+///
+/// Queued for the display loop, which installs it as it installs a dropped file. Call it on any
+/// thread, while the machine runs.
+///
+/// # Safety
+///
+/// `path` must be `NULL` or a valid NUL-terminated string alive for the call.
+#[expect(
+    unsafe_code,
+    reason = "exporting the C symbol the shell calls, and reading the path it passes"
+)]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn km_machine_open_package(path: *const c_char) {
+    guard("open_package", (), || match unsafe { read(path) } {
+        Some(path) => km_app::ioscfg::open_package(path),
+        None => tracing::warn!("the shell chose a package and passed no path"),
     });
 }
 

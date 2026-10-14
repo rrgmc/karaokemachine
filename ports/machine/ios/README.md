@@ -58,6 +58,9 @@ open ports/machine/ios/KaraokeMachine.xcodeproj     # pick the device, press Run
 - **The bundle carries its own font.** `km-display`'s list of system font paths has no iOS entry, so
   `assets/fonts/karaoke.ttf` is the arm that answers. `tools/setup/fetch-assets.sh --font` pins
   DejaVu Sans, the face the Linux tarball stages, and the build stages it with its license.
+- **`KMPhoneShell.m` is the Menu button and the machine's own remote over the screen.** Rust calls
+  it once the renderer exists, through `km_phone_shell_attach`, so the app target must define that
+  symbol or the link fails. A package chosen there goes to `km_machine_open_package`.
 - **`Documents/` is where a package arrives.** `UIFileSharingEnabled` and
   `LSSupportsOpeningDocumentsInPlace` put it in the Files app and in Finder over USB. There is no
   `adb push` here.

@@ -1,19 +1,20 @@
 /*
  * The machine, as an iOS application links it.
  *
- * Hand-written and committed, for two declarations whose whole design principle is that they never
- * grow. `tests/header_matches.rs` is what keeps this file and `src/ffi.rs` agreeing: a C symbol has
+ * Hand-written and committed, for three declarations kept as few as the shell can work with.
+ * `tests/header_matches.rs` is what keeps this file and `src/ffi.rs` agreeing: a C symbol has
  * no mangling, so a changed signature still links and would go wrong only on a device.
  *
- * Included by `ports/machine/ios/KaraokeMachine/main.m`, which is the whole shell.
+ * Included by `ports/machine/ios/KaraokeMachine/main.m` and `KMPhoneShell.m`, which are the shell.
  *
  * THREADING
  *   Call km_machine_configure on the main thread before SDL_main, and call SDL_main on the thread
  *   SDL is to own. SDL_RunApp arranges the second; `main.m` is where that happens.
+ *   km_machine_open_package may be called on any thread while the machine runs.
  *
  * OWNERSHIP
- *   Both strings passed to km_machine_configure are copied before it returns, so a caller may free
- *   them immediately. Nothing here returns a pointer, so there is nothing to free.
+ *   Every string passed in is copied before the call returns, so a caller may free it immediately.
+ *   Nothing here returns a pointer, so there is nothing to free.
  */
 
 #ifndef KM_MACHINE_H
@@ -37,6 +38,17 @@ extern "C" {
  * Calling it twice keeps the first pair and logs the second.
  */
 void km_machine_configure(const char *support, const char *documents);
+
+/*
+ * Installs a package the person chose in the shell's file browser.
+ *
+ *   path  the file's path. The machine copies the package into its packages folder, as it does a
+ *         dropped file, so the file may be a temporary copy.
+ *
+ * Queued, and taken by the display loop within a frame. A file that is not a package is refused on
+ * the screen. NULL is logged and ignored.
+ */
+void km_machine_open_package(const char *path);
 
 /*
  * Runs the machine. Does not return until it stops.

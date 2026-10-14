@@ -20,6 +20,8 @@ songs survive a restart.
 - **On an Android phone or tablet, press Menu, then Install a package.** The file browser opens,
   and the machine installs the package you choose. A song that is playing pauses while the browser
   is open.
+- **On an iPhone or iPad, press Menu, then Install a package.** The Files browser opens, and the
+  machine installs the package you choose. A song that is playing goes on playing.
 - **Add it from a browser**, on the **Songs** tab of [the setup page](setup.md).
 - **Send it through [the API](api.md).**
 

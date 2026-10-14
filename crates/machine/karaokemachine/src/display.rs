@@ -1831,6 +1831,9 @@ fn run_with(
         vsync = request_vsync(&canvas),
         "the SDL renderer backend"
     );
+    // After the canvas, because creating the renderer replaces the view the controls would sit on.
+    #[cfg(target_os = "ios")]
+    crate::ioscfg::attach_shell(canvas.window());
     let creator = canvas.texture_creator();
     // **Text rendered once and kept, rather than rebuilt sixty times a second.** Profiled on the
     // appliance, making text textures was about 38% of the app's CPU — two thirds of that the upload
@@ -2399,6 +2402,14 @@ fn run_with(
                     }
                 }
                 _ => {}
+            }
+        }
+
+        // A package chosen in the phone shell's file browser takes the dropped file's route.
+        #[cfg(target_os = "ios")]
+        for path in crate::ioscfg::take_opened() {
+            if let Some(refused) = installer.submit(path) {
+                flash = Some(Flashed::from(refused));
             }
         }
 

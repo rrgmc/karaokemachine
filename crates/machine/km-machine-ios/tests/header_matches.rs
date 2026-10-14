@@ -23,6 +23,7 @@ const SURFACE: &[(&str, &str, &str)] = &[
         "void",
         "const char *support, const char *documents",
     ),
+    ("km_machine_open_package", "void", "const char *path"),
     ("SDL_main", "int", "int argc, char *argv[]"),
 ];
 
