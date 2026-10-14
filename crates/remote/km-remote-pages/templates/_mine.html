@@ -1,4 +1,4 @@
-<div id="mine" hx-get="/mine" hx-trigger="km:requests from:body" hx-swap="outerHTML">
+<div id="mine" hx-get="/mine" hx-trigger="km:requests from:body, km:nowplaying from:body" hx-swap="outerHTML">
 {% if !rows.is_empty() %}
 <h2 class="list-head">{{ "mine-heading"|t }}</h2>
 <ul class="song-list">
@@ -17,5 +17,7 @@
   </li>
   {% endfor %}
 </ul>
+{# The queue below is everybody's, and without a heading of its own it reads as more of these. #}
+<h2 class="list-head mine-end">{{ "mine-queue-heading"|t }}</h2>
 {% endif %}
 </div>

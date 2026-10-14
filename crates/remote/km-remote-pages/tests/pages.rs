@@ -414,6 +414,11 @@ impl StubMachine {
         self
     }
 
+    /// The requests the stub holds, to be taken before this is handed to a `Harness`.
+    fn asked(&self) -> Arc<Mutex<Vec<RequestDto>>> {
+        Arc::clone(&self.asked)
+    }
+
     /// The counter behind [`Machine::wake`], to be taken before this is handed to a `Harness`.
     fn wakes(&self) -> Arc<AtomicUsize> {
         Arc::clone(&self.wakes)
@@ -1828,7 +1833,7 @@ async fn the_controls_toggle_holds_its_state_outside_the_fragment_the_pump_repla
 
     let queue = harness.get("/queue").await;
     let toggle = queue
-        .find(r#"class="icon-btn controls-toggle""#)
+        .find(r#"class="icon-btn controls-toggle needs-control""#)
         .expect("the queue page carries the controls toggle");
     let label = &queue[toggle..];
     let label = &label[..label.find("</label>").expect("the toggle's label closes") + 8];
@@ -2908,13 +2913,13 @@ async fn a_field_row_lets_its_field_shrink_so_the_button_is_not_pushed_off() {
         "and the button has somewhere to go: {css}"
     );
 
-    // The singer's name, the access code and the language picker. All three are on the Setup tab;
-    // the Queue tab carries none.
+    // The singer's name, the level with its button, the access code and the language picker. All
+    // four are on the Setup tab; the Queue tab carries none.
     let setup = harness.get("/setup").await;
     assert_eq!(
-        setup.matches(r#"class="pref-row field-row""#).count(),
-        3,
-        "both rows on the Setup tab: {setup}"
+        setup.matches(r#"class="pref-row field-row"#).count(),
+        4,
+        "every row on the Setup tab: {setup}"
     );
     let queue = harness.get("/queue").await;
     assert!(
@@ -5302,6 +5307,14 @@ async fn the_setup_tab_is_on_both_remotes_and_carries_what_each_one_has() {
         body.contains(r#"href="/admin""#),
         "the owner's door, on the machine's own remote: {body}"
     );
+    let before = &body[..body.find(r#"href="/admin""#).expect("the door")];
+    let group = &before[before
+        .rfind(r#"<div class="setup-group"#)
+        .expect("its group")..];
+    assert!(
+        group.starts_with(r#"<div class="setup-group needs-control">"#),
+        "shown from the control level up: {group}"
+    );
     assert!(
         body.contains("Needs the machine&#39;s password"),
         "a link that always ends in a prompt says so before the tap: {body}"
@@ -5390,7 +5403,7 @@ async fn the_setup_tab_leads_with_the_machine_and_rules_off_each_group_after_it(
     let body = Harness::online().get("/setup").await;
     assert!(!body.contains(r#"class="machine-card""#), "{body}");
     assert_eq!(
-        body.matches(r#"class="setup-group""#).count(),
+        body.matches(r#"class="setup-group"#).count(),
         2,
         "the preferences and the owner's page are each a group: {body}"
     );
@@ -5734,6 +5747,14 @@ async fn a_code_is_kept_in_a_cookie_and_a_wrong_one_is_refused() {
         StubMachine::new().room(km_api::Access::Queue),
         Capabilities::online(),
     );
+    // The level shows, and the code box waits folded behind its button.
+    let setup = harness.get("/setup").await;
+    assert!(
+        setup.contains(
+            r#"<input type="checkbox" id="access-edit" class="visually-hidden" autocomplete="off""#
+        ) && setup.contains(r#"<label for="access-edit" class="icon-btn">Enter a code</label>"#),
+        "{setup}"
+    );
     let request = Request::builder()
         .method(Method::POST)
         .uri("/access")
@@ -5865,6 +5886,10 @@ async fn a_phones_first_song_is_queued_and_its_second_waits() {
 
     let queue = phone.get("/queue").await;
     assert!(queue.contains("Your songs"), "{queue}");
+    assert!(
+        queue.contains("The whole queue"),
+        "the queue below the list has a heading of its own: {queue}"
+    );
     assert!(queue.contains("In the queue, place 1"), "{queue}");
     assert!(queue.contains("Waiting for your turn"), "{queue}");
     assert!(
@@ -5899,6 +5924,84 @@ async fn two_phones_are_two_singers() {
     assert!(!mine.contains("Song 1002"), "{mine}");
 }
 
+/// A song that started says so while it plays, and leaves the phone's list when it ends.
+#[tokio::test]
+async fn a_phones_list_names_the_song_that_plays_and_drops_the_sung_ones() {
+    let stub = StubMachine::new();
+    let asked = stub.asked();
+    let harness = Harness::with(stub, Capabilities::online());
+    let phone = Phone::new(&harness);
+    for number in [1001, 1002, 1003] {
+        phone.post(&format!("/song/{number}/queue")).await;
+    }
+
+    // The stub plays entry 1. Song 1001 started and plays, 1002 started and ended.
+    for held in asked.lock().expect("lock").iter_mut() {
+        match held.number.number() {
+            1001 => (held.state, held.entry_id) = (RequestStateDto::Played, Some(1)),
+            1002 => (held.state, held.entry_id) = (RequestStateDto::Played, Some(2)),
+            _ => {}
+        }
+    }
+
+    let mine = phone.get("/mine").await;
+    assert!(mine.contains("Song 1001"), "{mine}");
+    assert!(mine.contains("Playing now"), "{mine}");
+    assert!(!mine.contains("Song 1002"), "the sung song is gone: {mine}");
+    assert!(mine.contains("Song 1003"), "{mine}");
+    assert!(!mine.contains("Started"), "{mine}");
+    assert!(
+        mine.contains("km:nowplaying from:body"),
+        "the list asks again when the song changes: {mine}"
+    );
+}
+
+/// Every phone sees the songs that wait for a turn, folded below the queue.
+#[tokio::test]
+async fn the_queue_tab_lists_the_songs_waiting_for_a_turn_folded() {
+    let harness = Harness::online();
+    let ana = Phone::new(&harness);
+    ana.post_form("/singer", "singer=Ana").await;
+    ana.post("/song/1001/queue").await;
+    ana.post("/song/1002/queue").await;
+
+    let guest = Phone::new(&harness);
+    let queue = guest.get("/queue").await;
+    assert!(
+        queue.contains(r#"<input type="checkbox" id="waiting-open" class="visually-hidden" autocomplete="off">"#),
+        "folded by default, from outside the block: {queue}"
+    );
+    let waiting = &queue[queue.find(r#"id="waiting""#).expect("the block")..];
+    assert!(waiting.contains("Waiting for a turn (1)"), "{waiting}");
+    assert!(waiting.contains("Song 1002"), "{waiting}");
+    assert!(
+        !waiting.contains("Song 1001"),
+        "the queued one is not waiting: {waiting}"
+    );
+    assert!(waiting.contains(">Ana</span>"), "{waiting}");
+
+    let fragment = guest.get("/waiting").await;
+    assert!(
+        fragment.contains(r#"hx-trigger="km:requests from:body""#),
+        "{fragment}"
+    );
+}
+
+/// The ▾ opens nothing but the transport, so it hides wherever the transport does.
+#[tokio::test]
+async fn the_now_bar_toggle_needs_the_control_level() {
+    let harness = Harness::online();
+    let queue = harness.get("/queue").await;
+    assert!(
+        queue.contains(r#"class="icon-btn controls-toggle needs-control""#),
+        "{queue}"
+    );
+    assert!(
+        queue.contains(r#"<div class="transport needs-control">"#),
+        "{queue}"
+    );
+}
+
 /// A phone with no singer draws no list and marks no row.
 #[tokio::test]
 async fn a_phone_that_asked_for_nothing_has_no_list_of_its_own() {
@@ -5908,6 +6011,7 @@ async fn a_phone_that_asked_for_nothing_has_no_list_of_its_own() {
     let queue = harness.get("/queue").await;
     assert!(queue.contains(r#"id="mine""#), "the target stays: {queue}");
     assert!(!queue.contains("Your songs"), "{queue}");
+    assert!(!queue.contains("The whole queue"), "{queue}");
     assert!(!queue.contains("<style>"), "{queue}");
 }
 
@@ -5948,22 +6052,42 @@ async fn a_singer_takes_a_song_back_from_the_queue_tab() {
 async fn a_name_is_the_singers_and_a_held_name_is_refused() {
     let harness = Harness::online();
     let ana = Phone::new(&harness);
+    let blank = ana.get("/setup").await;
+    assert!(
+        !blank.contains(r#"id="singer-edit""#),
+        "with no name the box stands open: {blank}"
+    );
     let said = ana.post_form("/singer", "singer=Ana").await;
     assert!(said.contains("You are singing as Ana"), "{said}");
+    assert!(
+        said.contains(r#"<div id="singer-name" hx-swap-oob="true">"#)
+            && said.contains(r#"<b class="singer-current">Ana</b>"#),
+        "the saved name comes back with the box folded: {said}"
+    );
     assert!(
         ana.cookie("km_seats").is_some(),
         "the name registered a singer"
     );
+    let named = ana.get("/setup").await;
+    assert!(
+        named.contains(r#"id="singer-edit""#)
+            && named.contains(r#"<b class="singer-current">Ana</b>"#),
+        "a named phone shows the name and folds the box: {named}"
+    );
 
     ana.post("/song/1001/queue").await;
     let queue = ana.get("/queue").await;
-    assert!(queue.contains("&middot; Ana"), "the row names her: {queue}");
+    assert!(queue.contains(">Ana</span>"), "the row names her: {queue}");
 
     let other = Phone::new(&harness);
     let refused = other.post_form("/singer", "singer=Ana").await;
     assert!(
         refused.contains("Another singer has that name"),
         "{refused}"
+    );
+    assert!(
+        !refused.contains(r#"id="singer-name""#),
+        "a refused name leaves the box open: {refused}"
     );
     assert!(other.cookie("km_seats").is_none());
 }
@@ -5979,7 +6103,7 @@ async fn a_name_typed_later_names_the_same_singer() {
     phone.post_form("/singer", "singer=Beto").await;
 
     assert_eq!(phone.cookie("km_seats").as_deref(), Some(seats.as_str()));
-    assert!(phone.get("/queue").await.contains("&middot; Beto"));
+    assert!(phone.get("/queue").await.contains(">Beto</span>"));
     let setup = phone.get("/setup").await;
     assert!(setup.contains(r#"value="Beto""#), "{setup}");
 
@@ -5998,6 +6122,8 @@ async fn a_second_singer_on_one_phone_brings_the_choice() {
     let one = phone.get("/setup").await;
     assert!(!one.contains(r#"id="singer-choose""#), "{one}");
     assert!(one.contains(r#"hx-post="/singer/add""#), "{one}");
+    let songs = phone.get("/").await;
+    assert!(!songs.contains(r#"id="singer-choose""#), "{songs}");
 
     let nameless = phone.post_form("/singer/add", "singer=").await;
     assert!(
@@ -6013,6 +6139,15 @@ async fn a_second_singer_on_one_phone_brings_the_choice() {
         "{two}"
     );
     assert!(two.contains(r#"<option value="0">Ana</option>"#), "{two}");
+    let songs = phone.get("/").await;
+    assert!(
+        songs.contains(r#"<option value="1" selected>Beto</option>"#),
+        "the Songs tab offers the choice too: {songs}"
+    );
+    assert!(
+        songs.find(r#"id="singer-choose""#) > songs.find(r#"id="browse""#),
+        "inside the block a mode change redraws, right above the list: {songs}"
+    );
 
     // Each one's first song goes in, because they are two singers.
     assert!(phone.post("/song/1001/queue").await.contains(">queued<"));
@@ -6124,9 +6259,10 @@ async fn the_live_script_asks_again_when_the_requests_change() {
     let script = harness.get("/static/live.js").await;
     assert!(script.contains(r#""requests""#), "{script}");
     assert!(script.contains("km:requests"), "{script}");
+    assert!(script.contains("km:nowplaying"), "{script}");
     let queue = harness.get("/queue").await;
     assert!(
-        queue.contains(r#"hx-trigger="km:requests from:body""#),
+        queue.contains(r#"hx-trigger="km:requests from:body, km:nowplaying from:body""#),
         "{queue}"
     );
 }
@@ -6164,6 +6300,20 @@ async fn the_hosts_tab_is_for_the_control_level() {
         "the queue is beside it: {page}"
     );
     assert!(page.contains(r#"id="host-singer""#), "{page}");
+    assert!(
+        page.contains(r#"<div class="host-now">"#) && page.contains(r#"id="nowbar""#),
+        "the song that plays is at the top: {page}"
+    );
+    assert!(
+        page.contains(r#"id="nowbar-controls" class="visually-hidden" checked"#),
+        "with its transport open: {page}"
+    );
+    assert!(page.contains("/control/skip"), "{page}");
+    assert!(
+        page.contains(r#"id="host-tab-queue" class="visually-hidden" checked"#)
+            && page.contains(r#"id="host-tab-singers""#),
+        "two tabs below it, the queue chosen: {page}"
+    );
 }
 
 /// A host types a name and adds songs for it. The name finds the singer again, however it is typed,
@@ -6194,6 +6344,56 @@ async fn a_host_adds_songs_for_a_singer_by_name() {
     assert!(
         lists.contains("Song 1002"),
         "the waiting one is listed: {lists}"
+    );
+    assert!(
+        lists.contains(r#"<datalist id="host-singer-names">"#)
+            && lists.contains(r#"<option value="Caio"></option>"#),
+        "the name box offers the singer: {lists}"
+    );
+    assert!(
+        lists.contains(r#"class="song-name pick-singer singer-c"#)
+            && lists.contains(r#"data-name="Caio""#),
+        "and tapping the name picks the singer: {lists}"
+    );
+    let page = harness.get("/host").await;
+    assert!(page.contains(r#"list="host-singer-names""#), "{page}");
+
+    // One colour for the singer, on the list of singers and in the queue alike.
+    let colour = lists
+        [lists.find("pick-singer singer-c").expect("a colour") + "pick-singer ".len()..]
+        .split([' ', '"'])
+        .next()
+        .expect("the class")
+        .to_owned();
+    let queue = harness.get("/queue").await;
+    assert!(
+        queue.contains(&format!(r#"class="row-singer {colour}">Caio</span>"#)),
+        "{colour}: {queue}"
+    );
+}
+
+/// A song sent from the Songs tab opens the host's singers tab with that song ready to add.
+#[tokio::test]
+async fn a_song_sent_from_the_songs_tab_waits_on_the_hosts_add_form() {
+    let harness = Harness::online();
+    let songs = harness.get("/").await;
+    assert!(songs.contains(r#"href="/host?song=1001""#), "{songs}");
+
+    let page = harness.get("/host?song=1001").await;
+    assert!(
+        page.contains(r#"id="host-tab-singers" class="visually-hidden" checked"#),
+        "the singers tab is chosen: {page}"
+    );
+    assert!(page.contains(r#"value="Tempo Perdido""#), "{page}");
+    assert!(
+        page.contains(r#"hx-post="/host/add/1001""#),
+        "the song waits with its +: {page}"
+    );
+
+    let plain = harness.get("/host").await;
+    assert!(
+        plain.contains(r#"id="host-tab-queue" class="visually-hidden" checked"#),
+        "{plain}"
     );
 }
 
@@ -6274,7 +6474,7 @@ async fn a_host_hands_over_merges_and_removes_a_singer() {
     );
     let queue = harness.get("/queue").await;
     assert_eq!(
-        queue.matches("&middot; David").count(),
+        queue.matches(">David</span>").count(),
         2,
         "both songs are David's: {queue}"
     );

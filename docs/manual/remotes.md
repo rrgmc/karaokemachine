@@ -51,12 +51,17 @@ queue on the machine's screen shows the same figure.
 
 **Singers take turns.** Tap **+** on as many songs as you like. The machine keeps one song for each
 singer in the queue, and your next one goes in when yours starts. The Queue tab lists **Your
-songs**, and says of each whether it is waiting, in the queue, or started. Tap **✕** beside one to
-take it back.
+songs**, and says of each whether it is waiting, in the queue, or playing now. A song leaves the
+list when it ends. Tap **✕** beside one to take it back.
 
-**Your name is optional.** Type it in **Singing as** on the Setup tab, and the queue shows it. Two
+**Below the queue, Waiting for a turn lists every singer's waiting songs.** Tap it to open the
+list.
+
+**Your name is optional.** Type it in **Singing as** on the Setup tab, and the queue shows it.
+Once it is saved, the box folds away, and **Change** opens it again. Two
 singers cannot hold one name on the same evening. A phone that several people share adds each of
-them under **Add another singer on this phone**, and then chooses who is singing.
+them under **Add another singer on this phone**, and then chooses who is singing. **Who is
+singing** stands on the Setup tab and above the list on the Songs tab.
 
 **A song somebody already has brings a question.** Tap **+** on a song that is in the queue, or
 that somebody sang tonight, and the row says so. Tap **Ask anyway** to ask for it, or **✕** to
@@ -68,6 +73,7 @@ it to run a night:
 | The host wants to | On the host's tab |
 |---|---|
 | Add a song for a guest with no phone | Type the guest's name, search the song, and tap **+** |
+| Add a song found on the Songs tab | Tap **👤** on the song, choose the singer, and tap **+** |
 | Put a waiting song into the queue early | Tap **↑** for next, or **+** for the end of the queue |
 | Refuse a waiting song | Tap **✕** beside it |
 | Move a singer to another phone | Open the singer and tap **Hand to a phone**. The guest then types that name on the new phone |

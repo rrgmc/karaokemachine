@@ -91,6 +91,7 @@ youtube-link = Procurar no YouTube
 song-queue = Colocar na fila
 song-plain = Colocar sem cantor
 song-play-now = Tocar agora
+song-for-singer = Adicionar para um cantor na aba do anfitrião
 song-play-next = Tocar em seguida
 song-favorite = Adicionar às favoritas
 song-favorited = Está numa pasta de favoritas
@@ -108,6 +109,7 @@ queue-empty-hint = A fila está vazia. Ache uma música na aba Músicas e toque 
 queue-wait-minutes = ~{ $minutes } min
 queue-wait-soon = < 1 min
 singing-as = Cantando como
+singer-change = Trocar
 singer-name = Nome com que suas músicas entram na fila
 singer-placeholder = seu nome
 access-level = Este celular pode:
@@ -119,6 +121,7 @@ access-admin = Tudo
 access-code = Um código do dono
 access-code-placeholder = código
 access-code-use = Usar
+access-code-open = Digitar código
 access-code-wrong = Esse código não está certo.
 
 ## Tocando agora
@@ -312,6 +315,7 @@ ask-again-no = Deixar
 tab-host = Anfitrião
 host-singer = Para
 host-singer-placeholder = o nome do cantor
+host-pick-singer = Adicionar a próxima música para este cantor
 host-song = Música
 host-song-placeholder = título ou artista
 host-add = Colocar para este cantor
@@ -344,11 +348,13 @@ host-reset-confirm = Esvaziar tudo
 ## As músicas que este celular pediu
 
 mine-heading = Suas músicas
+mine-queue-heading = A fila completa
 mine-withdraw = Retirar esta música
 request-waiting = Esperando a sua vez
 request-queued = Na fila, lugar { $place }
 request-accepted = Na fila
 request-played = Começou
+request-playing = Tocando agora
 request-declined = Tirada da fila
 request-withdrawn = Retirada
 package-flag-uncurated = sem curadoria

@@ -267,18 +267,37 @@ itself. A handler reads the token and sends it to the machine. No script and no 
 asks whether the machine still holds it, and then registers again. A phone asks that question only
 after a refusal, because a missing song answers the same 404.
 
+**A saved name folds its box away behind Change.** The Setup tab then says who is singing, and a
+stray tap does not edit the name. A phone with no name shows the box open.
+
 **One phone holds several singers, and one box is what it shows.** A home passes one phone or one
 tablet around. Adding another singer is a smaller control, folded away under the box, and that
-singer gives a name. The choice between singers appears with the second one. A phone with one
-singer never sees it.
+singer gives a name. The choice between singers appears with the second one. It stands on the
+Setup tab and above the Songs tab's list, because the + on a song asks for the singer it names. A
+phone with one singer never sees it.
 
 **A phone's own songs are a list on the Queue tab.** Each row says where the request stands:
-waiting, in the queue with its place, started, taken out, or taken back. A waiting or queued song
-has a button that takes it back, and it needs no code.
+waiting, in the queue with its place, playing now, taken out, or taken back. A waiting or queued
+song has a button that takes it back, and it needs no code.
+
+**A song leaves that list when it ends.** It stays while it plays, and the row says so. A sung song
+asks for nothing more from the singer, and over a long night the sung songs would bury the waiting
+ones. A request names its queue entry, and the playing song names the entry it came from, so the
+remote compares the two.
+
+**The queue below that list has a heading of its own.** Without one, a singer reads
+the queue as more of their own songs. The heading and the heavier rule above it come with the list,
+so a phone that asked for nothing sees the queue as before.
+
+**Below the queue, every phone lists the songs that wait for a turn, folded.** A guest asks how
+long a table's second song will take, and the queue alone does not show it. The list starts
+folded, because the queue is what a guest came to read. A checkbox outside the fetched block holds
+the fold, so a refresh does not close it.
 
 **That list is fetched and never pushed.** The event stream sends one fragment to every page in a
 language, and this list differs for each phone. So the stream sends a `requests` event with no
-fragment, and the page fetches `/mine` with its own cookie.
+fragment, and the page fetches `/mine` with its own cookie. The page also fetches it when the
+`nowbar` event arrives. A song that ends with nothing after it changes no request.
 
 **The page carries a rule that marks the phone's rows in the queue.** The queue list is one
 fragment for every phone too. Each row carries its seat's id, and the page a phone loaded holds a
@@ -299,6 +318,10 @@ stays the owner's page. The link is in every page, and the stylesheet hides it b
 level, as it hides each button. A phone below that level that opens `/host` goes to the Setup tab,
 where the code box is.
 
+**The song that plays, and its transport, stand at the top and never fold.** A host stops and
+skips all night. The Queue tab folds the same controls away, because there a guest's finger finds
+them by accident.
+
 **Singer, song and the add are on one screen.** Adding a song is what a host does all night. The
 host types a name and searches a song, and each result has a button that adds it for that name.
 The name stays in the box between songs, so a pile of slips for one singer is typed once.
@@ -307,13 +330,31 @@ The name stays in the box between songs, so a pile of slips for one singer is ty
 the machine's: no case and no accents. A new one is a singer with no phone. The rule gives the song
 that singer's turn, whatever order the host enters songs in.
 
+**A song on the Songs tab has a button that sends it to the host's add form.** A host at the
+control level browses the catalog as a guest does. The button opens the singers tab with that song
+in the song box and its + beside it. The host then picks the singer and adds it. The remote looks
+the song up by number, so a similar title does not stand in for it.
+
+**The name box offers the evening's named singers, and tapping a singer's name fills it.** A host
+adding for somebody who is here picks the name rather than typing it again. A typed name still
+works, so a new singer needs no step of their own. A singer with no name is not offered, because
+the box finds a singer by name.
+
 **The host's add warns about nothing.** A guest who asks for a song already in the queue is asked
 once. A host who enters it has read the slip.
 
-**One column on a phone, two on a tablet and three on a wide screen.** A host reads the waiting
-requests against the queue, so from a tablet's width the queue stands beside them. On a large
-tablet held sideways, or a laptop, the singers take a column of their own. Nothing a host is
-watching then scrolls out of sight.
+**Below the bar, the tab has two tabs of its own: the queue and the singers.** One page held too
+much for a host to read at a glance. The queue tab holds the queue and the requests that wait for
+a turn. The singers tab holds the add form, the singers, the switch that closes requests, and the
+new evening. A kept evening stands above both, because nothing plays until the host answers it.
+
+**One column on a phone, and two from a tablet's width.** A host reads the waiting requests
+against the queue, so the requests stand beside it. The singers stand beside the add form.
+
+**A singer's name has one colour on every list and every phone.** The colour comes from the
+singer's id, out of eight. A host then finds one singer's songs in the queue at a glance. Two
+singers can share a colour, and their names still tell them apart. The palette leaves out amber,
+which means "happening now", and the accent blue, which means "can be pressed".
 
 **From a tablet's width up, the tab is sized for a desk.** The buttons are larger and stand
 further apart, and the titles are larger. A host taps all night, and the button that declines a
@@ -324,8 +365,9 @@ this one on a phone.
 one declines it. The queue beside it keeps its move and remove buttons, shown without a toggle.
 
 **A singer's row has three actions.** Hand the seat to a phone, merge it into another singer,
-or remove it. A phone folds them behind the row's ⋯, and a tablet shows them on the row. The row says whether a phone holds the seat, and how many songs the singer has sung,
-has in the queue and has waiting.
+or remove it. They fold behind the row's ⋯ at every width, because a night can have dozens of
+singers and each one then takes one short line. The row says whether a phone holds the seat, and
+how many songs the singer has sung, has in the queue and has waiting.
 
 **Handing a seat to a phone is the reissue.** The host presses it, and the guest types that name
 on their own phone. The phone takes the seat with its songs. A singer with no name has no button
@@ -811,6 +853,10 @@ tempo, and the event stream.
 **A code box on the Setup tab, and no `/login` page.** A phone opens at the room level and can use
 the remote at once. Somebody given a code types it on the Setup tab, and the tab says what the phone
 can do. A login page in front of the remote would stop a guest who needs no code at all.
+
+**The tab shows the level, and the code box folds behind a button.** Few guests ever type a code,
+so an open box reads as a step everybody must take. A code that works reloads the page, which folds
+the box again. A wrong code leaves it open with the toast.
 
 **The code buys a token, kept in an `HttpOnly` cookie named `km_access`.** Not `km_token`, which is
 the owner's page's cookie on the same origin, because a code typed here must not sign the owner out

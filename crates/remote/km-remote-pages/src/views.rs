@@ -428,6 +428,9 @@ pub struct BrowseBlock {
     pub package_problems: Vec<String>,
     /// The list.
     pub list: ListBlock,
+    /// The singers this phone holds. With two or more, the choice stands right above the list, so
+    /// the + on a song is for the singer shown there. Filled only where the whole block is drawn.
+    pub singers: Vec<PhoneSinger>,
 }
 
 impl BrowseBlock {
@@ -956,9 +959,8 @@ pub struct NowPage {
 pub struct SetupPage {
     /// Page chrome.
     pub chrome: Chrome,
-    /// The name in the "singing as" box: the singer this phone has singing, or the name it typed
-    /// before it asked for a song.
-    pub singing_as: String,
+    /// The singer's name and the box that changes it.
+    pub singer_name: SingerName,
     /// The singers this phone holds. The choice between them is drawn from the second one on.
     pub singers: Vec<PhoneSinger>,
     /// Which machine this device is talking to. `None` in the online mode.
@@ -966,6 +968,29 @@ pub struct SetupPage {
     /// Whether the Setup and Packages tabs are drawn at the top. Only when the catalog holds two or
     /// more packages: hiding the only package leaves nothing to search.
     pub packages_tab: bool,
+}
+
+/// The singer's name on the Setup tab, with the box that changes it folded behind a button.
+///
+/// Drawn in the page, and again out of band when a name is saved, which folds the box away.
+#[derive(Template)]
+#[template(path = "_singer_name.html")]
+pub struct SingerName {
+    /// The singer this phone has singing, or the name it typed before it asked for a song. Empty
+    /// means no name yet, and the box stands open.
+    pub singing_as: String,
+    /// Whether this is the out-of-band copy that a saved name answers with.
+    pub oob: bool,
+}
+
+/// A fragment that swaps itself out of band, and a toast.
+///
+/// For a form whose own content stays as it is, while one block elsewhere on the page changes.
+pub fn oob_with_toast<O: Template>(oob_template: &O, toast: Toast, locale: Locale) -> Response {
+    match render(oob_template, locale) {
+        Ok(extra) => Html(format!("{extra}{}", oob(toast, locale))).into_response(),
+        Err(error) => template_error(&error),
+    }
 }
 
 /// The Setup tab's Packages page: which packages this phone's song list leaves out.
@@ -1206,6 +1231,8 @@ pub struct QueuePage {
     pub mine: MineBlock,
     /// The list.
     pub queue: QueueBlock,
+    /// The songs that wait for their singer's turn, folded below the list.
+    pub waiting: WaitingBlock,
 }
 
 /// `GET /host` — the tab a host runs the night from. Drawn for a phone at the control level.
@@ -1214,10 +1241,23 @@ pub struct QueuePage {
 pub struct HostPage {
     /// Page chrome.
     pub chrome: Chrome,
+    /// What is playing, with the transport always open.
+    pub nowbar: NowBar,
     /// The singers and the requests that wait.
     pub lists: HostLists,
     /// The queue, which is the same fragment the Queue tab draws.
     pub queue: QueueBlock,
+    /// The song a host sent here from the Songs tab, drawn under the song box ready to add. Its
+    /// presence also opens the singers tab, where the add form is.
+    pub sent: Option<SentSong>,
+}
+
+/// A song sent to the host's tab from the Songs tab.
+pub struct SentSong {
+    /// The title, put in the song box.
+    pub title: String,
+    /// The song alone, as the box's search would list it.
+    pub found: HostSongs,
 }
 
 /// The host's two lists: the evening's singers, and the requests that wait.
@@ -1262,6 +1302,32 @@ pub struct HostRequest {
     pub title: String,
     /// The singer who asked, as a label.
     pub singer: String,
+    /// The singer's id, which picks the singer's colour.
+    pub singer_id: u64,
+}
+
+/// The songs that wait for their singer's turn, below the queue on the Queue tab.
+///
+/// **Fetched, for [`MineBlock`]'s reason**: a request carries no fragment on the event stream, so
+/// the page asks for this when [`crate::sse::REQUESTS`] arrives. Folded by a checkbox outside the
+/// block, so a refresh keeps it the way the guest left it.
+#[derive(Template)]
+#[template(path = "_waiting.html")]
+pub struct WaitingBlock {
+    /// The songs, in the order they wait.
+    pub rows: Vec<HostRequest>,
+}
+
+/// How many colours a singer's name is drawn in, as `.singer-c0` to `.singer-c7` in `app.css`.
+///
+/// The colour comes from the singer's id, so one singer keeps one colour on every list and every
+/// phone. Two singers whose ids differ by a multiple of this share a colour, and the name still
+/// tells them apart.
+pub const SINGER_COLOURS: u64 = 8;
+
+/// The class that draws singer `id`'s name in that singer's colour.
+pub fn singer_colour(id: impl std::borrow::Borrow<u64>) -> String {
+    format!("singer-c{}", id.borrow() % SINGER_COLOURS)
 }
 
 /// The songs a host's search found, each with a button that adds it for the singer typed above.
@@ -1833,6 +1899,7 @@ mod tests {
                     anchor: None,
                 },
             },
+            singers: Vec::new(),
         };
         assert_eq!(block(Capabilities::online()).modes().len(), 2);
         assert_eq!(block(Capabilities::offline()).modes().len(), 3);

@@ -2647,7 +2647,7 @@ fn run_with(
                 .and_then(km_kmpkg::Language::parse)
                 .map(|language| language.name().to_owned()),
         });
-        let next_up = queue.first().map(km_queue::QueueEntry::label);
+        let next_song = queue.first().map(km_queue::QueueEntry::song_label);
         // Resolved here rather than in `km-display`, the same seam `language` and the bank label
         // use. The sentence has to carry the instruction as well as the state: a demo song has no
         // queue entry to run out, so waiting for it to end is not the answer and skipping is.
@@ -2809,7 +2809,10 @@ fn run_with(
             connect: Some(&connect),
             catalog,
             number_entry: &entry,
-            next_up: next_up.as_deref(),
+            next_up: next_song.as_deref().map(|song| km_display::NextUp {
+                song,
+                singer: queue.first().and_then(|entry| entry.singer.as_deref()),
+            }),
             demo,
             show_connect_overlay: show_connect || started.elapsed() < CONNECT_GREETING,
             queue: &queue,

@@ -36,8 +36,8 @@ pub mod words;
 pub use crate::catalog::CatalogSummary;
 pub use crate::connect::{BrowserKey, ConnectInfo, ConnectPanel, ConnectProblem, QrMatrix};
 pub use crate::draw::{
-    Announcement, Background, DeveloperMode, FaultArea, Faults, Flash, FlashKind, Frame, Screen,
-    SongInfo, position_reserve, version_reserve,
+    Announcement, Background, DeveloperMode, FaultArea, Faults, Flash, FlashKind, Frame, NextUp,
+    Screen, SongInfo, position_reserve, version_reserve,
 };
 pub use crate::icon::set_window_icon;
 pub use crate::input::{

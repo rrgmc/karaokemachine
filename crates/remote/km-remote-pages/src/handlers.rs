@@ -49,7 +49,7 @@ use crate::views::{
     MineBlock, MineRow, NowBar, NowPage, PackageSetting, PackagesPage, PhoneSinger, PlayerBlock,
     PositionBlock, QueueBlock, QueueCount, QueuePage, RestoreDonePage, RestorePage, RowsBlock,
     SetupPage, ShareConfirmPage, ShareDonePage, SharePage, ShareReceivePage, ShareSendPage, Sheet,
-    SongActions, SongLine, Star, StepHead, Toast,
+    SingerName, SongActions, SongLine, Star, StepHead, Toast, WaitingBlock,
 };
 use crate::{Remote, backup, share, sse};
 
@@ -423,13 +423,22 @@ pub async fn browse(
         None => PAGE,
     };
 
-    let block = match browse_block(&state, &params, &prefs, span, anchor.map(|a| a.row), &tag).await
-    {
-        Ok(block) => block,
-        Err(error) => return failure(&error, locale),
-    };
+    let mut block =
+        match browse_block(&state, &params, &prefs, span, anchor.map(|a| a.row), &tag).await {
+            Ok(block) => block,
+            Err(error) => return failure(&error, locale),
+        };
 
-    let mut response = match wanted_fragment(&params, &headers) {
+    let fragment = wanted_fragment(&params, &headers);
+    // The choice between singers is in the block, so it comes with every drawing of the whole
+    // block and with none of the list alone.
+    let mut seats_changed = None;
+    if matches!(fragment, None | Some("browse")) {
+        let (seats, known, changed) = known_seats(&state, &prefs).await;
+        block.singers = phone_singers(&seats, &known, locale);
+        seats_changed = changed.then_some(seats);
+    }
+    let mut response = match fragment {
         Some("browse") => views::page(&block, locale),
         Some("list") => views::page(&block.list, locale),
         Some("rows") => views::page(&block.list.rows, locale),
@@ -444,6 +453,9 @@ pub async fn browse(
             )
         }
     };
+    if let Some(seats) = seats_changed {
+        prefs::attach(response.headers_mut(), seats.cookie());
+    }
 
     // Remember where this left somebody. Cleared rather than stored when everything is back at its
     // defaults, so a phone that has been reset stops sending a cookie saying "normal".
@@ -729,6 +741,7 @@ async fn browse_block(
             rows,
             not_here: unplaced,
         },
+        singers: Vec::new(),
     })
 }
 
@@ -1172,7 +1185,10 @@ pub async fn setup(State(state): State<Remote>, headers: HeaderMap) -> Response 
     let mut response = views::page(
         &SetupPage {
             chrome,
-            singing_as,
+            singer_name: SingerName {
+                singing_as,
+                oob: false,
+            },
             singers,
             machine,
             packages_tab,
@@ -1302,12 +1318,14 @@ pub async fn queue_page(State(state): State<Remote>, headers: HeaderMap) -> Resp
     let queue = queue_block(&state, view.remaining_ms(), locale).await;
     let nowbar = NowBar::of(view);
     let (mine, kept) = mine_block(&state, &prefs).await;
+    let waiting = waiting_block(&state, locale).await;
     let mut response = views::page(
         &QueuePage {
             chrome,
             nowbar,
             mine,
             queue,
+            waiting,
         },
         locale,
     );
@@ -1513,9 +1531,24 @@ async fn mine_block(state: &Remote, prefs: &Prefs) -> (MineBlock, Option<PhoneSe
         .map(|list| list.requests)
         .unwrap_or_default();
     let locale = prefs.locale;
+    // A song that started stays in the list while it plays and leaves it when it ends, so a long
+    // night does not fill the list with songs already sung.
+    let playing = match player_view(state)
+        .await
+        .state
+        .now_playing
+        .map(|now| now.origin)
+    {
+        Some(km_api::dto::OriginDto::Catalog { entry_id, .. }) => Some(entry_id),
+        _ => None,
+    };
     let rows = requests
         .iter()
         .filter(|request| seats.get(request.singer).is_some())
+        .filter(|request| {
+            request.state != km_api::dto::RequestStateDto::Played
+                || (playing.is_some() && request.entry_id == playing)
+        })
         .map(|request| MineRow {
             id: request.id,
             title: request.title.clone(),
@@ -1524,7 +1557,13 @@ async fn mine_block(state: &Remote, prefs: &Prefs) -> (MineBlock, Option<PhoneSe
                 .find(|singer| singer.id == request.singer)
                 .map(|singer| views::singer_label(singer, locale))
                 .unwrap_or_default(),
-            state: views::request_state(request, locale),
+            state: if request.state == km_api::dto::RequestStateDto::Played {
+                crate::words::messages(locale)
+                    .msg("request-playing")
+                    .into_owned()
+            } else {
+                views::request_state(request, locale)
+            },
             open: matches!(
                 request.state,
                 km_api::dto::RequestStateDto::Waiting | km_api::dto::RequestStateDto::Queued
@@ -1653,7 +1692,12 @@ pub async fn set_singer(State(state): State<Remote>, headers: HeaderMap, body: S
                 crate::words::messages(locale)
                     .msg_with("singer-set", &[("name", name.as_str().into())]),
             );
-            let mut response = views::toast_only(toast, locale);
+            // The name block comes back with the box folded away, now that there is a name.
+            let block = SingerName {
+                singing_as: name.clone(),
+                oob: true,
+            };
+            let mut response = views::oob_with_toast(&block, toast, locale);
             prefs::attach(
                 response.headers_mut(),
                 prefs::set_pref(prefs::SINGER, &name),
@@ -2317,8 +2361,23 @@ async fn host_lists(state: &Remote, locale: Locale) -> HostLists {
                 id: request.id,
                 title: request.title.clone(),
                 singer: label(request.singer),
+                singer_id: request.singer,
             })
             .collect(),
+    }
+}
+
+/// `GET /waiting` — the songs that wait for their singer's turn, which the Queue tab asks for again
+/// when the requests change. Every phone reads it, as every phone reads the queue.
+pub async fn waiting(State(state): State<Remote>, headers: HeaderMap) -> Response {
+    let locale = prefs::locale(&headers);
+    views::page(&waiting_block(&state, locale).await, locale)
+}
+
+/// The songs that wait, as the Queue tab lists them below the queue.
+async fn waiting_block(state: &Remote, locale: Locale) -> WaitingBlock {
+    WaitingBlock {
+        rows: host_lists(state, locale).await.waiting,
     }
 }
 
@@ -2334,24 +2393,57 @@ async fn host_answer(state: &Remote, locale: Locale, result: Result<(), RemoteEr
 /// `GET /host` — the tab a host runs the night from.
 ///
 /// A phone below the control level is sent to the Setup tab, where the code box is.
-pub async fn host(State(state): State<Remote>, headers: HeaderMap) -> Response {
+pub async fn host(
+    State(state): State<Remote>,
+    Query(sent): Query<HostSent>,
+    headers: HeaderMap,
+) -> Response {
     let prefs = Prefs::read(&headers);
     let locale = prefs.locale;
     if permit(&state, &prefs, Access::Control).await.is_err() {
         return Redirect::to("/setup").into_response();
     }
     let chrome = chrome(&state, "host", &prefs).await;
-    let remaining_ms = player_view(&state).await.remaining_ms();
-    let queue = queue_block(&state, remaining_ms, locale).await;
+    let view = player_view(&state).await;
+    let queue = queue_block(&state, view.remaining_ms(), locale).await;
+    let nowbar = NowBar::of(view);
     let lists = host_lists(&state, locale).await;
+    // A song sent from the Songs tab is looked up by its number, so the box holds that song and no
+    // other with a similar title. A number that finds nothing opens the tab as usual.
+    let sent = match sent.song {
+        Some(code) => state
+            .songs
+            .song(code)
+            .await
+            .ok()
+            .flatten()
+            .map(|song| views::SentSong {
+                title: song.title.clone(),
+                found: HostSongs {
+                    songs: vec![song],
+                    asked: true,
+                },
+            }),
+        None => None,
+    };
     views::page(
         &HostPage {
             chrome,
+            nowbar,
             lists,
             queue,
+            sent,
         },
         locale,
     )
+}
+
+/// `GET /host?song=<number>` — the song the Songs tab sent to the host's add form.
+#[derive(Debug, Default, Deserialize)]
+pub struct HostSent {
+    /// The song's number.
+    #[serde(default)]
+    pub song: Option<SongCode>,
 }
 
 /// `GET /host/lists` — the singers and the waiting requests, which the page asks for again when

@@ -96,6 +96,26 @@ Entries are written for somebody who has the machine. Why any of it is the way i
   singer, which takes no turn, and changes key and tempo.
 - **`POST /api/v1/queue` takes no `singer`.** It adds a song with no singer, and it refuses a body
   that names one. A program that queued a named song asks through `POST /api/v1/requests`.
+- **The Queue tab sets a phone's own songs apart from the queue.** *The whole queue* heads the list
+  below them, under a heavier line. A song shows *Playing now* while it plays, and leaves the
+  phone's list when it ends. Below the queue, a folded list shows every song that waits for its
+  singer's turn.
+- **The host's tab shows the song that plays, with its controls always open.** Stop, skip, restart
+  and pause are at the top. Each singer takes one short line, and the actions open from the ⋯.
+  The name box offers the singers who are here, and tapping a singer's name fills it. Below the
+  controls, one tab holds the queue and the waiting songs, and the other holds the singers. A
+  host's Songs tab has a 👤 on each song, which opens that tab with the song ready to add.
+- **A saved name folds its box away on the Setup tab.** The tab shows the name, and **Change**
+  opens the box again. The code box folds the same way: the tab shows what the phone can do, and
+  **Enter a code** opens the box. *Set this machine up* shows only to a phone with the code to
+  skip.
+- **A phone with several singers chooses who is singing on the Songs tab.** The choice stands above
+  the list, so the + on a song is for the singer shown there.
+- **Each singer's name has a colour of its own.** It is the same colour in the queue, among the
+  waiting songs and in the list of singers, so a singer's songs stand out.
+- **The queue on the machine's screen gives the title more room.** A row shows the place, the
+  title and the artist, and no song number. The singer's name takes only the room it needs. The
+  *next:* line names the singer in the same blue.
 
 ### Fixed
 

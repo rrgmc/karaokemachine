@@ -54,26 +54,9 @@
    group that is on both remotes, which is why the rule above it is drawn by the group before it
    rather than by this one. #}
 <div class="setup-group">
-  <form class="pref-row field-row" hx-post="/singer">
-    <label for="singer">{{ "singing-as"|t }}</label>
-    <input type="text" id="singer" name="singer" value="{{ singing_as }}"
-           placeholder="{{ "singer-placeholder"|t }}" autocomplete="given-name" enterkeyhint="done"
-           aria-label="{{ "singer-name"|t }}">
-    <button class="icon-btn">{{ "machine-save"|t }}</button>
-  </form>
+  {{ singer_name|safe }}
 
-  {# The choice between singers, which a phone with one singer never sees. #}
-  {% if singers.len() > 1 %}
-  <form class="pref-row field-row" hx-post="/singer/choose">
-    <label for="singer-choose">{{ "singer-choose"|t }}</label>
-    <select id="singer-choose" name="singer" onchange="this.form.requestSubmit()"
-            aria-label="{{ "singer-choose"|t }}">
-      {% for singer in singers %}
-      <option value="{{ singer.id }}"{% if singer.current %} selected{% endif %}>{{ singer.label }}</option>
-      {% endfor %}
-    </select>
-  </form>
-  {% endif %}
+  {% include "_singer_choose.html" %}
 
   {# Another singer on this phone: smaller than the box above and folded away, because one phone
      with one singer is the usual case. Offered once the phone holds a singer. #}
@@ -88,14 +71,23 @@
   </details>
   {% endif %}
 
-  {# What this phone may do, and the box that raises it. A code is typed once and kept in an
-     `HttpOnly` cookie, so it is never drawn back into this page. #}
-  <form class="pref-row field-row" hx-post="/access">
-    <label for="access-code">{{ "access-level"|t }} <b>{{ chrome.access_key()|t }}</b></label>
-    <input type="password" id="access-code" name="code" autocomplete="off" enterkeyhint="done"
-           placeholder="{{ "access-code-placeholder"|t }}" aria-label="{{ "access-code"|t }}">
-    <button class="icon-btn">{{ "access-code-use"|t }}</button>
-  </form>
+  {# What this phone may do, and the box that raises it, folded behind a button. A code is typed
+     once and kept in an `HttpOnly` cookie, so it is never drawn back into this page. A code that
+     works reloads the page, which folds the box again; a wrong one leaves it open. #}
+  <div class="access-block">
+    <input type="checkbox" id="access-edit" class="visually-hidden" autocomplete="off"
+           aria-label="{{ "access-code-open"|t }}">
+    <div class="pref-row field-row access-shown">
+      <span class="access-current">{{ "access-level"|t }} <b>{{ chrome.access_key()|t }}</b></span>
+      <label for="access-edit" class="icon-btn">{{ "access-code-open"|t }}</label>
+    </div>
+    <form class="pref-row field-row access-form" hx-post="/access">
+      <label for="access-code">{{ "access-level"|t }} <b>{{ chrome.access_key()|t }}</b></label>
+      <input type="password" id="access-code" name="code" autocomplete="off" enterkeyhint="done"
+             placeholder="{{ "access-code-placeholder"|t }}" aria-label="{{ "access-code"|t }}">
+      <button class="icon-btn">{{ "access-code-use"|t }}</button>
+    </form>
+  </div>
 
   <form class="pref-row field-row" hx-post="/locale">
     <label for="locale">{{ "language-picker"|t }}</label>
@@ -128,12 +120,13 @@
    tab. Online only: `/admin/` is a page the machine serves, so this is same-origin here and points
    at nothing in the offline app.
 
-   **A link, not a control.** A guest's tap reaches a password prompt, which is what keeps the
-   singer's remote the singer's — being unlinked was never the protection. Until this existed
-   nothing anywhere pointed at that page: the television's QR code goes to `/`, and an owner had to
-   know to type the path. #}
+   **A link, not a control.** A tap reaches a password prompt, which is what protects the page.
+   The television's QR code goes to `/`, so this row is how an owner finds the page at all.
+
+   **Shown from the control level up**, by `needs-control`. A guest has no use for the owner's
+   page, and a row offering it reads as an invitation to try. #}
 {% if chrome.capabilities.owner_page %}
-<div class="setup-group">
+<div class="setup-group needs-control">
 {# **A pencil and deliberately not a gear.** The gear is this tab's own mark in the bar, and
    `The gear is this tab's` refuses one mark meaning two things in one application — a gear inside
    the gear tab is exactly that. What this row does is change the machine, so a pencil says it and

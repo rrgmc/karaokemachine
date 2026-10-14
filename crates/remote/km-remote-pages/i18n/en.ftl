@@ -105,6 +105,7 @@ youtube-link = Find on YouTube
 song-queue = Add to queue
 song-plain = Add with no singer
 song-play-now = Play now
+song-for-singer = Add for a singer on the host's tab
 song-play-next = Play next
 song-favorite = Add to favorites
 song-favorited = In a favorites folder
@@ -124,6 +125,7 @@ queue-empty-hint = No song queued. Tap
 queue-wait-minutes = ~{ $minutes } min
 queue-wait-soon = < 1 min
 singing-as = Singing as
+singer-change = Change
 singer-name = Name your songs are queued under
 singer-placeholder = your name
 access-level = This phone can:
@@ -135,6 +137,7 @@ access-admin = Everything
 access-code = A code from the owner
 access-code-placeholder = code
 access-code-use = Use
+access-code-open = Enter a code
 access-code-wrong = That code is not right.
 
 ## Now playing
@@ -365,6 +368,7 @@ ask-again-no = Leave it
 tab-host = Host
 host-singer = For
 host-singer-placeholder = the singer's name
+host-pick-singer = Add the next song for this singer
 host-song = Song
 host-song-placeholder = title or artist
 host-add = Add for this singer
@@ -397,11 +401,13 @@ host-reset-confirm = Empty everything
 ## The songs this phone asked for
 
 mine-heading = Your songs
+mine-queue-heading = The whole queue
 mine-withdraw = Take this song back
 request-waiting = Waiting for your turn
 request-queued = In the queue, place { $place }
 request-accepted = In the queue
 request-played = Started
+request-playing = Playing now
 request-declined = Taken out of the queue
 request-withdrawn = Taken back
 package-flag-uncurated = uncurated

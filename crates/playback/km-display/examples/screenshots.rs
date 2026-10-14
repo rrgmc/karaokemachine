@@ -198,7 +198,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         connect: None,
         catalog: None,
         number_entry: &empty_entry,
-        next_up: Some("1036  Superstition"),
+        next_up: Some("Superstition".into()),
         // The published pictures show a party, not an empty room: this song was queued by somebody
         // and the queue behind it is theirs. A demo label here would be a caption on a state the
         // rest of the picture contradicts.

@@ -1058,6 +1058,11 @@ tap reaches the login page, and every route behind it demands the token, linked 
 person it is for.** The singer's remote stays the singer's, because nothing on it *does* anything an
 owner does.
 
+**Only a phone at the control level sees the link.** A guest has no use for the owner's page, and a
+row offering it reads as an invitation to try the password. The owner and a host hold the control
+code or more, so both still find it. The stylesheet hides it, as it hides every control above a
+phone's level.
+
 **Last on the tab, and that placement is the decision.** Setup's groups run machine, then this
 device's preferences, then the rarest thing. For most people holding this phone, the owner's page is
 the rarest thing on it. Leading with it would give the tab's most prominent place to the one row

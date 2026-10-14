@@ -96,10 +96,28 @@ pub struct SongInfo {
     pub language: Option<String>,
 }
 
+/// The song queued next, as the `next:` row names it.
+///
+/// **The singer apart from the song**, so the row draws the singer's name in the accent colour, the
+/// one the queue overlay names singers in. A singer looks along that row for their own name.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct NextUp<'a> {
+    /// The song: its title, and its artist where there is one.
+    pub song: &'a str,
+    /// Who asked for it, if anybody did.
+    pub singer: Option<&'a str>,
+}
+
+impl<'a> From<&'a str> for NextUp<'a> {
+    /// A song with no singer.
+    fn from(song: &'a str) -> Self {
+        Self { song, singer: None }
+    }
+}
+
 /// The card that names a song before it starts.
 ///
-/// **Structured, where [`Frame::next_up`] is one joined string.** That row is a single small line
-/// and ellipsizes as one. The card gives each fact a row and a face of its own, so the singer's name
+/// **Structured, where [`Frame::next_up`] is one small line.** That row ellipsizes as one. The card gives each fact a row and a face of its own, so the singer's name
 /// is never what a long title pushes off the end.
 ///
 /// The caller owns the clock, as it does for a [`Flash`]. How long the card stays and whether the
@@ -301,7 +319,7 @@ pub struct Frame<'a> {
     /// The song-number keypad.
     pub number_entry: &'a NumberEntry,
     /// What is queued next, if anything.
-    pub next_up: Option<&'a str>,
+    pub next_up: Option<NextUp<'a>>,
     /// Why music is playing when nobody asked for it, when that is the case.
     ///
     /// Resolved by the caller into a finished sentence, the same seam [`Self::soundfont_label`]
@@ -1620,18 +1638,32 @@ fn draw_queue_overlay<T: RenderTarget, C>(
     let wait_w = (wait_chars + QUEUE_COLUMN_GAP_CHARS) as f32 * small_px * 0.5;
     let singer_x = right_x - wait_w;
 
-    // Characters that fit in the left column, from the point size — the same estimate the connect
-    // panel uses. The singer's name takes what the title and the wait leave, less a gap.
+    // Characters that fit, from the point size — the same estimate the connect panel uses. The
+    // singer column is as wide as the longest name on show, up to a cap, and the title takes the
+    // rest. A short name therefore leaves the title most of the row.
     let inner_w = panel_w - pad * 2.0;
     let text_px = f32::from(theme.text_px(layout.h as u32));
-    let left_chars = ((inner_w * QUEUE_TITLE_SHARE) / (text_px * 0.5)).max(12.0) as usize;
-    let singer_chars = fit_chars(inner_w * (1.0 - QUEUE_TITLE_SHARE) - wait_w, small_px)
-        .saturating_sub(QUEUE_COLUMN_GAP_CHARS);
+    let longest_singer = queue
+        .iter()
+        .take(shown)
+        .filter_map(|entry| entry.singer.as_deref())
+        .map(|singer| singer.width())
+        .max()
+        .unwrap_or(0);
+    let singer_chars = longest_singer.min(fit_chars(inner_w * QUEUE_SINGER_SHARE, small_px));
+    let singer_w = if singer_chars == 0 {
+        0.0
+    } else {
+        (singer_chars + QUEUE_COLUMN_GAP_CHARS) as f32 * small_px * 0.5
+    };
+    let left_chars = ((inner_w - wait_w - singer_w) / (text_px * 0.5)).max(12.0) as usize;
 
     for (index, (entry, wait)) in queue.iter().zip(&waits).enumerate() {
         let row_y = first_row + row_h * index as f32;
 
-        let mut left = format!("{}.  {}  {}", index + 1, entry.number, entry.title);
+        // The place and no song number. A singer looks for their turn, and a song number only
+        // queues a song.
+        let mut left = format!("{}.  {}", index + 1, entry.title);
         if let Some(artist) = &entry.artist {
             left.push_str(" — ");
             left.push_str(artist);
@@ -1700,10 +1732,10 @@ fn queue_count(words: &km_locale::Catalog, queued: usize, requests_waiting: usiz
     format!("{queued}  ·  {behind}")
 }
 
-/// The share of the queue overlay's width that a row's number, title and artist take.
+/// The most of the queue overlay's width that the singer's name may take.
 ///
-/// The singer's name and the wait share the rest.
-const QUEUE_TITLE_SHARE: f32 = 0.56;
+/// The title and artist take whatever the singer and the wait leave.
+const QUEUE_SINGER_SHARE: f32 = 0.3;
 
 /// The gap between two columns of the queue overlay, in characters of the small face.
 const QUEUE_COLUMN_GAP_CHARS: usize = 2;
@@ -2956,6 +2988,9 @@ fn draw_playing<T: RenderTarget, C>(
     // measured against nothing, a long one overhangs the right margin and SDL clips it. The room is
     // the whole row, except while the developer marker is right-aligned across the band from it —
     // see `NEXT_UP_MARKED_WIDTH`, which is everything that marker leaves.
+    //
+    // The singer's name follows the song in the accent colour, as the queue overlay draws it. The
+    // song gives way first, so a long title never pushes the name off the row.
     if let Some(next) = frame.next_up {
         let width = (layout.w - layout.margin * 2.0)
             * if frame.developer_mode.is_some() {
@@ -2963,19 +2998,33 @@ fn draw_playing<T: RenderTarget, C>(
             } else {
                 1.0
             };
-        draw_text(
+        let room = fit_chars(width, small_px);
+        let singer = next.singer.map(|singer| format!("  {singer}"));
+        let singer_chars = singer
+            .as_deref()
+            .map_or(0, |singer| singer.width().min(room / 2));
+        let song = frame
+            .words()
+            .msg_with(crate::words::NEXT_UP, &[("title", next.song.into())]);
+        let row_y = layout.h * NEXT_UP_TOP;
+        let drawn = draw_text(
             canvas,
             cache,
             &fonts.small,
-            &ellipsize(
-                &frame
-                    .words()
-                    .msg_with(crate::words::NEXT_UP, &[("title", next.into())]),
-                fit_chars(width, small_px),
-            ),
-            (layout.margin, layout.h * NEXT_UP_TOP),
+            &ellipsize(&song, room.saturating_sub(singer_chars).max(8)),
+            (layout.margin, row_y),
             &left(theme.text_dim),
         );
+        if let Some(singer) = singer {
+            draw_text(
+                canvas,
+                cache,
+                &fonts.small,
+                &ellipsize(&singer, singer_chars),
+                (layout.margin + drawn, row_y),
+                &left(theme.accent),
+            );
+        }
     }
 
     // --- key, tempo and melody indicators, top right ---

@@ -49,6 +49,14 @@ impl QueueEntry {
         }
         label
     }
+
+    /// The title and the artist, with no number and no singer: the song as a singer reads it.
+    pub fn song_label(&self) -> String {
+        match &self.artist {
+            Some(artist) => format!("{} — {artist}", self.title),
+            None => self.title.clone(),
+        }
+    }
 }
 
 /// What a song should be queued as.
@@ -447,6 +455,10 @@ mod tests {
             seat: None,
         };
         assert_eq!(bare.label(), "1  Just A Title");
+
+        // The song alone: no number and no singer, which the `next:` row draws apart.
+        assert_eq!(entry.song_label(), "Exagerado — Cazuza");
+        assert_eq!(bare.song_label(), "Just A Title");
     }
 
     #[test]

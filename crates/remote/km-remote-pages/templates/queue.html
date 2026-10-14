@@ -23,4 +23,8 @@
 
 {{ queue|safe }}
 
+{# The songs that wait for a turn, folded by default: the queue is what a guest came to read. #}
+<input type="checkbox" id="waiting-open" class="visually-hidden" autocomplete="off">
+{{ waiting|safe }}
+
 {% endblock %}

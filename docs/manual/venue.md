@@ -38,7 +38,9 @@ owner, because a host changes no setting.
 2. **Type a name** in **Singing as** on the Setup tab.
 3. **Tap + on a song.** Ask for as many as the machine allows.
 4. **Read the Queue tab.** *Your songs* says of each song whether it waits, is in the queue, or
-   started. A song in the queue shows about how long until it starts.
+   plays now. A song leaves the list when it ends. A song in the queue shows about how long until
+   it starts. Below the queue, **Waiting for a turn** lists every singer's waiting songs. Tap it
+   to open the list.
 
 **The machine keeps one song for each singer in the queue.** A second song waits until the first
 one starts, and then it goes to the end of the queue. So a table that asks for five songs sings one,
@@ -52,20 +54,27 @@ key, the tempo or the volume, and it cannot skip.
 **The machine names each singer before the song.** For five seconds the whole screen shows the
 title and the singer's name.
 
+**While a song plays, the line under its title names the next song and its singer.** The singer's
+name is blue, so the next singer finds it from across the room.
+
 **The queue on the machine's screen shows a wait beside each song.** Press `Q` or `F6` on the
 machine to show it, and the room sees who is near. Its top line also counts the songs that wait for
 a turn. See [The keyboard](keyboard.md).
 
 ## What the host does
 
-**The host types the code to skip on the remote's Setup tab.** The remote then shows the host's
-tab, which is the ticked box in the tab bar. A tablet or a laptop shows the queue, the waiting songs
-and the singers side by side.
+**The host types the code to skip on the remote's Setup tab.** Tap **Enter a code**, type it, and
+tap **Use**. The remote then shows the host's tab, which is the ticked box in the tab bar. The
+controls stand at the top, and two tabs below them hold the queue and the singers.
 
 **The host corrects, and the machine does the rest.** The host adds a song for a guest with no
 phone, puts a waiting song in early, and refuses one. The host also moves a singer to another
 phone, joins two names that are one person, and removes a singer who went home.
 [The remotes](remotes.md#the-remote-the-machine-serves) lists each action and its button.
+
+**Each singer's name has a colour of its own on every phone.** The host finds one singer's songs in
+the queue at a glance. On the Songs tab, **👤** on a song takes it to the host's tab, ready to add
+for a singer.
 
 **The night runs with nobody at the desk.** A host who steps away loses only those corrections,
 and the singers still take turns.

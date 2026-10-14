@@ -1,6 +1,11 @@
 <div class="song-actions" id="song-{{ number }}">
   <button class="icon-btn primary needs-request" title="{{ "song-queue"|t }}" aria-label="{{ "song-queue"|t }}"
           hx-post="/song/{{ number }}/queue" hx-target="#song-{{ number }}" hx-swap="afterbegin">+</button>
+  {# A host adds a song for somebody else on the host's tab. This opens it with the song ready, so
+     the host picks the singer and presses + there. Out of the fold, because a host does it all
+     night. #}
+  <a class="icon-btn needs-control" href="/host?song={{ number }}"
+     title="{{ "song-for-singer"|t }}" aria-label="{{ "song-for-singer"|t }}">&#128100;</a>
   {# A song with no singer takes no turn, so it is folded away with the two that interrupt. #}
   <button class="icon-btn extra-action needs-queue" title="{{ "song-plain"|t }}" aria-label="{{ "song-plain"|t }}"
           hx-post="/song/{{ number }}/plain" hx-target="#song-{{ number }}" hx-swap="afterbegin">&#8853;</button>

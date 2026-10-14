@@ -467,6 +467,7 @@ mod tests {
         "request-queued",
         "request-accepted",
         "request-played",
+        "request-playing",
         "request-declined",
         "request-withdrawn",
         // Keyed by `km-remote-core`'s stable code — see `how_key`.

@@ -1,10 +1,10 @@
-{# Two parts in one fragment, because one fetch brings both. The fragment itself draws no box, so
-   each part is placed in the host's grid as a column of its own. #}
+{# Four parts in one fragment, because one fetch brings them all. The fragment itself draws no box,
+   so each part is placed in the host's grid, in the tab it belongs to. #}
 <div id="host-lists" hx-get="/host/lists" hx-trigger="km:requests from:body, km:singers from:body" hx-swap="outerHTML">
 
-  <div class="host-waiting">
   {# A machine that kept an evening across a restart starts no song until somebody chooses. Both
-     choices are here, at the top, because the host of another day wants the old list gone first. #}
+     choices stand above either tab, because the host of another day wants the old list gone
+     first. #}
   {% if kept %}
   <div class="setup-group host-kept">
     <p class="closed">{{ "host-kept"|t }}</p>
@@ -14,8 +14,9 @@
     </div>
   </div>
   {% endif %}
+
   {# Whether a phone may ask. What already waits still goes into the queue, and this tab still adds. #}
-  <div class="pref-row field-row">
+  <div class="pref-row field-row host-accepting">
     {% if accepting %}
     <span>{{ "host-accepting-on"|t }}</span>
     <button class="icon-btn" hx-post="/host/accepting/off" hx-target="#host-lists" hx-swap="outerHTML">{{ "host-accepting-stop"|t }}</button>
@@ -25,6 +26,7 @@
     {% endif %}
   </div>
 
+  <div class="host-waiting">
   <h2 class="list-head">{{ "host-waiting"|t }}</h2>
   {% if waiting.is_empty() %}
   <p class="empty">{{ "host-waiting-none"|t }}</p>
@@ -34,7 +36,7 @@
     <li class="queue-row">
       <div class="queue-body">
         <div class="song-name">{{ request.title }}</div>
-        <div class="song-sub">{{ request.singer }}</div>
+        <div class="song-sub"><span class="row-singer {{ crate::views::singer_colour(request.singer_id) }}">{{ request.singer }}</span></div>
       </div>
       <div class="song-actions">
         <button class="icon-btn" title="{{ "host-accept-next"|t }}" aria-label="{{ "host-accept-next"|t }}"
@@ -52,19 +54,31 @@
   </div>
 
   <div class="host-singers">
+  {# The name box above offers these, so a host picks a singer who is here rather than typing the
+     name again. It sits in this fragment, so the choice follows the singers as they change. #}
+  <datalist id="host-singer-names">
+    {% for singer in singers %}{% if singer.named %}<option value="{{ singer.label }}"></option>{% endif %}{% endfor %}
+  </datalist>
   <h2 class="list-head">{{ "host-singers"|t }}</h2>
   {% if singers.is_empty() %}
   <p class="empty">{{ "host-singers-none"|t }}</p>
   {% else %}
   <ul class="song-list">
     {% for singer in singers %}
-    {# The three actions are folded behind the ⋯ on a phone, where a row has no room for them, and
-       shown on the row from a tablet's width up. A checkbox and its label, so the fold needs no
-       script. #}
+    {# The three actions are folded behind the ⋯ at every width, so a long list of singers stays one
+       line each. A checkbox and its label, so the fold needs no script. #}
     <li class="host-singer">
       <div class="host-singer-head">
         <div class="queue-body">
-          <div class="song-name">{{ singer.label }}</div>
+          {% if singer.named %}
+          {# Tapping the name puts it in the box above and moves on to the song, so the next song
+             the host adds is this singer's. #}
+          <button type="button" class="song-name pick-singer {{ crate::views::singer_colour(singer.id) }}" title="{{ "host-pick-singer"|t }}"
+                  data-name="{{ singer.label }}"
+                  onclick="document.getElementById('host-singer').value = this.dataset.name; document.getElementById('host-song').focus()">{{ singer.label }}</button>
+          {% else %}
+          <div class="song-name {{ crate::views::singer_colour(singer.id) }}">{{ singer.label }}</div>
+          {% endif %}
           <div class="song-sub">{% if !singer.phone %}{{ "host-no-phone"|t }} &middot; {% endif %}{{ singer.counts }}</div>
         </div>
         <label for="host-singer-{{ singer.id }}" class="icon-btn actions-toggle"

@@ -383,6 +383,11 @@ input[type="search"], input[type="text"], select {
  * otherwise be its flex basis, exactly as `.filter-row select` does below. */
 .pref-row select { flex: 1; width: auto; min-width: 6rem; }
 
+/* Above the song list the choice between singers takes the filter row's size, so it reads as part
+ * of the list's controls and not as a setting. */
+#browse .singer-choose { margin: 0.2rem 0 0.4rem; }
+#browse .singer-choose select { flex: 0 1 auto; min-width: 8.5rem; padding: 0.3rem 0.4rem; font-size: 0.85rem; }
+
 /* The filter row: the language picker, the A–Z picker and the ⋯ toggle, with no heading over them.
  * It wraps, because three controls plus a long language name does not fit one line on the narrowest
  * phone worth supporting and a horizontal scroller inside a vertical one is a gesture fight — which
@@ -787,6 +792,9 @@ label.icon-btn { display: inline-flex; align-items: center; justify-content: cen
 #nowbar-controls:not(:checked) ~ #nowbar .controls-toggle .when-open,
 #nowbar-controls:checked ~ #nowbar .controls-toggle .when-closed { display: none; }
 
+/* The host's tab keeps the transport open, so it has no fold to offer. */
+.host-now .controls-toggle { display: none; }
+
 /* Off screen but still in the accessibility tree and still focusable — which `display: none` is not,
  * and this element is a real control that a keyboard has to be able to reach. */
 .visually-hidden {
@@ -1004,53 +1012,117 @@ label.icon-btn { display: inline-flex; align-items: center; justify-content: cen
   white-space: normal;
 }
 
-/* The host's tab. Five parts, placed by name: the add form, the waiting requests, the singers, the
- * fold that starts a new evening, and the queue.
+/* The host's tab. The bar with the transport stands above two tabs, and each tab shows its own
+ * parts, placed by name.
  *
- * One column on a phone, in the order a host works: add, then what waits, then who is here. The
- * queue comes last there, because the Queue tab is one press away. */
+ * - **Queue**: the queue, and the requests that wait for a turn beside it.
+ * - **Singers**: the add form, the singers, the switch that closes requests, and the fold that
+ *   starts a new evening.
+ *
+ * A kept evening stands above either tab, because nothing plays until the host answers it. */
+.host-tabs {
+  display: flex;
+  gap: 0.4rem;
+  margin: 0.4rem 0 0.8rem;
+  border-bottom: 1px solid var(--line);
+}
+.host-tabs label {
+  padding: 0.5rem 1rem;
+  border-bottom: 3px solid transparent;
+  color: var(--text-dim);
+  font-weight: 600;
+  cursor: pointer;
+  user-select: none;
+}
+#host-tab-queue:checked ~ .host-tabs label[for="host-tab-queue"],
+#host-tab-singers:checked ~ .host-tabs label[for="host-tab-singers"] {
+  color: var(--text);
+  border-bottom-color: var(--amber);
+}
+#host-tab-queue:focus-visible ~ .host-tabs label[for="host-tab-queue"],
+#host-tab-singers:focus-visible ~ .host-tabs label[for="host-tab-singers"] {
+  outline: 2px solid var(--amber);
+  outline-offset: 2px;
+}
+
 .host {
   display: grid;
   gap: 0.6rem 1.25rem;
-  grid-template-areas: "add" "waiting" "singers" "reset" "queue";
+  align-items: start;
 }
 .host > *, .host-waiting, .host-singers { min-width: 0; }
-.host-add { grid-area: add; }
-.host-waiting { grid-area: waiting; }
-.host-singers { grid-area: singers; }
-.host-reset { grid-area: reset; }
+.host-kept { grid-area: kept; }
 .host-queue { grid-area: queue; }
-/* The fetched fragment draws no box of its own, so its two parts sit in the grid as two columns can
- * need them to. It stays in the document, which is all a swap target has to do. */
+.host-waiting { grid-area: waiting; }
+.host-add { grid-area: add; }
+.host-singers { grid-area: singers; }
+.host-accepting { grid-area: accepting; }
+.host-reset { grid-area: reset; }
+/* The fetched fragment draws no box of its own, so its parts sit in the grid wherever their tab
+ * places them. It stays in the document, which is all a swap target has to do. */
 #host-lists { display: contents; }
 
-/* A tablet held upright: the queue stands beside everything else, because a host reads the
- * requests against it. */
+/* One column on a phone: the queue first, then what waits. */
+#host-tab-queue:checked ~ .host { grid-template-areas: "kept" "queue" "waiting"; }
+#host-tab-queue:checked ~ .host :is(.host-add, .host-singers, .host-accepting, .host-reset) {
+  display: none;
+}
+/* The add form first, because adding a song is what a host does all night. */
+#host-tab-singers:checked ~ .host { grid-template-areas: "kept" "add" "singers" "accepting" "reset"; }
+#host-tab-singers:checked ~ .host :is(.host-queue, .host-waiting) { display: none; }
+
+/* From a tablet's width, each tab takes two columns. The requests stand beside the queue, because a
+ * host reads one against the other. The singers stand beside the add form. */
 @media (min-width: 48rem) {
-  .host {
+  .host { grid-template-columns: 3fr 2fr; }
+  #host-tab-queue:checked ~ .host {
+    grid-template-areas: "kept kept" "queue waiting";
+  }
+  #host-tab-singers:checked ~ .host {
     grid-template-columns: 1fr 1fr;
-    grid-template-areas: "add queue" "waiting queue" "singers queue" "reset queue";
+    grid-template-areas: "kept kept" "add singers" "accepting singers" "reset singers";
     grid-template-rows: auto auto auto 1fr;
-    align-items: start;
   }
 }
 
-/* A large tablet on its side, or a laptop: the singers get a column too, so nothing a host is
- * watching scrolls out of sight. The middle column is the narrow one, because a singer's row is
- * short. The width is where that column still holds a singer's three actions without crowding. */
-@media (min-width: 76rem) {
-  .host {
-    grid-template-columns: 5fr 4fr 5fr;
-    grid-template-areas: "add singers queue" "waiting singers queue" "waiting reset queue";
-    grid-template-rows: auto auto 1fr;
-  }
-}
 
 /* The queue's own toggle belongs to the Queue tab, whose checkbox it is a label for. Here the row
  * buttons are always shown, because correcting the queue is what this tab is for. */
 .host .queue-head { display: none; }
-.host-singer { padding: 0.45rem 0; border-bottom: 1px solid var(--line); }
+/* A night can have dozens of singers, so a singer takes one short line: the name, then the counts
+ * beside it. The actions stay folded behind the ⋯ at every width. */
+.host-singer { padding: 0.15rem 0; border-bottom: 1px solid var(--line); }
 .host-singer-head { display: flex; align-items: center; gap: 0.55rem; }
+.host-singer .queue-body { display: flex; align-items: baseline; gap: 0.5rem; }
+.host-singer .song-name { flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.host-singer .song-sub { white-space: nowrap; }
+
+/* **A singer's name wears one colour everywhere**, chosen by `views::singer_colour` from the
+ * singer's id. A host then finds a singer's songs in the queue at a glance. Eight hues, each at
+ * 4.5:1 or more on white. Amber is left out because it means "this is happening now", and the
+ * accent blue because it means "this can be pressed". */
+.row-singer { font-weight: 600; }
+.singer-c0 { color: #2b4fb8; }
+.singer-c1 { color: #a3337a; }
+.singer-c2 { color: #1d7a52; }
+.singer-c3 { color: #b0451b; }
+.singer-c4 { color: #6b3fb0; }
+.singer-c5 { color: #00788a; }
+.singer-c6 { color: #7a6a00; }
+.singer-c7 { color: #b02a4a; }
+/* A named singer's name is a button that fills the name box, so it reads as a link. */
+.pick-singer {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-weight: 500;
+  text-align: left;
+  text-decoration: underline dotted var(--text-dim);
+  text-underline-offset: 0.2em;
+  cursor: pointer;
+}
 .host-singer-actions {
   display: flex;
   flex-wrap: wrap;
@@ -1090,9 +1162,9 @@ label.icon-btn { display: inline-flex; align-items: center; justify-content: cen
     min-height: 2.75rem;
     font-size: 1.05rem;
   }
-  /* There is room on the row, so a singer's actions need no fold. */
-  .host .host-singer .actions-toggle { display: none; }
-  .host .host-singer input ~ .host-singer-actions { display: flex; }
+  /* A singer's row stays one short line, so its toggle keeps the phone's size. */
+  .host .host-singer .actions-toggle { min-width: 2.1rem; min-height: 2.1rem; padding: 0.1rem 0.4rem; }
+  .host .host-singer .song-name { font-size: 1rem; }
 }
 
 /* A phone's own songs sit above the queue under a small heading, so the two lists read as two. */
@@ -1102,6 +1174,41 @@ label.icon-btn { display: inline-flex; align-items: center; justify-content: cen
   font-size: 0.8rem;
   font-weight: 600;
 }
+
+/* The rule above the whole queue is heavier than the line between two rows, so this phone's own
+ * songs end visibly before everybody's begin. */
+.list-head.mine-end {
+  margin-top: 1.2rem;
+  padding-top: 0.6rem;
+  border-top: 3px solid var(--line);
+}
+
+/* A phone with a name shows it, and the box that changes it stays folded until Change is pressed.
+ * The checkbox sits inside the block a saved name redraws, so a save folds the box again. */
+#singer-edit:not(:checked) ~ .singer-form,
+#singer-edit:checked ~ .singer-shown { display: none; }
+.singer-current { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+#singer-edit:focus-visible ~ .singer-shown label { outline: 2px solid var(--amber); outline-offset: 2px; }
+
+/* The phone's level shows, and the code box stays folded until the button opens it. A code that
+ * works reloads the page, so the box folds again. */
+#access-edit:not(:checked) ~ .access-form,
+#access-edit:checked ~ .access-shown { display: none; }
+.access-current { flex: 1; min-width: 0; }
+#access-edit:focus-visible ~ .access-shown label { outline: 2px solid var(--amber); outline-offset: 2px; }
+
+/* The songs that wait for a turn, under a rule like the one above the queue, and folded until the
+ * heading is pressed. `#waiting-open` sits outside the block a refresh replaces. */
+.waiting-head {
+  margin-top: 1.2rem;
+  padding-top: 0.6rem;
+  border-top: 3px solid var(--line);
+}
+.waiting-head label { cursor: pointer; user-select: none; }
+#waiting-open:not(:checked) ~ #waiting .waiting-list,
+#waiting-open:not(:checked) ~ #waiting .when-open,
+#waiting-open:checked ~ #waiting .when-closed { display: none; }
+#waiting-open:focus-visible ~ #waiting .waiting-head label { outline: 2px solid var(--amber); outline-offset: 2px; }
 
 /* Another singer on this phone is the unusual case, so its control is smaller than the box above
  * it and folded away. */
