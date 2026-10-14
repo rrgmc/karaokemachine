@@ -1,0 +1,20 @@
+<div id="waiting" hx-get="/waiting" hx-trigger="km:requests from:body" hx-swap="outerHTML">
+{% if !rows.is_empty() %}
+{# The heading is the fold's label. The checkbox it names sits outside this block, in
+   `queue.html`, so a refresh does not fold the list away under the guest's eyes. #}
+<h2 class="list-head waiting-head">
+  <label for="waiting-open">{{ "host-waiting"|t }} ({{ rows.len() }})
+    <span class="when-closed">&#9662;</span><span class="when-open">&#9652;</span></label>
+</h2>
+<ul class="song-list waiting-list">
+  {% for request in rows %}
+  <li class="queue-row">
+    <div class="queue-body">
+      <div class="song-name">{{ request.title }}</div>
+      <div class="song-sub"><span class="row-singer {{ crate::views::singer_colour(request.singer_id) }}">{{ request.singer }}</span></div>
+    </div>
+  </li>
+  {% endfor %}
+</ul>
+{% endif %}
+</div>

@@ -98,7 +98,8 @@ Entries are written for somebody who has the machine. Why any of it is the way i
   that names one. A program that queued a named song asks through `POST /api/v1/requests`.
 - **The Queue tab sets a phone's own songs apart from the queue.** *The whole queue* heads the list
   below them, under a heavier line. A song shows *Playing now* while it plays, and leaves the
-  phone's list when it ends.
+  phone's list when it ends. Below the queue, a folded list shows every song that waits for its
+  singer's turn.
 - **The host's tab shows the song that plays, with its controls always open.** Stop, skip, restart
   and pause are at the top. Each singer takes one short line, and the actions open from the ⋯.
   The name box offers the singers who are here, and tapping a singer's name fills it. Below the

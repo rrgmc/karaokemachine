@@ -289,6 +289,11 @@ remote compares the two.
 the queue as more of their own songs. The heading and the heavier rule above it come with the list,
 so a phone that asked for nothing sees the queue as before.
 
+**Below the queue, every phone lists the songs that wait for a turn, folded.** A guest asks how
+long a table's second song will take, and the queue alone does not show it. The list is folded by
+default, because the queue is what a guest came to read. A checkbox outside the fetched block holds
+the fold, so a refresh does not close it.
+
 **That list is fetched and never pushed.** The event stream sends one fragment to every page in a
 language, and this list differs for each phone. So the stream sends a `requests` event with no
 fragment, and the page fetches `/mine` with its own cookie. The page also fetches it when the

@@ -384,6 +384,7 @@ pub fn router(state: Remote) -> Router {
         .route("/singer/add", post(handlers::add_singer))
         .route("/singer/choose", post(handlers::choose_singer))
         .route("/mine", get(handlers::mine))
+        .route("/waiting", get(handlers::waiting))
         .route("/host", get(handlers::host))
         .route("/host/lists", get(handlers::host_lists_fragment))
         .route("/host/songs", get(handlers::host_songs))

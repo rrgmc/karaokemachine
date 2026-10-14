@@ -49,7 +49,7 @@ use crate::views::{
     MineBlock, MineRow, NowBar, NowPage, PackageSetting, PackagesPage, PhoneSinger, PlayerBlock,
     PositionBlock, QueueBlock, QueueCount, QueuePage, RestoreDonePage, RestorePage, RowsBlock,
     SetupPage, ShareConfirmPage, ShareDonePage, SharePage, ShareReceivePage, ShareSendPage, Sheet,
-    SingerName, SongActions, SongLine, Star, StepHead, Toast,
+    SingerName, SongActions, SongLine, Star, StepHead, Toast, WaitingBlock,
 };
 use crate::{Remote, backup, share, sse};
 
@@ -1318,12 +1318,14 @@ pub async fn queue_page(State(state): State<Remote>, headers: HeaderMap) -> Resp
     let queue = queue_block(&state, view.remaining_ms(), locale).await;
     let nowbar = NowBar::of(view);
     let (mine, kept) = mine_block(&state, &prefs).await;
+    let waiting = waiting_block(&state, locale).await;
     let mut response = views::page(
         &QueuePage {
             chrome,
             nowbar,
             mine,
             queue,
+            waiting,
         },
         locale,
     );
@@ -2362,6 +2364,20 @@ async fn host_lists(state: &Remote, locale: Locale) -> HostLists {
                 singer_id: request.singer,
             })
             .collect(),
+    }
+}
+
+/// `GET /waiting` — the songs that wait for their singer's turn, which the Queue tab asks for again
+/// when the requests change. Every phone reads it, as every phone reads the queue.
+pub async fn waiting(State(state): State<Remote>, headers: HeaderMap) -> Response {
+    let locale = prefs::locale(&headers);
+    views::page(&waiting_block(&state, locale).await, locale)
+}
+
+/// The songs that wait, as the Queue tab lists them below the queue.
+async fn waiting_block(state: &Remote, locale: Locale) -> WaitingBlock {
+    WaitingBlock {
+        rows: host_lists(state, locale).await.waiting,
     }
 }
 

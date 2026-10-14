@@ -1231,6 +1231,8 @@ pub struct QueuePage {
     pub mine: MineBlock,
     /// The list.
     pub queue: QueueBlock,
+    /// The songs that wait for their singer's turn, folded below the list.
+    pub waiting: WaitingBlock,
 }
 
 /// `GET /host` — the tab a host runs the night from. Drawn for a phone at the control level.
@@ -1302,6 +1304,18 @@ pub struct HostRequest {
     pub singer: String,
     /// The singer's id, which picks the singer's colour.
     pub singer_id: u64,
+}
+
+/// The songs that wait for their singer's turn, below the queue on the Queue tab.
+///
+/// **Fetched, for [`MineBlock`]'s reason**: a request carries no fragment on the event stream, so
+/// the page asks for this when [`crate::sse::REQUESTS`] arrives. Folded by a checkbox outside the
+/// block, so a refresh keeps it the way the guest left it.
+#[derive(Template)]
+#[template(path = "_waiting.html")]
+pub struct WaitingBlock {
+    /// The songs, in the order they wait.
+    pub rows: Vec<HostRequest>,
 }
 
 /// How many colours a singer's name is drawn in, as `.singer-c0` to `.singer-c7` in `app.css`.

@@ -5940,6 +5940,37 @@ async fn a_phones_list_names_the_song_that_plays_and_drops_the_sung_ones() {
     );
 }
 
+/// Every phone sees the songs that wait for a turn, folded below the queue.
+#[tokio::test]
+async fn the_queue_tab_lists_the_songs_waiting_for_a_turn_folded() {
+    let harness = Harness::online();
+    let ana = Phone::new(&harness);
+    ana.post_form("/singer", "singer=Ana").await;
+    ana.post("/song/1001/queue").await;
+    ana.post("/song/1002/queue").await;
+
+    let guest = Phone::new(&harness);
+    let queue = guest.get("/queue").await;
+    assert!(
+        queue.contains(r#"<input type="checkbox" id="waiting-open" class="visually-hidden" autocomplete="off">"#),
+        "folded by default, from outside the block: {queue}"
+    );
+    let waiting = &queue[queue.find(r#"id="waiting""#).expect("the block")..];
+    assert!(waiting.contains("Waiting for a turn (1)"), "{waiting}");
+    assert!(waiting.contains("Song 1002"), "{waiting}");
+    assert!(
+        !waiting.contains("Song 1001"),
+        "the queued one is not waiting: {waiting}"
+    );
+    assert!(waiting.contains(">Ana</span>"), "{waiting}");
+
+    let fragment = guest.get("/waiting").await;
+    assert!(
+        fragment.contains(r#"hx-trigger="km:requests from:body""#),
+        "{fragment}"
+    );
+}
+
 /// The ▾ opens nothing but the transport, so it hides wherever the transport does.
 #[tokio::test]
 async fn the_now_bar_toggle_needs_the_control_level() {

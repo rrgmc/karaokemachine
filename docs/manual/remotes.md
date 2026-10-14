@@ -52,7 +52,8 @@ queue on the machine's screen shows the same figure.
 **Singers take turns.** Tap **+** on as many songs as you like. The machine keeps one song for each
 singer in the queue, and your next one goes in when yours starts. The Queue tab lists **Your
 songs**, and says of each whether it is waiting, in the queue, or playing now. A song leaves the list when it
-ends. Tap **✕** beside one to take it back.
+ends. Tap **✕** beside one to take it back. Below the queue, **Waiting for a turn** lists every
+singer's waiting songs. Tap it to open the list.
 
 **Your name is optional.** Type it in **Singing as** on the Setup tab, and the queue shows it.
 Once it is saved, the box folds away, and **Change** opens it again. Two

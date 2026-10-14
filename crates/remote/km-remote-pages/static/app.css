@@ -1190,6 +1190,19 @@ label.icon-btn { display: inline-flex; align-items: center; justify-content: cen
 .singer-current { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 #singer-edit:focus-visible ~ .singer-shown label { outline: 2px solid var(--amber); outline-offset: 2px; }
 
+/* The songs that wait for a turn, under a rule like the one above the queue, and folded until the
+ * heading is pressed. `#waiting-open` sits outside the block a refresh replaces. */
+.waiting-head {
+  margin-top: 1.2rem;
+  padding-top: 0.6rem;
+  border-top: 3px solid var(--line);
+}
+.waiting-head label { cursor: pointer; user-select: none; }
+#waiting-open:not(:checked) ~ #waiting .waiting-list,
+#waiting-open:not(:checked) ~ #waiting .when-open,
+#waiting-open:checked ~ #waiting .when-closed { display: none; }
+#waiting-open:focus-visible ~ #waiting .waiting-head label { outline: 2px solid var(--amber); outline-offset: 2px; }
+
 /* Another singer on this phone is the unusual case, so its control is smaller than the box above
  * it and folded away. */
 .pref-more { padding: 0.2rem 0 0.4rem; font-size: 0.85rem; }
