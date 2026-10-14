@@ -345,6 +345,9 @@ pub struct PackageRow {
     /// Worded in [`crate::handlers`] through `flag_label`, so a flag this page has no word for is
     /// left out rather than printed as a code.
     pub flags: Vec<String>,
+    /// For a linked package, which folder its songs are read from, as a sentence. `None` for a
+    /// package that holds its songs.
+    pub reads_from: Option<String>,
 }
 
 /// The songs tab.

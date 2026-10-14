@@ -56,6 +56,15 @@ pub fn listing(manifest: &Manifest, flags: PackageFlags) -> String {
             out,
             "Linked:    holds no song file; the songs play from a folder of them"
         );
+        // The folder is the one thing the recipient has to put in place.
+        match &manifest.linked_root {
+            Some(root) => {
+                let _ = writeln!(out, "Folder:    {root}");
+            }
+            None => {
+                let _ = writeln!(out, "Folder:    the whole folder for linked files");
+            }
+        }
     }
     let _ = writeln!(out);
 
@@ -121,6 +130,7 @@ mod tests {
                 song(2, "Wave", Some("Tom Jobim"), Some("pt"), 195_400),
                 song(1, "Corcovado", None, None, 3_723_000),
             ],
+            linked_root: None,
         }
     }
 
@@ -201,6 +211,12 @@ mod tests {
         assert!(!listing(&manifest(), PackageFlags::NONE).contains("Linked"));
         let text = listing(&manifest(), PackageFlags::LINKED);
         assert!(text.contains("Linked: "), "{text}");
+        assert!(text.contains("the whole folder"), "{text}");
+
+        let mut own = manifest();
+        own.linked_root = Some("cdg/Rigmar".to_owned());
+        let text = listing(&own, PackageFlags::LINKED);
+        assert!(text.contains("Folder:    cdg/Rigmar"), "{text}");
     }
 
     /// The rule the archive is held to, pointed at the file beside it.

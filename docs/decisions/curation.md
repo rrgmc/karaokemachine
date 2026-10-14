@@ -1543,7 +1543,12 @@ starts unticked in each, because a package that holds its songs plays on any mac
 
 **The folder the tool reads is the folder the paths are below.** In `km-package-builder` that is the
 corpus root, and in `km-package-simple` it is the folder somebody chose. The machine's owner sets
-that folder, or a copy of it, as the folder for linked packages.
+that folder, or a copy of it, as the folder for linked packages. The package keeps the deepest
+folder its songs share as
+[its own](packaging.md#a-linked-package-reads-from-one-folder-of-its-own).
+
+**The Build tab names that folder before the build**, beside the linked box. A package whose songs
+share no folder is one that reaches the whole folder, and the tab says so.
 
 **The curation tool keeps the choice with the package.** It is the `linked` column of `packages`, so
 the box comes back as the last build left it. Every volume of a package builds the same way.

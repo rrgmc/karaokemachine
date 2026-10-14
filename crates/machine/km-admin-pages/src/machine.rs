@@ -532,6 +532,9 @@ pub struct Listing {
     /// label for is nothing it can say. The machine names them through `PackageFlags::names`, and
     /// `PackageDto::flag_names` carries the same list to the desktop host.
     pub flag_names: Vec<String>,
+    /// A linked package's own folder inside the folder for linked files, or `None` for that whole
+    /// folder. Read only where `flag_names` holds `linked`.
+    pub linked_root: Option<String>,
 }
 
 /// The Songs tab: which packages are installed and where their numbers sit.

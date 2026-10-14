@@ -702,6 +702,7 @@ impl Songs for RemoteMachine {
                 // Publishing it would be an additive change to that DTO and a decision of its own.
                 bytes: None,
                 flag_names: package.flag_names,
+                linked_root: package.linked_root,
             })
             .collect())
     }

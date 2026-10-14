@@ -469,6 +469,18 @@ pub async fn songs_page(
                     .iter()
                     .filter_map(|name| flag_label(words, name))
                     .collect(),
+                // Said for every linked package, so one that reaches the whole folder says so too.
+                // That is the package an owner most wants to notice.
+                reads_from: listing
+                    .flag_names
+                    .iter()
+                    .any(|name| name == "linked")
+                    .then(|| match &listing.linked_root {
+                        Some(folder) => words
+                            .msg_with("package-reads-from", &[("folder", folder.as_str().into())])
+                            .into_owned(),
+                        None => words.msg("package-reads-from-all").into_owned(),
+                    }),
                 title,
                 id: listing.id,
                 version: listing.version,

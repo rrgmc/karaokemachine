@@ -660,6 +660,7 @@ impl TestMachine {
                 installed_at: "2026-08-23T12:00:00Z".to_owned(),
                 bank: 1,
                 flags: km_kmpkg::PackageFlags::NONE,
+                linked_root: None,
             });
         }
         machine
@@ -759,6 +760,15 @@ impl TestMachine {
         for package in &mut self.lock().packages {
             if package.id == package_id {
                 package.flags = flags;
+            }
+        }
+    }
+
+    /// Sets an installed linked package's own folder, so a surface that names it can be exercised.
+    pub fn set_package_linked_root(&self, package_id: &str, root: Option<&str>) {
+        for package in &mut self.lock().packages {
+            if package.id == package_id {
+                package.linked_root = root.map(str::to_owned);
             }
         }
     }
@@ -1027,6 +1037,7 @@ impl Catalog for TestMachine {
                 installed_at: "2026-08-23T12:00:00Z".to_owned(),
                 bank: 5,
                 flags: km_kmpkg::PackageFlags::NONE,
+                linked_root: None,
             });
         }
         Ok(InstallReport {

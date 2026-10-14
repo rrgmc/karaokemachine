@@ -28,7 +28,8 @@
     <tbody>
     {% for package in packages %}
       <tr>
-        <td>{{ package.title }}{% for flag in package.flags %} <span class="badge badge-quiet">{{ flag }}</span>{% endfor %}</td>
+        <td>{{ package.title }}{% for flag in package.flags %} <span class="badge badge-quiet">{{ flag }}</span>{% endfor %}
+          {% match package.reads_from %}{% when Some with (said) %}<div class="hint">{{ said }}</div>{% when None %}{% endmatch %}</td>
         <td>{{ package.version }}</td>
         <td class="num">{{ package.songs }}</td>
         <td class="num">

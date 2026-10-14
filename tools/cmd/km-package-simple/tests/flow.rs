@@ -189,7 +189,8 @@ async fn a_ticked_box_builds_a_linked_package_over_the_folder_that_was_read() {
     let package = km_kmpkg::Package::open(&file).expect("open the package");
     assert!(package.is_linked());
     assert!(package.is_uncurated(), "and still uncurated");
-    assert_eq!(package.manifest().songs[0].file, "rock/a.kar");
+    assert_eq!(package.linked_root(), Some("rock"));
+    assert_eq!(package.manifest().songs[0].file, "a.kar");
     assert_eq!(
         package
             .with_linked_dir(songs.path())

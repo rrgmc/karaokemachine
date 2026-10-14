@@ -160,6 +160,7 @@ it are the same entry. How the thing is built is [`ARCHITECTURE.md`](../ARCHITEC
 - [A package's header carries flags, and an unknown one is kept](packaging.md#a-packages-header-carries-flags-and-an-unknown-one-is-kept)
 - [An uncurated package says so everywhere but the television](packaging.md#an-uncurated-package-says-so-everywhere-but-the-television)
 - [A linked package keeps its song files outside itself](packaging.md#a-linked-package-keeps-its-song-files-outside-itself)
+- [A linked package reads from one folder of its own](packaging.md#a-linked-package-reads-from-one-folder-of-its-own)
 - [A linked file is read only from inside one folder](packaging.md#a-linked-file-is-read-only-from-inside-one-folder)
 - [Linked packages are off until the owner turns them on](packaging.md#linked-packages-are-off-until-the-owner-turns-them-on)
 - [A linked package says so everywhere but the television](packaging.md#a-linked-package-says-so-everywhere-but-the-television)

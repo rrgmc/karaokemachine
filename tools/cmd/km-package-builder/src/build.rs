@@ -106,6 +106,24 @@ pub struct Curated {
 /// parsing, the analysis, an ffmpeg re-encode, writing the archive — needs no database at all, which
 /// is what lets a build run on a thread of its own without holding the connection for the minutes it
 /// takes.
+/// The folder a linked build of this volume would play its songs from, below the corpus root.
+///
+/// `None` is the whole folder for linked files, which is what a volume whose songs share no folder
+/// gets. The build decides it with the same function, over the files it links, so the page and the
+/// file agree. An UltraStar song links the MP3 its text names, which almost always sits beside the
+/// text.
+pub fn linked_root_for(db: &Db, package_id: &str, volume: u32) -> Result<Option<String>, DbError> {
+    let members = db.package_members(package_id, volume)?;
+    let paths: Vec<String> = members
+        .iter()
+        .filter_map(|member| member.path.as_deref())
+        .map(km_pack::spec::slashed)
+        .collect();
+    Ok(km_kmpkg::linked::common_folder(
+        paths.iter().map(String::as_str),
+    ))
+}
+
 pub fn spec_for(db: &Db, package_id: &str, volume: u32) -> Result<Curated, DbError> {
     let package = db.package_volume(package_id, volume)?;
     let members = db.package_members(package_id, volume)?;
@@ -1219,6 +1237,11 @@ mod tests {
         let package = km_kmpkg::Package::open(&out).expect("open");
         assert!(package.is_linked());
         assert_eq!(km_kmpkg::linked_file_count(&out).expect("count"), 1);
+        assert_eq!(
+            package.linked_root().map(str::to_owned),
+            linked_root_for(&db.lock(), km_kmpkg::EXAMPLE_ID, 1).expect("root"),
+            "the page names the folder the build then uses"
+        );
         // The corpus root is the folder the paths are below, so the song reads through it.
         let root = db.lock().root().to_path_buf();
         let number = package.manifest().songs[0].number;

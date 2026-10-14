@@ -647,7 +647,8 @@ never linked.
 slashes. Its method is `linked`, its offset and its stored length are zero, and its real length and
 CRC-32 are the file's own at the build. `km-pack check --verify --linked-dir <folder>` compares each
 file against them, so a file that changed after the build can be found. A song's own entry in the
-manifest names the same path.
+manifest names the same path. The path is relative to
+[the package's own folder](#a-linked-package-reads-from-one-folder-of-its-own).
 
 **A linked `.cdg` keeps its own name.** A real pair is `song.mp3` beside `song.CDG`, so the rule
 [`graphics_entry_for`](#where-a-songs-media-lives) applies inside a package cannot name it. The
@@ -666,6 +667,43 @@ linked record across unchanged, and a song is never carried between the two type
 
 **A linked build changes no file.** It never re-encodes a video, because the result would have
 nowhere to go. A song inside a `.zip` is skipped, because it is not a file a path can name.
+
+## A linked package reads from one folder of its own
+
+**A linked package names one folder, its `linked_root`, and every path in it is below that
+folder.** The machine reads the package's files from that folder inside its folder for linked
+files, and from nowhere else. A package downloaded from a stranger can then reach its own collection
+and nothing beside it. Another collection the owner keeps in the same folder is out of its reach.
+
+**The builder works the folder out.** It is the deepest folder that every linked file shares,
+counting whole folder names only. The builder takes it off the front of each path. Two examples,
+with the corpus root at `<your karaoke folder>`:
+
+| The songs come from | The package's folder | A path in the package |
+|---|---|---|
+| `cdg/Rigmar/` only | `cdg/Rigmar` | `song.mp3` |
+| `cdg/Rigmar/` and `cdg/Sunfly/` | `cdg` | `Rigmar/song.mp3` |
+| `cdg/Rigmar/` and `Ingles2/` | none: the whole folder | `cdg/Rigmar/song.mp3` |
+
+**A package whose songs share no folder reaches the whole folder**, and every list says so. That is
+the price of mixing collections in one package. It is the package an owner most wants to notice
+before installing one from somebody else. So the *This machine*'s Songs tab, `km-pack inspect`,
+`km-pack check` and the listing beside a package each name the folder, or say it is the whole one.
+`km-package-builder`'s Build tab says which before the build.
+
+**The folder is checked as a path is**, when the package opens. At each read the machine resolves
+it, and it must lie inside the folder for linked files. A link in its place cannot widen what the
+package reaches. A package that bundles its files and names a folder is refused.
+
+**A package whose folder is missing is refused at install, by the folder's name.** It is one look at
+the disk, and no song file is read. The Problems tab then says which folder to put in place.
+
+**A rebuild keeps the folder with the records it carries.** Two linked packages with two folders
+do not mix in one rebuild.
+
+**A package cannot be told to read from another folder.** Moving a collection means moving it to
+where the package expects it. A per-package folder setting is possible later, and it would be a
+setting the owner writes and never one a package chooses.
 
 ## A linked file is read only from inside one folder
 
@@ -723,7 +761,8 @@ and not a file, so
 **One gate answers three places**, and each asks it afresh:
 
 - **An install**, by any route. The package is refused before a bank is reserved for it. A package
-  found by the scan becomes a standing problem, which says which of the three reasons holds.
+  found by the scan becomes a standing problem, which says which reason holds. The fourth reason is
+  a package whose own folder is not in the folder for linked files.
 - **A file handed in**: an upload, a drop on the window, a double-click. It is refused before it is
   copied into the packages folder.
 - **A song about to play.** A linked package installed while they were allowed stops playing when

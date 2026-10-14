@@ -1269,6 +1269,7 @@ fn inspect(args: &InspectArgs) -> Result<()> {
     println!("  version    {}", manifest.package.version);
     println!("  songs      {}", manifest.songs.len());
     print_flags(package.flags(), "  flags      ");
+    print_linked_root(package.flags(), package.linked_root(), "  folder     ");
 
     let values: Vec<u8> = manifest
         .songs
@@ -1394,6 +1395,17 @@ fn print_flags(flags: km_kmpkg::PackageFlags, label: &str) {
     }
 }
 
+/// Prints which folder a linked package plays its songs from, and nothing for any other package.
+fn print_linked_root(flags: km_kmpkg::PackageFlags, root: Option<&str>, label: &str) {
+    if !flags.is_linked() {
+        return;
+    }
+    match root {
+        Some(root) => println!("{label}{root}"),
+        None => println!("{label}the whole folder for linked files"),
+    }
+}
+
 fn check(args: &CheckArgs) -> Result<()> {
     // Read unchecked first, so a package that will not open still gets diagnosed rather than just
     // refused. Telling somebody "invalid" without saying why is useless.
@@ -1405,6 +1417,7 @@ fn check(args: &CheckArgs) -> Result<()> {
     let flags = km_kmpkg::read_flags(&args.package)
         .with_context(|| format!("reading {}", args.package.display()))?;
     print_flags(flags, "  flags ");
+    print_linked_root(flags, manifest.linked_root.as_deref(), "  folder ");
 
     let problems = manifest.problems();
     if problems.is_empty() {

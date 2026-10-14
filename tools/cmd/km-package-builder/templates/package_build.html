@@ -71,7 +71,7 @@
         <span></span>
         <label class="check"><input type="checkbox" name="linked" {% if linked %}checked{% endif %}> {{ "package-build-linked"|t }}</label>
         <span></span>
-        <p class="dim">{{ "package-build-linked-hint"|t }}</p>
+        <p class="dim">{{ "package-build-linked-hint"|t }} {{ linked_root_label }}</p>
         {# Build every volume posts the same form elsewhere: the folder and the two boxes apply to every
            file it writes, and the name box does not, because it names one file. Drawn only once there
            is more than one volume to build. #}

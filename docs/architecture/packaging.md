@@ -25,9 +25,13 @@ bit to a word.
 
 **A linked package has the same layout and a directory of another kind.** Its container version is
 2, and each song file is a record with the `linked` method. The record holds a path, a real length
-and a CRC, with no bytes behind it. `Package::with_linked_dir` says which folder the paths are
-below. `read_entry_whole` and `window` branch on the method, and `km_kmpkg::linked::open` reads the
-file.
+and a CRC, with no bytes behind it. `Package::with_linked_dir` gives the machine's folder, and
+`Manifest::linked_root` is the package's own folder inside it. `read_entry_whole` and `window`
+branch on the method, and `km_kmpkg::linked::open_in` reads the file below both.
+
+**One function decides a package's folder**: `linked::common_folder`. `PackageBuilder::write` runs
+it over the paths it links, takes the result off each path, and stores it. `km-package-builder`'s
+Build tab runs it over the same paths, through `build::linked_root_for`, before the build.
 
 **The four reader functions keep their signatures**, so a caller reads a linked song as it reads any
 other. A read with no folder given is `PackageError::LinkedDirUnset`. `Package::graphics_name` names

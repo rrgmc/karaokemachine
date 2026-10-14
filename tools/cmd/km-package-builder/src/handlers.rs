@@ -5727,19 +5727,21 @@ async fn build_pane_for(
     oob: bool,
 ) -> Result<crate::views::BuildPane, DbError> {
     let lookup = package.id.clone();
-    let (volumes, raise_version, linked) = state
+    let volume = package.volume;
+    let (volumes, raise_version, linked, linked_root) = state
         .reading(move |db| {
             Ok((
                 db.package_volumes(&lookup)?,
                 db.raise_version(&lookup)?,
                 db.linked(&lookup)?,
+                crate::build::linked_root_for(db, &lookup, volume)?,
             ))
         })
         .await?;
     let root = root_of(state)?;
     Ok(
         crate::views::BuildPane::new(&root, package, &volumes, raise_version, oob, state.locale())
-            .building_linked(linked),
+            .building_linked(linked, linked_root.as_deref(), state.locale()),
     )
 }
 
@@ -5781,18 +5783,29 @@ pub async fn package(
                     db.package_held(&lookup, volume)?,
                 ),
                 db.languages_present()?,
-                (db.raise_version(&lookup)?, db.linked(&lookup)?),
+                (
+                    db.raise_version(&lookup)?,
+                    db.linked(&lookup)?,
+                    crate::build::linked_root_for(db, &lookup, volume)?,
+                ),
                 // In the same closure as the rest, so the sources editor costs no extra round trip.
                 db.favorites()?,
                 db.package_sources(&lookup)?,
             ))
         })
         .await;
-    let (package, volumes, (members, held), present, (raise_version, linked), favorites, sources) =
-        match loaded {
-            Ok(loaded) => loaded,
-            Err(error) => return failed_page(error, &state, "packages"),
-        };
+    let (
+        package,
+        volumes,
+        (members, held),
+        present,
+        (raise_version, linked, linked_root),
+        favorites,
+        sources,
+    ) = match loaded {
+        Ok(loaded) => loaded,
+        Err(error) => return failed_page(error, &state, "packages"),
+    };
     let root = match root_of(&state) {
         Ok(root) => root,
         Err(error) => return failed_page(error, &state, "packages"),
@@ -5816,7 +5829,7 @@ pub async fn package(
                 false,
                 state.locale(),
             )
-            .building_linked(linked),
+            .building_linked(linked, linked_root.as_deref(), state.locale()),
             volume_strip: crate::views::VolumeStrip::new(
                 package.id.clone(),
                 &volumes,

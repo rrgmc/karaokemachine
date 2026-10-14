@@ -1264,6 +1264,31 @@ async fn a_linked_package_is_marked_on_the_songs_tab() {
             "{label}: {flagged}"
         );
     }
+    assert!(
+        flagged.contains("anywhere in the folder for linked packages"),
+        "a package with no folder of its own says it reaches the whole folder: {flagged}"
+    );
+}
+
+/// A linked package with a folder of its own names that folder on the Songs tab.
+#[tokio::test]
+async fn a_linked_package_names_the_folder_it_plays_from() {
+    let machine = TestMachine::with_catalog(2);
+    machine.set_package_flags("vol1", km_kmpkg::PackageFlags::LINKED);
+    machine.set_package_linked_root("vol1", Some("cdg/Rigmar"));
+    let (app, _) = nested_as(Host::Machine, machine, Arc::new(SpyGuard::default()));
+    let (_, page) = get(&app, "/admin/songs").await;
+    assert!(page.contains("cdg/Rigmar"), "{page}");
+    assert!(!page.contains("anywhere in the folder"), "{page}");
+
+    // A package that holds its songs says nothing about a folder.
+    let (plain, _) = nested_as(
+        Host::Machine,
+        TestMachine::with_catalog(2),
+        Arc::new(SpyGuard::default()),
+    );
+    let (_, page) = get(&plain, "/admin/songs").await;
+    assert!(!page.contains("folder for linked packages"), "{page}");
 }
 
 #[tokio::test]

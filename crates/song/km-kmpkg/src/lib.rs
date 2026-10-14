@@ -383,7 +383,25 @@ impl Package {
 
         // **The type is exclusive.** The container already refused a linked record in a package
         // that bundles its files. This is the other half: a linked package bundles no song file.
+        // A folder in a package that bundles its files would mean nothing, and is a sign the file
+        // was not written by this program.
+        if manifest.linked_root.is_some() && !container.flags().is_linked() {
+            return Err(PackageError::Archive {
+                path: display,
+                message: "it names a folder for linked files and is not a linked package"
+                    .to_owned(),
+            });
+        }
         if container.flags().is_linked() {
+            // The package's own folder is a path somebody else wrote, held to the same rules.
+            if let Some(root) = &manifest.linked_root
+                && let Err(error) = linked::check(root)
+            {
+                return Err(PackageError::Archive {
+                    path: display,
+                    message: error.to_string(),
+                });
+            }
             let bundled = bundled_in_a_linked_package(&manifest);
             if let Some(stray) = container
                 .entries()
@@ -434,6 +452,12 @@ impl Package {
         self.linked_dir.as_deref()
     }
 
+    /// The package's own folder inside the folder for linked files, or `None` for that folder
+    /// itself. See [`Manifest::linked_root`].
+    pub fn linked_root(&self) -> Option<&str> {
+        self.manifest.linked_root.as_deref()
+    }
+
     /// Opens one linked file from the folder that was given.
     fn linked_file(&self, number: u32, name: &str) -> Result<linked::LinkedFile, PackageError> {
         let dir = self
@@ -443,7 +467,8 @@ impl Package {
                 number,
                 file: name.to_owned(),
             })?;
-        linked::open(dir, name).map_err(|source| PackageError::Linked { number, source })
+        linked::open_in(dir, self.linked_root(), name)
+            .map_err(|source| PackageError::Linked { number, source })
     }
 
     /// The name of an MP3+G song's graphics entry.
@@ -1303,7 +1328,11 @@ pub fn linked_file_count(path: &Path) -> Result<usize, PackageError> {
 /// answer and not an error.
 pub fn damaged_linked_files(path: &Path, dir: &Path) -> Result<Vec<String>, PackageError> {
     let display = path.display().to_string();
-    let container = open_container(path, &display)?;
+    let mut container = open_container(path, &display)?;
+    // Read without validating, so a package `Package::open` refuses can still be compared.
+    let root = serde_json::from_str::<Manifest>(&read_manifest_bytes(&mut container, &display)?)
+        .ok()
+        .and_then(|manifest| manifest.linked_root);
 
     let mut damaged = Vec::new();
     let mut buffer = vec![0_u8; 1 << 20];
@@ -1311,7 +1340,7 @@ pub fn damaged_linked_files(path: &Path, dir: &Path) -> Result<Vec<String>, Pack
         .entries()
         .filter(|entry| entry.method == Method::Linked)
     {
-        let intact = linked::open(dir, &entry.name).is_ok_and(|file| {
+        let intact = linked::open_in(dir, root.as_deref(), &entry.name).is_ok_and(|file| {
             let mut file = file.into_file();
             let mut crc = crc32fast::Hasher::new();
             let mut total = 0_u64;
@@ -1747,6 +1776,19 @@ impl PackageBuilder {
                 reason: "a linked package and one that bundles its files do not mix".to_owned(),
             });
         }
+        // A record's path is relative to its package's own folder, so it is carried with that
+        // folder, and two packages with two folders do not mix.
+        if from.is_linked() {
+            let root = from.linked_root().map(str::to_owned);
+            if self.manifest.songs.is_empty() {
+                self.manifest.linked_root = root;
+            } else if self.manifest.linked_root != root {
+                return Err(PackageError::CannotLink {
+                    path: entry.file,
+                    reason: "its package reads from another folder".to_owned(),
+                });
+            }
+        }
         self.files.push(Pending {
             name: entry.file.clone(),
             content: Content::Copied {
@@ -1771,6 +1813,40 @@ impl PackageBuilder {
         }
         self.manifest.songs.push(entry);
         Ok(self.manifest.songs.last().expect("just pushed"))
+    }
+
+    /// Moves the folder every linked file shares out of the paths and into
+    /// [`Manifest::linked_root`].
+    ///
+    /// **Only for a fresh build**, which has a folder of its own: the paths it recorded are below
+    /// that folder, and the deepest folder they share becomes the package's own. A rebuild carries
+    /// its source's records and root unchanged. The timeline entries move with their audio, because
+    /// each is named from its audio's path.
+    fn settle_linked_root(&mut self) {
+        if !matches!(self.linking, Linking::Linked { base: Some(_) }) {
+            return;
+        }
+        let Some(root) = linked::common_folder(
+            self.files
+                .iter()
+                .filter(|pending| matches!(pending.content, Content::Linked(_)))
+                .map(|pending| pending.name.as_str()),
+        ) else {
+            return;
+        };
+        let prefix = format!("{root}/");
+        let strip = |name: &mut String| {
+            if let Some(rest) = name.strip_prefix(&prefix) {
+                *name = rest.to_owned();
+            }
+        };
+        for pending in &mut self.files {
+            strip(&mut pending.name);
+        }
+        for song in &mut self.manifest.songs {
+            strip(&mut song.file);
+        }
+        self.manifest.linked_root = Some(root);
     }
 
     /// Songs added so far.
@@ -1813,6 +1889,7 @@ impl PackageBuilder {
 
         // Decided here rather than at construction, because it depends on what was added.
         self.manifest.format = self.manifest.required_format();
+        self.settle_linked_root();
 
         let problems = self.manifest.problems();
         if !problems.is_empty() {
@@ -3649,6 +3726,124 @@ mod tests {
             ["midi/one.mid", "video/two.mp4"],
             "a changed file and a missing one are both reported"
         );
+    }
+
+    #[test]
+    fn a_linked_package_keeps_the_folder_its_files_share_as_its_own() {
+        let dir = temp_dir("linked-own-folder");
+        let library = dir.join("library");
+        let first = dir.write("library/cdg/Rigmar/a.mid", b"first");
+        let second = dir.write("library/cdg/Rigmar/disc 2/b.mid", b"second");
+        dir.write("library/cdg/Sunfly/c.mid", b"another collection");
+
+        let path = dir.join("vol1.kmpkg");
+        let mut builder = PackageBuilder::new_linked(meta(), Some(library.clone()));
+        builder
+            .add_midi_linked(entry(1), &first, b"first")
+            .expect("first");
+        builder
+            .add_midi_linked(entry(2), &second, b"second")
+            .expect("second");
+        builder.write(&path).expect("write");
+
+        let package = Package::open(&path)
+            .expect("open")
+            .with_linked_dir(&library);
+        assert_eq!(package.linked_root(), Some("cdg/Rigmar"));
+        let files: Vec<&str> = package
+            .manifest()
+            .songs
+            .iter()
+            .map(|song| song.file.as_str())
+            .collect();
+        assert_eq!(
+            files,
+            ["a.mid", "disc 2/b.mid"],
+            "each path is below the folder"
+        );
+        assert_eq!(package.read_song(2).expect("read"), b"second");
+        assert!(
+            damaged_linked_files(&path, &library)
+                .expect("verify")
+                .is_empty()
+        );
+
+        // A rebuild keeps the folder with the records it carries.
+        let rebuilt = dir.join("vol1-edited.kmpkg");
+        let mut again = PackageBuilder::new_linked(meta(), None);
+        for song in &package.manifest().songs {
+            again
+                .add_media_copied(song.clone(), &package)
+                .expect("carry");
+        }
+        again.write(&rebuilt).expect("write");
+        let rebuilt = Package::open(&rebuilt)
+            .expect("open")
+            .with_linked_dir(&library);
+        assert_eq!(rebuilt.linked_root(), Some("cdg/Rigmar"));
+        assert_eq!(rebuilt.read_song(1).expect("read"), b"first");
+    }
+
+    #[test]
+    fn a_linked_package_reads_nothing_beside_its_own_folder() {
+        let dir = temp_dir("linked-own-folder-only");
+        let library = dir.join("library");
+        let song = dir.write("library/Rigmar/a.mid", b"mine");
+        dir.write("library/Sunfly/b.mid", b"another collection");
+
+        let path = dir.join("vol1.kmpkg");
+        let mut builder = PackageBuilder::new_linked(meta(), Some(library.clone()));
+        builder
+            .add_midi_linked(entry(1), &song, b"mine")
+            .expect("add");
+        builder.write(&path).expect("write");
+
+        let package = Package::open(&path)
+            .expect("open")
+            .with_linked_dir(&library);
+        assert_eq!(package.linked_root(), Some("Rigmar"));
+        // A path reaching for the other collection climbs out of the package's folder.
+        assert!(matches!(
+            linked::open_in(&library, package.linked_root(), "../Sunfly/b.mid"),
+            Err(LinkedPathError::BadComponent(_))
+        ));
+
+        std::fs::remove_dir_all(library.join("Rigmar")).expect("remove the folder");
+        assert!(matches!(
+            package.read_song(1),
+            Err(PackageError::Linked {
+                source: LinkedPathError::FolderMissing(_),
+                ..
+            })
+        ));
+    }
+
+    #[test]
+    fn a_package_that_bundles_its_files_and_names_a_folder_is_refused() {
+        let dir = temp_dir("bundled-with-folder");
+        let path = dir.join("vol1.kmpkg");
+        let mut song = entry(1);
+        song.file = "midi/1.mid".to_owned();
+        let mut manifest = Manifest::new(meta());
+        manifest.songs = vec![song];
+        manifest.linked_root = Some("Rigmar".to_owned());
+        let file = std::fs::File::create(&path).expect("create");
+        let mut writer = Writer::new(file).expect("header");
+        writer
+            .write_entry("midi/1.mid", Method::Deflate, b"midi")
+            .expect("entry");
+        writer
+            .write_entry(
+                MANIFEST_PATH,
+                Method::Deflate,
+                serde_json::to_string(&manifest).expect("json").as_bytes(),
+            )
+            .expect("manifest");
+        writer.finish().expect("finish");
+        assert!(matches!(
+            Package::open(&path),
+            Err(PackageError::Archive { message, .. }) if message.contains("not a linked package")
+        ));
     }
 
     #[test]

@@ -52,9 +52,14 @@ somebody you trust. Two things turn it on:
 2. **Tick the box.** The **Linked packages** card is on the **This machine** tab of
    [the setup page](setup.md). The line above ticks it too.
 
-**The folder holds the files at the paths the package names.** A package built from a folder plays
-from that folder, or from a copy of it. The machine reads nothing outside the folder, and a package
-that names a path outside it does not install.
+**Each linked package plays from one folder of its own, inside that folder.** The package names
+it, and the **Songs** tab shows it under the package. A package built from `cdg/Rigmar` in your
+library needs `cdg/Rigmar` inside the folder you set, with the same files in it. The machine reads
+nothing outside the package's folder. A package whose folder is missing does not install, and the
+**Problems** tab names the folder.
+
+**A package whose songs share no folder plays from anywhere in the folder you set.** The **Songs**
+tab says so. Install such a package from somebody else only if you trust them with that folder.
 
 Install a linked package the way you install any other. A package the machine refuses is listed on
 the **Problems** tab, with the reason.

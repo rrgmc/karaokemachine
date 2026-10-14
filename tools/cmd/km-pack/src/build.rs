@@ -1580,7 +1580,12 @@ mod tests {
 
         let package = km_kmpkg::Package::open(&out).expect("open");
         assert!(package.is_linked());
-        assert_eq!(package.manifest().songs[0].file, "rock/a.kar");
+        assert_eq!(
+            package.linked_root(),
+            Some("rock"),
+            "the folder its one song is in"
+        );
+        assert_eq!(package.manifest().songs[0].file, "a.kar");
         assert_eq!(km_kmpkg::linked_file_count(&out).expect("count"), 1);
         assert!(
             matches!(

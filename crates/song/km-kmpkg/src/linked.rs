@@ -77,6 +77,14 @@ pub enum LinkedPathError {
     #[error("the folder for linked files cannot be read: {0}")]
     RootUnusable(#[source] std::io::Error),
 
+    /// The package's own folder is not inside the folder for linked files.
+    #[error("the folder for linked files has no folder '{0}'")]
+    FolderMissing(String),
+
+    /// The package's own folder leads outside the folder for linked files.
+    #[error("the folder '{0}' leads outside the folder for linked files")]
+    FolderOutside(String),
+
     /// No file is at the path.
     #[error("the linked file '{0}' is not there")]
     NotFound(String),
@@ -213,6 +221,73 @@ impl LinkedFile {
 /// Whatever [`check`] refuses, [`LinkedPathError::RootUnusable`] when `root` is not a folder that
 /// can be read, and one of `NotFound`, `Outside`, `NotAFile` or `Io` for the file.
 pub fn open(root: &Path, relative: &str) -> Result<LinkedFile, LinkedPathError> {
+    open_in(root, None, relative)
+}
+
+/// The deepest folder that every path in `names` lies below, or `None` when they share none.
+///
+/// **The one rule for a package's own folder.** A builder strips it from every path it records,
+/// and a curation page shows it before the build, so the two cannot disagree. Only whole folder
+/// names count: `rock/a.mid` and `rockabilly/b.mid` share no folder.
+#[must_use]
+pub fn common_folder<'a>(names: impl IntoIterator<Item = &'a str>) -> Option<String> {
+    let mut shared: Option<Vec<&'a str>> = None;
+    for name in names {
+        // The folders the file is in, without the file's own name.
+        let mut parts: Vec<&str> = name.split('/').collect();
+        parts.pop();
+        shared = Some(match shared {
+            None => parts,
+            Some(held) => held
+                .into_iter()
+                .zip(parts)
+                .take_while(|(a, b)| a == b)
+                .map(|(a, _)| a)
+                .collect(),
+        });
+    }
+    shared
+        .filter(|parts| !parts.is_empty())
+        .map(|parts| parts.join("/"))
+}
+
+/// Opens the file a linked path names, below the package's own `folder` inside `root`.
+///
+/// `folder` is the package's [`crate::Manifest::linked_root`], and `None` is `root` itself. The
+/// folder is checked as a path is, then resolved: it must lie inside `root`, so a link in its place
+/// cannot widen what the package reaches. The file must then lie inside the folder.
+///
+/// # Errors
+///
+/// As [`open`], and [`LinkedPathError::FolderMissing`] or [`LinkedPathError::FolderOutside`] for
+/// the package's folder.
+pub fn open_in(
+    root: &Path,
+    folder: Option<&str>,
+    relative: &str,
+) -> Result<LinkedFile, LinkedPathError> {
+    let base = match folder {
+        None => root.to_path_buf(),
+        Some(folder) => {
+            check(folder)?;
+            let root = root.canonicalize().map_err(LinkedPathError::RootUnusable)?;
+            let base = root
+                .join(folder)
+                .canonicalize()
+                .ok()
+                .filter(|base| base.is_dir())
+                .ok_or_else(|| LinkedPathError::FolderMissing(folder.to_owned()))?;
+            if !base.starts_with(&root) {
+                return Err(LinkedPathError::FolderOutside(folder.to_owned()));
+            }
+            base
+        }
+    };
+    open_below(&base, relative)
+}
+
+/// The body of [`open`], below one resolved or unresolved folder.
+fn open_below(root: &Path, relative: &str) -> Result<LinkedFile, LinkedPathError> {
     check(relative)?;
     let named = || relative.to_owned();
     let failed = |source: std::io::Error| {
@@ -516,6 +591,62 @@ mod tests {
         link_folder(&scratch.join("real"), &scratch.join("library"));
 
         assert_eq!(contents(&scratch.join("library"), "song.mid"), b"notes");
+    }
+
+    #[test]
+    fn the_common_folder_is_the_deepest_one_every_path_shares() {
+        assert_eq!(
+            common_folder(["cdg/Rigmar/a.mp3", "cdg/Rigmar/a.cdg"]).as_deref(),
+            Some("cdg/Rigmar")
+        );
+        assert_eq!(
+            common_folder(["cdg/Rigmar/a.mp3", "cdg/Sunfly/b.mp3"]).as_deref(),
+            Some("cdg")
+        );
+        assert_eq!(common_folder(["cdg/Rigmar/a.mp3", "Ingles2/b.kar"]), None);
+        assert_eq!(
+            common_folder(["rock/a.mid", "rockabilly/b.mid"]),
+            None,
+            "only whole folder names count"
+        );
+        assert_eq!(common_folder(["a.mid", "rock/b.mid"]), None);
+        assert_eq!(common_folder(std::iter::empty::<&str>()), None);
+    }
+
+    #[test]
+    fn a_file_is_read_only_from_the_packages_own_folder() {
+        let scratch = Scratch::new("linked-own-folder");
+        scratch.write("library/Rigmar/a.mid", b"mine");
+        scratch.write("library/Sunfly/b.mid", b"another collection");
+        let library = scratch.join("library");
+
+        let file = open_in(&library, Some("Rigmar"), "a.mid").expect("opens");
+        assert_eq!(file.len(), 4);
+        assert!(matches!(
+            open_in(&library, Some("Rigmar"), "../Sunfly/b.mid"),
+            Err(LinkedPathError::BadComponent(_))
+        ));
+        assert!(matches!(
+            open_in(&library, Some("Gone"), "a.mid"),
+            Err(LinkedPathError::FolderMissing(_))
+        ));
+        assert!(matches!(
+            open_in(&library, Some("../library"), "Rigmar/a.mid"),
+            Err(LinkedPathError::BadComponent(_))
+        ));
+    }
+
+    #[test]
+    fn a_packages_folder_that_is_a_link_out_is_refused() {
+        let scratch = Scratch::new("linked-folder-link-out");
+        scratch.write("private/secret.mid", b"private");
+        std::fs::create_dir_all(scratch.join("library")).expect("make the folder");
+        link_folder(&scratch.join("private"), &scratch.join("library/Rigmar"));
+
+        assert!(matches!(
+            open_in(&scratch.join("library"), Some("Rigmar"), "secret.mid"),
+            Err(LinkedPathError::FolderOutside(_))
+        ));
     }
 
     #[test]

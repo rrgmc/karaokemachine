@@ -1808,6 +1808,8 @@ pub struct BuildPane {
     pub raise_version_label: String,
     /// Whether a build writes a linked package, which holds no song file.
     pub linked: bool,
+    /// Which folder a linked build would play its songs from, as a sentence.
+    pub linked_root_label: String,
     /// The install form, pre-rendered so a finished build can swap an identical one in.
     pub install: InstallForm,
     /// Whether this copy is the out-of-band one that replaces the copy already on the page.
@@ -1836,6 +1838,7 @@ impl BuildPane {
             raise_version,
             raise_version_label: raise_version_says(&package, locale),
             linked: false,
+            linked_root_label: String::new(),
             install: InstallForm {
                 package_id: package.id.clone(),
                 volume: package.volume,
@@ -1847,10 +1850,23 @@ impl BuildPane {
         }
     }
 
-    /// The same tab, with the linked box as the package keeps it.
+    /// The same tab, with the linked box as the package keeps it and the folder a linked build
+    /// would play from.
     #[must_use]
-    pub fn building_linked(mut self, linked: bool) -> Self {
+    pub fn building_linked(
+        mut self,
+        linked: bool,
+        root: Option<&str>,
+        locale: km_locale::Locale,
+    ) -> Self {
+        let words = crate::words::messages(locale);
         self.linked = linked;
+        self.linked_root_label = match root {
+            Some(folder) => words
+                .msg_with("package-build-linked-root", &[("folder", folder.into())])
+                .into_owned(),
+            None => words.msg("package-build-linked-root-all").into_owned(),
+        };
         self
     }
 }

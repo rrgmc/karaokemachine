@@ -576,7 +576,7 @@ pub struct LinkedPackagesSettings {
 }
 
 /// Why this machine will not take a linked package.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LinkedRefusal {
     /// The owner has not turned linked packages on.
     Off,
@@ -584,21 +584,28 @@ pub enum LinkedRefusal {
     NoFolder,
     /// The folder the settings name is not there.
     FolderMissing,
+    /// The package's own folder is not inside the folder the settings name.
+    PackageFolderMissing(String),
 }
 
 impl std::fmt::Display for LinkedRefusal {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(match self {
-            Self::Off => {
-                "it is a linked package, and linked packages are turned off on this machine"
-            }
-            Self::NoFolder => {
-                "it is a linked package, and this machine has no folder set for linked packages"
-            }
-            Self::FolderMissing => {
-                "it is a linked package, and the folder set for linked packages is not there"
-            }
-        })
+        match self {
+            Self::Off => f.write_str(
+                "it is a linked package, and linked packages are turned off on this machine",
+            ),
+            Self::NoFolder => f.write_str(
+                "it is a linked package, and this machine has no folder set for linked packages",
+            ),
+            Self::FolderMissing => f.write_str(
+                "it is a linked package, and the folder set for linked packages is not there",
+            ),
+            Self::PackageFolderMissing(folder) => write!(
+                f,
+                "it is a linked package that reads from the folder '{folder}', and the folder for \
+                 linked packages has none"
+            ),
+        }
     }
 }
 
@@ -629,7 +636,15 @@ impl LinkedPackagesSettings {
     /// As [`Self::folder`], for a linked package.
     pub fn admit(&self, package: &km_kmpkg::Package) -> Result<(), LinkedRefusal> {
         if package.is_linked() {
-            self.folder()?;
+            let dir = self.folder()?;
+            // One look at the disk, and no song file is read. A package whose own folder is not
+            // there would install songs that all fail, so it is refused with the folder's name: that
+            // is what its owner has to put in place.
+            if let Some(own) = package.linked_root()
+                && !dir.join(own).is_dir()
+            {
+                return Err(LinkedRefusal::PackageFolderMissing(own.to_owned()));
+            }
         }
         Ok(())
     }

@@ -9145,6 +9145,35 @@ mod tests {
     }
 
     #[test]
+    fn a_linked_package_whose_own_folder_is_missing_is_refused_by_that_folders_name() {
+        let (_root, machine, package_path, library, _codes) =
+            a_machine_and_a_linked_package("linked-own-folder", Settings::default());
+        linked_packages_on(&machine, &library);
+        let package = km_kmpkg::Package::open(&package_path).expect("open");
+        assert_eq!(
+            package.linked_root(),
+            Some("songs"),
+            "the folder every song shares"
+        );
+
+        std::fs::rename(library.join("songs"), library.join("elsewhere")).expect("move");
+        machine.rescan_now();
+        let problems = machine.package_problems();
+        assert_eq!(problems.len(), 1, "{problems:?}");
+        assert!(
+            problems[0].reason.contains("reads from the folder 'songs'"),
+            "{}",
+            problems[0].reason
+        );
+
+        std::fs::rename(library.join("elsewhere"), library.join("songs")).expect("move back");
+        machine.rescan_now();
+        assert!(machine.package_problems().is_empty());
+        let installed = machine.lock_library().packages().expect("list");
+        assert_eq!(installed[0].linked_root.as_deref(), Some("songs"));
+    }
+
+    #[test]
     fn a_refused_linked_package_is_a_standing_problem_that_says_why() {
         let (_root, machine, _package_path, _library, _codes) =
             a_machine_and_a_linked_package("linked-problem", Settings::default());
@@ -9225,7 +9254,10 @@ mod tests {
             .load_from_catalog(codes[0])
             .err()
             .expect("the cached package is not kept for another folder");
-        assert!(refused.to_string().contains("is not there"), "{refused}");
+        assert!(
+            refused.to_string().contains("has no folder 'songs'"),
+            "the new folder lacks the package's own: {refused}"
+        );
     }
 
     #[test]

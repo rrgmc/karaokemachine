@@ -24,8 +24,9 @@ Entries are written for somebody who has the machine. Why any of it is the way i
   `km-pack build --linked`. The package lists mark it *linked*.
 - **A machine takes a linked package only when you allow it.** The *This machine* tab has a
   **Linked packages** box, and it starts off. The folder the songs play from is
-  `linked_packages.dir` in `settings.json`. The machine reads nothing outside that folder. A linked
-  package it refuses is on the **Problems** tab, with the reason. Removing one deletes the package
+  `linked_packages.dir` in `settings.json`. Each package plays only from its own folder inside it,
+  and the **Songs** tab names that folder. A linked package it refuses is on the **Problems** tab,
+  with the reason. Removing one deletes the package
   and leaves the song files.
 - **A machine that kept the night plays nothing until somebody chooses.** `Space` at the machine
   goes on with the night, and so does **Continue this evening** on the host's tab. `N` pressed
