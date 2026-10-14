@@ -2263,6 +2263,9 @@ A view inside the activity takes neither the screen nor the window focus, so SDL
 button and its items are plain views for the same reason. A popup menu is a window of its own, and
 SDL parks its thread when the focus goes.
 
+**On iOS the page and the buttons are subviews of SDL's own view**, for the same reason. A second
+window would have to take the key status before the page could take typing.
+
 **The page is the one every phone gets, over loopback.** The headset's queue panel does the same,
 under [`What the machine *is*, on a headset`](distribution.md#what-the-machine-is-on-a-headset). The
 page comes from this process, so no network stands between it and the machine. It is therefore the
@@ -2273,6 +2276,13 @@ server and a second copy of the catalog on the phone.
 television mode turns it off. A third APK would add a release carrier and buy nothing a check at run
 time does not.
 
+**Every iPhone and iPad shows the button.** Each has a touch screen, and no iOS build drives a
+television.
+
 **The file browser is another activity, so the song pauses while it is open.** That is the rule for
 every trip away. A package is rarely installed mid-song. The machine stages the chosen file exactly
 as a `.kmpkg` opened from a file manager. It refuses a file of any other name before reading it.
+
+**On iOS the file browser is a view controller in the machine's own application, so the song plays
+on.** The application stays in front while the browser is open. The browser offers only the
+package type, and the machine installs the chosen file as it installs a dropped one.

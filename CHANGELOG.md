@@ -11,6 +11,12 @@ Entries are written for somebody who has the machine. Why any of it is the way i
 
 ## [Unreleased]
 
+### Added
+
+- **An iPhone or iPad running the machine chooses songs without leaving it.** **Menu** at the top
+  of the screen opens **Choose songs**, and the machine's own remote covers the screen while the
+  song plays on behind it. **Install a package** in the same menu opens the Files browser.
+
 ### Changed
 
 - **The recommended instrument bank downloads from this project's own release page.** Its

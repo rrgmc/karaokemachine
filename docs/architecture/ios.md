@@ -262,6 +262,31 @@ arm exists only to nudge LaunchServices while a bundle is rebuilt in place, and 
 command. `--register` is unreachable there in any case. It arrives through `cli`, and `SDL_main`
 gets no argument vector.
 
+## The phone's own remote is a layer over SDL's view
+
+**`KMPhoneShell.m` adds a Menu button and a `WKWebView` as subviews of SDL's view controller's
+view.** The page is the served remote on `http://127.0.0.1:<port>/`. The port comes from `api.bind`
+in the `settings.json` under Application Support, which `main.m` names to the shell. A missing file
+means 8177. The page retries every two seconds while the machine starts.
+
+`NSAllowsLocalNetworking` already permits loopback. A transparent layer holds the controls, and it
+answers no touch itself, so a touch between them reaches SDL.
+
+**Rust attaches the shell, and only after the canvas exists.** Creating the renderer replaces SDL's
+view with a Metal view, through `setSDLWindow:`. Controls added to the first view would leave the
+window with it. So `display.rs` calls `ioscfg::attach_shell` after `into_canvas`. That reads
+`SDL_PROP_WINDOW_UIKIT_WINDOW_POINTER` and calls `km_phone_shell_attach`, which the app target
+defines. A key-window notification would fire before the swap.
+
+**The package picker reaches the installer a dropped file reaches, through `km_machine_open_package`.**
+`UIDocumentPickerViewController` hands back a copy of the chosen file. The shell passes its path to
+that export, which queues it in `ioscfg`. The display loop takes the queue each frame and submits
+each path as it submits a drop.
+
+SDL's own route for an opened URL cannot be used. With the scene
+lifecycle, it is `handleURL:` on `SDLUIKitSceneDelegate`, a method no header declares. That class is
+also the application delegate, and it has no `application:openURL:options:`.
+
 ## What the platform decides
 
 **All six capability constants answer the same way Android's do, and each for its own reason.**
