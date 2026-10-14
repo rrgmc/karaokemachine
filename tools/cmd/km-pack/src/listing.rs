@@ -50,6 +50,13 @@ pub fn listing(manifest: &Manifest, flags: PackageFlags) -> String {
             "Uncurated: built straight from a folder, with nobody reviewing it"
         );
     }
+    // The package alone plays nothing, so whoever is handed it has to know to ask for the files.
+    if flags.is_linked() {
+        let _ = writeln!(
+            out,
+            "Linked:    holds no song file; the songs play from a folder of them"
+        );
+    }
     let _ = writeln!(out);
 
     let mut songs: Vec<&km_kmpkg::SongEntry> = manifest.songs.iter().collect();
@@ -187,6 +194,13 @@ mod tests {
         assert!(!listing(&manifest(), PackageFlags::NONE).contains("Uncurated"));
         let text = listing(&manifest(), PackageFlags::UNCURATED);
         assert!(text.contains("Uncurated: "), "{text}");
+    }
+
+    #[test]
+    fn a_linked_package_says_so() {
+        assert!(!listing(&manifest(), PackageFlags::NONE).contains("Linked"));
+        let text = listing(&manifest(), PackageFlags::LINKED);
+        assert!(text.contains("Linked: "), "{text}");
     }
 
     /// The rule the archive is held to, pointed at the file beside it.

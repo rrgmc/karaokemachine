@@ -85,6 +85,7 @@ mod tests {
                 transcode: true,
                 out: Some("party.kmpkg".to_owned()),
                 uncurated: false,
+                linked: false,
             },
             root: None,
             songs: (1..=count)

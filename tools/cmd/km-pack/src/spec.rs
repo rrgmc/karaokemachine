@@ -147,6 +147,13 @@ pub struct SpecPackage {
     /// `docs/decisions/packaging.md`.
     #[serde(default, skip_serializing_if = "is_false")]
     pub uncurated: bool,
+    /// The package holds no song file, and names each one by its path below the description's root.
+    ///
+    /// The build sets the header flag [`km_kmpkg::PackageFlags::LINKED`] from it. A machine plays
+    /// the songs from one folder its owner names, which holds the same files at the same paths. See
+    /// `A linked package keeps its song files outside itself` in `docs/decisions/packaging.md`.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub linked: bool,
 }
 
 /// One song: where to read it from, and what to call it.
@@ -269,6 +276,9 @@ impl Spec {
 #
 # `uncurated: true` marks the package as described from a folder that nobody reviewed. The machine's
 # lists of packages say so. Delete the line once somebody has reviewed the songs.
+#
+# `linked: true` builds a package that holds no song file. It names each one by its path below
+# `root`, and a machine plays them from the one folder its owner sets for linked packages.
 #
 # Two values YAML can read as something other than what you meant, if you edit them by hand:
 #
@@ -465,6 +475,7 @@ mod tests {
                 transcode: true,
                 out: Some("vol1.kmpkg".to_owned()),
                 uncurated: false,
+                linked: false,
             },
             root: Some("songs".to_owned()),
             songs: vec![

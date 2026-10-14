@@ -432,6 +432,7 @@ impl Session {
                 transcode: true,
                 out: None,
                 uncurated: true,
+                linked: false,
             },
             root: None,
             songs,

@@ -88,6 +88,7 @@ fn built_from(base: &Path, song: SpecSong, out: &Path) -> BuildOutcome {
             transcode: true,
             out: None,
             uncurated: false,
+            linked: false,
         },
         root: None,
         songs: vec![song],

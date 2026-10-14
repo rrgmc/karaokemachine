@@ -439,6 +439,7 @@ pub fn describe(
                 out: options.out.clone(),
                 // A walk of a folder is the definition of a package nobody reviewed.
                 uncurated: true,
+                linked: false,
             },
             root: None,
             songs,
