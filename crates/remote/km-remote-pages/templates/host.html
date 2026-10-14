@@ -6,6 +6,13 @@
   <h1>{{ "tab-host"|t }}</h1>
 </div>
 
+{# The Queue tab's bar, with its checkbox ticked and its toggle hidden. A host stops and skips all
+   night, so the transport stays open here. #}
+<div class="host-now">
+  <input type="checkbox" id="nowbar-controls" class="visually-hidden" checked autocomplete="off" tabindex="-1">
+  {{ nowbar|safe }}
+</div>
+
 {# One column on a phone, two on a tablet held upright and three on a wide one. A host reads the
    requests against the queue, and on a wide screen the singers stand beside both. The parts are
    placed by name in `app.css`, so this file says what there is and the stylesheet says where. #}

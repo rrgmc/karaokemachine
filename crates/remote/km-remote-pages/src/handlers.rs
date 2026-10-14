@@ -2341,12 +2341,14 @@ pub async fn host(State(state): State<Remote>, headers: HeaderMap) -> Response {
         return Redirect::to("/setup").into_response();
     }
     let chrome = chrome(&state, "host", &prefs).await;
-    let remaining_ms = player_view(&state).await.remaining_ms();
-    let queue = queue_block(&state, remaining_ms, locale).await;
+    let view = player_view(&state).await;
+    let queue = queue_block(&state, view.remaining_ms(), locale).await;
+    let nowbar = NowBar::of(view);
     let lists = host_lists(&state, locale).await;
     views::page(
         &HostPage {
             chrome,
+            nowbar,
             lists,
             queue,
         },

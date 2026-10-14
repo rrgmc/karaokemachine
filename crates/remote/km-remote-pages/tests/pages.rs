@@ -6169,6 +6169,15 @@ async fn the_hosts_tab_is_for_the_control_level() {
         "the queue is beside it: {page}"
     );
     assert!(page.contains(r#"id="host-singer""#), "{page}");
+    assert!(
+        page.contains(r#"<div class="host-now">"#) && page.contains(r#"id="nowbar""#),
+        "the song that plays is at the top: {page}"
+    );
+    assert!(
+        page.contains(r#"id="nowbar-controls" class="visually-hidden" checked"#),
+        "with its transport open: {page}"
+    );
+    assert!(page.contains("/control/skip"), "{page}");
 }
 
 /// A host types a name and adds songs for it. The name finds the singer again, however it is typed,

@@ -787,6 +787,9 @@ label.icon-btn { display: inline-flex; align-items: center; justify-content: cen
 #nowbar-controls:not(:checked) ~ #nowbar .controls-toggle .when-open,
 #nowbar-controls:checked ~ #nowbar .controls-toggle .when-closed { display: none; }
 
+/* The host's tab keeps the transport open, so it has no fold to offer. */
+.host-now .controls-toggle { display: none; }
+
 /* Off screen but still in the accessibility tree and still focusable — which `display: none` is not,
  * and this element is a real control that a keyboard has to be able to reach. */
 .visually-hidden {

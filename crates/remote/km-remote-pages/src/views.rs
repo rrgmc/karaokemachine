@@ -1214,6 +1214,8 @@ pub struct QueuePage {
 pub struct HostPage {
     /// Page chrome.
     pub chrome: Chrome,
+    /// What is playing, with the transport always open.
+    pub nowbar: NowBar,
     /// The singers and the requests that wait.
     pub lists: HostLists,
     /// The queue, which is the same fragment the Queue tab draws.
