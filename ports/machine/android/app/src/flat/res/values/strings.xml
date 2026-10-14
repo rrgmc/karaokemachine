@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The controls a phone shows over the machine. See PhoneShell.java. -->
+    <string name="phone_menu">Menu</string>
+    <string name="phone_close">Close</string>
+    <string name="phone_choose_songs">Choose songs</string>
+    <string name="phone_install_package">Install a package</string>
+</resources>
