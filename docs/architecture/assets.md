@@ -379,7 +379,8 @@ decision. `<headset>` below is the headset's address, and `<code>` is the machin
    draws `DEBUG MODE ENABLED` on the screen, and the switch takes effect at a start.
 4. `PUT /api/v1/admin/packages/<id>/bank` with `{"bank":1}`. The songs then carry the numbers the
    other pictures show.
-5. Queue the party `screenshots.sh` queues, with `POST /api/v1/queue`.
+5. Queue the party `screenshots.sh` queues. A named song goes through `POST /api/v1/singers` and
+   `POST /api/v1/requests`, and the song with no singer through `POST /api/v1/queue`.
 6. `POST /api/v1/transport/seek` with `{"ms":72000}`, then `POST /api/v1/transport/pause`. A paused
    screen is silent and holds one frame.
 

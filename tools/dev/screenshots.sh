@@ -505,12 +505,34 @@ devil%20went%20down:Marina
 raspberry%20beret:Nina
 save%20tonight:Ana'
 
+# A named song goes in as a guest's phone sends it, through its singer: `POST /queue` refuses a
+# body that names one. Each name registers once, on a device of its own, and keeps its id and token
+# for its next song. SEATS is a variable rather than a file, so ask_as must not run in a subshell.
+SEATS=""
+ask_as() {
+  seat=$(printf '%s\n' "$SEATS" | sed -n "s/^$1 //p" | head -1)
+  if [ -z "$seat" ]; then
+    reply=$(curl -sS -X POST "$API/singers" -H 'content-type: application/json' \
+      -d "{\"device\":\"screenshots-$1\",\"name\":\"$1\"}")
+    id=$(printf '%s' "$reply" | tr ',{' '\n\n' | sed -n 's/^"id":\([0-9][0-9]*\).*/\1/p' | head -1)
+    token=$(printf '%s' "$reply" | tr ',' '\n' | sed -n 's/.*"token":"\([^"]*\)".*/\1/p' | head -1)
+    if [ -z "$id" ] || [ -z "$token" ]; then
+      warn "could not register $1 as a singer; their songs are left out"
+      return
+    fi
+    seat="$id $token"
+    SEATS="$SEATS
+$1 $seat"
+  fi
+  api_post /requests "{\"singer\":${seat%% *},\"token\":\"${seat#* }\",\"number\":\"$2\"}"
+}
+
 echo "setting up a party"
 # Guarded, unlike before: an empty $PLAYING posted `{"number":,"singer":"Nina"}` -- malformed JSON,
 # which api_post discards along with its output and no status check, so nothing played and the only
 # sign was remote-now.png quietly coming back as the nothing-is-playing page.
 if [ -n "$PLAYING" ]; then
-  api_post /queue "{\"number\":\"$PLAYING\",\"singer\":\"Nina\"}"
+  ask_as Nina "$PLAYING"
 else
   warn "no song to play; remote-now.png will show the idle page"
 fi
@@ -527,7 +549,7 @@ while IFS= read -r entry; do
   [ -n "$n" ] || continue
   QUEUED="$QUEUED $n"
   if [ -n "$who" ]; then
-    api_post /queue "{\"number\":\"$n\",\"singer\":\"$who\"}"
+    ask_as "$who" "$n"
   else
     api_post /queue "{\"number\":\"$n\"}"
   fi
