@@ -62,18 +62,7 @@
     <button class="icon-btn">{{ "machine-save"|t }}</button>
   </form>
 
-  {# The choice between singers, which a phone with one singer never sees. #}
-  {% if singers.len() > 1 %}
-  <form class="pref-row field-row" hx-post="/singer/choose">
-    <label for="singer-choose">{{ "singer-choose"|t }}</label>
-    <select id="singer-choose" name="singer" onchange="this.form.requestSubmit()"
-            aria-label="{{ "singer-choose"|t }}">
-      {% for singer in singers %}
-      <option value="{{ singer.id }}"{% if singer.current %} selected{% endif %}>{{ singer.label }}</option>
-      {% endfor %}
-    </select>
-  </form>
-  {% endif %}
+  {% include "_singer_choose.html" %}
 
   {# Another singer on this phone: smaller than the box above and folded away, because one phone
      with one singer is the usual case. Offered once the phone holds a singer. #}

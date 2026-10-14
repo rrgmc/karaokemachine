@@ -1,0 +1,13 @@
+{# The choice between the singers this phone holds, on the Setup tab and above the Songs tab's
+   list. A phone with one singer never sees it. The including page has `singers`. #}
+{% if singers.len() > 1 %}
+<form class="pref-row field-row singer-choose" hx-post="/singer/choose">
+  <label for="singer-choose">{{ "singer-choose"|t }}</label>
+  <select id="singer-choose" name="singer" onchange="this.form.requestSubmit()"
+          aria-label="{{ "singer-choose"|t }}">
+    {% for singer in singers %}
+    <option value="{{ singer.id }}"{% if singer.current %} selected{% endif %}>{{ singer.label }}</option>
+    {% endfor %}
+  </select>
+</form>
+{% endif %}

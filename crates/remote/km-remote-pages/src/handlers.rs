@@ -435,13 +435,19 @@ pub async fn browse(
         Some("rows") => views::page(&block.list.rows, locale),
         _ => {
             let chrome = chrome(&state, "browse", &prefs).await;
-            views::page(
+            let (seats, known, changed) = known_seats(&state, &prefs).await;
+            let mut response = views::page(
                 &BrowsePage {
                     chrome,
                     browse: block,
+                    singers: phone_singers(&seats, &known, locale),
                 },
                 locale,
-            )
+            );
+            if changed {
+                prefs::attach(response.headers_mut(), seats.cookie());
+            }
+            response
         }
     };
 

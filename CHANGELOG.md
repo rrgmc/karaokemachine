@@ -103,6 +103,8 @@ Entries are written for somebody who has the machine. Why any of it is the way i
   and pause are at the top. Each singer takes one short line, and the actions open from the ⋯.
   The name box offers the singers who are here, and tapping a singer's name fills it. Below the
   controls, one tab holds the queue and the waiting songs, and the other holds the singers.
+- **A phone with several singers chooses who is singing on the Songs tab.** The choice stands above
+  the list, so the + on a song is for the singer shown there.
 - **Each singer's name has a colour of its own.** It is the same colour in the queue, among the
   waiting songs and in the list of singers, so a singer's songs stand out.
 - **The queue on the machine's screen gives the title more room.** A row shows the place, the

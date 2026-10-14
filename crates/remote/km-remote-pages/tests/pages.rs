@@ -6040,6 +6040,8 @@ async fn a_second_singer_on_one_phone_brings_the_choice() {
     let one = phone.get("/setup").await;
     assert!(!one.contains(r#"id="singer-choose""#), "{one}");
     assert!(one.contains(r#"hx-post="/singer/add""#), "{one}");
+    let songs = phone.get("/").await;
+    assert!(!songs.contains(r#"id="singer-choose""#), "{songs}");
 
     let nameless = phone.post_form("/singer/add", "singer=").await;
     assert!(
@@ -6055,6 +6057,11 @@ async fn a_second_singer_on_one_phone_brings_the_choice() {
         "{two}"
     );
     assert!(two.contains(r#"<option value="0">Ana</option>"#), "{two}");
+    let songs = phone.get("/").await;
+    assert!(
+        songs.contains(r#"<option value="1" selected>Beto</option>"#),
+        "the Songs tab offers the choice too: {songs}"
+    );
 
     // Each one's first song goes in, because they are two singers.
     assert!(phone.post("/song/1001/queue").await.contains(">queued<"));

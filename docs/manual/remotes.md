@@ -56,7 +56,8 @@ ends. Tap **✕** beside one to take it back.
 
 **Your name is optional.** Type it in **Singing as** on the Setup tab, and the queue shows it. Two
 singers cannot hold one name on the same evening. A phone that several people share adds each of
-them under **Add another singer on this phone**, and then chooses who is singing.
+them under **Add another singer on this phone**, and then chooses who is singing. **Who is
+singing** stands on the Setup tab and above the list on the Songs tab.
 
 **A song somebody already has brings a question.** Tap **+** on a song that is in the queue, or
 that somebody sang tonight, and the row says so. Tap **Ask anyway** to ask for it, or **✕** to

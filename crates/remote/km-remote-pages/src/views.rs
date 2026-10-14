@@ -381,6 +381,9 @@ pub struct BrowsePage {
     pub chrome: Chrome,
     /// The whole browse block.
     pub browse: BrowseBlock,
+    /// The singers this phone holds. With two or more, the page offers the choice above the list,
+    /// so the + on a song is for the singer shown there.
+    pub singers: Vec<PhoneSinger>,
 }
 
 /// The `#browse` block: the bar, and the list under it.

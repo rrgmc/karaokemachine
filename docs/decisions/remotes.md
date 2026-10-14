@@ -269,8 +269,9 @@ after a refusal, because a missing song answers the same 404.
 
 **One phone holds several singers, and one box is what it shows.** A home passes one phone or one
 tablet around. Adding another singer is a smaller control, folded away under the box, and that
-singer gives a name. The choice between singers appears with the second one. A phone with one
-singer never sees it.
+singer gives a name. The choice between singers appears with the second one. It stands on the
+Setup tab and above the Songs tab's list, because the + on a song asks for the singer it names. A
+phone with one singer never sees it.
 
 **A phone's own songs are a list on the Queue tab.** Each row says where the request stands:
 waiting, in the queue with its place, playing now, taken out, or taken back. A waiting or queued
