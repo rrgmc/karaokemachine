@@ -97,7 +97,8 @@ targets:
         # `cargo rustc -p km-machine-ios --target aarch64-apple-ios -- --print native-static-libs`.
         # Seventeen frameworks once duplicates are dropped: fifteen from SDL, `AVFAudio` from cpal's
         # CoreAudio backend, and `CoreFoundation` under both. `-liconv` is rusqlite's, the same one
-        # the offline remote's shell needs.
+        # the offline remote's shell needs. `UniformTypeIdentifiers` and `WebKit` are not in that
+        # answer: `KMPhoneShell.m` needs them, for the package picker and the remote's page.
         #
         # `-lSystem`, `-lc`, `-lm`, `-lobjc` and `-lpthread` are in that answer too and are not
         # here: Xcode supplies all five. Everything else in the list is not something an iOS app
@@ -122,6 +123,8 @@ targets:
           -framework OpenGLES
           -framework QuartzCore
           -framework UIKit
+          -framework UniformTypeIdentifiers
+          -framework WebKit
     info:
       path: KaraokeMachine/Info.plist
       properties:

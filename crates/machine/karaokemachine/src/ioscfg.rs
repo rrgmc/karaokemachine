@@ -22,7 +22,7 @@
 //!   public external directory, and `packages_dirs()` already reads it as one.
 
 use std::path::{Path, PathBuf};
-use std::sync::OnceLock;
+use std::sync::{Mutex, OnceLock};
 
 /// The directories, once the shell has named them.
 static DIRS: OnceLock<Dirs> = OnceLock::new();
@@ -80,4 +80,66 @@ pub(crate) fn install_panic_logger() {
 /// path outside the container and a visible failure to write, instead of an invisible one.
 pub(crate) fn dirs() -> Option<&'static Dirs> {
     DIRS.get()
+}
+
+/// Packages the shell's file browser handed over, waiting for the display loop to take them.
+static OPENED: Mutex<Vec<PathBuf>> = Mutex::new(Vec::new());
+
+/// Queues a package the person chose in the shell's file browser.
+///
+/// The display loop takes it within a frame and hands it to the installer a dropped file reaches.
+/// SDL's own route for an opened URL is a method of its scene delegate, which the shell cannot call.
+pub fn open_package(path: impl AsRef<Path>) {
+    let path = path.as_ref().to_path_buf();
+    tracing::info!(path = %path.display(), "a package was chosen in the file browser");
+    OPENED
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .push(path);
+}
+
+/// The packages chosen since the last call, oldest first.
+pub(crate) fn take_opened() -> Vec<PathBuf> {
+    let mut opened = OPENED
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    std::mem::take(&mut *opened)
+}
+
+#[expect(
+    unsafe_code,
+    reason = "declaring the one function the shell defines for Rust to call"
+)]
+unsafe extern "C" {
+    /// Defined by the shell, in `ports/machine/ios/KaraokeMachine/KMPhoneShell.m`.
+    fn km_phone_shell_attach(window: *mut std::ffi::c_void);
+}
+
+/// Hands the window to the shell, which puts the phone's own controls over it.
+///
+/// **Called once the canvas exists, and not before.** SDL's renderer replaces its view controller's
+/// view with a Metal view when it is created. A control added to the first view would leave the
+/// window with it.
+#[expect(
+    unsafe_code,
+    reason = "two SDL calls for the UIWindow, which sdl3-rs does not wrap, and one call to the shell"
+)]
+pub(crate) fn attach_shell(window: &sdl3::video::Window) {
+    use sdl3::sys::properties::SDL_GetPointerProperty;
+    use sdl3::sys::video::{SDL_GetWindowProperties, SDL_PROP_WINDOW_UIKIT_WINDOW_POINTER};
+    // SAFETY: the window is live for the call, and the property names SDL's own `UIWindow`.
+    let uiwindow = unsafe {
+        let props = SDL_GetWindowProperties(window.raw());
+        SDL_GetPointerProperty(
+            props,
+            SDL_PROP_WINDOW_UIKIT_WINDOW_POINTER,
+            std::ptr::null_mut(),
+        )
+    };
+    if uiwindow.is_null() {
+        tracing::warn!("SDL named no UIWindow, so the phone's controls are not shown");
+        return;
+    }
+    // SAFETY: a live `UIWindow`, on the main thread SDL runs the machine's loop on.
+    unsafe { km_phone_shell_attach(uiwindow) };
 }

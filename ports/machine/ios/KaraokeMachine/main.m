@@ -8,11 +8,12 @@
  * event pump the machine draws through. A second `@main` beside it would be two applications
  * competing for one process.
  *
- * So this file is the whole shell, and it does three things before handing over:
+ * So this file is the entry point, and it does four things before handing over:
  *
  *   1. Names the two directories the container gives us, and creates them.
  *   2. Configures the audio session, which cpal's CoreAudio backend does not do.
- *   3. Calls km_machine_configure, then SDL_RunApp, which does not return.
+ *   3. Tells KMPhoneShell.m where settings.json is. Rust attaches that shell to SDL's window later.
+ *   4. Calls km_machine_configure, then SDL_RunApp, which does not return.
  *
  * SDL's headers are deliberately not reachable from this target. SDL is compiled into
  * libkm_machine_ios.a and its headers are not copied out of cargo's build directory, so the two
@@ -24,6 +25,7 @@
 #import <AVFoundation/AVFoundation.h>
 
 #import "km_machine.h"
+#import "KMPhoneShell.h"
 
 /* SDL's own, declared rather than included -- see the header comment. */
 typedef int (*km_sdl_main_func)(int argc, char *argv[]);
@@ -125,6 +127,7 @@ int main(int argc, char *argv[]) {
         NSString *support = km_support_dir();
         NSString *documents = km_documents_dir();
         km_configure_audio_session();
+        km_phone_shell_configure(support);
         /* fileSystemRepresentation, not UTF8String: a container path is what the file system says
          * it is, and this is the encoding the Rust side will open it with. */
         km_machine_configure(support.fileSystemRepresentation,
