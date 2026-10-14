@@ -96,6 +96,13 @@ Entries are written for somebody who has the machine. Why any of it is the way i
   singer, which takes no turn, and changes key and tempo.
 - **`POST /api/v1/queue` takes no `singer`.** It adds a song with no singer, and it refuses a body
   that names one. A program that queued a named song asks through `POST /api/v1/requests`.
+- **The Queue tab sets a phone's own songs apart from the queue.** *The whole queue* heads the list
+  below them, under a heavier line. A song shows *Playing now* while it plays, and leaves the
+  phone's list when it ends.
+- **The host's tab shows the song that plays, with its controls always open.** Stop, skip, restart
+  and pause are at the top. Each singer takes one short line, and the actions open from the ⋯.
+- **The queue on the machine's screen gives the title more room.** A row shows the place, the
+  title and the artist, and no song number. The singer's name takes only the room it needs.
 
 ### Fixed
 

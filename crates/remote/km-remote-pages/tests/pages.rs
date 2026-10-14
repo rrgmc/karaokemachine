@@ -414,6 +414,11 @@ impl StubMachine {
         self
     }
 
+    /// The requests the stub holds, to be taken before this is handed to a `Harness`.
+    fn asked(&self) -> Arc<Mutex<Vec<RequestDto>>> {
+        Arc::clone(&self.asked)
+    }
+
     /// The counter behind [`Machine::wake`], to be taken before this is handed to a `Harness`.
     fn wakes(&self) -> Arc<AtomicUsize> {
         Arc::clone(&self.wakes)
@@ -5903,6 +5908,38 @@ async fn two_phones_are_two_singers() {
     assert!(!mine.contains("Song 1002"), "{mine}");
 }
 
+/// A song that started says so while it plays, and leaves the phone's list when it ends.
+#[tokio::test]
+async fn a_phones_list_names_the_song_that_plays_and_drops_the_sung_ones() {
+    let stub = StubMachine::new();
+    let asked = stub.asked();
+    let harness = Harness::with(stub, Capabilities::online());
+    let phone = Phone::new(&harness);
+    for number in [1001, 1002, 1003] {
+        phone.post(&format!("/song/{number}/queue")).await;
+    }
+
+    // The stub plays entry 1. Song 1001 started and plays, 1002 started and ended.
+    for held in asked.lock().expect("lock").iter_mut() {
+        match held.number.number() {
+            1001 => (held.state, held.entry_id) = (RequestStateDto::Played, Some(1)),
+            1002 => (held.state, held.entry_id) = (RequestStateDto::Played, Some(2)),
+            _ => {}
+        }
+    }
+
+    let mine = phone.get("/mine").await;
+    assert!(mine.contains("Song 1001"), "{mine}");
+    assert!(mine.contains("Playing now"), "{mine}");
+    assert!(!mine.contains("Song 1002"), "the sung song is gone: {mine}");
+    assert!(mine.contains("Song 1003"), "{mine}");
+    assert!(!mine.contains("Started"), "{mine}");
+    assert!(
+        mine.contains("km:nowplaying from:body"),
+        "the list asks again when the song changes: {mine}"
+    );
+}
+
 /// A phone with no singer draws no list and marks no row.
 #[tokio::test]
 async fn a_phone_that_asked_for_nothing_has_no_list_of_its_own() {
@@ -6129,9 +6166,10 @@ async fn the_live_script_asks_again_when_the_requests_change() {
     let script = harness.get("/static/live.js").await;
     assert!(script.contains(r#""requests""#), "{script}");
     assert!(script.contains("km:requests"), "{script}");
+    assert!(script.contains("km:nowplaying"), "{script}");
     let queue = harness.get("/queue").await;
     assert!(
-        queue.contains(r#"hx-trigger="km:requests from:body""#),
+        queue.contains(r#"hx-trigger="km:requests from:body, km:nowplaying from:body""#),
         "{queue}"
     );
 }

@@ -1513,9 +1513,24 @@ async fn mine_block(state: &Remote, prefs: &Prefs) -> (MineBlock, Option<PhoneSe
         .map(|list| list.requests)
         .unwrap_or_default();
     let locale = prefs.locale;
+    // A song that started stays in the list while it plays and leaves it when it ends, so a long
+    // night does not fill the list with songs already sung.
+    let playing = match player_view(state)
+        .await
+        .state
+        .now_playing
+        .map(|now| now.origin)
+    {
+        Some(km_api::dto::OriginDto::Catalog { entry_id, .. }) => Some(entry_id),
+        _ => None,
+    };
     let rows = requests
         .iter()
         .filter(|request| seats.get(request.singer).is_some())
+        .filter(|request| {
+            request.state != km_api::dto::RequestStateDto::Played
+                || (playing.is_some() && request.entry_id == playing)
+        })
         .map(|request| MineRow {
             id: request.id,
             title: request.title.clone(),
@@ -1524,7 +1539,13 @@ async fn mine_block(state: &Remote, prefs: &Prefs) -> (MineBlock, Option<PhoneSe
                 .find(|singer| singer.id == request.singer)
                 .map(|singer| views::singer_label(singer, locale))
                 .unwrap_or_default(),
-            state: views::request_state(request, locale),
+            state: if request.state == km_api::dto::RequestStateDto::Played {
+                crate::words::messages(locale)
+                    .msg("request-playing")
+                    .into_owned()
+            } else {
+                views::request_state(request, locale)
+            },
             open: matches!(
                 request.state,
                 km_api::dto::RequestStateDto::Waiting | km_api::dto::RequestStateDto::Queued

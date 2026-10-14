@@ -403,6 +403,7 @@ request-waiting = Waiting for your turn
 request-queued = In the queue, place { $place }
 request-accepted = In the queue
 request-played = Started
+request-playing = Playing now
 request-declined = Taken out of the queue
 request-withdrawn = Taken back
 package-flag-uncurated = uncurated

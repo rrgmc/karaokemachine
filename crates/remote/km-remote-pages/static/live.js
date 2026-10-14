@@ -209,6 +209,11 @@
     for (const name of STATE_EVENTS) {
       source.addEventListener(name, (event) => swap(name, event.data));
     }
+    // The song on screen changed. A phone's own list names the song that plays, and a song that
+    // ends with nothing after it changes no request, so the list fetches itself on this too.
+    source.addEventListener("nowbar", () => {
+      document.body.dispatchEvent(new Event("km:nowplaying"));
+    });
     source.addEventListener("toast", (event) => toast(event.data));
     // The requests changed. A phone's own songs are its own, so this event carries no fragment:
     // it is turned into a DOM event, and the list on the Queue tab fetches itself on it.

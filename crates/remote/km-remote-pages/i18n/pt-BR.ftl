@@ -350,6 +350,7 @@ request-waiting = Esperando a sua vez
 request-queued = Na fila, lugar { $place }
 request-accepted = Na fila
 request-played = Começou
+request-playing = Tocando agora
 request-declined = Tirada da fila
 request-withdrawn = Retirada
 package-flag-uncurated = sem curadoria

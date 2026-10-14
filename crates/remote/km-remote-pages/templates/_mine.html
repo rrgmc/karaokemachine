@@ -1,4 +1,4 @@
-<div id="mine" hx-get="/mine" hx-trigger="km:requests from:body" hx-swap="outerHTML">
+<div id="mine" hx-get="/mine" hx-trigger="km:requests from:body, km:nowplaying from:body" hx-swap="outerHTML">
 {% if !rows.is_empty() %}
 <h2 class="list-head">{{ "mine-heading"|t }}</h2>
 <ul class="song-list">

@@ -38,7 +38,8 @@ owner, because a host changes no setting.
 2. **Type a name** in **Singing as** on the Setup tab.
 3. **Tap + on a song.** Ask for as many as the machine allows.
 4. **Read the Queue tab.** *Your songs* says of each song whether it waits, is in the queue, or
-   started. A song in the queue shows about how long until it starts.
+   plays now. A song leaves the list when it ends. A song in the queue shows about how long until
+   it starts.
 
 **The machine keeps one song for each singer in the queue.** A second song waits until the first
 one starts, and then it goes to the end of the queue. So a table that asks for five songs sings one,
