@@ -92,6 +92,10 @@ Entries are written for somebody who has the machine. Why any of it is the way i
   add a song out of turn. A machine whose room was at *Queue songs* is now at *Ask for songs*. To
   give every guest those controls again, open the password tab of the owner's page and choose the
   level above it. *Watch only* and *skip and play now* stay as you set them.
+- **Songs play in the order asked unless the owner chooses turns.** A guest's + puts the song at the
+  end of the queue, named or not, however many that guest has asked for. **Queue order** sits on
+  the Singers card of the owner's page and of km-admin. **Singers take turns** keeps one song for
+  each singer in the queue, and the rest wait. A venue chooses turns.
 - **The queue code now buys the level above asking.** A phone with that code adds a song with no
   singer, which takes no turn, and changes key and tempo.
 - **`POST /api/v1/queue` takes no `singer`.** It adds a song with no singer, and it refuses a body

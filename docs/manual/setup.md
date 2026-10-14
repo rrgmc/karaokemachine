@@ -35,7 +35,7 @@ choose that level:
 | Room level | A phone with no code can |
 |---|---|
 | Watch only | Browse the songs and see the queue and what is playing. |
-| Ask for songs, and sing in turn | Also ask for a song. The machine puts one song for each singer in the queue, so the singers take turns. This is the default. |
+| Ask for songs | Also ask for a song. The song takes its place by the queue order on the **Singers** card. This is the default. |
 | Ask for songs, add a song out of turn, and change key and tempo | Also add a song with no singer, which takes no turn. Also change the key, tempo, volume and guide melody. |
 | All of that, skip and play now | Also skip, play a song now, use the other transport buttons, and move or remove anybody's song. |
 
@@ -48,13 +48,17 @@ tab, which then says what that phone can do.
 
 Clearing or changing a code takes that level back from every phone that used it.
 
-**The same tab says what the machine asks of a singer.** The **Singers** card has three answers:
+**The same tab says what the machine asks of a singer.** The **Singers** card has four answers:
 
 | Setting | What it does |
 |---|---|
+| Queue order | **In the order asked**, the default, puts every song at the end of the queue as it is asked for. **Singers take turns** keeps one song for each singer in the queue, and a singer's next song waits until the one before starts. Choose turns where strangers share the machine. |
 | Every singer gives a name | A phone must type a name before its first song. Turn it on where a host calls each singer by name. |
 | Singers on one phone | The most singers one phone may add. Leave it empty for no limit, which suits a home that passes one phone around. |
-| Songs one singer may have waiting | The most songs a singer may have waiting behind the one in the queue. It starts at 10. |
+| Songs one singer may have waiting | When singers take turns, the most songs a singer may have waiting behind the one in the queue. It starts at 10. |
+
+**A change of queue order applies at once.** A change to **In the order asked** puts every waiting
+song into the queue, in the order the songs were asked for.
 
 **The same tab says whether the machine keeps the night through a restart.** The
 **The evening after a restart** card has one box, and it starts off. With the box ticked, the

@@ -49,8 +49,9 @@ waiting.</sub>
   machine switched off.
 - **One admin password, which the machine shows on its own screen.** Everything that reconfigures
   the machine needs it, and nothing a singer does needs it.
-- **Singers take turns.** A guest asks for as many songs as they like, and the machine keeps one
-  song for each singer in the queue. The next one goes in when theirs starts.
+- **Songs play in the order asked, or the singers take turns.** A guest asks for as many songs as
+  they like. Out of the box each one goes to the end of the queue. Choose turns, and the machine
+  keeps one song for each singer in the queue. The next one goes in when theirs starts.
 - **Four levels below the owner: watch, ask, queue out of turn, and skip.** Anybody in the room can
   ask for a song out of the box. You can lower that to watching only, or raise it. Two codes you
   choose raise one phone at a time. One queues out of turn and changes the key, and one skips and
