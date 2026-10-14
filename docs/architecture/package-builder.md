@@ -1298,6 +1298,10 @@ the tick box. A field on the row would therefore be cleared every time somebody 
 name. `Db::set_package_version` is narrow for the matching reason. The build's last lock holds no
 `PackageRow`, and must not overwrite a name or a language edited during the minutes it was unlocked.
 
+`Db::linked` and `Db::set_linked` read and write `packages.linked` on the same terms, and `spec_for`
+copies it into `spec.package.linked`. The two build routes store both boxes in one write before the
+build starts.
+
 ## Sourcing a package from favorites
 
 One table, `package_favorites`, and no migration step. It is new, and `schema.sql` runs in full on

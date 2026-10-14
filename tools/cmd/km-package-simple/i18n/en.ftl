@@ -46,6 +46,8 @@ form-publisher = Publisher
 form-language = Language for songs with none
 form-out = Write to folder
 form-language-hint = A song whose file names no language is filed under this one. Undetermined is the honest answer when you do not know.
+form-linked = Build linked packages, which hold no song file
+form-linked-hint = A linked package names each song by its path in the folder you chose. It plays only on a machine set to take linked packages, from that folder or a copy of it. A song inside a zip is left out.
 action-build = Build
 
 songs-summary = { $count ->
@@ -92,6 +94,7 @@ built-heading = { $count ->
    *[other] Wrote { $count } packages.
   }
 built-uncurated = Each one is marked uncurated.
+built-linked = Each one is linked. It holds no song file, so the machine also needs the folder of songs.
 built-listing = A list of the songs is beside each package, as a .txt file with the same name.
 built-skipped = { $count ->
     [one] { $count } song did not go in

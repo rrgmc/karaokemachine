@@ -1650,12 +1650,20 @@ pub struct PackageListRow {
     pub sources: Vec<String>,
     /// How many volumes it has, said only when there are two or more.
     pub volumes: Option<String>,
+    /// Whether a build of it writes a linked package, which holds no song file.
+    pub linked: bool,
 }
 
 impl PackageListRow {
     /// A package, worded for the language the page is in.
-    pub fn new(row: PackageRow, sources: Vec<String>, locale: km_locale::Locale) -> Self {
+    pub fn new(
+        row: PackageRow,
+        sources: Vec<String>,
+        linked: bool,
+        locale: km_locale::Locale,
+    ) -> Self {
         Self {
+            linked,
             volumes: (row.volumes > 1).then(|| {
                 crate::words::messages(locale)
                     .msg_with(
@@ -1798,6 +1806,8 @@ pub struct BuildPane {
     pub raise_version: bool,
     /// What the label beside the raise-the-version box says. See [`raise_version_says`].
     pub raise_version_label: String,
+    /// Whether a build writes a linked package, which holds no song file.
+    pub linked: bool,
     /// The install form, pre-rendered so a finished build can swap an identical one in.
     pub install: InstallForm,
     /// Whether this copy is the out-of-band one that replaces the copy already on the page.
@@ -1825,6 +1835,7 @@ impl BuildPane {
             spec_file: crate::build::file_name(&crate::build::default_spec_path(root, &package)),
             raise_version,
             raise_version_label: raise_version_says(&package, locale),
+            linked: false,
             install: InstallForm {
                 package_id: package.id.clone(),
                 volume: package.volume,
@@ -1834,6 +1845,13 @@ impl BuildPane {
             package,
             oob,
         }
+    }
+
+    /// The same tab, with the linked box as the package keeps it.
+    #[must_use]
+    pub fn building_linked(mut self, linked: bool) -> Self {
+        self.linked = linked;
+        self
     }
 }
 

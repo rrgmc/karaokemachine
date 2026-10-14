@@ -11,6 +11,19 @@ songs you want on the machine without curating them first. Choose the folder, re
 it out, and build. Each package it writes is marked *uncurated*, and the machine's package lists
 show the mark.
 
+## A package that holds no songs
+
+**Every tool here can build a linked package.** It names each song file by its path in the folder
+you built from, and holds none of them. The machine plays the songs from that folder, or from a copy
+of it. [Getting songs in](songs.md#linked-packages) says how to set the machine up for one.
+
+- **`km-package-simple`**: tick **Build linked packages** on the package form.
+- **`km-package-builder`**: tick **build a linked package** on a package's Build tab. The package
+  remembers it.
+- **`km-pack`**: `km-pack build --linked`, or `linked: true` in the description.
+
+A linked build leaves out a song inside a `.zip`, and re-encodes no video.
+
 ## The tools for a large folder
 
 | Tool | What it does |

@@ -65,6 +65,13 @@
            saying what is in it. #}
         <span></span>
         <label class="check"><input type="checkbox" name="write_listing" checked> {{ "package-write-listing"|t }}</label>
+        {# Off by default. A linked package holds no song file, so it plays only on a machine whose
+           owner allowed linked packages and set a folder holding these files. The choice is the
+           package's, so the box comes back as the last build left it. #}
+        <span></span>
+        <label class="check"><input type="checkbox" name="linked" {% if linked %}checked{% endif %}> {{ "package-build-linked"|t }}</label>
+        <span></span>
+        <p class="dim">{{ "package-build-linked-hint"|t }}</p>
         {# Build every volume posts the same form elsewhere: the folder and the two boxes apply to every
            file it writes, and the name box does not, because it names one file. Drawn only once there
            is more than one volume to build. #}

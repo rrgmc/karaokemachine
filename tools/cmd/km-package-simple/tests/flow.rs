@@ -154,6 +154,55 @@ async fn a_folder_becomes_an_uncurated_package_with_the_changes_made_on_the_page
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn a_ticked_box_builds_a_linked_package_over_the_folder_that_was_read() {
+    let songs = Scratch::new("flow-linked-songs");
+    let bytes = km_song::testing::soft_karaoke();
+    std::fs::create_dir_all(songs.join("rock")).expect("a folder");
+    std::fs::write(songs.join("rock").join("a.kar"), &bytes).expect("write");
+    let out = Scratch::new("flow-linked-out");
+
+    let app = App::new(None, "http://127.0.0.1:0/".to_owned());
+    let (status, _) = post(&app, "/folder", &format!("path={}", form_value(&songs))).await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+    settled(&app).await;
+
+    let page = get(&app, "/").await;
+    assert!(
+        page.contains(r#"<input type="checkbox" name="linked" value="yes">"#),
+        "the box is offered, and off: {page}"
+    );
+
+    let body = format!(
+        "name=Party&version=1.0.0&publisher=&language=und&linked=yes&out_dir={}",
+        form_value(&out)
+    );
+    let (status, _) = post(&app, "/build", &body).await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+    settled(&app).await;
+    assert!(
+        matches!(app.lock().phase, Phase::Built(_)),
+        "{:?}",
+        app.lock().error
+    );
+
+    let file = out.join("party-1.0.0.kmpkg");
+    let package = km_kmpkg::Package::open(&file).expect("open the package");
+    assert!(package.is_linked());
+    assert!(package.is_uncurated(), "and still uncurated");
+    assert_eq!(package.manifest().songs[0].file, "rock/a.kar");
+    assert_eq!(
+        package
+            .with_linked_dir(songs.path())
+            .read_song(1)
+            .expect("read through the folder"),
+        bytes
+    );
+
+    let page = get(&app, "/").await;
+    assert!(page.contains("Each one is linked"), "{page}");
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn a_post_from_another_site_is_refused() {
     let app = App::new(None, "http://127.0.0.1:0/".to_owned());
     let request = Request::post("/quit")

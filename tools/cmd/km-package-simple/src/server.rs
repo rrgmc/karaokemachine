@@ -315,6 +315,8 @@ struct BuildForm {
     publisher: String,
     language: String,
     out_dir: String,
+    /// Present when the box is ticked, absent when it is not.
+    linked: Option<String>,
 }
 
 /// `POST /build`: write the packages.
@@ -330,6 +332,7 @@ async fn build(
         publisher: (!publisher.is_empty()).then(|| publisher.to_owned()),
         language: form.language.trim().to_owned(),
         out_dir: std::path::PathBuf::from(form.out_dir.trim()),
+        linked: form.linked.is_some(),
     };
     match app.build(form) {
         Ok(()) => refresh(),

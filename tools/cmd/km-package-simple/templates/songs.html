@@ -31,6 +31,10 @@
     </div>
   </div>
   <p class="hint">{{ "form-language-hint"|t }}</p>
+  {# Off by default: a package that holds its songs plays on any machine. A linked one names each
+     file by its path in the folder that was read, so that folder is the one a machine plays from. #}
+  <label><input type="checkbox" name="linked" value="yes"{% if form.linked %} checked{% endif %}> {{ "form-linked"|t }}</label>
+  <p class="hint">{{ "form-linked-hint"|t }}</p>
   <button type="submit">{{ "action-build"|t }}</button>
 </form>
 {# Empty until Browse is pressed. Outside the form, because the picker holds a form of its own and

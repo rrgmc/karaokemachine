@@ -214,6 +214,7 @@ it are the same entry. How the thing is built is [`ARCHITECTURE.md`](../ARCHITEC
 - [A song in a package can be replaced at its number](curation.md#a-song-in-a-package-can-be-replaced-at-its-number)
 - [A package can be built straight from a folder](curation.md#a-package-can-be-built-straight-from-a-folder)
 - [Importing an uncurated package keeps the flag](curation.md#importing-an-uncurated-package-keeps-the-flag)
+- [Each builder can write a linked package](curation.md#each-builder-can-write-a-linked-package)
 - [A package holds volumes](curation.md#a-package-holds-volumes)
 - [A sync is pressed, and it asks first](curation.md#a-sync-is-pressed-and-it-asks-first)
 - [The curation actions are tabs](curation.md#the-curation-actions-are-tabs)

@@ -12,7 +12,7 @@ use super::*;
 /// The schema this build writes and understands, stamped into `PRAGMA user_version`.
 ///
 /// Bump this and add an arm to [`step_to`] in the same change. The number keeps counting.
-pub(super) const SCHEMA_VERSION: u32 = 21;
+pub(super) const SCHEMA_VERSION: u32 = 22;
 
 /// The oldest schema this build opens. Everything from here to [`SCHEMA_VERSION`] is an arm of
 /// [`step_to`].
@@ -151,6 +151,14 @@ fn step_to(conn: &Connection, version: u32) -> Result<(), DbError> {
             conn.execute_batch(
                 "ALTER TABLE folders ADD COLUMN direct_suitability REAL;
                  ALTER TABLE folders ADD COLUMN beneath_suitability REAL",
+            )?;
+            Ok(())
+        }
+        // Whether a build of the package links its song files. Off on every row, so every package
+        // builds as it did.
+        22 => {
+            conn.execute_batch(
+                "ALTER TABLE packages ADD COLUMN linked INTEGER NOT NULL DEFAULT 0",
             )?;
             Ok(())
         }
