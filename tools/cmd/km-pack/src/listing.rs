@@ -214,9 +214,9 @@ mod tests {
         assert!(text.contains("the whole folder"), "{text}");
 
         let mut own = manifest();
-        own.linked_root = Some("cdg/Rigmar".to_owned());
+        own.linked_root = Some("cdg/alpha".to_owned());
         let text = listing(&own, PackageFlags::LINKED);
-        assert!(text.contains("Folder:    cdg/Rigmar"), "{text}");
+        assert!(text.contains("Folder:    cdg/alpha"), "{text}");
     }
 
     /// The rule the archive is held to, pointed at the file beside it.

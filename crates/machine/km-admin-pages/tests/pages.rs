@@ -1299,10 +1299,10 @@ async fn a_linked_package_is_marked_on_the_songs_tab() {
 async fn a_linked_package_names_the_folder_it_plays_from() {
     let machine = TestMachine::with_catalog(2);
     machine.set_package_flags("vol1", km_kmpkg::PackageFlags::LINKED);
-    machine.set_package_linked_root("vol1", Some("cdg/Rigmar"));
+    machine.set_package_linked_root("vol1", Some("cdg/alpha"));
     let (app, _) = nested_as(Host::Machine, machine, Arc::new(SpyGuard::default()));
     let (_, page) = get(&app, "/admin/songs").await;
-    assert!(page.contains("cdg/Rigmar"), "{page}");
+    assert!(page.contains("cdg/alpha"), "{page}");
     assert!(!page.contains("anywhere in the linked folder"), "{page}");
 
     // A package that holds its songs says nothing about a folder.

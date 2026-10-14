@@ -681,9 +681,9 @@ with the corpus root at `<your karaoke folder>`:
 
 | The songs come from | The package's folder | A path in the package |
 |---|---|---|
-| `cdg/Rigmar/` only | `cdg/Rigmar` | `song.mp3` |
-| `cdg/Rigmar/` and `cdg/Sunfly/` | `cdg` | `Rigmar/song.mp3` |
-| `cdg/Rigmar/` and `Ingles2/` | none: the whole folder | `cdg/Rigmar/song.mp3` |
+| `cdg/alpha/` only | `cdg/alpha` | `song.mp3` |
+| `cdg/alpha/` and `cdg/beta/` | `cdg` | `alpha/song.mp3` |
+| `cdg/alpha/` and `midi/` | none: the whole folder | `cdg/alpha/song.mp3` |
 
 **A package whose songs share no folder reaches the whole folder**, and every list says so. That is
 the price of mixing collections in one package. It is the package an owner most wants to notice

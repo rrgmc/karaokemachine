@@ -3732,9 +3732,9 @@ mod tests {
     fn a_linked_package_keeps_the_folder_its_files_share_as_its_own() {
         let dir = temp_dir("linked-own-folder");
         let library = dir.join("library");
-        let first = dir.write("library/cdg/Rigmar/a.mid", b"first");
-        let second = dir.write("library/cdg/Rigmar/disc 2/b.mid", b"second");
-        dir.write("library/cdg/Sunfly/c.mid", b"another collection");
+        let first = dir.write("library/cdg/alpha/a.mid", b"first");
+        let second = dir.write("library/cdg/alpha/disc 2/b.mid", b"second");
+        dir.write("library/cdg/beta/c.mid", b"another collection");
 
         let path = dir.join("vol1.kmpkg");
         let mut builder = PackageBuilder::new_linked(meta(), Some(library.clone()));
@@ -3749,7 +3749,7 @@ mod tests {
         let package = Package::open(&path)
             .expect("open")
             .with_linked_dir(&library);
-        assert_eq!(package.linked_root(), Some("cdg/Rigmar"));
+        assert_eq!(package.linked_root(), Some("cdg/alpha"));
         let files: Vec<&str> = package
             .manifest()
             .songs
@@ -3780,7 +3780,7 @@ mod tests {
         let rebuilt = Package::open(&rebuilt)
             .expect("open")
             .with_linked_dir(&library);
-        assert_eq!(rebuilt.linked_root(), Some("cdg/Rigmar"));
+        assert_eq!(rebuilt.linked_root(), Some("cdg/alpha"));
         assert_eq!(rebuilt.read_song(1).expect("read"), b"first");
     }
 
@@ -3788,8 +3788,8 @@ mod tests {
     fn a_linked_package_reads_nothing_beside_its_own_folder() {
         let dir = temp_dir("linked-own-folder-only");
         let library = dir.join("library");
-        let song = dir.write("library/Rigmar/a.mid", b"mine");
-        dir.write("library/Sunfly/b.mid", b"another collection");
+        let song = dir.write("library/alpha/a.mid", b"mine");
+        dir.write("library/beta/b.mid", b"another collection");
 
         let path = dir.join("vol1.kmpkg");
         let mut builder = PackageBuilder::new_linked(meta(), Some(library.clone()));
@@ -3801,14 +3801,14 @@ mod tests {
         let package = Package::open(&path)
             .expect("open")
             .with_linked_dir(&library);
-        assert_eq!(package.linked_root(), Some("Rigmar"));
+        assert_eq!(package.linked_root(), Some("alpha"));
         // A path reaching for the other collection climbs out of the package's folder.
         assert!(matches!(
-            linked::open_in(&library, package.linked_root(), "../Sunfly/b.mid"),
+            linked::open_in(&library, package.linked_root(), "../beta/b.mid"),
             Err(LinkedPathError::BadComponent(_))
         ));
 
-        std::fs::remove_dir_all(library.join("Rigmar")).expect("remove the folder");
+        std::fs::remove_dir_all(library.join("alpha")).expect("remove the folder");
         assert!(matches!(
             package.read_song(1),
             Err(PackageError::Linked {
@@ -3826,7 +3826,7 @@ mod tests {
         song.file = "midi/1.mid".to_owned();
         let mut manifest = Manifest::new(meta());
         manifest.songs = vec![song];
-        manifest.linked_root = Some("Rigmar".to_owned());
+        manifest.linked_root = Some("alpha".to_owned());
         let file = std::fs::File::create(&path).expect("create");
         let mut writer = Writer::new(file).expect("header");
         writer

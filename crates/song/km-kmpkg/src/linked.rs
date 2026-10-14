@@ -596,14 +596,14 @@ mod tests {
     #[test]
     fn the_common_folder_is_the_deepest_one_every_path_shares() {
         assert_eq!(
-            common_folder(["cdg/Rigmar/a.mp3", "cdg/Rigmar/a.cdg"]).as_deref(),
-            Some("cdg/Rigmar")
+            common_folder(["cdg/alpha/a.mp3", "cdg/alpha/a.cdg"]).as_deref(),
+            Some("cdg/alpha")
         );
         assert_eq!(
-            common_folder(["cdg/Rigmar/a.mp3", "cdg/Sunfly/b.mp3"]).as_deref(),
+            common_folder(["cdg/alpha/a.mp3", "cdg/beta/b.mp3"]).as_deref(),
             Some("cdg")
         );
-        assert_eq!(common_folder(["cdg/Rigmar/a.mp3", "Ingles2/b.kar"]), None);
+        assert_eq!(common_folder(["cdg/alpha/a.mp3", "midi/b.kar"]), None);
         assert_eq!(
             common_folder(["rock/a.mid", "rockabilly/b.mid"]),
             None,
@@ -616,14 +616,14 @@ mod tests {
     #[test]
     fn a_file_is_read_only_from_the_packages_own_folder() {
         let scratch = Scratch::new("linked-own-folder");
-        scratch.write("library/Rigmar/a.mid", b"mine");
-        scratch.write("library/Sunfly/b.mid", b"another collection");
+        scratch.write("library/alpha/a.mid", b"mine");
+        scratch.write("library/beta/b.mid", b"another collection");
         let library = scratch.join("library");
 
-        let file = open_in(&library, Some("Rigmar"), "a.mid").expect("opens");
+        let file = open_in(&library, Some("alpha"), "a.mid").expect("opens");
         assert_eq!(file.len(), 4);
         assert!(matches!(
-            open_in(&library, Some("Rigmar"), "../Sunfly/b.mid"),
+            open_in(&library, Some("alpha"), "../beta/b.mid"),
             Err(LinkedPathError::BadComponent(_))
         ));
         assert!(matches!(
@@ -631,7 +631,7 @@ mod tests {
             Err(LinkedPathError::FolderMissing(_))
         ));
         assert!(matches!(
-            open_in(&library, Some("../library"), "Rigmar/a.mid"),
+            open_in(&library, Some("../library"), "alpha/a.mid"),
             Err(LinkedPathError::BadComponent(_))
         ));
     }
@@ -641,10 +641,10 @@ mod tests {
         let scratch = Scratch::new("linked-folder-link-out");
         scratch.write("private/secret.mid", b"private");
         std::fs::create_dir_all(scratch.join("library")).expect("make the folder");
-        link_folder(&scratch.join("private"), &scratch.join("library/Rigmar"));
+        link_folder(&scratch.join("private"), &scratch.join("library/alpha"));
 
         assert!(matches!(
-            open_in(&scratch.join("library"), Some("Rigmar"), "secret.mid"),
+            open_in(&scratch.join("library"), Some("alpha"), "secret.mid"),
             Err(LinkedPathError::FolderOutside(_))
         ));
     }

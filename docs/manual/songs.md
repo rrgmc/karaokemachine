@@ -56,8 +56,8 @@ somebody you trust. Two things turn it on:
    [the setup page](setup.md). The line above ticks it too.
 
 **Each linked package plays from one folder of its own, inside that folder.** The package names
-it, and the **Songs** tab shows it under the package. A package built from `cdg/Rigmar` in your
-library needs `cdg/Rigmar` inside the folder you set, with the same files in it. The machine reads
+it, and the **Songs** tab shows it under the package. A package built from `cdg/alpha` in your
+library needs `cdg/alpha` inside the folder you set, with the same files in it. The machine reads
 nothing outside the package's folder. A package whose folder is missing does not install, and the
 **Problems** tab names the folder.
 
