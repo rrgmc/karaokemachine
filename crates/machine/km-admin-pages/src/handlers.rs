@@ -402,15 +402,14 @@ impl NoticeParams {
 ///
 /// [`back_tab`]'s shape and its reason: the value comes off a query string and is interpolated into
 /// a redirect, so what leaves here is an enum and the URL is built from [`Pane::id`]. An unknown
-/// name opens Debugging, which is the pane that is never empty.
+/// name opens General, which is the pane that is never empty.
 fn back_pane(asked: &str) -> Pane {
     match asked {
-        "name" => Pane::Name,
-        "password" => Pane::Password,
-        "demo" => Pane::Demo,
-        "announcement" => Pane::Announcement,
-        "language" => Pane::Language,
-        _ => Pane::Debug,
+        "access" => Pane::Access,
+        "singers" => Pane::Singers,
+        "playback" => Pane::Playback,
+        "developer" => Pane::Developer,
+        _ => Pane::General,
     }
 }
 
@@ -501,6 +500,15 @@ pub async fn songs_page(
         )
         .into_owned();
 
+    // A host with no such switch, or one that cannot be read, draws no card.
+    let linked_packages = state
+        .switches
+        .read()
+        .await
+        .ok()
+        .and_then(|switches| switches.linked_packages)
+        .map(Into::into);
+
     views::page(
         &SongsPage {
             chrome: chrome(&state, Tab::Songs, locale).await,
@@ -508,6 +516,7 @@ pub async fn songs_page(
             songs_count,
             packages,
             accepts: km_api::uploads::accept_for(km_api::machine::Upload::Package),
+            linked_packages,
         },
         locale,
     )
@@ -992,13 +1001,10 @@ pub async fn machine_page(
     );
     let identity = identity.unwrap_or_default();
     let switches = switches.unwrap_or_default();
-    // **The pane asked for, and Debugging otherwise**, which is the pane that is never empty. A
-    // tool holding no token still opens the pane it was sent to: what it is missing is on the front
+    // **The pane asked for, and General otherwise**, which is the pane that is never empty. A tool
+    // holding no token still opens the pane it was sent to: what it is missing is on the front
     // door, and the sentence above the strip says so and links there.
-    let pane = params
-        .pane()
-        .unwrap_or(Pane::Debug)
-        .drawn(state.capabilities);
+    let pane = params.pane().unwrap_or(Pane::General);
     views::page(
         &MachinePage {
             chrome: chrome_from(&state, Tab::Machine, switches, locale).await,
@@ -1028,7 +1034,6 @@ pub async fn machine_page(
             end_on_silence: switches.end_on_silence,
             adjust_recordings: switches.adjust_recordings,
             keep_evening: switches.keep_evening,
-            linked_packages: switches.linked_packages.map(Into::into),
             power: identity.power,
         },
         locale,
@@ -1816,12 +1821,16 @@ pub async fn set_name(
     // machine's own function and both hosts can call it — what must not be duplicated is a *rule*,
     // and this is the machine's rule being applied where the form is.
     let Some(name) = km_api::discover::tidy_name(&form.name) else {
-        return back_to_pane(Pane::Name, "bad", "A machine's name cannot be blank.");
+        return back_to_pane(Pane::General, "bad", "A machine's name cannot be blank.");
     };
     if let Err(error) = state.machine.set_name(&name).await {
-        return refusal_on(&state, Pane::Name, &error, state.locale(&headers));
+        return refusal_on(&state, Pane::General, &error, state.locale(&headers));
     }
-    back_to_pane(Pane::Name, "good", &format!("This machine is now {name}."))
+    back_to_pane(
+        Pane::General,
+        "good",
+        &format!("This machine is now {name}."),
+    )
 }
 
 /// What to call the machine.
@@ -1850,15 +1859,15 @@ pub async fn set_machine_locale(
     // it: `set_locale` answers `NotFound` for a tag it does not know, and `no-such-locale` says what
     // that means on this page. The seam's check is the one that stops a host inventing a tag.
     let Some(chosen) = km_locale::Locale::parse(&form.locale) else {
-        return back_to_pane(Pane::Language, "bad", &words.msg("no-such-locale"));
+        return back_to_pane(Pane::General, "bad", &words.msg("no-such-locale"));
     };
     if let Err(error) = state.machine.set_locale(chosen.tag()).await {
-        return refusal_on(&state, Pane::Language, &error, state.locale(&headers));
+        return refusal_on(&state, Pane::General, &error, state.locale(&headers));
     }
     // Said in the language just chosen, which is the one honest way to confirm this: somebody who
     // picked the wrong one sees that immediately rather than after walking to the television.
     back_to_pane(
-        Pane::Language,
+        Pane::General,
         "good",
         &crate::words::messages(chosen).msg("locale-changed"),
     )
@@ -1890,7 +1899,7 @@ pub async fn set_demo(
     let enabled = form.enabled.is_some();
     let persist = form.persist.is_some();
     match state.switches.set_demo(enabled, persist).await {
-        Err(error) => refusal_on(&state, Pane::Demo, &error, state.locale(&headers)),
+        Err(error) => refusal_on(&state, Pane::Playback, &error, state.locale(&headers)),
         // The four keys are spelled out rather than chosen into a variable, because
         // `words::tests::no_message_is_left_unused` scans this file for quoted keys passed to the
         // lookup, and one it cannot see is one it reports as dead.
@@ -1901,7 +1910,7 @@ pub async fn set_demo(
                 (false, true) => words.msg("demo-off-stored"),
                 (false, false) => words.msg("demo-off-run"),
             };
-            back_to_pane(Pane::Demo, "good", &said)
+            back_to_pane(Pane::Playback, "good", &said)
         }
     }
 }
@@ -1923,14 +1932,14 @@ pub async fn set_demo_delay(
 ) -> Response {
     let words = crate::words::messages(state.locale(&headers));
     let Ok(delay_secs) = form.delay_secs.trim().parse::<u32>() else {
-        return back_to_pane(Pane::Demo, "bad", &words.msg("demo-delay-bad"));
+        return back_to_pane(Pane::Playback, "bad", &words.msg("demo-delay-bad"));
     };
     match state.switches.set_demo_delay(delay_secs).await {
-        Err(error) => refusal_on(&state, Pane::Demo, &error, state.locale(&headers)),
+        Err(error) => refusal_on(&state, Pane::Playback, &error, state.locale(&headers)),
         // **The number the machine stored, not the one that was asked for.** The route caps it, and
         // a page that echoed the request would tell somebody their 9999 had been saved.
         Ok(stored) => back_to_pane(
-            Pane::Demo,
+            Pane::Playback,
             "good",
             &words.msg_with("demo-delay-saved", &[("seconds", i64::from(stored).into())]),
         ),
@@ -1939,7 +1948,7 @@ pub async fn set_demo_delay(
 
 /// `POST /admin/machine/singers` — what the machine asks of a singer.
 ///
-/// **One form for all three answers**, as the announcement's is: each is always written down.
+/// **One form for all four answers**, as the announcement's is: each is always written down.
 ///
 /// The two numbers are parsed here and not by the browser, for `set_demo_delay`'s reason. An empty
 /// box for the singers on one phone means no limit.
@@ -1950,7 +1959,7 @@ pub async fn set_singer_rules(
 ) -> Response {
     let locale = state.locale(&headers);
     let words = crate::words::messages(locale);
-    let bad = || back_to_pane(Pane::Password, "bad", &words.msg("singers-number-bad"));
+    let bad = || back_to_pane(Pane::Singers, "bad", &words.msg("singers-number-bad"));
     let max_per_device = match form.max_per_device.trim() {
         "" => None,
         typed => match typed.parse::<u32>() {
@@ -1961,14 +1970,18 @@ pub async fn set_singer_rules(
     let Ok(max_waiting) = form.max_waiting.trim().parse::<u32>() else {
         return bad();
     };
+    let Some(queue_order) = form.queue_order else {
+        return bad();
+    };
     let rules = km_api::machine::SingerRules {
         name_required: form.name_required.is_some(),
         max_per_device,
         max_waiting,
+        queue_order,
     };
     match state.switches.set_singer_rules(rules).await {
-        Err(error) => refusal_on(&state, Pane::Password, &error, locale),
-        Ok(_) => back_to_pane(Pane::Password, "good", &words.msg("singers-saved")),
+        Err(error) => refusal_on(&state, Pane::Singers, &error, locale),
+        Ok(_) => back_to_pane(Pane::Singers, "good", &words.msg("singers-saved")),
     }
 }
 
@@ -1986,21 +1999,17 @@ pub async fn set_announcement(
     let words = crate::words::messages(state.locale(&headers));
     let enabled = form.enabled.is_some();
     let Ok(length_secs) = form.length_secs.trim().parse::<u32>() else {
-        return back_to_pane(
-            Pane::Announcement,
-            "bad",
-            &words.msg("announcement-length-bad"),
-        );
+        return back_to_pane(Pane::Playback, "bad", &words.msg("announcement-length-bad"));
     };
     match state.switches.set_announcement(enabled, length_secs).await {
-        Err(error) => refusal_on(&state, Pane::Announcement, &error, state.locale(&headers)),
+        Err(error) => refusal_on(&state, Pane::Playback, &error, state.locale(&headers)),
         Ok(stored) => {
             let said = if enabled {
                 words.msg_with("announcement-on", &[("seconds", i64::from(stored).into())])
             } else {
                 words.msg("announcement-off")
             };
-            back_to_pane(Pane::Announcement, "good", &said)
+            back_to_pane(Pane::Playback, "good", &said)
         }
     }
 }
@@ -2020,9 +2029,9 @@ pub async fn set_end_on_silence(
         .set_end_on_silence(form.end_on_silence.is_some())
         .await
     {
-        Err(error) => refusal_on(&state, Pane::Demo, &error, state.locale(&headers)),
-        Ok(true) => back_to_pane(Pane::Demo, "good", &words.msg("end-on-silence-on")),
-        Ok(false) => back_to_pane(Pane::Demo, "good", &words.msg("end-on-silence-off")),
+        Err(error) => refusal_on(&state, Pane::Playback, &error, state.locale(&headers)),
+        Ok(true) => back_to_pane(Pane::Playback, "good", &words.msg("end-on-silence-on")),
+        Ok(false) => back_to_pane(Pane::Playback, "good", &words.msg("end-on-silence-off")),
     }
 }
 
@@ -2042,9 +2051,9 @@ pub async fn set_keep_evening(
         .set_keep_evening(form.keep_evening.is_some())
         .await
     {
-        Err(error) => refusal_on(&state, Pane::Password, &error, state.locale(&headers)),
-        Ok(true) => back_to_pane(Pane::Password, "good", &words.msg("keep-evening-on")),
-        Ok(false) => back_to_pane(Pane::Password, "good", &words.msg("keep-evening-off")),
+        Err(error) => refusal_on(&state, Pane::Singers, &error, state.locale(&headers)),
+        Ok(true) => back_to_pane(Pane::Singers, "good", &words.msg("keep-evening-on")),
+        Ok(false) => back_to_pane(Pane::Singers, "good", &words.msg("keep-evening-off")),
     }
 }
 
@@ -2065,21 +2074,17 @@ pub async fn set_linked_packages(
         .set_linked_packages(form.linked_packages.is_some())
         .await
     {
-        Err(error) => refusal_on(&state, Pane::Password, &error, state.locale(&headers)),
+        Err(error) => refusal(&state, "songs", &error, state.locale(&headers)),
         Ok(stored) if !stored.enabled => {
-            back_to_pane(Pane::Password, "good", &words.msg("linked-packages-off"))
+            back_to("songs", "good", &words.msg("linked-packages-off"))
         }
         Ok(stored) => match stored.folder {
-            LinkedFolder::Ready => {
-                back_to_pane(Pane::Password, "good", &words.msg("linked-packages-on"))
+            LinkedFolder::Ready => back_to("songs", "good", &words.msg("linked-packages-on")),
+            LinkedFolder::Unset => {
+                back_to("songs", "bad", &words.msg("linked-packages-on-no-folder"))
             }
-            LinkedFolder::Unset => back_to_pane(
-                Pane::Password,
-                "bad",
-                &words.msg("linked-packages-on-no-folder"),
-            ),
-            LinkedFolder::Missing => back_to_pane(
-                Pane::Password,
+            LinkedFolder::Missing => back_to(
+                "songs",
                 "bad",
                 &words.msg("linked-packages-on-folder-missing"),
             ),
@@ -2102,9 +2107,9 @@ pub async fn set_adjust_recordings(
         .set_adjust_recordings(form.adjust_recordings.is_some())
         .await
     {
-        Err(error) => refusal_on(&state, Pane::Demo, &error, state.locale(&headers)),
-        Ok(true) => back_to_pane(Pane::Demo, "good", &words.msg("adjust-recordings-on")),
-        Ok(false) => back_to_pane(Pane::Demo, "good", &words.msg("adjust-recordings-off")),
+        Err(error) => refusal_on(&state, Pane::Playback, &error, state.locale(&headers)),
+        Ok(true) => back_to_pane(Pane::Playback, "good", &words.msg("adjust-recordings-on")),
+        Ok(false) => back_to_pane(Pane::Playback, "good", &words.msg("adjust-recordings-off")),
     }
 }
 
@@ -2119,10 +2124,10 @@ pub async fn reset_sessions(State(state): State<Admin>, headers: HeaderMap) -> R
     // `ThisMachine::reset_sessions`, where the ordering is what stops a failed write leaving the
     // machine enforcing an epoch its settings file does not hold.
     if let Err(error) = state.machine.reset_sessions().await {
-        return refusal_on(&state, Pane::Password, &error, state.locale(&headers));
+        return refusal_on(&state, Pane::Access, &error, state.locale(&headers));
     }
     back_to_pane(
-        Pane::Password,
+        Pane::Access,
         "warn",
         "Every session has ended, including this one. Sign in again to carry on.",
     )
@@ -2142,18 +2147,18 @@ pub async fn set_debug(
 ) -> Response {
     let enabled = form.enabled.as_deref() == Some("yes");
     if let Err(error) = state.switches.set_debug(enabled).await {
-        return refusal_on(&state, Pane::Debug, &error, state.locale(&headers));
+        return refusal_on(&state, Pane::Developer, &error, state.locale(&headers));
     }
     if enabled {
         back_to_pane(
-            Pane::Debug,
+            Pane::Developer,
             "warn",
             "Debugging is on. Anyone on this network can play a file from this machine's disk \
              once it restarts.",
         )
     } else {
         back_to_pane(
-            Pane::Debug,
+            Pane::Developer,
             "good",
             "Debugging is off. The debug routes go away at the next restart.",
         )
@@ -2185,11 +2190,11 @@ pub async fn set_dev_remote(
 ) -> Response {
     let enabled = form.enabled.as_deref() == Some("yes");
     if let Err(error) = state.switches.set_dev_remote(enabled).await {
-        return refusal_on(&state, Pane::Debug, &error, state.locale(&headers));
+        return refusal_on(&state, Pane::Developer, &error, state.locale(&headers));
     }
     if !enabled {
         return back_to_pane(
-            Pane::Debug,
+            Pane::Developer,
             "good",
             "The development console is off. It goes away at the next restart.",
         );
@@ -2204,14 +2209,14 @@ pub async fn set_dev_remote(
         .is_ok_and(|switches| switches.debug_stored)
     {
         back_to_pane(
-            Pane::Debug,
+            Pane::Developer,
             "warn",
             "The development console is on. From the next restart, anyone on this network can \
              change anything on this machine without the password.",
         )
     } else {
         back_to_pane(
-            Pane::Debug,
+            Pane::Developer,
             "warn",
             "The development console is on, but debugging is off, so it will not be served. It \
              needs both.",
@@ -2231,17 +2236,17 @@ pub async fn set_performance(
 ) -> Response {
     let enabled = form.enabled.as_deref() == Some("yes");
     if let Err(error) = state.switches.set_performance(enabled).await {
-        return refusal_on(&state, Pane::Debug, &error, state.locale(&headers));
+        return refusal_on(&state, Pane::Developer, &error, state.locale(&headers));
     }
     if enabled {
         back_to_pane(
-            Pane::Debug,
+            Pane::Developer,
             "good",
             "The frame statistics are on the machine's screen now.",
         )
     } else {
         back_to_pane(
-            Pane::Debug,
+            Pane::Developer,
             "good",
             "The frame statistics are off the screen.",
         )
@@ -2310,6 +2315,9 @@ pub struct SingerRulesForm {
     /// How many songs one singer may have waiting, as typed.
     #[serde(default)]
     pub max_waiting: String,
+    /// The order a singer's song takes into the queue. Absent from a form that lost the list.
+    #[serde(default)]
+    pub queue_order: Option<km_api::machine::QueueOrder>,
 }
 
 /// Whether a queued song is announced before it starts, and for how long.
@@ -2349,12 +2357,12 @@ pub async fn set_password(
         // `None` is the reset. Generating the PIN, hashing it and moving both the stored and the
         // running value are the implementation's — see `ThisMachine::set_password`.
         if let Err(error) = state.machine.set_password(None).await {
-            return refusal_on(&state, Pane::Password, &error, state.locale(&headers));
+            return refusal_on(&state, Pane::Access, &error, state.locale(&headers));
         }
         // The PIN itself is deliberately not in this message: it is on the machine's own screen,
         // which is the one place reading it means being in the room.
         return back_to_pane(
-            Pane::Password,
+            Pane::Access,
             "warn",
             "The password is back to a new one the machine generated. It is on the machine's screen.",
         );
@@ -2368,18 +2376,18 @@ pub async fn set_password(
     let min = km_api::MIN_PASSWORD_CHARS;
     if password.chars().count() < min {
         return back_to_pane(
-            Pane::Password,
+            Pane::Access,
             "bad",
             &format!("A password wants at least {min} characters."),
         );
     }
     if let Err(error) = state.machine.set_password(Some(password)).await {
-        return refusal_on(&state, Pane::Password, &error, state.locale(&headers));
+        return refusal_on(&state, Pane::Access, &error, state.locale(&headers));
     }
     // Every token was just revoked, this browser's included, so the next page load lands on the
     // login page. Said plainly rather than left as a surprise.
     back_to_pane(
-        Pane::Password,
+        Pane::Access,
         "good",
         "The password is changed. Sign in again to carry on.",
     )
@@ -2394,17 +2402,13 @@ pub async fn set_room_access(
     let Some(room) =
         km_api::Access::from_word(form.room.trim()).filter(|room| room.is_room_level())
     else {
-        return back_to_pane(
-            Pane::Password,
-            "bad",
-            "That is not a level a room can have.",
-        );
+        return back_to_pane(Pane::Access, "bad", "That is not a level a room can have.");
     };
     if let Err(error) = state.machine.set_room_access(room).await {
-        return refusal_on(&state, Pane::Password, &error, state.locale(&headers));
+        return refusal_on(&state, Pane::Access, &error, state.locale(&headers));
     }
     back_to_pane(
-        Pane::Password,
+        Pane::Access,
         "good",
         "Saved. Anybody with no code can now do what the room level allows.",
     )
@@ -2428,7 +2432,7 @@ pub async fn set_access_code(
 ) -> Response {
     let Some(level) = km_api::Access::from_word(form.level.trim()).filter(|level| level.has_code())
     else {
-        return back_to_pane(Pane::Password, "bad", "That level has no code.");
+        return back_to_pane(Pane::Access, "bad", "That level has no code.");
     };
     let code = form.code.trim();
     let (code, said) = if form.clear.is_some() {
@@ -2437,7 +2441,7 @@ pub async fn set_access_code(
             "The code is cleared. Phones that used it are back at the room level.",
         )
     } else if code.is_empty() {
-        return back_to_pane(Pane::Password, "bad", "Type a code first.");
+        return back_to_pane(Pane::Access, "bad", "Type a code first.");
     } else {
         (
             Some(code),
@@ -2445,9 +2449,9 @@ pub async fn set_access_code(
         )
     };
     if let Err(error) = state.machine.set_access_code(level, code).await {
-        return refusal_on(&state, Pane::Password, &error, state.locale(&headers));
+        return refusal_on(&state, Pane::Access, &error, state.locale(&headers));
     }
-    back_to_pane(Pane::Password, "good", said)
+    back_to_pane(Pane::Access, "good", said)
 }
 
 /// A code for one level, from the Access card.

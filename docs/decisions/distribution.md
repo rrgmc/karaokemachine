@@ -2541,12 +2541,24 @@ cards, which is the arrangement this rule was written against. The reason it wen
 first is only that the strip was built here.
 
 Its panes are the same, in the same order, under the same names. This is
-[`Two admin surfaces, one vocabulary`](#two-admin-surfaces-one-vocabulary) rather than a coincidence:
-Debugging, Its name, Its password, Demo mode, and then **Screen language**, which both surfaces draw.
-*Sign out everywhere* shares the password pane rather than taking one of its own: two different
-acts, one errand. A tab names an errand.
+[`Two admin surfaces, one vocabulary`](#two-admin-surfaces-one-vocabulary) rather than a coincidence.
 
-**Three switches share the Debugging pane on both surfaces, and two of them are one condition.**
+**A pane is a topic, named for what it holds, everyday first and the developer's last.** A pane
+named after one of its cards hides the others under a name that does not fit them.
+
+| Pane | Cards |
+|---|---|
+| General | the name, the screen language, the power |
+| Access | the password, who may do what, *Sign out everywhere* |
+| Singers and queue | the singer rules with the queue order, the evening after a restart |
+| Playback | the announcement, demo mode, the end on silence, the recordings' key and tempo |
+| Developer | debugging, the console, the performance overlay |
+
+**General opens, because it is the one pane never empty.** A card one host lacks leaves its pane,
+never the strip. *Sign out everywhere* shares the Access pane with the password: two different acts,
+one topic. **Linked packages sits on the Songs tab**, beside the packages it decides about.
+
+**Three switches share the Developer pane on both surfaces, and two of them are one condition.**
 `/dev/` and its passwordless API need the console's switch *and* debugging. A pane that separated
 them would let somebody turn one on, see nothing happen, and have nowhere to find out why. Both
 surfaces say which switch is missing rather than only reporting success. The frame-statistics switch

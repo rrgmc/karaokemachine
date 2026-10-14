@@ -894,6 +894,11 @@ pub struct SingerSettings {
     /// there. A venue turns it on, so a power cut does not end the night for every guest. The
     /// machine then keeps the queue, the singers and their requests in `evening.json`.
     pub keep_evening: bool,
+    /// The order a singer's song takes into the queue.
+    ///
+    /// **Arrival**, so every song goes to the end of the queue as it is asked for. A venue chooses
+    /// turns, which keeps one song for each singer in the queue.
+    pub queue_order: km_queue::QueueOrder,
 }
 
 impl Default for SingerSettings {
@@ -903,6 +908,7 @@ impl Default for SingerSettings {
             max_per_device: None,
             max_waiting: km_queue::RequestRules::default().max_waiting,
             keep_evening: false,
+            queue_order: km_queue::QueueOrder::default(),
         }
     }
 }
@@ -2170,6 +2176,23 @@ mod tests {
         let ended: Settings =
             serde_json::from_str(r#"{"singers":{"keep_evening":false}}"#).expect("parse");
         assert!(!ended.singers.keep_evening);
+    }
+
+    /// Songs queue in the order asked for until the owner chooses turns.
+    #[test]
+    fn songs_queue_in_arrival_order_until_the_file_says_turns() {
+        use km_queue::QueueOrder;
+        assert_eq!(Settings::default().singers.queue_order, QueueOrder::Arrival);
+        let before: Settings =
+            serde_json::from_str(r#"{"singers":{"max_waiting":2}}"#).expect("parse");
+        assert_eq!(
+            before.singers.queue_order,
+            QueueOrder::Arrival,
+            "a file without the key"
+        );
+        let turns: Settings =
+            serde_json::from_str(r#"{"singers":{"queue_order":"turns"}}"#).expect("parse");
+        assert_eq!(turns.singers.queue_order, QueueOrder::Turns);
     }
 
     #[test]

@@ -248,7 +248,7 @@ async fn the_announcement_reaches_its_route_with_both_values() {
 
     // An unticked box posts nothing, and the program sends that as `false` beside the length.
     let said = post_form_to(&state, "/admin/machine/announcement", "length_secs=8").await;
-    assert!(said.contains("pane=announcement"), "{said}");
+    assert!(said.contains("pane=playback"), "{said}");
     assert!(said.contains("kind=good"), "{said}");
 
     let sent = server
@@ -842,10 +842,13 @@ async fn the_machine_tab_says_so_once_this_program_is_logged_in() {
         body.contains("This program is logged in."),
         "a logged-in program does not say so: {body}"
     );
-    // Debugging opens, being the pane that is never empty.
-    assert!(body.contains(r#"id="machine-tab-debug" checked"#), "{body}");
+    // General opens, being the pane that is never empty.
+    assert!(
+        body.contains(r#"id="machine-tab-general" checked"#),
+        "{body}"
+    );
     // **And nothing on this tab logs in.** What is here is the sentence saying whether the token has
-    // been bought and a link to the page that buys it; the *Password* pane's boxes are a different
+    // been bought and a link to the page that buys it; the *Access* pane's boxes are a different
     // errand — changing the machine's password, which needs that token first.
     assert!(
         !body.contains(r#"action="/admin/login""#),
@@ -943,10 +946,10 @@ async fn a_write_refused_for_want_of_a_password_lands_on_the_door() {
 
 /// A save that works comes back to the pane it was made on.
 ///
-/// The demo switch is the one this was reported against: every press on this tab reloads the page,
-/// so a notice read underneath a debug switch is a notice about a page somebody left.
+/// Every press on this tab reloads the page, so a notice must come back to the pane it was made on.
+/// The demo switch is on the Playback pane.
 #[tokio::test]
-async fn saving_the_demo_switch_stays_on_the_demo_pane() {
+async fn saving_the_demo_switch_stays_on_the_playback_pane() {
     let (server, state, _dir) = common::signed_in().await;
 
     Mock::given(method("PUT"))
@@ -963,7 +966,7 @@ async fn saving_the_demo_switch_stays_on_the_demo_pane() {
         .await;
 
     let said = post_form_to(&state, "/admin/machine/demo", "enabled=yes&persist=yes").await;
-    assert!(said.contains("pane=demo"), "{said}");
+    assert!(said.contains("pane=playback"), "{said}");
     assert!(said.contains("kind=good"), "{said}");
 }
 

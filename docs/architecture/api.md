@@ -532,7 +532,7 @@ and `SingerDto` carries it.
 
 **`Controller::singer_rules` and `set_singer_rules` carry the owner's three answers.**
 `GET /singers/rules` reads them at the `view` level, and `PUT /admin/singers/rules` sets them. The
-owner's page posts one form to `/admin/machine/singers`, on the password pane. `SwitchState::singers`
+owner's page posts one form to `/admin/machine/singers`, on the Singers and queue pane. `SwitchState::singers`
 is an `Option`, because `km-admin` may be talking to a machine that has no such route. That page
 then draws no singers card, where a failed read would have taken the whole pane down.
 
@@ -546,10 +546,15 @@ it.** The rule reads the queue and the request list together. A change made to o
 other's back would leave a singer with two songs or with none. So `Machine` and `TestMachine` hold
 one `Evening` each, and neither holds a `Queue` of its own.
 
-**Each change ends in `Evening::settle`.** `pop`, `remove`, `clear`, `request` and `withdraw` all
-call it. It walks the requests oldest first. It accepts each waiting one whose seat has no entry in
-the queue, while the queue has room. `add` takes a song with no singer and calls nothing, because
-such a song passes the rule.
+**Each change ends in `Evening::settle`.** `pop`, `remove`, `clear`, `request`, `withdraw` and
+`set_order` all call it. It walks the requests oldest first, while the queue has room. In
+`QueueOrder::Turns` it accepts each waiting one whose seat has no entry in the queue. In
+`QueueOrder::Arrival` it accepts every waiting one. `add` takes a song with no singer and calls
+nothing, because such a song passes the rule.
+
+**The `Evening` holds the order, and the machine hands it in from the settings.** `with_order`
+builds the evening, `restore` takes it beside the snapshot, and `set_singer_rules` calls
+`set_order`. So a song that starts runs the rule in the right order with no settings in reach.
 
 **The caller hands in the time.** A finished request stays for `FINISHED_FOR`, and `requests(now)`
 leaves an expired one out whether or not `sweep` has dropped it. So the test for it moves a clock

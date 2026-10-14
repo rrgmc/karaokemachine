@@ -108,20 +108,20 @@ impl Tab {
 /// A save comes back to the pane it was made on, so this travels in a redirect's query string —
 /// which is why it is an enum and not the string that arrived. `handlers::back_pane` is the only
 /// way in, and the redirect is built from [`Self::id`].
+///
+/// **A pane is a topic, named for what it holds**, everyday first and the developer's last.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Pane {
+    /// What the machine is called, what the television speaks, and the power.
+    General,
+    /// The password, who may do what, and signing every phone out.
+    Access,
+    /// The queue order, what the machine asks of a singer, and the evening after a restart.
+    Singers,
+    /// The announcement, demo mode, the end on silence and the recordings' key and tempo.
+    Playback,
     /// The three developer switches.
-    Debug,
-    /// What the machine is called.
-    Name,
-    /// Changing the password, and signing every phone out.
-    Password,
-    /// Whether the machine performs for itself.
-    Demo,
-    /// Whether a queued song is announced before it starts.
-    Announcement,
-    /// What the television speaks. The machine's own page only.
-    Language,
+    Developer,
 }
 
 impl Pane {
@@ -136,28 +136,11 @@ impl Pane {
     /// pane together: a class renamed without the id following is a section nothing can open.
     pub fn id(self) -> &'static str {
         match self {
-            Self::Debug => "debug",
-            Self::Name => "name",
-            Self::Password => "password",
-            Self::Demo => "demo",
-            Self::Announcement => "announcement",
-            Self::Language => "language",
-        }
-    }
-
-    /// The pane a host actually draws, falling back to the one that is never empty.
-    ///
-    /// **`.settings .pane { display: none }` is unconditional**, which is the polarity argument
-    /// `machine.html` makes: a browser that could not evaluate the selector shows every section
-    /// rather than none. The consequence here is that a pane whose radio a host does not render
-    /// leaves *no* pane open at all, and the settings half of the tab is simply gone — so a `pane`
-    /// naming one is answered with Debugging rather than with nothing.
-    ///
-    /// One can arrive that way: `Language` has no route on a tool.
-    pub fn drawn(self, capabilities: crate::machine::Capabilities) -> Self {
-        match self {
-            Self::Language if !capabilities.screen_language => Self::Debug,
-            kept => kept,
+            Self::General => "general",
+            Self::Access => "access",
+            Self::Singers => "singers",
+            Self::Playback => "playback",
+            Self::Developer => "developer",
         }
     }
 }
@@ -372,6 +355,8 @@ pub struct SongsPage {
     /// surfaces read alike. This template typed the list out until the function existed; see
     /// `accept_for`'s own note for why a typed list is a list that drifts.
     pub accepts: String,
+    /// The linked-packages card, or `None` to draw none. Here beside the packages it is about.
+    pub linked_packages: Option<LinkedPackagesCard>,
 }
 
 /// The pictures tab.
@@ -833,8 +818,6 @@ pub struct MachinePage {
     pub adjust_recordings: bool,
     /// Whether the evening outlives the machine's process, or `None` to draw no card.
     pub keep_evening: Option<bool>,
-    /// The linked-packages card, or `None` to draw none.
-    pub linked_packages: Option<LinkedPackagesCard>,
     /// Whether this host can be shut down and restarted, and so whether the card exists.
     ///
     /// **Absent rather than disabled**, which is this page's standing rule: a grayed control invites

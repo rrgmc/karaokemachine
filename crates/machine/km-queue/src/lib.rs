@@ -35,7 +35,7 @@ pub mod transport;
 pub mod wait;
 
 pub use crate::evening::{
-    Evening, EveningSnapshot, MAX_REQUESTS, Proof, Request, RequestError, RequestRules,
+    Evening, EveningSnapshot, MAX_REQUESTS, Proof, QueueOrder, Request, RequestError, RequestRules,
     RequestState, RequestedSong, RestoreError, Sung,
 };
 pub use crate::limits::{MAX_TEMPO_RATIO, MAX_TRANSPOSE, MIN_TEMPO_RATIO};

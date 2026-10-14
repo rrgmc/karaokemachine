@@ -330,6 +330,7 @@ it are the same entry. How the thing is built is [`ARCHITECTURE.md`](../ARCHITEC
 
 - [The URL prefix is the permission](api-and-network.md#the-url-prefix-is-the-permission)
 - [A singer is a seat, and a token proves it](api-and-network.md#a-singer-is-a-seat-and-a-token-proves-it)
+- [The owner chooses the queue order, and arrival is the default](api-and-network.md#the-owner-chooses-the-queue-order-and-arrival-is-the-default)
 - [The queue holds one song for each singer](api-and-network.md#the-queue-holds-one-song-for-each-singer)
 - [An operator corrects what the rule did](api-and-network.md#an-operator-corrects-what-the-rule-did)
 - [The machine can keep the evening across a restart](api-and-network.md#the-machine-can-keep-the-evening-across-a-restart)

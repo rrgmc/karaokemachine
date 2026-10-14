@@ -13,13 +13,15 @@ forgets the singers when the host starts a new evening.
 
 ## Set the machine up once
 
-**The owner sets seven things before the doors open.** All seven are on the password tab of the
-setup pages. See [Setting it up from a browser](setup.md#decide-what-a-guests-phone-can-do).
+**The owner sets eight things before the doors open.** All eight are on the setup pages' *This
+machine* tab, under **Access** and **Singers and queue**. See
+[Setting it up from a browser](setup.md#decide-what-a-guests-phone-can-do).
 
 | Setting | At a venue | Why |
 |---|---|---|
 | The admin password | Set one of your own, and keep it | The machine shows its first password on its own screen, where every guest reads it |
-| Room level | *Ask for songs, and sing in turn* | Each table asks from a phone |
+| Room level | *Ask for songs* | Each table asks from a phone |
+| Queue order | *Singers take turns* | Each singer gets a turn. The default plays songs in the order asked, so one table could fill the queue |
 | Code to skip | Set one, and give it to the host | It opens the host's tab |
 | Code to queue | Set none, or keep it | It adds a song out of turn, and it changes the key of any singer's song |
 | Every singer gives a name | On | The host calls each singer by the name on the screen |

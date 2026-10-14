@@ -687,6 +687,12 @@ impl TestMachine {
         self.lock().request_rules = rules;
     }
 
+    /// Sets the order a singer's song takes into the queue, which a real machine reads from
+    /// settings.
+    pub fn set_queue_order(&self, order: km_queue::QueueOrder) {
+        self.lock().evening.set_order(order, Instant::now());
+    }
+
     /// Installs a fault so an error path can be exercised.
     pub fn set_faults(&self, faults: Faults) {
         self.lock().faults = faults;
@@ -1365,6 +1371,7 @@ impl Controller for TestMachine {
             name_required: inner.seat_rules.name_required,
             max_per_device: inner.seat_rules.max_per_device,
             max_waiting: inner.request_rules.max_waiting,
+            queue_order: inner.evening.order(),
         }
     }
 
@@ -1384,6 +1391,7 @@ impl Controller for TestMachine {
             inner.request_rules = RequestRules {
                 max_waiting: rules.max_waiting,
             };
+            inner.evening.set_order(rules.queue_order, Instant::now());
         }
         Ok(self.singer_rules())
     }

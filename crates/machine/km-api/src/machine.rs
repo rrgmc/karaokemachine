@@ -30,7 +30,7 @@ use km_songcode::SongCode;
 /// The key and tempo limits `PUT /settings` holds a request to.
 ///
 /// Named here so a client clamps to the range the machine accepts and not to one of its own.
-pub use km_queue::{MAX_TEMPO_RATIO, MAX_TRANSPOSE, MIN_TEMPO_RATIO};
+pub use km_queue::{MAX_TEMPO_RATIO, MAX_TRANSPOSE, MIN_TEMPO_RATIO, QueueOrder};
 
 /// A refusal, and the stable name for it when it has one.
 ///
@@ -535,20 +535,29 @@ pub struct SingerRules {
     pub max_per_device: Option<u32>,
     /// How many requests one singer may have waiting behind the one in the queue.
     pub max_waiting: u32,
+    /// The order a singer's song takes into the queue.
+    pub queue_order: km_queue::QueueOrder,
 }
 
 impl Default for SingerRules {
-    /// No name asked, no cap on a device, and the queue crate's own cap on waiting requests.
+    /// No name asked, no cap on a device, the queue crate's own cap on waiting requests, and songs
+    /// in arrival order.
     fn default() -> Self {
         Self {
             name_required: false,
             max_per_device: None,
             max_waiting: km_queue::RequestRules::default().max_waiting,
+            queue_order: km_queue::QueueOrder::default(),
         }
     }
 }
 
 impl SingerRules {
+    /// Whether singers take turns, for a page that draws the choice.
+    pub fn turns(&self) -> bool {
+        self.queue_order == km_queue::QueueOrder::Turns
+    }
+
     /// Why a route refuses these, or `None` where it takes them.
     ///
     /// Zero singers on a device would refuse every singer, and no cap says the same thing as a
