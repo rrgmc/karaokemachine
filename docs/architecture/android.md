@@ -141,10 +141,23 @@ anchor's forward axis is not measured here, so `Placement.onWall` points the nor
 A panel shows its face along its own negative Z, so the screen's forward points into the wall.
 
 **The queue panel is a WebView on `http://127.0.0.1:<port>/`.** The port comes from `api.bind` in
-the machine's own `settings.json`, which lives in `Context.getFilesDir()`. A missing file means 8177,
-and the panel retries every two seconds while the machine starts. Android blocks cleartext to
-loopback as well, so the headset manifest names `res/xml/network_security_config.xml`. That file
-permits `127.0.0.1` and `localhost` and nothing else, as the remote's application does.
+the machine's own `settings.json`, which lives in `Context.getFilesDir()`. `Loopback.java` in the
+shared source set reads it, and a missing file means 8177. The panel retries every two seconds while
+the machine starts. Android blocks cleartext to loopback as well, so the shared manifest names
+`res/xml/network_security_config.xml`. That file permits `127.0.0.1` and `localhost` and nothing
+else, as the remote's application does.
+
+**A phone shows the same page over the machine, in the activity's own window.** `PhoneShell.java`
+in the `flat` flavour adds a Menu button and the WebView with `addContentView`. A second activity
+would call `onPause`, and a popup would take the window focus. SDL parks its thread on either, and
+the machine pauses the song when it leaves the screen. The button needs a touch screen and a UI mode
+other than television. The `headset` flavour carries an empty `PhoneShell`, because `MainActivity`
+calls it from the shared source set.
+
+**The package picker is `ACTION_OPEN_DOCUMENT`, under its own request code.** SDL's file dialog
+numbers its requests from zero and arrives at the same `onActivityResult`, so `MainActivity` answers
+only `PICK_PACKAGE` and hands the rest on. The chosen URI takes the staging path an opened document
+takes.
 
 **The controls are Compose, in Horizon OS's UI Set.** `meta-spatial-sdk-compose` gives a panel a
 `ComposeView`, and `meta-spatial-sdk-uiset` gives the buttons. The Compose compiler plugin reaches
