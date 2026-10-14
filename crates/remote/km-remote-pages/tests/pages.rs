@@ -5999,7 +5999,7 @@ async fn a_name_is_the_singers_and_a_held_name_is_refused() {
 
     ana.post("/song/1001/queue").await;
     let queue = ana.get("/queue").await;
-    assert!(queue.contains("&middot; Ana"), "the row names her: {queue}");
+    assert!(queue.contains(">Ana</span>"), "the row names her: {queue}");
 
     let other = Phone::new(&harness);
     let refused = other.post_form("/singer", "singer=Ana").await;
@@ -6021,7 +6021,7 @@ async fn a_name_typed_later_names_the_same_singer() {
     phone.post_form("/singer", "singer=Beto").await;
 
     assert_eq!(phone.cookie("km_seats").as_deref(), Some(seats.as_str()));
-    assert!(phone.get("/queue").await.contains("&middot; Beto"));
+    assert!(phone.get("/queue").await.contains(">Beto</span>"));
     let setup = phone.get("/setup").await;
     assert!(setup.contains(r#"value="Beto""#), "{setup}");
 
@@ -6258,11 +6258,25 @@ async fn a_host_adds_songs_for_a_singer_by_name() {
         "the name box offers the singer: {lists}"
     );
     assert!(
-        lists.contains(r#"class="song-name pick-singer""#) && lists.contains(r#"data-name="Caio""#),
+        lists.contains(r#"class="song-name pick-singer singer-c"#)
+            && lists.contains(r#"data-name="Caio""#),
         "and tapping the name picks the singer: {lists}"
     );
     let page = harness.get("/host").await;
     assert!(page.contains(r#"list="host-singer-names""#), "{page}");
+
+    // One colour for the singer, on the list of singers and in the queue alike.
+    let colour = lists
+        [lists.find("pick-singer singer-c").expect("a colour") + "pick-singer ".len()..]
+        .split([' ', '"'])
+        .next()
+        .expect("the class")
+        .to_owned();
+    let queue = harness.get("/queue").await;
+    assert!(
+        queue.contains(&format!(r#"class="row-singer {colour}">Caio</span>"#)),
+        "{colour}: {queue}"
+    );
 }
 
 /// The two corrections to the rule, from the list of waiting requests.
@@ -6342,7 +6356,7 @@ async fn a_host_hands_over_merges_and_removes_a_singer() {
     );
     let queue = harness.get("/queue").await;
     assert_eq!(
-        queue.matches("&middot; David").count(),
+        queue.matches(">David</span>").count(),
         2,
         "both songs are David's: {queue}"
     );

@@ -1264,6 +1264,20 @@ pub struct HostRequest {
     pub title: String,
     /// The singer who asked, as a label.
     pub singer: String,
+    /// The singer's id, which picks the singer's colour.
+    pub singer_id: u64,
+}
+
+/// How many colours a singer's name is drawn in, as `.singer-c0` to `.singer-c7` in `app.css`.
+///
+/// The colour comes from the singer's id, so one singer keeps one colour on every list and every
+/// phone. Two singers whose ids differ by a multiple of this share a colour, and the name still
+/// tells them apart.
+pub const SINGER_COLOURS: u64 = 8;
+
+/// The class that draws singer `id`'s name in that singer's colour.
+pub fn singer_colour(id: impl std::borrow::Borrow<u64>) -> String {
+    format!("singer-c{}", id.borrow() % SINGER_COLOURS)
 }
 
 /// The songs a host's search found, each with a button that adds it for the singer typed above.

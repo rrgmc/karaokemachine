@@ -36,7 +36,7 @@
     <li class="queue-row">
       <div class="queue-body">
         <div class="song-name">{{ request.title }}</div>
-        <div class="song-sub">{{ request.singer }}</div>
+        <div class="song-sub"><span class="row-singer {{ crate::views::singer_colour(request.singer_id) }}">{{ request.singer }}</span></div>
       </div>
       <div class="song-actions">
         <button class="icon-btn" title="{{ "host-accept-next"|t }}" aria-label="{{ "host-accept-next"|t }}"
@@ -73,11 +73,11 @@
           {% if singer.named %}
           {# Tapping the name puts it in the box above and moves on to the song, so the next song
              the host adds is this singer's. #}
-          <button type="button" class="song-name pick-singer" title="{{ "host-pick-singer"|t }}"
+          <button type="button" class="song-name pick-singer {{ crate::views::singer_colour(singer.id) }}" title="{{ "host-pick-singer"|t }}"
                   data-name="{{ singer.label }}"
                   onclick="document.getElementById('host-singer').value = this.dataset.name; document.getElementById('host-song').focus()">{{ singer.label }}</button>
           {% else %}
-          <div class="song-name">{{ singer.label }}</div>
+          <div class="song-name {{ crate::views::singer_colour(singer.id) }}">{{ singer.label }}</div>
           {% endif %}
           <div class="song-sub">{% if !singer.phone %}{{ "host-no-phone"|t }} &middot; {% endif %}{{ singer.counts }}</div>
         </div>

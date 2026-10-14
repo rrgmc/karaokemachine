@@ -12,7 +12,7 @@
     <span class="queue-pos">{{ row.position() }}</span>
     <div class="queue-body">
       <div class="song-name">{{ row.title() }}</div>
-      <div class="song-sub">{{ row.artist() }}{% match row.singer() %}{% when Some with (singer) %} &middot; {{ singer }}{% when None %}{% endmatch %}</div>
+      <div class="song-sub">{{ row.artist() }}{% match row.singer() %}{% when Some with (singer) %} &middot; <span class="row-singer {% match row.seat() %}{% when Some with (seat) %}{{ crate::views::singer_colour(**seat) }}{% when None %}{% endmatch %}">{{ singer }}</span>{% when None %}{% endmatch %}</div>
     </div>
     {% match row.wait %}{% when Some with (wait) %}<span class="queue-wait">{{ wait }}</span>{% when None %}{% endmatch %}
     <div class="song-actions needs-control">

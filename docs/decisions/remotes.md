@@ -337,6 +337,11 @@ new evening. A kept evening stands above both, because nothing plays until the h
 **One column on a phone, and two from a tablet's width.** A host reads the waiting requests
 against the queue, so the requests stand beside it. The singers stand beside the add form.
 
+**A singer's name has one colour on every list and every phone.** The colour comes from the
+singer's id, out of eight. A host then finds one singer's songs in the queue at a glance. Two
+singers can share a colour, and their names still tell them apart. The palette leaves out amber,
+which means "happening now", and the accent blue, which means "can be pressed".
+
 **From a tablet's width up, the tab is sized for a desk.** The buttons are larger and stand
 further apart, and the titles are larger. A host taps all night, and the button that declines a
 request sits beside the two that accept it. Every other tab keeps the phone's sizes, and so does

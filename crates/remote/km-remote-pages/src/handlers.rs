@@ -2338,6 +2338,7 @@ async fn host_lists(state: &Remote, locale: Locale) -> HostLists {
                 id: request.id,
                 title: request.title.clone(),
                 singer: label(request.singer),
+                singer_id: request.singer,
             })
             .collect(),
     }

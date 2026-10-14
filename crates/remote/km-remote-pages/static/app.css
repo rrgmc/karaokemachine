@@ -1091,6 +1091,20 @@ label.icon-btn { display: inline-flex; align-items: center; justify-content: cen
 .host-singer .queue-body { display: flex; align-items: baseline; gap: 0.5rem; }
 .host-singer .song-name { flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .host-singer .song-sub { white-space: nowrap; }
+
+/* **A singer's name wears one colour everywhere**, chosen by `views::singer_colour` from the
+ * singer's id. A host then finds a singer's songs in the queue at a glance. Eight hues, each at
+ * 4.5:1 or more on white. Amber is left out because it means "this is happening now", and the
+ * accent blue because it means "this can be pressed". */
+.row-singer { font-weight: 600; }
+.singer-c0 { color: #2b4fb8; }
+.singer-c1 { color: #a3337a; }
+.singer-c2 { color: #1d7a52; }
+.singer-c3 { color: #b0451b; }
+.singer-c4 { color: #6b3fb0; }
+.singer-c5 { color: #00788a; }
+.singer-c6 { color: #7a6a00; }
+.singer-c7 { color: #b02a4a; }
 /* A named singer's name is a button that fills the name box, so it reads as a link. */
 .pick-singer {
   padding: 0;
