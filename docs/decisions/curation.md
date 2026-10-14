@@ -1541,11 +1541,19 @@ volume of the same package brought in. A bit this build does not know stays too.
 starts unticked in each, because a package that holds its songs plays on any machine. See
 [`A linked package keeps its song files outside itself`](packaging.md#a-linked-package-keeps-its-song-files-outside-itself).
 
-**The folder the tool reads is the folder the paths are below.** In `km-package-builder` that is the
-corpus root, and in `km-package-simple` it is the folder somebody chose. The machine's owner sets
-that folder, or a copy of it, as the folder for linked packages. The package keeps the deepest
-folder its songs share as
+**The paths are below one folder, and the machine's owner sets that folder, or a copy of it, as the
+folder for linked packages.** In `km-package-builder` it is the corpus root. The package keeps the
+deepest folder its songs share as
 [its own](packaging.md#a-linked-package-reads-from-one-folder-of-its-own).
+
+**In `km-package-simple` the paths start at the folder somebody chose, or at a folder above it.** A
+machine has one folder for linked packages. A package built from one collection then shares it
+with packages built from the folder above. The form's **Paths start at** box names that folder, and
+the folders between the two go at the front of every path. A folder that does not hold the chosen
+one is refused, and so is a folder name a linked path cannot carry.
+
+**The form shows the first song's path before the build**, below the folder for linked packages,
+and names the folder to give the machine. It redraws as the box changes.
 
 **The Build tab names that folder before the build**, beside the linked box. A package whose songs
 share no folder is one that reaches the whole folder, and the tab says so.

@@ -54,7 +54,11 @@ document.body.addEventListener("click", (event) => {
   const target = use ? use.dataset.use : close ? close.dataset.close : null;
   if (!target) return;
   const box = document.getElementById(target);
-  if (use && box) box.value = use.dataset.path;
+  if (use && box) {
+    box.value = use.dataset.path;
+    // Typing fires `change` and setting the value does not. The linked path listens for it.
+    box.dispatchEvent(new Event("change", { bubbles: true }));
+  }
   const picker = document.getElementById(`browse-${target}`);
   if (picker) picker.innerHTML = "";
   if (box) box.focus();

@@ -1,0 +1,13 @@
+{# What a linked package's first path will be. It asks again whenever the base folder box changes,
+   which includes Use this folder in the picker: the script fires `change` on the box it fills. #}
+<div id="linked-path" class="hint" hx-get="/linked-path" hx-include="#linked_base" hx-swap="outerHTML"
+     hx-trigger="change from:#linked_base, keyup changed delay:400ms from:#linked_base">
+  {% if let Some(error) = error %}
+  <p class="error">{{ error }}</p>
+  {% else %}
+  {% if let Some(example) = example %}
+  <p>{{ "linked-path-example"|t }} <span class="mono">{{ example }}</span></p>
+  {% endif %}
+  <p>{{ machine_folder }}</p>
+  {% endif %}
+</div>

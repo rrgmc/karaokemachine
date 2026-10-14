@@ -21,7 +21,8 @@ Entries are written for somebody who has the machine. Why any of it is the way i
 - **A package can name its songs and hold none of them.** A *linked* package plays song files from
   one folder on the machine's disk, so a library that already sits in a folder is stored once.
   KM Simple Package and `km-package-builder` each have a box that builds one, and so does
-  `km-pack build --linked`. The package lists mark it *linked*.
+  `km-pack build --linked`. The package lists mark it *linked*. In KM Simple Package the paths
+  can start at a folder above the one you chose, and the form shows the first song's path.
 - **A machine takes a linked package only when you allow it.** The *This machine* tab has a
   **Linked packages** box, and it starts off. The folder the songs play from is
   `linked_packages.dir` in `settings.json`. Each package plays only from its own folder inside it,

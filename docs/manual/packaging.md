@@ -17,7 +17,10 @@ show the mark.
 you built from, and holds none of them. The machine plays the songs from that folder, or from a copy
 of it. [Getting songs in](songs.md#linked-packages) says how to set the machine up for one.
 
-- **`km-package-simple`**: tick **Build linked packages** on the package form.
+- **`km-package-simple`**: tick **Build linked packages** on the package form. **Paths start at**
+  is the folder you chose, or a folder above it. Choose the folder above when the machine already
+  plays other linked packages from there. The form shows the first song's path, and the folder to
+  give the machine.
 - **`km-package-builder`**: tick **build a linked package** on a package's Build tab. The package
   remembers it.
 - **`km-pack`**: `km-pack build --linked`, or `linked: true` in the description.

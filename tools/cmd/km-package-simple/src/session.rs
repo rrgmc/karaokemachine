@@ -221,9 +221,11 @@ pub struct PackageForm {
     pub language: String,
     /// Where the packages are written.
     pub out_dir: PathBuf,
-    /// Whether the packages are linked: they hold no song file, and name each one by its path in
-    /// the folder that was read.
+    /// Whether the packages are linked: they hold no song file, and name each one by its path
+    /// below [`linked_base`](Self::linked_base).
     pub linked: bool,
+    /// The folder a linked package's paths start at: the folder that was read, or one above it.
+    pub linked_base: PathBuf,
 }
 
 impl PackageForm {
@@ -245,7 +247,47 @@ impl PackageForm {
             out_dir: folder.parent().unwrap_or(folder).to_path_buf(),
             // Off, because a package that holds its songs plays on any machine.
             linked: false,
+            linked_base: folder.to_path_buf(),
         }
+    }
+}
+
+/// The folders between `base` and the folder that was read, joined with `/`.
+///
+/// Every linked path starts with it, so a package built from one collection can share the
+/// machine's folder for linked packages with packages built from the folder above it. It is empty
+/// when `base` is the folder itself. Both folders are resolved on the disk, so a difference of
+/// case or a link does not make a folder look outside its parent.
+///
+/// # Errors
+///
+/// The catalog key that says why: `base` or the folder is not there, the folder is not inside
+/// `base`, or a folder name between them is one a linked path cannot carry.
+pub fn linked_prefix(folder: &Path, base: &Path) -> Result<String, &'static str> {
+    let (Ok(folder), Ok(base)) = (std::fs::canonicalize(folder), std::fs::canonicalize(base))
+    else {
+        return Err("said-linked-base-missing");
+    };
+    let Ok(below) = folder.strip_prefix(&base) else {
+        return Err("said-linked-base-outside");
+    };
+    let prefix = below
+        .components()
+        .map(|name| name.as_os_str().to_string_lossy().into_owned())
+        .collect::<Vec<_>>()
+        .join("/");
+    if !prefix.is_empty() && km_kmpkg::linked::check(&prefix).is_err() {
+        return Err("said-linked-base-name");
+    }
+    Ok(prefix)
+}
+
+/// `file` below `prefix`, as a linked package's description names it.
+fn below(prefix: &str, file: &str) -> String {
+    if prefix.is_empty() {
+        file.to_owned()
+    } else {
+        format!("{prefix}/{file}")
     }
 }
 
@@ -407,12 +449,22 @@ impl Session {
         }
     }
 
+    /// The first kept song's path below the machine's folder for linked packages.
+    #[must_use]
+    pub fn linked_example(&self, prefix: &str) -> Option<String> {
+        self.rows
+            .iter()
+            .find(|row| row.kept)
+            .map(|row| below(prefix, &row.song.file))
+    }
+
     /// Every volume the kept songs make, each with its description and its file.
     ///
     /// `id` is the package's id, which the first volume keeps. The description says `uncurated:
-    /// true`, which is what makes every file this tool writes carry the flag.
+    /// true`, which is what makes every file this tool writes carry the flag. `prefix` is what
+    /// [`linked_prefix`] gave, and a linked package's paths start with it.
     #[must_use]
-    pub fn plan(&self, form: &PackageForm, id: String) -> Vec<Planned> {
+    pub fn plan(&self, form: &PackageForm, id: String, prefix: &str) -> Vec<Planned> {
         let songs: Vec<SpecSong> = self
             .rows
             .iter()
@@ -420,6 +472,11 @@ impl Session {
             .zip(1..)
             .map(|(row, number)| SpecSong {
                 number: Some(number),
+                file: if form.linked {
+                    below(prefix, &row.song.file)
+                } else {
+                    row.song.file.clone()
+                },
                 ..row.song.clone()
             })
             .collect();
@@ -437,7 +494,7 @@ impl Session {
                 transcode: true,
                 out: None,
                 uncurated: true,
-                // The folder that was read is the folder the paths are below.
+                // The paths are below `form.linked_base`, which the build resolves them against.
                 linked: form.linked,
             },
             root: None,
@@ -597,7 +654,7 @@ mod tests {
                 }),
             ]
         );
-        let planned = session.plan(&form(), "0123456789abcdef".to_owned());
+        let planned = session.plan(&form(), "0123456789abcdef".to_owned(), "");
         assert_eq!(planned.len(), 1);
         let files: Vec<&str> = planned[0]
             .spec
@@ -623,7 +680,7 @@ mod tests {
 
     #[test]
     fn every_plan_is_uncurated_and_named_by_the_package() {
-        let planned = session(2).plan(&form(), "0123456789abcdef".to_owned());
+        let planned = session(2).plan(&form(), "0123456789abcdef".to_owned(), "");
         assert!(planned[0].spec.package.uncurated);
         assert_eq!(
             planned[0].spec.package.default_language.as_deref(),
@@ -634,20 +691,56 @@ mod tests {
 
     #[test]
     fn a_plan_is_linked_only_when_the_form_asks() {
-        let planned = session(2).plan(&form(), "0123456789abcdef".to_owned());
+        let planned = session(2).plan(&form(), "0123456789abcdef".to_owned(), "");
         assert!(!planned[0].spec.package.linked, "off until somebody asks");
 
         let linked = PackageForm {
             linked: true,
             ..form()
         };
-        let planned = session(1000).plan(&linked, "0123456789abcdef".to_owned());
+        let planned = session(1000).plan(&linked, "0123456789abcdef".to_owned(), "rock");
         assert_eq!(planned.len(), 2);
         assert!(
             planned.iter().all(|volume| volume.spec.package.linked),
             "every volume of a linked package is linked"
         );
         assert!(planned.iter().all(|volume| volume.spec.package.uncurated));
+        assert_eq!(planned[0].spec.songs[0].file, "rock/1.kar");
+    }
+
+    #[test]
+    fn a_package_that_holds_its_songs_keeps_their_paths() {
+        let planned = session(1).plan(&form(), "0123456789abcdef".to_owned(), "rock");
+        assert_eq!(planned[0].spec.songs[0].file, "1.kar");
+    }
+
+    #[test]
+    fn the_paths_start_at_the_base_folder() {
+        let scratch = km_testkit::Scratch::new("simple-linked-prefix");
+        let folder = scratch.join("cdg").join("Some Collection");
+        std::fs::create_dir_all(&folder).expect("a folder");
+
+        assert_eq!(linked_prefix(&folder, &folder), Ok(String::new()));
+        assert_eq!(
+            linked_prefix(&folder, scratch.path()),
+            Ok("cdg/Some Collection".to_owned())
+        );
+        assert_eq!(
+            linked_prefix(scratch.path(), &folder),
+            Err("said-linked-base-outside")
+        );
+        assert_eq!(
+            linked_prefix(&folder, &scratch.join("absent")),
+            Err("said-linked-base-missing")
+        );
+    }
+
+    #[test]
+    fn the_example_is_the_first_kept_song_below_the_prefix() {
+        let mut session = session(2);
+        assert_eq!(session.linked_example(""), Some("1.kar".to_owned()));
+        session.rows[0].kept = false;
+        assert_eq!(session.linked_example("cdg"), Some("cdg/2.kar".to_owned()));
     }
 
     #[test]
@@ -661,7 +754,7 @@ mod tests {
                 number: 1
             })
         );
-        let planned = session.plan(&form(), "0123456789abcdef".to_owned());
+        let planned = session.plan(&form(), "0123456789abcdef".to_owned(), "");
         assert_eq!(planned.len(), 2);
         assert_eq!(planned[1].spec.songs.len(), 1);
         assert_eq!(planned[1].spec.package.name, "karaoke vol2");
@@ -676,7 +769,7 @@ mod tests {
     fn a_name_that_folds_to_nothing_is_filed_under_the_id() {
         let mut form = form();
         form.name = "日本".to_owned();
-        let planned = session(1).plan(&form, "0123456789abcdef".to_owned());
+        let planned = session(1).plan(&form, "0123456789abcdef".to_owned(), "");
         assert_eq!(
             planned[0].out,
             PathBuf::from("/tunes/0123456789abcdef-1.0.0.kmpkg")

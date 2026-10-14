@@ -35,6 +35,9 @@ said-no-folder = There is no folder at that path.
 said-nothing-kept = Keep at least one song.
 said-no-name = Give the package a name.
 said-reveal-failed = The folder could not be opened.
+said-linked-base-missing = The folder the paths start at is not there.
+said-linked-base-outside = The paths must start at the folder you chose or a folder above it.
+said-linked-base-name = A folder between the two has a name a linked path cannot carry.
 
 progress-reading = Reading the folder: { $done } of { $total } MIDI files.
 progress-building = Writing package { $volume } of { $volumes }: song { $done } of { $total }.
@@ -47,7 +50,10 @@ form-language = Language for songs with none
 form-out = Write to folder
 form-language-hint = A song whose file names no language is filed under this one. Undetermined is the honest answer when you do not know.
 form-linked = Build linked packages, which hold no song file
-form-linked-hint = A linked package names each song by its path in the folder you chose. It plays only on a machine set to take linked packages, from that folder or a copy of it. A song inside a zip is left out.
+form-linked-hint = A linked package names each song by its path below the folder the paths start at. It plays only on a machine set to take linked packages, from that folder or a copy of it. A song inside a zip is left out.
+form-linked-base = Paths start at
+linked-path-example = The first song, below the machine's folder for linked packages:
+linked-path-machine = Set the machine's folder for linked packages to { $folder }, or a copy of it.
 action-build = Build
 
 songs-summary = { $count ->

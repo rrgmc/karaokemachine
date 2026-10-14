@@ -198,8 +198,16 @@ impl App {
             if form.name.trim().is_empty() {
                 return Err("said-no-name");
             }
-            let plan = session.plan(&form, km_kmpkg::PackageMeta::new_id());
-            let folder = session.folder.clone();
+            // A linked package's paths are below the base folder, so the build resolves them there.
+            let (prefix, folder) = if form.linked {
+                (
+                    crate::session::linked_prefix(&session.folder, &form.linked_base)?,
+                    form.linked_base.clone(),
+                )
+            } else {
+                (String::new(), session.folder.clone())
+            };
+            let plan = session.plan(&form, km_kmpkg::PackageMeta::new_id(), &prefix);
             inner.phase = Phase::Building {
                 volume: 1,
                 volumes: plan.len(),
