@@ -2202,9 +2202,14 @@ with thousands of them.
 
 ## On a phone, the machine shows its own remote over the screen
 
-**A phone or a tablet running the machine has a Menu button in the top right corner.** *Choose
-songs* shows the machine's own remote over the screen, and *Install a package* opens the system file
+**A phone or a tablet running the machine has a Menu button at the top centre.** *Choose songs*
+shows the machine's own remote over the screen, and *Install a package* opens the system file
 browser. Back or *Close* hides the remote again. A television and a headset show no button.
+
+**The button stays out of what the machine draws.** The song's title fills the top left corner, and
+the key, the melody and the queue counter fill the top right. The open remote's own controls reach
+every edge of the page. So *Close* stands in a narrow strip to the right of the page, and covers
+none of it.
 
 **The remote stays in the machine's window, so the song plays on.** Another application takes the
 screen, and [`Leaving the screen stops the music`](interface.md#leaving-the-screen-stops-the-music).

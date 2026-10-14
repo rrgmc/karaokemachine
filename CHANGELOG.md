@@ -14,7 +14,7 @@ Entries are written for somebody who has the machine. Why any of it is the way i
 ### Added
 
 - **A phone running the machine chooses songs without leaving it.** On an Android phone or
-  tablet, **Menu** in the top right corner opens **Choose songs**. The machine's own remote covers
+  tablet, **Menu** at the top of the screen opens **Choose songs**. The machine's own remote covers
   the screen, and the song plays on behind it. **Install a package** in the same menu opens the
   file browser. A television shows no menu.
 

@@ -44,12 +44,15 @@ final class PhoneShell {
     /** How long a page that did not load waits before it tries again. */
     private static final long RETRY_MS = 2000L;
 
-    private static final int TEXT_SP = 16;
-    private static final int PAD_X_DP = 18;
-    private static final int PAD_Y_DP = 10;
-    private static final int RADIUS_DP = 20;
-    private static final int MARGIN_DP = 12;
-    private static final int GAP_DP = 8;
+    private static final int TEXT_SP = 14;
+    private static final int PAD_X_DP = 14;
+    private static final int PAD_Y_DP = 6;
+    private static final int RADIUS_DP = 16;
+    private static final int MARGIN_DP = 8;
+    private static final int GAP_DP = 6;
+
+    /** The strip beside the open remote that holds Close, so the button covers none of the page. */
+    private static final int RAIL_DP = 88;
 
     /** The menu button over a song: visible enough to find, faint enough not to cover words. */
     private static final float IDLE_ALPHA = 0.55f;
@@ -59,6 +62,8 @@ final class PhoneShell {
 
     private final MainActivity activity;
     private final FrameLayout layer;
+    private final LinearLayout column;
+    private final FrameLayout rail;
     private final Button menu;
     private final Button songs;
     private final Button install;
@@ -97,31 +102,43 @@ final class PhoneShell {
         menu = button(R.string.phone_menu);
         songs = button(R.string.phone_choose_songs);
         install = button(R.string.phone_install_package);
-        menu.setOnClickListener(v -> {
-            if (open) {
-                close();
-            } else {
-                expand(!expanded);
-            }
-        });
+        menu.setOnClickListener(v -> expand(!expanded));
         songs.setOnClickListener(v -> show());
         install.setOnClickListener(v -> {
             expand(false);
             activity.choosePackage();
         });
 
-        LinearLayout column = new LinearLayout(activity);
+        // Top centre, because the machine draws in both top corners: the song's title on the left,
+        // and the key, the melody and the queue counter on the right.
+        column = new LinearLayout(activity);
         column.setOrientation(LinearLayout.VERTICAL);
-        column.setGravity(Gravity.END);
+        column.setGravity(Gravity.CENTER_HORIZONTAL);
         column.addView(menu, item(0));
         column.addView(songs, item(dp(GAP_DP)));
         column.addView(install, item(dp(GAP_DP)));
-        FrameLayout.LayoutParams corner = new FrameLayout.LayoutParams(
+        FrameLayout.LayoutParams top = new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT,
-                Gravity.TOP | Gravity.END);
-        corner.setMargins(0, dp(MARGIN_DP), dp(MARGIN_DP), 0);
-        layer.addView(column, corner);
+                Gravity.TOP | Gravity.CENTER_HORIZONTAL);
+        top.topMargin = dp(MARGIN_DP);
+        layer.addView(column, top);
+
+        // The open remote's own controls fill its edges, so Close stands beside the page and not
+        // on it. A phone held sideways has width to spare and little height.
+        rail = new FrameLayout(activity);
+        rail.setBackgroundColor(Color.parseColor(PAGE_COLOR));
+        Button close = button(R.string.phone_close);
+        close.setOnClickListener(v -> close());
+        FrameLayout.LayoutParams inRail = new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                Gravity.TOP | Gravity.CENTER_HORIZONTAL);
+        inRail.topMargin = dp(MARGIN_DP);
+        rail.addView(close, inRail);
+        rail.setVisibility(View.GONE);
+        layer.addView(rail, new FrameLayout.LayoutParams(
+                dp(RAIL_DP), ViewGroup.LayoutParams.MATCH_PARENT, Gravity.END));
 
         expand(false);
         activity.addContentView(layer, new ViewGroup.LayoutParams(
@@ -162,23 +179,24 @@ final class PhoneShell {
         expand(false);
         if (page == null) {
             page = page(Loopback.root(activity));
-            // Under the buttons, so the menu button stays in reach as the way to close.
-            layer.addView(page, 0, new FrameLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+            FrameLayout.LayoutParams beside = new FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
+            beside.rightMargin = dp(RAIL_DP);
+            layer.addView(page, 0, beside);
         }
         page.setVisibility(View.VISIBLE);
+        rail.setVisibility(View.VISIBLE);
+        column.setVisibility(View.GONE);
         open = true;
-        menu.setText(R.string.phone_close);
-        menu.setAlpha(1f);
     }
 
     private void close() {
         if (page != null) {
             page.setVisibility(View.GONE);
         }
+        rail.setVisibility(View.GONE);
+        column.setVisibility(View.VISIBLE);
         open = false;
-        menu.setText(R.string.phone_menu);
-        menu.setAlpha(IDLE_ALPHA);
     }
 
     /**
