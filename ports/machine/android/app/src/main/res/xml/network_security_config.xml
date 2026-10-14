@@ -2,10 +2,10 @@
 <!--
     Permits plain HTTP to loopback, and to nothing else.
 
-    The queue panel beside the screen is a WebView on the machine's own remote, which the machine
-    serves as plain HTTP in this same process. Android blocks cleartext by default, and that block
-    covers `127.0.0.1` as well. Without this exception the panel stays blank and says nothing about
-    why.
+    Both flavours show the machine's own remote in a WebView: the queue panel beside the screen on a
+    headset, and the overlay over the screen on a phone. The machine serves that page as plain HTTP
+    in this same process. Android blocks cleartext by default, and that block covers `127.0.0.1` as
+    well. Without this exception the page stays blank and says nothing about why.
 
     **Only the WebView needs it.** The machine's own sockets are native and this policy does not
     reach them, so there is no reason to permit cleartext to the LAN. The remote's application

@@ -38,9 +38,7 @@
          Nothing fails and nothing is logged; the screen simply never reaches the wall. -->
     <uses-permission android:name="com.oculus.permission.USE_ANCHOR_API" />
 
-    <!-- The configuration lets the queue panel's WebView reach the machine's own remote over
-         loopback, and nothing else. See the file for why cleartext needs saying at all. -->
-    <application android:networkSecurityConfig="@xml/network_security_config">
+    <application>
         <meta-data
             android:name="com.oculus.supportedDevices"
             android:value="quest2|questpro|quest3|quest3s" />

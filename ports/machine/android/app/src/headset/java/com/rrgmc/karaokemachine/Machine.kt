@@ -1,7 +1,6 @@
 package com.rrgmc.karaokemachine
 
 import android.content.Context
-import java.io.File
 import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URI
@@ -16,20 +15,11 @@ import org.json.JSONObject
  */
 internal object Machine {
 
-    /**
-     * The API's root on this device, such as `http://127.0.0.1:8177/`.
-     *
-     * Read from the machine's own `settings.json`, in the internal storage directory SDL reports to
-     * the machine. A missing or unreadable file means the default port. The machine writes the file
-     * on its first start, and that can come after this.
-     */
-    fun root(context: Context): String {
-        val port = api(context)?.optString(BIND)?.substringAfterLast(':')?.toIntOrNull()
-        return "http://127.0.0.1:${port ?: DEFAULT_PORT}/"
-    }
+    /** The API's root on this device, such as `http://127.0.0.1:8177/`. See [Loopback]. */
+    fun root(context: Context): String = Loopback.root(context)
 
     /** Whether the owner serves the singer's remote at `/`. It is on unless turned off. */
-    fun servesRemote(context: Context): Boolean = api(context)?.opt(SERVE_REMOTE) != false
+    fun servesRemote(context: Context): Boolean = Loopback.servesRemote(context)
 
     /**
      * Whether leaving now would lose nothing: no song loaded and nobody waiting.
@@ -76,26 +66,6 @@ internal object Machine {
             connection.disconnect()
         }
     }
-
-    private fun api(context: Context): JSONObject? {
-        val file = File(context.filesDir, SETTINGS_FILE)
-        return try {
-            if (file.isFile) JSONObject(file.readText()).optJSONObject(API) else null
-        } catch (_: JSONException) {
-            null
-        } catch (_: IOException) {
-            null
-        }
-    }
-
-    /** The file and keys `crates/machine/karaokemachine/src/settings.rs` writes. */
-    private const val SETTINGS_FILE = "settings.json"
-    private const val API = "api"
-    private const val BIND = "bind"
-    private const val SERVE_REMOTE = "serve_remote"
-
-    /** `km_api::DEFAULT_PORT`, which the machine binds when the file names none. */
-    private const val DEFAULT_PORT = 8177
 
     /** `GET /api/v1/state`, public, and the fields of its `StateDto` that say what would be lost. */
     private const val STATE_PATH = "api/v1/state"
