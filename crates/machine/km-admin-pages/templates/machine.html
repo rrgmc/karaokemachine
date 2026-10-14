@@ -270,6 +270,12 @@
       <h2>{{ "singers-heading"|t }}</h2>
       <p class="hint">{{ "singers-explained"|t }}</p>
       <form method="post" action="/admin/machine/singers">
+        {# First, because it decides whether the waiting limit below means anything. #}
+        <label for="singers-queue-order">{{ "singers-queue-order"|t }}</label>
+        <select id="singers-queue-order" name="queue_order">
+          <option value="arrival"{% if !rules.turns() %} selected{% endif %}>{{ "singers-order-arrival"|t }}</option>
+          <option value="turns"{% if rules.turns() %} selected{% endif %}>{{ "singers-order-turns"|t }}</option>
+        </select>
         <label class="check">
           <input type="checkbox" name="name_required" value="yes"{% if rules.name_required %} checked{% endif %}>
           {{ "singers-name-required"|t }}

@@ -708,6 +708,10 @@ async fn the_owners_page_sets_what_the_machine_asks_of_a_singer() {
         );
         assert!(body.contains(r#"name="max_waiting" value="10""#), "{body}");
         assert!(
+            body.contains(r#"<option value="arrival" selected>"#),
+            "songs queue in the order asked until the owner chooses turns: {body}"
+        );
+        assert!(
             body.contains(
                 r#"name="max_per_device"
                value="""#
@@ -718,7 +722,7 @@ async fn the_owners_page_sets_what_the_machine_asks_of_a_singer() {
         let (status, _) = post_form(
             &app,
             "/admin/machine/singers",
-            "name_required=yes&max_per_device=3&max_waiting=2",
+            "queue_order=turns&name_required=yes&max_per_device=3&max_waiting=2",
         )
         .await;
         assert!(status.is_redirection(), "{surface}: {status}");
@@ -726,12 +730,32 @@ async fn the_owners_page_sets_what_the_machine_asks_of_a_singer() {
         assert!(rules.name_required, "{surface}");
         assert_eq!(rules.max_per_device, Some(3), "{surface}");
         assert_eq!(rules.max_waiting, 2, "{surface}");
+        assert!(rules.turns(), "{surface}");
+        let (_, body) = get(&app, "/admin/machine").await;
+        assert!(
+            body.contains(r#"<option value="turns" selected>"#),
+            "{body}"
+        );
+
+        // A form that lost the list changes nothing.
+        let (status, _) = post_form(
+            &app,
+            "/admin/machine/singers",
+            "name_required=yes&max_per_device=3&max_waiting=4",
+        )
+        .await;
+        assert!(status.is_redirection(), "{surface}: {status}");
+        assert_eq!(
+            state.controller().singer_rules().max_waiting,
+            2,
+            "{surface}"
+        );
 
         // An unticked box and an empty one post nothing, which is no name asked and no limit.
         let (status, _) = post_form(
             &app,
             "/admin/machine/singers",
-            "max_per_device=&max_waiting=5",
+            "queue_order=arrival&max_per_device=&max_waiting=5",
         )
         .await;
         assert!(status.is_redirection(), "{surface}: {status}");
@@ -744,7 +768,7 @@ async fn the_owners_page_sets_what_the_machine_asks_of_a_singer() {
         let (status, _) = post_form(
             &app,
             "/admin/machine/singers",
-            "max_per_device=many&max_waiting=5",
+            "queue_order=arrival&max_per_device=many&max_waiting=5",
         )
         .await;
         assert!(status.is_redirection(), "{surface}: {status}");

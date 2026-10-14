@@ -978,6 +978,7 @@ impl Machine {
         );
 
         let demo_enabled = settings.demo.enabled;
+        let queue_order = settings.singers.queue_order;
         // A full delay from startup rather than from zero, so a machine that boots into demo mode
         // does not start singing at whoever is still plugging it in.
         let demo_resume_at =
@@ -1012,7 +1013,7 @@ impl Machine {
             advancing: Mutex::new(()),
             evening_store: Mutex::new(EveningStore::default()),
             state: Mutex::new(State {
-                evening: Evening::new(),
+                evening: Evening::with_order(queue_order),
                 evening_word: km_api::server::new_evening_word(),
                 playing_entry: None,
                 held_for_host: false,
@@ -3765,7 +3766,11 @@ impl Machine {
     /// new evening empties it. A song that has left the catalog stays in the queue, and the machine
     /// passes over it when its turn comes.
     pub fn restore_evening(&self) {
-        if !self.lock_settings().singers.keep_evening {
+        let (keep, order) = {
+            let settings = self.lock_settings();
+            (settings.singers.keep_evening, settings.singers.queue_order)
+        };
+        if !keep {
             return;
         }
         // The file first, and the earlier copy when the file is absent or cannot be used.
@@ -3776,7 +3781,7 @@ impl Machine {
         .into_iter()
         .find_map(|path| {
             let kept = crate::evening_store::load(&path)?;
-            match Evening::restore(kept.evening, Instant::now()) {
+            match Evening::restore(kept.evening, order, Instant::now()) {
                 Ok(evening) => Some((evening, kept.word)),
                 Err(error) => {
                     crate::evening_store::set_aside(&path, &error.to_string());
@@ -5371,6 +5376,7 @@ impl Controller for Machine {
             name_required: singers.name_required,
             max_per_device: singers.max_per_device,
             max_waiting: singers.max_waiting,
+            queue_order: singers.queue_order,
         }
     }
 
@@ -5390,12 +5396,23 @@ impl Controller for Machine {
             settings.singers.name_required = rules.name_required;
             settings.singers.max_per_device = rules.max_per_device;
             settings.singers.max_waiting = rules.max_waiting;
+            settings.singers.queue_order = rules.queue_order;
         }
         self.save_settings();
+        // The order applies to the evening at once: a change to arrival order sends every waiting
+        // song into the queue now, rather than at the next request.
+        {
+            let mut state = self.lock_state();
+            state.evening.set_order(rules.queue_order, Instant::now());
+        }
+        // Songs may have gone into the queue. The phones redraw it, and an idle machine starts one.
+        self.publish_queue();
+        self.a_song_was_queued();
         tracing::info!(
             name_required = rules.name_required,
             max_per_device = ?rules.max_per_device,
             max_waiting = rules.max_waiting,
+            queue_order = ?rules.queue_order,
             "the singer rules were changed"
         );
         Ok(self.singer_rules())
@@ -7558,6 +7575,11 @@ mod tests {
     #[test]
     fn a_request_on_an_idle_machine_starts_and_the_next_one_takes_the_turn() {
         let (_scratch, machine, log, codes) = a_machine_with_eight_songs("request-start");
+        // A venue's order. Arrival order is `arrival_order_queues_a_singers_songs_one_after_another`.
+        machine
+            .lock_state()
+            .evening
+            .set_order(km_queue::QueueOrder::Turns, Instant::now());
         let issued = machine
             .seat_register(
                 "phone-a",
@@ -7610,6 +7632,44 @@ mod tests {
         let queued: Vec<SongCode> = machine.queue().iter().map(|entry| entry.number).collect();
         assert_eq!(queued, vec![codes[1]]);
         assert_eq!(machine.queue()[0].singer.as_deref(), Some("Ana"));
+    }
+
+    /// A new machine queues one singer's songs one after another, because arrival is the default.
+    #[test]
+    fn arrival_order_queues_a_singers_songs_one_after_another() {
+        let (_scratch, machine, _log, codes) = a_machine_with_eight_songs("request-arrival");
+        assert_eq!(
+            machine.singer_rules().queue_order,
+            km_queue::QueueOrder::Arrival
+        );
+        let issued = machine
+            .seat_register("phone-a", None, "token".to_owned())
+            .expect("an unnamed singer registers");
+        for code in &codes[..4] {
+            let request = machine
+                .request_add(
+                    issued.seat.id,
+                    Proof::Token("token"),
+                    RequestedSong {
+                        number: *code,
+                        title: format!("Song {}", code.slot()),
+                        artist: None,
+                        duration_ms: 200_000,
+                    },
+                )
+                .expect("the request is taken");
+            assert_ne!(
+                request.state,
+                RequestState::Waiting,
+                "nothing waits for a turn"
+            );
+        }
+        let queued: Vec<SongCode> = machine.queue().iter().map(|entry| entry.number).collect();
+        assert_eq!(
+            queued,
+            codes[1..4].to_vec(),
+            "the first plays, the rest queue in order"
+        );
     }
 
     /// The loaded song's announcement, for a test to read its instants from.

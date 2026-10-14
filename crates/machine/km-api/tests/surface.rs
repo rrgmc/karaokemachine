@@ -5350,7 +5350,7 @@ async fn a_rename_needs_the_seats_token_and_a_free_name() {
 
 /// A harness whose caller holds no token, in a room at its default level, with both codes set.
 fn a_room_with_a_host() -> Harness {
-    Harness::with_config(
+    let harness = Harness::with_config(
         ApiConfig::default()
             .without_mdns()
             .with_password(SWEEP_PASSWORD)
@@ -5358,7 +5358,17 @@ fn a_room_with_a_host() -> Harness {
             .with_codes("sweep-queue", "sweep-control")
             .expect("argon2 hashes a code"),
     )
-    .tokenless()
+    .tokenless();
+    // A venue's order: its singers take turns.
+    harness.machine.set_queue_order(km_queue::QueueOrder::Turns);
+    harness
+}
+
+/// A harness whose singers take turns, for a test about the turns rule.
+fn a_room_in_turns() -> Harness {
+    let harness = Harness::new();
+    harness.machine.set_queue_order(km_queue::QueueOrder::Turns);
+    harness
 }
 
 /// The token a host holds, for a harness to act at the control level.
@@ -5503,7 +5513,7 @@ async fn queued_numbers(harness: &Harness) -> Vec<String> {
 /// The first request goes into the queue and the second waits, which is the whole rule.
 #[tokio::test]
 async fn a_singers_first_request_is_queued_and_the_second_waits() {
-    let harness = Harness::new();
+    let harness = a_room_in_turns();
     let (ana, token) = register(&harness, "phone-a", Some("Ana")).await;
 
     let first = ask(&harness, ana, &token, "1001").await;
@@ -5535,7 +5545,7 @@ async fn a_singers_first_request_is_queued_and_the_second_waits() {
 /// Two singers ask in any order and the queue is one round.
 #[tokio::test]
 async fn two_singers_take_turns_whatever_order_they_ask_in() {
-    let harness = Harness::new();
+    let harness = a_room_in_turns();
     let (ana, ana_token) = register(&harness, "phone-a", Some("Ana")).await;
     let (beto, beto_token) = register(&harness, "phone-b", Some("Beto")).await;
     ask(&harness, ana, &ana_token, "1001").await;
@@ -5631,7 +5641,7 @@ async fn a_singer_withdraws_a_song_and_the_next_one_takes_its_turn() {
 
 #[tokio::test]
 async fn the_cap_on_one_singers_waiting_songs_has_a_code_of_its_own() {
-    let harness = Harness::new();
+    let harness = a_room_in_turns();
     harness
         .machine
         .set_request_rules(km_queue::RequestRules { max_waiting: 1 });
@@ -5659,6 +5669,7 @@ async fn the_control_level_asks_for_any_singer_with_no_token() {
         .with_codes("sweep-queue", "sweep-control")
         .expect("argon2 hashes a code");
     let mut harness = Harness::with_config(config).tokenless();
+    harness.machine.set_queue_order(km_queue::QueueOrder::Turns);
     let (ana, _) = register(&harness, "phone-a", Some("Ana")).await;
     let path = format!("/singers/{ana}/requests");
 
@@ -5761,10 +5772,10 @@ async fn the_singer_rules_are_public_to_read_and_admin_to_set() {
     assert!(status.is_success(), "reading them must stay public");
     assert_eq!(
         body,
-        json!({ "name_required": false, "max_per_device": null, "max_waiting": 10 })
+        json!({ "name_required": false, "max_per_device": null, "max_waiting": 10, "queue_order": "arrival" })
     );
 
-    let strict = json!({ "name_required": true, "max_per_device": 1, "max_waiting": 0 });
+    let strict = json!({ "name_required": true, "max_per_device": 1, "max_waiting": 0, "queue_order": "turns" });
     let (status, _) = harness.put("/admin/singers/rules", strict.clone()).await;
     assert_eq!(status, StatusCode::UNAUTHORIZED);
 
@@ -5808,11 +5819,13 @@ async fn the_singer_rules_are_public_to_read_and_admin_to_set() {
 async fn a_singer_cap_outside_its_range_is_a_400() {
     let harness = Harness::new();
     for body in [
-        json!({ "name_required": false, "max_per_device": 0, "max_waiting": 10 }),
-        json!({ "name_required": false, "max_per_device": 101, "max_waiting": 10 }),
-        json!({ "name_required": false, "max_per_device": null, "max_waiting": 101 }),
-        json!({ "name_required": false, "max_waiting": 10 }),
+        json!({ "name_required": false, "max_per_device": 0, "max_waiting": 10, "queue_order": "arrival" }),
+        json!({ "name_required": false, "max_per_device": 101, "max_waiting": 10, "queue_order": "arrival" }),
+        json!({ "name_required": false, "max_per_device": null, "max_waiting": 101, "queue_order": "arrival" }),
+        json!({ "name_required": false, "max_waiting": 10, "queue_order": "arrival" }),
         json!({ "name_required": false, "max_per_device": null }),
+        json!({ "name_required": false, "max_per_device": null, "max_waiting": 10 }),
+        json!({ "name_required": false, "max_per_device": null, "max_waiting": 10, "queue_order": "random" }),
     ] {
         let (status, answer) = harness.put("/admin/singers/rules", body.clone()).await;
         assert_eq!(status, StatusCode::BAD_REQUEST, "{body} answered {answer}");

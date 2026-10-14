@@ -108,7 +108,35 @@ registering singers.
 `device_full` and `singers_full` answer 409, so a remote says each in its own words. A wrong token
 answers 403, because a level's token would not help.
 
+## The owner chooses the queue order, and arrival is the default
+
+**`singers.queue_order` names the order a singer's song takes into the queue.** It is a closed
+list, so another order is one more choice on it. Two orders stand on it:
+
+| Order | What a request does |
+|---|---|
+| `arrival`, the default | It goes straight to the end of the queue, whoever asks and however many |
+| `turns` | It follows [`The queue holds one song for each singer`](#the-queue-holds-one-song-for-each-singer) |
+
+**Arrival is the default because a home has no turns to keep.** A family passes one phone around,
+and the songs play in the order chosen. A singer with a name and one without queue alike. A venue
+chooses turns, so one table cannot fill the queue.
+
+**The order is the owner's, on the Singers card beside the other singer rules.** `GET
+/singers/rules` reads it and `PUT /admin/singers/rules` sets it, with the other three fields. A body
+without it is refused, as a body without any other field is.
+
+**A change applies to the evening at once.** A change to arrival sends every waiting song into the
+queue, oldest first, because no turn is left for it to wait for. A change to turns moves nothing
+already queued. A restart applies the order the settings hold, so a venue's waiting songs stay
+waiting.
+
+**The waiting limit applies in turns only.** In arrival nothing waits, except behind a full queue.
+
 ## The queue holds one song for each singer
+
+**This rule holds when the owner chooses turns.** See
+[`The owner chooses the queue order, and arrival is the default`](#the-owner-chooses-the-queue-order-and-arrival-is-the-default).
 
 **A singer's song is a request, and one rule moves it into the queue.** The queue holds one song
 for each singer. So the singers take turns, and the rule needs nobody in charge.

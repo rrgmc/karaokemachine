@@ -400,7 +400,7 @@ impl From<&DemoState> for DemoDto {
 
 /// `GET /singers/rules`, and the body and the answer of `PUT /admin/singers/rules`.
 ///
-/// **All three fields, always**, for [`SetAnnouncementRequest`]'s reason. `max_per_device` is
+/// **All four fields, always**, for [`SetAnnouncementRequest`]'s reason. `max_per_device` is
 /// `null` for no limit.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -415,6 +415,8 @@ pub struct SingerRulesDto {
     pub max_per_device: Option<u32>,
     /// How many requests one singer may have waiting behind the one in the queue.
     pub max_waiting: u32,
+    /// The order a singer's song takes into the queue: `arrival` or `turns`.
+    pub queue_order: km_queue::QueueOrder,
 }
 
 /// Reads an optional value whose field must still be present.
@@ -436,11 +438,13 @@ impl From<SingerRules> for SingerRulesDto {
             name_required,
             max_per_device,
             max_waiting,
+            queue_order,
         } = rules;
         Self {
             name_required,
             max_per_device,
             max_waiting,
+            queue_order,
         }
     }
 }
@@ -451,6 +455,7 @@ impl From<SingerRulesDto> for SingerRules {
             name_required: rules.name_required,
             max_per_device: rules.max_per_device,
             max_waiting: rules.max_waiting,
+            queue_order: rules.queue_order,
         }
     }
 }

@@ -1939,7 +1939,7 @@ pub async fn set_demo_delay(
 
 /// `POST /admin/machine/singers` — what the machine asks of a singer.
 ///
-/// **One form for all three answers**, as the announcement's is: each is always written down.
+/// **One form for all four answers**, as the announcement's is: each is always written down.
 ///
 /// The two numbers are parsed here and not by the browser, for `set_demo_delay`'s reason. An empty
 /// box for the singers on one phone means no limit.
@@ -1961,10 +1961,14 @@ pub async fn set_singer_rules(
     let Ok(max_waiting) = form.max_waiting.trim().parse::<u32>() else {
         return bad();
     };
+    let Some(queue_order) = form.queue_order else {
+        return bad();
+    };
     let rules = km_api::machine::SingerRules {
         name_required: form.name_required.is_some(),
         max_per_device,
         max_waiting,
+        queue_order,
     };
     match state.switches.set_singer_rules(rules).await {
         Err(error) => refusal_on(&state, Pane::Password, &error, locale),
@@ -2310,6 +2314,9 @@ pub struct SingerRulesForm {
     /// How many songs one singer may have waiting, as typed.
     #[serde(default)]
     pub max_waiting: String,
+    /// The order a singer's song takes into the queue. Absent from a form that lost the list.
+    #[serde(default)]
+    pub queue_order: Option<km_api::machine::QueueOrder>,
 }
 
 /// Whether a queued song is announced before it starts, and for how long.

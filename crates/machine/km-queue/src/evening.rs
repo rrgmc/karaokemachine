@@ -217,6 +217,24 @@ struct Held {
     finished_at: Option<Instant>,
 }
 
+/// The order a singer's request takes into the queue.
+///
+/// **A closed set the owner chooses from**, so another order is one more variant and one more
+/// branch in [`Evening::settle`].
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum QueueOrder {
+    /// Every song goes to the end of the queue as it is asked for, named or not.
+    ///
+    /// **The default**, because a home queues songs one after another and has no turns to keep.
+    #[default]
+    Arrival,
+    /// One song for each singer is in the queue, and the singer's next one waits until it starts.
+    ///
+    /// A venue chooses it, so one table cannot fill the queue.
+    Turns,
+}
+
 /// The queue, the singers and their requests.
 #[derive(Debug, Clone)]
 pub struct Evening {
@@ -228,6 +246,8 @@ pub struct Evening {
     sung: Vec<Sung>,
     /// Whether a phone may ask for a song.
     accepting: bool,
+    /// The order a request takes into the queue.
+    order: QueueOrder,
 }
 
 impl Default for Evening {
@@ -239,14 +259,38 @@ impl Default for Evening {
             next_request: 0,
             sung: Vec::new(),
             accepting: true,
+            order: QueueOrder::default(),
         }
     }
 }
 
 impl Evening {
-    /// An evening with nobody in it, taking requests.
+    /// An evening with nobody in it, taking requests, in arrival order.
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// An evening with nobody in it, taking requests in `order`.
+    pub fn with_order(order: QueueOrder) -> Self {
+        Self {
+            order,
+            ..Self::default()
+        }
+    }
+
+    /// The order a request takes into the queue.
+    pub fn order(&self) -> QueueOrder {
+        self.order
+    }
+
+    /// Changes the order for the rest of the evening.
+    ///
+    /// **A change to arrival order empties the waiting list into the queue**, in the order the
+    /// songs were asked for, because arrival order has no turn for them to wait for. A change to
+    /// turns moves nothing already queued.
+    pub fn set_order(&mut self, order: QueueOrder, now: Instant) {
+        self.order = order;
+        self.settle(now);
     }
 
     /// Every song that started this evening, in order.
@@ -309,7 +353,14 @@ impl Evening {
     ///
     /// The lists are cut to their caps. A queued request whose entry is absent waits again, and the
     /// rule then runs. A finished request stays for [`FINISHED_FOR`] from `now`.
-    pub fn restore(snapshot: EveningSnapshot, now: Instant) -> Result<Self, RestoreError> {
+    ///
+    /// **`order` comes from the settings and not from the snapshot**, and the rule runs in it. A
+    /// venue's waiting songs therefore stay waiting across a restart.
+    pub fn restore(
+        snapshot: EveningSnapshot,
+        order: QueueOrder,
+        now: Instant,
+    ) -> Result<Self, RestoreError> {
         let EveningSnapshot {
             mut queue,
             queue_next,
@@ -375,6 +426,7 @@ impl Evening {
             next_request: requests_next.max(past_every_request),
             sung,
             accepting,
+            order,
         };
         evening.settle(now);
         Ok(evening)
@@ -574,8 +626,9 @@ impl Evening {
             .count();
         // The cap is on songs that wait. A song the rule accepts at once waits for nothing, so a
         // cap of zero still gives each singer one song in the queue.
-        let would_wait =
-            waiting > 0 || self.queue.holds_seat(seat) || self.queue.len() >= MAX_QUEUED;
+        let would_wait = waiting > 0
+            || (self.order == QueueOrder::Turns && self.queue.holds_seat(seat))
+            || self.queue.len() >= MAX_QUEUED;
         if would_wait && waiting >= rules.max_waiting as usize {
             return Err(RequestError::SingerFull);
         }
@@ -684,7 +737,8 @@ impl Evening {
         Ok(request.clone())
     }
 
-    /// Applies the rule: accepts every waiting request whose singer has no entry in the queue.
+    /// Applies the rule: accepts every waiting request whose singer has no entry in the queue, or,
+    /// in arrival order, every waiting request.
     ///
     /// Oldest first, so the request that has waited longest takes the room there is. A full queue
     /// accepts nothing, and its requests wait until an entry leaves.
@@ -692,7 +746,10 @@ impl Evening {
         self.sweep(now);
         for index in 0..self.requests.len() {
             let request = &self.requests[index].request;
-            if request.state != RequestState::Waiting || self.queue.holds_seat(request.seat) {
+            // In turns a singer's song waits while another of theirs is queued. In arrival order
+            // nothing waits but for room in the queue.
+            let turn_taken = self.order == QueueOrder::Turns && self.queue.holds_seat(request.seat);
+            if request.state != RequestState::Waiting || turn_taken {
                 continue;
             }
             if self.queue.len() >= MAX_QUEUED {
@@ -772,6 +829,11 @@ fn expired(held: &Held, now: Instant) -> bool {
 mod tests {
     use super::*;
 
+    /// A restart of a venue's evening, which keeps turns.
+    fn restore_turns(snapshot: EveningSnapshot, now: Instant) -> Result<Evening, RestoreError> {
+        Evening::restore(snapshot, QueueOrder::Turns, now)
+    }
+
     /// A phone with one singer on it.
     struct Singer {
         seat: u64,
@@ -834,10 +896,87 @@ mod tests {
             .state
     }
 
+    /// Arrival order queues every song as it is asked for, whoever asks and however many.
+    #[test]
+    fn arrival_order_queues_every_song_in_the_order_asked() {
+        let now = Instant::now();
+        let mut evening = Evening::new();
+        assert_eq!(evening.order(), QueueOrder::Arrival, "the default");
+        let ana = singer(&mut evening, "Ana");
+        let beto = singer(&mut evening, "Beto");
+
+        for number in [1, 2, 3] {
+            assert_eq!(
+                ask(&mut evening, &ana, number, now).state,
+                RequestState::Queued
+            );
+        }
+        ask(&mut evening, &beto, 4, now);
+        for number in [5, 6, 7, 8, 9, 10, 11, 12, 13, 14] {
+            ask(&mut evening, &ana, number, now);
+        }
+
+        assert_eq!(
+            numbers(&evening),
+            vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14],
+            "no turns: ten of one singer's songs stand in a row"
+        );
+    }
+
+    /// A singer with no name queues the same way, because the order does not depend on a name.
+    #[test]
+    fn arrival_order_takes_an_unnamed_singer_the_same_way() {
+        let now = Instant::now();
+        let mut evening = Evening::new();
+        let issued = evening
+            .register("device-x", None, "token-x".to_owned(), SeatRules::default())
+            .expect("an unnamed singer");
+        let guest = Singer {
+            seat: issued.seat.id,
+            token: "token-x".to_owned(),
+        };
+        ask(&mut evening, &guest, 1, now);
+        ask(&mut evening, &guest, 2, now);
+        assert_eq!(numbers(&evening), vec![1, 2]);
+    }
+
+    /// Changing to arrival order mid-evening moves every waiting song into the queue, oldest first.
+    #[test]
+    fn a_change_to_arrival_order_empties_the_waiting_list_into_the_queue() {
+        let now = Instant::now();
+        let mut evening = Evening::with_order(QueueOrder::Turns);
+        let ana = singer(&mut evening, "Ana");
+        let beto = singer(&mut evening, "Beto");
+        ask(&mut evening, &ana, 1, now);
+        ask(&mut evening, &ana, 2, now);
+        ask(&mut evening, &beto, 3, now);
+        ask(&mut evening, &ana, 4, now);
+        assert_eq!(numbers(&evening), vec![1, 3], "turns keep 2 and 4 waiting");
+
+        evening.set_order(QueueOrder::Arrival, now);
+        assert_eq!(numbers(&evening), vec![1, 3, 2, 4]);
+    }
+
+    /// A restart keeps the order the settings give, so a venue's waiting songs stay waiting.
+    #[test]
+    fn a_restart_applies_the_order_it_is_given() {
+        let now = Instant::now();
+        let mut evening = Evening::with_order(QueueOrder::Turns);
+        let ana = singer(&mut evening, "Ana");
+        ask(&mut evening, &ana, 1, now);
+        ask(&mut evening, &ana, 2, now);
+        let snapshot = evening.snapshot(None, now);
+
+        let turns = Evening::restore(snapshot.clone(), QueueOrder::Turns, now).expect("restored");
+        assert_eq!(numbers(&turns), vec![1]);
+        let arrival = Evening::restore(snapshot, QueueOrder::Arrival, now).expect("restored");
+        assert_eq!(numbers(&arrival), vec![1, 2]);
+    }
+
     #[test]
     fn a_first_request_goes_straight_into_the_queue() {
         let now = Instant::now();
-        let mut evening = Evening::new();
+        let mut evening = Evening::with_order(QueueOrder::Turns);
         let ana = singer(&mut evening, "Ana");
 
         let request = ask(&mut evening, &ana, 1, now);
@@ -852,7 +991,7 @@ mod tests {
     #[test]
     fn a_second_request_waits_while_the_first_is_queued() {
         let now = Instant::now();
-        let mut evening = Evening::new();
+        let mut evening = Evening::with_order(QueueOrder::Turns);
         let ana = singer(&mut evening, "Ana");
         ask(&mut evening, &ana, 1, now);
 
@@ -867,7 +1006,7 @@ mod tests {
     #[test]
     fn the_singers_take_turns() {
         let now = Instant::now();
-        let mut evening = Evening::new();
+        let mut evening = Evening::with_order(QueueOrder::Turns);
         let ana = singer(&mut evening, "Ana");
         let beto = singer(&mut evening, "Beto");
         let caio = singer(&mut evening, "Caio");
@@ -894,7 +1033,7 @@ mod tests {
     #[test]
     fn the_next_request_goes_in_when_the_song_starts_and_no_entry_moves_back() {
         let now = Instant::now();
-        let mut evening = Evening::new();
+        let mut evening = Evening::with_order(QueueOrder::Turns);
         let ana = singer(&mut evening, "Ana");
         let beto = singer(&mut evening, "Beto");
         let first = ask(&mut evening, &ana, 11, now);
@@ -917,7 +1056,7 @@ mod tests {
     #[test]
     fn a_new_singer_waits_one_round_at_most() {
         let now = Instant::now();
-        let mut evening = Evening::new();
+        let mut evening = Evening::with_order(QueueOrder::Turns);
         let ana = singer(&mut evening, "Ana");
         let beto = singer(&mut evening, "Beto");
         for number in [11, 12, 13] {
@@ -938,7 +1077,7 @@ mod tests {
     #[test]
     fn a_song_with_no_singer_passes_the_rule() {
         let now = Instant::now();
-        let mut evening = Evening::new();
+        let mut evening = Evening::with_order(QueueOrder::Turns);
         let ana = singer(&mut evening, "Ana");
         ask(&mut evening, &ana, 11, now);
         for number in [901, 902] {
@@ -960,7 +1099,7 @@ mod tests {
     #[test]
     fn withdrawing_a_waiting_request_needs_the_seats_token() {
         let now = Instant::now();
-        let mut evening = Evening::new();
+        let mut evening = Evening::with_order(QueueOrder::Turns);
         let ana = singer(&mut evening, "Ana");
         let beto = singer(&mut evening, "Beto");
         ask(&mut evening, &ana, 11, now);
@@ -990,7 +1129,7 @@ mod tests {
     #[test]
     fn withdrawing_a_queued_song_lets_the_next_one_in() {
         let now = Instant::now();
-        let mut evening = Evening::new();
+        let mut evening = Evening::with_order(QueueOrder::Turns);
         let ana = singer(&mut evening, "Ana");
         let beto = singer(&mut evening, "Beto");
         let wrong = ask(&mut evening, &ana, 11, now);
@@ -1008,7 +1147,7 @@ mod tests {
     #[test]
     fn an_entry_somebody_removes_reads_declined_and_the_rule_runs() {
         let now = Instant::now();
-        let mut evening = Evening::new();
+        let mut evening = Evening::with_order(QueueOrder::Turns);
         let ana = singer(&mut evening, "Ana");
         let first = ask(&mut evening, &ana, 11, now);
         let second = ask(&mut evening, &ana, 12, now);
@@ -1025,7 +1164,7 @@ mod tests {
     #[test]
     fn clearing_the_queue_lets_each_singers_next_request_in() {
         let now = Instant::now();
-        let mut evening = Evening::new();
+        let mut evening = Evening::with_order(QueueOrder::Turns);
         let ana = singer(&mut evening, "Ana");
         let beto = singer(&mut evening, "Beto");
         ask(&mut evening, &ana, 11, now);
@@ -1042,7 +1181,7 @@ mod tests {
     #[test]
     fn the_rule_never_moves_an_entry_somebody_moved() {
         let now = Instant::now();
-        let mut evening = Evening::new();
+        let mut evening = Evening::with_order(QueueOrder::Turns);
         let ana = singer(&mut evening, "Ana");
         let beto = singer(&mut evening, "Beto");
         ask(&mut evening, &ana, 11, now);
@@ -1058,7 +1197,7 @@ mod tests {
     #[test]
     fn a_singer_may_have_only_so_many_requests_waiting() {
         let now = Instant::now();
-        let mut evening = Evening::new();
+        let mut evening = Evening::with_order(QueueOrder::Turns);
         let ana = singer(&mut evening, "Ana");
         let rules = RequestRules { max_waiting: 2 };
         let mut ask =
@@ -1074,7 +1213,7 @@ mod tests {
     #[test]
     fn a_cap_of_no_waiting_songs_still_takes_the_song_that_goes_straight_in() {
         let now = Instant::now();
-        let mut evening = Evening::new();
+        let mut evening = Evening::with_order(QueueOrder::Turns);
         let ana = singer(&mut evening, "Ana");
         let rules = RequestRules { max_waiting: 0 };
         let mut ask =
@@ -1099,7 +1238,7 @@ mod tests {
     #[test]
     fn the_whole_list_is_capped() {
         let now = Instant::now();
-        let mut evening = Evening::new();
+        let mut evening = Evening::with_order(QueueOrder::Turns);
         let ana = singer(&mut evening, "Ana");
         let rules = RequestRules {
             max_waiting: u32::MAX,
@@ -1123,7 +1262,7 @@ mod tests {
     #[test]
     fn a_full_queue_holds_every_request_until_an_entry_leaves() {
         let now = Instant::now();
-        let mut evening = Evening::new();
+        let mut evening = Evening::with_order(QueueOrder::Turns);
         for number in 0..MAX_QUEUED {
             evening
                 .add(QueueRequest {
@@ -1152,7 +1291,7 @@ mod tests {
     #[test]
     fn a_request_needs_a_seat_and_its_token_or_a_callers_level() {
         let now = Instant::now();
-        let mut evening = Evening::new();
+        let mut evening = Evening::with_order(QueueOrder::Turns);
         let ana = singer(&mut evening, "Ana");
         let rules = RequestRules::default();
 
@@ -1178,7 +1317,7 @@ mod tests {
     #[test]
     fn a_finished_request_leaves_the_list_after_a_fixed_time() {
         let start = Instant::now();
-        let mut evening = Evening::new();
+        let mut evening = Evening::with_order(QueueOrder::Turns);
         let ana = singer(&mut evening, "Ana");
         let played = ask(&mut evening, &ana, 11, start);
         let queued = ask(&mut evening, &ana, 12, start);
@@ -1199,7 +1338,7 @@ mod tests {
     #[test]
     fn a_name_is_held_while_its_seat_has_a_request() {
         let now = Instant::now();
-        let mut evening = Evening::new();
+        let mut evening = Evening::with_order(QueueOrder::Turns);
         let ana = singer(&mut evening, "Ana");
         let request = ask(&mut evening, &ana, 11, now);
         let reclaim = |evening: &mut Evening| {
@@ -1227,7 +1366,7 @@ mod tests {
     #[test]
     fn a_rename_reaches_the_seats_queued_songs() {
         let now = Instant::now();
-        let mut evening = Evening::new();
+        let mut evening = Evening::with_order(QueueOrder::Turns);
         let ana = singer(&mut evening, "Ana");
         ask(&mut evening, &ana, 11, now);
 
@@ -1262,7 +1401,7 @@ mod tests {
     #[test]
     fn a_declined_request_never_plays_and_the_next_one_takes_the_turn() {
         let now = Instant::now();
-        let mut evening = Evening::new();
+        let mut evening = Evening::with_order(QueueOrder::Turns);
         let ana = singer(&mut evening, "Ana");
         let queued = ask(&mut evening, &ana, 11, now);
         let unwelcome = ask(&mut evening, &ana, 12, now);
@@ -1287,7 +1426,7 @@ mod tests {
     #[test]
     fn accepting_early_gives_a_second_song_and_the_rule_adds_no_third() {
         let now = Instant::now();
-        let mut evening = Evening::new();
+        let mut evening = Evening::with_order(QueueOrder::Turns);
         let ana = singer(&mut evening, "Ana");
         let beto = singer(&mut evening, "Beto");
         let first = ask(&mut evening, &ana, 11, now);
@@ -1318,7 +1457,7 @@ mod tests {
     #[test]
     fn a_full_queue_refuses_an_early_accept() {
         let now = Instant::now();
-        let mut evening = Evening::new();
+        let mut evening = Evening::with_order(QueueOrder::Turns);
         let ana = singer(&mut evening, "Ana");
         ask(&mut evening, &ana, 5_001, now);
         let waiting = ask(&mut evening, &ana, 5_002, now);
@@ -1345,7 +1484,7 @@ mod tests {
     #[test]
     fn a_closed_evening_refuses_a_phone_and_keeps_what_waits() {
         let now = Instant::now();
-        let mut evening = Evening::new();
+        let mut evening = Evening::with_order(QueueOrder::Turns);
         let ana = singer(&mut evening, "Ana");
         ask(&mut evening, &ana, 11, now);
         let waiting = ask(&mut evening, &ana, 12, now);
@@ -1378,7 +1517,7 @@ mod tests {
     #[test]
     fn removing_a_singer_takes_their_songs_and_frees_their_name() {
         let now = Instant::now();
-        let mut evening = Evening::new();
+        let mut evening = Evening::with_order(QueueOrder::Turns);
         let ana = singer(&mut evening, "Ana");
         let beto = singer(&mut evening, "Beto");
         let queued = ask(&mut evening, &ana, 11, now);
@@ -1404,7 +1543,7 @@ mod tests {
     #[test]
     fn merging_two_singers_moves_everything_to_one() {
         let now = Instant::now();
-        let mut evening = Evening::new();
+        let mut evening = Evening::with_order(QueueOrder::Turns);
         let dave = singer(&mut evening, "Dave");
         let david = singer(&mut evening, "David");
         ask(&mut evening, &dave, 11, now);
@@ -1455,7 +1594,7 @@ mod tests {
     #[test]
     fn the_record_holds_every_song_that_started() {
         let now = Instant::now();
-        let mut evening = Evening::new();
+        let mut evening = Evening::with_order(QueueOrder::Turns);
         let ana = singer(&mut evening, "Ana");
         ask(&mut evening, &ana, 11, now);
         evening
@@ -1484,7 +1623,7 @@ mod tests {
     #[test]
     fn a_new_evening_clears_everything_and_ids_go_on_counting() {
         let now = Instant::now();
-        let mut evening = Evening::new();
+        let mut evening = Evening::with_order(QueueOrder::Turns);
         let ana = singer(&mut evening, "Ana");
         let before = ask(&mut evening, &ana, 11, now);
         ask(&mut evening, &ana, 12, now);
@@ -1509,7 +1648,7 @@ mod tests {
     #[test]
     fn an_operators_singer_takes_turns_with_no_phone() {
         let now = Instant::now();
-        let mut evening = Evening::new();
+        let mut evening = Evening::with_order(QueueOrder::Turns);
         let hosted = evening
             .create_singer(Some(SeatName {
                 shown: "Caio".to_owned(),
@@ -1559,7 +1698,7 @@ mod tests {
 
     /// An evening with two singers, one song sung, two queued and one waiting.
     fn a_busy_evening(now: Instant) -> (Evening, Singer, Singer) {
-        let mut evening = Evening::new();
+        let mut evening = Evening::with_order(QueueOrder::Turns);
         let ana = singer(&mut evening, "Ana");
         let beto = singer(&mut evening, "Beto");
         ask(&mut evening, &ana, 11, now);
@@ -1588,7 +1727,7 @@ mod tests {
         let (evening, ana, beto) = a_busy_evening(now);
 
         let snapshot = evening.snapshot(None, now);
-        let restored = Evening::restore(snapshot.clone(), now).expect("a sound snapshot");
+        let restored = restore_turns(snapshot.clone(), now).expect("a sound snapshot");
 
         assert_eq!(numbers(&restored), vec![21, 12]);
         assert_eq!(restored.sung(), evening.sung());
@@ -1630,7 +1769,7 @@ mod tests {
         let now = Instant::now();
         let (evening, ana, beto) = a_busy_evening(now);
         let before = evening.snapshot(None, now);
-        let mut restored = Evening::restore(before.clone(), now).expect("a sound snapshot");
+        let mut restored = restore_turns(before.clone(), now).expect("a sound snapshot");
         restored.set_accepting(true);
 
         let caio = singer(&mut restored, "Caio");
@@ -1646,7 +1785,7 @@ mod tests {
     #[test]
     fn the_song_that_was_playing_goes_back_to_the_front() {
         let now = Instant::now();
-        let mut evening = Evening::new();
+        let mut evening = Evening::with_order(QueueOrder::Turns);
         let ana = singer(&mut evening, "Ana");
         let beto = singer(&mut evening, "Beto");
         let first = ask(&mut evening, &ana, 11, now);
@@ -1654,7 +1793,7 @@ mod tests {
         let playing = evening.pop(now).expect("Ana's song starts");
         assert_eq!(evening.sung().len(), 1);
 
-        let restored = Evening::restore(evening.snapshot(Some(playing.clone()), now), now)
+        let restored = restore_turns(evening.snapshot(Some(playing.clone()), now), now)
             .expect("a sound snapshot");
 
         assert_eq!(numbers(&restored), vec![11, 21]);
@@ -1668,14 +1807,14 @@ mod tests {
     #[test]
     fn a_record_of_another_song_stays_when_the_playing_song_returns() {
         let now = Instant::now();
-        let mut evening = Evening::new();
+        let mut evening = Evening::with_order(QueueOrder::Turns);
         let ana = singer(&mut evening, "Ana");
         ask(&mut evening, &ana, 11, now);
         let mut playing = evening.pop(now).expect("Ana's song starts");
         playing.seat = None;
 
         let restored =
-            Evening::restore(evening.snapshot(Some(playing), now), now).expect("a sound snapshot");
+            restore_turns(evening.snapshot(Some(playing), now), now).expect("a sound snapshot");
 
         assert_eq!(numbers(&restored), vec![11]);
         assert_eq!(restored.sung().len(), 1);
@@ -1689,21 +1828,21 @@ mod tests {
         let mut entries = evening.snapshot(None, now);
         entries.queue[1].id = entries.queue[0].id;
         assert_eq!(
-            Evening::restore(entries, now).err(),
+            restore_turns(entries, now).err(),
             Some(RestoreError::DuplicateId("queue entries"))
         );
 
         let mut seats = evening.snapshot(None, now);
         seats.seats[1].seat.id = seats.seats[0].seat.id;
         assert_eq!(
-            Evening::restore(seats, now).err(),
+            restore_turns(seats, now).err(),
             Some(RestoreError::DuplicateId("seats"))
         );
 
         let mut requests = evening.snapshot(None, now);
         requests.requests[1].id = requests.requests[0].id;
         assert_eq!(
-            Evening::restore(requests, now).err(),
+            restore_turns(requests, now).err(),
             Some(RestoreError::DuplicateId("requests"))
         );
     }
@@ -1721,7 +1860,7 @@ mod tests {
         let highest_seat = snapshot.seats.iter().map(|held| held.seat.id).max();
         let highest_request = snapshot.requests.iter().map(|request| request.id).max();
 
-        let raised = Evening::restore(snapshot, now)
+        let raised = restore_turns(snapshot, now)
             .expect("a sound snapshot")
             .snapshot(None, now);
 
@@ -1734,13 +1873,13 @@ mod tests {
     #[test]
     fn a_queued_request_with_no_entry_waits_again() {
         let now = Instant::now();
-        let mut evening = Evening::new();
+        let mut evening = Evening::with_order(QueueOrder::Turns);
         let ana = singer(&mut evening, "Ana");
         let request = ask(&mut evening, &ana, 11, now);
         let mut snapshot = evening.snapshot(None, now);
         snapshot.queue.clear();
 
-        let restored = Evening::restore(snapshot, now).expect("a sound snapshot");
+        let restored = restore_turns(snapshot, now).expect("a sound snapshot");
 
         assert_eq!(numbers(&restored), vec![11], "the rule accepted it again");
         let again = restored
@@ -1759,7 +1898,7 @@ mod tests {
         let snapshot = evening.snapshot(None, late);
         assert_eq!(snapshot.requests.len(), 4, "the played one is still listed");
 
-        let restored = Evening::restore(snapshot, late).expect("a sound snapshot");
+        let restored = restore_turns(snapshot, late).expect("a sound snapshot");
 
         let just_before = late + FINISHED_FOR - Duration::from_secs(1);
         assert_eq!(restored.requests(just_before).count(), 4);
@@ -1774,7 +1913,7 @@ mod tests {
     #[test]
     fn a_snapshot_past_a_cap_is_cut_to_it() {
         let now = Instant::now();
-        let mut evening = Evening::new();
+        let mut evening = Evening::with_order(QueueOrder::Turns);
         for number in 0..MAX_QUEUED {
             evening.add(generic(number as u32 + 1)).expect("add");
         }
@@ -1782,7 +1921,7 @@ mod tests {
         evening.add(generic(9_000)).expect("room for one");
 
         let restored =
-            Evening::restore(evening.snapshot(Some(playing), now), now).expect("a sound snapshot");
+            restore_turns(evening.snapshot(Some(playing), now), now).expect("a sound snapshot");
 
         assert_eq!(restored.queue().len(), MAX_QUEUED);
         assert_eq!(numbers(&restored)[0], 1, "the playing song is first");
