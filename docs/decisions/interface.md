@@ -2284,8 +2284,8 @@ figure from it, so the television and a phone never disagree about the same entr
 ## The screen counts the requests that wait
 
 **The queue overlay says how many requests wait behind the queue.** Its header reads
-*3 songs waiting · 5 more asked for*. The queue holds one song for each singer, so its length
-says how many singers are in the line. The second count tells the room how much singing stands
+*3 songs waiting · 5 more asked for*. Under turns the queue holds one song for each singer, so its
+length says how many singers are in the line. The second count tells the room how much singing stands
 behind them.
 
 **The count is the one thing about requests that the screen shows.** Which songs wait, and whose
@@ -2298,6 +2298,15 @@ at a time reads as it does with no requests at all.
 **The count stands in the overlay and not in the corner.** The disc in the corner counts the
 queue, and a second number beside it would need a legend. The overlay is where a person looks to
 ask how long the line is, and its header already holds a sentence.
+
+## A row of the queue overlay names the place, the song and the singer
+
+**A row shows the place in the queue, the title and the artist, and no song number.** A singer
+looks for their turn. A song number is what a phone types to queue a song, and nobody reads it from
+across a room.
+
+**The singer's name takes only the room it needs, up to 30% of the row.** The title takes the rest.
+A fixed share would leave empty space beside a short name while the title is cut.
 
 ## What the machine does when nobody is singing
 

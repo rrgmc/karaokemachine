@@ -52,9 +52,10 @@ choose that level:
 **At the default level a guest cannot change the key or the tempo.** That keeps one guest's phone
 off another singer's song. Choose the third level if you want every guest to have those controls.
 
-**Two codes raise one phone at a time above the room level.** Set a **code to queue** and a **code to
-skip** on the same card, and give each to whoever should have it. They type it on the remote's Setup
-tab, which then says what that phone can do.
+**Two codes raise one phone at a time above the room level.** Both are on the **Who may do what**
+card of the Access pane. The first adds a song with no singer and changes key and tempo. The second
+also skips, and it opens the host's tab. Give each to whoever should have it. They type it on the
+remote's Setup tab, which then says what that phone can do.
 
 Clearing or changing a code takes that level back from every phone that used it.
 

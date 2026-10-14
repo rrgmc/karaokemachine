@@ -189,7 +189,9 @@ fi
 
 if [ "$MUTATE" = "1" ] && [ -n "${NUMBER:-}" ]; then
   section 'Queueing and playing'
-  call POST /queue "{\"number\": $NUMBER, \"singer\": \"walkthrough\"}"
+  # A song with no singer. A body that names one is refused: a named song goes through
+  # `POST /singers` and `POST /requests`, as a guest's phone sends it.
+  call POST /queue "{\"number\": $NUMBER}"
   ENTRY="$(curl -sS "$API/queue" | sed -n 's/.*"id":\([0-9]*\).*/\1/p' | head -1)"
   # Moves and removals are by entry id, never by position: another phone queueing a song shifts
   # every position, and acting on a stale one hits the wrong song.

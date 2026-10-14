@@ -19,7 +19,10 @@
   [Watching it in another room](streaming.md).
 - **Words highlight in time**, syllable by syllable, on the sequencer's own clock.
 - **Transpose and tempo** per song, a **guide melody** that can be muted, and per-song defaults.
-  A video, an MP3+G song and a song with recorded audio change key and tempo too.
+  A video, an MP3+G song and a song with recorded audio change key and tempo too. That needs more
+  processing, so it starts off on Android and iOS, and the Playback pane turns it on.
+- **A song ends when the rest of it is silent**, and the next one starts. A quiet passage in the
+  middle does not end a song. The Playback pane turns this off.
 - **A lyric timing offset in milliseconds**, adjustable mid-song, for the picture lag of a
   television. It moves the highlight only and never the audio, because the microphones are in that
   audio.

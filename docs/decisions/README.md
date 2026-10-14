@@ -434,6 +434,7 @@ it are the same entry. How the thing is built is [`ARCHITECTURE.md`](../ARCHITEC
 - [The machine announces a song before it starts](interface.md#the-machine-announces-a-song-before-it-starts)
 - [A queued song shows a rough wait](interface.md#a-queued-song-shows-a-rough-wait)
 - [The screen counts the requests that wait](interface.md#the-screen-counts-the-requests-that-wait)
+- [A row of the queue overlay names the place, the song and the singer](interface.md#a-row-of-the-queue-overlay-names-the-place-the-song-and-the-singer)
 - [What the machine does when nobody is singing](interface.md#what-the-machine-does-when-nobody-is-singing)
 - [Skip into silence asks demo mode for a song](interface.md#skip-into-silence-asks-demo-mode-for-a-song)
 - [The remote can ask for a demo song without turning demo mode on](interface.md#the-remote-can-ask-for-a-demo-song-without-turning-demo-mode-on)

@@ -7,7 +7,7 @@ color, with the M in amber">
 
 A karaoke machine that behaves like a commercial home unit: pick a song by number, it plays, and the
 words highlight in time. It runs full-screen on a television, and any phone on the network is a
-remote: search the catalog, queue a song, change the key, skip.
+remote. A phone searches the catalog and asks for a song, and with a code it changes the key or skips.
 
 A song is one of five things:
 
@@ -36,7 +36,7 @@ progress bar along the bottom](docs/images/screen-playing.png)
 song number in blue, a disc in the corner counting the songs waiting, and a panel giving the
 machine's address on the network beside a QR code"></td>
 <td width="50%"><img src="docs/images/screen-queue.png" alt="The queue overlay drawn over a dimmed
-playing screen, listing four waiting songs by number and title with the singer who asked for each in
+playing screen, listing four waiting songs by place and title with the singer who asked for each in
 blue at the right"></td>
 </tr>
 <tr>
@@ -61,19 +61,15 @@ to the queue"></td>
 <td width="25%"><img src="docs/images/remote-now.png" alt="The remote's now-playing page: the song,
 the singer it was queued for, a progress bar, and steppers for key and tempo, a music volume slider
 and a guide-melody toggle"></td>
-<td width="25%"><img src="docs/images/remote-queue.png" alt="The remote's queue page: the song
-playing across the top with its transport folded away behind a toggle, then the queued songs by
-position, title, artist and the singer who asked for each, their move and remove buttons folded away
-behind a second toggle"></td>
+<td width="25%"><img src="docs/images/remote-queue.png" alt="The remote's queue page: the song playing across the top, then six queued songs by position, title, artist and the singer who asked for each, in that singer's colour, with about how long until each starts"></td>
 <td width="25%"><img src="docs/images/remote-offline.png" alt="The offline remote showing its song
 list, with a favorites mode, an A to Z picker, and a star beside each song for filing it as a
 favorite"></td>
 </tr>
 <tr>
-<td><sub><b>Search and queue</b> from any phone. No app to install.</sub></td>
+<td><sub><b>Search and ask for a song</b> from any phone. No app to install.</sub></td>
 <td><sub><b>The song as it plays</b> — key, tempo, guide melody, music volume.</sub></td>
-<td><sub><b>Who is up next</b>, changeable by anyone with the skip level. The controls stay
-folded until asked for.</sub></td>
+<td><sub><b>Who is up next</b>, and about when. Each singer has a colour of their own.</sub></td>
 <td><sub><b>The offline remote</b> adds favorites and an A–Z picker, and works with the machine
 switched off.</sub></td>
 </tr>
@@ -123,11 +119,11 @@ the queue of six waiting songs with the singer who asked for each">
 - **Any phone on the network is a remote**, with no app to install. An offline remote works with the
   machine switched off. See
   [The remotes](https://rrgmc.github.io/karaokemachine/docs/remotes.html).
-- **Singers take turns.** A guest asks for songs from a phone, and the machine keeps one song for
-  each singer in the queue.
+- **Songs play in the order asked, or singers take turns.** A guest asks for songs from a phone. A
+  venue chooses turns, and the machine then keeps one song for each singer in the queue.
 - **A host runs a public night** at a bar or a hall, from a tablet, with no second program. See
   [Running a public night](https://rrgmc.github.io/karaokemachine/docs/venue.html).
-- **Four levels for the room**: watch, ask, queue out of turn, and skip. One admin password covers
+- **Four levels for the room**: watch, ask, add a song with no singer, and skip. One admin password covers
   everything that reconfigures the machine.
 - **Setup from a browser**: songs, pictures, sound banks, and whatever is wrong. See
   [Setting it up from a browser](https://rrgmc.github.io/karaokemachine/docs/setup.html).

@@ -2486,7 +2486,7 @@ what the other remembered. That is the same argument that put the name there rat
 crate.
 
 **The label and the tooltip say which of two languages it means**, and so does the *Screen language*
-pane on the *This machine* tab. That one is the television's, in a room; this one is this browser's,
+card on the General pane. That one is the television's, in a room; this one is this browser's,
 on this computer. Confusing the two is the likeliest misreading of either, which is why neither is
 labelled just *Language*. The confirmation is worded in the language just chosen, so somebody who picked the
 wrong one finds out at once.
@@ -2516,8 +2516,8 @@ and *here and sent* says a second machine costs no download.
 
 ## The machine page's settings are tabs once there is more than one
 
-**`km-admin`'s *This machine* page puts its four errands — Debugging, Its name, Its password, Demo
-mode — behind a tab strip under the information panel.**
+**`km-admin`'s *This machine* page puts its settings in five panes, behind a tab strip under the
+information panel.**
 
 **Which machine this is, and whether this program is let in to it, are one question and live together
 in the information panel.** The panel names the machine, lists its addresses and counts its songs.
@@ -2607,11 +2607,11 @@ second by position.
 **The pane a save was made on is the pane that comes back.** Every one of these is a `POST` that
 reloads the page with a notice at the top of it. A notice about a rename read underneath a debug
 switch is a notice about a page somebody is no longer looking at. The pane rides in the redirect's
-query string and is checked against a fixed list of names. An unknown one opens Debugging, which is
+query string and is checked against a fixed list of names. An unknown one opens General, which is
 the pane that is never empty. Demo mode draws a sentence instead of a switch when the machine did
 not answer.
 
-**A pane a host does not draw opens Debugging too**, and that is the load-bearing half rather than a
+**A pane a host does not draw opens General too**, and that is the load-bearing half rather than a
 courtesy. The rule hiding a pane is unconditional, so a name whose radio is absent would leave *no*
 pane open. That would take this tab's whole settings half with it.
 

@@ -245,11 +245,11 @@ one-tap way to end another guest's song beside every search result. Two taps, re
 
 ## The remote asks for a song, and each phone sees its own
 
-**The `+` on a row asks for the song for this phone's singer.** The machine queues it in that
-singer's turn, as
-[`The queue holds one song for each singer`](api-and-network.md#the-queue-holds-one-song-for-each-singer)
-says. The row answers `queued` when the song went in, and `waiting` when the singer already has one
-in the queue. The toast then says the song goes in when theirs starts.
+**The `+` on a row asks for the song for this phone's singer.** The machine queues it in the
+order the owner chose. Under turns it follows
+[`The queue holds one song for each singer`](api-and-network.md#the-queue-holds-one-song-for-each-singer).
+The row answers `queued` when the song went in, and `waiting` when it waits for its singer's turn.
+The toast then says the song goes in when theirs starts.
 
 **A phone registers its singer on the first song it asks for.** It sends the name in the "singing
 as" box, or none. No join step comes before the catalog. A name typed in the box registers the
@@ -327,8 +327,8 @@ host types a name and searches a song, and each result has a button that adds it
 The name stays in the box between songs, so a pile of slips for one singer is typed once.
 
 **Typing a name finds a singer first, and makes a new one when none matches.** The comparison is
-the machine's: no case and no accents. A new one is a singer with no phone. The rule gives the song
-that singer's turn, whatever order the host enters songs in.
+the machine's: no case and no accents. A new one is a singer with no phone. Under turns, the rule gives the
+song that singer's turn, whatever order the host enters songs in.
 
 **A song on the Songs tab has a button that sends it to the host's add form.** A host at the
 control level browses the catalog as a guest does. The button opens the singers tab with that song

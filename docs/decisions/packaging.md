@@ -687,7 +687,7 @@ with the corpus root at `<your karaoke folder>`:
 
 **A package whose songs share no folder reaches the whole folder**, and every list says so. That is
 the price of mixing collections in one package. It is the package an owner most wants to notice
-before installing one from somebody else. So the *This machine*'s Songs tab, `km-pack inspect`,
+before installing one from somebody else. So the owner's page's Songs tab, `km-pack inspect`,
 `km-pack check` and the listing beside a package each name the folder, or say it is the whole one.
 `km-package-builder`'s Build tab says which before the build.
 
@@ -749,7 +749,7 @@ that chooses its own root is what
 [the path checks](#a-linked-file-is-read-only-from-inside-one-folder) refuse. Every linked package
 therefore names its files below the same folder.
 
-**The owner's page has the switch.** It is a box on the *This machine* tab, and
+**The owner's page has the switch.** It is a card on the Songs tab, with
 `PUT /api/v1/admin/linked-packages` behind it. The card says when no folder is set, because the
 switch alone then installs nothing.
 
