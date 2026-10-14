@@ -28,8 +28,8 @@ Entries are written for somebody who has the machine. Why any of it is the way i
   KM Simple Package and `km-package-builder` each have a box that builds one, and so does
   `km-pack build --linked`. The package lists mark it *linked*. In KM Simple Package the paths
   can start at a folder above the one you chose, and the form shows the first song's path.
-- **A machine takes a linked package only when you allow it.** The *This machine* tab has a
-  **Linked packages** box, and it starts off. The folder the songs play from is
+- **A machine takes a linked package only when you allow it.** The owner's page has a
+  **Linked packages** card on its Songs tab, and it starts off. The folder the songs play from is
   `linked_packages.dir` in `settings.json`. Each package plays only from its own folder inside it,
   and the **Songs** tab names that folder. A linked package it refuses is on the **Problems** tab,
   with the reason. Removing one deletes the package
@@ -40,11 +40,11 @@ Entries are written for somebody who has the machine. Why any of it is the way i
   about a minute before, for a list that a power cut damaged.
 - **A video, an MP3+G song and a song with recorded audio change key and tempo.** The key and tempo
   buttons on the phone work for them as they do for a MIDI song. A song left at its own key and
-  tempo sounds exactly as it did. The change needs more processing, so it starts off on a
-  television, a tablet and a phone. The *This machine* tab has a box that turns it on or off.
+  tempo sounds exactly as it did. The change needs more processing, so it starts off on Android
+  and iOS. The Playback pane of the owner's page has a box that turns it on or off.
 - **A song ends when the rest of it is silent.** Some files go on in silence after the music stops,
   and the machine starts the next song there. A quiet passage in the middle of a song does not end
-  it. The *This machine* tab has a box that turns this off.
+  it. The Playback pane of the owner's page has a box that turns this off.
 - **The packaging tools read a song from a zip.** A `.zip` holding one MP3+G, UltraStar or LRC song
   is packaged as that song, with nothing to unpack first. A zip holding two songs is refused with
   the reason, and any other zip is passed over.
@@ -52,11 +52,13 @@ Entries are written for somebody who has the machine. Why any of it is the way i
   shows the title, the artist and the singer's name in large letters. A song with a long
   introduction plays under the card, and a song with a short one waits only for the difference. A
   video or MP3+G song waits the five seconds in silence. Demo songs are not announced. The
-  **This machine** tab has an Announcement pane that changes the length or turns it off.
+  Playback pane of the owner's page changes the length or turns it off.
 
-- **Singers take turns.** A guest's phone asks for a song, and the machine keeps one song for each
-  singer in the queue. A singer's next song goes in when theirs starts, at the end of the queue. So
-  somebody who asks for five songs sings one, and then waits for everybody else's turn.
+- **A venue can make the singers take turns.** Songs play in the order asked unless the owner
+  chooses **Singers take turns** under **Queue order**, on the Singers card of the owner's page and
+  of km-admin. The machine then keeps one song for each singer in the queue. A singer's next song
+  goes in at the end of the queue when theirs starts. So somebody who asks for five songs sings one,
+  and then waits for everybody else's turn.
 - **The phone's Queue tab lists your own songs.** Each one says whether it is waiting, in the queue
   or started, and a **✕** takes it back with no code.
 - **A singer's name is theirs for the evening.** Two phones cannot sing under one name. A name is
@@ -68,7 +70,7 @@ Entries are written for somebody who has the machine. Why any of it is the way i
   The host also moves a singer to another phone, joins two names that are one person, and takes
   out a singer who went home. On a tablet or a laptop the tab uses the width: the queue stands
   beside the waiting songs, and the buttons are larger.
-- **The manual has a chapter for a bar or a hall.** *Running a public night* lists the six
+- **The manual has a chapter for a bar or a hall.** *Running a public night* lists the eight
   settings a venue changes, what a guest and a host each do, and two limits of the network.
 - **The host stops taking songs near the end.** Phones then read that the night is closed. Songs
   already waiting still play, and the host still adds one at the desk.
@@ -78,36 +80,35 @@ Entries are written for somebody who has the machine. Why any of it is the way i
   queue, or that somebody sang tonight, is asked once and can ask anyway.
 - **The owner's page sets what the machine asks of a singer.** The Singers and queue pane has a
   **Singers** card. It says whether every singer gives a name, how many singers one phone may add,
-  and how many songs one singer may have waiting.
+  how many songs one singer may have waiting, and the queue order.
 - **The queue on the machine's screen counts the songs that wait behind it.** Its header reads
   *3 songs waiting · 5 more asked for*, so the room sees how much singing is still to come.
 - **Each queued song shows about how long until it starts.** The phone's Queue tab and the queue on
   the machine's screen both show `~4 min` or `< 1 min` beside each song. The figure
   counts down as the playing song runs.
+- **A program of your own can register singers and ask for their songs.** `POST /api/v1/singers`
+  and `POST /api/v1/requests` do what a guest's phone does, and the host's tab has routes of its
+  own. The manual's API chapter lists them.
 
 ### Changed
 
-- **A guest's phone asks for songs by default, and no longer changes the key.** A phone with no
+- **A guest's phone asks for songs by default, and does not change the key.** A phone with no
   code can ask for songs. It cannot change key, tempo, guide melody or music volume, and it cannot
-  add a song out of turn. A machine whose room was at *Queue songs* is now at *Ask for songs*. To
+  add a song with no singer. A machine whose room was at *Queue songs* moves to *Ask for songs*. To
   give every guest those controls again, open the Access pane of the owner's page and choose the
   level above it. *Watch only* and *skip and play now* stay as you set them.
 - **This machine groups its settings in five panes, each named for its topic.** General holds the
   name, the screen language and the power. Access holds the password, who may do what and signing
   out. Singers and queue, Playback and Developer follow. Linked packages sits on the Songs tab.
   The machine's own page and km-admin show the same five.
-- **Songs play in the order asked unless the owner chooses turns.** A guest's + puts the song at the
-  end of the queue, named or not, however many that guest has asked for. **Queue order** sits on
-  the Singers card of the owner's page and of km-admin. **Singers take turns** keeps one song for
-  each singer in the queue, and the rest wait. A venue chooses turns.
-- **The queue code now buys the level above asking.** A phone with that code adds a song with no
+- **The queue code buys the level above asking.** A phone with that code adds a song with no
   singer, which takes no turn, and changes key and tempo.
 - **`POST /api/v1/queue` takes no `singer`.** It adds a song with no singer, and it refuses a body
   that names one. A program that queued a named song asks through `POST /api/v1/requests`.
 - **The Queue tab sets a phone's own songs apart from the queue.** *The whole queue* heads the list
   below them, under a heavier line. A song shows *Playing now* while it plays, and leaves the
-  phone's list when it ends. Below the queue, a folded list shows every song that waits for its
-  singer's turn.
+  phone's list when it ends. When singers take turns, a folded list below the queue shows every
+  song that waits for its singer's turn.
 - **The host's tab shows the song that plays, with its controls always open.** Stop, skip, restart
   and pause are at the top. Each singer takes one short line, and the actions open from the ⋯.
   The name box offers the singers who are here, and tapping a singer's name fills it. Below the
@@ -130,6 +131,8 @@ Entries are written for somebody who has the machine. Why any of it is the way i
 - **Each song starts at its own key and tempo.** A song started in the key and tempo that the singer
   before had chosen. A key set while nothing plays still applies to the next song. The music volume,
   the guide melody and the lyric offset stay as you set them.
+- **A phone that cannot skip shows no ▾ beside the playing song.** The button opened controls that
+  the phone could not use, so it did nothing.
 
 ## [1.22.0] - 2026-10-09
 

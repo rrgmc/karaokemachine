@@ -29,6 +29,19 @@ the caller holds.
 
 The two debug play routes are the exception. They are open whenever debugging mounts them.
 
+## Singers and their songs
+
+- **`POST /api/v1/singers` registers a singer**, and the answer carries the singer's id and token.
+  `GET /api/v1/singers/rules` says whether a name is required, and the queue order.
+- **`POST /api/v1/requests` asks for a song for that singer**, with `singer`, `token` and `number`.
+  The machine queues it in the queue order the owner chose. `GET /api/v1/requests` lists every
+  request and its state.
+- **`POST /api/v1/queue` adds a song with no singer**, and takes `number` and nothing else. It
+  refuses a body that names a singer.
+- **The host's routes need the control level**: `POST /api/v1/singers/{id}/requests` adds a song
+  for any singer. Accepting early, declining and the merge each have a route under
+  `/api/v1/requests/` or `/api/v1/singers/`, and `POST /api/v1/evening/reset` starts a new evening.
+
 ## Find the machine on the network
 
 **mDNS finds the machine on the network**, and a `/discover` endpoint answers as well.
