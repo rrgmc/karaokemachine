@@ -23,7 +23,8 @@ import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 
 /**
- * The controls a phone adds over the machine: its own remote, and a way to install a package.
+ * The controls a phone adds over the machine: its own remote, a way to install a package, and the
+ * owner's setup page.
  *
  * <p>On a phone the machine and the singer are one device. Switching to the remote application
  * takes the screen away, and the machine pauses when that happens. This shows the machine's own
@@ -67,9 +68,13 @@ final class PhoneShell {
     private final Button menu;
     private final Button songs;
     private final Button install;
+    private final Button setup;
 
-    /** The remote, built on first use and kept, so the page keeps its place between openings. */
+    /** The page, built on first use and kept, so it keeps its place between openings. */
     private WebView page;
+
+    /** The address the page was last sent to: the remote's root, or the setup page. */
+    private String address;
 
     private boolean expanded;
     private boolean open;
@@ -102,12 +107,14 @@ final class PhoneShell {
         menu = button(R.string.phone_menu);
         songs = button(R.string.phone_choose_songs);
         install = button(R.string.phone_install_package);
+        setup = button(R.string.phone_set_up);
         menu.setOnClickListener(v -> expand(!expanded));
-        songs.setOnClickListener(v -> show());
+        songs.setOnClickListener(v -> show(Loopback.root(activity)));
         install.setOnClickListener(v -> {
             expand(false);
             activity.choosePackage();
         });
+        setup.setOnClickListener(v -> show(Loopback.root(activity) + "admin"));
 
         // Top centre, because the machine draws in both top corners: the song's title on the left,
         // and the key, the melody and the queue counter on the right.
@@ -117,6 +124,7 @@ final class PhoneShell {
         column.addView(menu, item(0));
         column.addView(songs, item(dp(GAP_DP)));
         column.addView(install, item(dp(GAP_DP)));
+        column.addView(setup, item(dp(GAP_DP)));
         FrameLayout.LayoutParams top = new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT,
@@ -163,26 +171,37 @@ final class PhoneShell {
     }
 
     /**
-     * Shows or hides the two items under the menu button.
+     * Shows or hides the items under the menu button.
      *
      * <p>The owner can turn the machine's remote off, and then the page is not there to show. The
-     * setting is read at each opening, because the remote's own settings page can change it.
+     * setting is read at each opening, because the remote's own settings page can change it. The
+     * setup page is served either way.
      */
     private void expand(boolean on) {
         expanded = on;
         songs.setVisibility(on && Loopback.servesRemote(activity) ? View.VISIBLE : View.GONE);
         install.setVisibility(on ? View.VISIBLE : View.GONE);
+        setup.setVisibility(on ? View.VISIBLE : View.GONE);
         menu.setAlpha(on ? 1f : IDLE_ALPHA);
     }
 
-    private void show() {
+    /**
+     * Shows one of the machine's own pages over the screen.
+     *
+     * <p>One view serves both pages. Opening the page it already shows keeps its place.
+     */
+    private void show(String target) {
         expand(false);
         if (page == null) {
-            page = page(Loopback.root(activity));
+            address = target;
+            page = page();
             FrameLayout.LayoutParams beside = new FrameLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
             beside.rightMargin = dp(RAIL_DP);
             layer.addView(page, 0, beside);
+        } else if (!target.equals(address)) {
+            address = target;
+            page.loadUrl(address);
         }
         page.setVisibility(View.VISIBLE);
         rail.setVisibility(View.VISIBLE);
@@ -200,15 +219,15 @@ final class PhoneShell {
     }
 
     /**
-     * The machine's remote, retrying until the machine answers.
+     * The page at {@link #address}, retrying until the machine answers.
      *
      * <p>A link that leaves loopback opens in the browser, as it does in the remote's application.
      */
     @SuppressLint("SetJavaScriptEnabled")
-    private WebView page(String address) {
+    private WebView page() {
         WebView web = new WebView(activity);
         web.setBackgroundColor(Color.parseColor(PAGE_COLOR));
-        // The remote is htmx: it swaps fragments with script and keeps its preferences in storage.
+        // Both pages are htmx: they swap fragments with script and keeps its preferences in storage.
         web.getSettings().setJavaScriptEnabled(true);
         web.getSettings().setDomStorageEnabled(true);
         web.setWebViewClient(new WebViewClient() {

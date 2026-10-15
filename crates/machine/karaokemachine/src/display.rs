@@ -2442,6 +2442,9 @@ fn run_with(
                                     km_display::MenuItem::InstallPackage => {
                                         choose_package(canvas.window(), &choosing, &opened_tx);
                                     }
+                                    km_display::MenuItem::SetUp => {
+                                        show_setup_page(&api, &opened_tx);
+                                    }
                                 }
                                 continue;
                             }
@@ -3546,13 +3549,33 @@ fn remote_url(api: &ApiState, remote_served: bool) -> Result<String, String> {
                 .to_owned(),
         );
     }
-    let info = api.connect_info();
-    crate::connect::own_url(&info).ok_or_else(|| match &info.problem {
-        Some(km_api::ConnectProblem::ServerFailed { message }) => {
-            format!("the web server did not start, so there is nothing to open: {message}")
-        }
-        _ => "the web server did not start, so there is nothing to open".to_owned(),
-    })
+    own_page(&api.connect_info(), "")
+}
+
+/// The URL the Menu's *Set up the machine* opens, or the reason there is not one.
+///
+/// It has no switch to refuse on. The setup page is served whether or not the remote is, so only a
+/// server that never started stops it.
+fn setup_url(api: &ApiState) -> Result<String, String> {
+    own_page(&api.connect_info(), km_api::routes::ADMIN_PAGE_PATH)
+}
+
+/// A page of this machine's own server, by its path, or the reason there is no server to open.
+fn own_page(info: &km_api::ConnectInfo, path: &str) -> Result<String, String> {
+    match crate::connect::own_url(info) {
+        Some(base) => Ok(format!("{base}{path}")),
+        None => Err(match &info.problem {
+            Some(km_api::ConnectProblem::ServerFailed { message }) => {
+                format!("the web server did not start, so there is nothing to open: {message}")
+            }
+            _ => "the web server did not start, so there is nothing to open".to_owned(),
+        }),
+    }
+}
+
+/// Opens the owner's setup page in whatever this computer uses for web pages.
+fn show_setup_page(api: &ApiState, failures: &std::sync::mpsc::Sender<String>) {
+    open_in_browser(setup_url(api), "the setup page", failures);
 }
 
 /// Opens the singer's remote in whatever this computer uses for web pages. `F11`.
@@ -3568,31 +3591,41 @@ fn remote_url(api: &ApiState, remote_served: bool) -> Result<String, String> {
 /// mid-flight in any frame that matters — a second channel would be a second `try_recv` in the loop
 /// for no property gained.
 fn show_remote(api: &ApiState, remote_served: bool, failures: &std::sync::mpsc::Sender<String>) {
+    open_in_browser(remote_url(api, remote_served), "the remote", failures);
+}
+
+/// Opens one of the machine's own pages in a browser, or reports why it cannot. `page` names it
+/// in the log.
+fn open_in_browser(
+    url: Result<String, String>,
+    page: &'static str,
+    failures: &std::sync::mpsc::Sender<String>,
+) {
     if !WEB_BROWSER {
         tracing::debug!("this build has nothing to open a web page in");
         return;
     }
-    let url = match remote_url(api, remote_served) {
+    let url = match url {
         Ok(url) => url,
         Err(reason) => {
-            tracing::warn!(%reason, "the remote could not be opened");
+            tracing::warn!(%reason, page, "the page could not be opened");
             let _ = failures.send(reason);
             return;
         }
     };
     let failures = failures.clone();
     let spawned = std::thread::Builder::new()
-        .name("km-open-remote".into())
+        .name("km-open-page".into())
         .spawn(move || match km_osopen::open_url(&url) {
-            Ok(()) => tracing::debug!(%url, "opened the remote"),
+            Ok(()) => tracing::debug!(%url, page, "opened the page"),
             Err(error) => {
-                tracing::warn!(%url, %error, "could not open the remote");
+                tracing::warn!(%url, %error, page, "could not open the page");
                 // A send that fails means the display has gone, which is the machine closing.
                 let _ = failures.send(format!("could not open a browser: {error}"));
             }
         });
     if let Err(error) = spawned {
-        tracing::warn!(%error, "could not start the thread that opens the remote");
+        tracing::warn!(%error, page, "could not start the thread that opens the page");
     }
 }
 
@@ -4020,6 +4053,23 @@ mod tests {
         assert!(menu_shown(true, gone, now));
         assert!(!menu_shown(false, gone, now));
         assert!(menu_shown(false, Some(now + MENU_LINGER), now));
+    }
+
+    #[test]
+    fn the_setup_page_is_the_admin_path_of_the_machine_itself() {
+        let info = km_api::connect::resolve_from("0.0.0.0:8177".parse().unwrap(), &[], false);
+        assert_eq!(
+            own_page(&info, km_api::routes::ADMIN_PAGE_PATH).as_deref(),
+            Ok("http://127.0.0.1:8177/admin")
+        );
+        assert_eq!(own_page(&info, "").as_deref(), Ok("http://127.0.0.1:8177"));
+    }
+
+    #[test]
+    fn a_server_that_never_bound_has_no_setup_page_to_open() {
+        let info = km_api::ConnectInfo::server_failed("Address already in use", 8177);
+        let reason = own_page(&info, km_api::routes::ADMIN_PAGE_PATH).unwrap_err();
+        assert!(reason.contains("Address already in use"), "{reason}");
     }
 
     /// One press asks and changes nothing. The same key again, in time, is the answer.

@@ -1,6 +1,6 @@
 /*
- * The controls an iPhone or an iPad adds over the machine: its own remote, and a way to install a
- * package.
+ * The controls an iPhone or an iPad adds over the machine: its own remote, a way to install a
+ * package, and the owner's setup page.
  *
  * On a phone the machine and the singer are one device. Switching to the remote application takes
  * the screen away, and iOS then suspends the machine and closes its listening socket. This shows the
@@ -135,8 +135,10 @@ static BOOL km_is_ours(NSURL *url) {
     UIButton *_menu;
     UIButton *_songs;
     UIButton *_install;
-    /* The remote, built on first use and kept, so the page keeps its place between openings. */
+    UIButton *_setup;
+    /* The page, built on first use and kept, so it keeps its place between openings. */
     WKWebView *_page;
+    /* The address the page was last sent to: the remote's root, or the setup page. */
     NSURL *_address;
     BOOL _expanded;
 }
@@ -156,10 +158,11 @@ static BOOL km_is_ours(NSURL *url) {
     _menu = [self button:@"Menu" action:@selector(toggle)];
     _songs = [self button:@"Choose songs" action:@selector(show)];
     _install = [self button:@"Install a package" action:@selector(choosePackage)];
+    _setup = [self button:@"Set up the machine" action:@selector(showSetup)];
 
     // Top centre, because the machine draws in both top corners: the song's title on the left, and
     // the key, the melody and the queue counter on the right.
-    _column = [[UIStackView alloc] initWithArrangedSubviews:@[ _menu, _songs, _install ]];
+    _column = [[UIStackView alloc] initWithArrangedSubviews:@[ _menu, _songs, _install, _setup ]];
     _column.axis = UILayoutConstraintAxisVertical;
     _column.alignment = UIStackViewAlignmentCenter;
     _column.spacing = KMGap;
@@ -212,22 +215,41 @@ static BOOL km_is_ours(NSURL *url) {
 }
 
 /*
- * Shows or hides the two items under the menu button.
+ * Shows or hides the items under the menu button.
  *
  * The owner can turn the machine's remote off, and then the page is not there to show. The setting
- * is read at each opening, because the remote's own settings page can change it.
+ * is read at each opening, because the remote's own settings page can change it. The setup page is
+ * served either way.
  */
 - (void)expand:(BOOL)on {
     _expanded = on;
     _songs.hidden = !(on && km_serves_remote());
     _install.hidden = !on;
+    _setup.hidden = !on;
     _menu.alpha = on ? 1 : KMIdleAlpha;
 }
 
 - (void)show {
+    [self showAddress:km_loopback_root()];
+}
+
+- (void)showSetup {
+    [self showAddress:[NSURL URLWithString:@"admin" relativeToURL:km_loopback_root()].absoluteURL];
+}
+
+/*
+ * Shows one of the machine's own pages over the screen.
+ *
+ * One view serves both pages. Opening the page it already shows keeps its place.
+ */
+- (void)showAddress:(NSURL *)target {
     [self expand:NO];
+    if (_page != nil && ![target isEqual:_address]) {
+        _address = target;
+        [_page loadRequest:[NSURLRequest requestWithURL:_address]];
+    }
     if (_page == nil) {
-        _address = km_loopback_root();
+        _address = target;
         _page = [self page];
         [_layer insertSubview:_page atIndex:0];
         [NSLayoutConstraint activateConstraints:@[
@@ -249,7 +271,7 @@ static BOOL km_is_ours(NSURL *url) {
     _column.hidden = NO;
 }
 
-/* The machine's remote. The remote is htmx: it swaps fragments with script. */
+/* The view for the machine's own pages. Both are htmx: they swap fragments with script. */
 - (WKWebView *)page {
     WKWebViewConfiguration *config = [[WKWebViewConfiguration alloc] init];
     config.allowsInlineMediaPlayback = YES;

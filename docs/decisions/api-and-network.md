@@ -926,6 +926,10 @@ demanding a password there answers a question nobody in the room asked, and answ
 use this*. A PIN is the opposite case and belongs on the screen. It is the one fact about the machine
 that exists nowhere its owner can reach, which is why this decision puts it on a television.
 
+**A panel with no address for a phone still draws the PIN.** A machine bound to loopback, or with
+no network, still opens its setup page on its own screen, from the Menu or a browser there. That page
+asks for the PIN. A server that did not start has no page, so its panel draws the error alone.
+
 **The panel never draws a queue code or a control code.** Each is the owner's to hand out, to the
 people who should hold that level.
 

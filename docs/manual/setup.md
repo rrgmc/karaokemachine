@@ -1,7 +1,9 @@
 # Setting it up from a browser
 
 The owner of the machine sets it up on one page, from any browser on the network. Open the machine's
-address and add `/admin`. The remote also links to the page, at the foot of its Setup tab.
+address and add `/admin`. The remote also links to the page, at the foot of its Setup tab. On a
+machine with a Menu, press **Menu** at the top of the screen, then **Set up the machine**. On Windows
+and macOS that opens the page in the browser. A phone or tablet shows it over the lyrics.
 
 The singer's remote is a different page. It offers only search, queue, and the controls a song
 allows, and nothing on it can delete songs.

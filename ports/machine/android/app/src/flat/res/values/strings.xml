@@ -5,4 +5,5 @@
     <string name="phone_close">Close</string>
     <string name="phone_choose_songs">Choose songs</string>
     <string name="phone_install_package">Install a package</string>
+    <string name="phone_set_up">Set up the machine</string>
 </resources>
