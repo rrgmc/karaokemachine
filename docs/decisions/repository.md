@@ -684,8 +684,9 @@ rules before it enters the tree.
 
 ## The promotional video sings a song written for it
 
-**The promotional video is a build product, and `tools/dev/promo-video.sh` builds it.** It runs half
-a minute at 1920x1080 and thirty frames a second, with sound. It lands in `dist/promo/` and is never
+**The promotional video is a build product, and `tools/dev/promo-video.sh` builds it.** It runs about
+fifty seconds at 1920x1080 and thirty frames a second, with sound. Each scene stays two bars or
+longer, so a viewer can read its words. It lands in `dist/promo/` and is never
 committed. A video is tens of megabytes, and it changes whenever a published picture does.
 
 **The song is written for the video, words and music**: *Sing It Out Loud*, in
@@ -711,6 +712,10 @@ no scoring, because the machine rates files and never singers.
 a television screen and cannot lay out a title card. `tools/dev/promo/promo.html` draws any moment
 of the video from its time alone, and it cuts on the song's bar lines. So two runs on one machine
 give the same frames.
+
+**Its published copy is on YouTube, and the site's hero screenshot links to it.** The tree cannot
+carry the file, and a release asset downloads rather than plays. The page links to the video and
+does not embed it. A player is a request to another server, and the site makes none.
 
 ## Who the README is for
 

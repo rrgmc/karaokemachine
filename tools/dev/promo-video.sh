@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Builds the promotional video, dist/promo/karaokemachine-promo.mp4: half a minute at 1920x1080
+# Builds the promotional video, dist/promo/karaokemachine-promo.mp4: fifty seconds at 1920x1080
 # and thirty frames a second, with sound.
 #
 #   tools/dev/promo-video.sh
@@ -37,7 +37,7 @@ FPS=30
 
 # The span the playing screen is rendered over, in milliseconds. It covers the video's full length,
 # which `DURATION` in promo.html sets from the song's bars.
-FRAMES_MS=32000
+FRAMES_MS=53000
 
 SOUNDFONT="assets/soundfont/GeneralUser-GS.sf2"
 OUT_DIR="dist/promo"

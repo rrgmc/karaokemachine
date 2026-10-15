@@ -226,6 +226,40 @@ a:hover { text-decoration-color: var(--amber); }
   box-shadow: 0 -2px 60px rgba(196, 58, 142, 0.22);
 }
 
+/* The hero screenshot is the link to the promotional video. The badge is drawn here, so the page
+   still fetches nothing from another server. It sits in the empty band above the progress bar and
+   leaves the lyrics in view. */
+.play { position: relative; display: block; text-decoration: none; }
+.play img { display: block; }
+.play-badge {
+  position: absolute;
+  left: 50%; bottom: 13%;
+  transform: translateX(-50%);
+  display: flex; align-items: center; gap: 0.7rem;
+  padding: 0.75rem 1.3rem 0.75rem 1rem;
+  border-radius: 999px;
+  background: var(--amber); color: #000;
+  font-weight: 700; font-size: 1.05rem; white-space: nowrap;
+  box-shadow: 0 6px 30px rgba(0, 0, 0, 0.55);
+  transition: transform 0.15s ease;
+}
+.play-badge::before {
+  content: "";
+  width: 0.9rem; height: 1rem;
+  background: #000;
+  clip-path: polygon(0 0, 100% 50%, 0 100%);
+}
+.play-badge small { font-weight: 500; font-size: 0.8rem; opacity: 0.7; }
+.play:hover .play-badge,
+.play:focus-visible .play-badge { transform: translateX(-50%) scale(1.06); }
+
+/* On a phone the screenshot is a few centimetres tall, and a full-size badge would cover it. */
+@media (max-width: 40rem) {
+  .play-badge { bottom: 9%; gap: 0.45rem; padding: 0.4rem 0.8rem 0.4rem 0.65rem; font-size: 0.8rem; }
+  .play-badge::before { width: 0.6rem; height: 0.7rem; }
+  .play-badge small { font-size: 0.7rem; }
+}
+
 /* The phone captures are tall; cap them so a row of four does not become a wall. */
 .shot-phone img { max-height: 34rem; width: auto; margin-inline: auto; }
 

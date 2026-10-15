@@ -24,7 +24,7 @@ bash tools/dist/site.sh            # just stage it
 
 | | |
 |---|---|
-| `index.html` | the page in English, served at the published root. No script, and every link out absolute to GitHub |
+| `index.html` | the page in English, served at the published root. No script, and every link out absolute: to GitHub, and the hero's to the promotional video on YouTube |
 | `pt-BR/index.html` | the same page in Brazilian Portuguese, served at `/pt-BR/`, reaching the stylesheet and the pictures as `../` |
 | `style.css` | the landing pages' only stylesheet, shared by both. No webfont, no CDN, no external request of any kind |
 | `book.toml` | mdBook's configuration for the manual. Its `src` is `docs/manual/` |

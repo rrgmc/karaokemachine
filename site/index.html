@@ -60,12 +60,17 @@
     </p>
   </div>
 
+  <!-- The screenshot links to the promotional video rather than embedding it: a player is a request
+       to another server, and the page makes none. -->
   <figure class="shot shot-hero">
-    <img src="images/screen-playing.png" width="1920" height="1080" fetchpriority="high"
-         alt="The playing screen on a television: the song's number, title and artist across the top
-              with key and melody badges and a disc in the corner counting the songs waiting, the
-              line being sung in large letters with the current syllable half-filled in amber, the
-              line that follows it below in gray, and a progress bar along the bottom">
+    <a class="play" href="https://www.youtube.com/watch?v=9qorurq5i_U">
+      <img src="images/screen-playing.png" width="1920" height="1080" fetchpriority="high"
+           alt="The playing screen on a television: the song's number, title and artist across the top
+                with key and melody badges and a disc in the corner counting the songs waiting, the
+                line being sung in large letters with the current syllable half-filled in amber, the
+                line that follows it below in gray, and a progress bar along the bottom">
+      <span class="play-badge">Watch the video <small>0:51 · YouTube</small></span>
+    </a>
   </figure>
 </header>
 
