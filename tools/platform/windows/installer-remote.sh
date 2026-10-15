@@ -72,20 +72,13 @@ fi
 # **The plain name only.** tools/dist/cmd.sh marks a *declined* build, so `-no-desktop` is a remote
 # with no window -- which is the whole of what this carrier installs. Packaging it would be the same
 # silent downgrade the all-in-one refuses when ffmpeg is missing.
-# The empty suffix is how `dist_staged_dir` is told that.
+# The empty suffix is how `dist_staged_dir` is told that. The folder name is the whole proof of the
+# window: a release stages no console twin, so the twin cannot stand in for it.
 if ! PAYLOAD="$(dist_staged_dir km-remote windows "$(dist_manifest_version)" "")"; then
   if [ "$BUILD" -eq 0 ]; then
     echo "                  --no-build was given, so nothing was staged for it here either. Run" >&2
     echo "                  this script without it, or tools/dist/cmd.sh km-remote first." >&2
   fi
-  exit 1
-fi
-
-if [ ! -f "$PAYLOAD/km-remote-console.exe" ]; then
-  echo "installer-remote: $(basename "$PAYLOAD") has no console twin, so it was staged without a" >&2
-  echo "                  window -- tools/dist/cmd.sh builds both or neither. A setup program" >&2
-  echo "                  installing a remote that cannot open one is not what it promises." >&2
-  echo "                  Run tools/dist/cmd.sh km-remote without --no-desktop." >&2
   exit 1
 fi
 
