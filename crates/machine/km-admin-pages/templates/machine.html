@@ -239,6 +239,19 @@
         <button type="submit" name="clear" value="yes" class="danger">{{ "access-code-clear"|t }}</button>
         {% endif %}
       </form>
+      <form method="post" action="/admin/machine/access-code">
+        <input type="hidden" name="level" value="host">
+        <label>
+          {{ "access-host-code"|t }}
+          ({% if access.host_code %}{{ "access-code-set"|t }}{% else %}{{ "access-code-unset"|t }}{% endif %})
+          <input type="password" name="code" minlength="4" autocomplete="off"
+                 placeholder="{{ "password-placeholder"|t }}">
+        </label>
+        <button type="submit">{{ "access-save"|t }}</button>
+        {% if access.host_code %}
+        <button type="submit" name="clear" value="yes" class="danger">{{ "access-code-clear"|t }}</button>
+        {% endif %}
+      </form>
     </section>
     {% when None %}
     {% endmatch %}

@@ -369,6 +369,7 @@ fn sample_body(path: &str) -> Option<Value> {
         "/admin/access" => json!({ "room": "queue" }),
         "/admin/access/queue-code" => json!({ "code": "sweep-queue" }),
         "/admin/access/control-code" => json!({ "code": "sweep-control" }),
+        "/admin/access/host-code" => json!({ "code": "sweep-host" }),
         // **The password the sweep already holds, not `null` and not a new one.** `null` now *resets*
         // the password to a fresh PIN rather than clearing it, which would invalidate the token this
         // sweep is carrying and close every remaining admin route to the next request. Setting the
@@ -521,12 +522,15 @@ async fn every_route_admits_exactly_the_levels_that_reach_it() {
         "/admin/access",
         "/admin/access/queue-code",
         "/admin/access/control-code",
+        "/admin/access/host-code",
     ];
     let config = ApiConfig::default()
         .without_mdns()
         .with_password(SWEEP_PASSWORD)
         .expect("argon2 hashes a password")
         .with_codes("sweep-queue", "sweep-control")
+        .expect("argon2 hashes a code")
+        .with_host_code("sweep-host")
         .expect("argon2 hashes a code");
 
     for room in Access::ROOM {
@@ -534,6 +538,7 @@ async fn every_route_admits_exactly_the_levels_that_reach_it() {
             None,
             Some(Access::Queue),
             Some(Access::Control),
+            Some(Access::Host),
             Some(Access::Admin),
         ] {
             let fresh = || {
@@ -5387,8 +5392,8 @@ async fn a_rename_needs_the_seats_token_and_a_free_name() {
     assert_eq!(status, StatusCode::NOT_FOUND);
 }
 
-/// A harness whose caller holds no token, in a venue's room at the request level, with both codes
-/// set.
+/// A harness whose caller holds no token, in a venue's room at the request level, with all three
+/// codes set.
 fn a_room_with_a_host() -> Harness {
     let harness = Harness::with_config(
         ApiConfig::default()
@@ -5396,6 +5401,8 @@ fn a_room_with_a_host() -> Harness {
             .with_password(SWEEP_PASSWORD)
             .expect("argon2 hashes a password")
             .with_codes("sweep-queue", "sweep-control")
+            .expect("argon2 hashes a code")
+            .with_host_code("sweep-host")
             .expect("argon2 hashes a code")
             .with_room_access(Access::Request),
     )
@@ -5412,16 +5419,16 @@ fn a_room_in_turns() -> Harness {
     harness
 }
 
-/// The token a host holds, for a harness to act at the control level.
+/// The token a host holds, for a harness to act at the host level.
 fn host_token(harness: &Harness) -> Option<String> {
     harness
         .state
         .auth()
-        .issue_for(Access::Control)
+        .issue_for(Access::Host)
         .map(|grant| grant.token)
 }
 
-/// The reissue asks for no proof, so the control level is the check. It opens the seat: the old
+/// The reissue asks for no proof, so the host level is the check. It opens the seat: the old
 /// token ends, and the next phone to give the name takes the seat with its songs.
 #[tokio::test]
 async fn a_reissue_opens_the_seat_for_the_next_phone_that_gives_its_name() {
@@ -5700,14 +5707,16 @@ async fn the_cap_on_one_singers_waiting_songs_has_a_code_of_its_own() {
     assert_eq!(body["error"], "singer_requests_full");
 }
 
-/// A caller at the control level adds a song for any singer, and the rule treats it as a phone's.
+/// A caller at the host level adds a song for any singer, and the rule treats it as a phone's.
 #[tokio::test]
-async fn the_control_level_asks_for_any_singer_with_no_token() {
+async fn the_host_level_asks_for_any_singer_with_no_token() {
     let config = ApiConfig::default()
         .without_mdns()
         .with_password(SWEEP_PASSWORD)
         .expect("argon2 hashes a password")
         .with_codes("sweep-queue", "sweep-control")
+        .expect("argon2 hashes a code")
+        .with_host_code("sweep-host")
         .expect("argon2 hashes a code")
         .with_room_access(Access::Queue);
     let mut harness = Harness::with_config(config).tokenless();
@@ -5722,11 +5731,7 @@ async fn the_control_level_asks_for_any_singer_with_no_token() {
         "the room is at the queue level"
     );
 
-    harness.token = harness
-        .state
-        .auth()
-        .issue_for(Access::Control)
-        .map(|grant| grant.token);
+    harness.token = host_token(&harness);
     let (status, first) = harness.post(&path, json!({ "number": "1001" })).await;
     assert_eq!(status, StatusCode::CREATED, "{first}");
     assert_eq!(first["state"], "queued");
@@ -5876,12 +5881,27 @@ async fn a_singer_cap_outside_its_range_is_a_400() {
     assert_eq!(rules["max_waiting"], 10, "and nothing was stored");
 }
 
-// -- the operator --------------------------------------------------------------------------------
+// -- the host ------------------------------------------------------------------------------------
 
-/// Every operator route needs the control level, and a room that asks for songs has none of them.
+/// Every host route needs the host level. A room that asks for songs has none of them, and neither
+/// has a phone at the control level.
 #[tokio::test]
-async fn the_operators_routes_need_the_control_level() {
-    let harness = a_room_with_a_host();
+async fn the_hosts_routes_need_the_host_level() {
+    let mut harness = a_room_with_a_host();
+    let control = harness
+        .state
+        .auth()
+        .issue_for(Access::Control)
+        .map(|grant| grant.token);
+    harness.token = None;
+    hosts_routes_are_refused(&harness, StatusCode::UNAUTHORIZED).await;
+    harness.token = control;
+    hosts_routes_are_refused(&harness, StatusCode::FORBIDDEN).await;
+}
+
+/// Each host route refuses this harness's caller with `refused`: 401 with no token, 403 with one
+/// whose level is too low.
+async fn hosts_routes_are_refused(harness: &Harness, refused: StatusCode) {
     for (method, path, body) in [
         (
             Method::POST,
@@ -5909,7 +5929,7 @@ async fn the_operators_routes_need_the_control_level() {
         (Method::POST, "/evening/reset", None),
     ] {
         let (status, _) = harness.request(method.clone(), path, body).await;
-        assert_eq!(status, StatusCode::UNAUTHORIZED, "{method} {path}");
+        assert_eq!(status, refused, "{method} {path}");
     }
 }
 

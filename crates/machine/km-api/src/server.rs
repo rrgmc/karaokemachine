@@ -157,6 +157,7 @@ impl ApiState {
         .with_codes(
             config.queue_code_hash.clone(),
             config.control_code_hash.clone(),
+            config.host_code_hash.clone(),
         );
         // A settings file may name a level no room holds. See `Access::as_room`.
         let room_access = RwLock::new(config.room_access.as_room());
@@ -518,6 +519,7 @@ impl ApiState {
             room: self.room_access(),
             queue_code: self.inner.auth.code_set(Access::Queue),
             control_code: self.inner.auth.code_set(Access::Control),
+            host_code: self.inner.auth.code_set(Access::Host),
         }
     }
 

@@ -78,12 +78,15 @@ pub struct ApiSettings {
     /// What everybody on the network gets with no code: `view`, `request`, `queue` or `control`.
     ///
     /// `control` unless the owner says otherwise, so every phone in a home does everything short of
-    /// reconfiguring the machine. `admin` is never a room level, and the API reads it as `control`.
+    /// running the night and reconfiguring the machine. `host` and `admin` are never room levels,
+    /// and the API reads either as `control`.
     pub room_access: km_api::Access,
     /// `argon2` hash of the code that opens the queue level. `None` means there is no such code.
     pub queue_code_hash: Option<String>,
     /// `argon2` hash of the code that opens the control level. `None` means there is no such code.
     pub control_code_hash: Option<String>,
+    /// `argon2` hash of the code that opens the host level. `None` means there is no such code.
+    pub host_code_hash: Option<String>,
     /// Whether to advertise over mDNS.
     ///
     /// **Defaults off on iOS, and that is the platform rather than a preference.** `mdns-sd` opens a
@@ -127,6 +130,7 @@ impl Default for ApiSettings {
             room_access: km_api::Access::default(),
             queue_code_hash: None,
             control_code_hash: None,
+            host_code_hash: None,
             advertise_mdns: !cfg!(target_os = "ios"),
             serve_dev_remote: None,
             serve_remote: None,
@@ -1735,6 +1739,7 @@ impl Settings {
             room_access: self.api.room_access,
             queue_code_hash: self.api.queue_code_hash.clone(),
             control_code_hash: self.api.control_code_hash.clone(),
+            host_code_hash: self.api.host_code_hash.clone(),
             token_ttl: Duration::from_secs(self.api.token_ttl_secs.max(60)),
             debug_enabled: self.debug_enabled(),
             machine_name: self.machine.name.clone(),

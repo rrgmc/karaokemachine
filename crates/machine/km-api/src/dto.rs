@@ -2237,11 +2237,11 @@ pub struct AccessGrantDto {
     pub token: String,
     /// How long it lasts.
     pub expires_in_secs: u64,
-    /// The level the token opens: `queue`, `control` or `admin`.
+    /// The level the token opens: `queue`, `control`, `host` or `admin`.
     pub access: crate::access::Access,
 }
 
-/// `GET /access`, and the reply to the three routes under `/admin/access`.
+/// `GET /access`, and the reply to the four routes under `/admin/access`.
 ///
 /// **Whether each code is set, and never the code.** A remote offers a code box only where a code
 /// exists, and the owner's page says *set* or *not set*.
@@ -2255,17 +2255,21 @@ pub struct AccessDto {
     pub queue_code: bool,
     /// Whether the owner has set a control code.
     pub control_code: bool,
+    /// Whether the owner has set a host code.
+    #[serde(default)]
+    pub host_code: bool,
 }
 
 /// `PUT /admin/access`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct RoomAccessRequest {
-    /// `view`, `queue` or `control`. A room is never given `admin`.
+    /// `view`, `request`, `queue` or `control`. A room is never given `host` or `admin`.
     pub room: crate::access::Access,
 }
 
-/// `PUT /admin/access/queue-code` and `PUT /admin/access/control-code`.
+/// `PUT /admin/access/queue-code`, `PUT /admin/access/control-code` and
+/// `PUT /admin/access/host-code`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct AccessCodeRequest {

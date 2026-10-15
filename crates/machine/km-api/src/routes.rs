@@ -2,9 +2,10 @@
 //!
 //! **The method and the path decide the level a request needs.** Everything under `/api/v1/admin/`
 //! needs the admin password. Outside it, a read needs [`Access::View`], adding a song or turning a
-//! singer's knob needs [`Access::Queue`], and every other write needs [`Access::Control`]. One
-//! middleware over the whole service answers that through [`required_access`], a `match` in code, so
-//! there is no table of route ids in settings to drift out of step with the routes themselves.
+//! singer's knob needs [`Access::Queue`], running the night needs [`Access::Host`], and every other
+//! write needs [`Access::Control`]. One middleware over the whole service answers that through
+//! [`required_access`], a `match` in code, so there is no table of route ids in settings to drift
+//! out of step with the routes themselves.
 //!
 //! The cost is real and is worth naming: a resource with a public read and an admin write spans two
 //! prefixes, so `GET /api/v1/demo` and `PUT /api/v1/admin/demo` are the same thing filed in two
@@ -106,6 +107,8 @@ pub fn needs_admin_token(path: &str) -> bool {
 ///   for a song and take one back. All but the first also ask for the seat's own token.
 /// * `POST /queue` and `PUT /settings` need [`Access::Queue`]. They add a song and turn a singer's
 ///   knobs: key, tempo, volume, melody and lyric offset.
+/// * The host's routes need [`Access::Host`], by [`is_host_route`]. They accept and decline
+///   requests, close them, act for a singer, and start a new evening.
 /// * **Every other write needs [`Access::Control`], including one added tomorrow.** A new route is
 ///   closed until somebody decides a queuer may use it, which is the direction to fail in.
 pub fn required_access(method: &Method, path: &str) -> Access {
@@ -130,7 +133,26 @@ pub fn required_access(method: &Method, path: &str) -> Access {
         ("PUT", path) if is_singer_name(path) => Access::Request,
         ("POST", path) if is_request_withdraw(path) => Access::Request,
         ("POST", "/queue") | ("PUT", "/settings") => Access::Queue,
+        (method, path) if is_host_route(method, path) => Access::Host,
         _ => Access::Control,
+    }
+}
+
+/// Whether a write under [`API_PREFIX`] is one of the host's: the requests, the singers a host acts
+/// for, and the new evening.
+fn is_host_route(method: &str, path: &str) -> bool {
+    match method {
+        "POST" => {
+            matches!(path, "/singers/hosted" | "/evening/reset")
+                || is_one_of(path, "/singers/", "/reissue")
+                || is_one_of(path, "/singers/", "/requests")
+                || is_one_of(path, "/singers/", "/merge")
+                || is_one_of(path, "/requests/", "/decline")
+                || is_one_of(path, "/requests/", "/accept")
+        }
+        "PUT" => path == "/requests/accepting",
+        "DELETE" => is_one_of(path, "/singers/", ""),
+        _ => false,
     }
 }
 
@@ -245,6 +267,7 @@ pub const SURFACE: &[(&str, &str)] = &[
     ("PUT", "/admin/access"),
     ("PUT", "/admin/access/queue-code"),
     ("PUT", "/admin/access/control-code"),
+    ("PUT", "/admin/access/host-code"),
     ("PUT", "/admin/audio/output"),
     ("PUT", "/admin/audio/soundfont"),
     ("PUT", "/admin/mics/mic1"),
@@ -720,6 +743,7 @@ fn api_router(config: &crate::ApiConfig, capabilities: Capabilities) -> Router<A
         .route("/access", put(handlers::put_room_access))
         .route("/access/queue-code", put(handlers::put_queue_code))
         .route("/access/control-code", put(handlers::put_control_code))
+        .route("/access/host-code", put(handlers::put_host_code))
         .route("/audio/output", put(handlers::put_audio_output))
         .route("/audio/soundfont", put(handlers::put_audio_soundfont))
         // Fetching and uploading are the same act from a person's side — "have this bank" — and
@@ -1049,19 +1073,19 @@ mod tests {
             (Method::PUT, "/api/v1/singers/7/name", Access::Request),
             (Method::PUT, "/api/v1/singers//name", Access::Control),
             (Method::PUT, "/api/v1/singers/7/8/name", Access::Control),
-            (Method::POST, "/api/v1/singers/7/reissue", Access::Control),
-            (Method::POST, "/api/v1/singers/7/requests", Access::Control),
+            (Method::POST, "/api/v1/singers/7/reissue", Access::Host),
+            (Method::POST, "/api/v1/singers/7/requests", Access::Host),
             (Method::GET, "/api/v1/requests", Access::View),
             (Method::POST, "/api/v1/requests", Access::Request),
             (Method::POST, "/api/v1/requests/7/withdraw", Access::Request),
             (Method::POST, "/api/v1/requests//withdraw", Access::Control),
-            (Method::POST, "/api/v1/requests/7/decline", Access::Control),
-            (Method::POST, "/api/v1/requests/7/accept", Access::Control),
-            (Method::PUT, "/api/v1/requests/accepting", Access::Control),
-            (Method::POST, "/api/v1/singers/hosted", Access::Control),
-            (Method::DELETE, "/api/v1/singers/7", Access::Control),
-            (Method::POST, "/api/v1/singers/7/merge", Access::Control),
-            (Method::POST, "/api/v1/evening/reset", Access::Control),
+            (Method::POST, "/api/v1/requests/7/decline", Access::Host),
+            (Method::POST, "/api/v1/requests/7/accept", Access::Host),
+            (Method::PUT, "/api/v1/requests/accepting", Access::Host),
+            (Method::POST, "/api/v1/singers/hosted", Access::Host),
+            (Method::DELETE, "/api/v1/singers/7", Access::Host),
+            (Method::POST, "/api/v1/singers/7/merge", Access::Host),
+            (Method::POST, "/api/v1/evening/reset", Access::Host),
             (Method::GET, "/api/v1/evening/keep", Access::View),
             (Method::PUT, "/api/v1/admin/evening/keep", Access::Admin),
             (Method::GET, "/api/v1/linked-packages", Access::View),

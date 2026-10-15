@@ -1,21 +1,22 @@
-//! Who may do what: five levels, and what decides a caller's.
+//! Who may do what: six levels, and what decides a caller's.
 //!
-//! **Five levels, in a fixed order, and each one includes the ones below it.** A viewer sees the
+//! **Six levels, in a fixed order, and each one includes the ones below it.** A viewer sees the
 //! catalog, the queue and the screen. A requester also registers a singer and asks for a song,
 //! which the machine queues in that singer's turn. A queuer also adds a song with no singer, which
 //! takes no turn, and turns a singer's knobs: key,
 //! tempo, volume, melody and lyric offset. A controller also interrupts: skip, play now, the other
-//! transport buttons, and moving or removing anybody's queue entry. The admin also reconfigures the
-//! machine.
+//! transport buttons, and moving or removing anybody's queue entry. A host also runs the night:
+//! accepts and declines requests, acts for a singer, and starts a new evening. The admin also
+//! reconfigures the machine.
 //!
 //! **A caller's level is the higher of two things.** The room level is what everybody on the network
-//! gets with no code at all, and it starts at [`Access::Request`]. A token is what a code or the admin
+//! gets with no code at all, and it starts at [`Access::Control`]. A token is what a code or the admin
 //! password buys, and it carries its own level. See [`crate::routes::required_access`] for what each
 //! route needs.
 
 use serde::{Deserialize, Serialize};
 
-/// One of the five levels, lowest first.
+/// One of the six levels, lowest first.
 ///
 /// `Ord` follows the declaration order, so `caller >= needed` is the whole check.
 #[derive(
@@ -36,24 +37,31 @@ pub enum Access {
     /// Interrupts: skip, play now, the transport, and anybody's queue entry.
     ///
     /// **The default room level.** The machine is built for a home, where every guest is trusted, so
-    /// every phone in the room does everything short of reconfiguring the machine.
+    /// every phone in the room does everything short of running the night and reconfiguring the
+    /// machine.
     #[default]
     Control,
+    /// Runs the night: the requests, the singers, and the new evening. The remote's Host tab.
+    ///
+    /// **A room is never given this level.** Only the host code and the admin password grant it, so
+    /// a guest's phone never shows the Host tab.
+    Host,
     /// Reconfigures the machine. Only the admin password grants it, and a room level never does.
     Admin,
 }
 
 impl Access {
     /// Every level, lowest first.
-    pub const ALL: [Self; 5] = [
+    pub const ALL: [Self; 6] = [
         Self::View,
         Self::Request,
         Self::Queue,
         Self::Control,
+        Self::Host,
         Self::Admin,
     ];
 
-    /// The levels a room may be given. The admin level is never one of them.
+    /// The levels a room may be given. The host and admin levels are never among them.
     pub const ROOM: [Self; 4] = [Self::View, Self::Request, Self::Queue, Self::Control];
 
     /// The word for this level, as it appears in JSON, in a token and in `settings.json`.
@@ -63,6 +71,7 @@ impl Access {
             Self::Request => "request",
             Self::Queue => "queue",
             Self::Control => "control",
+            Self::Host => "host",
             Self::Admin => "admin",
         }
     }
@@ -79,16 +88,16 @@ impl Access {
 
     /// The room level a stored level is read as.
     ///
-    /// A settings file is typed by hand, so it can name the admin level for the room. That is read
-    /// as [`Self::Control`], the highest a room may hold.
+    /// A settings file is typed by hand, so it can name the host or admin level for the room. Either
+    /// is read as [`Self::Control`], the highest a room may hold.
     #[must_use]
     pub fn as_room(self) -> Self {
         self.min(Self::Control)
     }
 
-    /// Whether a code grants this level. Only the queue and control levels have one.
+    /// Whether a code grants this level. The queue, control and host levels each have one.
     pub fn has_code(self) -> bool {
-        matches!(self, Self::Queue | Self::Control)
+        matches!(self, Self::Queue | Self::Control | Self::Host)
     }
 }
 
@@ -107,15 +116,16 @@ mod tests {
         assert!(Access::View < Access::Request);
         assert!(Access::Request < Access::Queue);
         assert!(Access::Queue < Access::Control);
-        assert!(Access::Control < Access::Admin);
+        assert!(Access::Control < Access::Host);
+        assert!(Access::Host < Access::Admin);
     }
 
-    /// A new machine gives every phone in a home the whole remote, and never the admin level.
+    /// A new machine gives every phone in a home the whole remote, and never the host or admin level.
     #[test]
-    fn a_fresh_room_controls_the_machine_and_never_administers_it() {
+    fn a_fresh_room_controls_the_machine_and_never_hosts_or_administers_it() {
         assert_eq!(Access::default(), Access::Control);
         assert!(Access::default().is_room_level());
-        assert!(Access::default() < Access::Admin);
+        assert!(Access::default() < Access::Host);
     }
 
     #[test]
@@ -129,13 +139,16 @@ mod tests {
     }
 
     #[test]
-    fn a_room_is_never_given_the_admin_level() {
-        assert!(!Access::ROOM.contains(&Access::Admin));
-        assert!(!Access::Admin.is_room_level());
+    fn a_room_is_never_given_the_host_or_admin_level() {
+        for level in [Access::Host, Access::Admin] {
+            assert!(!Access::ROOM.contains(&level));
+            assert!(!level.is_room_level());
+        }
     }
 
     #[test]
     fn a_stored_level_is_read_as_one_a_room_may_hold() {
+        assert_eq!(Access::Host.as_room(), Access::Control);
         assert_eq!(Access::Admin.as_room(), Access::Control);
         for level in Access::ALL {
             assert!(level.as_room().is_room_level());
@@ -150,5 +163,12 @@ mod tests {
     fn the_request_level_is_a_rooms_and_never_a_codes() {
         assert!(Access::Request.is_room_level());
         assert!(!Access::Request.has_code());
+    }
+
+    /// The host level is bought with a code, never given to a room.
+    #[test]
+    fn the_host_level_is_a_codes_and_never_a_rooms() {
+        assert!(Access::Host.has_code());
+        assert!(!Access::Host.is_room_level());
     }
 }

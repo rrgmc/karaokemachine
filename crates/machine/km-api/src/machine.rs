@@ -1850,8 +1850,9 @@ pub trait Controller: Send + Sync + 'static {
 
     /// The code for one level was set or cleared; write its hash down.
     ///
-    /// `level` is [`crate::access::Access::Queue`] or [`crate::access::Access::Control`]. No
-    /// default implementation, for the same reason as [`Self::set_room_access`].
+    /// `level` is [`crate::access::Access::Queue`], [`crate::access::Access::Control`] or
+    /// [`crate::access::Access::Host`]. No default implementation, for the same reason as
+    /// [`Self::set_room_access`].
     fn set_access_code(
         &self,
         level: crate::access::Access,

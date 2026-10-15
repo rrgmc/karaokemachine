@@ -1,9 +1,10 @@
-//! The admin password and the two access codes, each exchanged for a bearer token that survives a
+//! The admin password and the three access codes, each exchanged for a bearer token that survives a
 //! restart.
 //!
 //! The threat model is a home LAN, not the internet. What this has to stop is a guest with the
 //! Wi-Fi password wiping the queue or uninstalling a package — not a determined attacker. So: one
-//! admin password and two optional codes, one for [`Access::Queue`] and one for [`Access::Control`].
+//! admin password and three optional codes, for [`Access::Queue`], [`Access::Control`] and
+//! [`Access::Host`].
 //! Nobody wants per-user accounts on a karaoke machine. Each is stored only as an `argon2` hash and
 //! exchanged for a token that carries its own level and expiry, verified by recomputation.
 //!
@@ -191,7 +192,7 @@ pub struct AdminAuth {
     hash: RwLock<Option<String>>,
     /// Bumped to invalidate every outstanding token without changing the password.
     epoch: RwLock<u64>,
-    /// The `argon2` hashes of the queue code and the control code, where the owner set one.
+    /// The `argon2` hashes of the queue, control and host codes, where the owner set one.
     codes: RwLock<Codes>,
     ttl: Duration,
     attempts: Mutex<HashMap<IpAddr, Attempts>>,
@@ -240,10 +241,16 @@ impl AdminAuth {
         self
     }
 
-    /// Sets the two code hashes, as loaded from settings. Chainable.
-    pub fn with_codes(self, queue: Option<String>, control: Option<String>) -> Self {
+    /// Sets the three code hashes, as loaded from settings. Chainable.
+    pub fn with_codes(
+        self,
+        queue: Option<String>,
+        control: Option<String>,
+        host: Option<String>,
+    ) -> Self {
         self.set_code(Access::Queue, queue);
         self.set_code(Access::Control, control);
+        self.set_code(Access::Host, host);
         self
     }
 
@@ -259,6 +266,7 @@ impl AdminAuth {
         match level {
             Access::Queue => codes.queue = hash,
             Access::Control => codes.control = hash,
+            Access::Host => codes.host = hash,
             Access::View | Access::Request | Access::Admin => {}
         }
     }
@@ -277,6 +285,7 @@ impl AdminAuth {
         match level {
             Access::Queue => codes.queue.clone(),
             Access::Control => codes.control.clone(),
+            Access::Host => codes.host.clone(),
             Access::View | Access::Request | Access::Admin => None,
         }
     }
@@ -390,9 +399,9 @@ impl AdminAuth {
         self.issue().ok_or(LoginError::NotConfigured)
     }
 
-    /// Exchanges the admin password or either code for a token of the level it grants.
+    /// Exchanges the admin password or a code for a token of the level it grants.
     ///
-    /// **The admin password is tried first, then the control code, then the queue code**, so a
+    /// **The admin password is tried first, then the host, control and queue codes**, so a
     /// caller always gets the highest level the words they typed open. It shares the rate limiter
     /// with [`Self::login`], so a second door is not a second guessing budget.
     pub fn login_any(&self, from: IpAddr, password: &str) -> Result<(Grant, Access), LoginError> {
@@ -414,12 +423,12 @@ impl AdminAuth {
     /// The level these words open, if they are the admin password or a code.
     ///
     /// **No rate limit, so only the owner's own surfaces call it**: the route that sets a code uses
-    /// it to refuse a code that is already the admin password or the other code.
+    /// it to refuse a code that is already the admin password or another code.
     pub fn level_of(&self, password: &str) -> Result<Option<Access>, LoginError> {
         if matches(self.read_hash().as_deref(), password)? {
             return Ok(Some(Access::Admin));
         }
-        for level in [Access::Control, Access::Queue] {
+        for level in [Access::Host, Access::Control, Access::Queue] {
             if matches(self.code_hash(level).as_deref(), password)? {
                 return Ok(Some(level));
             }
@@ -480,7 +489,7 @@ impl AdminAuth {
     fn code_for_signing(&self, level: Access) -> Option<String> {
         match level {
             Access::Admin => Some(String::new()),
-            Access::Queue | Access::Control => self.code_hash(level),
+            Access::Queue | Access::Control | Access::Host => self.code_hash(level),
             Access::View | Access::Request => None,
         }
     }
@@ -554,11 +563,12 @@ fn now_secs() -> u64 {
         .unwrap_or(0)
 }
 
-/// The two code hashes, where the owner set them.
+/// The three code hashes, where the owner set them.
 #[derive(Debug, Default)]
 struct Codes {
     queue: Option<String>,
     control: Option<String>,
+    host: Option<String>,
 }
 
 /// Whether the words match a stored `argon2` hash. No hash matches nothing.
@@ -972,7 +982,31 @@ mod tests {
         configured("hunter2").with_codes(
             Some(AdminAuth::hash_password(queue).expect("hashing works")),
             Some(AdminAuth::hash_password(control).expect("hashing works")),
+            None,
         )
+    }
+
+    /// The host code opens the host level, and it outranks the control code.
+    #[test]
+    fn the_host_code_opens_the_host_level() {
+        let auth = with_codes("sing", "boss");
+        assert!(auth.issue_for(Access::Host).is_none(), "no host code yet");
+        auth.set_code(
+            Access::Host,
+            Some(AdminAuth::hash_password("chief").expect("hashing works")),
+        );
+        assert_eq!(auth.level_of("chief"), Ok(Some(Access::Host)));
+        let (grant, level) = auth
+            .login_any(LOCALHOST, "chief")
+            .expect("the host code logs in");
+        assert_eq!(level, Access::Host);
+        assert_eq!(auth.access_of(&grant.token), Some(Access::Host));
+        auth.set_code(Access::Host, None);
+        assert_eq!(
+            auth.access_of(&grant.token),
+            None,
+            "clearing the code ends its tokens"
+        );
     }
 
     #[test]
