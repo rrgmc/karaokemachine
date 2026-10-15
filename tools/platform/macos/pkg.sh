@@ -47,8 +47,8 @@ pkg_require_tools() {
 # certificate *common names*: `pkgutil --check-signature` prints them from any package signed with
 # them and `codesign -dvvv` from every bundle inside it, so they are published by the artifact rather
 # than describing the machine that built it. `KM_NOTARY_PROFILE` is only the *label* of a keychain
-# profile -- the Apple ID and app-specific password behind it were stored once by
-# `xcrun notarytool store-credentials` and never leave the data-protection keychain. That a name may
+# profile -- the Apple ID and app-specific password behind it are stored by
+# `xcrun notarytool store-credentials` into a keychain, and never into a tracked file. That a name may
 # be committed at all is argued under *Published identity* in the
 # `What a committed file may say about the machine it was written on` decision.
 #
@@ -341,14 +341,19 @@ pkg_expand() { # <pkg> <dir>
 # Not through `dist_run`, for the reason productbuild is not: this can prompt, and it can take
 # minutes, and a progress-free wait that turns out to be a keychain dialog is the worst way to spend
 # them.
+#
+# **`KM_NOTARY_KEYCHAIN` names the keychain that holds the profile, when it is not the default one.**
+# The release workflow stores the profile in a keychain it creates for the job, and notarytool looks
+# for a profile in that keychain only when `--keychain` names it. Unset, the default keychain answers.
 pkg_notarize() { # <pkg>
-  local pkg="$1" started=$SECONDS
+  local pkg="$1" started=$SECONDS keychain=()
+  [ -n "${KM_NOTARY_KEYCHAIN:-}" ] && keychain=(--keychain "$KM_NOTARY_KEYCHAIN")
   echo
   dist_step "notarizing (this goes to Apple and takes minutes)"
-  if ! xcrun notarytool submit "$pkg" --keychain-profile "$KM_NOTARY_PROFILE" --wait; then
+  if ! xcrun notarytool submit "$pkg" --keychain-profile "$KM_NOTARY_PROFILE" ${keychain[@]+"${keychain[@]}"} --wait; then
     echo "${DIST_SCRIPT:-installer}: notarization was refused." >&2
     echo "           The submission log is the only thing that says which file and why:" >&2
-    echo "             xcrun notarytool log <submission-id> --keychain-profile $KM_NOTARY_PROFILE" >&2
+    echo "             xcrun notarytool log <submission-id> --keychain-profile $KM_NOTARY_PROFILE ${keychain[*]+${keychain[*]}}" >&2
     echo "           The usual cause is a Mach-O without the hardened runtime, which" >&2
     echo "           dist_verify_macho_portable checks for before it gets this far." >&2
     exit 1

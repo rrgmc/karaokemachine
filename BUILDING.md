@@ -545,17 +545,28 @@ and out of the body's download table, at the same time. A carrier of a platform 
 is
 [`A release page carries the platforms the machine cutting it can build`](docs/decisions/distribution.md#a-release-page-carries-the-platforms-the-machine-cutting-it-can-build).
 
-**A pushed `v*` tag runs all of this in CI, except the Mac's half.** `.github/workflows/release.yml`
-stages seventeen of the nineteen carriers on hosted runners and runs
-`release.sh --upload --platforms windows,linux,linux-arm64,android,quest,ios --elsewhere macos`. A Mac
-builds the two
-`.pkg` files, and `release.sh --add --platforms macos` adds them. [`RELEASE.md`](RELEASE.md) has the
-order.
+**A pushed `v*` tag runs all of this in CI.** `.github/workflows/release.yml` stages every carrier on
+hosted runners and runs `release.sh --upload`. The two notarized `.pkg` files need the macOS signing
+secrets below. Without them the run passes `--elsewhere macos`, and a Mac adds the packages with
+`task release:macos`. [`RELEASE.md`](RELEASE.md) has the order.
 
 The workflow needs the repository secrets `KM_ANDROID_KEYSTORE_B64`, the keystore base64-encoded,
 and `KM_ANDROID_KEYSTORE_PASSWORD`. It also needs `KM_ANDROID_KEY_ALIAS` and
-`KM_ANDROID_KEY_PASSWORD` where they differ from the defaults. See
-[`CI builds the release, and a Mac adds its packages`](docs/decisions/distribution.md#ci-builds-the-release-and-a-mac-adds-its-packages).
+`KM_ANDROID_KEY_PASSWORD` where they differ from the defaults.
+
+The macOS packages need four secrets and one variable, all set or none:
+
+| Name | Kind | What it holds |
+|---|---|---|
+| `KM_MACOS_CERTIFICATES_P12_B64` | secret | one `.p12` holding the Developer ID Application and Developer ID Installer identities, base64-encoded |
+| `KM_MACOS_CERTIFICATES_PASSWORD` | secret | the password of that `.p12` |
+| `KM_NOTARY_APPLE_ID` | secret | the Apple ID that notarizes |
+| `KM_NOTARY_PASSWORD` | secret | an app-specific password for that Apple ID |
+| `KM_APPLE_TEAM_ID` | variable | the team id, the ten characters in brackets in each identity |
+
+Export both identities with their private keys from Keychain Access into one `.p12`, then
+`base64 -i identities.p12 | gh secret set KM_MACOS_CERTIFICATES_P12_B64`. See
+[`CI builds every release carrier, and a Mac can add the macOS packages`](docs/decisions/distribution.md#ci-builds-every-release-carrier-and-a-mac-can-add-the-macos-packages).
 
 **`tools/dist/release.sh` gathers and never builds**, for the reason `tools/dist/bin.sh --no-build`
 exists. It names the command behind any carrier that is not staged, and stops, so a release is cut

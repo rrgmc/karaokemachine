@@ -94,14 +94,17 @@ lightweight. A published tag is never moved or deleted; a mistake is the next pa
 
 ## 6. Stage the carriers, and upload
 
-**The pushed tag does this.** `.github/workflows/release.yml` builds Windows, Linux, Android, Meta Quest and iOS
-from the tag, checks each carrier, and fills the draft. The draft's text already names the two macOS
-packages. Watch it with `gh run watch`. A job that failed on something outside the tree is re-run
-with `gh workflow run release.yml -f tag=vX.Y.0`.
+**The pushed tag does this.** `.github/workflows/release.yml` builds Windows, macOS, Linux, Android,
+Meta Quest and iOS from the tag, checks each carrier, and fills the draft. Watch it with
+`gh run watch`. A job that failed on something outside the tree is re-run with
+`gh workflow run release.yml -f tag=vX.Y.0`.
 
-## 7. Add the macOS packages, on a Mac
+**The macOS job builds only when its signing secrets are set.** [`Releases`](BUILDING.md#releases)
+lists them. Without them it warns, and the draft names the two macOS packages for step 7 to add.
 
-Once the draft exists, on a Mac:
+## 7. Add the macOS packages on a Mac, when CI did not
+
+Skip this step when the `macos` job built the packages. Otherwise, once the draft exists, on a Mac:
 
 ```sh
 git fetch --tags && git checkout vX.Y.0
@@ -118,13 +121,14 @@ bash tools/dist/release.sh --add --platforms macos
 
 It first checks that the checkout is at the tag with no changed tracked file, so the packages are
 built from what the tag names. `--add` uploads the two notarized packages to the draft and leaves
-its text alone.
+its text alone. It replaces a package of the same name, so a Mac can also rebuild one that CI
+uploaded.
 
 **The Mac can start as soon as the tag is pushed.** Its builds take about ten minutes and CI's about
 forty, so the draft is usually not there yet when they finish. The run then uploads nothing and
 prints the command that uploads what it built, `bash tools/dist/release.sh --add --platforms macos`. Run
 that once the draft exists; it does not build again. See
-[`CI builds the release, and a Mac adds its packages`](docs/decisions/distribution.md#ci-builds-the-release-and-a-mac-adds-its-packages).
+[`CI builds every release carrier, and a Mac can add the macOS packages`](docs/decisions/distribution.md#ci-builds-every-release-carrier-and-a-mac-can-add-the-macos-packages).
 
 ## By hand, from a desk
 

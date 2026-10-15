@@ -12,14 +12,16 @@ name: Release
 # | linux   | ubuntu, Docker | both `.deb` files, the tarball, the portable copy         |
 # | linux-arm64 | ubuntu on arm64, Docker | the same four, for arm64                    |
 # | android | ubuntu         | the machine's APK, and the remote's                       |
+# | macos   | macos          | both notarized `.pkg` files                               |
 # | ios     | macos          | both unsigned `.ipa` files                                |
 # | carols  | ubuntu         | the carol pack                                            |
 #
-# **macOS is built on a Mac, not here.** Its two `.pkg` files are published notarized or not at all,
-# and notarizing takes two Developer ID certificates and an Apple account, which stay on the Mac.
-# `--elsewhere macos` keeps their rows on the page, and the Mac adds them to this draft with
-# `bash tools/dist/release.sh --add --platforms macos`. The decision is
-# `CI builds the release, and a Mac adds its packages` in docs/decisions/distribution.md.
+# **The macOS packages are published notarized or not at all.** Notarizing takes two Developer ID
+# certificates and an Apple account, which reach the `macos` job as secrets. Without them that job
+# builds nothing and warns. The `release` job then passes `--elsewhere macos`, so the page still
+# names both packages, and a Mac adds them with `task release:macos`. The decision is
+# `CI builds every release carrier, and a Mac can add the macOS packages` in
+# docs/decisions/distribution.md.
 #
 # **Separate from `ci.yml`, because it is not a pull-request check.** Branch protection requires
 # `CI ok` alone, and a tag is not a pull request.
@@ -392,6 +394,111 @@ jobs:
       - if: always()
         run: rm -f "$RUNNER_TEMP/release.keystore"
 
+  # **Notarized with the project's Developer ID when the secrets are set, and skipped with a warning
+  # when they are not.** A package Gatekeeper refuses is never published, so there is no unsigned
+  # fallback here. A Mac adds the packages instead, as `--elsewhere macos` in the `release` job says.
+  #
+  # The certificates arrive as one base64 `.p12` holding both identities, the Developer ID
+  # Application and the Developer ID Installer. They go into a keychain made for this job, which also
+  # holds the notarytool profile under the name `pkg.sh` defaults to. `KM_NOTARY_KEYCHAIN` points
+  # notarytool at that keychain. The team id is a variable, because every signature prints it.
+  # See `Signing a macOS release` in docs/decisions/distribution.md.
+  macos:
+    needs: tag
+    runs-on: macos-latest
+    timeout-minutes: 180
+    outputs:
+      enabled: ${{ steps.signing.outputs.enabled }}
+    env:
+      KM_MACOS_CERTIFICATES_P12_B64: ${{ secrets.KM_MACOS_CERTIFICATES_P12_B64 }}
+      KM_MACOS_CERTIFICATES_PASSWORD: ${{ secrets.KM_MACOS_CERTIFICATES_PASSWORD }}
+      KM_NOTARY_APPLE_ID: ${{ secrets.KM_NOTARY_APPLE_ID }}
+      KM_NOTARY_PASSWORD: ${{ secrets.KM_NOTARY_PASSWORD }}
+      KM_APPLE_TEAM_ID: ${{ vars.KM_APPLE_TEAM_ID }}
+    steps:
+      - name: Signing
+        id: signing
+        run: |
+          set=0
+          for v in KM_MACOS_CERTIFICATES_P12_B64 KM_MACOS_CERTIFICATES_PASSWORD \
+                   KM_NOTARY_APPLE_ID KM_NOTARY_PASSWORD KM_APPLE_TEAM_ID; do
+            [ -n "${!v}" ] && set=$((set + 1))
+          done
+          if [ "$set" -eq 0 ]; then
+            echo "::warning::The macOS signing secrets are not set, so no .pkg is built here. Add the packages from a Mac with: task release:macos"
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ "$set" -lt 5 ]; then
+            echo "release: some of the macOS signing values are set and some are not. The secrets" >&2
+            echo "         KM_MACOS_CERTIFICATES_P12_B64, KM_MACOS_CERTIFICATES_PASSWORD," >&2
+            echo "         KM_NOTARY_APPLE_ID and KM_NOTARY_PASSWORD, and the variable" >&2
+            echo "         KM_APPLE_TEAM_ID, are needed together." >&2
+            exit 1
+          fi
+          echo "enabled=true" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v7
+        if: steps.signing.outputs.enabled == 'true'
+        with:
+          ref: ${{ env.TAG }}
+
+      # The keychain password protects a file that is deleted when the job ends, so a random one
+      # serves. The partition list lets codesign and productbuild use the keys without a dialog.
+      - name: Keychain
+        if: steps.signing.outputs.enabled == 'true'
+        run: |
+          keychain="$RUNNER_TEMP/signing.keychain-db"
+          password="$(openssl rand -hex 24)"
+          printf '%s' "$KM_MACOS_CERTIFICATES_P12_B64" | base64 -d > "$RUNNER_TEMP/signing.p12"
+          security create-keychain -p "$password" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$password" "$keychain"
+          security import "$RUNNER_TEMP/signing.p12" -k "$keychain" -f pkcs12 -A \
+            -P "$KM_MACOS_CERTIFICATES_PASSWORD"
+          rm -f "$RUNNER_TEMP/signing.p12"
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$password" "$keychain" > /dev/null
+          security list-keychains -d user -s "$keychain" $(security list-keychains -d user | tr -d '"')
+          xcrun notarytool store-credentials karaokemachine --keychain "$keychain" \
+            --apple-id "$KM_NOTARY_APPLE_ID" --team-id "$KM_APPLE_TEAM_ID" --password "$KM_NOTARY_PASSWORD"
+          echo "KM_NOTARY_KEYCHAIN=$keychain" >> "$GITHUB_ENV"
+
+      # The LGPL ffmpeg that `fetch-ffmpeg.sh` builds takes openh264 from Homebrew.
+      - name: Tools
+        if: steps.signing.outputs.enabled == 'true'
+        run: |
+          rustup toolchain install --no-self-update
+          brew install openh264
+      - uses: actions/cache@v6
+        if: steps.signing.outputs.enabled == 'true'
+        with:
+          path: ~/Library/Caches/karaokemachine/assets
+          key: assets-macos-${{ hashFiles('tools/setup/ffmpeg-pin.sh', 'tools/setup/fetch-*.sh') }}
+      - if: steps.signing.outputs.enabled == 'true'
+        run: |
+          bash tools/setup/fetch-assets.sh
+          bash tools/setup/fetch-ffmpeg.sh
+
+      - if: steps.signing.outputs.enabled == 'true'
+        run: bash tools/platform/macos/installer.sh --notarize
+      - if: steps.signing.outputs.enabled == 'true'
+        run: bash tools/platform/macos/installer-remote.sh --notarize
+
+      # Only the notarized packages are built here, and `release.sh` takes only those in any case.
+      - uses: actions/upload-artifact@v7
+        if: steps.signing.outputs.enabled == 'true'
+        with:
+          name: macos
+          path: dist/setup/macos/*.pkg
+          if-no-files-found: error
+
+      - if: always()
+        run: |
+          rm -f "$RUNNER_TEMP/signing.p12"
+          if [ -n "${KM_NOTARY_KEYCHAIN:-}" ]; then
+            security delete-keychain "$KM_NOTARY_KEYCHAIN" || true
+          fi
+
   # Unsigned on purpose: the person installing signs with their own Apple ID. See `An iOS carrier is
   # unsigned, and the person installing signs it` in docs/decisions/distribution.md. So this job,
   # alone among the Mac's, needs no secret.
@@ -458,8 +565,11 @@ jobs:
   # **The one job that writes to the repository.** It checks out the tag, puts each artifact back
   # where its staging script left it, and lets `release.sh` do what it does on a desk: refuse a
   # carrier that is missing or debug-signed, check the body against the files, and fill the draft.
+  #
+  # macOS is among the platforms when the `macos` job built its packages, and is named as coming from
+  # elsewhere when it did not.
   release:
-    needs: [windows, linux, linux-arm64, android, ios, carols]
+    needs: [windows, linux, linux-arm64, android, macos, ios, carols]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -492,6 +602,11 @@ jobs:
           name: android
           path: ports
       - uses: actions/download-artifact@v8
+        if: needs.macos.outputs.enabled == 'true'
+        with:
+          name: macos
+          path: dist/setup/macos
+      - uses: actions/download-artifact@v8
         with:
           name: ios
           path: dist
@@ -500,6 +615,13 @@ jobs:
           name: carols
           path: dist/carols
 
-      - run: bash tools/dist/release.sh --upload --platforms windows,linux,linux-arm64,android,quest,ios --elsewhere macos
+      - name: Fill the draft
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          MACOS: ${{ needs.macos.outputs.enabled }}
+        run: |
+          if [ "$MACOS" = "true" ]; then
+            bash tools/dist/release.sh --upload --platforms windows,macos,linux,linux-arm64,android,quest,ios
+          else
+            bash tools/dist/release.sh --upload --platforms windows,linux,linux-arm64,android,quest,ios --elsewhere macos
+          fi
