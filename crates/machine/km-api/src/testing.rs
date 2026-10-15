@@ -117,6 +117,8 @@ pub enum Recorded {
     EndOnSilenceSet(bool),
     /// Key and tempo for a recorded song was switched.
     AdjustRecordingsSet(bool),
+    /// The window's Menu button was switched.
+    WindowMenuSet(bool),
     /// Keeping the evening across a restart was switched.
     KeepEveningSet(bool),
     /// The linked-packages switch was set.
@@ -282,6 +284,8 @@ struct Inner {
     end_on_silence: bool,
     /// Whether a recorded song changes key and tempo. Held so a read follows a write.
     adjust_recordings: bool,
+    /// Whether a desktop window shows its Menu button. Held so a read follows a write.
+    window_menu: bool,
     /// Whether the evening outlives the process. Held so a read follows a write.
     keep_evening: bool,
     /// Whether linked packages are allowed. Held so a read follows a write.
@@ -411,6 +415,7 @@ impl TestMachine {
                 performance_overlay: false,
                 end_on_silence: true,
                 adjust_recordings: true,
+                window_menu: true,
                 keep_evening: false,
                 linked_packages: false,
                 waiting_for_host: false,
@@ -1740,6 +1745,21 @@ impl Controller for TestMachine {
         let mut inner = self.lock();
         inner.adjust_recordings = enabled;
         inner.recorded.push(Recorded::AdjustRecordingsSet(enabled));
+        Ok(enabled)
+    }
+
+    fn has_window_menu(&self) -> bool {
+        true
+    }
+
+    fn window_menu(&self) -> bool {
+        self.lock().window_menu
+    }
+
+    fn set_window_menu(&self, enabled: bool) -> Result<bool, ControlError> {
+        let mut inner = self.lock();
+        inner.window_menu = enabled;
+        inner.recorded.push(Recorded::WindowMenuSet(enabled));
         Ok(enabled)
     }
 

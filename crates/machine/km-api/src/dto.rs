@@ -2387,6 +2387,24 @@ pub struct AdjustRecordingsRequest {
     pub enabled: bool,
 }
 
+/// `GET /display/window-menu` and the reply to `PUT /admin/display/window-menu`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct WindowMenuDto {
+    /// Whether a Windows or macOS window shows its Menu button.
+    pub enabled: bool,
+    /// Whether this machine draws such a window at all. False on Linux, Android and iOS, where the
+    /// switch is stored and changes nothing.
+    pub available: bool,
+}
+
+/// `PUT /admin/display/window-menu`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct WindowMenuRequest {
+    /// What to set it to.
+    pub enabled: bool,
+}
+
 /// `GET /evening/keep` and the reply to `PUT /admin/evening/keep`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct KeepEveningDto {

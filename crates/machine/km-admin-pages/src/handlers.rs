@@ -1033,6 +1033,7 @@ pub async fn machine_page(
             announcement_length_max: km_api::machine::MAX_ANNOUNCEMENT_SECS,
             end_on_silence: switches.end_on_silence,
             adjust_recordings: switches.adjust_recordings,
+            window_menu: switches.window_menu,
             keep_evening: switches.keep_evening,
             power: identity.power,
         },
@@ -2113,6 +2114,27 @@ pub async fn set_adjust_recordings(
     }
 }
 
+/// `POST /admin/machine/window-menu` — whether a Windows or macOS window shows its Menu button.
+///
+/// One box and no `persist` beside it, for the reason [`set_end_on_silence`] has none. The notice
+/// says what the machine stored.
+pub async fn set_window_menu(
+    State(state): State<Admin>,
+    headers: HeaderMap,
+    Form(form): Form<WindowMenuForm>,
+) -> Response {
+    let words = crate::words::messages(state.locale(&headers));
+    match state
+        .switches
+        .set_window_menu(form.window_menu.is_some())
+        .await
+    {
+        Err(error) => refusal_on(&state, Pane::General, &error, state.locale(&headers)),
+        Ok(true) => back_to_pane(Pane::General, "good", &words.msg("window-menu-on")),
+        Ok(false) => back_to_pane(Pane::General, "good", &words.msg("window-menu-off")),
+    }
+}
+
 /// `POST /admin/machine/sessions` — sign out everywhere.
 ///
 /// **Password-independent, and that is the point.** An owner who wants every phone in the house
@@ -2288,6 +2310,13 @@ pub struct EndOnSilenceForm {
 pub struct AdjustRecordingsForm {
     /// Present when the box is ticked, absent when it is not.
     pub adjust_recordings: Option<String>,
+}
+
+/// Whether a Windows or macOS window shows its Menu button.
+#[derive(Debug, Clone, Default, serde::Deserialize)]
+pub struct WindowMenuForm {
+    /// Present when the box is ticked, absent when it is not.
+    pub window_menu: Option<String>,
 }
 
 /// Whether the evening outlives the machine's process.

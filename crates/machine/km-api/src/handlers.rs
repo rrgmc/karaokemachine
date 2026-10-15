@@ -1562,6 +1562,33 @@ pub async fn put_adjust_recordings(
     Ok(Json(crate::dto::AdjustRecordingsDto { enabled }))
 }
 
+/// `GET /api/v1/display/window-menu`
+///
+/// Whether a Windows or macOS window shows its Menu button. Public, like the switches above.
+pub async fn get_window_menu(State(state): State<ApiState>) -> Json<crate::dto::WindowMenuDto> {
+    Json(crate::dto::WindowMenuDto {
+        enabled: state.controller().window_menu(),
+        available: state.controller().has_window_menu(),
+    })
+}
+
+/// `PUT /api/v1/admin/display/window-menu`
+///
+/// Under `/admin/` because it is installation configuration and is written down. The reply is what
+/// the machine stored. See [`Controller::set_window_menu`].
+///
+/// [`Controller::set_window_menu`]: crate::machine::Controller::set_window_menu
+pub async fn put_window_menu(
+    State(state): State<ApiState>,
+    Body(body): Body<crate::dto::WindowMenuRequest>,
+) -> ApiResult<Json<crate::dto::WindowMenuDto>> {
+    let enabled = state.controller().set_window_menu(body.enabled)?;
+    Ok(Json(crate::dto::WindowMenuDto {
+        enabled,
+        available: state.controller().has_window_menu(),
+    }))
+}
+
 /// `GET /api/v1/evening/keep`
 ///
 /// Whether the evening outlives the machine's process. Public, like the switches above.

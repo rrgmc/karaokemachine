@@ -388,6 +388,14 @@ pub struct DisplaySettings {
     /// Clamped wherever it is read rather than rejected on load, so a hand-edited file cannot stop
     /// the machine booting. See "The lyric timing offset" in `docs/ARCHITECTURE.md`.
     pub lyric_offset_ms: i16,
+    /// Whether a Windows or macOS window shows a Menu button when the mouse moves over it.
+    ///
+    /// The Menu offers *Choose songs* and *Install a package*, which a phone's own Menu offers too.
+    /// **Defaults to on**, because a mouse over the window is somebody at the machine. An owner
+    /// whose machine shares a desk with other work can turn it off. `F11` and a dropped `.kmpkg`
+    /// still work with it off. Other platforms ignore it. See
+    /// `On Windows and macOS, the window has a Menu` in `docs/decisions/remotes.md`.
+    pub window_menu: bool,
 }
 
 impl Default for DisplaySettings {
@@ -413,6 +421,7 @@ impl Default for DisplaySettings {
             number_pad: cfg!(any(target_os = "android", target_os = "ios")),
             enabled: true,
             lyric_offset_ms: 0,
+            window_menu: true,
         }
     }
 }
@@ -2051,6 +2060,22 @@ mod tests {
         assert!(!settings.playback.end_on_silence);
         let written = serde_json::to_value(&settings).expect("serialize");
         assert_eq!(written["playback"]["end_on_silence"], false);
+    }
+
+    #[test]
+    fn the_window_menu_is_on_unless_the_file_says_otherwise() {
+        assert!(Settings::default().display.window_menu);
+        let settings: Settings =
+            serde_json::from_str(r#"{"display":{"fullscreen":true}}"#).expect("parse");
+        assert!(
+            settings.display.window_menu,
+            "a file written before the key keeps the default"
+        );
+        let settings: Settings =
+            serde_json::from_str(r#"{"display":{"window_menu":false}}"#).expect("parse");
+        assert!(!settings.display.window_menu);
+        let written = serde_json::to_value(&settings).expect("serialize");
+        assert_eq!(written["display"]["window_menu"], false);
     }
 
     /// Asserted against the same `cfg!` for the reason the pad's tests are.

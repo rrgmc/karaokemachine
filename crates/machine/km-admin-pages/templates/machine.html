@@ -127,6 +127,24 @@
     </section>
     {% endif %}
 
+    {# Only from a machine that draws a Windows or macOS window. Elsewhere the switch would change
+       nothing anybody can see. #}
+    {% match window_menu %}
+    {% when Some with (shown) %}
+    <section class="card">
+      <h2>{{ "window-menu-heading"|t }}</h2>
+      <p class="hint">{{ "window-menu-hint"|t }}</p>
+      <form method="post" action="/admin/machine/window-menu">
+        <label class="check">
+          <input type="checkbox" name="window_menu" value="yes"{% if shown %} checked{% endif %}>
+          {{ "window-menu-enabled"|t }}
+        </label>
+        <button type="submit">{{ "window-menu-save"|t }}</button>
+      </form>
+    </section>
+    {% when None %}
+    {% endmatch %}
+
     {# Last on its pane, and only where the host can do either. It is the only pair of controls
        here that ends the session, so it stands away from the password on another pane. Restart
        first, because it is the safer of the two. #}

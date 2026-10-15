@@ -1951,6 +1951,33 @@ pub trait Controller: Send + Sync + 'static {
         ))
     }
 
+    /// Whether this host draws a window with a Menu button at all.
+    ///
+    /// A page draws the switch only where this is true. Defaulted false, for a host with no window.
+    fn has_window_menu(&self) -> bool {
+        false
+    }
+
+    /// Whether a Windows or macOS window shows its Menu button.
+    ///
+    /// Defaulted on, which is what a machine does until its owner says otherwise.
+    fn window_menu(&self) -> bool {
+        true
+    }
+
+    /// Say whether a Windows or macOS window shows its Menu button.
+    ///
+    /// Installation configuration, written down at once, for [`Self::set_end_on_silence`]'s reason.
+    /// The window reads it the next time the mouse moves. The answer is what the machine stored.
+    ///
+    /// Has a default that refuses, for a host with no window.
+    fn set_window_menu(&self, enabled: bool) -> Result<bool, ControlError> {
+        let _ = enabled;
+        Err(ControlError::Unavailable(
+            "this host has no window to configure".into(),
+        ))
+    }
+
     /// What the settings file says about the two developer switches.
     ///
     /// **The stored side of both, in one call.** A running machine's own values are on

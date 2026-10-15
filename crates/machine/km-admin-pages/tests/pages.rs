@@ -299,6 +299,7 @@ async fn every_page_route_is_asked_about_before_it_runs() {
         ("POST", "/admin/machine/singers"),
         ("POST", "/admin/machine/end-on-silence"),
         ("POST", "/admin/machine/adjust-recordings"),
+        ("POST", "/admin/machine/window-menu"),
         ("POST", "/admin/machine/keep-evening"),
         ("POST", "/admin/machine/linked-packages"),
         ("POST", "/admin/machine/password"),
@@ -596,6 +597,34 @@ async fn key_and_tempo_for_recorded_songs_is_a_box_on_the_machine_page() {
         .await;
         assert!(status.is_redirection(), "{surface}: {status}");
         assert!(state.controller().adjust_recordings(), "{surface}");
+    }
+}
+
+#[tokio::test]
+async fn the_window_menu_is_a_box_on_the_machine_page() {
+    for host in BOTH_HOSTS {
+        let surface = host.name();
+        let (app, state) = nested_as(
+            host,
+            TestMachine::with_catalog(6),
+            Arc::new(SpyGuard::default()),
+        );
+
+        let (status, body) = get(&app, "/admin/machine").await;
+        assert_eq!(status, StatusCode::OK, "{surface}");
+        assert!(
+            body.contains(r#"name="window_menu" value="yes" checked"#),
+            "{surface}: {body}"
+        );
+
+        let (status, _) = post_form(&app, "/admin/machine/window-menu", "").await;
+        assert!(status.is_redirection(), "{surface}: {status}");
+        assert!(!state.controller().window_menu(), "{surface}");
+
+        let (status, _) =
+            post_form(&app, "/admin/machine/window-menu", "window_menu=yes").await;
+        assert!(status.is_redirection(), "{surface}: {status}");
+        assert!(state.controller().window_menu(), "{surface}");
     }
 }
 
@@ -3009,6 +3038,7 @@ async fn each_card_sits_on_the_pane_named_for_its_topic() {
             ("/admin/machine/demo", "playback"),
             ("/admin/machine/end-on-silence", "playback"),
             ("/admin/machine/adjust-recordings", "playback"),
+            ("/admin/machine/window-menu", "general"),
             ("/admin/machine/debug", "developer"),
         ] {
             assert_eq!(pane_of(action), pane, "{surface}: {action}");
@@ -3069,6 +3099,7 @@ async fn a_save_comes_back_to_the_pane_it_was_made_on() {
         ("/admin/machine/demo-delay", "delay_secs=45", "playback"),
         ("/admin/machine/end-on-silence", "", "playback"),
         ("/admin/machine/adjust-recordings", "", "playback"),
+        ("/admin/machine/window-menu", "", "general"),
         ("/admin/machine/keep-evening", "keep_evening=yes", "singers"),
         ("/admin/machine/debug", "enabled=yes", "developer"),
         ("/admin/machine/sessions", "", "access"),

@@ -363,6 +363,13 @@ pub(crate) const BROWSER_KEY_HINT: Option<BrowserKey> = if cfg!(target_os = "mac
 /// machine asks for `UIRequiresFullScreen` in any case.
 const WINDOW_STACKS: bool = !cfg!(any(target_os = "android", target_os = "ios"));
 
+/// Whether the window carries a Menu button with *Choose songs* and *Install a package*.
+///
+/// **Windows and macOS only, for [`BROWSER_KEY_HINT`]'s reason.** *Choose songs* opens a browser,
+/// and those two are where that always lands. A Linux box cannot tell a desktop from the appliance,
+/// and the appliance has no mouse to move. Android and iOS draw their own Menu in the shell.
+pub(crate) const WINDOW_MENU: bool = cfg!(any(target_os = "windows", target_os = "macos"));
+
 /// How long an install report stays on screen after it finishes.
 ///
 /// Long enough to look up from a file manager and read one line. It has to outlast the install's own
