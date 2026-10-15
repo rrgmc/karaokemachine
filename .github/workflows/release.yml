@@ -8,6 +8,7 @@ name: Release
 #
 # | Job     | Runs on        | Carriers                                                  |
 # |---------|----------------|-----------------------------------------------------------|
+# | windows-build | windows  | none: four parts that stage the programs in parallel      |
 # | windows | windows        | the setup program, the remote's own, the portable copy    |
 # | linux   | ubuntu, Docker | both `.deb` files, the tarball, the portable copy         |
 # | linux-arm64 | ubuntu on arm64, Docker | the same four, for arm64                    |
@@ -73,6 +74,51 @@ jobs:
             exit 1
           fi
 
+  # **Windows builds in four parallel jobs, because one runner builds ten programs in sequence.** A
+  # hosted Windows runner has four cores. Each program ends in a link-time optimization pass on one of
+  # them, and the ten in sequence take over half an hour. Each part stages its programs exactly as
+  # `tools/dist/bin.sh` would, and uploads the staged folders. The `windows` job gathers them.
+  #
+  # The parts are balanced by measured build time. The machine is the longest single build, so it
+  # runs alone. `km-admin` and `km-wallpaper-pack` share the second workspace, so they share a part.
+  windows-build:
+    needs: tag
+    runs-on: windows-latest
+    timeout-minutes: 120
+    strategy:
+      matrix:
+        include:
+          - part: machine
+            stage: tools/platform/windows/dist.sh
+          - part: tools
+            stage: tools/dist/cmd.sh km-pack km-lyrics km-site-pack km-package-builder
+          - part: remote
+            stage: tools/dist/cmd.sh km-package-simple km-song-sync km-remote
+          - part: assets
+            stage: tools/dist/cmd.sh km-admin km-wallpaper-pack
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.TAG }}
+      - run: rustup toolchain install --no-self-update
+      - uses: actions/cache@v6
+        with:
+          path: ~/.cache/karaokemachine/assets
+          key: assets-windows-${{ hashFiles('tools/setup/ffmpeg-pin.sh', 'tools/setup/fetch-*.sh') }}
+      - run: bash tools/setup/fetch-ffmpeg.sh
+      - run: bash ${{ matrix.stage }}
+
+      # The archive keeps the paths below `dist/`, where `tools/dist/bin.sh --no-build` looks.
+      - uses: actions/upload-artifact@v7
+        with:
+          name: windows-staged-${{ matrix.part }}
+          path: dist/
+          if-no-files-found: error
+          retention-days: 1
+
   # Both setup programs round-trip themselves -- install, run every executable on a bare PATH,
   # uninstall -- which needs no elevation because both install per user.
   # **Signed through SignPath when the token is set, and built unsigned with a warning when it is
@@ -85,7 +131,7 @@ jobs:
   # The organization id and the policy are variables, because neither is a secret. The policy starts
   # as `test-signing` and becomes `release-signing` once the project is accepted.
   windows:
-    needs: tag
+    needs: windows-build
     runs-on: windows-latest
     # Two signing requests can each wait an hour for an approval.
     timeout-minutes: 240
@@ -118,11 +164,8 @@ jobs:
       - uses: actions/checkout@v7
         with:
           ref: ${{ env.TAG }}
+      # `cargo pkgid` reads the version for the gather, so the toolchain is still needed here.
       - run: rustup toolchain install --no-self-update
-      - uses: actions/cache@v6
-        with:
-          path: ~/.cache/karaokemachine/assets
-          key: assets-windows-${{ hashFiles('tools/setup/ffmpeg-pin.sh', 'tools/setup/fetch-*.sh') }}
 
       # The runner image may carry Inno Setup and may not. Chocolatey installs it where
       # `inno_find_compiler` already looks.
@@ -134,12 +177,15 @@ jobs:
             choco install innosetup -y --no-progress
           fi
 
-      - run: bash tools/setup/fetch-ffmpeg.sh
-
-      # The two staging runs each installer script makes itself without `--no-build`, made first so
-      # the programs can be signed before they are packaged.
-      - run: bash tools/dist/bin.sh
-      - run: bash tools/dist/cmd.sh km-remote
+      # Every part's staged folders, laid back out below `dist/` and gathered there. The programs are
+      # signed after the gather and before either installer packages them. `installer-remote.sh`
+      # reads the staged km-remote folder, which the `remote` part made.
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: windows-staged-*
+          merge-multiple: true
+          path: dist
+      - run: bash tools/dist/bin.sh --no-build
 
       # The archive keeps the paths below `dist/`, which `payload.xml` names.
       - name: Upload the programs to sign

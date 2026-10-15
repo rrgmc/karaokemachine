@@ -164,6 +164,12 @@ because it links the host's ffmpeg and the host's glibc.
 `dist/bin/windows` and the console twins in `dist/bin-console/windows` in one request, then runs
 `portable.sh --no-build`. A zip has no signature of its own.
 
+**Release CI stages the Windows programs in four parallel jobs.** A hosted Windows runner has four
+cores, and each program ends in a link-time optimization pass that uses one of them. Ten such
+builds in sequence take 33 to 44 minutes. The `windows-build` matrix runs `dist.sh` for the machine
+and `cmd.sh` over three groups of tools, and uploads each `dist/` folder. The `windows` job lays
+them back out and runs `bin.sh --no-build`, then signs and packages as before.
+
 ### Where a wallpaper pack goes
 
 `km-display` reads a zip in the wallpaper folder as a folder of images, so a pack's natural home
