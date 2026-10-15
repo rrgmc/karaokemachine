@@ -141,19 +141,24 @@ impl ConnectInfo {
         let words = crate::words::messages(locale);
         if let Some(problem) = &self.problem {
             return match problem {
+                // The setup page still opens on this box in these two states, from the Menu or a
+                // browser here, so the PIN it asks for is still drawn.
                 ConnectProblem::LoopbackOnly => ConnectPanel {
                     headline: words.msg(crate::words::CONNECT_LOCAL_ONLY).into_owned(),
                     url: None,
                     detail: Some(
-                        words
-                            .msg_with(
-                                crate::words::CONNECT_LOCAL_ONLY_DETAIL,
-                                &[(
-                                    "address",
-                                    self.bound.as_deref().unwrap_or("127.0.0.1").into(),
-                                )],
-                            )
-                            .into_owned(),
+                        self.with_pin(
+                            words
+                                .msg_with(
+                                    crate::words::CONNECT_LOCAL_ONLY_DETAIL,
+                                    &[(
+                                        "address",
+                                        self.bound.as_deref().unwrap_or("127.0.0.1").into(),
+                                    )],
+                                )
+                                .into_owned(),
+                            words,
+                        ),
                     ),
                     hint: None,
                     is_problem: true,
@@ -162,9 +167,12 @@ impl ConnectInfo {
                     headline: words.msg(crate::words::CONNECT_NO_NETWORK).into_owned(),
                     url: None,
                     detail: Some(
-                        words
-                            .msg(crate::words::CONNECT_NO_NETWORK_DETAIL)
-                            .into_owned(),
+                        self.with_pin(
+                            words
+                                .msg(crate::words::CONNECT_NO_NETWORK_DETAIL)
+                                .into_owned(),
+                            words,
+                        ),
                     ),
                     hint: None,
                     is_problem: true,
@@ -227,16 +235,7 @@ impl ConnectInfo {
         // and not the remote. A line demanding a password would sit beside the address a phone is
         // meant to scan and read as *you cannot use this without one*. The PIN is a different
         // sentence — the one thing on this screen an owner cannot get anywhere else.
-        if let Some(pin) = &self.factory_pin {
-            detail.push(
-                words
-                    .msg_with(
-                        crate::words::CONNECT_FACTORY_PIN,
-                        &[("pin", pin.as_str().into())],
-                    )
-                    .into_owned(),
-            );
-        }
+        detail.extend(self.pin_sentence(words));
 
         ConnectPanel {
             headline: words.msg(crate::words::CONNECT_HEADING).into_owned(),
@@ -255,6 +254,26 @@ impl ConnectInfo {
                     .into_owned()
             }),
             is_problem: false,
+        }
+    }
+
+    /// The factory PIN as a sentence, or `None` once the owner has set a password.
+    fn pin_sentence(&self, words: &km_locale::Catalog) -> Option<String> {
+        self.factory_pin.as_ref().map(|pin| {
+            words
+                .msg_with(
+                    crate::words::CONNECT_FACTORY_PIN,
+                    &[("pin", pin.as_str().into())],
+                )
+                .into_owned()
+        })
+    }
+
+    /// A problem's explanation, with the PIN after it while the factory one is in force.
+    fn with_pin(&self, explanation: String, words: &km_locale::Catalog) -> String {
+        match self.pin_sentence(words) {
+            Some(pin) => format!("{explanation} {pin}"),
+            None => explanation,
         }
     }
 }
@@ -585,6 +604,25 @@ mod tests {
             info.panel(PT).hint.as_deref(),
             Some("Ctrl+F11 abre o controle remoto no navegador")
         );
+    }
+
+    /// The setup page still opens on this box with no address for a phone, and it asks for the PIN.
+    #[test]
+    fn a_machine_a_phone_cannot_reach_still_shows_its_pin() {
+        for problem in [ConnectProblem::LoopbackOnly, ConnectProblem::NoNetwork] {
+            let mut info = ConnectInfo::unreachable(problem, Some("127.0.0.1:8177".to_owned()));
+            info.factory_pin = Some("482913".to_owned());
+            let detail = info.panel(EN).detail.expect("detail");
+            assert!(detail.contains("482913"), "got {detail}");
+        }
+    }
+
+    #[test]
+    fn a_server_that_did_not_start_shows_no_pin() {
+        let mut info =
+            ConnectInfo::unreachable(ConnectProblem::ServerFailed("in use".to_owned()), None);
+        info.factory_pin = Some("482913".to_owned());
+        assert_eq!(info.panel(EN).detail.as_deref(), Some("in use"));
     }
 
     /// The key still works in each of these states and the panel still does not mention it.
