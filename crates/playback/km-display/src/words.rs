@@ -276,6 +276,8 @@ pub const MENU_BUTTON: &str = "menu-button";
 pub const MENU_CHOOSE_SONGS: &str = "menu-choose-songs";
 /// The Menu item that picks a package to install.
 pub const MENU_INSTALL_PACKAGE: &str = "menu-install-package";
+/// The Menu item that opens the owner's setup page.
+pub const MENU_SET_UP: &str = "menu-set-up";
 
 /// Every id above, for the test that checks each is in the catalog.
 ///
@@ -284,6 +286,7 @@ pub const ALL_IDS: &[&str] = &[
     MENU_BUTTON,
     MENU_CHOOSE_SONGS,
     MENU_INSTALL_PACKAGE,
+    MENU_SET_UP,
     KEYPAD_CLEAR,
     KEYPAD_SUBMIT,
     IDLE_PROMPT,

@@ -1,4 +1,4 @@
-//! The window's Menu button and its two items, as geometry.
+//! The window's Menu button and its items, as geometry.
 //!
 //! **Pure layout, like [`crate::keypad`].** Nothing here opens a font or touches SDL, so the tests
 //! run on a machine with no display. `draw` reads a [`WindowMenu`] and paints it, and the caller
@@ -16,6 +16,8 @@ pub enum MenuItem {
     ChooseSongs,
     /// Pick a `.kmpkg` in the system file browser and install it.
     InstallPackage,
+    /// Open the owner's setup page, in the same browser.
+    SetUp,
 }
 
 impl MenuItem {
@@ -24,6 +26,7 @@ impl MenuItem {
         match self {
             Self::ChooseSongs => crate::words::MENU_CHOOSE_SONGS,
             Self::InstallPackage => crate::words::MENU_INSTALL_PACKAGE,
+            Self::SetUp => crate::words::MENU_SET_UP,
         }
     }
 }
@@ -71,8 +74,8 @@ const MIN_BUTTON_PX: f32 = 28.0;
 /// The button's width in button heights. Wide enough for *Menu* in either language.
 const BUTTON_WIDTH: f32 = 3.0;
 
-/// An item's width in button heights. Wide enough for *Instalar um pacote* in the small face.
-const ITEM_WIDTH: f32 = 7.0;
+/// An item's width in button heights. Wide enough for *Configurar a máquina* in the small face.
+const ITEM_WIDTH: f32 = 8.0;
 
 /// The Menu as it stands this frame: the button, and the items when it is open.
 #[derive(Debug, Clone, PartialEq)]
@@ -105,20 +108,24 @@ impl WindowMenu {
         };
         let items = if open {
             let w = (h * ITEM_WIDTH).min(width);
-            [MenuItem::ChooseSongs, MenuItem::InstallPackage]
-                .into_iter()
-                .filter(|item| choose_songs || *item != MenuItem::ChooseSongs)
-                .enumerate()
-                .map(|(row, item)| {
-                    let rect = MenuRect {
-                        x: (width - w) / 2.0,
-                        y: button.y + h + gap + row as f32 * h,
-                        w,
-                        h,
-                    };
-                    (item, rect)
-                })
-                .collect()
+            [
+                MenuItem::ChooseSongs,
+                MenuItem::InstallPackage,
+                MenuItem::SetUp,
+            ]
+            .into_iter()
+            .filter(|item| choose_songs || *item != MenuItem::ChooseSongs)
+            .enumerate()
+            .map(|(row, item)| {
+                let rect = MenuRect {
+                    x: (width - w) / 2.0,
+                    y: button.y + h + gap + row as f32 * h,
+                    w,
+                    h,
+                };
+                (item, rect)
+            })
+            .collect()
         } else {
             Vec::new()
         };
@@ -184,10 +191,17 @@ mod tests {
     }
 
     #[test]
-    fn an_open_menu_lists_both_items_under_the_button() {
+    fn an_open_menu_lists_every_item_under_the_button() {
         let menu = WindowMenu::new(1280.0, 720.0, true, true, None);
         let items: Vec<MenuItem> = menu.items().iter().map(|(item, _)| *item).collect();
-        assert_eq!(items, [MenuItem::ChooseSongs, MenuItem::InstallPackage]);
+        assert_eq!(
+            items,
+            [
+                MenuItem::ChooseSongs,
+                MenuItem::InstallPackage,
+                MenuItem::SetUp
+            ]
+        );
         let button = menu.button();
         for (_, rect) in menu.items() {
             assert!(rect.y >= button.y + button.h, "an item covers the button");
@@ -198,7 +212,7 @@ mod tests {
     fn a_turned_off_remote_leaves_choose_songs_out() {
         let menu = WindowMenu::new(1280.0, 720.0, true, false, None);
         let items: Vec<MenuItem> = menu.items().iter().map(|(item, _)| *item).collect();
-        assert_eq!(items, [MenuItem::InstallPackage]);
+        assert_eq!(items, [MenuItem::InstallPackage, MenuItem::SetUp]);
     }
 
     #[test]

@@ -26,6 +26,7 @@ keypad-submit = OK
 menu-button = Menu
 menu-choose-songs = Choose songs
 menu-install-package = Install a package
+menu-set-up = Set up the machine
 
 ## The transport strip
 #
