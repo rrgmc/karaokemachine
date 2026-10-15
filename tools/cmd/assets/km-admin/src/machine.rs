@@ -42,8 +42,8 @@ use km_api::dto::{
     LinkedPackagesRequest, LoginRequest, LoginResponse, MachineLocaleRequest, MachineNameRequest,
     PackagesDto, PerformanceDto, PerformanceRequest, RoomAccessRequest, SetAnnouncementRequest,
     SetDemoDelayRequest, SetDemoRequest, SettingsDto, SettingsPatchDto, SingerRulesDto,
-    WindowMenuDto, WindowMenuRequest,
     SoundFontDto, SoundFontRequest, SoundFontsDto, UninstallDto, UploadReportDto, WallpapersDto,
+    WindowMenuDto, WindowMenuRequest,
 };
 
 /// The machine's own default port, so "a bare host means 8177" is not written down twice.

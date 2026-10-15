@@ -22,7 +22,7 @@
 //!   public external directory, and `packages_dirs()` already reads it as one.
 
 use std::path::{Path, PathBuf};
-use std::sync::{Mutex, OnceLock};
+use std::sync::OnceLock;
 
 /// The directories, once the shell has named them.
 static DIRS: OnceLock<Dirs> = OnceLock::new();
@@ -82,29 +82,11 @@ pub(crate) fn dirs() -> Option<&'static Dirs> {
     DIRS.get()
 }
 
-/// Packages the shell's file browser handed over, waiting for the display loop to take them.
-static OPENED: Mutex<Vec<PathBuf>> = Mutex::new(Vec::new());
-
 /// Queues a package the person chose in the shell's file browser.
 ///
-/// The display loop takes it within a frame and hands it to the installer a dropped file reaches.
 /// SDL's own route for an opened URL is a method of its scene delegate, which the shell cannot call.
-pub fn open_package(path: impl AsRef<Path>) {
-    let path = path.as_ref().to_path_buf();
-    tracing::info!(path = %path.display(), "a package was chosen in the file browser");
-    OPENED
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner)
-        .push(path);
-}
-
-/// The packages chosen since the last call, oldest first.
-pub(crate) fn take_opened() -> Vec<PathBuf> {
-    let mut opened = OPENED
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner);
-    std::mem::take(&mut *opened)
-}
+/// So the shell takes the queue the desktop's Menu fills. See [`crate::opened`].
+pub use crate::opened::open_package;
 
 #[expect(
     unsafe_code,

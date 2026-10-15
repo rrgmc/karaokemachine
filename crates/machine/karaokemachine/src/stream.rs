@@ -291,6 +291,7 @@ pub(crate) fn run(
             show_queue_overlay: false,
             faults: crate::display::faults(&machine),
             version: Some(crate::display::VERSION),
+            menu: None,
             announcement: announced.as_ref().map(crate::display::announcement_for),
             // Every one of these is raised by somebody at the machine, and there is nobody there.
             flash: None,

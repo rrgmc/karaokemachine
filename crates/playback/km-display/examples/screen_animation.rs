@@ -169,6 +169,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             soundfont_label: None,
             developer_mode: None,
             version: None,
+            menu: None,
         };
         let image = render_to_image(
             WIDTH,

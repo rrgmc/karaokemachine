@@ -61,6 +61,7 @@ mod firstrun;
 mod handed;
 mod machine;
 mod notify;
+pub mod opened;
 mod power;
 mod register;
 mod remote;

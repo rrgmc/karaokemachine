@@ -621,8 +621,7 @@ async fn the_window_menu_is_a_box_on_the_machine_page() {
         assert!(status.is_redirection(), "{surface}: {status}");
         assert!(!state.controller().window_menu(), "{surface}");
 
-        let (status, _) =
-            post_form(&app, "/admin/machine/window-menu", "window_menu=yes").await;
+        let (status, _) = post_form(&app, "/admin/machine/window-menu", "window_menu=yes").await;
         assert!(status.is_redirection(), "{surface}: {status}");
         assert!(state.controller().window_menu(), "{surface}");
     }

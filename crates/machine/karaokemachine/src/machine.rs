@@ -8203,7 +8203,10 @@ mod tests {
     #[test]
     fn switching_the_window_menu_is_stored() {
         let (_scratch, machine, _log, _codes) = a_machine_with_eight_songs("window-menu-switch");
-        assert!(Controller::window_menu(machine.as_ref()), "on is the default");
+        assert!(
+            Controller::window_menu(machine.as_ref()),
+            "on is the default"
+        );
         assert!(!Controller::set_window_menu(machine.as_ref(), false).expect("switch"));
         assert!(!Controller::window_menu(machine.as_ref()));
         assert!(!machine.lock_settings().display.window_menu);

@@ -19,6 +19,14 @@
 keypad-clear = CLR
 keypad-submit = OK
 
+## The window's Menu
+#
+# Windows and macOS only. The words match the phone's own Menu.
+
+menu-button = Menu
+menu-choose-songs = Choose songs
+menu-install-package = Install a package
+
 ## The transport strip
 #
 # One table feeds the strip, the function-key bindings and the printed hints — see

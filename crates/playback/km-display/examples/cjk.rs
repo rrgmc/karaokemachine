@@ -181,6 +181,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             developer_mode: None,
             // A playing screen never draws it.
             version: None,
+            menu: None,
         };
         let image = render_to_image(
             WIDTH,

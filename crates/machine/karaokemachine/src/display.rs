@@ -141,6 +141,12 @@ pub(crate) fn request_vsync(canvas: &Canvas<Window>) -> bool {
 /// for a remote. Long enough to press two things in a row, short enough to get out of the way.
 const STRIP_LINGER: Duration = Duration::from_secs(6);
 
+/// How long the window's Menu button stays after the mouse stops moving.
+///
+/// Shorter than [`STRIP_LINGER`], because nobody has to read anything on it: a mouse that has
+/// stopped is a person watching the song, and the button is in the middle of the top edge.
+const MENU_LINGER: Duration = Duration::from_secs(3);
+
 /// How long the position bar stays on screen after somebody asks for it.
 ///
 /// How far through the song it is is what somebody who has just pressed a transport key is asking.
@@ -1957,6 +1963,14 @@ fn run_with(
     let mut summary_cache = SummaryCache::new();
     // When the transport strip stops showing. `None` means it is not up.
     let mut strip_until: Option<Instant> = None;
+    // The window's Menu: when the button fades, whether its items are listed, and where the mouse
+    // last was in backbuffer pixels. Only ever set where `WINDOW_MENU` is true.
+    let mut menu_until: Option<Instant> = None;
+    let mut menu_open = false;
+    let mut pointer: Option<(f32, f32)> = None;
+    // Whether the file browser *Install a package* opened is still up, so a second click does not
+    // open a second one. Shared with SDL's callback, which runs on a thread of its own on Windows.
+    let choosing = Arc::new(AtomicBool::new(false));
     // Whether `Ctrl+F12` has taken the timer away. A local, and one that dies with the process:
     // see `DisplayAction::ToggleStripPin`, whose whole argument is that nothing is written down.
     let mut strip_pinned = false;
@@ -2238,6 +2252,11 @@ fn run_with(
                         // leaves. So where fullscreen is fixed, Escape *is* the remote's back button
                         // and must mean the same thing.
                         DisplayAction::Escape => {
+                            // An open Menu closes first, as a menu does everywhere.
+                            if menu_open {
+                                menu_open = false;
+                                continue;
+                            }
                             if !FULLSCREEN_IS_FIXED {
                                 if is_fullscreen(&canvas) {
                                     apply_fullscreen(&mut canvas, &sdl.mouse(), false, windowed);
@@ -2347,8 +2366,56 @@ fn run_with(
                 // where the density is 1 — so on a Retina screen an unscaled click lands at half
                 // the height it looks like and misses the pad entirely...
                 // `which` filtered so a tap is not also counted as a click; see `TOUCH_MOUSEID`.
+                // The mouse moving over a Windows or macOS window brings the Menu button up, unless
+                // the owner turned it off. The setting is read here rather than once at start, so
+                // the owner's page takes effect without a restart.
+                SdlEvent::MouseMotion { x, y, which, .. }
+                    if WINDOW_MENU && which != TOUCH_MOUSEID =>
+                {
+                    pointer = Some(window_to_pixels(x, y, density));
+                    if machine.window_menu() {
+                        menu_until = Some(Instant::now() + MENU_LINGER);
+                    }
+                }
                 SdlEvent::MouseButtonDown { x, y, which, .. } if which != TOUCH_MOUSEID => {
                     let (x, y) = window_to_pixels(x, y, density);
+                    // The Menu takes the click first, because it is drawn over everything else.
+                    if menu_shown(menu_open, menu_until, Instant::now()) {
+                        let menu = km_display::WindowMenu::new(
+                            width as f32,
+                            height as f32,
+                            menu_open,
+                            config.remote_served,
+                            None,
+                        );
+                        match menu.hit(x, y) {
+                            Some(km_display::MenuHit::Button) => {
+                                menu_open = !menu_open;
+                                menu_until = Some(Instant::now() + MENU_LINGER);
+                                continue;
+                            }
+                            Some(km_display::MenuHit::Item(item)) => {
+                                menu_open = false;
+                                menu_until = Some(Instant::now() + MENU_LINGER);
+                                match item {
+                                    km_display::MenuItem::ChooseSongs => {
+                                        show_remote(&api, config.remote_served, &opened_tx);
+                                    }
+                                    km_display::MenuItem::InstallPackage => {
+                                        choose_package(canvas.window(), &choosing, &opened_tx);
+                                    }
+                                }
+                                continue;
+                            }
+                            // A click beside an open Menu closes it and presses nothing else, as a
+                            // menu does everywhere.
+                            None if menu_open => {
+                                menu_open = false;
+                                continue;
+                            }
+                            None => {}
+                        }
+                    }
                     // Somebody at the machine, whether or not the press lands on a touch target —
                     // so the position bar comes back even where `display.keypad` has left `press`
                     // nothing to hit.
@@ -2412,9 +2479,9 @@ fn run_with(
             }
         }
 
-        // A package chosen in the phone shell's file browser takes the dropped file's route.
-        #[cfg(target_os = "ios")]
-        for path in crate::ioscfg::take_opened() {
+        // A package chosen in a file browser takes the dropped file's route: the iOS shell's, or the
+        // one the window's Menu opens on Windows and macOS.
+        for path in crate::opened::take_opened() {
             if let Some(refused) = installer.submit(path) {
                 flash = Some(Flashed::from(refused));
             }
@@ -2454,6 +2521,23 @@ fn run_with(
 
         if flash.as_ref().is_some_and(Flashed::expired) {
             flash = None;
+        }
+
+        // -- the window's Menu --------------------------------------------------------------------
+        //
+        // A switch turned off while the button is up takes it down at once. The cursor follows the
+        // button in fullscreen, where it is otherwise hidden: a Menu nobody can point at is no Menu.
+        if WINDOW_MENU {
+            if menu_shown(menu_open, menu_until, Instant::now()) && !machine.window_menu() {
+                menu_open = false;
+                menu_until = None;
+            }
+            let mouse = sdl.mouse();
+            let cursor =
+                !is_fullscreen(&canvas) || menu_shown(menu_open, menu_until, Instant::now());
+            if mouse.is_cursor_showing() != cursor {
+                mouse.show_cursor(cursor);
+            }
         }
 
         // -- wallpaper ---------------------------------------------------------------------------
@@ -2781,6 +2865,16 @@ fn run_with(
         // Asked with the frame's one instant, so the card's opacity and the two deadlines above
         // answer from the same clock.
         let announced = machine.announcement_card(deadline_now);
+        let window_menu =
+            (WINDOW_MENU && menu_shown(menu_open, menu_until, deadline_now)).then(|| {
+                km_display::WindowMenu::new(
+                    width as f32,
+                    height as f32,
+                    menu_open,
+                    config.remote_served,
+                    pointer,
+                )
+            });
 
         let frame = Frame {
             // Read per frame rather than off `config`, so the /admin/ picker takes effect on the
@@ -2870,6 +2964,7 @@ fn run_with(
             // Unconditional, because it is true whatever the machine is doing. The idle screen is
             // the only one that draws it.
             version: Some(VERSION),
+            menu: window_menu.as_ref(),
         };
 
         // -- picture -----------------------------------------------------------------------------
@@ -3143,6 +3238,66 @@ fn strip_visible(pinned: bool, until: Option<Instant>, now: Instant) -> bool {
 /// Shared by [`strip_visible`] and [`position_visible`], so the arithmetic is written once.
 fn before(until: Option<Instant>, now: Instant) -> bool {
     until.is_some_and(|until| now < until)
+}
+
+/// Whether the window's Menu is up this frame.
+///
+/// **An open Menu does not fade.** Somebody reading its items has stopped the mouse to read them,
+/// and a list that vanished under the pointer would take the click with it.
+fn menu_shown(open: bool, until: Option<Instant>, now: Instant) -> bool {
+    open || before(until, now)
+}
+
+/// Opens the system file browser for a `.kmpkg`, from the Menu's *Install a package*.
+///
+/// **SDL's own dialog, so the machine takes no new dependency.** It is parented to the window. On
+/// Windows SDL runs it on a thread of its own, and on macOS it is a sheet on the window, so the loop
+/// goes on drawing and the song goes on playing either way.
+///
+/// The chosen file goes to [`crate::opened`], which the loop drains into the installer a dropped
+/// file reaches. A file of any other name is handed over as well, so the installer's refusal says
+/// why on the screen. Only a failure to open the browser comes back down `failures`, the channel
+/// [`show_remote`] reports on; closing it without a choice is not a failure.
+fn choose_package(
+    window: &Window,
+    choosing: &Arc<AtomicBool>,
+    failures: &std::sync::mpsc::Sender<String>,
+) {
+    if choosing.swap(true, Ordering::AcqRel) {
+        tracing::debug!("the file browser is already open");
+        return;
+    }
+    let done = Arc::clone(choosing);
+    let reports = failures.clone();
+    let filters = [sdl3::dialog::DialogFileFilter {
+        name: "KaraokeMachine package",
+        pattern: "kmpkg",
+    }];
+    let shown = sdl3::dialog::show_open_file_dialog(
+        &filters,
+        None::<&std::path::Path>,
+        false,
+        window,
+        Box::new(move |chosen, _| {
+            done.store(false, Ordering::Release);
+            match chosen {
+                Ok(paths) => paths.into_iter().for_each(crate::opened::open_package),
+                Err(sdl3::dialog::DialogError::Canceled) => {
+                    tracing::debug!("the file browser was closed without a choice");
+                }
+                Err(error) => {
+                    tracing::warn!(%error, "the file browser failed");
+                    // A send that fails means the display has gone, which is the machine closing.
+                    let _ = reports.send(format!("could not open a file browser: {error}"));
+                }
+            }
+        }),
+    );
+    if let Err(error) = shown {
+        choosing.store(false, Ordering::Release);
+        tracing::warn!(%error, "could not open a file browser");
+        let _ = failures.send(format!("could not open a file browser: {error}"));
+    }
 }
 
 /// How much of each end of a song draws the bar unasked, by which screen the song brings.
