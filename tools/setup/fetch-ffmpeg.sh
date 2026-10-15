@@ -316,7 +316,7 @@ Install it and try again:
 }
 
 fetch_macos() {
-  local candidate dest="$CACHE/$FF_SRC_NAME-lgpl"
+  local candidate dev dest="$CACHE/$FF_SRC_NAME-lgpl"
   mkdir -p "$CACHE"
 
   # Resolution order, and the first two are both ways of saying "do not build one":
@@ -352,9 +352,12 @@ fetch_macos() {
   [ -d "$FFMPEG_DIR/include" ] || die "ffmpeg at $FFMPEG_DIR has no include/"
 
   # The Command Line Tools carry libclang and this build already requires them for SDL, so there is
-  # normally nothing to install. Homebrew's llvm is checked second, for a box that has one.
+  # normally nothing to install. Xcode keeps it inside its default toolchain instead, and a CI runner
+  # selects Xcode. Homebrew's llvm is checked last, for a box that has one.
   if [ -z "$LIBCLANG_PATH" ]; then
-    for candidate in "$(xcode-select -p 2>/dev/null)/usr/lib" "$(brew --prefix llvm 2>/dev/null)/lib"; do
+    dev="$(xcode-select -p 2>/dev/null)"
+    for candidate in "$dev/usr/lib" "$dev/Toolchains/XcodeDefault.xctoolchain/usr/lib" \
+                     "$(brew --prefix llvm 2>/dev/null)/lib"; do
       [ -f "$candidate/libclang.dylib" ] && { LIBCLANG_PATH="$candidate"; break; }
     done
   fi

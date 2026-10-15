@@ -124,8 +124,10 @@ if [ "$VIDEO" -eq 1 ]; then
     exit 1
   fi
 
+  # The Command Line Tools keep libclang in usr/lib, and Xcode inside its default toolchain.
   if [ -z "${LIBCLANG_PATH:-}" ]; then
-    for candidate in "$(xcode-select -p 2>/dev/null)/usr/lib" \
+    dev="$(xcode-select -p 2>/dev/null)"
+    for candidate in "$dev/usr/lib" "$dev/Toolchains/XcodeDefault.xctoolchain/usr/lib" \
                      "$(brew --prefix llvm 2>/dev/null)/lib"; do
       if [ -f "$candidate/libclang.dylib" ]; then LIBCLANG_PATH="$candidate"; break; fi
     done
