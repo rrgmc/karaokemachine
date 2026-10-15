@@ -11,7 +11,7 @@ Entries are written for somebody who has the machine. Why any of it is the way i
 
 ## [Unreleased]
 
-## [1.24.0] - 2026-10-15
+## [1.24.1] - 2026-10-15
 
 ### Added
 
