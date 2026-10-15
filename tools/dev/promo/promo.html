@@ -9,7 +9,8 @@
   The music is the song the playing screen sings, from its first note. So second `t` of the video is
   millisecond `1000 t` of the song, and frame `n` of `frames/` is the playing screen at `n / FPS`
   seconds. `setBars` takes the second each bar starts at, and every scene cuts on a bar line. The
-  quiet verse takes the first four bars, and the rest is the chorus, one or two bars to a scene.
+  quiet verse takes the first four bars, and the rest is the chorus twice over, two or three bars to a
+  scene, so a viewer has time to read each one.
 
   The palette is the site's, which `site/style.css` copies from `Theme::default()`.
 -->
@@ -307,11 +308,11 @@
   const FPS = Number(new URLSearchParams(location.search).get("fps") || 30);
 
   // The second each bar of the song starts at, from `bars.json`. `setBars` replaces this stand-in.
-  let bars = Array.from({ length: 15 }, (_, bar) => (bar < 4 ? bar * 3.333 : 13.333 + (bar - 4) * 1.818));
+  let bars = Array.from({ length: 23 }, (_, bar) => (bar < 4 ? bar * 3.75 : 15 + (bar - 4) * 2));
 
   // The bar holding the song's last chord, and how long the end card stays after it lands.
-  const LAST = 12;
-  const HOLD = 3.3;
+  const LAST = 20;
+  const HOLD = 4.5;
 
   const clamp = (x, lo = 0, hi = 1) => Math.min(hi, Math.max(lo, x));
   const ease = (x) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
@@ -367,40 +368,40 @@
     } else if (t >= B(4) && t < B(6)) {
       const k = punch(t, B(4), 0.12);
       live = { scale: k, x: -960 * (k - 1), y: -540 * (k - 1) };
-    } else if (t >= B(6) && t < B(8)) {
+    } else if (t >= B(6) && t < B(9)) {
       live = { scale: 1 - 0.5 * shrink, x: 864 * shrink, y: 400 * shrink };
-    } else if (t >= B(11)) {
-      const k = punch(t, B(11), 0.1);
+    } else if (t >= B(17)) {
+      const k = punch(t, B(17), 0.1);
       live = { scale: k, x: -960 * (k - 1), y: -540 * (k - 1) };
     }
     place(el("live"), live);
-    el("live").classList.toggle("framed", t >= B(6) && t < B(8));
+    el("live").classList.toggle("framed", t >= B(6) && t < B(9));
     place(el("cap-live"), { opacity: span(t, B(2) + 0.4, B(4) - 0.2, 0.3), y: 20 * (1 - ramp(t, B(2) + 0.4, B(2) + 0.8)) });
 
-    // The remote, for the chorus's second line.
-    place(el("head-remote"), { opacity: span(t, B(6) + 0.1, B(8)), y: 24 * (1 - out((t - B(6) - 0.1) / 0.3)) });
+    // The remote, three bars, from the chorus's second line.
+    place(el("head-remote"), { opacity: span(t, B(6) + 0.1, B(9)), y: 24 * (1 - out((t - B(6) - 0.1) / 0.3)) });
     const browse = t < B(6) + 2 * eighth ? 0 : out((t - B(6) - 2 * eighth) / 0.3);
-    place(el("phone-browse"), { opacity: Math.min(browse, 1 - ramp(t, B(8) - 0.2, B(8))), x: 80, y: 320 + 420 * (1 - browse) });
-    const now = t < B(6) + 6 * eighth ? 0 : out((t - B(6) - 6 * eighth) / 0.3);
-    place(el("phone-now"), { opacity: Math.min(now, 1 - ramp(t, B(8) - 0.2, B(8))), x: 420, y: 390 + 420 * (1 - now) });
+    place(el("phone-browse"), { opacity: Math.min(browse, 1 - ramp(t, B(9) - 0.2, B(9))), x: 80, y: 320 + 420 * (1 - browse) });
+    const now = t < B(7) ? 0 : out((t - B(7)) / 0.3);
+    place(el("phone-now"), { opacity: Math.min(now, 1 - ramp(t, B(9) - 0.2, B(9))), x: 420, y: 390 + 420 * (1 - now) });
 
-    // The queue, one bar, in the frame the playing screen had.
-    const queue = t >= B(8) && t < B(9) ? 1 : 0;
-    place(el("queue"), { opacity: queue, scale: 0.5 * punch(t, B(8), 0.06), x: 864, y: 400 });
-    place(el("head-queue"), { opacity: queue, y: 24 * (1 - out((t - B(8)) / 0.3)) });
-    place(el("phone-queue"), { opacity: queue, x: 220, y: 330 + 60 * (1 - out((t - B(8)) / 0.3)) });
+    // The queue, two bars, in the frame the playing screen had.
+    const queue = t >= B(9) && t < B(11) ? 1 : 0;
+    place(el("queue"), { opacity: queue, scale: 0.5 * punch(t, B(9), 0.06), x: 864, y: 400 });
+    place(el("head-queue"), { opacity: queue, y: 24 * (1 - out((t - B(9)) / 0.3)) });
+    place(el("phone-queue"), { opacity: queue, x: 220, y: 330 + 60 * (1 - out((t - B(9)) / 0.3)) });
 
-    // The song files, one bar, a tile to an eighth.
-    const files = t >= B(9) && t < B(10) ? 1 : 0;
-    place(el("head-files"), { opacity: files, y: 24 * (1 - out((t - B(9)) / 0.3)) });
+    // The song files, three bars, a tile to a quarter note.
+    const files = t >= B(11) && t < B(14) ? 1 : 0;
+    place(el("head-files"), { opacity: files, y: 24 * (1 - out((t - B(11)) / 0.3)) });
     place(el("files"), { opacity: files });
-    onBeats([...el("files").children], t, B(9) + eighth, eighth, B(10));
+    onBeats([...el("files").children], t, B(11) + eighth, 2 * eighth, B(14));
 
-    // The platforms, one bar, a chip to a sixteenth.
-    const platforms = t >= B(10) && t < B(11) ? 1 : 0;
-    place(el("head-platforms"), { opacity: platforms, y: 24 * (1 - out((t - B(10)) / 0.3)) });
+    // The platforms, three bars, a chip to an eighth.
+    const platforms = t >= B(14) && t < B(17) ? 1 : 0;
+    place(el("head-platforms"), { opacity: platforms, y: 24 * (1 - out((t - B(14)) / 0.3)) });
     place(el("platforms"), { opacity: platforms });
-    onBeats([...el("platforms").querySelectorAll(".chip")], t, B(10) + eighth, eighth / 2, B(11));
+    onBeats([...el("platforms").querySelectorAll(".chip")], t, B(14) + eighth, eighth, B(17));
 
     // The end card lands on the last chord.
     const end = t >= B(LAST) ? 1 : 0;
@@ -409,7 +410,7 @@
 
     // A flash where the chorus comes in and where the last chord lands.
     const flash = (at, size) => (t < at ? 0 : size * Math.exp(-(t - at) / 0.12));
-    place(el("flash"), { opacity: Math.max(flash(B(4), 0.85), flash(B(LAST), 0.7), flash(B(11), 0.35)) });
+    place(el("flash"), { opacity: Math.max(flash(B(4), 0.85), flash(B(LAST), 0.7), flash(B(17), 0.35)) });
 
     // The playing screen at this moment of the song.
     const n = Math.round(t * FPS);

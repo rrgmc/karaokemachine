@@ -9,12 +9,16 @@
 //!
 //! The shape, bar by bar, with `BAR` ticks to a bar:
 //!
-//! | bars   | tempo   | what plays                                                           |
-//! |--------|---------|----------------------------------------------------------------------|
-//! | 0      | 72 BPM  | the piano alone, in A minor                                          |
-//! | 1 to 3 | 72 BPM  | the verse, sung softly over piano, strings and bass; a snare roll    |
-//! | 4 to 11| 132 BPM | the chorus in C major, with drums and two distorted guitars          |
-//! | 12     | 132 BPM | the last chord, left to ring                                         |
+//! | bars    | tempo   | what plays                                                          |
+//! |---------|---------|---------------------------------------------------------------------|
+//! | 0       | 64 BPM  | the piano alone, in A minor                                         |
+//! | 1 to 3  | 64 BPM  | the verse, sung softly over piano, strings and bass; a snare roll   |
+//! | 4 to 11 | 120 BPM | the chorus in C major, with drums and two distorted guitars         |
+//! | 12 to 19| 120 BPM | the chorus again, ending on a held note                             |
+//! | 20      | 120 BPM | the last chord, left to ring                                        |
+//!
+//! The tempos leave the video's scenes long enough to read, and the chorus plays twice for the same
+//! reason.
 
 use midly::num::{u4, u7, u15, u24, u28};
 use midly::{Format, Header, MetaMessage, MidiMessage, Smf, Timing, TrackEvent, TrackEventKind};
@@ -31,8 +35,11 @@ pub const BAR: u32 = 4 * TPQN;
 /// The bar the chorus starts on, where the tempo jumps.
 const CHORUS: u32 = 4;
 
-/// The bar holding the last chord.
-const LAST: u32 = 12;
+/// The bars one pass of the chorus takes.
+const CHORUS_BARS: u32 = 8;
+
+/// The bar holding the last chord, after two passes of the chorus.
+const LAST: u32 = CHORUS + 2 * CHORUS_BARS;
 
 /// The song's title and performer, as its header gives them.
 pub const TITLE: &str = "Sing It Out Loud";
@@ -95,9 +102,10 @@ const G_MAJOR: Chord = Chord {
 };
 
 /// One chord to a bar, from bar 0 to the last chord.
-const CHORDS: [Chord; 13] = [
+const CHORDS: [Chord; 21] = [
     A_MINOR, F_MAJOR, C_MAJOR, G_MAJOR, // the verse
     C_MAJOR, G_MAJOR, A_MINOR, F_MAJOR, C_MAJOR, G_MAJOR, F_MAJOR, G_MAJOR, // the chorus
+    C_MAJOR, G_MAJOR, A_MINOR, F_MAJOR, C_MAJOR, G_MAJOR, F_MAJOR, G_MAJOR, // again
     C_MAJOR, // the last chord
 ];
 
@@ -111,7 +119,53 @@ struct Line {
     syllables: &'static [(&'static str, u8, u32)],
 }
 
-const LINES: [Line; 7] = [
+// The chorus's four lines, each two bars long. Both passes sing the first three.
+const SING_IT_OUT_LOUD: &[(&str, u8, u32)] = &[
+    ("Sing ", 67, 2),
+    ("it ", 67, 1),
+    ("out ", 69, 1),
+    ("loud ", 72, 2),
+    ("to", 72, 1),
+    ("night,", 74, 7),
+];
+const EVERY_WORD: &[(&str, u8, u32)] = &[
+    ("ev", 76, 1),
+    ("ery ", 74, 1),
+    ("word ", 72, 2),
+    ("lights ", 72, 1),
+    ("up ", 69, 1),
+    ("in ", 67, 2),
+    ("time,", 69, 6),
+];
+const PASS_THE_MIC: &[(&str, u8, u32)] = &[
+    ("pass ", 67, 1),
+    ("the ", 67, 1),
+    ("mic, ", 72, 2),
+    ("you're ", 72, 1),
+    ("next ", 74, 1),
+    ("in ", 76, 2),
+    ("line,", 74, 6),
+];
+
+/// The first pass ends its last word inside its two bars, before the chorus starts again.
+const EVERYBODY_SING: &[(&str, u8, u32)] = &[
+    ("ev", 69, 2),
+    ("ery", 72, 2),
+    ("bo", 74, 2),
+    ("dy ", 76, 2),
+    ("sing!", 79, 8),
+];
+
+/// The second pass holds its last word into the last chord.
+const EVERYBODY_SING_HELD: &[(&str, u8, u32)] = &[
+    ("ev", 69, 2),
+    ("ery", 72, 2),
+    ("bo", 74, 2),
+    ("dy ", 76, 2),
+    ("sing!", 79, 14),
+];
+
+const LINES: [Line; 11] = [
     Line {
         bar: 1,
         new_page: true,
@@ -151,51 +205,42 @@ const LINES: [Line; 7] = [
     Line {
         bar: 4,
         new_page: true,
-        syllables: &[
-            ("Sing ", 67, 2),
-            ("it ", 67, 1),
-            ("out ", 69, 1),
-            ("loud ", 72, 2),
-            ("to", 72, 1),
-            ("night,", 74, 7),
-        ],
+        syllables: SING_IT_OUT_LOUD,
     },
     Line {
         bar: 6,
         new_page: false,
-        syllables: &[
-            ("ev", 76, 1),
-            ("ery ", 74, 1),
-            ("word ", 72, 2),
-            ("lights ", 72, 1),
-            ("up ", 69, 1),
-            ("in ", 67, 2),
-            ("time,", 69, 6),
-        ],
+        syllables: EVERY_WORD,
     },
     Line {
         bar: 8,
         new_page: false,
-        syllables: &[
-            ("pass ", 67, 1),
-            ("the ", 67, 1),
-            ("mic, ", 72, 2),
-            ("you're ", 72, 1),
-            ("next ", 74, 1),
-            ("in ", 76, 2),
-            ("line,", 74, 6),
-        ],
+        syllables: PASS_THE_MIC,
     },
     Line {
         bar: 10,
         new_page: false,
-        syllables: &[
-            ("ev", 69, 2),
-            ("ery", 72, 2),
-            ("bo", 74, 2),
-            ("dy ", 76, 2),
-            ("sing!", 79, 14),
-        ],
+        syllables: EVERYBODY_SING,
+    },
+    Line {
+        bar: 12,
+        new_page: true,
+        syllables: SING_IT_OUT_LOUD,
+    },
+    Line {
+        bar: 14,
+        new_page: false,
+        syllables: EVERY_WORD,
+    },
+    Line {
+        bar: 16,
+        new_page: false,
+        syllables: PASS_THE_MIC,
+    },
+    Line {
+        bar: 18,
+        new_page: false,
+        syllables: EVERYBODY_SING_HELD,
     },
 ];
 
@@ -327,8 +372,8 @@ pub fn compose() -> Vec<u8> {
     ] {
         header.at(0, Event::Text(line.to_owned()));
     }
-    header.at(0, Event::Tempo(tempo(72)));
-    header.at(CHORUS * BAR, Event::Tempo(tempo(132)));
+    header.at(0, Event::Tempo(tempo(64)));
+    header.at(CHORUS * BAR, Event::Tempo(tempo(120)));
 
     // The words, and the guide melody that sings them.
     let mut words = Track::default();
@@ -502,7 +547,8 @@ fn drum_roll(band: &mut Track, start: u32) {
     }
 }
 
-/// One bar of the chorus beat, with a crash on the first bar of every line and a fill before the end.
+/// One bar of the chorus beat, with a crash on the first bar of every line and a fill on the last
+/// bar of each pass.
 fn rock_beat(band: &mut Track, bar: u32, start: u32) {
     if (bar - CHORUS).is_multiple_of(2) {
         band.note(start, DRUMS, CRASH, 118, TPQN);
@@ -519,7 +565,7 @@ fn rock_beat(band: &mut Track, bar: u32, start: u32) {
     for tick in [0, 2 * TPQN, 2 * TPQN + E] {
         band.note(start + tick, DRUMS, KICK, 118, E);
     }
-    let fill = bar == LAST - 1;
+    let fill = (bar - CHORUS) % CHORUS_BARS == CHORUS_BARS - 1;
     for beat in [1, 3] {
         if fill && beat == 3 {
             continue;

@@ -684,8 +684,9 @@ rules before it enters the tree.
 
 ## The promotional video sings a song written for it
 
-**The promotional video is a build product, and `tools/dev/promo-video.sh` builds it.** It runs half
-a minute at 1920x1080 and thirty frames a second, with sound. It lands in `dist/promo/` and is never
+**The promotional video is a build product, and `tools/dev/promo-video.sh` builds it.** It runs about
+fifty seconds at 1920x1080 and thirty frames a second, with sound. Each scene stays two bars or
+longer, so a viewer can read its words. It lands in `dist/promo/` and is never
 committed. A video is tens of megabytes, and it changes whenever a published picture does.
 
 **The song is written for the video, words and music**: *Sing It Out Loud*, in
