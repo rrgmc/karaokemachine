@@ -1326,6 +1326,15 @@ pub async fn put_control_code(
     Ok(Json(state.access_dto(Access::Admin)))
 }
 
+/// `PUT /api/v1/admin/access/host-code`
+pub async fn put_host_code(
+    State(state): State<ApiState>,
+    Body(body): Body<AccessCodeRequest>,
+) -> ApiResult<Json<AccessDto>> {
+    ops::set_access_code(&state, Access::Host, body.code.as_deref())?;
+    Ok(Json(state.access_dto(Access::Admin)))
+}
+
 /// `POST /api/v1/admin/logout`
 ///
 /// **This clears the caller's cookie and nothing else, and the wording says so.** A token is an HMAC

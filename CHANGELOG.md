@@ -11,6 +11,13 @@ Entries are written for somebody who has the machine. Why any of it is the way i
 
 ## [Unreleased]
 
+### Changed
+
+- **The host's tab needs its own code.** A guest's phone skips and plays now, and does not show the
+  host's tab. The Access pane has a third code, *Code to do all of that, and to use the host's
+  tab*. Give it to the host, who types it on the Setup tab. The code to skip skips and plays now,
+  and opens nothing more.
+
 ## [1.24.1] - 2026-10-15
 
 ### Added

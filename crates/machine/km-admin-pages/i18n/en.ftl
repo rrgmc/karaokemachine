@@ -377,6 +377,7 @@ linked-packages-off = The machine takes no linked packages. The songs of any it 
 singers-number-bad = Type a whole number, or leave the first box empty.
 access-queue-code = Code to add a song out of turn, and to change key and tempo
 access-control-code = Code to do all of that, skip and play now
+access-host-code = Code to do all of that, and to use the host's tab
 access-code-set = set
 access-code-unset = not set
 access-code-clear = Clear

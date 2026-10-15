@@ -65,7 +65,7 @@ singing** stands on the Setup tab and above the list on the Songs tab.
 that somebody sang tonight, and the row says so. Tap **Ask anyway** to ask for it, or **✕** to
 leave it.
 
-**A phone with the skip code has a host's tab.** It is the ticked box in the tab bar. A host uses
+**A phone with the host's code has a host's tab.** It is the ticked box in the tab bar. A host uses
 it to run a night:
 
 | The host wants to | On the host's tab |

@@ -333,6 +333,7 @@ linked-packages-off = A máquina não aceita pacotes vinculados. As músicas dos
 singers-number-bad = Digite um número inteiro, ou deixe a primeira caixa vazia.
 access-queue-code = Código para pôr uma música fora da vez, e mudar tom e andamento
 access-control-code = Código para fazer tudo isso, pular e tocar agora
+access-host-code = Código para fazer tudo isso, e usar a aba do anfitrião
 access-code-set = definido
 access-code-unset = não definido
 access-code-clear = Apagar

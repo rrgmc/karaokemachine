@@ -123,10 +123,10 @@
    **A link, not a control.** A tap reaches a password prompt, which is what protects the page.
    The television's QR code goes to `/`, so this row is how an owner finds the page at all.
 
-   **Shown from the control level up**, by `needs-control`. A guest has no use for the owner's
+   **Shown from the host level up**, by `needs-host`. A guest has no use for the owner's
    page, and a row offering it reads as an invitation to try. #}
 {% if chrome.capabilities.owner_page %}
-<div class="setup-group needs-control">
+<div class="setup-group needs-host">
 {# **A pencil and deliberately not a gear.** The gear is this tab's own mark in the bar, and
    `The gear is this tab's` refuses one mark meaning two things in one application — a gear inside
    the gear tab is exactly that. What this row does is change the machine, so a pencil says it and

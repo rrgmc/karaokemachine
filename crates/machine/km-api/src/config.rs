@@ -36,12 +36,14 @@ pub struct ApiConfig {
     /// How long a token lasts.
     pub token_ttl: Duration,
     /// What everybody on the network gets with no code. [`Access::Control`] unless the owner said
-    /// otherwise, and never [`Access::Admin`].
+    /// otherwise, and never [`Access::Host`] or [`Access::Admin`].
     pub room_access: Access,
     /// The `argon2` hash of the code that opens [`Access::Queue`], where the owner set one.
     pub queue_code_hash: Option<String>,
     /// The `argon2` hash of the code that opens [`Access::Control`], where the owner set one.
     pub control_code_hash: Option<String>,
+    /// The `argon2` hash of the code that opens [`Access::Host`], where the owner set one.
+    pub host_code_hash: Option<String>,
     /// Whether the `debug.` section of settings does anything, and whether the two debug routes are
     /// mounted at all.
     ///
@@ -82,6 +84,7 @@ impl Default for ApiConfig {
             room_access: Access::default(),
             queue_code_hash: None,
             control_code_hash: None,
+            host_code_hash: None,
             debug_enabled: false,
             machine_name: "KaraokeMachine".to_owned(),
             locale: km_locale::Locale::default(),
@@ -124,7 +127,7 @@ impl ApiConfig {
         self
     }
 
-    /// Sets both codes, hashing them.
+    /// Sets the queue and control codes, hashing them.
     pub fn with_codes(
         mut self,
         queue: &str,
@@ -132,6 +135,12 @@ impl ApiConfig {
     ) -> Result<Self, argon2::password_hash::Error> {
         self.queue_code_hash = Some(crate::auth::AdminAuth::hash_password(queue)?);
         self.control_code_hash = Some(crate::auth::AdminAuth::hash_password(control)?);
+        Ok(self)
+    }
+
+    /// Sets the host code, hashing it.
+    pub fn with_host_code(mut self, host: &str) -> Result<Self, argon2::password_hash::Error> {
+        self.host_code_hash = Some(crate::auth::AdminAuth::hash_password(host)?);
         Ok(self)
     }
 

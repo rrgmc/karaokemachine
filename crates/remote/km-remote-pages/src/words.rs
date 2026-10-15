@@ -415,6 +415,7 @@ mod tests {
         "access-view",
         "access-queue",
         "access-control",
+        "access-host",
         "access-admin",
         "access-request",
         // Composed in `handlers::set_access`.

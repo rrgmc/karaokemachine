@@ -523,18 +523,19 @@ it up once, guests ask from their own phones, and the singers take turns. A host
 corrects what the rule did. No part of the night needs a second program.
 
 **A venue is a use of the home machine, and it is no second product.** Every piece is one a home
-uses: the room level, the two codes, the seats, the request list and the host's tab. A venue
+uses: the room level, the codes, the seats, the request list and the host's tab. A venue
 changes settings and nothing else. The manual's venue chapter is therefore the whole of its
 surface.
 
-**Eight settings make a venue.**
+**Nine settings make a venue.**
 
 | Setting | Value at a venue | Reason |
 |---|---|---|
 | The admin password | Set, and held by the owner | The factory password shows on the screen, and a host for one night needs no settings |
 | The room level | `request`, or `view` where the host enters every song | `request` lets each table ask from a phone |
 | The queue order | `turns` | The default plays songs in the order asked, so one table could fill the queue |
-| The control code | Set, and held by the host | It declines, accepts early, reorders and acts for a singer |
+| The host code | Set, and held by the host | It declines, accepts early, reorders and acts for a singer |
+| The control code | Not handed out | The room at `request` holds the guests below it, and the host code includes it |
 | The queue code | Not handed out | It opens `PUT /settings` and the song with no singer, which passes the rule |
 | A required name | On | The host calls each singer by the name on the screen |
 | The cap on one singer's waiting requests | Low | One table cannot fill the request list |
@@ -558,7 +559,7 @@ ends with the evening. The machine keeps no record of a night after the host sta
 license and checks none.
 
 The levels are in
-[`Five access levels, and the method and path decide them`](api-and-network.md#five-access-levels-and-the-method-and-path-decide-them).
+[`Six access levels, and the method and path decide them`](api-and-network.md#six-access-levels-and-the-method-and-path-decide-them).
 The rule is in
 [`The queue holds one song for each singer`](api-and-network.md#the-queue-holds-one-song-for-each-singer).
 The host's actions are in

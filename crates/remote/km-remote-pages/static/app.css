@@ -502,7 +502,11 @@ input[type="search"], input[type="text"], select {
 .access-view .needs-control,
 .access-request .needs-queue,
 .access-request .needs-control,
-.access-queue .needs-control { display: none; }
+.access-view .needs-host,
+.access-request .needs-host,
+.access-queue .needs-control,
+.access-queue .needs-host,
+.access-control .needs-host { display: none; }
 
 /* The ⋯ is a label, so it needs the two affordances a button gets for free — as the gear does, and
  * for the same reason. Its box and its centering come from `.icon-btn` and `label.icon-btn`. */

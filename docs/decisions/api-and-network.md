@@ -8,7 +8,7 @@
 
 **One shared admin password, and everything it guards lives under `/api/v1/admin/`.** A path under
 that prefix demands a valid admin token. A path outside it never needs the admin password, and
-[`Five access levels`](#five-access-levels-and-the-method-and-path-decide-them) decides what else it
+[`Six access levels`](#six-access-levels-and-the-method-and-path-decide-them) decides what else it
 needs. There is nothing to configure for the admin routes and nothing an owner can get wrong.
 
 **There is no `public`/`admin` map in `settings.json`.** A table of route ids is free to drift out of
@@ -206,9 +206,9 @@ name or gets a new token.
 ## An operator corrects what the rule did
 
 **The rule runs the night, and an operator acts where it gave the wrong answer.** An operator is a
-caller at the `control` level. Each action is an API route, so the offline remote reaches it over
+caller at the `host` level. Each action is an API route, so the offline remote reaches it over
 HTTP as the machine's own pages do in process. None of them needs the admin password, because a
-host for one night holds the control code and no settings.
+host for one night holds the host code and no settings.
 
 | Action | Route | When it is needed |
 |---|---|---|
@@ -307,26 +307,28 @@ comes, as it does for a queued song whose package went.
 `PUT /api/v1/admin/evening/keep` writes the switch at once. Turned on, the machine writes the
 evening that it holds now.
 
-## Five access levels, and the method and path decide them
+## Six access levels, and the method and path decide them
 
-**Five levels, each including the ones below it: view, request, queue, control and admin.**
+**Six levels, each including the ones below it: view, request, queue, control, host and admin.**
 
 | Level | What it adds |
 |---|---|
 | `view` | Every `GET`: the catalog, the queue, what is playing, the event stream. |
 | `request` | Registering a singer and naming one, asking for a song, and taking one back. |
 | `queue` | `POST /queue` for a song with no singer, and `PUT /settings` for key, tempo, volume, melody and lyric offset. |
-| `control` | Every other write outside `/admin/`: skip, play now, the transport, any queue entry, any singer's song, the demo, the next picture. |
+| `control` | Every other write outside `/admin/`: skip, play now, the transport, any queue entry, the demo, the next picture. |
+| `host` | The host's routes: accept and decline a request, close the requests, act for a singer, merge and remove singers, and start a new evening. |
 | `admin` | Everything under `/api/v1/admin/`. |
 
-**A room level, and two codes.** The room level is what a phone with no code gets, and it starts at
+**A room level, and three codes.** The room level is what a phone with no code gets, and it starts at
 `control`. The machine is built for a home, where every guest is trusted. So every phone in the room
 queues, skips and turns the knobs, and only the admin password reconfigures the machine.
 
 **A venue lowers the room to `request` or `view`.** At `request` the machine queues each guest's song
 in the order the owner chose. The paragraphs below give the reasons a venue wants that.
 
-**An owner may set the room to `view`, `request`, `queue` or `control`, and never to `admin`.** A queue code and a control code each raise a phone to their level.
+**An owner may set the room to `view`, `request`, `queue` or `control`, and never to `host` or
+`admin`.** A queue code, a control code and a host code each raise a phone to their level.
 The admin password opens the admin level, as it always does.
 
 **`request` stands below `queue` because a song with no singer takes no turn.** Under turns,
@@ -352,10 +354,15 @@ and `control` stay as chosen.
 `request` cannot say whether its owner chose it either. Settings version 7 reads it as `control`,
 and a venue that wants `request` chooses it again. `view` and `queue` stay as chosen.
 
-**A settings file that names `admin` for the room is read as `control`.**
+**A settings file that names `host` or `admin` for the room is read as `control`.**
+
+**`host` stands above `control` because the default room is `control`.** Every phone in a home
+skips and plays now. The host's routes decline a guest's request, remove a singer and end the
+evening. A guest's phone has no use for them. So only the host code and the admin password grant
+them, and no phone shows the Host tab without one.
 
 **A night where only the host enters songs is a room at `view`.** The guests see the queue and
-their place, and ask for nothing. The host holds the control code and adds each song for its singer.
+their place, and ask for nothing. The host holds the host code and adds each song for its singer.
 
 **No accounts.** A karaoke machine's owner hands a code to the people who may skip, and changes it
 when that stops being true. Names and passwords per guest would be a list nobody keeps. The singer
@@ -930,7 +937,7 @@ that exists nowhere its owner can reach, which is why this decision puts it on a
 no network, still opens its setup page on its own screen, from the Menu or a browser there. That page
 asks for the PIN. A server that did not start has no page, so its panel draws the error alone.
 
-**The panel never draws a queue code or a control code.** Each is the owner's to hand out, to the
+**The panel never draws a queue code, a control code or a host code.** Each is the owner's to hand out, to the
 people who should hold that level.
 
 **`factory_pin` is the whole of what the display knows about passwords.** The bit and the plain PIN
@@ -1097,8 +1104,8 @@ tap reaches the login page, and every route behind it demands the token, linked 
 person it is for.** The singer's remote stays the singer's, because nothing on it *does* anything an
 owner does.
 
-**Only a phone at the control level sees the link.** A guest has no use for the owner's page, and a
-row offering it reads as an invitation to try the password. The owner and a host hold the control
+**Only a phone at the host level sees the link.** A guest has no use for the owner's page, and a
+row offering it reads as an invitation to try the password. The owner and a host hold the host
 code or more, so both still find it. The stylesheet hides it, as it hides every control above a
 phone's level.
 

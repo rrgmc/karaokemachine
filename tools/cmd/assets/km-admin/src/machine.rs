@@ -169,6 +169,8 @@ pub enum Call<'a> {
     SetQueueCode,
     /// `PUT` — set or clear the code that raises a phone to the control level, which skips.
     SetControlCode,
+    /// `PUT` — set or clear the code that raises a phone to the host level.
+    SetHostCode,
     /// `POST` — send a file of one of the three kinds.
     Send(km_api::machine::Upload),
     /// `DELETE` — uninstall a package, by id.
@@ -281,6 +283,7 @@ impl<'a> Call<'a> {
         Call::SetRoomAccess,
         Call::SetQueueCode,
         Call::SetControlCode,
+        Call::SetHostCode,
         Call::Send(km_api::machine::Upload::Package),
         Call::Send(km_api::machine::Upload::Wallpaper),
         Call::Send(km_api::machine::Upload::SoundFont),
@@ -342,6 +345,7 @@ impl<'a> Call<'a> {
             | Self::SetRoomAccess
             | Self::SetQueueCode
             | Self::SetControlCode
+            | Self::SetHostCode
             | Self::SetPackageBank(_)
             | Self::UseBank => reqwest::Method::PUT,
             Self::RemovePackage(_) | Self::RemoveWallpaper(_) | Self::RemoveBank(_) => {
@@ -440,6 +444,7 @@ impl<'a> Call<'a> {
             Self::SetRoomAccess => "/admin/access",
             Self::SetQueueCode => "/admin/access/queue-code",
             Self::SetControlCode => "/admin/access/control-code",
+            Self::SetHostCode => "/admin/access/host-code",
             Self::Send(kind) => km_api::uploads::path_for(kind),
             // Unreachable: `path` answers all seven before delegating here. A `match` rather than
             // a catch-all so that adding a variant and forgetting both arms is a compile error.
@@ -1138,6 +1143,7 @@ impl Client {
         let call = match level {
             km_api::Access::Queue => Call::SetQueueCode,
             km_api::Access::Control => Call::SetControlCode,
+            km_api::Access::Host => Call::SetHostCode,
             _ => return Err(Refused::Local(format!("no code opens the {level:?} level"))),
         };
         self.json_with::<_, AccessDto>(

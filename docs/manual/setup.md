@@ -56,10 +56,13 @@ in the room is trusted. Only the admin password changes the machine's settings. 
 strangers, choose *Ask for songs*: then a guest cannot skip, or change the key or the tempo of
 another singer's song. [Running it at a venue](venue.md) gives the rest.
 
-**Two codes raise one phone at a time above the room level.** Both are on the **Who may do what**
-card of the Access pane. The first adds a song with no singer and changes key and tempo. The second
-also skips, and it opens the host's tab. Give each to whoever should have it. They type it on the
-remote's Setup tab, which then says what that phone can do.
+**Three codes raise one phone at a time above the room level.** All three are on the **Who may do
+what** card of the Access pane. The first adds a song with no singer and changes key and tempo. The
+second also skips and plays now. The third also opens the host's tab, which no phone shows without
+it.
+
+**Give each code to whoever should have it.** They type it on the remote's Setup tab, which then
+says what that phone can do.
 
 Clearing or changing a code takes that level back from every phone that used it.
 

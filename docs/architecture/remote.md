@@ -546,7 +546,7 @@ this: `singers`, `register_singer`, `rename_singer`, `requests`, `request` and `
 singer with three counts, and the waiting requests. The pump publishes `sse::SINGERS` on
 `singers_changed` as it publishes `sse::REQUESTS`, and the fragment's `hx-trigger` names both. The
 queue column is the Queue tab's own `QueueBlock`, so the hub updates it. `Machine` has nine
-methods for the host, and each maps to one route at the control level.
+methods for the host, and each maps to one route at the host level.
 
 **`HostLists::kept` draws a card above the accepting switch.** It is `waiting_for_host` from
 `GET /requests`. The card has two buttons. `POST /host/continue` sends `Transport::Play`, and the
