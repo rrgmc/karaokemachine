@@ -392,7 +392,7 @@ cargo run -q -p km-pack -- build "$SHOT_DIR/favorites.kmspec.yaml" \
 # is deleted below, so bank 1 is always free to claim.
 #
 # **`room_access` is `queue`, so the phone pictures show the key and tempo**, which a guest at the
-# default `request` level does not see. The host's tab needs more than any room level gives, so the
+# `request` level does not see. The host's tab needs more than any room level gives, so the
 # run sets an admin password below and signs in with it.
 cat >"$MACHINE_DIR/settings.json" <<JSON
 {

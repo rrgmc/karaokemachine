@@ -347,10 +347,11 @@ then runs the scan, so a linked package in a scanned folder is installed or drop
 request. **`linked_packages.dir` has no route.** Whoever can edit the settings file sets the folder
 the machine reads from.
 
-**`settings_version` 6 has one step from 5.** `Settings::step_up` reads a stored
-`api.room_access` of `queue` as `request`, and `load` writes the file back. A file below
-`OLDEST_SETTINGS_VERSION` is set aside, as before. A file with no version is a new file and takes
-no step, so a hand-written `queue` stays `queue`.
+**`settings_version` 7 has two steps.** `Settings::step_up` reads a stored `api.room_access` of
+`queue` as `request` below 6, and then a `request` as `control` below 7. So a version 5 `queue`
+ends at `control`. `load` writes the file back. A file below `OLDEST_SETTINGS_VERSION` is set
+aside. A file with no version is a new file and takes no step, so a hand-written `request` stays
+`request`.
 
 **`singers` is a section of three keys, and one route writes all three.** `singers.name_required`
 and `singers.max_per_device` are what the owner asks of a singer who registers.

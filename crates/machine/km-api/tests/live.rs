@@ -420,7 +420,12 @@ async fn an_admin_route_is_refused_over_a_real_socket_even_from_loopback() {
 /// The level check answers on the wire as well: a room that can ask for a song cannot skip.
 #[tokio::test]
 async fn a_control_route_is_refused_over_a_real_socket_in_a_room_that_only_asks() {
-    let server = Server::start(ApiConfig::default().without_mdns()).await;
+    let server = Server::start(
+        ApiConfig::default()
+            .without_mdns()
+            .with_room_access(Access::Request),
+    )
+    .await;
     let response = server.raw("POST", "/api/v1/transport/skip", None).await;
     assert!(
         response.starts_with("HTTP/1.1 401"),
