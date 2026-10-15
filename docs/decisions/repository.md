@@ -712,6 +712,10 @@ a television screen and cannot lay out a title card. `tools/dev/promo/promo.html
 of the video from its time alone, and it cuts on the song's bar lines. So two runs on one machine
 give the same frames.
 
+**Its published copy is on YouTube, and the site's hero screenshot links to it.** The tree cannot
+carry the file, and a release asset downloads rather than plays. The page links to the video and
+does not embed it. A player is a request to another server, and the site makes none.
+
 ## Who the README is for
 
 **The README is the front page. The manual is for somebody who has the machine, and `BUILDING.md`
