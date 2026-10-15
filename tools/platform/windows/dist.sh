@@ -6,6 +6,7 @@
 #   tools/platform/windows/dist.sh --no-fetch   # skip the SoundFont step (it is already cached)
 #   tools/platform/windows/dist.sh --zip        # also produce the .zip beside the folder
 #   tools/platform/windows/dist.sh --no-video   # build without the `video` feature, and stage no DLLs
+#   tools/platform/windows/dist.sh --no-console # build and stage karaokemachine.exe without its twin
 #   tools/platform/windows/dist.sh -v           # watch the build; quiet is the default
 #
 # **Quiet by default.** The phases, the report at the end and every warning are printed; cargo's
@@ -61,11 +62,15 @@ TARGET="x86_64-pc-windows-msvc"
 FETCH=1
 ZIP=0
 VIDEO=1
+CONSOLE=1
 for arg in "$@"; do
   case "$arg" in
     --no-fetch) FETCH=0 ;;
     --zip) ZIP=1 ;;
     --no-video) VIDEO=0 ;;
+    # No release carrier holds the twin, and building it repeats the link-time optimization pass.
+    # Release CI declines it for that reason.
+    --no-console) CONSOLE=0 ;;
     # The build logs, which are quiet by default. A failure replays whatever was held back, so this
     # is for watching a build rather than for diagnosing one after the fact.
     -v|--verbose) DIST_VERBOSE=1 ;;
@@ -112,17 +117,23 @@ fi
 # that failed to say anything rather than as three that had nothing to report.
 dist_step build
 build_started=$SECONDS
+# The executables staged here: the machine, and its twin unless `--no-console` declined it. A named
+# `--bin` is what stops cargo building the declined one.
+EXES=(karaokemachine)
+if [ "$CONSOLE" -eq 1 ]; then EXES+=(karaokemachine-console); fi
+BINS=()
+for exe in "${EXES[@]}"; do BINS+=(--bin "$exe"); done
 # shellcheck disable=SC2046  # dist_cargo_quiet prints one flag or nothing at all
-cargo build --release --locked $(dist_cargo_quiet) -p karaokemachine "${FEATURES[@]+"${FEATURES[@]}"}"
+cargo build --release --locked $(dist_cargo_quiet) -p karaokemachine "${BINS[@]}" "${FEATURES[@]+"${FEATURES[@]}"}"
 printf '   built in %s\n' "$(dist_elapsed "$build_started")"
-# **Two executables, and both are checked for.** They are the same library under two subsystems --
+# **Each executable built is checked for.** They are the same library under two subsystems --
 # `karaokemachine` GUI, so a double-click opens the machine and no console beside it, and
 # `karaokemachine-console` not, so there is somewhere for `--help` and `--set-password` to print. See
 # the `The machine's console window` decision in docs/decisions/. Neither is behind a cargo feature, so
-# building the package builds the pair; a missing one is a real fault and not a configuration.
+# a missing one is a real fault and not a configuration.
 EXE="$(dist_target_dir)/release/karaokemachine.exe"
-TWIN="$(dist_target_dir)/release/karaokemachine-console.exe"
-for produced in "$EXE" "$TWIN"; do
+for exe in "${EXES[@]}"; do
+  produced="$(dist_target_dir)/release/$exe.exe"
   if [ ! -f "$produced" ]; then
     echo "dist: $produced was not produced" >&2
     exit 1
@@ -152,8 +163,9 @@ DEST="$PARENT/$NAME"
 
 dist_clear "$DEST"
 
-cp "$EXE" "$DEST/karaokemachine.exe"
-cp "$TWIN" "$DEST/karaokemachine-console.exe"
+for exe in "${EXES[@]}"; do
+  cp "$(dist_target_dir)/release/$exe.exe" "$DEST/$exe.exe"
+done
 
 # -- ffmpeg, for a video build ---------------------------------------------------------------------
 #
@@ -368,7 +380,11 @@ fi
 
 total="$(dist_bytes "$DEST")"
 printf 'staged %s\n' "$DEST"
-printf '  karaokemachine.exe %s   (+ karaokemachine-console.exe, for diagnosing)\n' "$VERSION"
+if [ "$CONSOLE" -eq 1 ]; then
+  printf '  karaokemachine.exe %s   (+ karaokemachine-console.exe, for diagnosing)\n' "$VERSION"
+else
+  printf '  karaokemachine.exe %s   (no console twin: --no-console)\n' "$VERSION"
+fi
 printf '  %s asset file(s)\n' "$assets"
 if [ "$VIDEO" -eq 1 ]; then
   printf '  %s ffmpeg DLL(s) + ffmpeg-LICENSE.txt\n' "$dlls"
@@ -387,18 +403,18 @@ printf '  %s bytes total (~%s MiB)\n' "$total" "$((total / 1024 / 1024))"
 # A plain build needs no such check: it links nothing that is not either static or already in
 # Windows.
 #
-# **Both executables, because a folder half of which works is the failure this is here to catch.**
+# **Every staged executable, because a folder half of which works is the failure this is here to catch.**
 # They link the same DLLs, so in practice they pass or fail together -- but "in practice" is what the
 # check exists to replace, and the loader searches the directory of the executable that was started,
 # which is a different directory question for each of the two.
 if [ "$VIDEO" -eq 1 ]; then
   echo
   ok=1
-  for exe in karaokemachine karaokemachine-console; do
+  for exe in "${EXES[@]}"; do
     ( cd "$DEST" && PATH="/c/Windows/System32:/c/Windows" "./$exe.exe" --show-paths >/dev/null 2>&1 ) || ok=0
   done
   if [ "$ok" -eq 1 ]; then
-    echo "verified: both executables start with no ffmpeg on PATH, so the folder is self-contained."
+    echo "verified: every staged executable starts with no ffmpeg on PATH, so the folder is self-contained."
   else
     echo "warning: a staged exe would not start with a bare PATH." >&2
     echo "         Something it links is missing from the folder; it will fail on another machine." >&2
@@ -422,4 +438,4 @@ if [ "$ZIP" -eq 1 ]; then
   dist_zip "$PARENT" "$NAME"
 fi
 
-echo "now:  cd $DEST && ./karaokemachine-console.exe --show-paths"
+echo "now:  cd $DEST && ./${EXES[-1]}.exe --show-paths"

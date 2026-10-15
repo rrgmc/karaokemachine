@@ -161,8 +161,20 @@ rpath `$ORIGIN/lib`, which is the machine's own `lib/`. `tools/dist/cmd.sh` is n
 because it links the host's ffmpeg and the host's glibc.
 
 **The Windows archive is built after the programs are signed.** `release.yml` signs
-`dist/bin/windows` and the console twins in `dist/bin-console/windows` in one request, then runs
+`dist/bin/windows` and the staged `km-remote.exe` in one request, then runs
 `portable.sh --no-build`. A zip has no signature of its own.
+
+**Release CI stages the Windows programs in four parallel jobs.** A hosted Windows runner has four
+cores, and each program ends in a link-time optimization pass that uses one of them. Ten such
+builds in sequence take 33 to 44 minutes. The `windows-build` matrix runs `dist.sh` for the machine
+and `cmd.sh` over three groups of tools, and uploads each `dist/` folder. The `windows` job lays
+them back out and runs `bin.sh --no-build`, then signs and packages them.
+
+**Release CI builds no console twin.** The setup programs leave the twins out, and the portable
+archive copies `dist/bin`, so no release carrier holds one. A twin repeats its program's
+link-time optimization pass. Measured outside CI, that pass takes 36 seconds for the machine and 50
+for `km-package-builder`. `--no-console` on `dist.sh`, `cmd.sh` and `bin.sh` names each program with
+`--bin` and stages no twin. `bin-console/` then holds the GUI forms, and no release step reads it.
 
 ### Where a wallpaper pack goes
 
