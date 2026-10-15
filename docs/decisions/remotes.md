@@ -2250,7 +2250,12 @@ with thousands of them.
 
 **A phone or a tablet running the machine has a Menu button at the top centre.** *Choose songs*
 shows the machine's own remote over the screen, and *Install a package* opens the system file
-browser. Back or *Close* hides the remote again. A television and a headset show no button.
+browser. *Set up the machine* shows the owner's setup page in the same place. Back or *Close* hides
+the page again. A television and a headset show no button.
+
+**_Set up the machine_ is there with the remote turned off.** The machine serves its setup page
+either way, and the page still asks for the machine's password. One view shows both pages, so
+opening the page already on it keeps its place.
 
 **The button stays out of what the machine draws.** The song's title fills the top left corner, and
 the key, the melody and the queue counter fill the top right. The open remote's own controls reach
@@ -2290,7 +2295,7 @@ package type, and the machine installs the chosen file as it installs a dropped 
 ## On Windows and macOS, the window has a Menu
 
 **Moving the mouse over the machine's window shows a Menu button at the top centre.** It is the
-phone's button in the same place, with the same two items. The button fades three seconds after the
+phone's button in the same place, with the same three items. The button fades three seconds after the
 mouse stops, and an open Menu stays until a click or `Escape` closes it. In fullscreen the cursor
 appears and fades with the button, because a button nobody can point at is no button.
 
@@ -2308,6 +2313,10 @@ already shows the page.
 **_Install a package_ opens the system file browser through SDL.** The browser offers `.kmpkg` only,
 and the song plays on while it is open. The chosen file joins the queue the iOS shell fills, and the
 machine installs it as it installs a dropped file.
+
+**_Set up the machine_ opens the setup page in the browser.** It is the remote's loopback address
+with `/admin` after it. The tray's *Setup* opens the same page, but only a streaming run has a tray.
+It is there with the remote turned off, because the setup page is served either way.
 
 **`display.window_menu` turns the button off, and it starts on.** The switch is on the owner's page,
 on the General pane, and takes effect at the next mouse movement. A machine sharing a desk with other
