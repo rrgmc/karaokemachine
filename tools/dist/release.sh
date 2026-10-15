@@ -30,8 +30,8 @@
 # not staged still stops the run.
 #
 # **The body names what the run gathered, plus what `--elsewhere` says is coming, so one run writes
-# the page.** The release workflow builds everything but the two `.pkg` files, and a Mac adds those
-# to the same draft. `--elsewhere macos` keeps their rows and their prose in the body, and the check
+# the page.** When the release workflow has no macOS signing secrets it builds everything but the
+# two `.pkg` files, and a Mac adds those to the same draft. `--elsewhere macos` keeps their rows and their prose in the body, and the check
 # that every row names an asset accepts a row of an elsewhere platform as one still to come.
 #
 # **`--add` is the second machine's half.** It gathers the named platforms through the same table,
@@ -40,7 +40,7 @@
 # and when there is no draft yet it uploads nothing and names the command to run once there is. The
 # decisions are
 # `A release page carries the platforms the machine cutting it can build` and
-# `CI builds the release, and a Mac adds its packages` in docs/decisions/distribution.md.
+# `CI builds every release carrier, and a Mac can add the macOS packages` in docs/decisions/distribution.md.
 #
 # **The table is the point of the file.** A release name is written down once, here, and the copy
 # into `dist/release/<version>/` happens before anything is uploaded -- so the folder can be read,

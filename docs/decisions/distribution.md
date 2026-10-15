@@ -1337,7 +1337,8 @@ it in a marked name. The cost is up to three packages per version in `dist/`, ab
 them is a secret, not because they are cheap to replace.** The two identity strings
 are certificate common names. `pkgutil --check-signature` prints them from any package signed with
 them. `KM_NOTARY_PROFILE` is the label of a keychain profile. Its Apple ID and app-specific password
-never leave the data-protection keychain.
+live in the keychain on a Mac and in the repository's secrets for the release workflow. No tracked
+file holds them.
 
 What they *do* carry is a person's name. *Published identity* in `What a committed file may say
 about the machine it was written on` answers that, rather than this row. An environment variable
@@ -2780,8 +2781,8 @@ that names none carries all nineteen, which is the full release and the default.
 produced on a Mac, and the four arm64 carriers on an arm64 Docker host. So a machine that is
 neither has eight carriers it cannot stage, and a refusal it can do nothing about. Holding a
 release until every platform can be built on one computer waits on hardware rather than on the software being ready. The release workflow names its
-platforms the same way, leaving the two `.pkg` files to a Mac; see
-[`CI builds the release, and a Mac adds its packages`](#ci-builds-the-release-and-a-mac-adds-its-packages).
+platforms the same way. Without signing secrets it leaves the two `.pkg` files to a Mac; see
+[`CI builds every release carrier, and a Mac can add the macOS packages`](#ci-builds-every-release-carrier-and-a-mac-can-add-the-macos-packages).
 
 **A platform that is named and not staged still stops the run.** That refusal is what makes a
 gathering step worth having, so `--platforms` narrows what is asked for rather than softening the
@@ -2807,25 +2808,35 @@ accepts one of theirs as still to come. The other machine runs `release.sh --add
 touching its body. A second run *without* `--add` rewrites the body to its own platforms and takes
 the rows the first one wrote with it.
 
-## CI builds the release, and a Mac adds its packages
+## CI builds every release carrier, and a Mac can add the macOS packages
 
-**A pushed `v*` tag runs `.github/workflows/release.yml`, which builds seventeen of the nineteen carriers
-and fills the draft release.** Each platform's job runs the same staging script a person types, and
+**A pushed `v*` tag runs `.github/workflows/release.yml`, which builds all nineteen carriers and
+fills the draft release.** Each platform's job runs the same staging script a person types, and
 a last job runs `bash tools/dist/release.sh --upload` over what they staged. Publishing stays
 `gh release edit v<version> --draft=false`, typed by somebody who has opened the page.
 
-**The runners build Windows, Linux, Android, Meta Quest and iOS.** A public repository's standard runners cost
-nothing, so they carry every platform whose build needs no Apple account. That takes one set of
-secrets, the Android release keystore. The SignPath token that
+**The runners build Windows, macOS, Linux, Android, Meta Quest and iOS.** A public repository's
+standard runners cost nothing, so a release needs no machine of the owner's. The Android release
+keystore is one set of secrets. The SignPath token that
 [`Signing a Windows release`](#signing-a-windows-release) reads is optional and is not set.
 
-**Every release's two macOS packages are built on a Mac, and added to the same draft.** They are
-published notarized or not at all, and notarizing takes two Developer ID certificates and an Apple
-account, which stay on the Mac rather than in the repository's secrets. So the workflow runs
-`release.sh --platforms windows,linux,linux-arm64,android,quest,ios --elsewhere macos`: the page
+**The two macOS packages are built on a runner when the macOS signing secrets are set.** They are
+published notarized or not at all. Notarizing takes the Developer ID Application and Installer
+identities, as one `.p12`, and an Apple ID with an app-specific password. The job imports them into
+a keychain it makes for itself and deletes when it ends. It runs the same
+`installer.sh --notarize` a Mac runs. `KM_NOTARY_KEYCHAIN` tells `pkg_notarize` which keychain holds
+the notarytool profile.
+
+**Without those secrets the job warns and builds nothing, and a Mac adds the packages.** A package
+Gatekeeper refuses is worse than no package, so there is no unsigned fallback. The workflow then runs
+`release.sh --platforms windows,linux,linux-arm64,android,quest,ios --elsewhere macos`. The page
 names the packages from its first draft, and the Mac adds them with
 `bash tools/dist/release.sh --add --platforms macos`, which `task release:macos` runs after building
-both. The draft is published once both halves are on it.
+both. **Some of the secrets without the rest stop the job**, because that is a mistake rather than a
+choice.
+
+**A Mac can always build and add the notarized packages.** `--add` replaces an asset of the same name
+on the draft, so a package built on the desk also replaces one that CI uploaded.
 
 **The Mac builds from the tag or uploads nothing.** `--add` refuses a checkout that is not at the
 version's tag, or that changes a tracked file, because a package built from a later commit would sit

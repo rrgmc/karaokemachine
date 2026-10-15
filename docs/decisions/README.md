@@ -506,7 +506,7 @@ it are the same entry. How the thing is built is [`ARCHITECTURE.md`](../ARCHITEC
 - [What a release page says, and to whom](distribution.md#what-a-release-page-says-and-to-whom)
 - [An asset's name says which system it is for](distribution.md#an-assets-name-says-which-system-it-is-for)
 - [A release page carries the platforms the machine cutting it can build](distribution.md#a-release-page-carries-the-platforms-the-machine-cutting-it-can-build)
-- [CI builds the release, and a Mac adds its packages](distribution.md#ci-builds-the-release-and-a-mac-adds-its-packages)
+- [CI builds every release carrier, and a Mac can add the macOS packages](distribution.md#ci-builds-every-release-carrier-and-a-mac-can-add-the-macos-packages)
 
 ## [The repository itself](repository.md)
 

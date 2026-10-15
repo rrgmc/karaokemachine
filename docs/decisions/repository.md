@@ -1585,7 +1585,7 @@ found in a release.
 **The video build runs on Linux, in `debian:13-slim`**, the base the appliance and the `.deb` are
 built on. So it compiles against the ffmpeg they link. Android and iOS are not built on a pull
 request. The release workflow builds them from a tag, as
-[`CI builds the release, and a Mac adds its packages`](distribution.md#ci-builds-the-release-and-a-mac-adds-its-packages)
+[`CI builds every release carrier, and a Mac can add the macOS packages`](distribution.md#ci-builds-every-release-carrier-and-a-mac-can-add-the-macos-packages)
 says.
 
 ## A vulnerability is reported privately, through GitHub
