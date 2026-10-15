@@ -81,6 +81,10 @@ jobs:
   #
   # The parts are balanced by measured build time. The machine is the longest single build, so it
   # runs alone. `km-admin` and `km-wallpaper-pack` share the second workspace, so they share a part.
+  #
+  # **`--no-console` builds no console twin.** No release carrier holds one: the setup programs leave
+  # them out, and the portable archive copies `dist/bin`. Each twin repeats its program's link-time
+  # optimization pass.
   windows-build:
     needs: tag
     runs-on: windows-latest
@@ -89,13 +93,13 @@ jobs:
       matrix:
         include:
           - part: machine
-            stage: tools/platform/windows/dist.sh
+            stage: tools/platform/windows/dist.sh --no-console
           - part: tools
-            stage: tools/dist/cmd.sh km-pack km-lyrics km-site-pack km-package-builder
+            stage: tools/dist/cmd.sh --no-console km-pack km-lyrics km-site-pack km-package-builder
           - part: remote
-            stage: tools/dist/cmd.sh km-package-simple km-song-sync km-remote
+            stage: tools/dist/cmd.sh --no-console km-package-simple km-song-sync km-remote
           - part: assets
-            stage: tools/dist/cmd.sh km-admin km-wallpaper-pack
+            stage: tools/dist/cmd.sh --no-console km-admin km-wallpaper-pack
     defaults:
       run:
         shell: bash
@@ -196,7 +200,6 @@ jobs:
           name: windows-payload-unsigned
           path: |
             dist/bin/windows/*.exe
-            dist/bin-console/windows/*-console.exe
             dist/km-remote/windows/km-remote-*/km-remote.exe
           if-no-files-found: error
           retention-days: 1

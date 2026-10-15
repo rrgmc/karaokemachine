@@ -7,6 +7,7 @@
 #   tools/dist/bin.sh --zip            # also produce a versioned .zip of each folder
 #   tools/dist/bin.sh --no-video       # the smaller build, throughout
 #   tools/dist/bin.sh --no-desktop     # km-package-builder and km-remote without their windows
+#   tools/dist/bin.sh --no-console     # no Windows console twins; bin-console/ holds the GUI forms
 #   tools/dist/bin.sh -v               # watch the builds; quiet is the default
 #
 #   dist/bin/<platform>/           the GUI form of anything that has one, the plain form of the rest
@@ -157,18 +158,22 @@ SUPPORT_DIRS=(assets lib share LICENSES)
 ZIP=0
 VIDEO=1
 DESKTOP=1
+CONSOLE=1
 BUILD=1
 for arg in "$@"; do
   case "$arg" in
     --zip) ZIP=1 ;;
     --no-video) VIDEO=0 ;;
     --no-desktop) DESKTOP=0 ;;
+    # No release carrier holds a console twin, and each one repeats a link-time optimization pass.
+    # Without twins, every program is single-form and goes to both folders.
+    --no-console) CONSOLE=0 ;;
     # Gather what is already there. The fast path while working on this script, and the honest answer
     # for somebody who has just run `task dist` and does not want six release builds again.
     --no-build) BUILD=0 ;;
     -v|--verbose) DIST_VERBOSE=1 ;;
     -h|--help)
-      echo "usage: tools/dist/bin.sh [--no-build] [--no-video] [--no-desktop] [--zip] [-v]"
+      echo "usage: tools/dist/bin.sh [--no-build] [--no-video] [--no-desktop] [--no-console] [--zip] [-v]"
       exit 0
       ;;
     *) echo "dist-bin: unknown option $arg" >&2; exit 2 ;;
@@ -216,8 +221,11 @@ if dist_verbose; then FLAGS+=(--verbose); fi
 
 if [ "$BUILD" -eq 1 ]; then
   dist_step "staging (this is where the minutes go)"
+  # `--no-console` goes to the Windows script alone, because only Windows stages a twin.
+  MACHINE_FLAGS=("${FLAGS[@]+"${FLAGS[@]}"}")
+  if [ "$CONSOLE" -ne 1 ]; then MACHINE_FLAGS+=(--no-console); fi
   case "$PLATFORM" in
-    windows) tools/platform/windows/dist.sh "${FLAGS[@]+"${FLAGS[@]}"}" ;;
+    windows) tools/platform/windows/dist.sh "${MACHINE_FLAGS[@]+"${MACHINE_FLAGS[@]}"}" ;;
     macos)   tools/platform/macos/app-bundle.sh "${FLAGS[@]+"${FLAGS[@]}"}" ;;
     linux)   tools/platform/linux/tarball.sh "${FLAGS[@]+"${FLAGS[@]}"}" ;;
     *)       echo "dist-bin: no staging script for $PLATFORM" >&2; exit 1 ;;
@@ -226,6 +234,7 @@ if [ "$BUILD" -eq 1 ]; then
   # the machine's staging scripts would exit 2 on an option they do not know.
   TOOL_FLAGS=("${FLAGS[@]+"${FLAGS[@]}"}")
   if [ "$DESKTOP" -ne 1 ]; then TOOL_FLAGS+=(--no-desktop); fi
+  if [ "$CONSOLE" -ne 1 ]; then TOOL_FLAGS+=(--no-console); fi
   tools/dist/cmd.sh "${TOOL_FLAGS[@]+"${TOOL_FLAGS[@]}"}"
   echo
 fi

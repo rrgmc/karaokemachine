@@ -6,6 +6,7 @@
 #   tools/dist/cmd.sh km-pack            # just one, or any subset
 #   tools/dist/cmd.sh --zip              # also produce a .zip beside each folder
 #   tools/dist/cmd.sh --no-video         # build the video-capable tools without the `video` feature
+#   tools/dist/cmd.sh --no-console       # build no Windows console twin, only each tool's own program
 #   tools/dist/cmd.sh -v                 # watch the builds; quiet is the default
 #
 # **Quiet by default**, and this is the script it matters most in: with no arguments it runs
@@ -213,6 +214,7 @@ tool_exe() { # <tool> <exe extension>  -> prints where cargo will have put it
 ZIP=0
 VIDEO=1
 DESKTOP=1
+CONSOLE=1
 TOOLS=()
 for arg in "$@"; do
   case "$arg" in
@@ -222,6 +224,9 @@ for arg in "$@"; do
     # tool it has always been. Nothing else has one. Named on the declined build below, as
     # `-no-video` is, because the plain name should name what the plain command produces.
     --no-desktop) DESKTOP=0 ;;
+    # Builds and stages each tool's own executable without its Windows console twin. No release
+    # carrier holds a twin, and building one repeats the link-time optimization pass.
+    --no-console) CONSOLE=0 ;;
     # The build logs, which are quiet by default. This one matters most here: a run with no arguments
     # builds six tools, so it is six cargo compile streams that are being held back rather than one.
     # A failure replays whatever was suppressed, so `-v` is for watching rather than diagnosing.
@@ -1382,10 +1387,14 @@ for tool in "${TOOLS[@]}"; do
 
   dist_step "build $tool"
   build_started=$SECONDS
+  # `--no-console` names the tool's own executable, which is what stops cargo building its twin.
+  BINS=()
+  if [ "$CONSOLE" -eq 0 ]; then BINS=(--bin "$tool"); fi
   # Word-split on purpose: `tool_build_args` prints either `-p <name>` or `--manifest-path <path>`,
   # and `dist_cargo_quiet` prints one flag or nothing at all.
   # shellcheck disable=SC2046
-  cargo build --release --locked $(dist_cargo_quiet) $(tool_build_args "$tool") "${FEATURES[@]+"${FEATURES[@]}"}"
+  cargo build --release --locked $(dist_cargo_quiet) $(tool_build_args "$tool") \
+    "${BINS[@]+"${BINS[@]}"}" "${FEATURES[@]+"${FEATURES[@]}"}"
   # Per tool rather than once at the end, and this is the loop that most needs it: six quiet builds
   # in a row is otherwise several silent minutes with nothing saying which one is running.
   printf '   built in %s\n' "$(dist_elapsed "$build_started")"
@@ -1415,7 +1424,7 @@ for tool in "${TOOLS[@]}"; do
   # still prints to a Terminal that started it and a twin would be a second identical program. Linux
   # never has the feature at all, so the question does not arise.
   twin=0
-  if [ "$desktop" -eq 1 ] && [ "$PLATFORM" = "windows" ]; then
+  if [ "$desktop" -eq 1 ] && [ "$PLATFORM" = "windows" ] && [ "$CONSOLE" -eq 1 ]; then
     TWIN="$(tool_exe "$tool-console" "$EXT")"
     if [ ! -f "$TWIN" ]; then
       echo "dist-tools: $TWIN was not produced" >&2
@@ -1533,13 +1542,15 @@ for tool in "${TOOLS[@]}"; do
   # has a standard output when a shell gave it a pipe, and a build that got that wrong would print
   # nothing here while working perfectly when double-clicked. km-remote is the first tool to
   # reach this arm: it has a window but stages no libraries, so before this it was checked by nothing.
-  if [ "$dlls" -eq 0 ] && [ "$dylibs" -eq 0 ] && [ "$twin" -eq 1 ]; then
+  if [ "$dlls" -eq 0 ] && [ "$dylibs" -eq 0 ] && [ "$desktop" -eq 1 ] && [ "$PLATFORM" = "windows" ]; then
     ok=1
-    for exe in "$tool" "$tool-console"; do
+    exes=("$tool")
+    if [ "$twin" -eq 1 ]; then exes+=("$tool-console"); fi
+    for exe in "${exes[@]}"; do
       ( cd "$DEST" && "./$exe$EXT" --version >/dev/null 2>&1 ) || ok=0
     done
     if [ "$ok" -eq 1 ]; then
-      echo "  verified: both executables start and answer --version."
+      echo "  verified: every staged executable starts and answers --version."
     else
       echo "dist-tools: a staged $tool executable would not answer --version." >&2
       echo "            A GUI-subsystem build that cannot print breaks dist_version too." >&2
@@ -1673,7 +1684,7 @@ for d in "${staged[@]}"; do
       # which from a prompt reads as a program that failed. Where there is no twin the plain name is
       # already the one that prints.
       exe="km-package-builder"
-      if [ "$DESKTOP" -eq 1 ] && [ "$PLATFORM" = "windows" ]; then
+      if [ "$DESKTOP" -eq 1 ] && [ "$PLATFORM" = "windows" ] && [ "$CONSOLE" -eq 1 ]; then
         exe="km-package-builder-console"
       fi
       printf '    cd %s && ./%s%s <your karaoke folder> --init --scan --open\n' "$d" "$exe" "$EXT"
@@ -1707,7 +1718,7 @@ for d in "${staged[@]}"; do
       exe="km-remote"
       open=" --open"
       if desktop_capable km-remote && [ "$DESKTOP" -eq 1 ]; then
-        if [ "$PLATFORM" = "windows" ]; then
+        if [ "$PLATFORM" = "windows" ] && [ "$CONSOLE" -eq 1 ]; then
           exe="km-remote-console"
         else
           open=""
@@ -1721,7 +1732,7 @@ for d in "${staged[@]}"; do
       exe="km-admin"
       open=" --open"
       if desktop_capable km-admin && [ "$DESKTOP" -eq 1 ]; then
-        if [ "$PLATFORM" = "windows" ]; then
+        if [ "$PLATFORM" = "windows" ] && [ "$CONSOLE" -eq 1 ]; then
           exe="km-admin-console"
         else
           open=""
@@ -1734,7 +1745,7 @@ for d in "${staged[@]}"; do
       exe="km-package-simple"
       open=" --open"
       if desktop_capable km-package-simple && [ "$DESKTOP" -eq 1 ]; then
-        if [ "$PLATFORM" = "windows" ]; then
+        if [ "$PLATFORM" = "windows" ] && [ "$CONSOLE" -eq 1 ]; then
           exe="km-package-simple-console"
         else
           open=""
@@ -1746,7 +1757,7 @@ for d in "${staged[@]}"; do
       exe="km-song-sync"
       open=" --open"
       if desktop_capable km-song-sync && [ "$DESKTOP" -eq 1 ]; then
-        if [ "$PLATFORM" = "windows" ]; then
+        if [ "$PLATFORM" = "windows" ] && [ "$CONSOLE" -eq 1 ]; then
           exe="km-song-sync-console"
         else
           open=""
