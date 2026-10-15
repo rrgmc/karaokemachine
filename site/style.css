@@ -237,6 +237,9 @@ a:hover { text-decoration-color: var(--amber); }
 /* The headset picture sits under a title of its own, at the gap a gallery takes under one. */
 .shot-headset { margin-top: 1.5rem; }
 
+/* The host's tab is a tablet capture inside the public-night band, as wide as the band's text. */
+.shot-host { max-width: 44rem; margin: 1.8rem 0; }
+
 /* km-package-builder's is a dense table of small text. Scaled to fit a phone it is a gray smear, so
    below its natural width it becomes pannable inside its own figure instead — the reader drags it,
    which is what you do with a wide table on a phone anyway. `.table-scroll` does the same for the
