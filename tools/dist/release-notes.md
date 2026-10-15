@@ -20,16 +20,8 @@ the portable copies and the remote on its own.
 
 ## What changed
 
-- **The machine on an iPhone, an iPad, Windows or macOS has a Menu.** **Choose songs** opens the
-  remote while the song plays on, and **Install a package** opens the file browser.
-- **The Menu opens the setup page**, on Android too. **Set up the machine** is there even with the
-  remote turned off.
-- **`C` shows or hides the mouse pointer.** The machine remembers the choice for a window and for
-  full screen.
-- **A guest's phone is a full remote by default.** It asks for songs, queues them, skips, and
-  changes the key and the tempo. Only the admin password changes the settings.
-- **The recommended instrument bank downloads from this project's own release page**, so a new
-  version from its publisher does not stop the download.
+- **The host's tab needs its own code.** A guest's phone skips and plays now, and does not show
+  the host's tab. The Access pane has a third code for the host, who types it on the Setup tab.
 
 ## Every file
 

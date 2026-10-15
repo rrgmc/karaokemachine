@@ -11,6 +11,8 @@ Entries are written for somebody who has the machine. Why any of it is the way i
 
 ## [Unreleased]
 
+## [1.24.2] - 2026-10-15
+
 ### Changed
 
 - **The host's tab needs its own code.** A guest's phone skips and plays now, and does not show the
