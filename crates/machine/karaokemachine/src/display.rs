@@ -376,6 +376,12 @@ const WINDOW_STACKS: bool = !cfg!(any(target_os = "android", target_os = "ios"))
 /// and the appliance has no mouse to move. Android and iOS draw their own Menu in the shell.
 pub(crate) const WINDOW_MENU: bool = cfg!(any(target_os = "windows", target_os = "macos"));
 
+/// Whether there is a mouse pointer for `C` to hide.
+///
+/// Every desktop, Linux included: an appliance with a mouse plugged in has a pointer over the
+/// lyrics as much as a desktop does. Android and iOS draw none.
+const POINTER: bool = !cfg!(any(target_os = "android", target_os = "ios"));
+
 /// How long an install report stays on screen after it finishes.
 ///
 /// Long enough to look up from a file manager and read one line. It has to outlast the install's own
@@ -1436,6 +1442,11 @@ pub struct DisplayConfig {
     /// No `remember_` counterpart, because no flag sets this: the write-back at close is
     /// unconditional wherever the window stacks at all. See [`always_on_top_to_remember`].
     pub always_on_top: bool,
+    /// Whether the mouse pointer shows in a window. `C` toggles it there, and the close writes it
+    /// back.
+    pub cursor_windowed: bool,
+    /// Whether the mouse pointer shows in fullscreen. `C` toggles it there.
+    pub cursor_fullscreen: bool,
     /// Where the window goes when it is not fullscreen, and where it came back to last time.
     ///
     /// Written back at close whenever the window closed in a window, on any run. See
@@ -1968,6 +1979,10 @@ fn run_with(
     let mut menu_until: Option<Instant> = None;
     let mut menu_open = false;
     let mut pointer: Option<(f32, f32)> = None;
+    // Whether the mouse pointer shows in a window and in fullscreen. `C` flips the one for the mode
+    // the window is in. Written back at close, as `T` is.
+    let mut cursor_windowed = config.cursor_windowed;
+    let mut cursor_fullscreen = config.cursor_fullscreen;
     // Whether the file browser *Install a package* opened is still up, so a second click does not
     // open a second one. Shared with SDL's callback, which runs on a thread of its own on Windows.
     let choosing = Arc::new(AtomicBool::new(false));
@@ -2138,6 +2153,7 @@ fn run_with(
                                 // parity the key was let go on, which is most often the one it
                                 // started from — a key that looks broken.
                                 | DisplayAction::ToggleAlwaysOnTop
+                                | DisplayAction::ToggleCursor
                                 | DisplayAction::ToggleStripPin
                                 | DisplayAction::Escape
                                 | DisplayAction::Back
@@ -2212,6 +2228,28 @@ fn run_with(
                                 apply_always_on_top(&mut canvas, !on);
                             } else {
                                 tracing::debug!("this build has no window stack to climb");
+                            }
+                            continue;
+                        }
+                        // The pointer itself is shown or hidden once a frame, below, where the
+                        // Menu is weighed with it. `C` flips the switch for the mode the window is
+                        // in, so a window and a fullscreen machine each keep their own answer.
+                        DisplayAction::ToggleCursor => {
+                            if POINTER {
+                                let fullscreen = is_fullscreen(&canvas);
+                                let shown = if fullscreen {
+                                    &mut cursor_fullscreen
+                                } else {
+                                    &mut cursor_windowed
+                                };
+                                *shown = !*shown;
+                                tracing::debug!(
+                                    fullscreen,
+                                    shown = *shown,
+                                    "the mouse pointer was switched"
+                                );
+                            } else {
+                                tracing::debug!("this build has no mouse pointer to hide");
                             }
                             continue;
                         }
@@ -2523,18 +2561,26 @@ fn run_with(
             flash = None;
         }
 
-        // -- the window's Menu --------------------------------------------------------------------
+        // -- the window's Menu, and the pointer ---------------------------------------------------
         //
-        // A switch turned off while the button is up takes it down at once. The cursor follows the
-        // button in fullscreen, where it is otherwise hidden: a Menu nobody can point at is no Menu.
-        if WINDOW_MENU {
-            if menu_shown(menu_open, menu_until, Instant::now()) && !machine.window_menu() {
-                menu_open = false;
-                menu_until = None;
-            }
+        // A switch turned off while the button is up takes it down at once.
+        if WINDOW_MENU
+            && menu_shown(menu_open, menu_until, Instant::now())
+            && !machine.window_menu()
+        {
+            menu_open = false;
+            menu_until = None;
+        }
+        // The pointer follows the switch for the mode the window is in, and shows while the Menu
+        // is up whatever that says, because a Menu nobody can point at is no Menu.
+        if POINTER {
             let mouse = sdl.mouse();
-            let cursor =
-                !is_fullscreen(&canvas) || menu_shown(menu_open, menu_until, Instant::now());
+            let switch = if is_fullscreen(&canvas) {
+                cursor_fullscreen
+            } else {
+                cursor_windowed
+            };
+            let cursor = cursor_shown(switch, menu_shown(menu_open, menu_until, Instant::now()));
             if mouse.is_cursor_showing() != cursor {
                 mouse.show_cursor(cursor);
             }
@@ -3196,6 +3242,10 @@ fn run_with(
     if let Some(state) = always_on_top_to_remember(|| is_always_on_top(&canvas)) {
         machine.remember_always_on_top(state);
     }
+    // And where `C` left the pointer, in each mode. Only where there is a pointer to show.
+    if POINTER {
+        machine.remember_cursor(cursor_windowed, cursor_fullscreen);
+    }
     // And where the window was, when it closed in a window. Read once more here, for a drag whose
     // last move event never reached the loop.
     if let Some(rect) = plain_window_rect(&canvas) {
@@ -3246,6 +3296,14 @@ fn before(until: Option<Instant>, now: Instant) -> bool {
 /// and a list that vanished under the pointer would take the click with it.
 fn menu_shown(open: bool, until: Option<Instant>, now: Instant) -> bool {
     open || before(until, now)
+}
+
+/// Whether the mouse pointer shows over the window this frame.
+///
+/// `switch` is the setting for the mode the window is in. The Menu brings a hidden pointer back
+/// while it is up.
+fn cursor_shown(switch: bool, menu: bool) -> bool {
+    switch || menu
 }
 
 /// Opens the system file browser for a `.kmpkg`, from the Menu's *Install a package*.
@@ -3696,7 +3754,8 @@ fn handle(
         }
         DisplayAction::Escape
         | DisplayAction::ToggleFullscreen
-        | DisplayAction::ToggleAlwaysOnTop => {
+        | DisplayAction::ToggleAlwaysOnTop
+        | DisplayAction::ToggleCursor => {
             // Intercepted in the event loop, where the window is. Unreachable here, and arms
             // rather than a catch-all so adding an action stays a compile error.
         }
@@ -3946,6 +4005,22 @@ pub fn catalog_is_empty(machine: &Machine) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_pointer_follows_its_switch_and_comes_back_with_the_menu() {
+        assert!(cursor_shown(true, false), "a switch that is on shows it");
+        assert!(!cursor_shown(false, false), "a switch that is off hides it");
+        assert!(cursor_shown(false, true), "the Menu brings it back");
+    }
+
+    #[test]
+    fn an_open_menu_stays_and_a_closed_one_fades() {
+        let now = Instant::now();
+        let gone = Some(now - Duration::from_secs(1));
+        assert!(menu_shown(true, gone, now));
+        assert!(!menu_shown(false, gone, now));
+        assert!(menu_shown(false, Some(now + MENU_LINGER), now));
+    }
 
     /// One press asks and changes nothing. The same key again, in time, is the answer.
     #[test]

@@ -20,6 +20,8 @@ Entries are written for somebody who has the machine. Why any of it is the way i
   appears at the top. **Choose songs** opens the remote in the browser, and **Install a package**
   opens the file browser while the song plays on. *Show the Menu when the mouse moves*, on the
   General pane of the setup page, turns it off.
+- **`C` shows or hides the mouse pointer.** A window shows it and full screen hides it, and `C`
+  changes the one you are in. The machine remembers both.
 
 ### Changed
 

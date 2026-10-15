@@ -2312,6 +2312,8 @@ machine installs it as it installs a dropped file.
 **`display.window_menu` turns the button off, and it starts on.** The switch is on the owner's page,
 on the General pane, and takes effect at the next mouse movement. A machine sharing a desk with other
 work may not want a button appearing over the song. `F11` and a dropped file still work with it off.
+With it off, a pointer hidden with
+[`C`](interface.md#c-shows-or-hides-the-mouse-pointer-in-the-mode-the-window-is-in) stays hidden.
 
 **Linux shows no button.** The machine cannot tell a Linux desktop from the appliance, and the
 appliance has no mouse. That is the reason

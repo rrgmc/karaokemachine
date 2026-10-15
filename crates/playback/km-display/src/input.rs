@@ -194,6 +194,11 @@ pub enum DisplayAction {
     /// this crate never learns whether it took. Where there are no windows there is nothing to
     /// raise, and the caller is the only place that knows.
     ToggleAlwaysOnTop,
+    /// Show or hide the mouse pointer, in the mode the window is in. `C`.
+    ///
+    /// A window shows the pointer and fullscreen hides it until this is pressed there. A window
+    /// property like [`Self::ToggleAlwaysOnTop`], so the caller applies it.
+    ToggleCursor,
     /// Hold the transport strip on screen, or give it back its timer.
     ///
     /// `Ctrl+F12`, beside the frame meter: `F12` draws the diagnostic panel and `Ctrl+F12` stops
@@ -440,6 +445,8 @@ pub fn action_for(key: Keycode, ctrl: bool) -> Option<DisplayAction> {
         // Beside `F`, because the two are the same question about the same window: how much of the
         // screen the machine takes, and whether it stays in front of what else is on it.
         K::T => DisplayAction::ToggleAlwaysOnTop,
+        // The third question about the same window: whether the pointer shows over it.
+        K::C => DisplayAction::ToggleCursor,
         K::D => DisplayAction::ToggleDemo,
 
         K::Escape => DisplayAction::Escape,
@@ -764,7 +771,12 @@ mod tests {
             action_for(Keycode::T, false),
             Some(DisplayAction::ToggleAlwaysOnTop)
         );
+        assert_eq!(
+            action_for(Keycode::C, false),
+            Some(DisplayAction::ToggleCursor)
+        );
         assert!(transport_command_for(Keycode::T).is_none());
+        assert!(transport_command_for(Keycode::C).is_none());
     }
 
     /// The whole reason quit is spelled with a modifier: `Q` was already the queue, is in the

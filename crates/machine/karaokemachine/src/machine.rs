@@ -1861,6 +1861,23 @@ impl Machine {
         self.save_settings();
     }
 
+    /// Writes back whether the mouse pointer shows in a window and in fullscreen.
+    ///
+    /// The rules of [`Self::remember_always_on_top`]: nothing is written when nothing changed.
+    pub fn remember_cursor(&self, windowed: bool, fullscreen: bool) {
+        {
+            let mut settings = self.lock_settings();
+            let display = &mut settings.display;
+            if display.cursor_windowed == windowed && display.cursor_fullscreen == fullscreen {
+                return;
+            }
+            display.cursor_windowed = windowed;
+            display.cursor_fullscreen = fullscreen;
+        }
+        tracing::info!(windowed, fullscreen, "remembering where the pointer shows");
+        self.save_settings();
+    }
+
     /// Writes back where the window was and how large, so the next start opens it there.
     ///
     /// The caller passes a rect only when the window closed in a window; one closed fullscreen

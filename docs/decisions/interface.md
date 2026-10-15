@@ -85,6 +85,21 @@ An appliance has no window to raise, so the case that argument protects cannot a
 **No setup program pre-writes it.** An installed machine is the television, which is the one case
 that does not want it.
 
+## `C` shows or hides the mouse pointer, in the mode the window is in
+
+**A window shows the pointer and fullscreen hides it, and `C` flips the mode the window is in.**
+`display.cursor_windowed` starts on and `display.cursor_fullscreen` starts off. A window on a desk
+wants a pointer, and a machine under a television does not. One switch for both would be wrong for
+one of them, and `C` in fullscreen would then change nothing anybody could see.
+
+**The Menu brings a hidden pointer back while it is up.** A button nobody can point at is no button.
+A machine whose mouse gets knocked turns the Menu off on the owner's page, and then the pointer stays
+hidden.
+
+**A letter beside `F` and `T`**, for their reason: it is the third question about the same window.
+Both switches are written back when the display closes, on the rules `T` follows. Android and iOS
+draw no pointer, so they neither read the key nor write the settings.
+
 ## The window opens where it was left
 
 **A machine closed in a window opens at the same size and in the same place.** `display.width`,

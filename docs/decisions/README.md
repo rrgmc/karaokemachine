@@ -379,6 +379,7 @@ it are the same entry. How the thing is built is [`ARCHITECTURE.md`](../ARCHITEC
 - [Windowed mode](interface.md#windowed-mode)
 - [The setup programs pre-write a settings file](distribution.md#the-setup-programs-pre-write-a-settings-file)
 - [The window can be told to stay in front](interface.md#the-window-can-be-told-to-stay-in-front)
+- [`C` shows or hides the mouse pointer, in the mode the window is in](interface.md#c-shows-or-hides-the-mouse-pointer-in-the-mode-the-window-is-in)
 - [The window opens where it was left](interface.md#the-window-opens-where-it-was-left)
 - [Application icon](interface.md#application-icon)
 - [A badge says how the machine was started](interface.md#a-badge-says-how-the-machine-was-started)
