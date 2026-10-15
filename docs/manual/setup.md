@@ -45,12 +45,14 @@ choose that level:
 | Room level | A phone with no code can |
 |---|---|
 | Watch only | Browse the songs and see the queue and what is playing. |
-| Ask for songs | Also ask for a song. The song takes its place by the queue order on the **Singers** card. This is the default. |
+| Ask for songs | Also ask for a song. The song takes its place by the queue order on the **Singers** card. |
 | Ask for songs, add a song out of turn, and change key and tempo | Also add a song with no singer, which takes no turn. Also change the key, tempo, volume and guide melody. |
-| All of that, skip and play now | Also skip, play a song now, use the other transport buttons, and move or remove anybody's song. |
+| All of that, skip and play now | Also skip, play a song now, use the other transport buttons, and move or remove anybody's song. This is the default. |
 
-**At the default level a guest cannot change the key or the tempo.** That keeps one guest's phone
-off another singer's song. Choose the third level if you want every guest to have those controls.
+**At the default level every guest's phone is a full remote.** That suits a home, where everybody
+in the room is trusted. Only the admin password changes the machine's settings. At a party of
+strangers, choose *Ask for songs*: then a guest cannot skip, or change the key or the tempo of
+another singer's song. [Running it at a venue](venue.md) gives the rest.
 
 **Two codes raise one phone at a time above the room level.** Both are on the **Who may do what**
 card of the Access pane. The first adds a song with no singer and changes key and tempo. The second

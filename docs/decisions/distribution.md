@@ -754,11 +754,11 @@ edited. So `data/karaokemachine/settings.example.json` holds the settings people
 the folder's document says to copy it. A settings file ignores a key it does not know, so a test
 holds the starter file to keys the machine writes.
 
-**The starter file gives the room the control level, and every other key is at its default.** One
-person runs a portable copy for their own room, and expects a phone to skip a song and play one now.
-`api.room_access` is `control` there, the highest level a room can hold. The machine's own default
-stays `queue`, so only a person who copies the file gets the wider level. The admin level still
-needs the password.
+**The starter file names the room level, and every key in it is at its default.** One person runs
+a portable copy for their own room, and expects a phone to skip a song and play one now.
+`api.room_access` is `control` there, the highest level a room can hold and the machine's own
+default. The file names it so the owner sees the setting to lower. The admin level still needs the
+password.
 
 **Only the machine has a port in its settings.** The four tools take `--port` when they start, and
 the folder's document lists each one beside its default. A port setting in four more programs is
