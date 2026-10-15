@@ -35,7 +35,7 @@ pub struct ApiConfig {
     pub session_epoch: u64,
     /// How long a token lasts.
     pub token_ttl: Duration,
-    /// What everybody on the network gets with no code. [`Access::Queue`] unless the owner said
+    /// What everybody on the network gets with no code. [`Access::Control`] unless the owner said
     /// otherwise, and never [`Access::Admin`].
     pub room_access: Access,
     /// The `argon2` hash of the code that opens [`Access::Queue`], where the owner set one.

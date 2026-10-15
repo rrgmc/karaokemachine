@@ -898,14 +898,6 @@ mod tests {
         ApiState::from_machine(TestMachine::with_catalog(3).shared(), config)
     }
 
-    fn passworded() -> ApiState {
-        state_with(
-            ApiConfig::default()
-                .with_password("hunter2")
-                .expect("hashing works"),
-        )
-    }
-
     fn bearer(token: &str) -> HeaderMap {
         let mut headers = HeaderMap::new();
         headers.insert(
@@ -933,14 +925,14 @@ mod tests {
     const SKIP: &str = "/api/v1/transport/skip";
 
     #[test]
-    fn asking_for_a_song_needs_nothing_while_the_room_is_at_its_default() {
-        let state = passworded();
+    fn asking_for_a_song_needs_nothing_while_the_room_is_at_the_request_level() {
+        let state = with_codes(Access::Request);
         assert!(
             state
                 .authorize(&Method::POST, ASK_ROUTE, &HeaderMap::new())
                 .is_ok()
         );
-        // A song with no singer takes no turn, so the default room does not add one.
+        // A song with no singer takes no turn, so a room that asks does not add one.
         assert!(
             state
                 .authorize(&Method::POST, PUBLIC_ROUTE, &HeaderMap::new())

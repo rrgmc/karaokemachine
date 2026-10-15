@@ -77,8 +77,8 @@ pub struct ApiSettings {
     pub session_epoch: u64,
     /// What everybody on the network gets with no code: `view`, `request`, `queue` or `control`.
     ///
-    /// `request` unless the owner says otherwise, so anybody in the room can ask for a song. `admin`
-    /// is never a room level, and the API reads it as `control`.
+    /// `control` unless the owner says otherwise, so every phone in a home does everything short of
+    /// reconfiguring the machine. `admin` is never a room level, and the API reads it as `control`.
     pub room_access: km_api::Access,
     /// `argon2` hash of the code that opens the queue level. `None` means there is no such code.
     pub queue_code_hash: Option<String>,
@@ -1284,7 +1284,7 @@ fn peek_machine(paths: &Paths) -> Option<MachineSettings> {
 /// on it; the counter never starts again. A file below [`OLDEST_SETTINGS_VERSION`] is set aside
 /// rather than read — see [`Settings::load`] — by the rule in `A store opens at its current version
 /// or is refused`.
-pub const CURRENT_SETTINGS_VERSION: u32 = 6;
+pub const CURRENT_SETTINGS_VERSION: u32 = 7;
 
 /// The oldest settings shape this build reads, by the steps in [`Settings::step_up`].
 ///
@@ -1541,6 +1541,11 @@ impl Settings {
     /// which is the default, and `queue` adds a song that takes no turn. A stored `queue` cannot say
     /// whether its owner chose it or never touched it, so it moves. An owner who wants the direct
     /// queue chooses it again once. `view` and `control` are choices, and they stay.
+    ///
+    /// **Seven: a room level of `request` reads as `control`.** From seven the default is
+    /// `control`, because the machine is built for a home, where every guest is trusted. A stored
+    /// `request` cannot say whether its owner chose it either, so it moves, and a venue chooses it
+    /// again once. `view` and `queue` stay.
     fn step_up(&mut self) -> bool {
         if self.settings_version >= CURRENT_SETTINGS_VERSION {
             return false;
@@ -1551,6 +1556,13 @@ impl Settings {
                  singer; the room is at the request level, where a guest asks for a song"
             );
             self.api.room_access = km_api::Access::Request;
+        }
+        if self.settings_version < 7 && self.api.room_access == km_api::Access::Request {
+            tracing::warn!(
+                "settings.json set the room to the request level, the default before; the room \
+                 is at the control level, where every phone in the room drives the machine"
+            );
+            self.api.room_access = km_api::Access::Control;
         }
         self.settings_version = CURRENT_SETTINGS_VERSION;
         true
@@ -2416,11 +2428,12 @@ mod tests {
         assert_eq!(again.settings_version, CURRENT_SETTINGS_VERSION);
     }
 
-    /// A file one version back is read, and its `queue` room becomes the `request` room.
+    /// A version 5 file is read, and its `queue` room steps to `request` and then to `control`.
+    /// Both were the default of their day.
     ///
     /// Everything else in it is kept, which is the difference between a step and a refusal.
     #[test]
-    fn a_stored_queue_room_becomes_the_request_room_once() {
+    fn a_stored_queue_room_becomes_the_control_room_once() {
         let scratch = Scratch::new("room-step");
         let paths = scratch.paths();
         paths.create().expect("create");
@@ -2435,7 +2448,7 @@ mod tests {
             loaded.machine.name, "Sala",
             "the file is read, not set aside"
         );
-        assert_eq!(loaded.api.room_access, km_api::Access::Request);
+        assert_eq!(loaded.api.room_access, km_api::Access::Control);
         assert!(written, "and written back at the current version");
         assert!(!paths.settings_file().with_extension("json.bad").exists());
 
@@ -2448,23 +2461,52 @@ mod tests {
         assert_eq!(again.api.room_access, km_api::Access::Queue);
     }
 
-    /// A level the owner chose stays as chosen.
+    /// A version 6 file's `request` room becomes the `control` room, and a venue that sets
+    /// `request` again keeps it.
+    #[test]
+    fn a_stored_request_room_becomes_the_control_room_once() {
+        let scratch = Scratch::new("room-step-request");
+        let paths = scratch.paths();
+        paths.create().expect("create");
+        std::fs::write(
+            paths.settings_file(),
+            r#"{"settings_version":6,"machine":{"name":"Sala"},"api":{"room_access":"request"}}"#,
+        )
+        .expect("write");
+
+        let (loaded, written) = Settings::load(&paths);
+        assert_eq!(loaded.machine.name, "Sala");
+        assert_eq!(loaded.api.room_access, km_api::Access::Control);
+        assert!(written, "and written back at the current version");
+
+        let mut chosen = loaded;
+        chosen.api.room_access = km_api::Access::Request;
+        chosen.save(&paths).expect("save");
+        let (again, _) = Settings::load(&paths);
+        assert_eq!(again.settings_version, CURRENT_SETTINGS_VERSION);
+        assert_eq!(again.api.room_access, km_api::Access::Request);
+    }
+
+    /// A level the owner chose stays as chosen, through every step.
     #[test]
     fn a_stored_view_or_control_room_stays_through_the_step() {
-        for (word, level) in [
-            ("view", km_api::Access::View),
-            ("control", km_api::Access::Control),
+        for (version, word, level) in [
+            (5, "view", km_api::Access::View),
+            (5, "control", km_api::Access::Control),
+            (6, "view", km_api::Access::View),
+            (6, "queue", km_api::Access::Queue),
+            (6, "control", km_api::Access::Control),
         ] {
-            let scratch = Scratch::new(&format!("room-kept-{word}"));
+            let scratch = Scratch::new(&format!("room-kept-{version}-{word}"));
             let paths = scratch.paths();
             paths.create().expect("create");
             std::fs::write(
                 paths.settings_file(),
-                format!(r#"{{"settings_version":5,"api":{{"room_access":"{word}"}}}}"#),
+                format!(r#"{{"settings_version":{version},"api":{{"room_access":"{word}"}}}}"#),
             )
             .expect("write");
             let (loaded, _) = Settings::load(&paths);
-            assert_eq!(loaded.api.room_access, level);
+            assert_eq!(loaded.api.room_access, level, "version {version}, {word}");
         }
     }
 
@@ -2479,8 +2521,8 @@ mod tests {
         assert_eq!(loaded.api.room_access, km_api::Access::Queue);
         assert_eq!(
             Settings::default().api.room_access,
-            km_api::Access::Request,
-            "and a file that names none takes the request level"
+            km_api::Access::Control,
+            "and a file that names none takes the control level"
         );
     }
 
@@ -3935,15 +3977,15 @@ mod tests {
         );
     }
 
-    /// The room level is the one value the starter file moves, and it is a level a room can hold.
-    /// The API reads `admin` there as `control`, so the word would promise what nobody gets.
+    /// The starter file names the room level a room can hold, and it is the default. The API reads
+    /// `admin` there as `control`, so the word would promise what nobody gets.
     #[test]
     fn the_portable_starter_file_gives_the_room_the_control_level() {
         let example: Settings =
             serde_json::from_str(PORTABLE_EXAMPLE).expect("the starter file is a settings file");
         assert_eq!(example.api.room_access, km_api::Access::Control);
         assert!(example.api.room_access.is_room_level());
-        assert_ne!(example.api.room_access, Settings::default().api.room_access);
+        assert_eq!(example.api.room_access, Settings::default().api.room_access);
     }
 
     /// Every other key in the starter file is at its default.

@@ -2719,7 +2719,8 @@ async fn starting_a_demo_song_needs_the_control_level_where_turning_the_mode_on_
             .with_password("hunter2")
             .expect("argon2 hashes a password")
             .with_codes("sing", "boss")
-            .expect("argon2 hashes a code"),
+            .expect("argon2 hashes a code")
+            .with_room_access(Access::Queue),
     )
     .tokenless();
 
@@ -5386,7 +5387,8 @@ async fn a_rename_needs_the_seats_token_and_a_free_name() {
     assert_eq!(status, StatusCode::NOT_FOUND);
 }
 
-/// A harness whose caller holds no token, in a room at its default level, with both codes set.
+/// A harness whose caller holds no token, in a venue's room at the request level, with both codes
+/// set.
 fn a_room_with_a_host() -> Harness {
     let harness = Harness::with_config(
         ApiConfig::default()
@@ -5394,7 +5396,8 @@ fn a_room_with_a_host() -> Harness {
             .with_password(SWEEP_PASSWORD)
             .expect("argon2 hashes a password")
             .with_codes("sweep-queue", "sweep-control")
-            .expect("argon2 hashes a code"),
+            .expect("argon2 hashes a code")
+            .with_room_access(Access::Request),
     )
     .tokenless();
     // A venue's order: its singers take turns.
@@ -5705,7 +5708,8 @@ async fn the_control_level_asks_for_any_singer_with_no_token() {
         .with_password(SWEEP_PASSWORD)
         .expect("argon2 hashes a password")
         .with_codes("sweep-queue", "sweep-control")
-        .expect("argon2 hashes a code");
+        .expect("argon2 hashes a code")
+        .with_room_access(Access::Queue);
     let mut harness = Harness::with_config(config).tokenless();
     harness.machine.set_queue_order(km_queue::QueueOrder::Turns);
     let (ana, _) = register(&harness, "phone-a", Some("Ana")).await;

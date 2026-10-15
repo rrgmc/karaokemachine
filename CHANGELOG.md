@@ -25,6 +25,11 @@ Entries are written for somebody who has the machine. Why any of it is the way i
 
 ### Changed
 
+- **A guest's phone is a full remote by default.** With no code it asks for songs, queues them,
+  skips, and changes the key and the tempo. Only the admin password changes the machine's settings.
+  A machine whose room was at *Ask for songs* moves to *All of that, skip and play now* once. A
+  venue sets *Ask for songs* again on the Access pane.
+
 - **The recommended instrument bank downloads from this project's own release page.** Its
   publisher replaces the file at one address with each new version, and each replacement stopped
   the download in every release.

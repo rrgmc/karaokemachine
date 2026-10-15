@@ -20,7 +20,7 @@ machine* tab, under **Access** and **Singers and queue**. See
 | Setting | At a venue | Why |
 |---|---|---|
 | The admin password | Set one of your own, and keep it | The machine shows its first password on its own screen, where every guest reads it |
-| Room level | *Ask for songs*, the default | Each table asks from a phone |
+| Room level | *Ask for songs* | Each table asks from a phone. The default lets every phone skip |
 | Queue order | *Singers take turns* | Each singer gets a turn. The default plays songs in the order asked, so one table could fill the queue |
 | Code to skip | Set one, and give it to the host | It opens the host's tab |
 | Code to queue | Set none, or keep it | It adds a song out of turn, and it changes the key of any singer's song |

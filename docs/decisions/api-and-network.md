@@ -320,10 +320,13 @@ evening that it holds now.
 | `admin` | Everything under `/api/v1/admin/`. |
 
 **A room level, and two codes.** The room level is what a phone with no code gets, and it starts at
-`request`. So anybody in the room asks for a song, and the machine queues it in the order the owner
-chose.
+`control`. The machine is built for a home, where every guest is trusted. So every phone in the room
+queues, skips and turns the knobs, and only the admin password reconfigures the machine.
 
-**An owner may set the room to `view`, `queue` or `control`, and never to `admin`.** A queue code and a control code each raise a phone to their level.
+**A venue lowers the room to `request` or `view`.** At `request` the machine queues each guest's song
+in the order the owner chose. The paragraphs below give the reasons a venue wants that.
+
+**An owner may set the room to `view`, `request`, `queue` or `control`, and never to `admin`.** A queue code and a control code each raise a phone to their level.
 The admin password opens the admin level, as it always does.
 
 **`request` stands below `queue` because a song with no singer takes no turn.** Under turns,
@@ -344,6 +347,10 @@ own.
 guest needed to add a song. A stored `queue` could not say whether its owner chose it. Settings
 version 6 reads it as `request`, and an owner who wants the direct queue chooses it again. `view`
 and `control` stay as chosen.
+
+**A stored `request` room becomes a `control` room once.** `request` was the default, and a stored
+`request` cannot say whether its owner chose it either. Settings version 7 reads it as `control`,
+and a venue that wants `request` chooses it again. `view` and `queue` stay as chosen.
 
 **A settings file that names `admin` for the room is read as `control`.**
 
@@ -403,8 +410,8 @@ QR code and the connect panel all exist to serve a phone, and every one of them 
 loopback default.
 
 This default comes with a password the machine gives itself and a fixed set of admin routes. Together
-they are a judgment about a **home LAN**. Anybody in the room can queue a song unless the owner lowers
-the room level, and that is the design. Everything that reconfigures the machine is behind a code on
+they are a judgment about a **home LAN**. Anybody in the room can queue and skip a song unless the
+owner lowers the room level, and that is the design. Everything that reconfigures the machine is behind a code on
 its own screen.
 
 **It stops being right the moment port 8177 is reachable from outside one**, and then what changes is

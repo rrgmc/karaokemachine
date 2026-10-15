@@ -137,8 +137,10 @@ nothing else: not the peer address, not a map.
 **`Access` has a fifth variant, `Request`, ordered between `View` and `Queue`.** `required_access`
 returns it for `POST /singers` and `POST /requests`. It also returns it for
 `PUT /singers/{id}/name` and `POST /requests/{id}/withdraw`, which `is_one_of` matches by their two
-ends. It is the default, so `ApiConfig::default()` and a new `settings.json` both start a room
-there. `Access::ROOM` holds it, and `has_code` is false for it.
+ends. `Access::ROOM` holds it, and `has_code` is false for it.
+
+**`Control` is the default**, so `ApiConfig::default()` and a new `settings.json` both start a room
+there.
 
 **`Access::as_room` reads a stored `admin` as `Control`.** `ApiState` takes the room level through
 it at start and at each change. The remote's stylesheet hides `needs-request` under `access-view`,

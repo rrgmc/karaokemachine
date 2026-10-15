@@ -360,14 +360,15 @@ holds the settings people change most:
     machine.name         the name a phone shows for this machine
     machine.locale       the language of the screen: en or pt-BR
     api.bind             the address and port the machine listens on
-    api.room_access      what a phone may do with no code: view, queue or control
+    api.room_access      what a phone may do with no code: view, request, queue
+                         or control
     display.fullscreen   true to fill the screen, false for a window
     package_dirs         more folders to read song packages from
 
-Each is at its usual value except api.room_access. The file sets it to
-control, so any phone on your network can skip a song, play one now and
-change the queue. The usual value is queue, which lets a phone add a song
-and nothing more. The machine's Admin pages ask for the password either way.
+Each is at its usual value. api.room_access is control, so any phone on your
+network can skip a song, play one now and change the queue. Set it to request
+where guests should only ask for songs in their turn. The machine's Admin
+pages ask for the password either way.
 
 Stop the machine before you edit settings.json. It writes the file again
 while it runs.

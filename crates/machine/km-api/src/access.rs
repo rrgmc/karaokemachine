@@ -27,14 +27,17 @@ pub enum Access {
     View,
     /// Registers a singer and names one, and asks for a song and takes one back.
     ///
-    /// **The default room level.** Anybody in the room asks for a song, and the machine queues it
-    /// in that singer's turn. So a new machine gives its singers turns with no setup. No code buys
-    /// this level, because a room below it is a room where only somebody with a code adds songs.
-    #[default]
+    /// A venue sets the room here, so the machine queues each guest's song in that singer's turn. No
+    /// code buys this level, because a room below it is a room where only somebody with a code adds
+    /// songs.
     Request,
     /// Adds a song with no singer, which takes no turn, and turns a singer's knobs.
     Queue,
     /// Interrupts: skip, play now, the transport, and anybody's queue entry.
+    ///
+    /// **The default room level.** The machine is built for a home, where every guest is trusted, so
+    /// every phone in the room does everything short of reconfiguring the machine.
+    #[default]
     Control,
     /// Reconfigures the machine. Only the admin password grants it, and a room level never does.
     Admin,
@@ -107,11 +110,12 @@ mod tests {
         assert!(Access::Control < Access::Admin);
     }
 
-    /// A new machine gives its singers turns with no setup.
+    /// A new machine gives every phone in a home the whole remote, and never the admin level.
     #[test]
-    fn a_fresh_room_can_ask_for_a_song_and_not_queue_one() {
-        assert_eq!(Access::default(), Access::Request);
-        assert!(Access::default() < Access::Queue);
+    fn a_fresh_room_controls_the_machine_and_never_administers_it() {
+        assert_eq!(Access::default(), Access::Control);
+        assert!(Access::default().is_room_level());
+        assert!(Access::default() < Access::Admin);
     }
 
     #[test]
