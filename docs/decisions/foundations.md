@@ -24,6 +24,11 @@ happen through the API.
 opens no new capability. It is a fourth way to hand the machine a path that three other routes
 already take. It belongs on the window because a window is the one thing a file can be dropped onto.
 
+**A second exception**: the Menu on a Windows or macOS window. It opens the remote in the browser
+and hands a chosen `.kmpkg` to the installer a drop reaches. Neither is a settings surface, and
+neither opens a capability the API or a drop lacks. See
+[`On Windows and macOS, the window has a Menu`](remotes.md#on-windows-and-macos-the-window-has-a-menu).
+
 ## SoundFont
 
 **Bundle a compact General MIDI bank** so it works out of the box, with a setting to point at a larger

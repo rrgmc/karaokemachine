@@ -2286,3 +2286,34 @@ as a `.kmpkg` opened from a file manager. It refuses a file of any other name be
 **On iOS the file browser is a view controller in the machine's own application, so the song plays
 on.** The application stays in front while the browser is open. The browser offers only the
 package type, and the machine installs the chosen file as it installs a dropped one.
+
+## On Windows and macOS, the window has a Menu
+
+**Moving the mouse over the machine's window shows a Menu button at the top centre.** It is the
+phone's button in the same place, with the same two items. The button fades three seconds after the
+mouse stops, and an open Menu stays until a click or `Escape` closes it. In fullscreen the cursor
+appears and fades with the button, because a button nobody can point at is no button.
+
+**SDL draws the button, so the window takes no second toolkit.** A native menu bar exists on macOS
+only, and a Windows menu bar would sit above the picture of a fullscreen machine. A button drawn with
+the keypad's treatment looks the same on both and on the television.
+
+**_Choose songs_ opens the remote in the browser, as `F11` does.** It reuses
+[`F11 opens the remote in a browser`](interface.md#f11-opens-the-remote-in-a-browser), with its
+loopback address and its refusals. A phone needs the remote inside the window, because leaving it
+stops the music. A desktop does not stop the music when another window comes to the front. An
+embedded web view would add a web engine to the machine and a step to its installer. The browser
+already shows the page.
+
+**_Install a package_ opens the system file browser through SDL.** The browser offers `.kmpkg` only,
+and the song plays on while it is open. The chosen file joins the queue the iOS shell fills, and the
+machine installs it as it installs a dropped file.
+
+**`display.window_menu` turns the button off, and it starts on.** The switch is on the owner's page,
+on the General pane, and takes effect at the next mouse movement. A machine sharing a desk with other
+work may not want a button appearing over the song. `F11` and a dropped file still work with it off.
+
+**Linux shows no button.** The machine cannot tell a Linux desktop from the appliance, and the
+appliance has no mouse. That is the reason
+[`F11 opens the remote in a browser`](interface.md#f11-opens-the-remote-in-a-browser) gives for
+naming no key on Linux.

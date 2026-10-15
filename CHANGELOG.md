@@ -16,6 +16,10 @@ Entries are written for somebody who has the machine. Why any of it is the way i
 - **An iPhone or iPad running the machine chooses songs without leaving it.** **Menu** at the top
   of the screen opens **Choose songs**, and the machine's own remote covers the screen while the
   song plays on behind it. **Install a package** in the same menu opens the Files browser.
+- **A Windows or macOS machine has the same Menu.** Move the mouse over the window and **Menu**
+  appears at the top. **Choose songs** opens the remote in the browser, and **Install a package**
+  opens the file browser while the song plays on. *Show the Menu when the mouse moves*, on the
+  General pane of the setup page, turns it off.
 
 ### Changed
 

@@ -11,6 +11,9 @@ from a window), with the cursor shown only while windowed. **Android is always f
 fixed-function appliance with no desktop to return to. A remote that dropped the television out
 of fullscreen would leave nobody a way back. Compiled out there rather than merely unreachable.
 
+**A fullscreen Windows or macOS window shows the cursor while its Menu button is up.** See
+[`On Windows and macOS, the window has a Menu`](remotes.md#on-windows-and-macos-the-window-has-a-menu).
+
 **Android starts fullscreen whatever `display.fullscreen` says**, with the status and navigation
 bars hidden. The theme alone does not hold that, because SDL shows both bars when it leaves
 fullscreen.

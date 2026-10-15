@@ -11,7 +11,9 @@ installs an app.
 
 **To open it, point a phone's camera at the QR code on the idle screen.** The screen also shows the
 address, so nobody types an IP address. Mid-song, `I` shows the address and the code. `F11` opens the
-same page in the browser of the computer the machine runs on. See [The keyboard](keyboard.md).
+same page in the browser of the computer the machine runs on. See [The keyboard](keyboard.md). On
+Windows and macOS, move the mouse over the machine's window and press **Menu**, then
+**Choose songs**, for the same page.
 
 <p align="center">
 <img src="../images/screen-idle-connect.png" width="90%"
