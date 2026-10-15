@@ -24,6 +24,7 @@ pub mod icon;
 pub mod input;
 pub mod keypad;
 pub mod lyrics;
+pub mod menu;
 pub mod numbers;
 pub mod offscreen;
 pub mod performance;
@@ -45,6 +46,7 @@ pub use crate::input::{
 };
 pub use crate::keypad::{Key, Keypad, MIN_KEY_PX, pixel_density, window_to_pixels};
 pub use crate::lyrics::{LyricFrame, LyricView, ROWS, VisibleLine};
+pub use crate::menu::{MenuHit, MenuItem, MenuRect, WindowMenu};
 pub use crate::numbers::{NumberAction, NumberEntry, SongPreview};
 pub use crate::offscreen::{Backdrop, Offscreen, OffscreenError, render_to_image};
 // **The picture type this crate's own surface names.** `Backdrop` and `Offscreen::set_picture`

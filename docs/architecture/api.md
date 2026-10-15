@@ -68,6 +68,12 @@ nothing, because a song takes its stretcher when it loads.
 The path is not under `/packages/`, where it would take the place of a package whose id is
 `linked`.
 
+**`PUT /api/v1/admin/display/window-menu` says whether a Windows or macOS window shows its Menu
+button**, and `GET /api/v1/display/window-menu` reads it. Both answer `enabled` and `available`.
+`available` is false where the machine draws no such window, and a page then draws no switch.
+`Controller::set_window_menu` writes `display.window_menu` and tells the display nothing. The window
+reads the stored value when the mouse moves.
+
 **`NowPlaying::adjustable` is what a client reads, and not the kind.** It is true for a MIDI song,
 and for a recorded song the machine gave a stretcher. `transpose_available` and `tempo_available`
 carry it on the wire. `km_api::machine` names `MAX_TRANSPOSE`, `MIN_TEMPO_RATIO` and

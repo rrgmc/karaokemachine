@@ -201,6 +201,13 @@ announcement-on = Cada música da fila é anunciada por { $seconds } segundos.
 announcement-off = As músicas da fila começam sem anúncio.
 announcement-length-bad = Isso não é um número de segundos.
 
+window-menu-heading = O Menu na tela
+window-menu-hint = Quando o mouse se move sobre a janela da máquina, um botão Menu aparece no alto. Ele abre o controle remoto num navegador, ou instala um pacote a partir de um arquivo. As teclas e soltar um arquivo continuam funcionando com ele desligado.
+window-menu-enabled = Mostrar o Menu quando o mouse se move
+window-menu-save = Salvar
+window-menu-on = A janela mostra o Menu quando o mouse se move.
+window-menu-off = A janela não mostra o Menu.
+
 ## Desligar
 
 power-heading = Energia

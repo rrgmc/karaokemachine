@@ -27,7 +27,7 @@ Change it on **This machine**, under **Access**. Every tab links there until you
 
 | Pane | What you set there |
 |---|---|
-| **General** | The machine's name, the language of its screen, and restart or power off |
+| **General** | The machine's name, the language of its screen, whether a Windows or macOS window shows its Menu, and restart or power off |
 | **Access** | The password, who may do what, and signing every phone and browser out |
 | **Singers and queue** | The queue order, what the machine asks of a singer, and the night after a restart |
 | **Playback** | The announcement before each song, demo mode, whether a song ends when the rest is silent, and whether a recorded song changes key and tempo |

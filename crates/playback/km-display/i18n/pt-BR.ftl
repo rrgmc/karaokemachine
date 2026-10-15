@@ -18,6 +18,12 @@
 keypad-clear = CLR
 keypad-submit = OK
 
+## O Menu da janela
+
+menu-button = Menu
+menu-choose-songs = Escolher músicas
+menu-install-package = Instalar um pacote
+
 ## A barra de controles
 
 # Estas palavras são impressas em botões estreitos: a tira tem `STRIP_ASPECT` de largura por altura,

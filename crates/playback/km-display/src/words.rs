@@ -270,10 +270,20 @@ pub const CONNECT_BROWSER_KEY: &str = "connect-browser-key";
 /// The same sentence for a platform that only reaches the key with Control held.
 pub const CONNECT_BROWSER_KEY_CTRL: &str = "connect-browser-key-ctrl";
 
+/// The window's Menu button.
+pub const MENU_BUTTON: &str = "menu-button";
+/// The Menu item that opens the remote.
+pub const MENU_CHOOSE_SONGS: &str = "menu-choose-songs";
+/// The Menu item that picks a package to install.
+pub const MENU_INSTALL_PACKAGE: &str = "menu-install-package";
+
 /// Every id above, for the test that checks each is in the catalog.
 ///
 /// Written out rather than derived, because a constant nothing lists is a constant nothing checks.
 pub const ALL_IDS: &[&str] = &[
+    MENU_BUTTON,
+    MENU_CHOOSE_SONGS,
+    MENU_INSTALL_PACKAGE,
     KEYPAD_CLEAR,
     KEYPAD_SUBMIT,
     IDLE_PROMPT,

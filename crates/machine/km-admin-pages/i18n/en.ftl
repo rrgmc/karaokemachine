@@ -227,6 +227,15 @@ announcement-length-bad = That is not a number of seconds.
 
 ## Power
 #
+# Only a Windows or macOS machine draws this card. The Menu's two items are named in the hint,
+# because they are what somebody gives up by turning it off.
+window-menu-heading = The Menu on the screen
+window-menu-hint = When the mouse moves over the machine's window, a Menu button appears at the top. It opens the remote in a browser, or installs a package from a file. The keys and dropping a file still work with it off.
+window-menu-enabled = Show the Menu when the mouse moves
+window-menu-save = Save
+window-menu-on = The window shows the Menu when the mouse moves.
+window-menu-off = The window shows no Menu.
+
 # The card is absent altogether on a machine whose host has no power control, so none of these are
 # ever shown beside a button that cannot work.
 #

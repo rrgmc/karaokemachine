@@ -347,6 +347,11 @@ then runs the scan, so a linked package in a scanned folder is installed or drop
 request. **`linked_packages.dir` has no route.** Whoever can edit the settings file sets the folder
 the machine reads from.
 
+**`display.window_menu` is the eleventh, and the window reads it when the mouse moves.** It says
+whether a Windows or macOS window shows its Menu button. It gets
+`PUT /api/v1/admin/display/window-menu` and is written down at once. Its default is `true`, so a
+file without the key takes no version step.
+
 **`settings_version` 7 has two steps.** `Settings::step_up` reads a stored `api.room_access` of
 `queue` as `request` below 6, and then a `request` as `control` below 7. So a version 5 `queue`
 ends at `control`. `load` writes the file back. A file below `OLDEST_SETTINGS_VERSION` is set

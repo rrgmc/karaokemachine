@@ -23,6 +23,7 @@ use crate::catalog::CatalogSummary;
 use crate::connect::{ConnectInfo, ConnectPanel, QrMatrix};
 use crate::keypad::{Keypad, Label};
 use crate::lyrics::{LyricFrame, ROWS};
+use crate::menu::{MenuHit, WindowMenu};
 use crate::numbers::NumberEntry;
 use crate::performance::FrameStats;
 use crate::song_stats::{GainSource, SongMedia, SongStats};
@@ -435,6 +436,11 @@ pub struct Frame<'a> {
     ///
     /// Idle only. A song is the show, and the playing screen never draws it however this is set.
     pub version: Option<&'a str>,
+    /// The window's Menu, while the mouse has moved over a Windows or macOS window.
+    ///
+    /// `None` draws nothing, which is every other platform and a mouse left still. Drawn over
+    /// everything, the keypad included: it is what the mouse is reaching for this instant.
+    pub menu: Option<&'a WindowMenu>,
 }
 
 impl<'a> Frame<'a> {
@@ -488,6 +494,7 @@ impl<'a> Frame<'a> {
             performance: None,
             song_stats: None,
             version: None,
+            menu: None,
         }
     }
 
@@ -647,6 +654,49 @@ pub fn draw<T: RenderTarget, C>(
     // Last, so touch targets are never drawn under something they would be pressed through.
     if let Some(keypad) = frame.keypad {
         draw_keypad(canvas, cache, fonts, theme, keypad, layout, frame.words());
+    }
+
+    // Over the keypad too. The two never overlap, and the Menu is what the mouse is reaching for.
+    if let Some(menu) = frame.menu {
+        draw_menu(canvas, cache, fonts, theme, menu, frame.words());
+    }
+}
+
+/// Draws the window's Menu button, and its items when it is open.
+///
+/// The keypad's treatment: a panel fill, a border, an outlined label, and the accent fill on the
+/// one the mouse is over. A mouse user reads the highlight as *this is what a click presses*.
+fn draw_menu<T: RenderTarget, C>(
+    canvas: &mut Canvas<T>,
+    cache: &mut TextCache<C>,
+    fonts: &Fonts,
+    theme: &Theme,
+    menu: &WindowMenu,
+    words: &km_locale::Catalog,
+) {
+    let button = (MenuHit::Button, menu.button(), crate::words::MENU_BUTTON);
+    let items = menu
+        .items()
+        .iter()
+        .map(|(item, rect)| (MenuHit::Item(*item), *rect, item.label()));
+    canvas.set_blend_mode(BlendMode::Blend);
+    for (hit, rect, label) in std::iter::once(button).chain(items) {
+        let hovered = menu.hover() == Some(hit);
+        let area = FRect::new(rect.x, rect.y, rect.w, rect.h);
+        canvas.set_draw_color(if hovered { theme.accent } else { theme.panel });
+        let _ = canvas.fill_rect(area);
+        canvas.set_draw_color(if hovered { theme.text } else { theme.text_dim });
+        let _ = canvas.draw_rect(area);
+        let label = words.msg(label);
+        let font = &fonts.small;
+        let (center_x, center_y) = rect.center();
+        let top = center_y - f32::from(font.height() as i16) / 2.0;
+        let style = if hovered {
+            TextStyle::plain(theme.background, Align::Center)
+        } else {
+            TextStyle::outlined(theme.text, theme, Align::Center)
+        };
+        draw_text(canvas, cache, font, &label, (center_x, top), &style);
     }
 }
 

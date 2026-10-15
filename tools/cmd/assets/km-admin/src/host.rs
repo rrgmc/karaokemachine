@@ -346,6 +346,13 @@ impl Switches for RemoteMachine {
         let keep_evening = client.keep_evening().await.ok().map(|kept| kept.enabled);
         // On the same terms: an earlier machine has no linked packages, and its page draws no card.
         let linked_packages = client.linked_packages().await.ok().map(linked_state);
+        // On the same terms, and also `None` from a machine with no window to draw a Menu on.
+        let window_menu = client
+            .window_menu()
+            .await
+            .ok()
+            .filter(|menu| menu.available)
+            .map(|menu| menu.enabled);
 
         Ok(SwitchState {
             singers,
@@ -353,6 +360,7 @@ impl Switches for RemoteMachine {
             announcement_length_secs: announcement.length_secs,
             end_on_silence: end_on_silence.enabled,
             adjust_recordings: adjust_recordings.enabled,
+            window_menu,
             keep_evening,
             linked_packages,
             debug_running: debug.enabled,
@@ -441,6 +449,15 @@ impl Switches for RemoteMachine {
         self.writing()
             .await?
             .set_adjust_recordings(on)
+            .await
+            .map(|stored| stored.enabled)
+            .map_err(fault)
+    }
+
+    async fn set_window_menu(&self, on: bool) -> Result<bool, AdminError> {
+        self.writing()
+            .await?
+            .set_window_menu(on)
             .await
             .map(|stored| stored.enabled)
             .map_err(fault)

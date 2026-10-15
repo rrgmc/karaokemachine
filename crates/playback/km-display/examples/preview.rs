@@ -1044,9 +1044,28 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             shape: cdg_shape,
         },
     )?;
+    // The window's Menu over a song, closed and then open with the mouse on its second item. The
+    // song is the one place the button has to stay clear of the title and the badges.
+    let menu_closed = km_display::WindowMenu::new(WIDTH as f32, HEIGHT as f32, false, true, None);
+    let menu_probe = km_display::WindowMenu::new(WIDTH as f32, HEIGHT as f32, true, true, None);
+    let menu_open = km_display::WindowMenu::new(
+        WIDTH as f32,
+        HEIGHT as f32,
+        true,
+        true,
+        Some(menu_probe.items()[1].1.center()),
+    );
+    for (name, menu) in [
+        ("29a-window-menu-closed", &menu_closed),
+        ("29b-window-menu-open", &menu_open),
+    ] {
+        let mut frame = playing(&info, &song.lyrics, &view, 0, &empty_entry, &song);
+        frame.menu = Some(menu);
+        render(&out_dir, name, &fonts, &theme, &frame, theme_dim())?;
+    }
     println!(
         "\nwrote {} frames to {}",
-        frames.len() + 9,
+        frames.len() + 11,
         out_dir.display()
     );
     Ok(())
@@ -1159,6 +1178,7 @@ fn playing<'a>(
         developer_mode: None,
         // A playing screen never draws it.
         version: None,
+        menu: None,
     }
 }
 

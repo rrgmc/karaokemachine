@@ -59,6 +59,7 @@ the address and QR code.</sub></td>
 | `I` | Show the address and QR code |
 | `F` | Fill the screen |
 | `T` | Keep the window in front of everything else |
+| `C` | Show or hide the mouse pointer |
 | `Esc` | Leave full screen. In a window, stop the machine |
 | `Back`, on a TV remote or a phone | Go back one step, and leave the machine from the first screen |
 | `F12` | Show how the picture is doing |
@@ -66,6 +67,10 @@ the address and QR code.</sub></td>
 
 **`T`** is for a machine that shares a screen with other windows. The machine remembers the setting.
 Some Linux desktops do not let an application place itself, and there the key does nothing.
+
+**`C`** shows or hides the mouse pointer. A window shows it and full screen hides it to begin with,
+and `C` changes only the one you are in. The pointer comes back while the Menu is up. The machine
+remembers both.
 
 **`F12`** shows frames a second, the time each frame took, and any sound or video that ran short. It
 writes nothing to the log. The machine forgets `F12` and `Ctrl+F12` when it closes.

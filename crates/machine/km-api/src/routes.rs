@@ -231,6 +231,7 @@ pub const SURFACE: &[(&str, &str)] = &[
     ("GET", "/performance"),
     ("GET", "/playback/end-on-silence"),
     ("GET", "/playback/adjust-recordings"),
+    ("GET", "/display/window-menu"),
     ("GET", "/evening/keep"),
     ("GET", "/linked-packages"),
     ("GET", "/events"),
@@ -268,6 +269,7 @@ pub const SURFACE: &[(&str, &str)] = &[
     ("PUT", "/admin/performance"),
     ("PUT", "/admin/playback/end-on-silence"),
     ("PUT", "/admin/playback/adjust-recordings"),
+    ("PUT", "/admin/display/window-menu"),
     ("PUT", "/admin/evening/keep"),
     ("PUT", "/admin/linked-packages"),
 ];
@@ -693,6 +695,8 @@ fn api_router(config: &crate::ApiConfig, capabilities: Capabilities) -> Router<A
             "/playback/adjust-recordings",
             get(handlers::get_adjust_recordings),
         )
+        // Whether a desktop window shows its Menu button. The same split.
+        .route("/display/window-menu", get(handlers::get_window_menu))
         // Whether the evening outlives the machine's process. The same split.
         .route("/evening/keep", get(handlers::get_keep_evening))
         .route("/linked-packages", get(handlers::get_linked_packages))
@@ -797,6 +801,7 @@ fn api_router(config: &crate::ApiConfig, capabilities: Capabilities) -> Router<A
             "/playback/adjust-recordings",
             put(handlers::put_adjust_recordings),
         )
+        .route("/display/window-menu", put(handlers::put_window_menu))
         .route("/evening/keep", put(handlers::put_keep_evening))
         .route("/linked-packages", put(handlers::put_linked_packages));
 

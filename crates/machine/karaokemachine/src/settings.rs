@@ -303,6 +303,20 @@ pub struct DisplaySettings {
     /// run may speak for the machine. Android never writes it: there are no windows to stack.
     /// See `The window can be told to stay in front` in `docs/decisions/interface.md`.
     pub always_on_top: bool,
+    /// Whether the mouse pointer shows over the machine in a window. Defaults to on.
+    ///
+    /// **One switch per mode, and `C` moves the one for the mode the window is in.** A window on a
+    /// desk wants a pointer and a fullscreen machine under a television does not, so one answer for
+    /// both would be wrong for one of them. A hidden pointer still comes back while the Menu is up.
+    ///
+    /// **Written back when the display closes**, so `C` outlives the process, and only where the
+    /// value changed: the shape of [`DisplaySettings::always_on_top`]. Android and iOS have no
+    /// pointer and never write it.
+    pub cursor_windowed: bool,
+    /// Whether the mouse pointer shows over the machine in fullscreen. Defaults to off.
+    ///
+    /// See [`Self::cursor_windowed`].
+    pub cursor_fullscreen: bool,
     /// Window width when not fullscreen.
     ///
     /// **Written back when the display closes in a window**, with [`Self::height`], [`Self::x`] and
@@ -388,6 +402,14 @@ pub struct DisplaySettings {
     /// Clamped wherever it is read rather than rejected on load, so a hand-edited file cannot stop
     /// the machine booting. See "The lyric timing offset" in `docs/ARCHITECTURE.md`.
     pub lyric_offset_ms: i16,
+    /// Whether a Windows or macOS window shows a Menu button when the mouse moves over it.
+    ///
+    /// The Menu offers *Choose songs* and *Install a package*, which a phone's own Menu offers too.
+    /// **Defaults to on**, because a mouse over the window is somebody at the machine. An owner
+    /// whose machine shares a desk with other work can turn it off. `F11` and a dropped `.kmpkg`
+    /// still work with it off. Other platforms ignore it. See
+    /// `On Windows and macOS, the window has a Menu` in `docs/decisions/remotes.md`.
+    pub window_menu: bool,
 }
 
 impl Default for DisplaySettings {
@@ -399,6 +421,8 @@ impl Default for DisplaySettings {
             fullscreen: false,
             // Off, and a key of its own, so `#[serde(default)]` fills it on every file.
             always_on_top: false,
+            cursor_windowed: true,
+            cursor_fullscreen: false,
             width: 1280,
             height: 720,
             // Centered until a window has been closed somewhere. New keys, so `#[serde(default)]`
@@ -413,6 +437,7 @@ impl Default for DisplaySettings {
             number_pad: cfg!(any(target_os = "android", target_os = "ios")),
             enabled: true,
             lyric_offset_ms: 0,
+            window_menu: true,
         }
     }
 }
@@ -2063,6 +2088,35 @@ mod tests {
         assert!(!settings.playback.end_on_silence);
         let written = serde_json::to_value(&settings).expect("serialize");
         assert_eq!(written["playback"]["end_on_silence"], false);
+    }
+
+    #[test]
+    fn the_pointer_shows_in_a_window_and_hides_in_fullscreen_by_default() {
+        let display = Settings::default().display;
+        assert!(display.cursor_windowed);
+        assert!(!display.cursor_fullscreen);
+        let settings: Settings = serde_json::from_str(
+            r#"{"display":{"cursor_windowed":false,"cursor_fullscreen":true}}"#,
+        )
+        .expect("parse");
+        assert!(!settings.display.cursor_windowed);
+        assert!(settings.display.cursor_fullscreen);
+    }
+
+    #[test]
+    fn the_window_menu_is_on_unless_the_file_says_otherwise() {
+        assert!(Settings::default().display.window_menu);
+        let settings: Settings =
+            serde_json::from_str(r#"{"display":{"fullscreen":true}}"#).expect("parse");
+        assert!(
+            settings.display.window_menu,
+            "a file written before the key keeps the default"
+        );
+        let settings: Settings =
+            serde_json::from_str(r#"{"display":{"window_menu":false}}"#).expect("parse");
+        assert!(!settings.display.window_menu);
+        let written = serde_json::to_value(&settings).expect("serialize");
+        assert_eq!(written["display"]["window_menu"], false);
     }
 
     /// Asserted against the same `cfg!` for the reason the pad's tests are.

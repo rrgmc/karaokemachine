@@ -61,6 +61,7 @@ mod firstrun;
 mod handed;
 mod machine;
 mod notify;
+pub mod opened;
 mod power;
 mod register;
 mod remote;
@@ -586,6 +587,8 @@ pub fn run(paths: Paths, config: Settings, options: Options) -> anyhow::Result<(
             // Settings alone. There is no flag over this one, so there is no override to consult
             // and no run that must write nothing back.
             always_on_top: settings.display.always_on_top,
+            cursor_windowed: settings.display.cursor_windowed,
+            cursor_fullscreen: settings.display.cursor_fullscreen,
             window: settings.display.window_rect(),
             font: settings.display.font.clone(),
             bundled_font: Some(machine.paths().asset(crate::settings::FONT_SUBPATH)),

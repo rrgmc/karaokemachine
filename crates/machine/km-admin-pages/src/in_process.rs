@@ -411,6 +411,11 @@ impl Switches for ThisMachine {
             announcement_length_secs: announcement.length_secs,
             end_on_silence: self.0.controller().end_on_silence(),
             adjust_recordings: self.0.controller().adjust_recordings(),
+            window_menu: self
+                .0
+                .controller()
+                .has_window_menu()
+                .then(|| self.0.controller().window_menu()),
             keep_evening: Some(self.0.controller().keep_evening()),
             linked_packages: Some(self.0.controller().linked_packages()),
             debug_running: self.0.config().debug_enabled,
@@ -491,6 +496,10 @@ impl Switches for ThisMachine {
             .controller()
             .set_adjust_recordings(on)
             .map_err(refused)
+    }
+
+    async fn set_window_menu(&self, on: bool) -> Result<bool, AdminError> {
+        self.0.controller().set_window_menu(on).map_err(refused)
     }
 
     async fn set_keep_evening(&self, on: bool) -> Result<bool, AdminError> {

@@ -356,6 +356,10 @@ pub struct SwitchState {
     pub end_on_silence: bool,
     /// Whether a recorded song changes key and tempo.
     pub adjust_recordings: bool,
+    /// Whether a Windows or macOS window shows its Menu button.
+    ///
+    /// `None` from a machine with no such window or no such route, and the page then draws no card.
+    pub window_menu: Option<bool>,
     /// Whether the evening outlives the machine's process.
     ///
     /// `None` from a machine that has no such route, and the page then draws no card for it.
@@ -703,6 +707,9 @@ pub trait Switches: Send + Sync + 'static {
 
     /// Say whether a recorded song changes key and tempo, answering with what the machine stored.
     async fn set_adjust_recordings(&self, on: bool) -> Result<bool, AdminError>;
+
+    /// Say whether the window shows its Menu button, answering with what the machine stored.
+    async fn set_window_menu(&self, on: bool) -> Result<bool, AdminError>;
 
     /// Say whether the evening outlives the machine's process, answering with what it stored.
     async fn set_keep_evening(&self, on: bool) -> Result<bool, AdminError>;

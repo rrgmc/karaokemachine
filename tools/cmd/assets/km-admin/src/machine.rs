@@ -43,6 +43,7 @@ use km_api::dto::{
     PackagesDto, PerformanceDto, PerformanceRequest, RoomAccessRequest, SetAnnouncementRequest,
     SetDemoDelayRequest, SetDemoRequest, SettingsDto, SettingsPatchDto, SingerRulesDto,
     SoundFontDto, SoundFontRequest, SoundFontsDto, UninstallDto, UploadReportDto, WallpapersDto,
+    WindowMenuDto, WindowMenuRequest,
 };
 
 /// The machine's own default port, so "a bare host means 8177" is not written down twice.
@@ -116,6 +117,10 @@ pub enum Call<'a> {
     AdjustRecordings,
     /// `PUT` — say whether a recorded song changes key and tempo.
     SetAdjustRecordings,
+    /// `GET` — whether a Windows or macOS window shows its Menu button.
+    WindowMenu,
+    /// `PUT` — say whether a Windows or macOS window shows its Menu button.
+    SetWindowMenu,
     /// `GET` — whether the evening outlives the machine's process.
     KeepEvening,
     /// `PUT` — say whether the evening outlives the machine's process.
@@ -256,6 +261,8 @@ impl<'a> Call<'a> {
         Call::SetEndOnSilence,
         Call::AdjustRecordings,
         Call::SetAdjustRecordings,
+        Call::WindowMenu,
+        Call::SetWindowMenu,
         Call::KeepEvening,
         Call::SetKeepEvening,
         Call::LinkedPackages,
@@ -302,6 +309,7 @@ impl<'a> Call<'a> {
             | Self::Performance
             | Self::EndOnSilence
             | Self::AdjustRecordings
+            | Self::WindowMenu
             | Self::KeepEvening
             | Self::LinkedPackages
             | Self::AudioOutputs
@@ -323,6 +331,7 @@ impl<'a> Call<'a> {
             | Self::SetPerformance
             | Self::SetEndOnSilence
             | Self::SetAdjustRecordings
+            | Self::SetWindowMenu
             | Self::SetKeepEvening
             | Self::SetLinkedPackages
             | Self::SetAudioOutput
@@ -403,6 +412,8 @@ impl<'a> Call<'a> {
             Self::SetEndOnSilence => "/admin/playback/end-on-silence",
             Self::AdjustRecordings => "/playback/adjust-recordings",
             Self::SetAdjustRecordings => "/admin/playback/adjust-recordings",
+            Self::WindowMenu => "/display/window-menu",
+            Self::SetWindowMenu => "/admin/display/window-menu",
             Self::KeepEvening => "/evening/keep",
             Self::SetKeepEvening => "/admin/evening/keep",
             Self::LinkedPackages => "/linked-packages",
@@ -851,6 +862,17 @@ impl Client {
             &AdjustRecordingsRequest { enabled },
         )
         .await
+    }
+
+    /// Whether a Windows or macOS window shows its Menu button, and whether it has such a window.
+    pub async fn window_menu(&self) -> Result<WindowMenuDto, Refused> {
+        self.get_json(Call::WindowMenu).await
+    }
+
+    /// Says whether a Windows or macOS window shows its Menu button. The machine writes it down.
+    pub async fn set_window_menu(&self, enabled: bool) -> Result<WindowMenuDto, Refused> {
+        self.json_with(Call::SetWindowMenu, &WindowMenuRequest { enabled })
+            .await
     }
 
     /// Whether the evening outlives the machine's process.

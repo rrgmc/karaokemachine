@@ -527,6 +527,7 @@ pub fn router(state: Admin) -> Router {
             "/machine/adjust-recordings",
             post(handlers::set_adjust_recordings),
         )
+        .route("/machine/window-menu", post(handlers::set_window_menu))
         .route("/machine/keep-evening", post(handlers::set_keep_evening))
         .route(
             "/machine/linked-packages",

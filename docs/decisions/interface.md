@@ -11,6 +11,9 @@ from a window), with the cursor shown only while windowed. **Android is always f
 fixed-function appliance with no desktop to return to. A remote that dropped the television out
 of fullscreen would leave nobody a way back. Compiled out there rather than merely unreachable.
 
+**A fullscreen Windows or macOS window shows the cursor while its Menu button is up.** See
+[`On Windows and macOS, the window has a Menu`](remotes.md#on-windows-and-macos-the-window-has-a-menu).
+
 **Android starts fullscreen whatever `display.fullscreen` says**, with the status and navigation
 bars hidden. The theme alone does not hold that, because SDL shows both bars when it leaves
 fullscreen.
@@ -81,6 +84,21 @@ An appliance has no window to raise, so the case that argument protects cannot a
 
 **No setup program pre-writes it.** An installed machine is the television, which is the one case
 that does not want it.
+
+## `C` shows or hides the mouse pointer, in the mode the window is in
+
+**A window shows the pointer and fullscreen hides it, and `C` flips the mode the window is in.**
+`display.cursor_windowed` starts on and `display.cursor_fullscreen` starts off. A window on a desk
+wants a pointer, and a machine under a television does not. One switch for both would be wrong for
+one of them, and `C` in fullscreen would then change nothing anybody could see.
+
+**The Menu brings a hidden pointer back while it is up.** A button nobody can point at is no button.
+A machine whose mouse gets knocked turns the Menu off on the owner's page, and then the pointer stays
+hidden.
+
+**A letter beside `F` and `T`**, for their reason: it is the third question about the same window.
+Both switches are written back when the display closes, on the rules `T` follows. Android and iOS
+draw no pointer, so they neither read the key nor write the settings.
 
 ## The window opens where it was left
 

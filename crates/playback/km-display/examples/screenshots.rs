@@ -216,6 +216,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         developer_mode: None,
         // A playing screen never draws it.
         version: None,
+        menu: None,
     };
 
     write(
@@ -252,6 +253,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             // rule is about; see `What a published picture says about the build it was taken from`
             // in docs/decisions/repository.md.
             version: None,
+            menu: None,
             ..Frame::idle(&typing)
         },
         &wallpaper,
