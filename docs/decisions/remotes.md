@@ -238,7 +238,7 @@ remote's furniture inside the machine's queue.
 **`↑ next` and `▶ now` need the control level, and asking needs only the request level.** Asking is
 what this machine offers the whole room, and interrupting is not. The machine enforces that, and a
 phone below the control level is never shown either button. See
-[`Five access levels`](api-and-network.md#five-access-levels-and-the-method-and-path-decide-them).
+[`Six access levels`](api-and-network.md#six-access-levels-and-the-method-and-path-decide-them).
 
 **At the control level the toggle is still off by default.** One guest should not be handed a
 one-tap way to end another guest's song beside every search result. Two taps, remembered per phone.
@@ -312,10 +312,11 @@ none of those controls. That keeps one guest's phone off another singer's song.
 
 ## The host's tab is in the singer's remote
 
-**A phone at the control level has a fifth tab, and it is the host's.** A host for one night holds
-the control code and no admin password. So the tab belongs in the singer's remote, and `/admin/`
-stays the owner's page. The link is in every page, and the stylesheet hides it below the control
-level, as it hides each button. A phone below that level that opens `/host` goes to the Setup tab,
+**A phone at the host level has a fifth tab, and it is the host's.** A host for one night holds
+the host code and no admin password. So the tab belongs in the singer's remote, and `/admin/`
+stays the owner's page. The link is in every page, and the stylesheet hides it below the host
+level, as it hides each button. A room never reaches the host level, so a guest's phone never
+shows the tab. A phone below that level that opens `/host` goes to the Setup tab,
 where the code box is.
 
 **The song that plays, and its transport, stand at the top and never fold.** A host stops and
@@ -331,7 +332,7 @@ the machine's: no case and no accents. A new one is a singer with no phone. Unde
 song that singer's turn, whatever order the host enters songs in.
 
 **A song on the Songs tab has a button that sends it to the host's add form.** A host at the
-control level browses the catalog as a guest does. The button opens the singers tab with that song
+host level browses the catalog as a guest does. The button opens the singers tab with that song
 in the song box and its + beside it. The host then picks the singer and adds it. The remote looks
 the song up by number, so a similar title does not stand in for it.
 

@@ -22,7 +22,8 @@ machine* tab, under **Access** and **Singers and queue**. See
 | The admin password | Set one of your own, and keep it | The machine shows its first password on its own screen, where every guest reads it |
 | Room level | *Ask for songs* | Each table asks from a phone. The default lets every phone skip |
 | Queue order | *Singers take turns* | Each singer gets a turn. The default plays songs in the order asked, so one table could fill the queue |
-| Code to skip | Set one, and give it to the host | It opens the host's tab |
+| Code for the host's tab | Set one, and give it to the host | It opens the host's tab |
+| Code to skip | Set none | The host's code skips as well |
 | Code to queue | Set none, or keep it | It adds a song out of turn, and it changes the key of any singer's song |
 | Every singer gives a name | On | The host calls each singer by the name on the screen |
 | Songs one singer may have waiting | A low number, such as 2 | One table cannot fill the list of waiting songs |
@@ -31,7 +32,7 @@ machine* tab, under **Access** and **Singers and queue**. See
 **Choose *Watch only* for the room where the host enters every song.** Guests then read the queue
 on their phones and ask at the desk. The host adds each song on the host's tab.
 
-**A host for one night needs the code to skip and nothing else.** The admin password stays with the
+**A host for one night needs the code for the host's tab and nothing else.** The admin password stays with the
 owner, because a host changes no setting.
 
 ## Play a large collection from its own folder
@@ -89,7 +90,7 @@ a turn. See [The keyboard](keyboard.md).
 
 ## What the host does
 
-**The host types the code to skip on the remote's Setup tab.** Tap **Enter a code**, type it, and
+**The host types the code for the host's tab on the remote's Setup tab.** Tap **Enter a code**, type it, and
 tap **Use**. The remote then shows the host's tab, which is the ticked box in the tab bar. The
 controls stand at the top, and two tabs below them hold the queue and the singers.
 

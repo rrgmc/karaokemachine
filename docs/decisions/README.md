@@ -335,7 +335,7 @@ it are the same entry. How the thing is built is [`ARCHITECTURE.md`](../ARCHITEC
 - [The queue holds one song for each singer](api-and-network.md#the-queue-holds-one-song-for-each-singer)
 - [An operator corrects what the rule did](api-and-network.md#an-operator-corrects-what-the-rule-did)
 - [The machine can keep the evening across a restart](api-and-network.md#the-machine-can-keep-the-evening-across-a-restart)
-- [Five access levels, and the method and path decide them](api-and-network.md#five-access-levels-and-the-method-and-path-decide-them)
+- [Six access levels, and the method and path decide them](api-and-network.md#six-access-levels-and-the-method-and-path-decide-them)
 - [Network reach](api-and-network.md#network-reach)
 - [The machine holds its port, rather than claiming it once](api-and-network.md#the-machine-holds-its-port-rather-than-claiming-it-once)
 - [Debugging is a mode, and the machine says when it is on](api-and-network.md#debugging-is-a-mode-and-the-machine-says-when-it-is-on)

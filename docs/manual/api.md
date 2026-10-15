@@ -18,6 +18,7 @@ The API has the same levels as [the setup page](setup.md) gives a phone.
 | Any read | Nothing |
 | Registering a singer, asking for a song, and taking one back | The request level |
 | Adding a song with no singer, and the settings patch | The queue level |
+| The host's routes | The host level |
 | Every other write outside `/api/v1/admin/` | The control level, which is the default |
 | Anything under `/api/v1/admin/` | The machine's password |
 
@@ -38,7 +39,7 @@ The two debug play routes are the exception. They are open whenever debugging mo
   request and its state.
 - **`POST /api/v1/queue` adds a song with no singer**, and takes `number` and nothing else. It
   refuses a body that names a singer.
-- **The host's routes need the control level**: `POST /api/v1/singers/{id}/requests` adds a song
+- **The host's routes need the host level**: `POST /api/v1/singers/{id}/requests` adds a song
   for any singer. Accepting early, declining and the merge each have a route under
   `/api/v1/requests/` or `/api/v1/singers/`, and `POST /api/v1/evening/reset` starts a new evening.
 
