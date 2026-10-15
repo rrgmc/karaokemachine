@@ -39,9 +39,9 @@
     <span class="tab-icon">&#8801;</span><span>{{ "tab-queue"|t }}</span>
     {{ chrome.queue_count|safe }}
   </a>
-  {# The host's tab, which a phone below the control level is never shown. Narrow and wordless,
+  {# The host's tab, which a phone below the host level is never shown. Narrow and wordless,
      as the gear beside it is: a host goes there to correct something and comes back. #}
-  <a href="/host" class="tab-setup needs-control {% if chrome.tab == "host" %}active{% endif %}"
+  <a href="/host" class="tab-setup needs-host {% if chrome.tab == "host" %}active{% endif %}"
      aria-label="{{ "tab-host"|t }}" title="{{ "tab-host"|t }}">
     <span class="tab-icon">&#9745;</span>
   </a>

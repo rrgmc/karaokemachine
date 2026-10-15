@@ -4,7 +4,7 @@
   {# A host adds a song for somebody else on the host's tab. This opens it with the song ready, so
      the host picks the singer and presses + there. Out of the fold, because a host does it all
      night. #}
-  <a class="icon-btn needs-control" href="/host?song={{ number }}"
+  <a class="icon-btn needs-host" href="/host?song={{ number }}"
      title="{{ "song-for-singer"|t }}" aria-label="{{ "song-for-singer"|t }}">&#128100;</a>
   {# A song with no singer takes no turn, so it is folded away with the two that interrupt. #}
   <button class="icon-btn extra-action needs-queue" title="{{ "song-plain"|t }}" aria-label="{{ "song-plain"|t }}"

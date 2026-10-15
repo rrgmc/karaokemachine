@@ -339,6 +339,7 @@ impl Chrome {
             km_api::Access::Request => "access-request",
             km_api::Access::Queue => "access-queue",
             km_api::Access::Control => "access-control",
+            km_api::Access::Host => "access-host",
             km_api::Access::Admin => "access-admin",
         }
     }

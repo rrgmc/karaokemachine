@@ -133,6 +133,7 @@ access-view = Watch only
 access-request = Ask for songs
 access-queue = Ask for songs, and change key and tempo
 access-control = All of that, skip and play now
+access-host = All of that, and the host's tab
 access-admin = Everything
 access-code = A code from the owner
 access-code-placeholder = code

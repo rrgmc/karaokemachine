@@ -117,6 +117,7 @@ access-view = Só assistir
 access-request = Pedir músicas
 access-queue = Pedir músicas, e mudar tom e andamento
 access-control = Tudo isso, pular e tocar agora
+access-host = Tudo isso, e a aba do anfitrião
 access-admin = Tudo
 access-code = Um código do dono
 access-code-placeholder = código

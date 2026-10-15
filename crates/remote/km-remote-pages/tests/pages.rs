@@ -369,7 +369,8 @@ struct StubMachine {
     /// An `Arc` because `Harness::with` takes the stub by value: the counter is cloned out before
     /// the machine goes in, which is the only handle a test has on it afterwards.
     wakes: Arc<AtomicUsize>,
-    /// What a phone with no code may do. Control by default, so every button works.
+    /// What a phone with no code may do. Host by default, so every button works. A real room stops
+    /// at control; the stub is not one.
     room: km_api::Access,
 }
 
@@ -378,7 +379,7 @@ const STUB_EVENING: &str = "e0e0";
 
 /// The one code the stub knows, and the token it hands back for it.
 const STUB_CODE: &str = "boss";
-const STUB_TOKEN: &str = "stub-control-token";
+const STUB_TOKEN: &str = "stub-host-token";
 
 impl StubMachine {
     fn new() -> Self {
@@ -395,7 +396,7 @@ impl StubMachine {
             refuse_move: None,
             refuse_demo: None,
             demo_starts: Arc::new(Mutex::new(0)),
-            room: km_api::Access::Control,
+            room: km_api::Access::Host,
             quiet: false,
             online: true,
             wakes: Arc::new(AtomicUsize::new(0)),
@@ -556,7 +557,7 @@ impl StubMachine {
 impl Machine for StubMachine {
     async fn access(&self, token: Option<&str>) -> Result<km_api::dto::AccessDto, RemoteError> {
         let held = if token == Some(STUB_TOKEN) {
-            km_api::Access::Control
+            km_api::Access::Host
         } else {
             km_api::Access::View
         };
@@ -564,7 +565,8 @@ impl Machine for StubMachine {
             access: held.max(self.room),
             room: self.room,
             queue_code: false,
-            control_code: true,
+            control_code: false,
+            host_code: true,
         })
     }
 
@@ -577,7 +579,7 @@ impl Machine for StubMachine {
             Ok(km_api::dto::AccessGrantDto {
                 token: STUB_TOKEN.to_owned(),
                 expires_in_secs: 3600,
-                access: km_api::Access::Control,
+                access: km_api::Access::Host,
             })
         } else {
             Err(RemoteError::Unauthorized)
@@ -5312,8 +5314,8 @@ async fn the_setup_tab_is_on_both_remotes_and_carries_what_each_one_has() {
         .rfind(r#"<div class="setup-group"#)
         .expect("its group")..];
     assert!(
-        group.starts_with(r#"<div class="setup-group needs-control">"#),
-        "shown from the control level up: {group}"
+        group.starts_with(r#"<div class="setup-group needs-host">"#),
+        "shown from the host level up: {group}"
     );
     assert!(
         body.contains("Needs the machine&#39;s password"),
@@ -5693,7 +5695,10 @@ async fn a_page_carries_the_phones_level_on_its_body() {
     let page = harness.get("/").await;
     assert!(page.contains(r#"<body class="access-view""#), "{page}");
 
-    let harness = Harness::with(StubMachine::new(), Capabilities::online());
+    let harness = Harness::with(
+        StubMachine::new().room(km_api::Access::Control),
+        Capabilities::online(),
+    );
     let page = harness.get("/").await;
     assert!(page.contains(r#"<body class="access-control""#), "{page}");
 }
@@ -5768,13 +5773,13 @@ async fn a_code_is_kept_in_a_cookie_and_a_wrong_one_is_refused() {
         Some("true")
     );
     let cookie = set_cookie(&headers);
-    assert!(cookie.contains("km_access=stub-control-token"), "{cookie}");
+    assert!(cookie.contains("km_access=stub-host-token"), "{cookie}");
     assert!(cookie.contains("HttpOnly"), "{cookie}");
 
     let (_, _, page) = harness
-        .get_full("/", Some("km_access=stub-control-token"))
+        .get_full("/", Some("km_access=stub-host-token"))
         .await;
-    assert!(page.contains(r#"<body class="access-control""#), "{page}");
+    assert!(page.contains(r#"<body class="access-host""#), "{page}");
 
     let (_, body) = harness.post_form("/access", "code=nope").await;
     assert!(body.contains("not right"), "{body}");
@@ -6269,12 +6274,12 @@ async fn the_live_script_asks_again_when_the_requests_change() {
 
 // -- the host's tab, and what a guest is told ------------------------------------------------------
 
-/// A phone below the control level has no host's tab: the link is hidden and the page sends it to
-/// the code box.
+/// A phone below the host level has no host's tab: the link is hidden and the page sends it to
+/// the code box. A room at the control level, the default, is below it.
 #[tokio::test]
-async fn the_hosts_tab_is_for_the_control_level() {
+async fn the_hosts_tab_is_for_the_host_level() {
     let asking = Harness::with(
-        StubMachine::new().room(km_api::Access::Request),
+        StubMachine::new().room(km_api::Access::Control),
         Capabilities::online(),
     );
     let (status, headers, _) = asking.get_full("/host", None).await;
@@ -6285,7 +6290,7 @@ async fn the_hosts_tab_is_for_the_control_level() {
     );
     let page = asking.get("/").await;
     assert!(
-        page.contains(r#"<a href="/host" class="tab-setup needs-control "#),
+        page.contains(r#"<a href="/host" class="tab-setup needs-host "#),
         "the link is there and the stylesheet hides it: {page}"
     );
     let (status, _, lists) = asking.post("/host/accepting/off").await;

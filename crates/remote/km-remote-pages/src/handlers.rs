@@ -310,6 +310,7 @@ async fn access_of(state: &Remote, prefs: &Prefs) -> AccessDto {
             room: Access::View,
             queue_code: false,
             control_code: false,
+            host_code: false,
         })
 }
 
@@ -2392,7 +2393,7 @@ async fn host_answer(state: &Remote, locale: Locale, result: Result<(), RemoteEr
 
 /// `GET /host` — the tab a host runs the night from.
 ///
-/// A phone below the control level is sent to the Setup tab, where the code box is.
+/// A phone below the host level is sent to the Setup tab, where the code box is.
 pub async fn host(
     State(state): State<Remote>,
     Query(sent): Query<HostSent>,
@@ -2400,7 +2401,7 @@ pub async fn host(
 ) -> Response {
     let prefs = Prefs::read(&headers);
     let locale = prefs.locale;
-    if permit(&state, &prefs, Access::Control).await.is_err() {
+    if permit(&state, &prefs, Access::Host).await.is_err() {
         return Redirect::to("/setup").into_response();
     }
     let chrome = chrome(&state, "host", &prefs).await;
@@ -2450,7 +2451,7 @@ pub struct HostSent {
 /// either changes.
 pub async fn host_lists_fragment(State(state): State<Remote>, headers: HeaderMap) -> Response {
     let prefs = Prefs::read(&headers);
-    let allowed = permit(&state, &prefs, Access::Control).await;
+    let allowed = permit(&state, &prefs, Access::Host).await;
     host_answer(&state, prefs.locale, allowed).await
 }
 
@@ -2473,7 +2474,7 @@ pub async fn host_songs(
 ) -> Response {
     let prefs = Prefs::read(&headers);
     let text = search.q.trim();
-    let songs = if text.is_empty() || permit(&state, &prefs, Access::Control).await.is_err() {
+    let songs = if text.is_empty() || permit(&state, &prefs, Access::Host).await.is_err() {
         Vec::new()
     } else {
         state
@@ -2510,7 +2511,7 @@ pub async fn host_add(
     let prefs = Prefs::read(&headers);
     let locale = prefs.locale;
     let words = crate::words::messages(locale);
-    if let Err(refused) = permit(&state, &prefs, Access::Control).await {
+    if let Err(refused) = permit(&state, &prefs, Access::Host).await {
         return views::toast_only(views::message_for(&refused, locale), locale);
     }
     let Some(name) = form::field(&body, "singer")
@@ -2569,7 +2570,7 @@ pub async fn host_request(
     headers: HeaderMap,
 ) -> Response {
     let prefs = Prefs::read(&headers);
-    let result = match permit(&state, &prefs, Access::Control).await {
+    let result = match permit(&state, &prefs, Access::Host).await {
         Err(refused) => Err(refused),
         Ok(()) => match action.as_str() {
             "decline" => state.machine.decline(request).await.map(|_| ()),
@@ -2591,7 +2592,7 @@ pub async fn host_singer(
     body: String,
 ) -> Response {
     let prefs = Prefs::read(&headers);
-    let result = match permit(&state, &prefs, Access::Control).await {
+    let result = match permit(&state, &prefs, Access::Host).await {
         Err(refused) => Err(refused),
         Ok(()) => match action.as_str() {
             "reissue" => state.machine.reissue_singer(singer).await.map(|_| ()),
@@ -2613,7 +2614,7 @@ pub async fn host_accepting(
     headers: HeaderMap,
 ) -> Response {
     let prefs = Prefs::read(&headers);
-    let result = match permit(&state, &prefs, Access::Control).await {
+    let result = match permit(&state, &prefs, Access::Host).await {
         Err(refused) => Err(refused),
         Ok(()) => state
             .machine
@@ -2629,7 +2630,7 @@ pub async fn host_accepting(
 /// The machine starts the first song of the kept queue, and its wait ends with that.
 pub async fn host_continue(State(state): State<Remote>, headers: HeaderMap) -> Response {
     let prefs = Prefs::read(&headers);
-    let result = match permit(&state, &prefs, Access::Control).await {
+    let result = match permit(&state, &prefs, Access::Host).await {
         Err(refused) => Err(refused),
         Ok(()) => state.machine.transport(Transport::Play).await.map(|_| ()),
     };
@@ -2643,7 +2644,7 @@ pub async fn host_continue(State(state): State<Remote>, headers: HeaderMap) -> R
 pub async fn host_reset(State(state): State<Remote>, headers: HeaderMap) -> Response {
     let prefs = Prefs::read(&headers);
     let locale = prefs.locale;
-    let result = match permit(&state, &prefs, Access::Control).await {
+    let result = match permit(&state, &prefs, Access::Host).await {
         Err(refused) => Err(refused),
         Ok(()) => state.machine.reset_evening().await.map(|_| ()),
     };
