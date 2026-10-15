@@ -11,6 +11,8 @@ Entries are written for somebody who has the machine. Why any of it is the way i
 
 ## [Unreleased]
 
+## [1.24.0] - 2026-10-15
+
 ### Added
 
 - **An iPhone or iPad running the machine chooses songs without leaving it.** **Menu** at the top

@@ -20,22 +20,16 @@ the portable copies and the remote on its own.
 
 ## What changed
 
-- **A host runs the night from a phone.** A phone with the skip code adds songs for guests,
-  accepts or refuses waiting songs, and manages the singers.
-- **A venue can make the singers take turns.** The queue then holds one song for each singer, so
-  nobody sings five songs in a row.
-- **A guest's phone asks for songs by default.** The host puts them in the queue. A guest's phone
-  does not change the key or the tempo.
-- **The machine announces each queued song.** The title, the artist and the singer's name fill the
-  screen for five seconds before it starts.
-- **A machine can keep the night through a restart.** After a power cut it starts with its queue
-  and its singers.
-- **Videos, MP3+G songs and songs with recorded audio change key and tempo.**
-- **A linked package plays songs from a folder already on the machine**, so a library is stored
-  once.
-- **The packaging tools read a song from a zip.**
-- **The recommended instrument bank installs.** Its publisher replaced the file, and the version
-  before this one refuses it.
+- **The machine on an iPhone, an iPad, Windows or macOS has a Menu.** **Choose songs** opens the
+  remote while the song plays on, and **Install a package** opens the file browser.
+- **The Menu opens the setup page**, on Android too. **Set up the machine** is there even with the
+  remote turned off.
+- **`C` shows or hides the mouse pointer.** The machine remembers the choice for a window and for
+  full screen.
+- **A guest's phone is a full remote by default.** It asks for songs, queues them, skips, and
+  changes the key and the tempo. Only the admin password changes the settings.
+- **The recommended instrument bank downloads from this project's own release page**, so a new
+  version from its publisher does not stop the download.
 
 ## Every file
 
