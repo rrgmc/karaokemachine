@@ -41,23 +41,6 @@ The detail lives in the documents below, opened when needed.
    documentation. `README.md`, `docs/manual/`, `BUILDING.md`, `CONTRIBUTING.md`, the per-port READMEs,
    `icon/README.md`, `docs/learning-rust.md` and `docs/HISTORY.md` say what *is* or *was* true, where
    a plan says what *will be*.
-6. **Prose states the rule and the reason, and never how the rule was arrived at.** No "used to", no
-   "no longer", no version or milestone numbers, no sentence whose subject is the document. No
-   appositive tail restating the clause before it. **This governs code comments and everything the
-   project publishes**, as much as documents: the release page, the changelog, the site, the words
-   inside a program. Somebody writing up a change they have just made breaks it most easily. The full
-   form, with the list of what creeps back, is
-   [`How a document in this repository is written`](docs/decisions/repository.md#how-a-document-in-this-repository-is-written).
-7. **A commit's subject states the rule that holds after the change, and its body states the fault
-   the change answers.** The fault's past tense is the content, and the session's own is what fails.
-   `task lint:prose` reads `origin/master..HEAD` and nothing below it, so `git commit --amend` fixes
-   a message while the branch is unmerged.
-8. **A sentence takes the active voice, one idea, and twenty-five words at most.** Simplified
-   Technical English gives the rest: simple tenses, one word per idea, six sentences to a paragraph,
-   no metaphor and no idiom. A path, a flag, a name and a number stay verbatim. **A full stop is not
-   the only join**: two clauses carrying one idea keep their conjunction. A run of fragments is worse
-   than the long sentence it replaced. **A heading keeps the voice it has**, and so does a table
-   cell; `task lint:prose` counts the words and cannot see a metaphor.
 
 ## Non-goals
 

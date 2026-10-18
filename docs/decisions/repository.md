@@ -778,179 +778,15 @@ other way in, pointing at `BUILDING.md`.
 `--frame-stats` is deliberately not a log level. It is reference documentation and not a plan, so
 rule 5 in `CLAUDE.md` does not reach it.
 
-## How a document in this repository is written
+## Prose has no house style and no checker
 
-**A document states the rule and the reason somebody would need in order not to undo it. It does not
-narrate how the rule was arrived at.**
+**No rule sets the style of prose in this repository, and no check reads it.** That covers documents,
+code comments, commit messages and everything the project publishes. The model that writes most of
+this text writes clearly without a mechanical floor. Review is the safeguard.
 
-What that excludes, in order of how often it creeps back:
-
-- **What something used to be.** No former names, former defaults, former behaviors, no "this reverses",
-  "this used to say", "since renamed", "no longer". A reader arrives at the repository as it is. A
-  sentence about a state that is gone costs them a paragraph and tells them nothing they can act on.
-  This covers a decision that was reversed as much as a spelling that changed.
-- **Chronology.** No milestone numbers, no dates in headings, no "for two milestones", no ordering of
-  when things were found. A date belongs in the body only where a reader needs to know when a
-  measurement was taken.
-- **Meta-commentary on the writing.** This is any sentence whose subject is the document. Examples
-  are "recorded rather than glossed", "and that is the record of it", "this row used to" and
-  "worth saying out loud".
-- **Reassurance and common sense.** A paragraph explaining that a first run works, or that a diagnostic
-  is optional, is a paragraph nobody needed.
-- **Appositive tails.** Examples are "…, which is what makes X safe" and
-  "…, and that is deliberate rather than an accident". The clause after the comma usually restates
-  the clause before it.
-
-What survives is the imperative and the trap. **A heading that instructs is not verbose** —
-`Buffering the bank read makes it slower — do not try it again` *is* the content. A heading that merely
-describes is trimmed to a plain noun phrase.
-
-**The keep-test for a paragraph**: would a reader who deleted it either re-derive a wrong answer, or
-break something silently? Anything in the past tense about a decision that no longer holds fails it.
-When unsure, keep the sentence and delete the paragraph around it.
-
-**This applies to code comments too**, on the same test. A comment saying why a line is the way it is
-earns its place; one describing a state that is gone does not.
-
-**A sentence takes the shape ASD-STE100 gives it.** The standard is Simplified Technical English, and
-aerospace maintenance manuals are its home. The half above says what a sentence may be about. This
-half says what shape it takes. Both bind every word this repository holds.
-
-- **The active voice.** The sentence names the thing that acts.
-- **One idea in a sentence.** Split a sentence before it carries two.
-- **Twenty-five words, and the limit is hard.** A longer sentence becomes two. The standard sets
-  twenty for a procedure and twenty-five for a description, and what this repository writes
-  describes.
-- **Simple tenses.** Present, past and future.
-- **One word for one idea.** Never a synonym for variety, which
-  [`One spelling per concept, across every surface`](foundations.md#one-spelling-per-concept-across-every-surface)
-  already asks of a name.
-- **No idiom, no slang, no metaphor**, in body prose.
-- **The articles stay.** Write *the function* and *a race*.
-- **Three words in a noun string.** A preposition breaks a longer one.
-- **Six sentences in a paragraph.**
-
-**An exact item keeps its spelling.** A path, a flag, a config key and an environment variable are
-exact. So are an error string, a number, a version and an id. A plainer version of a name is a wrong
-name. A concept word goes the other way: write *use*, never *leverage*.
-
-**A longer document becomes more short sentences.** It never becomes fewer facts. The keep-test above
-decides what a document says. The word limit decides only where the full stops fall.
-
-**A full stop is not the only join, and a run of fragments is the failure to watch for.** Two clauses
-that carry one idea keep their conjunction, their colon or their semicolon. A clause with no verb is
-a fragment rather than a sentence, and three in a row read like a telegram. Where a split leaves
-that, join the pieces back and spend the words the limit allows.
-
-**A heading keeps the voice it has.** The rule above defends a heading that instructs, and this
-machine's vocabulary lives in those headings. No word limit and no one-idea test reaches a heading.
-The same holds for a table cell, a fenced block, a quoted block and a block of HTML. A picture's
-`alt` describes one image in one breath, so it stays outside too.
-
-**A commit message states the fault the change answers and the rule that holds after it.** The
-subject is that rule in the declarative the log is written in. The body is the fault as somebody
-standing in front of the tree would meet it. It also gives the reason this change is the answer to
-it.
-
-A fault a fix removes is stated in the past tense and *is* the content, exactly as a `Fixed`
-entry in the changelog is. The past tense that fails is the session's own. That means the attempts,
-the order things were found in, and a count before against a count after. It also means a commit or
-a message referred to as a thing. The keep-test is the one above, asked of somebody reading
-`git log` a year later rather than of the person who wrote it.
-
-**It binds the next commit, and a message already written is left where it is.** Rewording one
-changes every hash below it, which costs every reader more than the sentence saves. A branch's own
-unmerged commits are where a reword is free, and they are the range the checker reads.
-
-**And to every word this project publishes**, which is the reach that has to be stated because it
-leaves the tree. That covers the release page on GitHub, the tag message, the changelog entry, the
-site, and the words inside a program. A reader who arrives at a release page arrives at the product
-rather than at its history. So a sentence there about a state that is gone costs them the same
-paragraph it costs anybody else. And more people read a release page than every document here put
-together.
-
-**Nothing published is typed at the point of publication.** The release page's body is
-[`tools/dist/release-notes.md`](../../tools/dist/release-notes.md) and the site's is `site/`. Both are
-tracked, so `check-prose.sh` and `check-no-local-refs.sh` read them through `git ls-files` like any
-other file. `tools/dist/release.sh` substitutes the version. Neither checker reads a body pasted into
-the GitHub form, which is the whole reason the file exists. The tag message is the one line with no
-file behind it, and `karaokemachine X.Y.0` is all it says.
-
-**`tools/dev/check-prose.sh` keeps the mechanical half true.** It matches the three shapes above that
-have one: `what something used to be`, `chronology`, `meta-commentary`. It cannot see the appositive
-tail or the paragraph of reassurance, so a clean run is a floor rather than a pass.
-
-**`tools/dev/prose-sentences.awk` reads the sentence shapes.** It counts the words in a sentence and
-the sentences in a paragraph. It catches a passive verb that names its agent. Idiom, metaphor and a
-long noun string have no shape, so a person still reads new prose. It reads `*.md`, a Fluent catalog
-and commit messages, and it hands a code comment to that person.
-
-**A page is prose only where the list names it.** `-v page=1` reads HTML instead of Markdown. A tag
-becomes a space, and a `</p>`, a `</li>` or a heading's close ends a paragraph. It never reads a
-`<script>`, a `<style>`, a comment or a heading's own words. The tracked pages are mostly Fluent
-templates, where a line is markup and a sentence counter would report the markup. Naming the page in
-`prose-converted.txt` is what makes it prose, and the site's two pages are what that is for.
-
-**A catalog of program strings is read like a document.** `-v ftl=1` reads Fluent, where a message, a
-term and an attribute each open a value, and each value is a paragraph of its own. A placeable is one
-word, as a code span is, and a selector is read at its default variant. A plural's arms differ by a
-word, and reading them all would count one sentence several times. A comment there is the catalog's
-own commentary and stays outside the shape. Every word in a catalog is a word somebody reads on a
-screen, so the twelve catalogs are named in the list beside the documents.
-
-**Structure is what reaches a page in another language.** The active voice, one idea to a sentence,
-the word limit and the paragraph limit hold in any language. The vocabulary half does not travel,
-because the checker cannot read Portuguese idiom. Neither the standard's approved word list nor
-[`The prose and the names are US English`](foundations.md#the-prose-and-the-names-are-us-english)
-reaches a translation, so a person reads a translated page for the rest.
-
-**The tree converts one document at a time.** `tools/dev/prose-converted.txt` names the documents
-somebody has already written to the shape, and every mode reads those whole. Outside that list the
-checker reads only the lines a branch adds. The code comments are what a tree-wide sentence run
-reaches next, and a third of the sentences in them run past twenty-five words. Reading those before
-they are written to the shape would fail every branch. A gate that always fails teaches a session to
-skip the gate.
-
-**`--commits` puts the same shapes over the messages, and its reach is `origin/master..HEAD`.** The
-subject and the body both, merges included, because a merge here carries a written subject rather
-than git's default. A hit names the short sha and whether it fell in the subject or the body. So the
-reword is `git commit --amend` or `git rebase -i --reword` on a branch nothing has been built on yet.
-**No message on the default branch is ever read**, which is what makes the rule enforceable without a
-rewrite of history behind it.
-
-**`task check` runs it over the lines a branch adds, and `ci.yml` reads the whole tree.** **Both,
-and not one or the other.** A session can push without typing the task, and a runner cannot tell a
-session that did from one that did not.
-
-**On a pull request, CI reads the commit messages too.** That checkout carries the full history and
-the pull request's own head rather than GitHub's merge commit. So `--commits` resolves the branch
-against `origin/master` exactly as the task does. A push to `master` has no branch to read, and
-`master` takes pull requests only.
-
-**`--changed` in the gate and the whole tree by hand, and the reason is a cost.** Fourteen shapes
-over 700 files is ~10,000 `grep` spawns. That is 2m56s on this repository's Windows box, of which
-two thirds is process creation, against 3.3 s for a branch's own lines. The sentence shapes are one
-`awk` per converted document, which is about a second of that. Reading everything before every push
-would put the slowest guard in the repository in front of a 13-second one. That is the opposite of
-the order `task check` is arranged in.
-
-The whole-tree form is what to run after a large rewrite, and what a runner should be given. It needs
-no history and no remote ref, where `--changed` resolves a base against `origin/master`.
-
-**A run that reads nothing fails.** Each mode has a route to a clean report that opens no file at
-all. A `--changed` that fell back to diffing HEAD against itself, where `origin/master` is absent,
-would read nothing. So would the whole-tree form where `git ls-files` cannot run, as in every run
-inside the Debian image `task check:linux` uses, which carries no `git`. Each says which of the two is missing and
-exits non-zero. A checker that cannot read is worth less than no checker, because it answers.
-
-**Three files are exempt and say so in place.** `docs/learning-rust.md` is a teaching document,
-where the arc from wrong to right *is* the content. `docs/HISTORY.md` is the origin story, where the
-chronology and the abandoned attempts *are* the content. It is exempt from the rule and not from rule
-5 in `CLAUDE.md`. It states what was rather than what will be, and it binds nothing.
-
-**`CODE_OF_CONDUCT.md` is the third, and it is somebody else's text.** It is the Contributor
-Covenant word for word, and its last paragraph names the version it is. A sentence rewritten to the
-shape would make that line false, so the file states the Covenant and this rule leaves it alone.
+**The privacy rule is separate and stands.** `check-no-local-refs.sh`, and the human pass it needs,
+are argued in
+[`What a committed file may say about the machine it was written on`](#what-a-committed-file-may-say-about-the-machine-it-was-written-on).
 
 ## Where a folder-scoped instruction lives
 
@@ -1021,7 +857,7 @@ between them they cover what this repository actually runs:
 - **`rg` honors `.gitignore`**, and `/.claude/worktrees/` is ignored. So every ripgrep-based search
   walks past it, including the search a Claude session itself runs.
 - **Every check here reads through `git ls-files`**, which lists no ignored path.
-  `check-no-local-refs.sh`, `check-prose.sh` and `check-mdns.sh` therefore cannot descend into a
+  `check-no-local-refs.sh` and `check-mdns.sh` therefore cannot descend into a
   worktree whatever it holds.
 - **What is left is `find` and plain `grep` from the root**, and that is the cost `target/` already
   imposes on both. A tool of this repository's own that walks the tree prunes the directory.
@@ -1771,13 +1607,8 @@ machine gets. See
 [`What a release page says, and to whom`](distribution.md#what-a-release-page-says-and-to-whom). The
 reasoning behind any of it is a decision here and does not belong in an entry.
 
-**Chronology is what this file is for, and the rule against it does not reach the headings.**
-[`How a document in this repository is written`](#how-a-document-in-this-repository-is-written)
-excludes dates in headings, and `what something used to be` with them. Its grounds are that a reader
-arrives at the repository as it is. Somebody arriving at a *version* reads a changelog, so the date
-and the number are the content. The entries under a heading are written under the rest of the rule.
-`tools/dev/check-prose.sh` reads them as it reads any other file. That is why the file needs no
-exemption where `docs/HISTORY.md` does.
+**Chronology is what this file is for.** Somebody arriving at a *version* reads a changelog, so the
+date and the number are the content.
 
 **Its version numbers are records and never advance.** They are the one deliberate set of hits in the
 `git grep -F <old version>` that follows a bump. The eight places in

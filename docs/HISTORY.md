@@ -1,10 +1,7 @@
 # Eighteen years, and then fourteen days
 
-> The origin story, and the one document here that is chronological on purpose. The style rule in
-> [`docs/decisions/repository.md`](decisions/repository.md) excludes chronology and what something
-> used to be; this file is exempt because the arc *is* the content, as it is for
-> [`docs/learning-rust.md`](learning-rust.md). It binds nothing — product decisions live in
-> [`docs/decisions/`](decisions/) and this document is not one.
+> The origin story. It binds nothing — product decisions live in [`docs/decisions/`](decisions/) and
+> this document is not one.
 
 This machine was built in fourteen days. It was attempted five times over the eighteen years before
 that, and every attempt failed.

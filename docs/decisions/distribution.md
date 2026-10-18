@@ -2725,9 +2725,8 @@ The reasoning behind any of it belongs in `docs/` and in the comments beside the
 reading a release page has already decided to try this. Every sentence that argues with them is
 one standing between them and the download.
 
-**The body is `tools/dist/release-notes.md`**, tracked for a mechanical reason. `check-prose.sh` and
-`check-no-local-refs.sh` both choose what to read through `git ls-files`, so neither reads a body
-typed at the point of upload. A release page is exactly where a local drive name would
+**The body is `tools/dist/release-notes.md`**, tracked for a mechanical reason. `check-no-local-refs.sh`
+chooses what to read through `git ls-files`, so it does not read a body typed at the point of upload. A release page is exactly where a local drive name would
 travel furthest. `tools/dist/release.sh` substitutes this run's version and the carol pack's name
 into it, so the tracked file states no version of its own.
 
