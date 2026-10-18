@@ -1038,11 +1038,18 @@ first use.** It grows its buffers during the first blocks at a new rate. The pla
 through it at both ends of the range when it builds it.
 `crates/playback/km-audio/tests/track_alloc.rs` counts allocations and fails without that step.
 
-**The crate is a fork, for one fix.** The published crate sizes its list of spectral peaks for a
-quarter of its bins, and dense music grows that list on the audio thread. No warm-up reaches it,
-because the count depends on the music and not on the rate. The fork sizes the list for half the
-bins, which is the most a spectrum can hold. The same test fails on the published crate. The
-dependency goes back to a version number when upstream carries the fix.
+**The crate is a fork, for one fix and one feature.** The published crate sizes its list of spectral
+peaks for a quarter of its bins, and dense music grows that list on the audio thread. No warm-up
+reaches it, because the count depends on the music and not on the rate. The fork sizes the list for
+half the bins, which is the most a spectrum can hold. The same test fails on the published crate.
+
+**The workspace takes the crate without its default features.** The fork puts its signal-comparison
+module behind a default feature. That module plans an f64 FFT, and the engine uses only f32. The f64
+plan compiles all of `rustfft` a second time, which is half of the crate's build.
+
+**The fix and the feature are on two branches of the fork.** The fix is on `custom`, which upstream
+has as a pull request. The feature is on `karaokemachine`, above it, and the workspace takes that
+branch. The dependency goes back to a version number when upstream carries both.
 
 ## A key and a tempo belong to one song
 
