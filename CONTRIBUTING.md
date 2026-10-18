@@ -6,15 +6,13 @@ this file assumes you can already build and test.
 ## Before a pull request
 
 ```sh
-task check          # local-refs, prose, the two pins, fmt, clippy, tests — cheapest failure first
+task check          # local-refs, the two pins, fmt, clippy, tests — cheapest failure first
 ```
 
 `task` is optional and forwards to cargo aliases; each of these works with it absent:
 
 ```sh
 tools/dev/check-no-local-refs.sh     # or: task lint:local  — runs first, cheapest failure to read
-bash tools/dev/check-prose.sh --changed   # or: task lint:prose  — the lines this branch adds
-bash tools/dev/check-prose.sh --commits   # ...and the messages it adds them in
 tools/dev/check-toolchain-pin.sh     # or: task lint:pin
 tools/dev/check-version-pin.sh       # or: task lint:version
 tools/dev/check-script-modes.sh      # or: task lint:modes  — a script with a shebang is executable
@@ -107,38 +105,6 @@ Four things that cost time when learned the hard way:
   from the platform's config folder, not the checkout, so every worktree shares one `settings.json`,
   one catalog and one packages folder. Give each a `--data-dir` and its own `--api-bind`.
 
-## What a commit message says
-
-**The prose rule reaches a commit message**, and the standing decision is
-[`How a document in this repository is written`](docs/decisions/repository.md#how-a-document-in-this-repository-is-written).
-The subject states the rule that holds after the change, in the declarative `git log` is written in.
-The body states the fault the change answers and why this is the answer to it.
-
-**The past tense a commit is allowed is the fault's, not the session's.** Naming what was broken is
-the content, the way a `Fixed` entry in the changelog is. What fails is the route somebody took to
-the fix. The attempts, the order things were found in, a count before against a count after, a commit
-or a message referred to as a thing.
-
-```
-fix(dist): the table's commands are ones that can be typed
-feat(builder): a filter lives as long as the folder it names
-docs(decisions): a release keeps what it changed
-```
-
-**The sentence shape reaches a message too.** The active voice, one idea to a sentence, twenty-five
-words at most, and the same decision sets the rest of it out. A subject is a sentence like any other.
-A long body becomes more short sentences, never fewer facts, and two clauses that carry one idea keep
-their conjunction rather than becoming two fragments.
-
-**A document you convert to that shape joins `tools/dev/prose-converted.txt`.** The checker then
-reads it whole in every mode, so nothing slides back. Run `tools/dev/check-prose.sh` over the tree
-before you add the line.
-
-`task lint:prose` reads the subject and body of every commit above `origin/master`. A message is
-therefore judged while the branch is unmerged, where `git commit --amend` or `git rebase -i --reword`
-still costs nothing. **A message already on the default branch is out of its reach.** Rewording one
-changes every hash below it, which costs a reader more than the sentence saves.
-
 ## Where a decision gets written down
 
 Two documents carry what the code cannot say for itself, and **both are authoritative**:
@@ -194,7 +160,7 @@ request. `CI ok` fails when any job failed, and passes when the rest passed or s
 
 | Job | Runs on | Checks | Skips when |
 |---|---|---|---|
-| `guards` | ubuntu | every text check `task check` runs, with prose over the whole tree, commit messages on a pull request, shellcheck, fmt for both workspaces | never |
+| `guards` | ubuntu | every text check `task check` runs, shellcheck, fmt for both workspaces | never |
 | `linux` | `debian:13-slim` | `cargo km-lint`, `cargo km-test`: the video build | only Markdown or `docs/` changed |
 | `desktop` | windows, macos | `cargo km-lint-no-video`, `cargo km-test-no-video` | only Markdown or `docs/` changed |
 | `assets` | ubuntu | `cargo km-lint-assets`, `cargo km-test-assets` | that directory, the toolchain pin and `ci.yml` are untouched |

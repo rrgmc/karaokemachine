@@ -50,8 +50,8 @@
 # **The body is a tracked file**, `tools/dist/release-notes.md`, rendered beside the folder of
 # assets. A release page is read by somebody choosing a download, so it is held to the register in
 # `What a release page says, and to whom` in docs/decisions/distribution.md -- and a tracked file is
-# what puts it in front of `check-prose.sh` and `check-no-local-refs.sh`, both of which select what
-# they read through `git ls-files`. A body typed at the point of upload is read by neither.
+# what puts it in front of `check-no-local-refs.sh`, which selects what it reads through
+# `git ls-files`. A body typed at the point of upload is not read.
 #
 # `@VERSION@` and `@CAROLS@` are substituted from this run, so the file itself carries no version
 # number and no asset name that a rebuild can change. The same substitution is what lets the body

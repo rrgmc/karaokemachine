@@ -108,9 +108,8 @@ with a sentence beside each. Neither a cargo alias file nor a directory of scrip
 | `task test` | `cargo km-test`, video included; `task test:no-video` declines it |
 | `task lint` | `cargo km-lint` — clippy over every target, warnings denied, video included |
 | `task fmt` | formats both workspaces: this one's members, and the excluded `tools/cmd/assets` |
-| `task check` | `lint:local`, `lint:prose`, `lint:pin`, `lint:version`, `lint:modes`, `lint:mdns`, `lint:cargo`, `lint:labels`, `lint:ci`, `fmt:check`, `lint`, then `test` — the pass before a push |
+| `task check` | `lint:local`, `lint:pin`, `lint:version`, `lint:modes`, `lint:mdns`, `lint:cargo`, `lint:labels`, `lint:ci`, `fmt:check`, `lint`, then `test` — the pass before a push |
 | `task lint:local` | asserts no tracked file names a local path, address or person |
-| `task lint:prose` | asserts the prose this branch adds, and the messages it commits them in, state the rule rather than narrating it, and take the sentence shape |
 | `task lint:cargo` | asserts every value in `.cargo/config.toml` is a string, which is what a worktree can inherit without doubling it |
 | `task lint:labels` | asserts every platform and program the bug form offers has a label in `tools/dev/labels.sh` |
 | `task lint:ci` | asserts every file a CI build job reads is a file whose change starts that job |
@@ -956,7 +955,6 @@ Measured on this repository's Windows box, over a tree that is already built and
 | Stage | Warm | Cold |
 |---|---|---|
 | `lint:local` | 0.6s | 0.6s |
-| `lint:prose --changed` | 3.3s | 3.3s |
 | `lint:pin`, `lint:version` | 0.2s each | 0.2s each |
 | `fmt:check` | 3.1s | 3.1s |
 | `lint`, root workspace | 0.9s | 73s |
@@ -976,10 +974,6 @@ Measured on this repository's Windows box, over a tree that is already built and
 - **Clippy and the test build share nothing.** Whichever runs second pays its own full traversal, so
   the two orders cost the same 200s cold. Dependencies are 62% of that compilation, members 38%, so
   no selection among members reaches most of it.
-- **The whole-tree form of `check-prose.sh` is 176s**, and it is the audit rather than the gate.
-  `task check` runs `--changed`, and `--commits` beside it reads a branch's own messages in under a
-  second. The sentence shapes cost one `awk` per converted document, which is about a second of the
-  176. The fourteen phrase shapes are the rest.
 
 `Why the pass checks everything` in [`docs/decisions/repository.md`](docs/decisions/repository.md) is
 what these figures decide.

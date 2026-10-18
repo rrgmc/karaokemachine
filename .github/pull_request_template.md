@@ -12,5 +12,3 @@ The conventions are in CONTRIBUTING.md; the checklist below is the part a review
 - [ ] No committed file names a local path, a network address, personal hardware, a person or the
       size of a music collection.
 - [ ] Every new fixture is synthetic; no real song file is committed.
-- [ ] Each commit's subject states the rule that holds after it, and its body states the fault it
-      answers. See [What a commit message says](https://github.com/rrgmc/karaokemachine/blob/master/CONTRIBUTING.md#what-a-commit-message-says).

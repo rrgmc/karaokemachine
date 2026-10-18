@@ -528,7 +528,7 @@ it are the same entry. How the thing is built is [`ARCHITECTURE.md`](../ARCHITEC
 - [What a picture taken inside a headset may show](repository.md#what-a-picture-taken-inside-a-headset-may-show)
 - [The promotional video sings a song written for it](repository.md#the-promotional-video-sings-a-song-written-for-it)
 - [Who the README is for](repository.md#who-the-readme-is-for)
-- [How a document in this repository is written](repository.md#how-a-document-in-this-repository-is-written)
+- [Prose has no house style and no checker](repository.md#prose-has-no-house-style-and-no-checker)
 - [Where a folder-scoped instruction lives](repository.md#where-a-folder-scoped-instruction-lives)
 - [A worktree lives inside the checkout](repository.md#a-worktree-lives-inside-the-checkout)
 - [The license, and where its text lives](repository.md#the-license-and-where-its-text-lives)

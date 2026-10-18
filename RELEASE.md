@@ -30,12 +30,10 @@ release's few highlights, taken from the section just written. A release with no
 that list `## What it does` instead, and says what the machine is. A page whose reader cannot reach
 the version before it has nothing to state a difference against. The tracked file names no
 version; the run substitutes one. Its register is
-[`What a release page says, and to whom`](docs/decisions/distribution.md#what-a-release-page-says-and-to-whom),
-and the narration rule reaches it like any other published word —
-[`How a document in this repository is written`](docs/decisions/repository.md#how-a-document-in-this-repository-is-written).
+[`What a release page says, and to whom`](docs/decisions/distribution.md#what-a-release-page-says-and-to-whom).
 
-**Edit the file, never the GitHub form.** Neither `check-prose.sh` nor `check-no-local-refs.sh` reads
-a body typed at the point of upload, because both choose what to read through `git ls-files`.
+**Edit the file, never the GitHub form.** `check-no-local-refs.sh` does not read a body typed at the
+point of upload, because it chooses what to read through `git ls-files`.
 
 ## 3. Raise the number
 
