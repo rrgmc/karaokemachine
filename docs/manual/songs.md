@@ -18,16 +18,19 @@ songs survive a restart.
 - **Copy the file into the packages folder yourself.** `F10` opens the folder, and `Ctrl+F10` reads
   it again, so the songs play without a restart.
 - **On Windows and macOS, move the mouse over the window and press Menu, then Install a
-  package.** The file browser opens, and the machine installs the package you choose. A song that is
-  playing goes on playing. The owner can turn the Menu off on the General pane of
+  package.** The file browser opens, and the machine installs the packages you choose. A song that
+  is playing goes on playing. The owner can turn the Menu off on the General pane of
   [the setup page](setup.md).
-- **On an Android phone or tablet, press Menu, then Install a package.** The file browser opens,
-  and the machine installs the package you choose. A song that is playing pauses while the browser
+- **On an Android phone or tablet, press Menu, then Install packages.** The file browser opens,
+  and the machine installs the packages you choose. A song that is playing pauses while the browser
   is open.
-- **On an iPhone or iPad, press Menu, then Install a package.** The Files browser opens, and the
-  machine installs the package you choose. A song that is playing goes on playing.
+- **On an iPhone or iPad, press Menu, then Install packages.** The Files browser opens, and the
+  machine installs the packages you choose. A song that is playing goes on playing.
 - **Add it from a browser**, on the **Songs** tab of [the setup page](setup.md).
 - **Send it through [the API](api.md).**
+
+The Menu's file browser lets you choose several packages at once. The machine installs them one at
+a time, and says what happened to each.
 
 The double-click needs the machine registered for `.kmpkg` files. The Windows installer offers to do
 that, and macOS does it when it installs the app. On Linux and for the portable Windows folder, run

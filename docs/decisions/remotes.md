@@ -2250,7 +2250,7 @@ with thousands of them.
 ## On a phone, the machine shows its own remote over the screen
 
 **A phone or a tablet running the machine has a Menu button at the top centre.** *Choose songs*
-shows the machine's own remote over the screen, and *Install a package* opens the system file
+shows the machine's own remote over the screen, and *Install packages* opens the system file
 browser. *Set up the machine* shows the owner's setup page in the same place. Back or *Close* hides
 the page again. A television and a headset show no button.
 
@@ -2311,9 +2311,19 @@ stops the music. A desktop does not stop the music when another window comes to 
 embedded web view would add a web engine to the machine and a step to its installer. The browser
 already shows the page.
 
-**_Install a package_ opens the system file browser through SDL.** The browser offers `.kmpkg` only,
-and the song plays on while it is open. The chosen file joins the queue the iOS shell fills, and the
+**_Install packages_ opens the system file browser through SDL.** The browser offers `.kmpkg` only,
+and the song plays on while it is open. Each chosen file joins the queue the iOS shell fills, and the
 machine installs it as it installs a dropped file.
+
+**The file browser takes several packages at once, on every platform that has the Menu.** A new
+collection usually arrives as a folder of packages. One trip to the browser per file is the chore
+that a drag of the whole folder already avoids. The files join the queue in the order the browser
+gives them, and the installer takes them one at a time. Each says `installing …` and then its own
+result, as a dropped file does.
+
+**The cap on a burst of drops caps a choice too.** A choice of more than 32 packages refuses the rest
+and says so. On Android the shell empties the staging folder once for the whole choice. Emptying it
+before each file would delete a copy the installer has not yet read.
 
 **_Set up the machine_ opens the setup page in the browser.** It is the remote's loopback address
 with `/admin` after it. The tray's *Setup* opens the same page, but only a streaming run has a tray.

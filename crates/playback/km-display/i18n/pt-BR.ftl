@@ -22,7 +22,7 @@ keypad-submit = OK
 
 menu-button = Menu
 menu-choose-songs = Escolher músicas
-menu-install-package = Instalar um pacote
+menu-install-package = Instalar pacotes
 menu-set-up = Configurar a máquina
 
 ## A barra de controles

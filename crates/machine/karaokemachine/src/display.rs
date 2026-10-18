@@ -369,7 +369,7 @@ pub(crate) const BROWSER_KEY_HINT: Option<BrowserKey> = if cfg!(target_os = "mac
 /// machine asks for `UIRequiresFullScreen` in any case.
 const WINDOW_STACKS: bool = !cfg!(any(target_os = "android", target_os = "ios"));
 
-/// Whether the window carries a Menu button with *Choose songs* and *Install a package*.
+/// Whether the window carries a Menu button with *Choose songs* and *Install packages*.
 ///
 /// **Windows and macOS only, for [`BROWSER_KEY_HINT`]'s reason.** *Choose songs* opens a browser,
 /// and those two are where that always lands. A Linux box cannot tell a desktop from the appliance,
@@ -1983,7 +1983,7 @@ fn run_with(
     // the window is in. Written back at close, as `T` is.
     let mut cursor_windowed = config.cursor_windowed;
     let mut cursor_fullscreen = config.cursor_fullscreen;
-    // Whether the file browser *Install a package* opened is still up, so a second click does not
+    // Whether the file browser *Install packages* opened is still up, so a second click does not
     // open a second one. Shared with SDL's callback, which runs on a thread of its own on Windows.
     let choosing = Arc::new(AtomicBool::new(false));
     // Whether `Ctrl+F12` has taken the timer away. A local, and one that dies with the process:
@@ -3309,14 +3309,15 @@ fn cursor_shown(switch: bool, menu: bool) -> bool {
     switch || menu
 }
 
-/// Opens the system file browser for a `.kmpkg`, from the Menu's *Install a package*.
+/// Opens the system file browser for a `.kmpkg`, from the Menu's *Install packages*.
 ///
 /// **SDL's own dialog, so the machine takes no new dependency.** It is parented to the window. On
 /// Windows SDL runs it on a thread of its own, and on macOS it is a sheet on the window, so the loop
 /// goes on drawing and the song goes on playing either way.
 ///
-/// The chosen file goes to [`crate::opened`], which the loop drains into the installer a dropped
-/// file reaches. A file of any other name is handed over as well, so the installer's refusal says
+/// The browser takes several files at once. Each goes to [`crate::opened`] in the order the browser
+/// gives them, and the loop drains them into the installer a dropped file reaches. A file of any
+/// other name is handed over as well, so the installer's refusal says
 /// why on the screen. Only a failure to open the browser comes back down `failures`, the channel
 /// [`show_remote`] reports on; closing it without a choice is not a failure.
 fn choose_package(
@@ -3337,7 +3338,7 @@ fn choose_package(
     let shown = sdl3::dialog::show_open_file_dialog(
         &filters,
         None::<&std::path::Path>,
-        false,
+        true,
         window,
         Box::new(move |chosen, _| {
             done.store(false, Ordering::Release);

@@ -157,7 +157,7 @@ static BOOL km_is_ours(NSURL *url) {
 
     _menu = [self button:@"Menu" action:@selector(toggle)];
     _songs = [self button:@"Choose songs" action:@selector(show)];
-    _install = [self button:@"Install a package" action:@selector(choosePackage)];
+    _install = [self button:@"Install packages" action:@selector(choosePackage)];
     _setup = [self button:@"Set up the machine" action:@selector(showSetup)];
 
     // Top centre, because the machine draws in both top corners: the song's title on the left, and
@@ -339,7 +339,7 @@ static BOOL km_is_ours(NSURL *url) {
 /*
  * Opens the system file browser on packages.
  *
- * The chosen file goes to km_machine_open_package, and the machine installs it as it installs a
+ * Each chosen file goes to km_machine_open_package, and the machine installs it as it installs a
  * dropped file, by copying it into its packages folder. SDL's own route for an opened URL is a
  * method of its scene delegate, which nothing outside SDL can call. A copy of the file is asked for,
  * because the original can sit in a provider that grants access only while it is held open.
@@ -354,17 +354,17 @@ static BOOL km_is_ours(NSURL *url) {
     UIDocumentPickerViewController *picker =
         [[UIDocumentPickerViewController alloc] initForOpeningContentTypes:@[ type ] asCopy:YES];
     picker.delegate = self;
-    picker.allowsMultipleSelection = NO;
+    picker.allowsMultipleSelection = YES;
     [_controller presentViewController:picker animated:YES completion:nil];
 }
 
 - (void)documentPicker:(UIDocumentPickerViewController *)controller
     didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
-    NSURL *url = urls.firstObject;
-    if (url == nil || !url.isFileURL) {
-        return;
+    for (NSURL *url in urls) {
+        if (url.isFileURL) {
+            km_machine_open_package(url.fileSystemRepresentation);
+        }
     }
-    km_machine_open_package(url.fileSystemRepresentation);
 }
 
 @end

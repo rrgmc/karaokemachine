@@ -1,5 +1,6 @@
 package com.rrgmc.karaokemachine;
 
+import android.content.ClipData;
 import android.content.Intent;
 import android.database.Cursor;
 import android.net.Uri;
@@ -14,6 +15,9 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 
 /**
  * The activity Android launches.
@@ -141,6 +145,7 @@ public class MainActivity extends SDLActivity {
         Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
         intent.addCategory(Intent.CATEGORY_OPENABLE);
         intent.setType("*/*");
+        intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
         try {
             startActivityForResult(intent, PICK_PACKAGE);
         } catch (RuntimeException error) {
@@ -148,18 +153,36 @@ public class MainActivity extends SDLActivity {
         }
     }
 
-    /** A package chosen in the file browser, staged as an opened document is. */
+    /**
+     * The packages chosen in the file browser, staged as an opened document is.
+     *
+     * <p>A choice of several files arrives as clip data, and a choice of one may arrive as either.
+     */
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         if (requestCode != PICK_PACKAGE) {
             super.onActivityResult(requestCode, resultCode, data);
             return;
         }
-        if (resultCode != RESULT_OK || data == null || data.getData() == null) {
+        if (resultCode != RESULT_OK || data == null) {
             return;
         }
-        final Uri uri = data.getData();
-        new Thread(() -> stage(uri), "km-stage-package").start();
+        final List<Uri> uris = new ArrayList<>();
+        ClipData clip = data.getClipData();
+        if (clip != null) {
+            for (int i = 0; i < clip.getItemCount(); i++) {
+                Uri uri = clip.getItemAt(i).getUri();
+                if (uri != null) {
+                    uris.add(uri);
+                }
+            }
+        } else if (data.getData() != null) {
+            uris.add(data.getData());
+        }
+        if (uris.isEmpty()) {
+            return;
+        }
+        new Thread(() -> stage(uris), "km-stage-package").start();
     }
 
     /**
@@ -225,26 +248,40 @@ public class MainActivity extends SDLActivity {
         }
         // Copying a package is seconds at best and minutes at worst, and the main thread is the one
         // drawing the machine.
-        new Thread(() -> stage(uri), "km-stage-package").start();
+        new Thread(() -> stage(Collections.singletonList(uri)), "km-stage-package").start();
     }
 
     /**
-     * Copies an opened document somewhere the machine can read, then hands it over as a drop.
+     * Copies opened documents somewhere the machine can read, then hands each over as a drop.
      *
      * <p>A drop is the route every platform's documents already take, so nothing in the Rust side
      * is specific to this one: it copies the file into the packages folder under the name its
      * manifest implies, installs it, and says so on the screen.
+     *
+     * <p>The folder is swept once for the whole choice. A sweep before each file would delete the
+     * copy before it, which the machine's installer may not have reached yet.
      */
-    private void stage(Uri uri) {
+    private void stage(List<Uri> uris) {
         File dir = getExternalFilesDir(STAGING_DIR);
         if (dir == null) {
             Log.e(TAG, "no external files directory; a package cannot be staged");
             return;
         }
         sweep(dir);
+        for (Uri uri : uris) {
+            stageOne(dir, uri);
+        }
+    }
 
+    /** Copies one document into the swept staging folder and hands it over as a drop. */
+    private void stageOne(File dir, Uri uri) {
         String name = displayName(uri);
         File staged = new File(dir, name);
+        // Two chosen files can share a name in two folders. The second copy takes a numbered name,
+        // so it does not replace the first before the machine has read it.
+        for (int n = 2; staged.exists(); n++) {
+            staged = new File(dir, n + "-" + name);
+        }
         // Refused on its name, before a byte is read, which is what the machine does with a dropped
         // file that is not a package anywhere else. The filter above is broad enough to be offered
         // any unknown binary, so this is the ordinary case and not the odd one, and copying a
@@ -255,7 +292,7 @@ public class MainActivity extends SDLActivity {
             return;
         }
 
-        File part = new File(dir, name + PART_SUFFIX);
+        File part = new File(dir, staged.getName() + PART_SUFFIX);
         try (InputStream in = getContentResolver().openInputStream(uri);
                 OutputStream out = new FileOutputStream(part)) {
             if (in == null) {

@@ -408,7 +408,7 @@ pub struct DisplaySettings {
     pub lyric_offset_ms: i16,
     /// Whether a Windows or macOS window shows a Menu button when the mouse moves over it.
     ///
-    /// The Menu offers *Choose songs* and *Install a package*, which a phone's own Menu offers too.
+    /// The Menu offers *Choose songs* and *Install packages*, which a phone's own Menu offers too.
     /// **Defaults to on**, because a mouse over the window is somebody at the machine. An owner
     /// whose machine shares a desk with other work can turn it off. `F11` and a dropped `.kmpkg`
     /// still work with it off. Other platforms ignore it. See
