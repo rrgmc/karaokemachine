@@ -95,6 +95,8 @@ pub struct ProgressFragment {
     pub said: String,
     /// How far through, out of 100, when it is known.
     pub percent: Option<usize>,
+    /// Whether the job can be stopped from the page: a build that has not been asked to stop.
+    pub cancel: bool,
 }
 
 /// A page with a job running on it.
@@ -141,6 +143,8 @@ pub struct FormView {
     pub linked_base: String,
     /// Whether the description box is ticked.
     pub write_spec: bool,
+    /// Whether the loudness box is ticked.
+    pub measure_loudness: bool,
     /// The language picker, the chosen one marked.
     pub languages: Vec<LanguageOption>,
 }
@@ -474,12 +478,24 @@ pub fn progress(phase: &Phase, words: &Catalog) -> ProgressFragment {
                 )
                 .into_owned(),
             percent: percent(*done, *total),
+            cancel: false,
+        },
+        Phase::Building {
+            done,
+            total,
+            stopping: true,
+            ..
+        } => ProgressFragment {
+            said: words.msg("progress-stopping").into_owned(),
+            percent: percent(*done, *total),
+            cancel: false,
         },
         Phase::Building {
             volume,
             volumes,
             done,
             total,
+            stopping: false,
         } => ProgressFragment {
             said: words
                 .msg_with(
@@ -493,10 +509,12 @@ pub fn progress(phase: &Phase, words: &Catalog) -> ProgressFragment {
                 )
                 .into_owned(),
             percent: percent(*done, *total),
+            cancel: true,
         },
         _ => ProgressFragment {
             said: String::new(),
             percent: None,
+            cancel: false,
         },
     }
 }
@@ -527,6 +545,7 @@ fn form_view(form: &PackageForm) -> FormView {
         linked: form.linked,
         linked_base: form.linked_base.display().to_string(),
         write_spec: form.write_spec,
+        measure_loudness: form.measure_loudness,
         languages,
     }
 }

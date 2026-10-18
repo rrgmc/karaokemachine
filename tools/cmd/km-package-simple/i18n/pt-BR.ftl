@@ -31,6 +31,7 @@ browse-range = Pastas { $first } a { $last } de { $count }
 
 said-failed = Não funcionou:
 said-busy = Espere o trabalho em andamento terminar.
+said-canceled = A montagem parou. Os pacotes que ela terminou continuam na pasta.
 said-no-folder = Não há pasta nesse caminho.
 said-nothing-kept = Mantenha pelo menos uma música.
 said-no-name = Dê um nome ao pacote.
@@ -41,6 +42,7 @@ said-linked-base-name = Uma pasta entre as duas tem um nome que um caminho vincu
 
 progress-reading = Lendo a pasta: { $done } de { $total } arquivos MIDI.
 progress-building = Escrevendo o pacote { $volume } de { $volumes }: música { $done } de { $total }.
+progress-stopping = Parando depois da música em andamento.
 
 form-uncurated = O pacote é marcado como sem curadoria.
 form-name = Nome
@@ -49,11 +51,14 @@ form-publisher = Editor
 form-language = Idioma das músicas sem idioma
 form-out = Gravar na pasta
 form-language-hint = Uma música cujo arquivo não diz o idioma fica neste. Indeterminado é a resposta honesta quando você não sabe.
+form-advanced = Avançado
 form-linked = Montar pacotes vinculados, que não contêm arquivos de música
 form-linked-hint = Um pacote vinculado indica cada música pelo caminho dela abaixo da pasta onde os caminhos começam. Ele só toca em uma máquina configurada para aceitar pacotes vinculados, a partir dessa pasta ou de uma cópia dela. Uma música dentro de um zip fica de fora.
 form-linked-base = Os caminhos começam em
+form-loudness = Medir o volume de cada música
+form-loudness-hint = A máquina usa a medida para tocar cada vídeo e cada música MP3+G no mesmo volume das outras. Medir decodifica cada música inteira, o que é a maior parte do tempo de uma montagem. Uma música montada sem a medida toca no volume em que foi publicada.
 form-write-spec = Gravar também a descrição de cada pacote
-form-write-spec-hint = Uma descrição é um arquivo .kmspec.yaml ao lado do pacote. Ela lista as músicas que entraram, e o km-pack build monta o pacote de novo a partir dela. Ela é gravada mesmo quando a montagem para.
+form-write-spec-hint = Uma descrição é um arquivo .kmspec.yaml ao lado do pacote. Ela lista as músicas que entraram, e o km-pack build monta o pacote de novo a partir dela. Ela é gravada mesmo quando a montagem falha.
 linked-path-example = A primeira música, abaixo da pasta de pacotes vinculados da máquina:
 linked-path-machine = Configure a pasta de pacotes vinculados da máquina como { $folder }, ou uma cópia dela.
 action-build = Criar
@@ -121,3 +126,4 @@ count-songs = { $count ->
   }
 action-reveal = Mostrar na pasta
 action-back = Voltar às músicas
+action-cancel = Cancelar

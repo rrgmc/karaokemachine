@@ -31,6 +31,7 @@ browse-range = Folders { $first } to { $last } of { $count }
 
 said-failed = That did not work:
 said-busy = Wait for the work in progress to finish.
+said-canceled = The build stopped. Any package it finished is still in its folder.
 said-no-folder = There is no folder at that path.
 said-nothing-kept = Keep at least one song.
 said-no-name = Give the package a name.
@@ -41,6 +42,7 @@ said-linked-base-name = A folder between the two has a name a linked path cannot
 
 progress-reading = Reading the folder: { $done } of { $total } MIDI files.
 progress-building = Writing package { $volume } of { $volumes }: song { $done } of { $total }.
+progress-stopping = Stopping after the song in hand.
 
 form-uncurated = The package is marked uncurated.
 form-name = Name
@@ -49,11 +51,14 @@ form-publisher = Publisher
 form-language = Language for songs with none
 form-out = Write to folder
 form-language-hint = A song whose file names no language is filed under this one. Undetermined is the honest answer when you do not know.
+form-advanced = Advanced
 form-linked = Build linked packages, which hold no song file
 form-linked-hint = A linked package names each song by its path below the folder the paths start at. It plays only on a machine set to take linked packages, from that folder or a copy of it. A song inside a zip is left out.
 form-linked-base = Paths start at
+form-loudness = Measure how loud each song is
+form-loudness-hint = The machine uses the measurement to play every video and MP3+G song at the same level as the rest. Measuring decodes each song in full, which is most of the time a build takes. A song built without it plays at whatever level it was published at.
 form-write-spec = Also write each package's description
-form-write-spec-hint = A description is a .kmspec.yaml file beside the package. It lists the songs that went in, and km-pack build makes the package again from it. It is written even when the build stops.
+form-write-spec-hint = A description is a .kmspec.yaml file beside the package. It lists the songs that went in, and km-pack build makes the package again from it. It is written even when the build fails.
 linked-path-example = The first song, below the machine's folder for linked packages:
 linked-path-machine = Set the machine's folder for linked packages to { $folder }, or a copy of it.
 action-build = Build
@@ -115,3 +120,4 @@ count-songs = { $count ->
   }
 action-reveal = Show in folder
 action-back = Back to the songs
+action-cancel = Cancel

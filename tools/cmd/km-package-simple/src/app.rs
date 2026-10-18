@@ -43,6 +43,8 @@ pub enum Phase {
         done: usize,
         /// Songs in this volume.
         total: usize,
+        /// Whether somebody asked the build to stop. It stops before the next song.
+        stopping: bool,
     },
     /// The packages are written.
     Built(Built),
@@ -187,7 +189,7 @@ impl App {
 
     /// Starts writing the packages the session plans, unless a job is already running.
     pub fn build(self: &Arc<Self>, form: PackageForm) -> Result<(), &'static str> {
-        let (plan, folder) = {
+        let (plan, folder, measure_loudness) = {
             let mut inner = self.lock();
             if !matches!(inner.phase, Phase::Ready) {
                 return Err("said-busy");
@@ -216,19 +218,29 @@ impl App {
                 volumes: plan.len(),
                 done: 0,
                 total: 0,
+                stopping: false,
             };
+            let measure_loudness = form.measure_loudness;
             inner.form = Some(form);
             inner.error = None;
-            (plan, folder)
+            (plan, folder, measure_loudness)
         };
 
         let app = Arc::clone(self);
         tokio::task::spawn_blocking(move || {
-            let written = build_all(&app, &folder, &plan);
+            let written = build_all(&app, &folder, &plan, measure_loudness);
+            // Worded before the lock is taken, because finding the language takes it too.
+            let canceled = crate::words::messages(app.locale(None))
+                .msg("said-canceled")
+                .into_owned();
             let mut inner = app.lock();
             match written {
                 Ok(built) => inner.phase = Phase::Built(built),
-                Err(error) => {
+                Err(Ended::Canceled) => {
+                    inner.error = Some(canceled);
+                    inner.phase = Phase::Ready;
+                }
+                Err(Ended::Failed(error)) => {
                     tracing::warn!(%error, "the build failed");
                     inner.error = Some(error);
                     inner.phase = Phase::Ready;
@@ -236,6 +248,13 @@ impl App {
             }
         });
         Ok(())
+    }
+
+    /// Asks a running build to stop before its next song. A package already written stays.
+    pub fn cancel(&self) {
+        if let Phase::Building { stopping, .. } = &mut self.lock().phase {
+            *stopping = true;
+        }
     }
 
     /// Back to the song list after a build, to change something and build again.
@@ -258,17 +277,42 @@ impl App {
     }
 }
 
+/// Why a build ended without writing every volume.
+#[derive(Debug)]
+enum Ended {
+    /// Somebody asked it to stop.
+    Canceled,
+    /// Something went wrong, in `km-pack`'s words.
+    Failed(String),
+}
+
+impl From<String> for Ended {
+    fn from(error: String) -> Self {
+        Self::Failed(error)
+    }
+}
+
 /// Writes every planned volume, in order, reporting into the phase as it goes.
-fn build_all(app: &Arc<App>, folder: &Path, plan: &[Planned]) -> Result<Built, String> {
+fn build_all(
+    app: &Arc<App>,
+    folder: &Path,
+    plan: &[Planned],
+    measure_loudness: bool,
+) -> Result<Built, Ended> {
     let mut built = Built::default();
     for (index, planned) in plan.iter().enumerate() {
         {
             let mut inner = app.lock();
+            // A stop asked for between two volumes is kept, and the next volume never starts.
+            if matches!(inner.phase, Phase::Building { stopping: true, .. }) {
+                return Err(Ended::Canceled);
+            }
             inner.phase = Phase::Building {
                 volume: index + 1,
                 volumes: plan.len(),
                 done: 0,
                 total: planned.spec.songs.len(),
+                stopping: false,
             };
         }
         let outcome = km_pack::build::build(
@@ -277,36 +321,44 @@ fn build_all(app: &Arc<App>, folder: &Path, plan: &[Planned]) -> Result<Built, S
                 base: folder,
                 out: Some(&planned.out),
                 dry_run: false,
-                measure_loudness: true,
+                measure_loudness,
                 write_listing: true,
                 flags: km_kmpkg::PackageFlags::NONE,
                 // Nobody reviewed the folder, and one copy must not cost the other songs.
                 skip_duplicates: true,
             },
             |event| {
-                if let BuildEvent::Song { index, .. } = event
-                    && let Phase::Building { done, .. } = &mut app.lock().phase
-                {
+                let Phase::Building { done, stopping, .. } = &mut app.lock().phase else {
+                    return ControlFlow::Continue(());
+                };
+                if let BuildEvent::Song { index, .. } = event {
                     *done = index;
                 }
-                ControlFlow::Continue(())
+                if *stopping {
+                    ControlFlow::Break(())
+                } else {
+                    ControlFlow::Continue(())
+                }
             },
         )
         .map_err(|error| format!("{error:#}"))?;
+        // Nothing of this volume was written, so there is no description of it to write either.
+        if outcome.canceled {
+            return Err(Ended::Canceled);
+        }
 
-        // Written whether or not the package was, so a build that stops leaves a file to fix.
+        // Written whether or not the package was, so a build that fails leaves a file to fix.
         if let Some(spec_out) = &planned.spec_out {
             write_spec(planned, &outcome, spec_out)?;
             built.specs.push(spec_out.clone());
         }
         if !outcome.problems.is_empty() {
-            return Err(outcome.problems.join("; "));
+            return Err(outcome.problems.join("; ").into());
         }
         if !outcome.wrote() {
-            return Err(format!(
-                "{} was not written: no song went in",
-                planned.out.display()
-            ));
+            return Err(
+                format!("{} was not written: no song went in", planned.out.display()).into(),
+            );
         }
         built
             .files

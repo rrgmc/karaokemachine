@@ -29,6 +29,7 @@ pub const SAID_KEYS: &[&str] = &[
     "said-nothing-kept",
     "said-no-name",
     "said-reveal-failed",
+    "said-canceled",
     "said-linked-base-missing",
     "said-linked-base-outside",
     "said-linked-base-name",
@@ -57,6 +58,7 @@ pub fn router(app: Arc<App>) -> Router {
         .route("/songs/keep", post(keep))
         .route("/songs/leave-out-low", post(leave_out_low))
         .route("/build", post(build))
+        .route("/cancel", post(cancel))
         .route("/linked-path", get(linked_path))
         .route("/back", post(back))
         .route("/close", post(close))
@@ -326,6 +328,8 @@ struct BuildForm {
     linked_base: String,
     /// Present when the description box is ticked, absent when it is not.
     write_spec: Option<String>,
+    /// Present when the loudness box is ticked, absent when it is not.
+    measure_loudness: Option<String>,
 }
 
 /// `POST /build`: write the packages.
@@ -344,6 +348,7 @@ async fn build(
         linked: form.linked.is_some(),
         linked_base: base_or_folder(&app, &form.linked_base),
         write_spec: form.write_spec.is_some(),
+        measure_loudness: form.measure_loudness.is_some(),
     };
     match app.build(form) {
         Ok(()) => refresh(),
@@ -399,6 +404,12 @@ async fn linked_path(
 async fn back(State(app): State<Arc<App>>) -> Response {
     app.back_to_songs();
     refresh()
+}
+
+/// `POST /cancel`: stop the running build before its next song. The poll draws the page after.
+async fn cancel(State(app): State<Arc<App>>) -> Response {
+    app.cancel();
+    StatusCode::NO_CONTENT.into_response()
 }
 
 /// `POST /close`: forget the folder.
