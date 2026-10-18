@@ -5089,7 +5089,7 @@ dependencies = [
 [[package]]
 name = "timestretch"
 version = "0.15.0"
-source = "git+https://github.com/rrgmc/timestretch-rs?branch=custom#cd52b737d520908d7a7877d573bcfd9f1373127f"
+source = "git+https://github.com/rrgmc/timestretch-rs?branch=karaokemachine#932073783c34616334a775d3983b87537e358b11"
 dependencies = [
  "arc-swap",
  "ebur128",

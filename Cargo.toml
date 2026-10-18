@@ -371,12 +371,20 @@ ebur128 = "0.1.10"
 # it, into every build, because an MP3+G song plays in every build. It also carries beat tracking and
 # file readers that playback never calls, and no feature turns them off.
 #
-# **A fork, for one fix.** The crate's phase vocoder keeps a list of spectral peaks sized for a
-# quarter of its bins, and dense music grows it on the audio thread. The fork sizes it for the most a
-# spectrum can hold. `branch` rather than `rev` for the reason `rustysynth` has one: `Cargo.lock`
-# pins the commit, and every release path passes `--locked`. This goes back to a version number the
-# day upstream carries the fix.
-timestretch = { git = "https://github.com/rrgmc/timestretch-rs", branch = "custom" }
+# **A fork, for one fix and one feature.** The crate's phase vocoder keeps a list of spectral peaks
+# sized for a quarter of its bins, and dense music grows it on the audio thread. The fork sizes it
+# for the most a spectrum can hold. That fix is upstream's pull request 88, from the fork's `custom`
+# branch, so nothing else goes on `custom`.
+#
+# **`default-features = false` halves this crate's build.** The fork's `karaokemachine` branch puts
+# `analysis::comparison` behind a default `comparison` feature. Its cross-correlation plans an f64
+# FFT, which compiles every `rustfft` algorithm a second time beside the f32 set the engine uses.
+# **Measured on a desktop**, the crate alone at `opt-level = 2`: 30.5 s with it, 16.5 s without.
+#
+# `branch` rather than `rev` for the reason `rustysynth` has one: `Cargo.lock` pins the commit, and
+# every release path passes `--locked`. This goes back to a version number the day upstream carries
+# both.
+timestretch = { git = "https://github.com/rrgmc/timestretch-rs", branch = "karaokemachine", default-features = false }
 # The other stretcher `km-cdg`'s `stretch` example compares. MIT and pure Rust. It is a development
 # dependency of that one crate, so no shipped program links it.
 wsola = "0.1.0"
