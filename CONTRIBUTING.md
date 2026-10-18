@@ -678,6 +678,12 @@ re-derive:
 
 **What the removal cost in code: nothing** — which is the `dist_target_dir` rule earning its keep.
 
+**A compilation cache is the shared part instead, and it is optional.** mr-boxington (`mbx`) keeps
+each `target/` in its checkout and shares single dependency compilations through a store. It never
+shares a workspace member between checkouts, which is the failure above. Setup is in
+[`BUILDING.md`](BUILDING.md#a-shared-compilation-cache), and the decision is
+[`A compilation cache is shared; a target directory is not`](docs/decisions/repository.md#a-compilation-cache-is-shared-a-target-directory-is-not).
+
 ## Risks to keep visible
 
 - **Every content file is from a stranger, and three of the things that read one are not this

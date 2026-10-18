@@ -50,7 +50,8 @@
 #
 # WHAT IT DELIBERATELY DOES NOT DO: share `target/` between worktrees. Each one therefore rebuilds
 # SDL3, SDL3_ttf and the bundled SQLite from source -- about three minutes, and several GB per
-# worktree. Pointing them all at one CARGO_TARGET_DIR trades that for cargo's exclusive lock on the
+# worktree. With mr-boxington set up (BUILDING.md, "A shared compilation cache") the dependencies come
+# from its store instead, and a first `cargo km-build` costs about 40% less. Pointing them all at one CARGO_TARGET_DIR trades that for cargo's exclusive lock on the
 # build directory, so the second build sits at "Blocking waiting for file lock" until the first
 # finishes; and it churns worse here than usual, because flipping the `video` feature between
 # worktrees invalidates a shared cache. Parallel sessions that block on each other's builds are not

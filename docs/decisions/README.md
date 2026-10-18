@@ -531,6 +531,7 @@ it are the same entry. How the thing is built is [`ARCHITECTURE.md`](../ARCHITEC
 - [Prose has no house style and no checker](repository.md#prose-has-no-house-style-and-no-checker)
 - [Where a folder-scoped instruction lives](repository.md#where-a-folder-scoped-instruction-lives)
 - [A worktree lives inside the checkout](repository.md#a-worktree-lives-inside-the-checkout)
+- [A compilation cache is shared; a target directory is not](repository.md#a-compilation-cache-is-shared-a-target-directory-is-not)
 - [The license, and where its text lives](repository.md#the-license-and-where-its-text-lives)
 - [A tracked file states what is true and argues no legal position](repository.md#a-tracked-file-states-what-is-true-and-argues-no-legal-position)
 - [What a committed file may say about the machine it was written on](repository.md#what-a-committed-file-may-say-about-the-machine-it-was-written-on)
