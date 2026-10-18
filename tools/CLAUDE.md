@@ -14,8 +14,9 @@ and it reaches here directly rather than through a catalog header: a command lin
 head.
 
 **Four programs here have a Fluent catalog**: `assets/km-admin`, `km-package-builder`,
-`km-package-simple` and `km-song-sync`, each in `i18n/` beside its own templates. **A new page
-string is a key.** The parity tests in that program's `words.rs` fail the build on three faults.
+`km-package-simple` and `km-song-sync`, each in `i18n/` beside its own templates. The exception is
+`km-package-builder`, whose catalog is in `crates/song/km-curation/i18n/`. **A new page string is a
+key.** The parity tests in that program's `words.rs` fail the build on three faults.
 The two locales disagree, the markup asks for something no catalog has, or a template prints a word
 of its own. `--help` in each program is a doc comment in English.
 

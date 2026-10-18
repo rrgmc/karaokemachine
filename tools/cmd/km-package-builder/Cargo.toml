@@ -43,7 +43,7 @@ required-features = ["desktop"]
 # it ffmpeg -- the only C dependency in this tool. A build without it scans, browses and packages
 # MIDI exactly as before, and says plainly that it found video files it cannot read rather than
 # passing over them in silence.
-video = ["km-pack/video", "dep:km-video"]
+video = ["km-curation/video", "km-pack/video"]
 
 # A window of its own, rather than a tab in whatever browser is default.
 #
@@ -64,20 +64,20 @@ video = ["km-pack/video", "dep:km-video"]
 desktop = ["dep:wry", "dep:tao", "dep:km-tray", "dep:km-webshell"]
 
 [dependencies]
+# The database, the scan and the package writer. The pages, the server and the two binaries are this
+# crate; see `The curation tool is two crates` in docs/decisions/repository.md.
+km-curation = { workspace = true }
 km-song = { workspace = true }
 km-suitability = { workspace = true }
 km-fixes = { workspace = true }
-km-cdg = { workspace = true }
 km-songcode = { workspace = true }
 km-kmpkg = { workspace = true }
-km-langguess = { workspace = true }
 km-pack = { workspace = true }
 # For `discover::browse` and nothing else: the Discover button on the Settings page lists the
 # machines advertising themselves. Taken as a dependency rather than reaching for `mdns-sd` directly
 # because `_karaokemachine._tcp.local.` is written down once, in the crate that also advertises it --
 # `km-remote-core` takes km-api for the same constant and the same reason.
 km-api = { workspace = true }
-km-video = { workspace = true, optional = true }
 # Whether anything printed will be read. A crate rather than a `src/console.rs` here, because
 # `km-app` needs the same answer for the same reason and the alternative is a second copy of the
 # workspace's only two `unsafe` calls. Not target-gated: every platform calls `say`, and the
@@ -99,12 +99,6 @@ km-ecapplog = { workspace = true }
 # ...and what this tool's own settings file says about both, plus how much detail there is and how
 # many runs are kept. The `logging` section, shared with the machine and the picture-and-bank tool.
 km-logsettings = { workspace = true }
-
-# The machine passwords this computer was told to remember, shared with `km-admin`: two tools that
-# send things to a machine meet the same closed door and hold the same kind of credential, and a
-# second copy of one file format is the drift a shared crate exists to stop. Where the file goes
-# stays in `crate::passwords`, this program's own answer.
-km-passwords = { workspace = true }
 
 # What language these pages are drawn in, and the Fluent catalogs behind `i18n/`. The `askama`
 # feature is the `{{ "key"|t }}` filter, and it is named here rather than on the workspace entry
@@ -131,7 +125,6 @@ tokio = { workspace = true }
 # any of the `*-tls` features. `Part::file` needs `stream`, and it is what puts a real
 # `Content-Length` on the request so the machine can refuse an oversized one up front.
 reqwest = { workspace = true, features = ["multipart", "stream"] }
-rusqlite = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 # The filter bar's fields arrive in a POST body, not in a query string. See `FilterQuery::from_body`.
@@ -174,6 +167,8 @@ windows-registry = { workspace = true }
 winresource = { workspace = true }
 
 [dev-dependencies]
+# The fixture songs the server tests write, shared with the database's own tests.
+km-curation = { workspace = true, features = ["testing"] }
 km-testkit = { workspace = true, features = ["http"] }
 # A test writes the zip it then reads as a song.
 zip = { workspace = true }

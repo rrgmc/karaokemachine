@@ -843,6 +843,7 @@ workflow, is [`What CI runs`](CONTRIBUTING.md#what-ci-runs) in `CONTRIBUTING.md`
 | `crates/song/km-suitability` | Melody detection and the 0–10 suitability |
 | `crates/song/km-kmpkg` | The `.kmpkg` container |
 | `crates/song/km-catalog` | The SQLite catalog |
+| `crates/song/km-curation` | The package builder without its pages: the curation database, the corpus scan and the package writer |
 | `crates/playback/km-audio` | Synthesiser and sequencer |
 | `crates/playback/km-video` | Video decoding — **the only crate that names ffmpeg** |
 | `crates/machine/km-api` | HTTP + WebSocket control surface |
@@ -857,7 +858,7 @@ workflow, is [`What CI runs`](CONTRIBUTING.md#what-ci-runs) in `CONTRIBUTING.md`
 | `tools/cmd/km-pack` | Packaging, as a library *and* a command |
 | `tools/cmd/km-lyrics` | Dump a parsed lyric timeline and analysis for one file, or scan a folder |
 | `tools/cmd/km-site-pack` | Fetch the song files a site links and build a package from them, as a library *and* a command |
-| `tools/cmd/km-package-builder` | The curation web tool: a folder of source files in, `.kmpkg` packages out |
+| `tools/cmd/km-package-builder` | The curation web tool: a folder of source files in, `.kmpkg` packages out. Its pages, server and binaries; the rest is `km-curation` |
 | `tools/cmd/km-package-simple` | The folder packager: one folder in, uncurated `.kmpkg` packages out, with no database |
 | `tools/cmd/km-song-sync` | The page that starts the lyric sync editor: paste the words, browse to a MIDI file, press Start |
 | `tools/cmd/assets/km-wallpaper-pack` | Builds a legibility-verified wallpaper pack. **In the second workspace** — `tools/cmd/assets` is `exclude`d from this one, see the note in `Cargo.toml` |

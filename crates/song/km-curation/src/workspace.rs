@@ -206,7 +206,7 @@ impl Workspace {
     }
 
     /// Whether the join handle has been consumed, for the test that proves stopping joins.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "testing"))]
     pub fn scan_thread_is_clear(&self) -> bool {
         self.scan_thread
             .lock()

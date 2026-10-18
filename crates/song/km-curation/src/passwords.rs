@@ -33,21 +33,14 @@ const APP: &str = "km-package-builder";
 
 /// Where the file is kept, or `None` if there is nowhere to keep it.
 ///
-/// **`None` under `cfg(test)` first**, for [`crate::recent::path`]'s reason and one more: a suite
-/// that wrote here would be writing a test password into the config directory of whoever is
-/// building. **This guard has to be in this crate** rather than in `km-passwords`, because
-/// `cfg(test)` is per crate: one written over there would be off during a build of this program's
-/// own tests.
-///
-/// **What it does not cover is an integration test**, which links this library compiled *without*
-/// `cfg(test)`. Nothing under `tests/` reaches a write today — the only writer is the sign-in
-/// handler, and `tests/upload.rs` drives `Client::log_in` directly — so the guard holds for every
-/// caller there is. It would stop holding the day an integration test posted that form, and the
-/// failure is silent: a password in the config directory of whoever ran the suite. `km-admin` met
-/// exactly that and answers it by taking the folder as an argument, which this program has no
-/// `--data-dir` to do.
+/// **`None` under `cfg(test)` or the `testing` feature, first**, for [`crate::recent::path`]'s
+/// reason and one more: a suite that wrote here would be writing a test password into the config
+/// directory of whoever is building. **This guard has to be in this crate** rather than in
+/// `km-passwords`, because `cfg(test)` is per crate: one written over there would be off during a
+/// build of this crate's own tests. The feature is what reaches `km-package-builder`'s tests,
+/// unit and integration alike, which compile this crate without `cfg(test)`.
 fn path() -> Option<PathBuf> {
-    if cfg!(test) {
+    if cfg!(any(test, feature = "testing")) {
         return None;
     }
     km_passwords::file_for(std::env::var_os(ENV_VAR).as_deref(), APP)

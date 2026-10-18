@@ -10,6 +10,7 @@ members = [
     "crates/song/km-langguess",
     "crates/song/km-catalog",
     "crates/song/km-songbook",
+    "crates/song/km-curation",
     # Turning one into sound and picture.
     "crates/playback/km-audio",
     "crates/playback/km-loudness",
@@ -170,6 +171,9 @@ km-cdg = { path = "crates/playback/km-cdg" }
 # `km-api` (the catalog's book, over HTTP and from the machine's command line) and by `km-pack`
 # (a book from a stack of `.kmpkg` files), which is why it is a crate rather than a module in either.
 km-songbook = { path = "crates/song/km-songbook" }
+# The package builder's database, scan and package writer, without its pages. Taken by
+# `km-package-builder` alone; see that crate's header for why the tool is two crates.
+km-curation = { path = "crates/song/km-curation" }
 # Whether anything this process prints will be read. Shared rather than copied because the answer
 # needs `unsafe` to work out, and the workspace allows `unsafe` in exactly one file -- so a second
 # copy would be a second exception rather than a second caller. Both binaries that can be built

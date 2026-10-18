@@ -1,37 +1,14 @@
-//! What this tool's pages say.
+//! The parity tests that hold this tool's catalog to its pages.
 //!
-//! The catalogs are `i18n/` beside the templates, `include_str!`-ed here, which is
-//! `Catalogs live beside the words they translate` — the machinery is `km-locale`'s and the words
-//! are this crate's. A missing key draws `⟦the-key⟧` rather than nothing, and the tests below are
-//! what stop one reaching a page.
-//!
-//! # Which language a page is in
-//!
-//! **A stored setting, read from [`crate::settings::Settings`].** One curator at one desktop is the
-//! machine's shape rather than the remote's: a television belongs to a room and a phone to a person,
-//! and this tool belongs to whoever is curating. `Accept-Language` is what an unset setting means,
-//! so a first run opens in the browser's language without anybody finding the picker; the picker on
-//! the Settings page is what makes the choice changeable, and nothing is written to `settings.json`
-//! until it is used. See `What language the package builder speaks` in `docs/decisions/curation.md`.
-//!
-//! # What is not keyed
-//!
-//! **Data.** A song's title and artist, a folder's path, a tag somebody typed, a package's id, and
-//! the English names `km_kmpkg::Language` carries for its pickers — that crate's own header says it
-//! holds an English name for the pickers that have to show it. Those are values, like a song title
-//! on the singer's remote.
-//!
-//! **The product's name and its version.** `A product name and a number are the same in every
-//! language, and a translator handed them can only make them wrong.`
-//!
-//! **`--help`.** `What a user reads is written in plain application language` governs a command
-//! line, and clap builds one out of doc comments on a `Cli` struct. A page's catalog does not reach
-//! it.
-//!
-//! **The tray and the menu bar.** `km-tray` words *Show window*, *Open in browser* and *Quit* for
-//! three programs, and none of the three passes it a locale.
+//! **The catalog itself is `km_curation::words`**, in `crates/song/km-curation/i18n/`, because the
+//! database, the scan and the package writer word messages of their own. The tests are here because
+//! they read the templates and the handlers as well as that crate's sources, and this is the one
+//! crate that can see all three. See `Catalogs live beside the words they translate` in
+//! `docs/decisions/repository.md`.
 
-use km_locale::{Catalog, Catalogs, Locale};
+pub use km_curation::words::messages;
+#[cfg(test)]
+use km_locale::Locale;
 
 /// The keys the Rust reaches through something a scanner cannot see.
 ///
@@ -123,32 +100,14 @@ const SOURCES: &[&str] = &[
     include_str!("views.rs"),
     include_str!("server.rs"),
     include_str!("app.rs"),
-    include_str!("db.rs"),
-    include_str!("db/filter.rs"),
-    include_str!("model.rs"),
+    include_str!("../../../../crates/song/km-curation/src/db.rs"),
+    include_str!("../../../../crates/song/km-curation/src/db/filter.rs"),
+    include_str!("../../../../crates/song/km-curation/src/model.rs"),
     include_str!("lib.rs"),
     include_str!("browse.rs"),
-    include_str!("scan.rs"),
-    include_str!("build.rs"),
+    include_str!("../../../../crates/song/km-curation/src/scan.rs"),
+    include_str!("../../../../crates/song/km-curation/src/build.rs"),
 ];
-
-/// This tool's words, one catalog per locale.
-static CATALOGS: Catalogs = Catalogs::new(
-    "km-package-builder",
-    &[
-        (Locale::English, include_str!("../i18n/en.ftl")),
-        (
-            Locale::BrazilianPortuguese,
-            include_str!("../i18n/pt-BR.ftl"),
-        ),
-    ],
-);
-
-/// These pages' messages for one locale, parsed once.
-#[must_use]
-pub fn messages(locale: Locale) -> &'static Catalog {
-    CATALOGS.get(locale)
-}
 
 #[cfg(test)]
 mod tests {

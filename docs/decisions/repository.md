@@ -1303,6 +1303,36 @@ for that boundary: it carries no HTTP client.
 **`km-passwords` keeps its own scratch folder.** Its manifest keeps its tree to four crates with no
 dev-dependencies, and its one copy is small.
 
+## The curation tool is two crates
+
+**`km-package-builder` is the tool's pages, its server and its two binaries.** `km-curation`, in
+`crates/song/`, is the database, the corpus scan and the package writer. The line runs where axum
+and askama stop: nothing below it answers a request or renders markup.
+
+**The reason is compile time.** The compiler type-checks a crate as one unit, and mostly on one
+thread. So an edit to a handler or a template type-checked the database and the scan as well.
+**Measured on a desktop**, after a one-line edit:
+
+| Edit | Build, one crate | Build, two crates | Test build, one crate | Test build, two crates |
+|---|---|---|---|---|
+| a handler, a view or a template | 18.5 s | 15.5 s | 25 s | 19 s |
+| a database module | 18 s | 17 s | 25 s | 22 s |
+
+The tool's crate spends 7 s in the front end after the split, against 14 s before it. A change to a
+crate below both, such as `km-song`, still rebuilds both, and a cold build gains nothing measurable.
+
+**No cycle crosses the line.** The database, the scan, the backup and the duplicate finder call one
+another, and so do the handlers, the views and the server. Each group stays whole on its own side.
+
+**The tool names the core's modules at the paths they had.** A `use` at its crate root puts
+`km_curation::db` at `crate::db`, and the same for the rest. The handlers, the views and the
+templates read the same whichever crate a type is in.
+
+**The core's `testing` feature does two jobs.** It exports the fixture songs the tool's server tests
+write. It also holds the core's per-user write guards on, because `cfg(test)` is per crate and the
+tool's tests compile the core without it. Only the tool's dev-dependency names the feature, and a
+test in the tool asserts the guard holds.
+
 ## A downloadable song pack
 
 **This project publishes songs, and they are never bundled with the machine.** Sixteen Christmas
@@ -1783,7 +1813,8 @@ same failure the name was moved here to prevent.
 - `km-display/i18n/`;
 - `km-remote-pages/i18n/` and `km-admin-pages/i18n/`;
 - `km-api/i18n/` for the printed book;
-- `tools/cmd/assets/km-admin/i18n/` and `tools/cmd/km-package-builder/i18n/`.
+- `tools/cmd/assets/km-admin/i18n/`;
+- `crates/song/km-curation/i18n/` for the package builder.
 
 That is the same judgement `km-admin-pages` already makes by copying its own asset hash rather than
 sharing one. These words belong to *these* pages. A rename that orphans a key should be caught in one
@@ -1801,6 +1832,13 @@ crate's own `no_message_is_left_unused` refuses exactly that.
 `tools/cmd/assets/km-admin/templates/` and `tools/cmd/km-package-builder/templates/` are markup like
 any other.
 
+**A program built from two crates keeps its catalog in the lower one, and its tests in the upper
+one.** The package builder is `km-curation` below and `km-package-builder` above. The database, the
+scan and the package writer word messages of their own, so the catalog has to be where they can
+reach it. The templates and the handlers are above, and only the upper crate can read both halves.
+So the parity tests live in `km-package-builder`'s `words.rs` and read `km-curation`'s sources by
+path.
+
 **Under `platform/` and not a sixth folder.** Those five folders are the dependency layering written
 down, and `platform/` is already what sits below all of it. A crate holding no karaoke concept is
 exactly that shape, and a sixth folder for one crate would weaken the claim the five make.
@@ -1810,7 +1848,7 @@ exactly that shape, and a sixth folder for one crate would weaken the claim the 
 follow. `tools/setup/features.sh` is for features a full build has to be *told* to enable. One a
 consumer names for itself is already on wherever it matters.
 
-**Every crate with a catalog owes three tests.** They stand in for the compile-time checking
+**Every program with a catalog owes three tests.** They stand in for the compile-time checking
 Fluent cannot give:
 
 - every key in `en` is in every other locale;

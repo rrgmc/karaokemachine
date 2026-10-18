@@ -49,6 +49,7 @@ impl StepState {
 pub struct Step {
     /// The phase key, which is also the step's name on the page.
     pub key: &'static str,
+    /// Where the step stands.
     pub state: StepState,
     /// When it started running.
     pub started: Option<Instant>,

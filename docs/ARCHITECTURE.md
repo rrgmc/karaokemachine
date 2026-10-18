@@ -98,6 +98,8 @@ crates/
     km-songbook/           # the printed song book: a tiny PDF writer + the layout of a song list.
                            # `km-songcode` and NOTHING else -- no PDF crate, no font crate, no
                            # compression -- because the base-14 fonts need none of the three.
+    km-curation/           # km-package-builder without its pages: the curation database, the
+                           # corpus scan, the package writer, and the tool's Fluent catalog
   playback/                # turning one into sound and picture
     km-audio/              # audio thread: rustysynth + our sequencer, transpose, the audio feed.
                            # The ONLY crate that names rustysynth or cpal. It also holds the
@@ -222,8 +224,8 @@ tools/                     # six folders and nothing loose -- see "How things he
     km-lyrics/             # CLI: dump a parsed lyric timeline + analysis as JSON (debugging)
     km-site-pack/          # lib: crawl one site, download its song files, open its archives
                            # bin: the same, then a package through km-pack's describe and build
-    km-package-builder/    # the curation tool: a local web server over a folder of source files,
-                           # with a Fluent catalog of its own in i18n/
+    km-package-builder/    # the curation tool: a local web server over a folder of source files.
+                           # Its pages, server and binaries; the data half is km-curation
     km-package-simple/     # the folder packager: km-pack's describe and build behind one page,
                            # no database, every package it writes marked uncurated
     km-song-sync/          # the page that starts the lyric sync editor: a words box, a browser

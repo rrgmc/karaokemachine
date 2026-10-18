@@ -282,7 +282,12 @@ pub enum SuitabilityFilter {
     ///
     /// A range whose ends are a band's ends parses as that band, so one question keeps one spelling
     /// and one chip.
-    Range { low: u8, high: u8 },
+    Range {
+        /// The lowest suitability the range takes.
+        low: u8,
+        /// The highest suitability the range takes.
+        high: u8,
+    },
 }
 
 impl SuitabilityFilter {

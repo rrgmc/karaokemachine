@@ -48,7 +48,7 @@ impl SongKind {
     ///
     /// An unfamiliar value reads as MIDI, which is the safe direction and what the column's own
     /// default says.
-    pub fn from_str(value: &str) -> Self {
+    pub fn from_stored(value: &str) -> Self {
         match value {
             "video" => Self::Video,
             "cdg" => Self::Cdg,
@@ -60,7 +60,7 @@ impl SongKind {
 
     /// Reads a filter's `kind` parameter: one of the three spellings, or `None` for every kind.
     ///
-    /// Unlike [`Self::from_str`], anything unfamiliar is `None`, so a hand-edited query string shows
+    /// Unlike [`Self::from_stored`], anything unfamiliar is `None`, so a hand-edited query string shows
     /// every kind rather than an empty page with no reason.
     pub fn filter(value: &str) -> Option<Self> {
         match value {
@@ -116,7 +116,7 @@ impl SongKind {
     }
 
     /// Every key [`Self::key`] can return, for the parity tests in [`crate::words`].
-    #[cfg(test)]
+    #[cfg(any(test, feature = "testing"))]
     pub const KEYS: &'static [&'static str] = &[
         "kind-midi",
         "kind-video",
@@ -207,7 +207,7 @@ impl ScanStatus {
 
     /// Reads back what [`Self::as_str`] wrote. An unfamiliar value is treated as a failure rather
     /// than a success, which is the safe direction.
-    pub fn from_str(value: &str) -> Self {
+    pub fn from_stored(value: &str) -> Self {
         match value {
             "ok" => Self::Ok,
             "unreadable" => Self::Unreadable,
@@ -260,7 +260,7 @@ impl ScanStatus {
     ///
     /// The list `words::COMPOSED` chains, so a variant added without a message is a failing test
     /// rather than a bracketed key in the Reason column.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "testing"))]
     pub const KEYS: &'static [&'static str] = &[
         "failure-parsed",
         "failure-unreadable",
@@ -1582,8 +1582,11 @@ mod tests {
 
     #[test]
     fn an_unfamiliar_scan_status_is_a_failure_not_a_success() {
-        assert_eq!(ScanStatus::from_str("ok"), ScanStatus::Ok);
-        assert_eq!(ScanStatus::from_str("not_midi"), ScanStatus::NotMidi);
-        assert_eq!(ScanStatus::from_str("something new"), ScanStatus::Panicked);
+        assert_eq!(ScanStatus::from_stored("ok"), ScanStatus::Ok);
+        assert_eq!(ScanStatus::from_stored("not_midi"), ScanStatus::NotMidi);
+        assert_eq!(
+            ScanStatus::from_stored("something new"),
+            ScanStatus::Panicked
+        );
     }
 }

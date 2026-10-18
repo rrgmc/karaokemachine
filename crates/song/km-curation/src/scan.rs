@@ -106,7 +106,7 @@ pub mod phase {
     pub const FINISHED: &str = "scan-phase-finished";
 
     /// Every phase, for the parity tests in [`crate::words`].
-    #[cfg(test)]
+    #[cfg(any(test, feature = "testing"))]
     pub const ALL: &[&str] = &[
         PREPARING, LOOKING, READING, INDEXING, FORGETTING, DUPLICATES, MEASURING, STOPPED, FINISHED,
     ];
@@ -2277,11 +2277,12 @@ mod tests {
 
         // The passage is the point of the page, not a detail of it: a hit with no words shown is a
         // song list, and a song list is what the Songs page already is.
-        let runs = crate::views::highlight(&hits[0].passage);
+        // The marks are the two control characters `km-package-builder`'s `views::highlight` splits
+        // on, and its own tests hold it to them.
         assert!(
-            runs.iter()
-                .any(|(text, matched)| *matched && text.to_lowercase().contains("fleece")),
-            "the matched word must come back marked, got {runs:?}"
+            hits[0].passage.to_lowercase().contains("\u{2}fleece\u{3}"),
+            "the matched word must come back marked, got {:?}",
+            hits[0].passage
         );
 
         // Every term has to appear, which is what makes a remembered line narrow rather than widen.

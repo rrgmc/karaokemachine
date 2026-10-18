@@ -124,6 +124,8 @@ pub fn linked_root_for(db: &Db, package_id: &str, volume: u32) -> Result<Option<
     ))
 }
 
+/// The spec one volume of a package builds from, with each song as a person left it, and the
+/// members whose source file is gone.
 pub fn spec_for(db: &Db, package_id: &str, volume: u32) -> Result<Curated, DbError> {
     let package = db.package_volume(package_id, volume)?;
     let members = db.package_members(package_id, volume)?;

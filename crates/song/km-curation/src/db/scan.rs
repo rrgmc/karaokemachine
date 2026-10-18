@@ -486,7 +486,7 @@ impl Db {
         let rows = statement.query_map([dismissed], |row| {
             let status: String = row.get(0)?;
             Ok(FailureTally {
-                reason: ScanStatus::from_str(&status).key().to_owned(),
+                reason: ScanStatus::from_stored(&status).key().to_owned(),
                 status,
                 count: row.get::<_, i64>(1)? as u32,
                 example: row.get::<_, Option<String>>(2)?.unwrap_or_default(),

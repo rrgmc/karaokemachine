@@ -93,6 +93,7 @@ api|crates/machine/km-api/
 remote|crates/remote/
 remote|ports/remote/
 package-builder|tools/cmd/km-package-builder/
+package-builder|crates/song/km-curation/
 admin|tools/cmd/assets/km-admin/
 tools|tools/cmd/km-pack/
 package-simple|tools/cmd/km-package-simple/

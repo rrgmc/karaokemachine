@@ -1,0 +1,64 @@
+[package]
+name = "km-curation"
+description = "The package builder's curation database, its corpus scan and its package writer"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+# **The half of `km-package-builder` that has no page in it.** The tool's pages, its server and its
+# two binaries stay in `tools/cmd/km-package-builder`, which depends on this. A crate rather than a
+# module tree, because a crate is what the compiler type-checks as one unit: an edit to a handler or
+# a template type-checks the pages and not this. See `The curation tool is two crates` in
+# docs/decisions/repository.md.
+
+[features]
+# Reading video files in a scan. `km-package-builder`'s own `video` feature turns this on, so nothing
+# names it directly.
+video = ["km-pack/video", "dep:km-video"]
+# The fixture helpers `km-package-builder`'s tests write a database with. Off by default so they
+# never ship, the arrangement `km-song` and `km-api` have.
+testing = ["dep:km-testkit"]
+
+[dependencies]
+km-song = { workspace = true }
+km-suitability = { workspace = true }
+km-fixes = { workspace = true }
+km-cdg = { workspace = true }
+km-songcode = { workspace = true }
+km-kmpkg = { workspace = true }
+km-langguess = { workspace = true }
+km-pack = { workspace = true }
+# For `km_api::discover` and `km_api::files` alone: which machines this computer knows, and the
+# replace-in-one-step file write a backup uses.
+km-api = { workspace = true }
+km-video = { workspace = true, optional = true }
+km-console = { workspace = true }
+km-dirs = { workspace = true }
+km-logsettings = { workspace = true }
+# The machine passwords this computer was told to remember, shared with `km-admin`: two tools that
+# send things to a machine meet the same closed door and hold the same kind of credential, and a
+# second copy of one file format is the drift a shared crate exists to stop. Where the file goes
+# stays in `crate::passwords`, this tool's own answer.
+km-passwords = { workspace = true }
+# The catalog lookup. No `askama` feature: this crate renders no markup.
+km-locale = { workspace = true }
+km-testkit = { workspace = true, optional = true }
+rusqlite = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+form_urlencoded = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+km-testkit = { workspace = true }
+km-song = { workspace = true, features = ["testing"] }
+km-logfile = { workspace = true }
+# A test writes the zip it then reads as a song.
+zip = { workspace = true }

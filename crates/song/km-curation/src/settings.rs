@@ -160,7 +160,7 @@ fn file_for(setting: Option<&std::ffi::OsStr>) -> Option<PathBuf> {
 ///
 /// `cfg!` rather than `#[cfg]`, so the production branch is still compiled and linted under test.
 fn path() -> Option<PathBuf> {
-    if cfg!(test) {
+    if cfg!(any(test, feature = "testing")) {
         return None;
     }
     file_for(std::env::var_os(ENV_VAR).as_deref())

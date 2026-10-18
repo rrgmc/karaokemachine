@@ -870,12 +870,11 @@ mod tests {
     /// have produced — every `det_*` filled, the file beside it, and the triggers fired. A restore
     /// writing onto a row no scan could have made would prove nothing about the corpus this runs on.
     fn add_song(db: &mut Db, id: &str, stem: &str) {
-        let file =
-            crate::db::tests::scanned_file(id, None, &format!("folder/{stem}.kar"), |song| {
-                song.lyrics = None;
-                song.fingerprint = String::new();
-            });
-        crate::db::tests::add_all(db, vec![file]);
+        let file = crate::testing::scanned_file(id, None, &format!("folder/{stem}.kar"), |song| {
+            song.lyrics = None;
+            song.fingerprint = String::new();
+        });
+        crate::testing::add_all(db, vec![file]);
     }
 
     impl SongBackup {
