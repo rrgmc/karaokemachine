@@ -52,7 +52,8 @@ impl ZipMember {
         let mut zip =
             zip::ZipArchive::new(std::io::BufReader::new(file)).map_err(std::io::Error::other)?;
         let mut entry = zip.by_index(self.index).map_err(std::io::Error::other)?;
-        if entry_name(entry.name()) != self.name || entry.size() != self.size {
+        let name = entry.name().map_err(std::io::Error::other)?;
+        if entry_name(&name) != self.name || entry.size() != self.size {
             return Err(std::io::Error::other(
                 "the zip changed while it was being read",
             ));

@@ -325,8 +325,8 @@ pub fn zip_pack(pack: &Path, out: &Path, manifest: &Manifest) -> Result<u64> {
         source,
     })?;
     let mut zip = zip::ZipWriter::new(file);
-    let options: zip::write::FileOptions<'_, ()> =
-        zip::write::FileOptions::default().compression_method(zip::CompressionMethod::Deflated);
+    let options = zip::write::SimpleFileOptions::default()
+        .compression_method(zip::CompressionMethod::Deflated);
 
     let mut written = 0_u64;
     for name in names {
@@ -701,7 +701,10 @@ mod tests {
 
         let file = std::fs::File::open(&zip_path).expect("open");
         let archive = zip::ZipArchive::new(file).expect("read");
-        let mut names: Vec<_> = archive.file_names().collect();
+        let mut names: Vec<String> = archive
+            .file_names()
+            .map(|name| name.expect("a name").into_owned())
+            .collect();
         names.sort_unstable();
         assert_eq!(
             names,
