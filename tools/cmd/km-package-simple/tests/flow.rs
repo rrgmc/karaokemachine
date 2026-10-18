@@ -280,11 +280,12 @@ fn graphics(colour: u8) -> Vec<u8> {
 }
 
 /// Reads `folder`, builds it linked over `base` with the description box ticked, and returns
-/// what was built.
+/// what was built. `loudness` is whether the loudness box is ticked.
 async fn build_linked_with_descriptions(
     folder: &Path,
     base: &Path,
     out: &Path,
+    loudness: bool,
 ) -> km_package_simple::app::Built {
     let app = App::new(None, "http://127.0.0.1:0/".to_owned());
     let (status, _) = post(&app, "/folder", &format!("path={}", form_value(folder))).await;
@@ -296,10 +297,24 @@ async fn build_linked_with_descriptions(
         page.contains(r#"<input type="checkbox" name="write_spec" value="yes">"#),
         "the description box is offered, and off: {page}"
     );
+    assert!(
+        page.contains(r#"<input type="checkbox" name="measure_loudness" value="yes" checked>"#),
+        "the loudness box is offered, and on: {page}"
+    );
+    assert!(
+        page.contains(r#"<details class="advanced">"#),
+        "the advanced choices start closed: {page}"
+    );
+    assert!(page.contains(r#"<div class="linked-only">"#), "{page}");
 
     let body = format!(
-        "name=Party&version=1.0.0&publisher=&language=und&linked=yes&write_spec=yes\
+        "name=Party&version=1.0.0&publisher=&language=und&linked=yes&write_spec=yes{}\
          &linked_base={}&out_dir={}",
+        if loudness {
+            "&measure_loudness=yes"
+        } else {
+            ""
+        },
         form_value(base),
         form_value(out)
     );
@@ -326,7 +341,7 @@ async fn a_copied_pair_is_skipped_and_the_description_rebuilds_the_package() {
     }
     let out = Scratch::new("flow-copies-out");
 
-    let built = build_linked_with_descriptions(&folder, library.path(), &out).await;
+    let built = build_linked_with_descriptions(&folder, library.path(), &out, true).await;
     assert_eq!(built.files.len(), 1);
     assert_eq!(built.files[0].1, 2, "the copy stayed out");
     assert_eq!(built.skipped.len(), 1, "{:?}", built.skipped);
@@ -362,6 +377,14 @@ async fn a_copied_pair_is_skipped_and_the_description_rebuilds_the_package() {
         outcome.skipped
     );
     let first = km_kmpkg::Package::open(out.join("party-1.0.0.kmpkg")).expect("open");
+    assert!(
+        first
+            .manifest()
+            .songs
+            .iter()
+            .all(|song| song.loudness.is_some()),
+        "every song was measured"
+    );
     let second = km_kmpkg::Package::open(&again).expect("open");
     let hashes = |package: &km_kmpkg::Package| -> Vec<Option<String>> {
         package
@@ -372,6 +395,70 @@ async fn a_copied_pair_is_skipped_and_the_description_rebuilds_the_package() {
             .collect()
     };
     assert_eq!(hashes(&first), hashes(&second));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_clear_loudness_box_builds_songs_with_no_measurement() {
+    let library = Scratch::new("flow-no-loudness");
+    let folder = library.join("collection");
+    std::fs::create_dir_all(&folder).expect("a folder");
+    std::fs::write(folder.join("a.mp3"), TONE).expect("write");
+    std::fs::write(folder.join("a.cdg"), graphics(0)).expect("write");
+    let out = Scratch::new("flow-no-loudness-out");
+
+    build_linked_with_descriptions(&folder, library.path(), &out, false).await;
+    let package = km_kmpkg::Package::open(out.join("party-1.0.0.kmpkg")).expect("open");
+    assert_eq!(package.manifest().songs[0].loudness, None);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_canceled_build_writes_no_package_and_says_so() {
+    let songs = Scratch::new("flow-cancel");
+    // Enough songs that the build is still running when the cancel arrives. The bytes after the
+    // last track make each file its own song rather than a copy of the first.
+    for number in 0..400 {
+        std::fs::write(
+            songs.join(format!("{number:03}.kar")),
+            [
+                km_song::testing::soft_karaoke(),
+                number.to_string().into_bytes(),
+            ]
+            .concat(),
+        )
+        .expect("write");
+    }
+    let out = Scratch::new("flow-cancel-out");
+
+    let app = App::new(None, "http://127.0.0.1:0/".to_owned());
+    let (status, _) = post(&app, "/folder", &format!("path={}", form_value(&songs))).await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+    settled(&app).await;
+
+    let body = format!(
+        "name=Party&version=1.0.0&publisher=&language=und&out_dir={}",
+        form_value(&out)
+    );
+    let (status, _) = post(&app, "/build", &body).await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+    let progress = get(&app, "/progress").await;
+    assert!(progress.contains(r#"hx-post="/cancel""#), "{progress}");
+    let (status, _) = post(&app, "/cancel", "").await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+    let progress = get(&app, "/progress").await;
+    assert!(
+        progress.contains("Stopping") || progress.is_empty(),
+        "stopping, or already stopped: {progress}"
+    );
+    settled(&app).await;
+
+    assert!(
+        matches!(app.lock().phase, Phase::Ready),
+        "{:?}",
+        app.lock().phase
+    );
+    assert!(!out.join("party-1.0.0.kmpkg").exists(), "nothing written");
+    let page = get(&app, "/").await;
+    assert!(page.contains("The build stopped"), "{page}");
 }
 
 #[tokio::test(flavor = "multi_thread")]

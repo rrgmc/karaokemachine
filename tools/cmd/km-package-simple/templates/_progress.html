@@ -6,4 +6,8 @@
   {% else %}
   <progress></progress>
   {% endif %}
+  {# The build stops before its next song, so a package already written stays. #}
+  {% if cancel %}
+  <button type="button" class="quiet" hx-post="/cancel" hx-swap="none">{{ "action-cancel"|t }}</button>
+  {% endif %}
 </div>

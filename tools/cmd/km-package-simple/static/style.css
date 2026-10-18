@@ -119,6 +119,14 @@ progress { width: 100%; max-width: 32rem; }
 .fields .wide { grid-column: 1 / -1; }
 .fields .row input { flex: 1; min-width: 20rem; }
 
+/* The package form's choices most folders never need. */
+.advanced { margin-bottom: 1rem; }
+.advanced summary { cursor: pointer; color: var(--accent); margin-bottom: 0.5rem; }
+
+/* What only a linked package needs, hidden while its box is clear. The box is read where it is,
+   so a fresh page and a click agree without a script. */
+:root:has(input[name="linked"]:not(:checked)) .linked-only { display: none; }
+
 /* The folder picker, drawn under the box it fills. */
 .picker {
     background: var(--panel);

@@ -1500,8 +1500,18 @@ it again.
 - A box asks to write each package's description beside it, as a `.kmspec.yaml`. The description
   holds the songs that went in and names the folder they were read from. `km-pack build` then
   makes the same package, and a person can edit it first. The box starts off, because most people
-  want only the package. The description is written even when a build stops, so there is a file
+  want only the package. The description is written even when a build fails, so there is a file
   to fix.
+- A box asks to measure how loud each song is, and it starts ticked. The machine plays a measured
+  video or MP3+G song at the level of the rest. The measurement is most of the time a build of
+  those songs takes, so a person in a hurry can clear the box. Those songs then play at whatever
+  level they were published at.
+- The linked box, the folder its paths start at, and the loudness box sit in an **Advanced** panel.
+  It starts closed, because the defaults are right for most folders. It starts open when one of
+  its choices is off its default, so the page never hides a choice somebody made. The folder box
+  shows only while the linked box is ticked.
+- A build can be canceled from its progress. It stops before the next song, and writes nothing of
+  the package it was making. A package it finished before stays in its folder.
 - The form takes a name, a version, a publisher, the language for songs that name none, and the
   folder to write to. The language starts at `und`, because nobody has checked what language the
   songs are in. The id is generated.

@@ -229,6 +229,9 @@ pub struct PackageForm {
     /// Whether each package's description is written beside it, for `km-pack build` to rebuild
     /// from or a person to edit.
     pub write_spec: bool,
+    /// Whether each video and MP3+G song's loudness is measured, so the machine plays it level
+    /// with the rest.
+    pub measure_loudness: bool,
 }
 
 impl PackageForm {
@@ -253,6 +256,8 @@ impl PackageForm {
             linked_base: folder.to_path_buf(),
             // Off, because most people want only the package.
             write_spec: false,
+            // On, because a song built without it plays at whatever level it was published at.
+            measure_loudness: true,
         }
     }
 }

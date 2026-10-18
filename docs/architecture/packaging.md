@@ -415,6 +415,13 @@ folder of the zip. A test asks both the same cases.
 | Probe, loudness, hash | streamed from the path, each one | read once into memory, then all three |
 | Written into the package | streamed from the path | streamed from the zip |
 
+**A build measures each loose MP3+G song's loudness ahead, on every core.** The measurement decodes
+the whole MP3, about half a second a song, where probing and hashing a pair take about a hundredth.
+`km_pack::ahead::MeasureAhead` gives the songs to one worker per core in the build's order. The add
+takes the answer through `CdgRequest::measured`. The answer is the one `km_cdg::measure_loudness`
+gives on the same file, so the package is the one a single thread builds. A zipped pair and the
+other kinds still measure in the add.
+
 **The package writer knows nothing of zip.** `km_kmpkg::EntrySource` hands it a reader, and
 `ZipMember` implements that in `km-pack`. The reader arrives through a callback, because a zip
 entry's reader borrows the archive it came from.
