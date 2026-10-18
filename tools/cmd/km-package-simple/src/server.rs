@@ -324,6 +324,8 @@ struct BuildForm {
     /// The folder a linked package's paths start at. Empty means the folder that was read.
     #[serde(default)]
     linked_base: String,
+    /// Present when the description box is ticked, absent when it is not.
+    write_spec: Option<String>,
 }
 
 /// `POST /build`: write the packages.
@@ -341,6 +343,7 @@ async fn build(
         out_dir: std::path::PathBuf::from(form.out_dir.trim()),
         linked: form.linked.is_some(),
         linked_base: base_or_folder(&app, &form.linked_base),
+        write_spec: form.write_spec.is_some(),
     };
     match app.build(form) {
         Ok(()) => refresh(),

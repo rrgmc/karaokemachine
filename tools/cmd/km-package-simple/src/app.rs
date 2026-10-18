@@ -5,12 +5,13 @@
 //! [`Phase`]. A page polls that phase, and every other request answers from the lock in
 //! microseconds.
 
+use std::collections::BTreeSet;
 use std::ops::ControlFlow;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, MutexGuard};
 
 use km_locale::Locale;
-use km_pack::{BuildEvent, BuildOptions, DescribeOptions, Skipped};
+use km_pack::{BuildEvent, BuildOptions, BuildOutcome, DescribeOptions, Skipped};
 
 use crate::session::{PackageForm, Planned, Session};
 use crate::settings::Settings;
@@ -54,6 +55,8 @@ pub struct Built {
     pub files: Vec<(PathBuf, usize)>,
     /// Songs a build could not put in, and why, in `km-pack`'s words.
     pub skipped: Vec<Skipped>,
+    /// Every description written beside a package, when the form asked for them.
+    pub specs: Vec<PathBuf>,
 }
 
 /// Everything behind the lock.
@@ -277,6 +280,8 @@ fn build_all(app: &Arc<App>, folder: &Path, plan: &[Planned]) -> Result<Built, S
                 measure_loudness: true,
                 write_listing: true,
                 flags: km_kmpkg::PackageFlags::NONE,
+                // Nobody reviewed the folder, and one copy must not cost the other songs.
+                skip_duplicates: true,
             },
             |event| {
                 if let BuildEvent::Song { index, .. } = event
@@ -289,6 +294,11 @@ fn build_all(app: &Arc<App>, folder: &Path, plan: &[Planned]) -> Result<Built, S
         )
         .map_err(|error| format!("{error:#}"))?;
 
+        // Written whether or not the package was, so a build that stops leaves a file to fix.
+        if let Some(spec_out) = &planned.spec_out {
+            write_spec(planned, &outcome, spec_out)?;
+            built.specs.push(spec_out.clone());
+        }
         if !outcome.problems.is_empty() {
             return Err(outcome.problems.join("; "));
         }
@@ -304,6 +314,26 @@ fn build_all(app: &Arc<App>, folder: &Path, plan: &[Planned]) -> Result<Built, S
         built.skipped.extend(outcome.skipped);
     }
     Ok(built)
+}
+
+/// Writes one volume's description, holding the songs that went in.
+///
+/// A song the build left out is left out of the description too, so `km-pack build` of the file
+/// gives the same package without being told to skip anything.
+fn write_spec(planned: &Planned, outcome: &BuildOutcome, path: &Path) -> Result<(), String> {
+    let left_out: BTreeSet<u32> = outcome
+        .skipped
+        .iter()
+        .filter_map(|skipped| skipped.number)
+        .collect();
+    let mut spec = planned.spec.clone();
+    spec.songs
+        .retain(|song| song.number.is_none_or(|number| !left_out.contains(&number)));
+    // A description with no song is one `km-pack build` refuses, so the plan is written instead.
+    if spec.songs.is_empty() {
+        spec.songs.clone_from(&planned.spec.songs);
+    }
+    spec.write(path).map_err(|error| format!("{error:#}"))
 }
 
 /// How a Quit asks the server to stop. Cloned into every place that can ask.

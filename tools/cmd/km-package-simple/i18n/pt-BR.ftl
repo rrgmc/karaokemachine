@@ -52,6 +52,8 @@ form-language-hint = Uma música cujo arquivo não diz o idioma fica neste. Inde
 form-linked = Montar pacotes vinculados, que não contêm arquivos de música
 form-linked-hint = Um pacote vinculado indica cada música pelo caminho dela abaixo da pasta onde os caminhos começam. Ele só toca em uma máquina configurada para aceitar pacotes vinculados, a partir dessa pasta ou de uma cópia dela. Uma música dentro de um zip fica de fora.
 form-linked-base = Os caminhos começam em
+form-write-spec = Gravar também a descrição de cada pacote
+form-write-spec-hint = Uma descrição é um arquivo .kmspec.yaml ao lado do pacote. Ela lista as músicas que entraram, e o km-pack build monta o pacote de novo a partir dela. Ela é gravada mesmo quando a montagem para.
 linked-path-example = A primeira música, abaixo da pasta de pacotes vinculados da máquina:
 linked-path-machine = Configure a pasta de pacotes vinculados da máquina como { $folder }, ou uma cópia dela.
 action-build = Criar
@@ -106,6 +108,7 @@ built-heading = { $count ->
 built-uncurated = Cada um é marcado como sem curadoria.
 built-linked = Cada um é vinculado. Ele não contém arquivos de música, então a máquina também precisa da pasta de músicas.
 built-listing = Uma lista das músicas fica ao lado de cada pacote, em um arquivo .txt com o mesmo nome.
+built-spec = A descrição de cada pacote fica ao lado dele:
 built-skipped = { $count ->
     [0] { $count } músicas não entraram
     [one] { $count } música não entrou

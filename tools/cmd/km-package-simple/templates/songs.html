@@ -47,6 +47,9 @@
     </div>
   </div>
   {{ linked_path|safe }}
+  {# Off by default, because most people want only the package. #}
+  <label><input type="checkbox" name="write_spec" value="yes"{% if form.write_spec %} checked{% endif %}> {{ "form-write-spec"|t }}</label>
+  <p class="hint">{{ "form-write-spec-hint"|t }}</p>
   <button type="submit">{{ "action-build"|t }}</button>
 </form>
 {# Empty until Browse is pressed. Outside the form, because the picker holds a form of its own and

@@ -12,6 +12,14 @@
   {% endfor %}
 </ul>
 <p class="hint">{{ "built-listing"|t }}</p>
+{% if !specs.is_empty() %}
+<p class="hint">{{ "built-spec"|t }}</p>
+<ul class="files">
+  {% for spec in specs %}
+  <li><span class="mono">{{ spec }}</span></li>
+  {% endfor %}
+</ul>
+{% endif %}
 <div class="row">
   <button type="button" hx-post="/reveal" hx-swap="none">{{ "action-reveal"|t }}</button>
   <button type="button" class="quiet" hx-post="/back" hx-swap="none">{{ "action-back"|t }}</button>

@@ -226,6 +226,9 @@ pub struct PackageForm {
     pub linked: bool,
     /// The folder a linked package's paths start at: the folder that was read, or one above it.
     pub linked_base: PathBuf,
+    /// Whether each package's description is written beside it, for `km-pack build` to rebuild
+    /// from or a person to edit.
+    pub write_spec: bool,
 }
 
 impl PackageForm {
@@ -248,6 +251,8 @@ impl PackageForm {
             // Off, because a package that holds its songs plays on any machine.
             linked: false,
             linked_base: folder.to_path_buf(),
+            // Off, because most people want only the package.
+            write_spec: false,
         }
     }
 }
@@ -304,6 +309,8 @@ pub struct Planned {
     pub spec: Spec,
     /// The file it is written to.
     pub out: PathBuf,
+    /// The file its description is written to, when the form asks for one.
+    pub spec_out: Option<PathBuf>,
 }
 
 /// A folder's songs, as read and as changed.
@@ -500,11 +507,29 @@ impl Session {
             root: None,
             songs,
         };
+        // The folder the build reads from, which a written description has to name for itself.
+        let read_from = if form.linked {
+            &form.linked_base
+        } else {
+            &self.folder
+        };
         split_into_volumes(&spec, per_volume())
             .into_iter()
-            .map(|spec| Planned {
-                out: form.out_dir.join(file_name(&spec.package)),
-                spec,
+            .map(|mut spec| {
+                let out = form.out_dir.join(file_name(&spec.package));
+                let spec_out = form.write_spec.then(|| {
+                    // Both absolute. `Spec::base` joins `root` onto the description's own folder,
+                    // and a build joins a relative `out` onto `root`, so a relative value of either
+                    // would point somewhere else.
+                    spec.root = Some(read_from.display().to_string());
+                    spec.package.out = Some(out.display().to_string());
+                    form.out_dir.join(spec_file_name(&spec.package))
+                });
+                Planned {
+                    out,
+                    spec_out,
+                    spec,
+                }
             })
             .collect()
     }
@@ -528,6 +553,14 @@ pub fn file_name(package: &SpecPackage) -> String {
         km_kmpkg::name_slug(&package.version).unwrap_or_else(|| "1.0.0".to_owned())
     };
     format!("{stem}-{version}.kmpkg")
+}
+
+/// `<name>-<version>.kmspec.yaml`, the package's own name with the description's extension.
+#[must_use]
+pub fn spec_file_name(package: &SpecPackage) -> String {
+    let package_name = file_name(package);
+    let stem = package_name.strip_suffix(".kmpkg").unwrap_or(&package_name);
+    format!("{stem}.kmspec.yaml")
 }
 
 fn nonblank(value: &str) -> Option<String> {
@@ -706,6 +739,61 @@ mod tests {
         );
         assert!(planned.iter().all(|volume| volume.spec.package.uncurated));
         assert_eq!(planned[0].spec.songs[0].file, "rock/1.kar");
+    }
+
+    #[test]
+    fn a_description_is_planned_only_when_the_form_asks() {
+        let planned = session(1).plan(&form(), "0123456789abcdef".to_owned(), "");
+        assert_eq!(planned[0].spec_out, None);
+        assert_eq!(planned[0].spec.root, None);
+        assert_eq!(planned[0].spec.package.out, None);
+    }
+
+    #[test]
+    fn a_written_description_builds_from_where_the_songs_are() {
+        let scratch = km_testkit::Scratch::new("simple-write-spec");
+        let songs = scratch.join("songs");
+        let packages = scratch.join("packages");
+        let mut session = session(1);
+        session.folder = songs.clone();
+        let form = PackageForm {
+            out_dir: packages.clone(),
+            write_spec: true,
+            ..PackageForm::for_folder(&songs)
+        };
+
+        let planned = session.plan(&form, "0123456789abcdef".to_owned(), "");
+        let spec_out = planned[0].spec_out.clone().expect("a description");
+        assert_eq!(spec_out, packages.join("songs-1.0.0.kmspec.yaml"));
+        assert_eq!(
+            planned[0].spec.package.out.as_deref(),
+            Some(planned[0].out.display().to_string().as_str())
+        );
+
+        planned[0].spec.write(&spec_out).expect("write");
+        let read = Spec::read(&spec_out).expect("read");
+        assert_eq!(
+            read.base(&spec_out),
+            songs,
+            "the songs, wherever the file sits"
+        );
+        assert_eq!(read.songs, planned[0].spec.songs);
+    }
+
+    #[test]
+    fn a_linked_description_builds_from_the_base_folder() {
+        let form = PackageForm {
+            linked: true,
+            linked_base: PathBuf::from("/tunes"),
+            write_spec: true,
+            ..form()
+        };
+        let planned = session(1).plan(&form, "0123456789abcdef".to_owned(), "karaoke");
+        assert_eq!(
+            planned[0].spec.root.as_deref(),
+            Some(Path::new("/tunes").display().to_string().as_str())
+        );
+        assert_eq!(planned[0].spec.songs[0].file, "karaoke/1.kar");
     }
 
     #[test]
