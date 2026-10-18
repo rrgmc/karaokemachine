@@ -38,8 +38,7 @@ impl MeasureAhead {
         let stop = Arc::new(AtomicBool::new(false));
         let jobs = Arc::new(jobs);
         let next = Arc::new(AtomicUsize::new(0));
-        let workers = std::thread::available_parallelism()
-            .map_or(1, usize::from)
+        let workers = workers_for(std::thread::available_parallelism().map_or(1, usize::from))
             .min(jobs.len());
         // Each worker owns a sender, and this function drops the first one on return. So the
         // receiver ends once every worker has, and a worker that panics cannot leave the build
@@ -85,6 +84,21 @@ impl MeasureAhead {
     }
 }
 
+/// The most workers a build measures with, whatever the processor: what one spinning disk feeds.
+///
+/// A worker reads a pair of about 7 MB in about half a second, so about 14 MB/s. Eight of them read
+/// about 110 MB/s, near what a spinning disk delivers, and a ninth would mostly wait for it.
+const MAX_WORKERS: usize = 8;
+
+/// How many workers measure at once on a processor with `logical` cores.
+///
+/// **Half the logical cores**, which is about one a physical core where each core runs two
+/// threads. The other half stays free, because a build of a whole collection runs for hours on a
+/// machine somebody is using. At least one, and at most [`MAX_WORKERS`].
+fn workers_for(logical: usize) -> usize {
+    (logical / 2).clamp(1, MAX_WORKERS)
+}
+
 impl Drop for MeasureAhead {
     fn drop(&mut self) {
         self.stop.store(true, Ordering::Relaxed);
@@ -94,6 +108,15 @@ impl Drop for MeasureAhead {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn half_the_cores_measure_and_never_none_or_more_than_the_disk_feeds() {
+        let workers: Vec<usize> = [1, 2, 4, 8, 12, 16, 24, 64]
+            .into_iter()
+            .map(workers_for)
+            .collect();
+        assert_eq!(workers, [1, 1, 2, 4, 6, 8, 8, 8]);
+    }
 
     #[test]
     fn an_answer_is_the_one_the_add_would_measure_and_arrives_in_any_order() {
