@@ -3315,8 +3315,9 @@ fn cursor_shown(switch: bool, menu: bool) -> bool {
 /// Windows SDL runs it on a thread of its own, and on macOS it is a sheet on the window, so the loop
 /// goes on drawing and the song goes on playing either way.
 ///
-/// The chosen file goes to [`crate::opened`], which the loop drains into the installer a dropped
-/// file reaches. A file of any other name is handed over as well, so the installer's refusal says
+/// The browser takes several files at once. Each goes to [`crate::opened`] in the order the browser
+/// gives them, and the loop drains them into the installer a dropped file reaches. A file of any
+/// other name is handed over as well, so the installer's refusal says
 /// why on the screen. Only a failure to open the browser comes back down `failures`, the channel
 /// [`show_remote`] reports on; closing it without a choice is not a failure.
 fn choose_package(
@@ -3337,7 +3338,7 @@ fn choose_package(
     let shown = sdl3::dialog::show_open_file_dialog(
         &filters,
         None::<&std::path::Path>,
-        false,
+        true,
         window,
         Box::new(move |chosen, _| {
             done.store(false, Ordering::Release);
