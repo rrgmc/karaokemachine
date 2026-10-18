@@ -175,7 +175,7 @@ are not redistributable either, so fixtures stay synthetic and reproduce the sha
 version rises with it. `Unknown` already exists so that an older build refuses the new kind
 cleanly. Three other places match on the kind:
 
-- the package builder's own `SongKind` in `tools/cmd/km-package-builder/src/model.rs:21`;
+- the package builder's own `SongKind` in `crates/song/km-curation/src/model.rs`;
 - the machine's `Media` enum in `crates/machine/karaokemachine/src/machine.rs:68`;
 - the catalog's row reader in `crates/song/km-catalog/src/lib.rs:1209`. It reads an unrecognised
   kind as MIDI by design, so the new kind must be named there or its songs fail to load.
@@ -231,7 +231,7 @@ for the `.cdg` beside an MP3. An UltraStar file names its audio in `#AUDIO` or `
 therefore the file the scanner starts from, and the header rather than the stem leads to the audio.
 In the local collection the header is always `#MP3`. In 16% of files the audio's stem differs from
 the `.txt` stem, so matching by stem would miss those songs **[bytes]**. The
-scanner's dispatch in `tools/cmd/km-package-builder/src/scan.rs`, `missing_entries` (`lib.rs:358`) and
+scanner's dispatch in `crates/song/km-curation/src/scan.rs`, `missing_entries` (`lib.rs:358`) and
 `pair_content_hash` (`lib.rs:824`) each need the second rule.
 
 Packaging renames a pair to `media/<number>.*`. The `.txt` can be stored the same way, so the machine

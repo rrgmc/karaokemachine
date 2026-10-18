@@ -7,6 +7,13 @@
 browses, rates, corrects and groups them into packages that `km-pack` builds. It binds loopback by
 default. `--lan` opens it up and warns, because the tool itself has no password.
 
+**The tool is two crates.** `tools/cmd/km-package-builder` holds the handlers, the views, the
+templates, the server and the two binaries. `crates/song/km-curation` holds everything below them:
+the database under `db/`, the scan, the package writer, the backup, the per-user files and the
+Fluent catalog. The tool's crate root puts each `km_curation` module at `crate::db`, `crate::scan`
+and so on. A page then names a type the same way whichever crate holds it. The reason is compile time;
+see `The curation tool is two crates` in [`repository.md`](../decisions/repository.md).
+
 The tool does hold the
 machine's password, from a box on the Settings page, once somebody has typed it. The token that
 password buys lives in memory for the run. The password reaches a disk only if the checkbox beside
@@ -720,7 +727,8 @@ page posts the same route with `hx-include="#hits"`, where its ticks are.
 **Form bodies are not read with axum's `Form` extractor.** It goes through `serde_urlencoded`, which
 cannot represent a repeated key. A repeated key is exactly what a form of ticked checkboxes sends.
 Asking for a `Vec<String>` errors. Asking for a `HashMap` is worse: it silently keeps one value, so
-ticking three favorites would file the song in one and say nothing. `src/form.rs` parses the body.
+ticking three favorites would file the song in one and say nothing. `km-curation`'s `form.rs` parses
+the body.
 
 Templates are askama, compiled in and checked at build time. **htmx, the stylesheet and the license are
 compiled in too.** A machine with a corpus on it may have no internet. Serving them off disk costs an
@@ -760,9 +768,9 @@ might. What it holds is the box the last press was on. The selection stays in th
 Both gestures are bound to `document.body` rather than to the elements, because every page turn and
 every filter change replaces `#rows` outright.
 
-**The words are a catalog, and one argument carries it.** `i18n/en.ftl` and `i18n/pt-BR.ftl` sit
-beside the templates, and `src/words.rs` compiles them in with `include_str!`; `{{ "nav-songs"|t }}`
-spends a key. The five render seams in `src/views.rs` take a `km_locale::Locale` and pass a values
+**The words are a catalog, and one argument carries it.** `i18n/en.ftl` and `i18n/pt-BR.ftl` are in
+`km-curation`, whose `words.rs` compiles them in with `include_str!`; `{{ "nav-songs"|t }}` spends a
+key. The five render seams in `src/views.rs` take a `km_locale::Locale` and pass a values
 store in once. askama carries that store into a nested `{{ child|safe }}`, so no template struct holds
 a locale, and nobody has to tell a fragment. `toast.html` and `message.html` take none. Both are one
 interpolation of a sentence somebody else already worded.
@@ -789,7 +797,7 @@ English string in one would appear inside a Portuguese page, with nothing to cat
 sentences carry `{what}` and `{status}`, which only the browser has. The catalog therefore composes
 the pattern with those words standing in, and the script does one replace into `textContent`.
 
-**Four tests in `src/words.rs` are what make the whole of it checkable.** The first checks that the
+**Four tests in the tool's `src/words.rs` are what make the whole of it checkable.** The first checks that the
 two locales hold the same keys. The second checks that every key the markup or the Rust asks for
 exists. The third checks that nothing in a catalog goes unspent. The fourth,
 `no_template_carries_its_own_prose`, reads every template with the markup stripped, and fails on
@@ -1711,7 +1719,7 @@ every client of a run the one `Arc<Mutex<Option<String>>>`.
 Choosing a machine clears the token, because a token is one machine's. Following a machine that has
 *moved* does not clear it, because that is still the same machine.
 
-`src/passwords.rs` is the other half, and it is the only thing here that writes a credential. It
+`km-curation`'s `passwords.rs` is the other half, and it is the only thing here that writes a credential. It
 holds a `BTreeMap` of machine id to password, in the per-user config folder. It writes the file only
 when the checkbox is ticked, with `0600` on unix. It deletes the file rather than emptying it when
 the last entry goes. It is `None` under `cfg(test)`, and under an empty
@@ -1726,7 +1734,7 @@ none.
 
 **It does follow the machine already chosen to a new address**, which is that same choice rather
 than a new one. The policy is `known::choose` with `adopts: false`, not a follow of this crate's own.
-`src/chosen.rs` keeps the record: one `Known` in the workspace. Its identity comes only from a
+`km-curation`'s `chosen.rs` keeps the record: one `Known` in the workspace. Its identity comes only from a
 `/discover` that answered at the address in force. Somebody setting an address by hand replaces it
 with one that has no identity. It comes back from the one `blocking` call `app_client` was already
 making, so the case where nothing has moved costs nothing extra.

@@ -29,6 +29,8 @@ crates/playback/km-display/i18n/pt-BR.ftl
 crates/remote/km-remote-pages/i18n/en.ftl
 crates/remote/km-remote-pages/i18n/pt-BR.ftl
 crates/remote/km-remote-pages/static/README.md
+crates/song/km-curation/i18n/en.ftl
+crates/song/km-curation/i18n/pt-BR.ftl
 docs/ARCHITECTURE.md
 docs/architecture/admin.md
 docs/architecture/android.md
@@ -114,8 +116,6 @@ tools/cmd/assets/km-admin/i18n/en.ftl
 tools/cmd/assets/km-admin/i18n/pt-BR.ftl
 tools/cmd/assets/km-admin/static/README.md
 tools/cmd/km-pack/CLAUDE.md
-tools/cmd/km-package-builder/i18n/en.ftl
-tools/cmd/km-package-builder/i18n/pt-BR.ftl
 tools/cmd/km-package-builder/static/README.md
 tools/dev/remote/README.md
 tools/dist/release-notes.md
