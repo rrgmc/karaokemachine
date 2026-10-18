@@ -907,6 +907,30 @@ beside the first, not one nested inside it. Each nested level would carry anothe
 **`--path` overrides it**, for a worktree that has to go somewhere else. Such a worktree is entered
 with the prompt, and it is removed with plain `git worktree remove` rather than through the script.
 
+## A compilation cache is shared; a target directory is not
+
+**A developer may run cargo through [mr-boxington](https://mr-boxington.jdx.dev/) (`mbx`), and
+nothing requires it.** It caches single compilations, keyed by their inputs, in a store all checkouts
+on the machine share. Each worktree keeps its own `target/` and its own cargo lock.
+
+**It is set up per machine and never in the tree.** `mbx setup` installs a cargo shim, and the
+shim's folder goes first on `PATH`. Nothing in `.cargo/config.toml` names it, because a clone without
+mbx must still build. CI keeps its own cache.
+
+**`target.views` is off.** mbx's default moves `target/` into its store behind a symlink. That is the
+out-of-checkout build directory "`CARGO_TARGET_DIR` is not set, and should not be" in
+`CONTRIBUTING.md` removed, and on Windows a symlink needs Developer Mode.
+
+**Why it is allowed where a shared target was not.** A shared target gave one checkout another
+checkout's test binary, with that checkout's `CARGO_MANIFEST_DIR` compiled in. mbx keys a workspace
+member by its checkout, so members are never shared. Only dependencies are. A probe asserting the
+compiled `CARGO_MANIFEST_DIR` against the runtime one passed in a second worktree that took its
+dependencies from the store.
+
+**What it buys is measured in [`docs/research/build-cache.md`](../research/build-cache.md).** A new
+worktree's first build and test costs 23% less with a filled store, and a release build costs 8%
+less. Test-binary links and LTO are not cached, so a test build alone costs slightly more.
+
 ## The license, and where its text lives
 
 **`MIT OR Apache-2.0`, at your option, with both texts in the repository and in every carrier.** MIT

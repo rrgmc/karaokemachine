@@ -2351,6 +2351,22 @@ tools/dev/worktree.sh --remove video-fix   # refuses if dirty; leaves the branch
 **This repository asks for worktrees**; see `CONTRIBUTING.md` for why, and for the two collisions that
 are not git's problem.
 
+### A shared compilation cache
+
+Optional. It makes a new worktree's dependencies come from a store rather than the compiler. Once
+per machine:
+
+```sh
+cargo install mbx --locked                       # or a release archive from github.com/jdx/mr-boxington
+mbx settings set cache_dir <a folder on a fast disk>
+mbx settings set target.views false              # keep target/ in the checkout
+mbx setup                                        # installs a cargo shim; put its folder first on PATH
+mbx setup --status
+```
+
+`mbx km-build` uses it for one command without the shim. What it saves, and what it does not cache,
+is in [`docs/research/build-cache.md`](docs/research/build-cache.md).
+
 ## The wallpaper pack
 
 **Read this first: which source you search decides whether the pack may be shared.** Openverse packs
