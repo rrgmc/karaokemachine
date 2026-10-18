@@ -1494,6 +1494,14 @@ it again.
   while a kept song is below 8, and a left-out song can still be kept again by hand.
 - A copy of a song already listed is not a song, and neither is half an MP3+G pair. Both are listed
   below the songs with the reason.
+- A build leaves out a song whose files are identical to a song already in the package. It lists
+  that song with the songs that did not go in, and the rest of the package is written. Nobody
+  reviewed the folder, so one copy must not cost the other songs.
+- A box asks to write each package's description beside it, as a `.kmspec.yaml`. The description
+  holds the songs that went in and names the folder they were read from. `km-pack build` then
+  makes the same package, and a person can edit it first. The box starts off, because most people
+  want only the package. The description is written even when a build stops, so there is a file
+  to fix.
 - The form takes a name, a version, a publisher, the language for songs that name none, and the
   folder to write to. The language starts at `und`, because nobody has checked what language the
   songs are in. The id is generated.

@@ -11,7 +11,8 @@ use super::*;
 use crate::spec::SpecPackage;
 use km_testkit::Scratch;
 
-const TONE: &[u8] = include_bytes!("../../../../crates/playback/km-cdg/fixtures/tone.mp3");
+pub(crate) const TONE: &[u8] =
+    include_bytes!("../../../../crates/playback/km-cdg/fixtures/tone.mp3");
 
 const ULTRASTAR: &[u8] =
     b"#TITLE:Song\n#MP3:song.mp3\n#BPM:300\n: 0 4 0 Hel\n: 4 2 0 lo\n- 8\n: 10 6 0 world\nE\n";
@@ -19,7 +20,7 @@ const ULTRASTAR: &[u8] =
 const LRC: &[u8] = b"[ti:Song]\n[ar:Someone]\n[00:01.00]First line\n[00:02.00]Second line\n";
 
 /// A CD+G stream that draws one tile, which is what makes it a song's words.
-fn graphics() -> Vec<u8> {
+pub(crate) fn graphics() -> Vec<u8> {
     let mut packet = [0u8; 24];
     packet[0] = 9;
     packet[1] = 6;
@@ -102,6 +103,7 @@ fn built_from(base: &Path, song: SpecSong, out: &Path) -> BuildOutcome {
             measure_loudness: true,
             write_listing: false,
             flags: km_kmpkg::PackageFlags::NONE,
+            skip_duplicates: false,
         },
         |_| ControlFlow::Continue(()),
     )

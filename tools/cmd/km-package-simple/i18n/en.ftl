@@ -52,6 +52,8 @@ form-language-hint = A song whose file names no language is filed under this one
 form-linked = Build linked packages, which hold no song file
 form-linked-hint = A linked package names each song by its path below the folder the paths start at. It plays only on a machine set to take linked packages, from that folder or a copy of it. A song inside a zip is left out.
 form-linked-base = Paths start at
+form-write-spec = Also write each package's description
+form-write-spec-hint = A description is a .kmspec.yaml file beside the package. It lists the songs that went in, and km-pack build makes the package again from it. It is written even when the build stops.
 linked-path-example = The first song, below the machine's folder for linked packages:
 linked-path-machine = Set the machine's folder for linked packages to { $folder }, or a copy of it.
 action-build = Build
@@ -102,6 +104,7 @@ built-heading = { $count ->
 built-uncurated = Each one is marked uncurated.
 built-linked = Each one is linked. It holds no song file, so the machine also needs the folder of songs.
 built-listing = A list of the songs is beside each package, as a .txt file with the same name.
+built-spec = Each package's description is beside it:
 built-skipped = { $count ->
     [one] { $count } song did not go in
    *[other] { $count } songs did not go in

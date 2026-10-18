@@ -139,6 +139,8 @@ pub struct FormView {
     pub linked: bool,
     /// The folder a linked package's paths start at.
     pub linked_base: String,
+    /// Whether the description box is ticked.
+    pub write_spec: bool,
     /// The language picker, the chosen one marked.
     pub languages: Vec<LanguageOption>,
 }
@@ -229,6 +231,8 @@ pub struct BuiltPage {
     pub skipped_heading: String,
     /// Each song that did not go in, in `km-pack`'s words.
     pub skipped: Vec<String>,
+    /// Each description file written, by its file name.
+    pub specs: Vec<String>,
 }
 
 /// One package file written.
@@ -522,6 +526,7 @@ fn form_view(form: &PackageForm) -> FormView {
         out_dir: form.out_dir.display().to_string(),
         linked: form.linked,
         linked_base: form.linked_base.display().to_string(),
+        write_spec: form.write_spec,
         languages,
     }
 }
@@ -667,6 +672,15 @@ fn built_page(chrome: Chrome, inner: &Inner, built: &Built, words: &Catalog) -> 
             .skipped
             .iter()
             .map(|skipped| format!("{}: {}", skipped.source.display(), skipped.why))
+            .collect(),
+        specs: built
+            .specs
+            .iter()
+            .map(|path| {
+                path.file_name()
+                    .map(|name| name.to_string_lossy().into_owned())
+                    .unwrap_or_default()
+            })
             .collect(),
     }
 }

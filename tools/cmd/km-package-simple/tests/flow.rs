@@ -264,6 +264,116 @@ async fn the_paths_of_a_linked_package_can_start_above_the_folder_that_was_read(
     );
 }
 
+/// A real MP3, the one the CD+G player's own tests play.
+const TONE: &[u8] = include_bytes!("../../../../crates/playback/km-cdg/fixtures/tone.mp3");
+
+/// A CD+G stream that draws one tile, which is what makes it a song's words.
+fn graphics(colour: u8) -> Vec<u8> {
+    let mut packet = [0u8; 24];
+    packet[0] = 9;
+    packet[1] = 6;
+    packet[4..8].copy_from_slice(&[colour, 1, 2, 3]);
+    packet[8..20].fill(0x3F);
+    let mut stream = packet.to_vec();
+    stream.resize(24 * 300, 0);
+    stream
+}
+
+/// Reads `folder`, builds it linked over `base` with the description box ticked, and returns
+/// what was built.
+async fn build_linked_with_descriptions(
+    folder: &Path,
+    base: &Path,
+    out: &Path,
+) -> km_package_simple::app::Built {
+    let app = App::new(None, "http://127.0.0.1:0/".to_owned());
+    let (status, _) = post(&app, "/folder", &format!("path={}", form_value(folder))).await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+    settled(&app).await;
+
+    let page = get(&app, "/").await;
+    assert!(
+        page.contains(r#"<input type="checkbox" name="write_spec" value="yes">"#),
+        "the description box is offered, and off: {page}"
+    );
+
+    let body = format!(
+        "name=Party&version=1.0.0&publisher=&language=und&linked=yes&write_spec=yes\
+         &linked_base={}&out_dir={}",
+        form_value(base),
+        form_value(out)
+    );
+    let (status, _) = post(&app, "/build", &body).await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+    settled(&app).await;
+    let built = match &app.lock().phase {
+        Phase::Built(built) => built.clone(),
+        other => panic!("not built: {other:?} {:?}", app.lock().error),
+    };
+    let page = get(&app, "/").await;
+    assert!(page.contains("party-1.0.0.kmspec.yaml"), "{page}");
+    built
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_copied_pair_is_skipped_and_the_description_rebuilds_the_package() {
+    let library = Scratch::new("flow-copies");
+    let folder = library.join("cdg").join("collection");
+    std::fs::create_dir_all(&folder).expect("a folder");
+    for (stem, colour) in [("a", 0), ("a2", 0), ("b", 1)] {
+        std::fs::write(folder.join(format!("{stem}.mp3")), TONE).expect("write");
+        std::fs::write(folder.join(format!("{stem}.cdg")), graphics(colour)).expect("write");
+    }
+    let out = Scratch::new("flow-copies-out");
+
+    let built = build_linked_with_descriptions(&folder, library.path(), &out).await;
+    assert_eq!(built.files.len(), 1);
+    assert_eq!(built.files[0].1, 2, "the copy stayed out");
+    assert_eq!(built.skipped.len(), 1, "{:?}", built.skipped);
+    assert!(built.skipped[0].source.ends_with("a2.mp3"));
+    assert_eq!(built.skipped[0].why, "the same recording as song 1");
+
+    let spec_path = out.join("party-1.0.0.kmspec.yaml");
+    assert_eq!(built.specs, std::slice::from_ref(&spec_path));
+    let spec = km_pack::Spec::read(&spec_path).expect("the description reads");
+    let files: Vec<&str> = spec.songs.iter().map(|song| song.file.as_str()).collect();
+    assert_eq!(files, ["cdg/collection/a.mp3", "cdg/collection/b.mp3"]);
+
+    // The description makes the same package with no flag.
+    let again = out.join("again.kmpkg");
+    let outcome = km_pack::build::build(
+        &spec,
+        &km_pack::BuildOptions {
+            base: &spec.base(&spec_path),
+            out: Some(&again),
+            dry_run: false,
+            measure_loudness: false,
+            write_listing: false,
+            flags: km_kmpkg::PackageFlags::NONE,
+            skip_duplicates: false,
+        },
+        |_| std::ops::ControlFlow::Continue(()),
+    )
+    .expect("build");
+    assert!(
+        outcome.wrote(),
+        "{:?} {:?}",
+        outcome.problems,
+        outcome.skipped
+    );
+    let first = km_kmpkg::Package::open(out.join("party-1.0.0.kmpkg")).expect("open");
+    let second = km_kmpkg::Package::open(&again).expect("open");
+    let hashes = |package: &km_kmpkg::Package| -> Vec<Option<String>> {
+        package
+            .manifest()
+            .songs
+            .iter()
+            .map(|song| song.content_hash.clone())
+            .collect()
+    };
+    assert_eq!(hashes(&first), hashes(&second));
+}
+
 #[tokio::test(flavor = "multi_thread")]
 async fn a_post_from_another_site_is_refused() {
     let app = App::new(None, "http://127.0.0.1:0/".to_owned());

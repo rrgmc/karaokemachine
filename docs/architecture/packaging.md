@@ -323,6 +323,13 @@ answer rather than an error.
 would otherwise make in silence. The decisions are which files are songs, what each is called, what
 number it gets, and which copies are duplicates. `build <spec>` does what the file says.
 
+**A copy that reaches `build` stops it, unless the caller asks to skip copies.** A media song's
+hash is known only once `PackageBuilder` holds it. With `BuildOptions::skip_duplicates` set, the build
+takes a copy back out with `PackageBuilder::mark` and `rollback`, and lists it as a `Skipped`.
+`km-pack build --skip-duplicates` sets it, and `km-package-simple` always does. Without it,
+`ManifestProblem::DuplicateContent` refuses the package, because a copy in a chosen list is a
+mistake to fix.
+
 The selection flags moved to `spec`, **because selecting is what a description records**. Seeding corrections out of an existing package
 is `spec --from` rather than a merge flag. The matching is identical, by content hash. The difference
 is that **the corrections land in a file somebody can read**, rather than travelling invisibly into a
