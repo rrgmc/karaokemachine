@@ -13,7 +13,7 @@ Entries are written for somebody who has the machine. Why any of it is the way i
 
 ### Added
 
-- **Menu, then Install a package, takes several packages at once.** Choose a whole folder's worth
+- **Menu, then Install packages, takes several packages at once.** Choose a whole folder's worth
   in the file browser, on Windows, macOS, Android, iPhone and iPad. The machine installs them one
   at a time and says what happened to each.
 

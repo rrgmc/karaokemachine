@@ -21,10 +21,10 @@ songs survive a restart.
   package.** The file browser opens, and the machine installs the packages you choose. A song that
   is playing goes on playing. The owner can turn the Menu off on the General pane of
   [the setup page](setup.md).
-- **On an Android phone or tablet, press Menu, then Install a package.** The file browser opens,
+- **On an Android phone or tablet, press Menu, then Install packages.** The file browser opens,
   and the machine installs the packages you choose. A song that is playing pauses while the browser
   is open.
-- **On an iPhone or iPad, press Menu, then Install a package.** The Files browser opens, and the
+- **On an iPhone or iPad, press Menu, then Install packages.** The Files browser opens, and the
   machine installs the packages you choose. A song that is playing goes on playing.
 - **Add it from a browser**, on the **Songs** tab of [the setup page](setup.md).
 - **Send it through [the API](api.md).**

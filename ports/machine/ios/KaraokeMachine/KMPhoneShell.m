@@ -157,7 +157,7 @@ static BOOL km_is_ours(NSURL *url) {
 
     _menu = [self button:@"Menu" action:@selector(toggle)];
     _songs = [self button:@"Choose songs" action:@selector(show)];
-    _install = [self button:@"Install a package" action:@selector(choosePackage)];
+    _install = [self button:@"Install packages" action:@selector(choosePackage)];
     _setup = [self button:@"Set up the machine" action:@selector(showSetup)];
 
     // Top centre, because the machine draws in both top corners: the song's title on the left, and

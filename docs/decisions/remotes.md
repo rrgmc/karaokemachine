@@ -2250,7 +2250,7 @@ with thousands of them.
 ## On a phone, the machine shows its own remote over the screen
 
 **A phone or a tablet running the machine has a Menu button at the top centre.** *Choose songs*
-shows the machine's own remote over the screen, and *Install a package* opens the system file
+shows the machine's own remote over the screen, and *Install packages* opens the system file
 browser. *Set up the machine* shows the owner's setup page in the same place. Back or *Close* hides
 the page again. A television and a headset show no button.
 
@@ -2311,7 +2311,7 @@ stops the music. A desktop does not stop the music when another window comes to 
 embedded web view would add a web engine to the machine and a step to its installer. The browser
 already shows the page.
 
-**_Install a package_ opens the system file browser through SDL.** The browser offers `.kmpkg` only,
+**_Install packages_ opens the system file browser through SDL.** The browser offers `.kmpkg` only,
 and the song plays on while it is open. Each chosen file joins the queue the iOS shell fills, and the
 machine installs it as it installs a dropped file.
 
