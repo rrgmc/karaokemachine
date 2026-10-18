@@ -1409,6 +1409,13 @@ pub fn is_seekable_entry(name: &str) -> bool {
     VIDEO_EXTENSIONS.contains(&extension.as_str()) || AUDIO_EXTENSIONS.contains(&extension.as_str())
 }
 
+/// A point in a [`PackageBuilder`]'s adds, from [`PackageBuilder::mark`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Mark {
+    songs: usize,
+    files: usize,
+}
+
 /// Builds a new package.
 pub struct PackageBuilder {
     manifest: Manifest,
@@ -1852,6 +1859,28 @@ impl PackageBuilder {
     /// Songs added so far.
     pub fn len(&self) -> usize {
         self.manifest.songs.len()
+    }
+
+    /// Where the builder stands, so that the songs added after it can be taken back out.
+    ///
+    /// A caller learns a media song's content hash only once the song is in. A copy of a song
+    /// already added is then taken back out with [`Self::rollback`], rather than left for
+    /// [`ManifestProblem::DuplicateContent`] to refuse the whole package.
+    #[must_use]
+    pub fn mark(&self) -> Mark {
+        Mark {
+            songs: self.manifest.songs.len(),
+            files: self.files.len(),
+        }
+    }
+
+    /// Takes back out every song added since `mark`, with every file those songs brought.
+    ///
+    /// An MP3+G song or a timeline song brings two files, so the songs alone cannot say how many
+    /// files to drop. A mark from a later point than now changes nothing.
+    pub fn rollback(&mut self, mark: Mark) {
+        self.manifest.songs.truncate(mark.songs);
+        self.files.truncate(mark.files);
     }
 
     /// Whether nothing has been added.
@@ -3083,6 +3112,28 @@ mod tests {
             ),
             other => panic!("expected a duplicate-content rejection, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn a_copy_taken_back_out_leaves_a_package_that_writes() {
+        let dir = temp_dir("rollback");
+        let mut builder = PackageBuilder::new(meta());
+        builder
+            .add(entry(1), b"identical bytes".to_vec())
+            .expect("add");
+        let before = builder.mark();
+        builder
+            .add(entry(2), b"identical bytes".to_vec())
+            .expect("add");
+        assert!(!builder.problems().is_empty(), "the copy is a problem");
+
+        builder.rollback(before);
+        assert_eq!(builder.len(), 1);
+        assert_eq!(builder.mark(), before);
+        assert!(builder.problems().is_empty(), "{:?}", builder.problems());
+        builder
+            .write(dir.join("one.kmpkg"))
+            .expect("one song writes");
     }
 
     #[test]
