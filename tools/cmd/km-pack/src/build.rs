@@ -76,6 +76,15 @@ pub struct BuildOptions<'a> {
     /// [`crate::SpecPackage::uncurated`] is set. The curation tool passes on here what an imported
     /// package carried. See [`km_kmpkg::PackageFlags`].
     pub flags: km_kmpkg::PackageFlags,
+    /// Leave out a song whose content is byte-identical to a song already in, rather than refuse
+    /// the package.
+    ///
+    /// **Off here and on in `km-package-simple`.** A description is a list somebody chose, so a copy
+    /// in it is a mistake to fix, and the manifest's `DuplicateContent` refusal says so. A folder
+    /// nobody reviewed is full of copies, and one of them must not cost the other songs. A copy
+    /// left out is a [`Skipped`] naming the song it copies. A MIDI copy is left out either way,
+    /// because its hash is known before it is parsed.
+    pub skip_duplicates: bool,
 }
 
 /// What a build is doing, as it does it.
@@ -382,6 +391,8 @@ pub fn build(
             return Ok(outcome);
         }
 
+        // Where the builder stood before this song, so a copy can be taken back out.
+        let before = builder.mark();
         // Kind comes from the file, never from the description. Every other part of this workspace
         // decides it the same way, and a second source of truth that can disagree with the bytes is
         // a defect waiting to happen.
@@ -456,6 +467,13 @@ pub fn build(
                 "{} is not a MIDI file, a video, an MP3+G pair, an UltraStar file or an LRC file",
                 source.display()
             ))
+        };
+        let added = if options.skip_duplicates {
+            added.and_then(|note| {
+                skip_copy(&mut builder, before, number, &mut hashes).map(|()| note)
+            })
+        } else {
+            added
         };
 
         match added {
@@ -547,6 +565,40 @@ pub fn build(
         }
     }
     Ok(outcome)
+}
+
+/// Takes the song just added back out when its content matches a song already in.
+///
+/// Runs after the add because a media song's hash is computed inside it. A MIDI song is caught
+/// before its add by [`add_midi`], so this finds its hash already recorded under its own number.
+fn skip_copy(
+    builder: &mut PackageBuilder,
+    before: km_kmpkg::Mark,
+    number: u32,
+    hashes: &mut BTreeMap<String, u32>,
+) -> Result<(), String> {
+    // An add that put nothing in leaves the last song as some earlier one's.
+    if builder.mark() == before {
+        return Ok(());
+    }
+    let Some(hash) = builder
+        .manifest()
+        .songs
+        .last()
+        .and_then(|song| song.content_hash.clone())
+    else {
+        return Ok(());
+    };
+    match hashes.get(&hash) {
+        Some(&existing) if existing != number => {
+            builder.rollback(before);
+            Err(format!("the same recording as song {existing}"))
+        }
+        _ => {
+            hashes.insert(hash, number);
+            Ok(())
+        }
+    }
 }
 
 /// Where a package's listing goes: the package's own name with `.txt` on the end.
@@ -1059,6 +1111,7 @@ mod tests {
                 measure_loudness: true,
                 write_listing,
                 flags: km_kmpkg::PackageFlags::NONE,
+                skip_duplicates: false,
             },
             |_| ControlFlow::Continue(()),
         )
@@ -1300,6 +1353,7 @@ mod tests {
                 measure_loudness: false,
                 write_listing: true,
                 flags: km_kmpkg::PackageFlags::UNCURATED,
+                skip_duplicates: false,
             },
             |_| ControlFlow::Continue(()),
         )
@@ -1378,6 +1432,7 @@ mod tests {
                 measure_loudness: true,
                 write_listing: true,
                 flags: km_kmpkg::PackageFlags::NONE,
+                skip_duplicates: false,
             },
             |_| ControlFlow::Continue(()),
         )
@@ -1408,6 +1463,7 @@ mod tests {
                 measure_loudness: true,
                 write_listing: false,
                 flags: km_kmpkg::PackageFlags::NONE,
+                skip_duplicates: false,
             },
             |_| ControlFlow::Continue(()),
         )
@@ -1445,6 +1501,7 @@ mod tests {
                 measure_loudness: true,
                 write_listing: false,
                 flags: km_kmpkg::PackageFlags::NONE,
+                skip_duplicates: false,
             },
             |event| {
                 if let BuildEvent::Song { .. } = event {
@@ -1483,6 +1540,7 @@ mod tests {
                 measure_loudness: true,
                 write_listing: false,
                 flags: km_kmpkg::PackageFlags::NONE,
+                skip_duplicates: false,
             },
             |event| {
                 if let BuildEvent::Writing { .. } = event {
@@ -1523,6 +1581,7 @@ mod tests {
                 measure_loudness: true,
                 write_listing: false,
                 flags: km_kmpkg::PackageFlags::NONE,
+                skip_duplicates: false,
             },
             |_| ControlFlow::Continue(()),
         )
@@ -1544,6 +1603,7 @@ mod tests {
                 measure_loudness: true,
                 write_listing: false,
                 flags: km_kmpkg::PackageFlags::NONE,
+                skip_duplicates: false,
             },
             |_| ControlFlow::Continue(()),
         )
@@ -1661,6 +1721,7 @@ mod tests {
                 measure_loudness: false,
                 write_listing: false,
                 flags: km_kmpkg::PackageFlags::LINKED,
+                skip_duplicates: false,
             },
             |_| ControlFlow::Continue(()),
         )
@@ -1669,5 +1730,102 @@ mod tests {
         let package = km_kmpkg::Package::open(&out).expect("open");
         assert!(!package.is_linked(), "the description decides the type");
         assert!(package.read_song(1).is_ok(), "and the song is inside it");
+    }
+
+    /// A folder with two MP3+G songs of identical files, and a third whose words differ.
+    fn copied_pairs(tag: &str) -> Scratch {
+        use crate::zipped_tests::{TONE, graphics};
+
+        let scratch = Scratch::new(tag);
+        let cdg = graphics();
+        let mut other = cdg.clone();
+        other[24 * 10] = 9;
+        for (stem, words) in [("a", &cdg), ("b", &cdg), ("c", &other)] {
+            scratch.write(format!("songs/{stem}.mp3"), TONE);
+            scratch.write(format!("songs/{stem}.cdg"), words);
+        }
+        scratch
+    }
+
+    fn pairs_spec(linked: bool) -> Spec {
+        let mut spec = spec_for(
+            ["a", "b", "c"]
+                .into_iter()
+                .zip(1..)
+                .map(|(stem, number)| SpecSong {
+                    file: format!("songs/{stem}.mp3"),
+                    number: Some(number),
+                    ..SpecSong::default()
+                })
+                .collect(),
+        );
+        spec.package.default_language = Some("und".to_owned());
+        spec.package.linked = linked;
+        spec
+    }
+
+    fn run_pairs(spec: &Spec, base: &Path, out: &Path, skip_duplicates: bool) -> BuildOutcome {
+        build(
+            spec,
+            &BuildOptions {
+                base,
+                out: Some(out),
+                dry_run: false,
+                measure_loudness: false,
+                write_listing: false,
+                flags: km_kmpkg::PackageFlags::NONE,
+                skip_duplicates,
+            },
+            |_| ControlFlow::Continue(()),
+        )
+        .expect("build")
+    }
+
+    #[test]
+    fn a_copied_pair_is_left_out_when_the_build_skips_copies() {
+        for linked in [false, true] {
+            let scratch = copied_pairs(&format!("skip-copies-{linked}"));
+            let out = scratch.join("vol1.kmpkg");
+            let outcome = run_pairs(&pairs_spec(linked), scratch.path(), &out, true);
+
+            assert!(outcome.problems.is_empty(), "{:?}", outcome.problems);
+            assert!(outcome.wrote(), "linked {linked}: {:?}", outcome.skipped);
+            assert_eq!(
+                outcome.written, 2,
+                "the same audio with other words is a song"
+            );
+            assert_eq!(outcome.skipped.len(), 1);
+            let skipped = &outcome.skipped[0];
+            assert_eq!(skipped.number, Some(2));
+            assert!(skipped.source.ends_with("songs/b.mp3"), "{skipped:?}");
+            assert_eq!(skipped.why, "the same recording as song 1");
+
+            let package = km_kmpkg::Package::open(&out).expect("open");
+            let numbers: Vec<u32> = package
+                .manifest()
+                .songs
+                .iter()
+                .map(|song| song.number)
+                .collect();
+            assert_eq!(numbers, [1, 3]);
+        }
+    }
+
+    #[test]
+    fn a_copied_pair_stops_the_build_that_does_not_skip_copies() {
+        let scratch = copied_pairs("keep-copies");
+        let out = scratch.join("vol1.kmpkg");
+        let outcome = run_pairs(&pairs_spec(false), scratch.path(), &out, false);
+
+        assert!(!outcome.wrote());
+        assert!(
+            outcome
+                .problems
+                .iter()
+                .any(|problem| problem.contains("byte-identical")),
+            "{:?}",
+            outcome.problems
+        );
+        assert!(!out.exists());
     }
 }

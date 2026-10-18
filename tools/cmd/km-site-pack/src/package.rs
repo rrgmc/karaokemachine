@@ -197,6 +197,7 @@ pub fn package(
                 measure_loudness: true,
                 write_listing: true,
                 flags: km_kmpkg::PackageFlags::NONE,
+                skip_duplicates: false,
             },
             |event| match event {
                 BuildEvent::Song { index, .. } => on(Event::Build {

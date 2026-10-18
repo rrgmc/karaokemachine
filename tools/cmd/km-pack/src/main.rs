@@ -269,6 +269,13 @@ struct BuildArgs {
     /// which is louder than a MIDI song and differs from one publisher to the next.
     #[arg(long)]
     no_loudness: bool,
+    /// Leave out a song whose files are identical to a song already in the package.
+    ///
+    /// Without it, two songs with identical files stop the build, because the same song under two
+    /// numbers is a mistake in the description. With it, the second song is left out and listed
+    /// with the songs that did not go in.
+    #[arg(long)]
+    skip_duplicates: bool,
     /// Write a plain-text listing of the package beside it, as `<package>.kmpkg.txt`.
     ///
     /// The package's name, version and publisher, then a line per song: number, title, artist,
@@ -898,6 +905,7 @@ fn build(args: &BuildArgs) -> Result<()> {
             measure_loudness: !args.no_loudness,
             write_listing: args.listing,
             flags: km_kmpkg::PackageFlags::NONE,
+            skip_duplicates: args.skip_duplicates,
         },
         build_progress(),
     )?;

@@ -277,6 +277,7 @@ pub fn build(
             measure_loudness: true,
             write_listing,
             flags: curated.flags,
+            skip_duplicates: false,
         },
         |event| progress.observe(&event),
     )
@@ -1759,6 +1760,7 @@ mod tests {
                 measure_loudness: true,
                 write_listing: false,
                 flags: km_kmpkg::PackageFlags::NONE,
+                skip_duplicates: false,
             },
             |_| std::ops::ControlFlow::Continue(()),
         )
