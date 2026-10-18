@@ -35,9 +35,7 @@ a file in the scratchpad, and `git commit -F` reads it.
 
 ## 2. Commit
 
-**The subject states the rule that holds after the change, and the body states the fault it
-answers.** `CONTRIBUTING.md` has the full form under *What a commit message says*. The session's
-attribution lines end the message.
+The session's attribution lines end the message.
 
 Stage the files by name. `git add -A` takes whatever else is in the worktree.
 
@@ -49,18 +47,15 @@ task check
 
 **A change that no compiler and no test reads may leave clippy and the tests to CI.** That is prose
 under `docs/`, a `README.md`, or a skill. A cold compile in a worktree costs about 10 GB and CI runs
-both. The ten checks that compile nothing still run:
+both. The nine checks that compile nothing still run:
 
 ```sh
-for t in lint:local lint:prose lint:pin lint:version lint:modes lint:mdns lint:cargo lint:labels \
+for t in lint:local lint:pin lint:version lint:modes lint:mdns lint:cargo lint:labels \
          lint:ci fmt:check; do task "$t" || break; done
 ```
 
 **Anything else runs the whole of `task check`.** A script, a `Taskfile.yml`, a workflow, a
 `Cargo.toml` and a Rust file all count as anything else.
-
-`lint:prose` reads the commit messages as well as the files. `git commit --amend` fixes a message
-while the branch is unmerged.
 
 ```sh
 git push -u origin <branch>

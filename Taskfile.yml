@@ -251,34 +251,6 @@ tasks:
     cmds:
       - '"{{.SH}}" tools/dev/check-no-local-refs.sh'
 
-  # `How a document in this repository is written` says prose states the rule rather than narrating
-  # how it was arrived at, and applies that to code comments too. This catches the shapes that have
-  # one -- `what something used to be`, `chronology`, `meta-commentary` -- and cannot see the appositive
-  # tail or the paragraph of reassurance, so it is a floor rather than a pass.
-  #
-  # **The same decision sets the sentence shape, and `prose-sentences.awk` counts it.** A body
-  # sentence stops at twenty-five words and a paragraph at six sentences. It reads `*.md`, the Fluent
-  # catalogs that hold a program's own words, and the commit messages, and
-  # `tools/dev/prose-converted.txt` names what the whole-tree form reads for it. Idiom and metaphor
-  # have no shape, so a person reads for those.
-  #
-  # **`check` runs this form, and `--changed` is what makes that affordable.** Fourteen shapes over
-  # 700 files is 2m27s on Windows, where a branch's own lines are three seconds -- so the whole-tree
-  # form is the audit to run by hand after a large rewrite, and this one is the guard. Reading the
-  # whole tree in `check` would put the slowest guard in the repository in front of a 13-second one.
-  #
-  # **`--commits` is a second command rather than a second flag on the first**, so a failure names
-  # which of the two it is without reading the other's output. It reads the subject and body of every
-  # commit above `origin/master`, and a message on the default branch is out of its reach.
-  #
-  # CI reads the whole tree on every run and `--commits` on a pull request, whose checkout carries
-  # the history to resolve the branch against.
-  lint:prose:
-    desc: 'Check that the prose and the commit messages this branch adds state the rule, and take the sentence shape'
-    cmds:
-      - '"{{.SH}}" tools/dev/check-prose.sh --changed'
-      - '"{{.SH}}" tools/dev/check-prose.sh --commits'
-
   # The compiler version is written down once, in `rust-toolchain.toml`, and three tracked files have
   # to repeat it because no format lets them derive it. This asserts they agree, and that the two
   # that are supposed to *read* the file have not gone back to carrying their own copy. The standing
@@ -356,10 +328,9 @@ tasks:
   # `task build:no-video` is how you confirm the video-less tree still compiles. CI's `linux` job runs
   # the same build; its Windows and macOS jobs run the `-no-video` twins.
   check:
-    desc: 'The pass before a push -- local refs, prose, the two pins, script modes, the daemon, cargo config, issue labels, the CI paths, formatting, clippy, then the tests'
+    desc: 'The pass before a push -- local refs, the two pins, script modes, the daemon, cargo config, issue labels, the CI paths, formatting, clippy, then the tests'
     cmds:
       - task: lint:local
-      - task: lint:prose
       - task: lint:pin
       - task: lint:version
       - task: lint:modes

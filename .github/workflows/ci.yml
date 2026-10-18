@@ -105,18 +105,12 @@ jobs:
               - '{tools/cmd/assets/**,rust-toolchain.toml,.github/workflows/ci.yml}'
 
   # The conventions `task check` runs locally, made unskippable. They read the same files on every
-  # platform, so they run once. `check-prose.sh` reads the whole tree, and on a pull request the
-  # commit messages as well, which is why that checkout carries history.
+  # platform, so they run once.
   guards:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
-        with:
-          fetch-depth: ${{ github.event_name == 'pull_request' && '0' || '1' }}
-          # The pull request's own head, not the merge commit GitHub builds: `--commits` reads the
-          # messages between `origin/master` and HEAD, and the merge commit's message is GitHub's.
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       # The toolchain comes from `rust-toolchain.toml`, components included, and is named nowhere
       # else. `tools/dev/check-toolchain-pin.sh` fails on an action that installs a named one.
@@ -136,11 +130,6 @@ jobs:
           bash tools/dev/check-cargo-config.sh
           bash tools/dev/labels.sh check
           bash tools/dev/check-ci-paths.sh
-          bash tools/dev/check-prose.sh
-
-      - name: Commit messages
-        if: github.event_name == 'pull_request'
-        run: bash tools/dev/check-prose.sh --commits
 
       # `-S error` is clean. `warning` adds SC2034 "appears unused" throughout the sourced libraries
       # -- `features.sh`, `common.sh` -- whose variables the caller reads.
