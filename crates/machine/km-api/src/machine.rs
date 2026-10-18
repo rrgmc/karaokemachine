@@ -124,7 +124,8 @@ pub enum CatalogError {
 /// Whether a machine has a folder to play linked packages from.
 ///
 /// A code, so the page that shows it writes the sentence in its own language. The folder's path is
-/// never part of the answer: it is a place on the machine's disk, and a page has no use for it.
+/// never part of this answer, which is public. The admin reads it from
+/// [`Controller::linked_packages_folder`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum LinkedFolder {
@@ -134,6 +135,24 @@ pub enum LinkedFolder {
     Missing,
     /// The folder is there.
     Ready,
+}
+
+/// The folder a person typed for linked packages, as the machine stores it.
+///
+/// Blank names no folder. A relative path is refused, because the machine's working folder means
+/// nothing to the person typing it. **This runs on the machine**, so `/tunes/karaoke` is absolute
+/// on Linux and is refused on Windows, whatever computer the page that sent it runs on.
+///
+/// # Errors
+///
+/// [`ControlError::Rejected`] for a relative path.
+pub fn linked_folder_typed(dir: Option<&str>) -> Result<Option<&str>, ControlError> {
+    match dir.map(str::trim).filter(|dir| !dir.is_empty()) {
+        Some(dir) if !std::path::Path::new(dir).is_absolute() => Err(ControlError::Rejected(
+            format!("the folder for linked packages must be an absolute path, and '{dir}' is not"),
+        )),
+        dir => Ok(dir),
+    }
 }
 
 /// Whether a machine takes linked packages, and whether it has a folder to play them from.
@@ -1542,11 +1561,38 @@ pub trait Controller: Send + Sync + 'static {
     /// installed. Turned off, its songs go when nothing is playing or queued. The answer is what
     /// the machine stored.
     ///
-    /// **The folder is not set here.** No route points a machine at a folder on its own disk.
+    /// The folder is set by [`Self::set_linked_packages_folder`].
     ///
     /// Has a default that refuses, for a host with no packages of its own.
     fn set_linked_packages(&self, enabled: bool) -> Result<LinkedPackages, ControlError> {
         let _ = enabled;
+        Err(ControlError::Unavailable(
+            "this host takes no packages".into(),
+        ))
+    }
+
+    /// The folder linked packages play from, as the settings name it.
+    ///
+    /// Only an admin route answers it. The public answer says whether a folder is there, and
+    /// never where it is.
+    ///
+    /// Defaulted to none, which is what a host with no settings file answers.
+    fn linked_packages_folder(&self) -> Option<String> {
+        None
+    }
+
+    /// Name the folder linked packages play from, or name none.
+    ///
+    /// The caller has passed it through [`linked_folder_typed`]. A folder that is not there is
+    /// stored all the same, and the answer says it is missing. The machine then scans its
+    /// packages again, as [`Self::set_linked_packages`] does.
+    ///
+    /// Has a default that refuses, for a host with no packages of its own.
+    fn set_linked_packages_folder(
+        &self,
+        dir: Option<&str>,
+    ) -> Result<LinkedPackages, ControlError> {
+        let _ = dir;
         Err(ControlError::Unavailable(
             "this host takes no packages".into(),
         ))

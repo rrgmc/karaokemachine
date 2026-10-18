@@ -507,7 +507,21 @@ pub async fn songs_page(
         .await
         .ok()
         .and_then(|switches| switches.linked_packages)
-        .map(Into::into);
+        .map(views::LinkedPackagesCard::from);
+    // The folder is a second read, admin only. A machine that cannot answer it leaves the box empty.
+    let linked_packages = match linked_packages {
+        Some(card) => Some(views::LinkedPackagesCard {
+            dir: state
+                .switches
+                .linked_packages_folder()
+                .await
+                .ok()
+                .flatten()
+                .unwrap_or_default(),
+            ..card
+        }),
+        None => None,
+    };
 
     views::page(
         &SongsPage {
@@ -2061,8 +2075,8 @@ pub async fn set_keep_evening(
 /// `POST /admin/machine/linked-packages` — whether the machine takes linked packages.
 ///
 /// One box and no `persist` beside it, for the reason [`set_end_on_silence`] has none. The folder
-/// has no box: it is set in the machine's settings file. The notice says what the machine stored,
-/// and says when the switch alone installs nothing.
+/// has its own form, [`set_linked_packages_folder`]. The notice says what the machine stored, and
+/// says when the switch alone installs nothing.
 pub async fn set_linked_packages(
     State(state): State<Admin>,
     headers: HeaderMap,
@@ -2088,6 +2102,37 @@ pub async fn set_linked_packages(
                 "songs",
                 "bad",
                 &words.msg("linked-packages-on-folder-missing"),
+            ),
+        },
+    }
+}
+
+/// `POST /admin/machine/linked-packages/folder` — the folder linked packages play from.
+///
+/// A blank box names no folder. The machine checks the path, since only it knows its own disk. The
+/// notice says whether the folder it stored is there.
+pub async fn set_linked_packages_folder(
+    State(state): State<Admin>,
+    headers: HeaderMap,
+    Form(form): Form<LinkedFolderForm>,
+) -> Response {
+    use km_api::machine::LinkedFolder;
+    let words = crate::words::messages(state.locale(&headers));
+    match state.switches.set_linked_packages_folder(&form.dir).await {
+        Err(error) => refusal(&state, "songs", &error, state.locale(&headers)),
+        Ok(stored) => match stored {
+            LinkedFolder::Ready => {
+                back_to("songs", "good", &words.msg("linked-packages-folder-saved"))
+            }
+            LinkedFolder::Unset => back_to(
+                "songs",
+                "good",
+                &words.msg("linked-packages-folder-cleared"),
+            ),
+            LinkedFolder::Missing => back_to(
+                "songs",
+                "bad",
+                &words.msg("linked-packages-folder-saved-missing"),
             ),
         },
     }
@@ -2331,6 +2376,14 @@ pub struct KeepEveningForm {
 pub struct LinkedPackagesForm {
     /// Present when the box is ticked, absent when it is not.
     pub linked_packages: Option<String>,
+}
+
+/// The folder linked packages play from.
+#[derive(Debug, Clone, Default, serde::Deserialize)]
+pub struct LinkedFolderForm {
+    /// The path as typed. Blank names no folder.
+    #[serde(default)]
+    pub dir: String,
 }
 
 /// What the machine asks of a singer.

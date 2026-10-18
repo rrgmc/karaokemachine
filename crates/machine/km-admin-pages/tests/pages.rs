@@ -627,7 +627,56 @@ async fn the_window_menu_is_a_box_on_the_machine_page() {
     }
 }
 
-/// Allowing linked packages is one box on the Songs page, and the page has no box for the folder.
+/// The folder for linked packages is a box on the Songs page, and the machine checks the path.
+#[tokio::test]
+async fn the_folder_for_linked_packages_is_a_box_on_the_songs_page() {
+    // An absolute path on the computer running the test, since an in-process page is the machine.
+    let (folder, typed) = if cfg!(windows) {
+        (r"D:\tunes\karaoke", "dir=D%3A%5Ctunes%5Ckaraoke")
+    } else {
+        ("/tunes/karaoke", "dir=%2Ftunes%2Fkaraoke")
+    };
+    for host in BOTH_HOSTS {
+        let surface = host.name();
+        let (app, state) = nested_as(
+            host,
+            TestMachine::with_catalog(6),
+            Arc::new(SpyGuard::default()),
+        );
+
+        let location = post_form_to(&app, "/admin/machine/linked-packages/folder", typed).await;
+        assert!(location.contains("good"), "{surface}: {location}");
+        assert_eq!(
+            state.controller().linked_packages_folder().as_deref(),
+            Some(folder),
+            "{surface}"
+        );
+        let (_, body) = get(&app, "/admin/songs").await;
+        assert!(
+            body.contains(&format!(r#"name="dir" value="{folder}""#)),
+            "the box shows the folder that is set, {surface}: {body}"
+        );
+
+        let location =
+            post_form_to(&app, "/admin/machine/linked-packages/folder", "dir=tunes").await;
+        assert!(location.contains("bad"), "{surface}: {location}");
+        assert_eq!(
+            state.controller().linked_packages_folder().as_deref(),
+            Some(folder),
+            "a relative path changes nothing, {surface}"
+        );
+
+        let location = post_form_to(&app, "/admin/machine/linked-packages/folder", "dir=").await;
+        assert!(location.contains("good"), "{surface}: {location}");
+        assert_eq!(
+            state.controller().linked_packages_folder(),
+            None,
+            "a blank box names no folder, {surface}"
+        );
+    }
+}
+
+/// Allowing linked packages is one box on the Songs page, beside the box for the folder.
 #[tokio::test]
 async fn allowing_linked_packages_is_a_box_on_the_songs_page() {
     for host in BOTH_HOSTS {
@@ -653,8 +702,9 @@ async fn allowing_linked_packages_is_a_box_on_the_songs_page() {
             "the card says the switch alone installs nothing, {surface}: {body}"
         );
         assert!(
-            !body.contains(r#"name="dir""#) && !body.contains(r#"name="folder""#),
-            "no page sets the folder, {surface}: {body}"
+            body.contains(r#"action="/admin/machine/linked-packages/folder""#)
+                && body.contains(r#"name="dir" value="""#),
+            "the folder is a box of its own, empty while none is set, {surface}: {body}"
         );
 
         let (status, _) = post_form(

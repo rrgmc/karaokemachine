@@ -749,13 +749,20 @@ that chooses its own root is what
 [the path checks](#a-linked-file-is-read-only-from-inside-one-folder) refuse. Every linked package
 therefore names its files below the same folder.
 
-**The owner's page has the switch.** It is a card on the Songs tab, with
-`PUT /api/v1/admin/linked-packages` behind it. The card says when no folder is set, because the
-switch alone then installs nothing.
+**The owner's page has the switch and the folder.** Both are on a card on the Songs tab, which the
+machine's own page and `km-admin` share. `PUT /api/v1/admin/linked-packages` is behind the switch.
+The card says when no folder is set, because the switch alone then installs nothing.
 
-**The folder is set in `settings.json` and nowhere else**, as `package_dirs` is. No route can point
-the machine at a folder, and no route answers where the folder is. `--show-paths` prints it, on a line that begins `linked`. It is a folder
-and not a file, so
+**Only the admin sets the folder, and only the admin reads it.**
+`PUT /api/v1/admin/linked-packages/folder` names it and `GET` on the same path answers it. The
+admin already controls which packages the machine installs, so naming the folder gives them nothing
+new. The public `GET /api/v1/linked-packages` says whether a folder is there, and never where it is.
+`--show-paths` prints it, on a line that begins `linked`.
+
+**The machine checks the path, and nothing else does.** A blank path names no folder, and a relative
+one is refused. `km-admin` may run on a computer whose idea of an absolute path differs from the
+machine's. A folder that is not there is stored, and the card says it is missing, as
+[`No removable media`](foundations.md#no-removable-media) asks. It is a folder and not a file, so
 [`Only debug. names a file`](foundations.md#only-debug-names-a-file) holds.
 
 **One gate answers three places**, and each asks it afresh:

@@ -344,8 +344,9 @@ earlier copy when the switch goes off.
 **`linked_packages.enabled` is the tenth, and its counterpart is the catalog.** It gets
 `PUT /api/v1/admin/linked-packages` and is written down at once. `Machine::set_linked_packages`
 then runs the scan, so a linked package in a scanned folder is installed or dropped by the same
-request. **`linked_packages.dir` has no route.** Whoever can edit the settings file sets the folder
-the machine reads from.
+request. **`linked_packages.dir` has its own admin route**,
+`PUT /api/v1/admin/linked-packages/folder`. `Machine::set_linked_packages_folder` writes it at once
+and runs the same scan.
 
 **`display.window_menu` is the eleventh, and the window reads it when the mouse moves.** It says
 whether a Windows or macOS window shows its Menu button. It gets

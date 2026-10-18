@@ -1634,15 +1634,46 @@ pub async fn get_linked_packages(
 /// `PUT /api/v1/admin/linked-packages`
 ///
 /// Under `/admin/` because it is installation configuration and is written down. The reply is what
-/// the machine stored. The folder is not set here. See [`Controller::set_linked_packages`].
-///
-/// [`Controller::set_linked_packages`]: crate::machine::Controller::set_linked_packages
+/// the machine stored. The folder has its own route, `/admin/linked-packages/folder`.
 pub async fn put_linked_packages(
     State(state): State<ApiState>,
     Body(body): Body<crate::dto::LinkedPackagesRequest>,
 ) -> ApiResult<Json<crate::dto::LinkedPackagesDto>> {
     let stored = state.controller().set_linked_packages(body.enabled)?;
     Ok(Json(stored.into()))
+}
+
+/// `GET /api/v1/admin/linked-packages/folder`
+///
+/// The folder linked packages play from, and whether it is there. Admin, because the path is a
+/// place on the machine's disk.
+pub async fn get_linked_packages_folder(
+    State(state): State<ApiState>,
+) -> Json<crate::dto::LinkedFolderDto> {
+    let controller = state.controller();
+    Json(crate::dto::LinkedFolderDto {
+        dir: controller.linked_packages_folder(),
+        folder: controller.linked_packages().folder,
+    })
+}
+
+/// `PUT /api/v1/admin/linked-packages/folder`
+///
+/// Names the folder linked packages play from. An empty or absent `dir` names none, and a relative
+/// path is refused. See [`linked_folder_typed`]. The reply is what the machine stored.
+///
+/// [`linked_folder_typed`]: crate::machine::linked_folder_typed
+pub async fn put_linked_packages_folder(
+    State(state): State<ApiState>,
+    Body(body): Body<crate::dto::LinkedFolderRequest>,
+) -> ApiResult<Json<crate::dto::LinkedFolderDto>> {
+    let dir = crate::machine::linked_folder_typed(body.dir.as_deref())?;
+    let controller = state.controller();
+    let stored = controller.set_linked_packages_folder(dir)?;
+    Ok(Json(crate::dto::LinkedFolderDto {
+        dir: controller.linked_packages_folder(),
+        folder: stored.folder,
+    }))
 }
 
 /// `GET /api/v1/performance`

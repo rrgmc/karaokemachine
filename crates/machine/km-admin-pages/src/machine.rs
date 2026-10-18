@@ -716,11 +716,25 @@ pub trait Switches: Send + Sync + 'static {
 
     /// Say whether the machine takes linked packages, answering with what it stored.
     ///
-    /// The folder is not set through this seam. See `Controller::set_linked_packages`.
+    /// The folder has its own call, [`Self::set_linked_packages_folder`].
     async fn set_linked_packages(
         &self,
         on: bool,
     ) -> Result<km_api::machine::LinkedPackages, AdminError>;
+
+    /// The folder linked packages play from, as the machine's settings name it.
+    ///
+    /// Apart from [`Self::read`] because only an admin may read it.
+    async fn linked_packages_folder(&self) -> Result<Option<String>, AdminError>;
+
+    /// Name the folder linked packages play from, or name none, answering with what it stored.
+    ///
+    /// The path is the machine's, so the machine checks it. A page on another computer cannot
+    /// tell whether `/tunes/karaoke` is absolute where it lands.
+    async fn set_linked_packages_folder(
+        &self,
+        dir: &str,
+    ) -> Result<km_api::machine::LinkedFolder, AdminError>;
 }
 
 /// The Sound tab: where the sound comes out, and which bank supplies the instruments.

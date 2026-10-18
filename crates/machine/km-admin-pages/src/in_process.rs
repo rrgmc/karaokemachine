@@ -512,6 +512,22 @@ impl Switches for ThisMachine {
     ) -> Result<km_api::machine::LinkedPackages, AdminError> {
         self.0.controller().set_linked_packages(on).map_err(refused)
     }
+
+    async fn linked_packages_folder(&self) -> Result<Option<String>, AdminError> {
+        Ok(self.0.controller().linked_packages_folder())
+    }
+
+    async fn set_linked_packages_folder(
+        &self,
+        dir: &str,
+    ) -> Result<km_api::machine::LinkedFolder, AdminError> {
+        let dir = km_api::machine::linked_folder_typed(Some(dir)).map_err(refused)?;
+        self.0
+            .controller()
+            .set_linked_packages_folder(dir)
+            .map(|stored| stored.folder)
+            .map_err(refused)
+    }
 }
 
 #[async_trait::async_trait]

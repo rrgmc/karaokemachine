@@ -20,7 +20,7 @@ Change it on **This machine**, under **Access**. Every tab links there until you
 | Tab | What you do there |
 |---|---|
 | **This machine** | See where to reach it. Then five panes: **General**, **Access**, **Singers and queue**, **Playback** and **Developer**. |
-| **Songs** | See the installed packages, how many songs each holds, and the thousand its numbers sit in. Add or remove a package. Choose whether the machine takes linked packages. |
+| **Songs** | See the installed packages, how many songs each holds, and the thousand its numbers sit in. Add or remove a package. Choose whether the machine takes linked packages, and the folder they play from. |
 | **Pictures** | See the pictures in the rotation and the one that shows, and add more. Your own pictures replace the ones that came with the machine. |
 | **Sound** | Choose the sound bank that plays and the audio output, and add a `.sf2`. |
 | **Problems** | See packages the machine could not load, and anything else that is wrong, each with the control that fixes it. The tab shows a count. |
@@ -36,8 +36,8 @@ Change it on **This machine**, under **Access**. Every tab links there until you
 | **Developer** | Debugging, the console and the performance overlay |
 
 **The Songs tab says whether the machine takes linked packages.** The **Linked packages** card has
-one box, and it starts off. [Getting songs in](songs.md#linked-packages) says what a linked package
-is, and how to set the folder its songs play from.
+one box, which starts off, and the folder their songs play from. [Getting songs in](songs.md#linked-packages)
+says what a linked package is.
 
 ## Decide what a guest's phone can do
 

@@ -52,17 +52,16 @@ package would hold a second copy of every file. The package lists of the machine
 
 **The machine takes none until you allow it.** A linked package makes the machine read files from
 its disk, at paths that whoever built the package wrote. Allow it for packages you built, or from
-somebody you trust. Two things turn it on:
+somebody you trust. Two things turn it on, and both are on the **Linked packages** card, on the
+**Songs** tab of [the setup page](setup.md) and of `km-admin`:
 
-1. **Set the folder.** Close the machine, and add this to `settings.json`, with your own folder.
-   `karaokemachine --show-paths` says where `settings.json` is.
+1. **Set the folder.** Type the full path of the folder on the machine, such as
+   `<your karaoke folder>`, and press **Save the folder**. The card says when that folder is not
+   there.
+2. **Tick the box**, and press **Save**.
 
-   ```json
-   "linked_packages": { "enabled": true, "dir": "<your karaoke folder>" }
-   ```
-
-2. **Tick the box.** The **Linked packages** card is on the **Songs** tab of
-   [the setup page](setup.md). The line above ticks it too.
+`settings.json` holds both, as `"linked_packages": { "enabled": true, "dir": "<your karaoke folder>" }`.
+`karaokemachine --show-paths` says where that file is.
 
 **Each linked package plays from one folder of its own, inside that folder.** The package names
 it, and the **Songs** tab shows it under the package. A package built from `cdg/alpha` in your

@@ -123,6 +123,8 @@ pub enum Recorded {
     KeepEveningSet(bool),
     /// The linked-packages switch was set.
     LinkedPackagesSet(bool),
+    /// The folder for linked packages was named, or cleared when this is `None`.
+    LinkedFolderSet(Option<String>),
     /// The admin password was set, or cleared when this is `None`.
     ///
     /// The hash and the factory PIN, in that order. The hash rather than the password, which is
@@ -290,6 +292,8 @@ struct Inner {
     keep_evening: bool,
     /// Whether linked packages are allowed. Held so a read follows a write.
     linked_packages: bool,
+    /// The folder for linked packages. Held so a read follows a write.
+    linked_dir: Option<String>,
     /// Whether this machine holds a kept evening and starts no song yet. A test sets it.
     waiting_for_host: bool,
     /// What debugging and the development console are set to in settings.
@@ -418,6 +422,7 @@ impl TestMachine {
                 window_menu: true,
                 keep_evening: false,
                 linked_packages: false,
+                linked_dir: None,
                 waiting_for_host: false,
                 debug_stored: false,
                 dev_remote_stored: false,
@@ -1351,10 +1356,14 @@ impl Controller for TestMachine {
     }
 
     fn linked_packages(&self) -> crate::machine::LinkedPackages {
+        let inner = self.lock();
         crate::machine::LinkedPackages {
-            enabled: self.lock().linked_packages,
-            // An in-memory machine has no disk, so it never has a folder.
-            folder: crate::machine::LinkedFolder::Unset,
+            enabled: inner.linked_packages,
+            // An in-memory machine has no disk, so any folder it is given counts as there.
+            folder: match inner.linked_dir {
+                None => crate::machine::LinkedFolder::Unset,
+                Some(_) => crate::machine::LinkedFolder::Ready,
+            },
         }
     }
 
@@ -1366,6 +1375,23 @@ impl Controller for TestMachine {
             let mut inner = self.lock();
             inner.linked_packages = enabled;
             inner.recorded.push(Recorded::LinkedPackagesSet(enabled));
+        }
+        Ok(self.linked_packages())
+    }
+
+    fn linked_packages_folder(&self) -> Option<String> {
+        self.lock().linked_dir.clone()
+    }
+
+    fn set_linked_packages_folder(
+        &self,
+        dir: Option<&str>,
+    ) -> Result<crate::machine::LinkedPackages, ControlError> {
+        {
+            let mut inner = self.lock();
+            inner.linked_dir = dir.map(str::to_owned);
+            let stored = inner.linked_dir.clone();
+            inner.recorded.push(Recorded::LinkedFolderSet(stored));
         }
         Ok(self.linked_packages())
     }
