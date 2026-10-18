@@ -2450,6 +2450,23 @@ pub struct LinkedPackagesRequest {
     pub enabled: bool,
 }
 
+/// `GET` and `PUT /admin/linked-packages/folder`: the folder linked packages play from.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LinkedFolderDto {
+    /// The folder as the settings name it, or `null` when they name none.
+    pub dir: Option<String>,
+    /// Whether that folder is there: `unset`, `missing` or `ready`.
+    pub folder: crate::machine::LinkedFolder,
+}
+
+/// `PUT /admin/linked-packages/folder`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct LinkedFolderRequest {
+    /// An absolute path on the machine's own disk. `null` or an empty string names no folder.
+    pub dir: Option<String>,
+}
+
 /// `POST /debug/play-file`.
 ///
 /// `PartialEq` without `Eq` since the corrections arrived: a fix this build cannot read is held as

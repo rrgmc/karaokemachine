@@ -45,8 +45,8 @@ from where it is.
 1. **Keep the collection in one folder on the machine's disk**, or on a drive the machine reaches.
 2. **Build a linked package for each part of it.** Each packaging tool has a box for this. See
    [A package that holds no songs](packaging.md#a-package-that-holds-no-songs).
-3. **Allow linked packages on the machine.** Name the folder in `settings.json`, and tick the box on
-   the **Songs** tab. See [Linked packages](songs.md#linked-packages).
+3. **Allow linked packages on the machine.** Name the folder and tick the box, both on the
+   **Songs** tab. See [Linked packages](songs.md#linked-packages).
 4. **Install each package** the way you install any other.
 
 **Guests see no difference.** A linked package's songs are searched, numbered and queued like any

@@ -16,6 +16,10 @@ Entries are written for somebody who has the machine. Why any of it is the way i
 - **Menu, then Install packages, takes several packages at once.** Choose a whole folder's worth
   in the file browser, on Windows, macOS, Android, iPhone and iPad. The machine installs them one
   at a time and says what happened to each.
+- **The Songs tab sets the folder linked packages play from.** The **Linked packages** card has a
+  box for it, on the machine's own page and in `km-admin`. Type the full path of the folder on the
+  machine. The card says when that folder is not there. The admin API has the same, at
+  `/api/v1/admin/linked-packages/folder`.
 
 ## [1.24.2] - 2026-10-15
 

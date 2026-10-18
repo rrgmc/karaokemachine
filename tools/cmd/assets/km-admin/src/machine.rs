@@ -38,12 +38,12 @@ use km_api::dto::{
     AccessCodeRequest, AccessDto, AdjustRecordingsDto, AdjustRecordingsRequest, AdminPasswordDto,
     AdminPasswordRequest, AnnouncementDto, AudioLevelRequest, AudioOutputRequest, AudioOutputsDto,
     BankDto, BankRequest, DebugDto, DemoDto, DevRemoteDto, DevRemoteRequest, EndOnSilenceDto,
-    EndOnSilenceRequest, KeepEveningDto, KeepEveningRequest, LinkedPackagesDto,
-    LinkedPackagesRequest, LoginRequest, LoginResponse, MachineLocaleRequest, MachineNameRequest,
-    PackagesDto, PerformanceDto, PerformanceRequest, RoomAccessRequest, SetAnnouncementRequest,
-    SetDemoDelayRequest, SetDemoRequest, SettingsDto, SettingsPatchDto, SingerRulesDto,
-    SoundFontDto, SoundFontRequest, SoundFontsDto, UninstallDto, UploadReportDto, WallpapersDto,
-    WindowMenuDto, WindowMenuRequest,
+    EndOnSilenceRequest, KeepEveningDto, KeepEveningRequest, LinkedFolderDto, LinkedFolderRequest,
+    LinkedPackagesDto, LinkedPackagesRequest, LoginRequest, LoginResponse, MachineLocaleRequest,
+    MachineNameRequest, PackagesDto, PerformanceDto, PerformanceRequest, RoomAccessRequest,
+    SetAnnouncementRequest, SetDemoDelayRequest, SetDemoRequest, SettingsDto, SettingsPatchDto,
+    SingerRulesDto, SoundFontDto, SoundFontRequest, SoundFontsDto, UninstallDto, UploadReportDto,
+    WallpapersDto, WindowMenuDto, WindowMenuRequest,
 };
 
 /// The machine's own default port, so "a bare host means 8177" is not written down twice.
@@ -129,6 +129,10 @@ pub enum Call<'a> {
     LinkedPackages,
     /// `PUT` — say whether the machine takes linked packages.
     SetLinkedPackages,
+    /// `GET` — the folder linked packages play from. Admin, unlike the switch.
+    LinkedFolder,
+    /// `PUT` — name the folder linked packages play from.
+    SetLinkedFolder,
     /// `GET` — the output devices the machine has, and which one it is using.
     AudioOutputs,
     /// `PUT` — choose the output device.
@@ -269,6 +273,8 @@ impl<'a> Call<'a> {
         Call::SetKeepEvening,
         Call::LinkedPackages,
         Call::SetLinkedPackages,
+        Call::LinkedFolder,
+        Call::SetLinkedFolder,
         Call::AudioOutputs,
         Call::SetAudioOutput,
         Call::SetAudioLevel,
@@ -315,6 +321,7 @@ impl<'a> Call<'a> {
             | Self::WindowMenu
             | Self::KeepEvening
             | Self::LinkedPackages
+            | Self::LinkedFolder
             | Self::AudioOutputs
             | Self::Settings
             | Self::Locale
@@ -337,6 +344,7 @@ impl<'a> Call<'a> {
             | Self::SetWindowMenu
             | Self::SetKeepEvening
             | Self::SetLinkedPackages
+            | Self::SetLinkedFolder
             | Self::SetAudioOutput
             | Self::SetAudioLevel
             | Self::SetSettings
@@ -422,6 +430,7 @@ impl<'a> Call<'a> {
             Self::SetKeepEvening => "/admin/evening/keep",
             Self::LinkedPackages => "/linked-packages",
             Self::SetLinkedPackages => "/admin/linked-packages",
+            Self::LinkedFolder | Self::SetLinkedFolder => "/admin/linked-packages/folder",
             // The read is public and the write is not, which is the split every pair here has. The
             // singular on the write is the machine's own spelling: `/audio/outputs` is the list and
             // `/audio/output` is the one in force.
@@ -900,6 +909,19 @@ impl Client {
     pub async fn set_linked_packages(&self, enabled: bool) -> Result<LinkedPackagesDto, Refused> {
         self.json_with(Call::SetLinkedPackages, &LinkedPackagesRequest { enabled })
             .await
+    }
+
+    /// The folder linked packages play from, and whether it is there. Needs a token.
+    pub async fn linked_folder(&self) -> Result<LinkedFolderDto, Refused> {
+        self.get_json(Call::LinkedFolder).await
+    }
+
+    /// Names the folder linked packages play from. Blank names none. The machine checks the path.
+    pub async fn set_linked_folder(&self, dir: &str) -> Result<LinkedFolderDto, Refused> {
+        let request = LinkedFolderRequest {
+            dir: Some(dir.to_owned()),
+        };
+        self.json_with(Call::SetLinkedFolder, &request).await
     }
 
     /// The output devices the machine has, and which one is sounding.

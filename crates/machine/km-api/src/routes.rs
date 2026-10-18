@@ -295,6 +295,8 @@ pub const SURFACE: &[(&str, &str)] = &[
     ("PUT", "/admin/display/window-menu"),
     ("PUT", "/admin/evening/keep"),
     ("PUT", "/admin/linked-packages"),
+    ("GET", "/admin/linked-packages/folder"),
+    ("PUT", "/admin/linked-packages/folder"),
 ];
 
 /// The routes mounted only while debugging mode is on.
@@ -827,7 +829,12 @@ fn api_router(config: &crate::ApiConfig, capabilities: Capabilities) -> Router<A
         )
         .route("/display/window-menu", put(handlers::put_window_menu))
         .route("/evening/keep", put(handlers::put_keep_evening))
-        .route("/linked-packages", put(handlers::put_linked_packages));
+        .route("/linked-packages", put(handlers::put_linked_packages))
+        // The folder has no public read. The path is a place on the machine's disk.
+        .route(
+            "/linked-packages/folder",
+            get(handlers::get_linked_packages_folder).put(handlers::put_linked_packages_folder),
+        );
 
     // Turning the box off, and starting the application again. Mounted only where the host supplied
     // a way to do either, so a machine that cannot answers 404 on all three — the shape the
@@ -1090,6 +1097,16 @@ mod tests {
             (Method::PUT, "/api/v1/admin/evening/keep", Access::Admin),
             (Method::GET, "/api/v1/linked-packages", Access::View),
             (Method::PUT, "/api/v1/admin/linked-packages", Access::Admin),
+            (
+                Method::GET,
+                "/api/v1/admin/linked-packages/folder",
+                Access::Admin,
+            ),
+            (
+                Method::PUT,
+                "/api/v1/admin/linked-packages/folder",
+                Access::Admin,
+            ),
             (Method::PUT, "/api/v1/settings", Access::Queue),
             (Method::POST, "/api/v1/transport/skip", Access::Control),
             (Method::POST, "/api/v1/transport/pause", Access::Control),

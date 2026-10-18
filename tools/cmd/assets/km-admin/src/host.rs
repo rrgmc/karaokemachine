@@ -483,6 +483,28 @@ impl Switches for RemoteMachine {
             .map(linked_state)
             .map_err(fault)
     }
+
+    /// Spends a remembered password, since the read is admin.
+    async fn linked_packages_folder(&self) -> Result<Option<String>, AdminError> {
+        self.writing()
+            .await?
+            .linked_folder()
+            .await
+            .map(|answer| answer.dir)
+            .map_err(fault)
+    }
+
+    async fn set_linked_packages_folder(
+        &self,
+        dir: &str,
+    ) -> Result<km_api::machine::LinkedFolder, AdminError> {
+        self.writing()
+            .await?
+            .set_linked_folder(dir)
+            .await
+            .map(|stored| stored.folder)
+            .map_err(fault)
+    }
 }
 
 #[async_trait::async_trait]

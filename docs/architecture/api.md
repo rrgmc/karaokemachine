@@ -68,6 +68,11 @@ nothing, because a song takes its stretcher when it loads.
 The path is not under `/packages/`, where it would take the place of a package whose id is
 `linked`.
 
+**`PUT /api/v1/admin/linked-packages/folder` names the folder**, with `{"dir": "<path>"}`, and `GET`
+on the same path reads it. Both are admin, and both answer `dir` and `folder`. A blank `dir` or
+`null` names none. `km_api::machine::linked_folder_typed` refuses a relative path with a 400, on the
+machine, so the HTTP route and the in-process page refuse the same paths.
+
 **`PUT /api/v1/admin/display/window-menu` says whether a Windows or macOS window shows its Menu
 button**, and `GET /api/v1/display/window-menu` reads it. Both answer `enabled` and `available`.
 `available` is false where the machine draws no such window, and a page then draws no switch.

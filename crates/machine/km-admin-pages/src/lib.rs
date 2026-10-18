@@ -533,6 +533,10 @@ pub fn router(state: Admin) -> Router {
             "/machine/linked-packages",
             post(handlers::set_linked_packages),
         )
+        .route(
+            "/machine/linked-packages/folder",
+            post(handlers::set_linked_packages_folder),
+        )
         .route("/machine/password", post(handlers::set_password))
         .route("/machine/sessions", post(handlers::reset_sessions))
         .route("/machine/access", post(handlers::set_room_access))

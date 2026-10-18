@@ -4201,7 +4201,7 @@ async fn allowing_linked_packages_is_public_to_read_and_admin_to_switch() {
     assert_ne!(
         status,
         StatusCode::OK,
-        "no route takes a folder for the machine to read from: {body}"
+        "the switch takes no folder, which has a route of its own: {body}"
     );
 
     let (status, body) = harness
@@ -4224,6 +4224,73 @@ async fn allowing_linked_packages_is_public_to_read_and_admin_to_switch() {
 
     let body = harness.ok(Method::GET, "/linked-packages", None).await;
     assert_eq!(body["enabled"], true, "{body}");
+}
+
+/// The folder for linked packages is admin to read and to set, and the public answer never names it.
+#[tokio::test]
+async fn the_folder_for_linked_packages_is_admin_to_read_and_to_set() {
+    // Absolute on whatever runs the test, since the machine checks the path on its own disk.
+    let folder = if cfg!(windows) {
+        r"D:\tunes\karaoke"
+    } else {
+        "/tunes/karaoke"
+    };
+    let mut harness = Harness::with_password("carols1975")
+        .at_the_machine()
+        .tokenless();
+
+    let (status, _) = harness
+        .request(Method::GET, "/admin/linked-packages/folder", None)
+        .await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED, "reading it needs a token");
+    let (status, _) = harness
+        .put("/admin/linked-packages/folder", json!({ "dir": folder }))
+        .await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED, "setting it needs a token");
+
+    harness.log_in("carols1975").await;
+    let body = harness
+        .ok(Method::GET, "/admin/linked-packages/folder", None)
+        .await;
+    assert_eq!(body["dir"], Value::Null, "{body}");
+    assert_eq!(body["folder"], "unset", "{body}");
+
+    let (status, body) = harness
+        .put("/admin/linked-packages/folder", json!({ "dir": "tunes" }))
+        .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "a relative path: {body}");
+
+    let (status, body) = harness
+        .put("/admin/linked-packages/folder", json!({ "dir": folder }))
+        .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(body["dir"], folder, "{body}");
+    assert_eq!(body["folder"], "ready", "{body}");
+    assert!(
+        harness.machine.recorded().iter().any(|entry| matches!(
+            entry,
+            Recorded::LinkedFolderSet(Some(dir)) if dir == folder
+        )),
+        "the folder did not reach the controller"
+    );
+
+    let body = harness.ok(Method::GET, "/linked-packages", None).await;
+    assert_eq!(body["folder"], "ready", "{body}");
+    assert!(
+        body.get("dir").is_none(),
+        "the public answer never names the folder: {body}"
+    );
+
+    let (status, body) = harness
+        .put("/admin/linked-packages/folder", json!({ "dir": "  " }))
+        .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(
+        body["dir"],
+        Value::Null,
+        "a blank path names no folder: {body}"
+    );
+    assert_eq!(body["folder"], "unset", "{body}");
 }
 
 /// A kept evening that waits says so in the request list, and a new evening ends the wait.

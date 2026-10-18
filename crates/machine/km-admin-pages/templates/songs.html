@@ -56,9 +56,9 @@
   {% endif %}
 </section>
 
-{# Below the packages, because it says whether a linked package reaches its folder. The folder has
-   no box here: no page points the machine at a folder on its own disk. A machine with no such route
-   answers `None`, and the card is not drawn. #}
+{# Below the packages, because it says whether a linked package reaches its folder. The folder is a
+   path on the machine's disk, and the machine checks it. A machine with no such route answers
+   `None`, and the card is not drawn. #}
 {% match linked_packages %}
 {% when Some with (linked) %}
 <section class="card">
@@ -76,6 +76,14 @@
       {{ "linked-packages-enabled"|t }}
     </label>
     <button type="submit">{{ "linked-packages-save"|t }}</button>
+  </form>
+  <form method="post" action="/admin/machine/linked-packages/folder">
+    <label>
+      {{ "linked-packages-folder"|t }}
+      <input type="text" name="dir" value="{{ linked.dir }}" spellcheck="false" autocomplete="off">
+    </label>
+    <p class="hint">{{ "linked-packages-folder-hint"|t }}</p>
+    <button type="submit">{{ "linked-packages-folder-save"|t }}</button>
   </form>
 </section>
 {% when None %}

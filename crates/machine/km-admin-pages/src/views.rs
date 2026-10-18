@@ -833,10 +833,12 @@ pub struct MachinePage {
 ///
 /// A flag for each sentence the card can add, so the template names every key it draws and the
 /// catalog's parity test sees them all.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LinkedPackagesCard {
     /// Whether the owner allows linked packages.
     pub enabled: bool,
+    /// The folder the settings name, or empty when they name none or it could not be read.
+    pub dir: String,
     /// The settings name no folder, so the switch alone installs nothing.
     pub folder_unset: bool,
     /// The settings name a folder that is not there.
@@ -848,6 +850,7 @@ impl From<km_api::machine::LinkedPackages> for LinkedPackagesCard {
         use km_api::machine::LinkedFolder;
         Self {
             enabled: state.enabled,
+            dir: String::new(),
             folder_unset: state.folder == LinkedFolder::Unset,
             folder_missing: state.folder == LinkedFolder::Missing,
         }

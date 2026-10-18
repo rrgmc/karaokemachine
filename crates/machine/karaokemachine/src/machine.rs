@@ -4950,6 +4950,30 @@ impl Controller for Machine {
         Ok(Controller::linked_packages(self))
     }
 
+    fn linked_packages_folder(&self) -> Option<String> {
+        Machine::linked_packages(self)
+            .dir
+            .map(|dir| dir.display().to_string())
+    }
+
+    /// Stores the folder, then scans the packages again, for [`Self::set_linked_packages`]'s
+    /// reason. A package that needs a folder the old one held and the new one lacks is dropped.
+    fn set_linked_packages_folder(
+        &self,
+        dir: Option<&str>,
+    ) -> Result<km_api::machine::LinkedPackages, ControlError> {
+        self.lock_settings().linked_packages.dir = dir.map(PathBuf::from);
+        self.save_settings();
+        let report = self.rescan_now();
+        tracing::info!(
+            folder = dir.is_some(),
+            installed = report.installed,
+            removed = report.removed.len(),
+            "the folder for linked packages was set"
+        );
+        Ok(Controller::linked_packages(self))
+    }
+
     fn requests(&self) -> Vec<Request> {
         self.lock_state()
             .evening
@@ -9410,6 +9434,49 @@ mod tests {
         assert!(
             machine.lock_library().packages().expect("list").is_empty(),
             "off, and nothing playing: the songs go at once"
+        );
+    }
+
+    #[test]
+    fn the_folder_is_written_down_and_the_catalog_follows_it() {
+        use km_api::machine::LinkedFolder;
+
+        let (_root, machine, _package_path, library, _codes) =
+            a_machine_and_a_linked_package("linked-folder-set", Settings::default());
+        machine.lock_settings().linked_packages.enabled = true;
+        assert_eq!(Controller::linked_packages_folder(machine.as_ref()), None);
+
+        let missing = library.join("not-there").display().to_string();
+        let stored =
+            Controller::set_linked_packages_folder(machine.as_ref(), Some(&missing)).expect("set");
+        assert_eq!(stored.folder, LinkedFolder::Missing, "stored all the same");
+        assert!(machine.lock_library().packages().expect("list").is_empty());
+
+        let named = library.display().to_string();
+        let stored =
+            Controller::set_linked_packages_folder(machine.as_ref(), Some(&named)).expect("set");
+        assert_eq!(stored.folder, LinkedFolder::Ready);
+        assert_eq!(
+            machine.lock_library().packages().expect("list").len(),
+            1,
+            "the scan installs what was waiting"
+        );
+        assert_eq!(
+            Controller::linked_packages_folder(machine.as_ref()).as_deref(),
+            Some(named.as_str())
+        );
+        let (reloaded, _) = Settings::load(machine.paths());
+        assert_eq!(
+            reloaded.linked_packages.dir.as_deref(),
+            Some(library.as_path()),
+            "the folder is written down"
+        );
+
+        let stored = Controller::set_linked_packages_folder(machine.as_ref(), None).expect("clear");
+        assert_eq!(stored.folder, LinkedFolder::Unset);
+        assert!(
+            machine.lock_library().packages().expect("list").is_empty(),
+            "no folder, and nothing playing: the songs go at once"
         );
     }
 
