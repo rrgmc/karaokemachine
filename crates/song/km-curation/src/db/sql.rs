@@ -412,7 +412,7 @@ fn first_words(words_head: Option<&str>, hidden: Option<bool>, warnings: &str) -
 }
 
 pub(super) fn song_row(row: &Row<'_>) -> rusqlite::Result<SongRow> {
-    let kind = SongKind::from_str(&row.get::<_, String>(13)?);
+    let kind = SongKind::from_stored(&row.get::<_, String>(13)?);
     let warnings: String = row.get(19)?;
     let first_words = first_words(
         row.get::<_, Option<String>>(21)?.as_deref(),

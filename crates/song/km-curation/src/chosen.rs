@@ -108,11 +108,11 @@ fn write(db: &Db, known: &Known) -> Result<(), DbError> {
 
 /// Where this computer's last hand-set machine is written down, or `None` if there is nowhere.
 ///
-/// `None` under `cfg(test)` for [`crate::recent::path`]'s reason: a test run must not write into the
+/// `None` under `cfg(test)` or the `testing` feature, for [`crate::recent::path`]'s reason: a test run must not write into the
 /// user's own config folder, and a seed that reached across from another test would make the tests
 /// order-dependent.
 pub fn seed_path() -> Option<PathBuf> {
-    if cfg!(test) {
+    if cfg!(any(test, feature = "testing")) {
         return None;
     }
     if let Some(named) = std::env::var_os(ENV_VAR) {

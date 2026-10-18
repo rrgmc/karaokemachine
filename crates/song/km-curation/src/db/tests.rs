@@ -4,15 +4,17 @@
 //! across `songs.rs`, `packages.rs`, `favorites.rs`, `scan.rs` and `migrate.rs`; the tests are not,
 //! because they share a corpus fixture and a `db()` helper and most of them cross two of those
 //! blocks in a single assertion — a rebuild that must carry every hand-set field across is a songs
-//! test, a packages test and a migration test at once. Splitting them would have meant a fixture
-//! module for the fixtures to live in, which is one more file than the sharing is worth.
+//! test, a packages test and a migration test at once.
+//!
+//! **The songs these tests write come from `crate::testing`**, because `km-package-builder`'s
+//! server tests write the same ones and cannot see this module.
 //!
 //! `super::*` reaches every one of those blocks: a `pub(super)` helper in a sibling is visible in
 //! `db`, and this module is `db`'s child.
 
 use super::*;
 
-use crate::testing::Scratch;
+use crate::testing::{Scratch, add, add_all, add_built, add_scanned, scanned_file, verses};
 
 fn db() -> Db {
     Db::open_in_memory(Path::new("/corpus")).expect("open")
@@ -213,22 +215,6 @@ fn a_phrase_reaches_sqlite_as_a_phrase() {
 }
 
 // -- finding a song by the words it sings ------------------------------------------------------
-
-/// Verses of a song, one line each, well clear of the floor a lyric has to reach.
-///
-/// Every line distinct, so a test can take one away and say which one.
-pub(crate) fn verses(from: usize, to: usize) -> String {
-    (from..to)
-        .map(|nth| {
-            format!(
-                "she walked in from the rain of number {nth}\n\
-                 and nobody ever knew her name at all {nth}\n\
-                 while the band played on until the morning {nth}"
-            )
-        })
-        .collect::<Vec<_>>()
-        .join("\n")
-}
 
 /// Whether `lyrics_vocab` answers, which is the guard against a SQLite built without `fts5vocab`.
 ///
@@ -5584,36 +5570,6 @@ fn a_song_is_found_under_other_spellings_of_its_name() {
     );
 }
 
-pub(crate) fn add(db: &mut Db, id: &str, title: Option<&str>, path: &str) {
-    add_built(db, id, title, path, |_| {});
-}
-
-/// [`add`], with the artist the file declared, for a test that needs a row already credited.
-pub(crate) fn add_with_artist(db: &mut Db, id: &str, title: &str, artist: &str, path: &str) {
-    add_built(db, id, Some(title), path, |song| {
-        song.det_artist = Some(artist.to_owned());
-    });
-}
-
-/// [`add`], with a chance to adjust the scanned song before it is written.
-pub(crate) fn add_scanned(
-    db: &mut Db,
-    id: &str,
-    adjust: impl FnOnce(&mut crate::model::ScannedSong),
-) {
-    add_built(db, id, Some(id), &format!("folder/{id}.kar"), adjust);
-}
-
-fn add_built(
-    db: &mut Db,
-    id: &str,
-    title: Option<&str>,
-    path: &str,
-    adjust: impl FnOnce(&mut crate::model::ScannedSong),
-) {
-    add_all(db, vec![scanned_file(id, title, path, adjust)]);
-}
-
 /// Three hundred plain songs, `song-0000` onward, for the tests that measure a query plan.
 fn three_hundred_songs() -> Vec<crate::model::ScannedFile> {
     (0..300)
@@ -5626,74 +5582,6 @@ fn three_hundred_songs() -> Vec<crate::model::ScannedFile> {
             )
         })
         .collect()
-}
-
-/// Writes many songs in one transaction.
-///
-/// A fixture of hundreds of songs is what a query plan is measured against. Written one at a time,
-/// each song is a commit, and the commits cost seconds.
-pub(crate) fn add_all(db: &mut Db, files: Vec<crate::model::ScannedFile>) {
-    db.write_scanned(&files, "2026-08-24T00:00:00Z")
-        .expect("write");
-}
-
-/// The file [`add`] writes, built and not yet written, for [`add_all`].
-pub(crate) fn scanned_file(
-    id: &str,
-    title: Option<&str>,
-    path: &str,
-    adjust: impl FnOnce(&mut crate::model::ScannedSong),
-) -> crate::model::ScannedFile {
-    let mut song = crate::model::ScannedSong {
-        id: id.to_owned(),
-        det_title: title.map(ToOwned::to_owned),
-        det_artist: None,
-        det_language: None,
-        stem: Path::new(path)
-            .file_stem()
-            .and_then(|stem| stem.to_str())
-            .unwrap_or_default()
-            .to_owned(),
-        duration_ms: 200_000,
-        // Enough words for the lyric search to have something to find, and different for every
-        // song so a test can tell which one came back.
-        lyrics: Some(format!("the words of {id}\nsecond line")),
-        // A shape shared by every song this makes, so a test wanting two of them paired has
-        // only to give them matching names, which is the other half `compare` insists on.
-        fingerprint: "12:100:0,1".to_owned(),
-        suitability: crate::model::SuitabilityFacts {
-            value: 7,
-            breakdown: (3, 2, 2, 0),
-            warnings: "[]".to_owned(),
-        },
-        midi: Some(crate::model::MidiFacts {
-            flavor: "soft".to_owned(),
-            granularity: "syllablelevel".to_owned(),
-            note_count: 500,
-            channel_count: 6,
-            line_count: 20,
-            syllable_count: 100,
-            det_encoding: "windows-1252".to_owned(),
-            det_encoding_source: "fallback".to_owned(),
-            melody_channel: Some(3),
-            melody_confidence: Some(0.9),
-            melody_abstained: None,
-        }),
-        video: None,
-        cdg: None,
-        ultrastar: None,
-        lrc: None,
-    };
-    adjust(&mut song);
-    crate::model::ScannedFile {
-        path: path.to_owned(),
-        size: 1234,
-        mtime: 0,
-        content_hash: Some(id.to_owned()),
-        status: crate::model::ScanStatus::Ok,
-        error: None,
-        song: Some(song),
-    }
 }
 
 fn ids(rows: &[SongRow]) -> Vec<&str> {

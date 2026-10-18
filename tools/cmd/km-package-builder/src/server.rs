@@ -5911,11 +5911,11 @@ mod tests {
     fn a_shouting_corpus(name: &str, songs: u32) -> (Scratch, State) {
         let corpus = Scratch::new(name);
         let mut db = Db::open_in_memory(corpus.path()).expect("open");
-        crate::db::tests::add_all(
+        crate::testing::add_all(
             &mut db,
             (0..songs)
                 .map(|number| {
-                    crate::db::tests::scanned_file(
+                    crate::testing::scanned_file(
                         &format!("song-{number:04}"),
                         Some(&format!("CANCAO NUMERO {number:04}")),
                         &format!("folder/SONG{number:04}.kar"),
@@ -5924,7 +5924,7 @@ mod tests {
                 })
                 .collect(),
         );
-        crate::db::tests::add(&mut db, "decided", Some("Tom Jobim"), "folder/tj.kar");
+        crate::testing::add(&mut db, "decided", Some("Tom Jobim"), "folder/tj.kar");
         (corpus, State::new(db))
     }
 
@@ -5939,21 +5939,21 @@ mod tests {
             (
                 "song-0000",
                 "Dancing In The Dark",
-                crate::db::tests::verses(0, 5),
+                crate::testing::verses(0, 5),
             ),
-            ("song-0001", "EARTHW~2", crate::db::tests::verses(0, 5)),
+            ("song-0001", "EARTHW~2", crate::testing::verses(0, 5)),
             (
                 "song-0002",
                 "Something Else",
-                crate::db::tests::verses(20, 25),
+                crate::testing::verses(20, 25),
             ),
         ] {
-            crate::db::tests::add_scanned(&mut db, id, |song| {
+            crate::testing::add_scanned(&mut db, id, |song| {
                 song.det_title = Some(title.to_owned());
                 song.lyrics = Some(lyrics);
             });
         }
-        crate::db::tests::add_scanned(&mut db, "instrumental", |song| {
+        crate::testing::add_scanned(&mut db, "instrumental", |song| {
             song.det_title = Some("No Words At All".to_owned());
             song.lyrics = None;
         });
@@ -6142,11 +6142,11 @@ mod tests {
     fn a_corpus_with_seams(name: &str, songs: u32) -> (Scratch, State) {
         let corpus = Scratch::new(name);
         let mut db = Db::open_in_memory(corpus.path()).expect("open");
-        crate::db::tests::add_all(
+        crate::testing::add_all(
             &mut db,
             (0..songs)
                 .map(|number| {
-                    crate::db::tests::scanned_file(
+                    crate::testing::scanned_file(
                         &format!("song-{number:04}"),
                         Some(&format!("Bob Seger-Cancao numero {number:04}")),
                         &format!("folder/song{number:04}.kar"),
@@ -6155,14 +6155,14 @@ mod tests {
                 })
                 .collect(),
         );
-        crate::db::tests::add_with_artist(
+        crate::testing::add_with_artist(
             &mut db,
             "credited",
             "Bob Seger-Mainstreet",
             "Bob Seger",
             "folder/bs.kar",
         );
-        crate::db::tests::add(&mut db, "whole", Some("Corcovado"), "folder/c.kar");
+        crate::testing::add(&mut db, "whole", Some("Corcovado"), "folder/c.kar");
         (corpus, State::new(db))
     }
 
@@ -6203,11 +6203,11 @@ mod tests {
     fn a_corpus_of(name: &str, songs: u32) -> (Scratch, State) {
         let corpus = Scratch::new(name);
         let mut db = Db::open_in_memory(corpus.path()).expect("open");
-        crate::db::tests::add_all(
+        crate::testing::add_all(
             &mut db,
             (0..songs)
                 .map(|number| {
-                    crate::db::tests::scanned_file(
+                    crate::testing::scanned_file(
                         &format!("song-{number:04}"),
                         Some(&format!("Song {number:04}")),
                         &format!("folder/SONG{number:04}.kar"),
@@ -6318,7 +6318,7 @@ mod tests {
     async fn a_page_is_drawn_while_the_writing_connection_is_held() {
         let corpus = Scratch::new("page-while-writing");
         let mut db = Db::create(corpus.path()).expect("create");
-        crate::db::tests::add(&mut db, "song-0000", Some("Cabeça"), "folder/SONG.kar");
+        crate::testing::add(&mut db, "song-0000", Some("Cabeça"), "folder/SONG.kar");
         let state = State::new(db);
 
         let workspace = state.workspace().expect("a folder is open");

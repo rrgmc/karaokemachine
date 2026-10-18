@@ -112,9 +112,14 @@ fn file_for(setting: Option<&std::ffi::OsStr>) -> Option<PathBuf> {
 /// The test guard is checked **first**, deliberately: somebody who keeps the variable set in their
 /// shell should still get a suite that writes nowhere rather than one that writes their scratch file.
 ///
+/// **The guard is `cfg(test)` or the `testing` feature.** `cfg(test)` is per crate, and
+/// `km-package-builder`'s tests compile this crate without it. Those tests turn the feature on
+/// through their dev-dependency, and no build that ships names it. With `cfg(test)` alone, that
+/// suite writes its scratch folders into the real list.
+///
 /// `cfg!` rather than `#[cfg]` so the production branch is still compiled and linted under test.
 fn path() -> Option<PathBuf> {
-    if cfg!(test) {
+    if cfg!(any(test, feature = "testing")) {
         return None;
     }
     file_for(std::env::var_os(ENV_VAR).as_deref())

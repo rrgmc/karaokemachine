@@ -37,44 +37,27 @@
 /// integration test is a separate crate and cannot see a private module, and the alternative — a
 /// `#[cfg(test)]` unit test — could not bind a socket without dragging a server into the library.
 pub mod app;
-/// What a person typed, in a file they can keep somewhere else. See the module's own note for what
-/// is in one and what deliberately is not.
-mod backup;
 mod browse;
-mod build;
-mod casing;
-/// Which machine this tool would install into, and where that fact is kept. See the module note.
-mod chosen;
-mod db;
 /// The window, when this build has one. See the module's own note for the three surprises in it.
 #[cfg(feature = "desktop")]
 mod desktop;
-mod dupes;
-mod fixes;
-mod form;
 mod handlers;
-mod hint;
-mod lyric_likeness;
-mod model;
-mod names;
-/// The machine passwords this computer was told to remember. See the module note for why they are
-/// not in the curated folder.
-mod passwords;
-mod recent;
 mod register;
-mod scan;
 mod server;
-mod settings;
-mod similar;
-/// The checklist of steps the Scan page and the Open page both draw. See the module note.
-mod step;
-/// What the tests need and the tool does not — the scratch directory, in one copy.
-#[cfg(test)]
-mod testing;
-mod version;
 mod views;
+/// The parity tests that hold the catalog to the pages, and the lookup the pages call.
 mod words;
-mod workspace;
+
+// **The database, the scan and the package writer are `km-curation`**, and these names put each of
+// its modules at the path it has in this crate's code and templates. `crate::db::Db` is what the
+// handlers, the views and the templates say, so a page reads the same whichever crate a type lives
+// in. See `The curation tool is two crates` in docs/decisions/repository.md.
+#[cfg(test)]
+use km_curation::testing;
+use km_curation::{
+    backup, build, chosen, db, dupes, fixes, form, model, passwords, recent, scan, settings,
+    similar, step, version, workspace,
+};
 
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::path::{Path, PathBuf};
@@ -1387,6 +1370,18 @@ mod tests {
     use super::*;
 
     use crate::testing::Scratch;
+
+    /// This suite writes nothing into the config folder of whoever runs it.
+    ///
+    /// **The guard is in `km-curation`, and this crate's tests compile it without `cfg(test)`.**
+    /// The `testing` feature on the dev-dependency is what turns the guard on here. Without it these
+    /// tests write their scratch folders, a test password and a test machine into the real files,
+    /// and read the real settings back. See `recent::path` in that crate.
+    #[test]
+    fn this_suite_writes_no_per_user_file() {
+        assert_eq!(crate::settings::Settings::file(), None);
+        assert_eq!(crate::chosen::seed_path(), None);
+    }
 
     /// `--overwrite` is the one flag here that can take work away, so it must never be a word
     /// somebody typed that did nothing. clap's `requires` is what makes it an error rather than a

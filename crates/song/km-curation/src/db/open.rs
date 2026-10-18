@@ -53,7 +53,7 @@ impl Db {
     }
 
     /// Opens a database in memory, for tests.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "testing"))]
     pub fn open_in_memory(root: &Path) -> Result<Self, DbError> {
         Self::prepare(Connection::open_in_memory()?, root, &|_| {})
     }
@@ -899,7 +899,7 @@ impl Db {
     /// **It cannot be fabricated by editing tables**: what makes a database too new is the number
     /// alone, since the columns a later build added are exactly what this build has no way to write.
     /// One pragma is the whole fixture.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "testing"))]
     pub fn as_if_from_a_newer_build(&self) {
         self.conn
             .pragma_update(None, "user_version", super::migrate::SCHEMA_VERSION + 1)

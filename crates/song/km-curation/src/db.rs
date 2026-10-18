@@ -64,7 +64,7 @@ mod songs;
 
 /// Every test over any of this — see the module's own header for why they are not split too.
 #[cfg(test)]
-pub(crate) mod tests;
+mod tests;
 
 /// Timing a page and a scan batch against a real corpus — see the module's own header for why it is
 /// two ignored tests and not one of the census examples.

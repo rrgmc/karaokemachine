@@ -25,9 +25,9 @@ impl Db {
     ///
     /// **A test's convenience.** Every page in the running tool wants the pair
     /// [`Self::songs_page`] answers — the rows and whether there is another page — so this exists
-    /// only to keep forty assertions from unwrapping a tuple, and is `#[cfg(test)]` so it cannot
-    /// quietly become a second way to browse.
-    #[cfg(test)]
+    /// only to keep forty assertions from unwrapping a tuple. It is compiled for tests and the
+    /// `testing` feature only, so it cannot quietly become a second way to browse.
+    #[cfg(any(test, feature = "testing"))]
     pub fn songs(&self, filter: &Filter) -> Result<Vec<SongRow>, DbError> {
         Ok(self.songs_page(filter)?.0)
     }
@@ -450,7 +450,7 @@ impl Db {
         )?;
         let detail = statement
             .query_row([id], |row| {
-                let kind = SongKind::from_str(&row.get::<_, String>(31)?);
+                let kind = SongKind::from_stored(&row.get::<_, String>(31)?);
                 // Built from `kind` rather than from whether the columns happen to be NULL. A MIDI
                 // row written before the rebuild has every one of them filled, and a video row has
                 // none — but reading the column that says so is what keeps a half-written row from

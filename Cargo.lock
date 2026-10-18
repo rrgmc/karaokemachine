@@ -2436,6 +2436,36 @@ dependencies = [
 ]
 
 [[package]]
+name = "km-curation"
+version = "1.24.2"
+dependencies = [
+ "form_urlencoded",
+ "km-api",
+ "km-cdg",
+ "km-console",
+ "km-dirs",
+ "km-fixes",
+ "km-kmpkg",
+ "km-langguess",
+ "km-locale",
+ "km-logfile",
+ "km-logsettings",
+ "km-pack",
+ "km-passwords",
+ "km-song",
+ "km-songcode",
+ "km-suitability",
+ "km-testkit",
+ "km-video",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.20",
+ "tracing",
+ "zip",
+]
+
+[[package]]
 name = "km-dirs"
 version = "1.24.2"
 dependencies = [
@@ -2628,29 +2658,25 @@ dependencies = [
  "clap",
  "form_urlencoded",
  "km-api",
- "km-cdg",
  "km-console",
+ "km-curation",
  "km-dirs",
  "km-ecapplog",
  "km-fixes",
  "km-folders",
  "km-kmpkg",
- "km-langguess",
  "km-locale",
  "km-logfile",
  "km-logsettings",
  "km-osopen",
  "km-pack",
- "km-passwords",
  "km-song",
  "km-songcode",
  "km-suitability",
  "km-testkit",
  "km-tray",
- "km-video",
  "km-webshell",
  "reqwest",
- "rusqlite",
  "serde",
  "serde_json",
  "serde_urlencoded",
