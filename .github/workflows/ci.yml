@@ -1,5 +1,13 @@
 name: CI
 
+# A scheduled run names what it checks, because its email arrives with no change behind it. Every
+# other event keeps the title GitHub gives it: the pull request title or the pushed commit message.
+run-name: >-
+  ${{ github.event_name == 'schedule' && 'Weekly check of master: dependencies, advisories, runner images'
+  || github.event_name == 'pull_request' && github.event.pull_request.title
+  || github.event_name == 'push' && github.event.head_commit.message
+  || 'CI' }}
+
 # **One workflow, and one required check: `CI ok`.** Branch protection names a check, and a check
 # from a workflow that a path filter kept from starting never reports, so a pull request waiting on
 # it can never merge. Every job here therefore starts on every event, and the expensive ones skip
@@ -234,6 +242,7 @@ jobs:
   # advisory is published against a crate the tree already holds. On a pull request it would fail a
   # change that did not cause it. The schedule finds it within a week, and a dispatch finds it now.
   supply-chain:
+    name: Dependencies (cargo deny)
     needs: changes
     if: needs.changes.outputs.deps == 'true'
     runs-on: ubuntu-latest
@@ -250,7 +259,7 @@ jobs:
         run: |
           cargo deny --locked check licenses sources bans
           cargo deny --locked --manifest-path tools/cmd/assets/Cargo.toml --config deny.toml check licenses sources bans
-      - name: Advisories
+      - name: Security advisories (RustSec)
         if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
         run: |
           cargo deny --locked check advisories
