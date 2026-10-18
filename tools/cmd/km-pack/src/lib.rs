@@ -25,6 +25,7 @@ use km_suitability::{Analysis, MelodyOutcome};
 #[cfg(feature = "video")]
 pub mod profile;
 
+mod ahead;
 pub mod book;
 pub mod build;
 pub mod describe;
@@ -712,7 +713,7 @@ pub fn add_video_song(
 }
 
 /// What a caller wants done with one MP3+G pair.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct CdgRequest {
     /// The queueing number to give it.
     pub number: u32,
@@ -726,6 +727,12 @@ pub struct CdgRequest {
     pub tags: Vec<String>,
     /// Measure how loud the audio is. See [`VideoRequest::measure_loudness`].
     pub measure_loudness: bool,
+    /// The audio's measurement, taken already by [`km_cdg::measure_loudness`] on the same file.
+    ///
+    /// A build measures many pairs at once on other threads, and the add then uses the answer
+    /// rather than decoding the audio a second time. `None` measures here. It counts only when
+    /// [`Self::measure_loudness`] is set.
+    pub measured: Option<std::result::Result<Option<km_loudness::Loudness>, String>>,
     /// Work out what would happen without writing anything.
     pub dry_run: bool,
 }
@@ -837,10 +844,10 @@ pub(crate) fn add_cdg_parts(
 
     // The audio goes into the package as it is — nothing re-encodes an MP3+G pair — so unlike a
     // video there is no distinction here between the source and what is stored.
-    let measured = if request.measure_loudness {
-        Measured::from(audio_bytes.measure_loudness())
-    } else {
-        Measured::default()
+    let measured = match (&request.measured, request.measure_loudness) {
+        (_, false) => Measured::default(),
+        (Some(taken), true) => Measured::from(taken.clone()),
+        (None, true) => Measured::from(audio_bytes.measure_loudness()),
     };
     if let Some(note) = measured.note {
         // A finding rather than a field of its own: this list is already *what there is to say

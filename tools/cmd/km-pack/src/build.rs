@@ -330,6 +330,21 @@ pub fn build(
         None
     };
 
+    // Every MP3+G song's audio, measured on other threads while the loop below adds songs in
+    // order. The test is the loop's own, so a song is measured ahead only when `add_cdg` adds it.
+    let mut ahead = options.measure_loudness.then(|| {
+        crate::ahead::MeasureAhead::start(
+            spec.songs
+                .iter()
+                .map(|song| Spec::source(options.base, song))
+                .enumerate()
+                .filter(|(_, source)| {
+                    !crate::is_midi(source) && !crate::is_video(source) && crate::is_audio(source)
+                })
+                .collect(),
+        )
+    });
+
     if on(BuildEvent::Starting {
         songs: spec.songs.len(),
     })
@@ -428,6 +443,7 @@ pub fn build(
                 number,
                 options.dry_run,
                 options.measure_loudness,
+                ahead.as_mut().and_then(|ahead| ahead.take(index)),
                 &mut outcome,
             )
         } else if crate::is_ultrastar_candidate(&source) {
@@ -831,6 +847,7 @@ fn add_video(
 ///
 /// **No `#[cfg]` twin, unlike [`add_video`], and the absence is the point**: `km-cdg` is pure Rust,
 /// so there is no build of this that can list a pair and be unable to package it.
+#[allow(clippy::too_many_arguments)]
 fn add_cdg(
     builder: &mut PackageBuilder,
     song: &SpecSong,
@@ -838,6 +855,7 @@ fn add_cdg(
     number: u32,
     dry_run: bool,
     measure_loudness: bool,
+    measured: Option<crate::ahead::Measurement>,
     outcome: &mut BuildOutcome,
 ) -> Result<Option<String>, String> {
     // Named in the description when it is not the sibling with the same stem; found by the rule play
@@ -864,6 +882,7 @@ fn add_cdg(
         // As for a video, and for the stronger reason: an MP3+G pair has no text in it at all.
         tags: song.tags.clone(),
         measure_loudness,
+        measured,
         dry_run,
     };
     let cdg = crate::add_cdg_song(
@@ -986,6 +1005,7 @@ fn add_zip(
                 language: song.language.clone(),
                 tags: song.tags.clone(),
                 measure_loudness,
+                measured: None,
                 dry_run,
             };
             let added = crate::add_cdg_parts(
