@@ -125,7 +125,15 @@ fn unpack_one(
         if entry.is_dir() {
             continue;
         }
-        let inside = entry.name().to_owned();
+        let inside = match entry.name() {
+            Ok(name) => name.into_owned(),
+            Err(error) => {
+                report
+                    .skipped
+                    .push((format!("{label}: entry {}", index + 1), error.to_string()));
+                continue;
+            }
+        };
         let Some(name) = safe_file_name(&inside) else {
             continue;
         };

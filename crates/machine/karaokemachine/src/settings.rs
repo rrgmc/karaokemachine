@@ -1930,7 +1930,7 @@ mod tests {
             std::fs::create_dir_all(path.parent().expect("a parent")).expect("make the parents");
             let file = std::fs::File::create(&path).expect("create the pack");
             let mut zip = zip::ZipWriter::new(file);
-            let options: zip::write::FileOptions<'_, ()> = zip::write::FileOptions::default();
+            let options = zip::write::SimpleFileOptions::default();
             zip.start_file("01.png", options).expect("start an entry");
             std::io::Write::write_all(&mut zip, b"not decoded here").expect("write the entry");
             zip.finish().expect("finish the pack");

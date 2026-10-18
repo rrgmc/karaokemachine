@@ -186,7 +186,13 @@ fn list(path: &Path) -> Result<Vec<Entry>, String> {
         let entry = zip
             .by_index_raw(index)
             .map_err(|error| format!("entry {} could not be read: {error}", index + 1))?;
-        let name = entry_name(entry.name());
+        let name = entry.name().map_err(|error| {
+            format!(
+                "entry {} has a name that cannot be read: {error}",
+                index + 1
+            )
+        })?;
+        let name = entry_name(&name);
         if entry.is_dir() || is_os_junk(&name) {
             continue;
         }

@@ -182,15 +182,24 @@ fn a_pack_is_built_from_the_cache_and_passes_its_own_gate() {
         .expect("a zip was written");
     let archive =
         zip::ZipArchive::new(std::fs::File::open(zip.path()).expect("open")).expect("zip");
-    let names: Vec<_> = archive.file_names().collect();
-    assert!(names.contains(&"manifest.json"), "{names:?}");
-    assert!(names.contains(&"ATTRIBUTION.md"), "{names:?}");
+    let names: Vec<String> = archive
+        .file_names()
+        .map(|name| name.expect("a name").into_owned())
+        .collect();
+    assert!(
+        names.iter().any(|name| name == "manifest.json"),
+        "{names:?}"
+    );
+    assert!(
+        names.iter().any(|name| name == "ATTRIBUTION.md"),
+        "{names:?}"
+    );
     assert!(
         names.iter().any(|name| name.ends_with(".jpg")),
         "and the pictures: {names:?}"
     );
     assert!(
-        !names.contains(&"analysis.json"),
+        !names.iter().any(|name| name == "analysis.json"),
         "the working file that produced the pack is not part of it: {names:?}"
     );
 }
@@ -468,7 +477,10 @@ fn building_into_a_used_directory_needs_force() {
     // And the deliverable holds exactly what the manifest promises: no stale image, no nested zip,
     // and not the analysis either.
     let archive = zip::ZipArchive::new(std::fs::File::open(&zips[0]).expect("open")).expect("zip");
-    let mut names: Vec<String> = archive.file_names().map(str::to_owned).collect();
+    let mut names: Vec<String> = archive
+        .file_names()
+        .map(|name| name.expect("a name").into_owned())
+        .collect();
     names.sort();
     let mut expected: Vec<String> = manifest
         .images

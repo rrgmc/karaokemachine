@@ -512,7 +512,7 @@ async-trait = "0.1.92"
 
 # Storage + packages
 rusqlite = { version = "0.40.2", features = ["bundled"] }
-zip = "8.6.0"
+zip = "9.0.5"
 # The two halves of what a `.kmpkg` is made of, used directly by `km-kmpkg`'s own container: deflate
 # for every entry a decoder reads whole, and a CRC per entry so a damaged package is diagnosed rather
 # than played wrong. `zip` pulls both in for its own use regardless, so naming them here adds no

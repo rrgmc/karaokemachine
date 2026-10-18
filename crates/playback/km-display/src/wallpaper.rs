@@ -485,12 +485,14 @@ fn archive_entries(archive: &Path) -> Vec<ImageSource> {
             return Vec::new();
         }
     };
+    // A name that does not decode cannot be opened by name either, so it is not a picture here.
     let entries: Vec<_> = zip
         .file_names()
-        .filter(|name| !name.ends_with('/') && is_image(Path::new(name)) && !is_macos_junk(name))
+        .filter_map(Result::ok)
+        .filter(|name| !name.ends_with('/') && is_image(Path::new(&**name)) && !is_macos_junk(name))
         .map(|name| ImageSource::Zipped {
             archive: archive.to_path_buf(),
-            entry: name.to_owned(),
+            entry: name.into_owned(),
         })
         .collect();
     tracing::debug!(
@@ -868,7 +870,7 @@ mod tests {
     fn write_zip(path: &Path, entries: &[(&str, Vec<u8>)]) {
         let file = std::fs::File::create(path).expect("create zip");
         let mut zip = zip::ZipWriter::new(file);
-        let options: zip::write::FileOptions<'_, ()> = zip::write::FileOptions::default();
+        let options = zip::write::SimpleFileOptions::default();
         for (name, bytes) in entries {
             zip.start_file(*name, options).expect("start entry");
             std::io::Write::write_all(&mut zip, bytes).expect("write entry");
