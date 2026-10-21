@@ -2,6 +2,7 @@
 name: mmp
 description: Open a pull request for this worktree, merge it on a green CI, then remove the worktree and branch. Only when the owner types /mmp.
 disable-model-invocation: true
+model: sonnet
 ---
 
 # Pull request, merge and clean
