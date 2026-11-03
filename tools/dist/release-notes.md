@@ -20,8 +20,12 @@ the portable copies and the remote on its own.
 
 ## What changed
 
-- **The host's tab needs its own code.** A guest's phone skips and plays now, and does not show
-  the host's tab. The Access pane has a third code for the host, who types it on the Setup tab.
+- **Install packages takes several packages at once**, from the Menu on Windows, macOS, Android,
+  iPhone and iPad.
+- **The Songs tab sets the folder linked packages play from.**
+- **The package builder leaves out a copied song** instead of stopping the build, and the simple
+  builder can cancel a build.
+- **A song number typed into the remote's search finds the song.**
 
 ## Every file
 

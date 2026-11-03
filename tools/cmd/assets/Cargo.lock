@@ -2042,7 +2042,7 @@ dependencies = [
 
 [[package]]
 name = "km-admin"
-version = "1.24.2"
+version = "1.25.0"
 dependencies = [
  "anyhow",
  "askama",
@@ -2086,7 +2086,7 @@ dependencies = [
 
 [[package]]
 name = "km-admin-pages"
-version = "1.24.2"
+version = "1.25.0"
 dependencies = [
  "askama",
  "async-trait",
@@ -2105,7 +2105,7 @@ dependencies = [
 
 [[package]]
 name = "km-api"
-version = "1.24.2"
+version = "1.25.0"
 dependencies = [
  "argon2",
  "axum",
@@ -2136,7 +2136,7 @@ dependencies = [
 
 [[package]]
 name = "km-banks"
-version = "1.24.2"
+version = "1.25.0"
 dependencies = [
  "sha1 0.11.0",
  "sha2 0.11.0",
@@ -2145,7 +2145,7 @@ dependencies = [
 
 [[package]]
 name = "km-catalog"
-version = "1.24.2"
+version = "1.25.0"
 dependencies = [
  "km-fixes",
  "km-kmpkg",
@@ -2159,7 +2159,7 @@ dependencies = [
 
 [[package]]
 name = "km-console"
-version = "1.24.2"
+version = "1.25.0"
 dependencies = [
  "tracing",
  "windows-sys 0.61.2",
@@ -2167,14 +2167,14 @@ dependencies = [
 
 [[package]]
 name = "km-dirs"
-version = "1.24.2"
+version = "1.25.0"
 dependencies = [
  "directories",
 ]
 
 [[package]]
 name = "km-ecapplog"
-version = "1.24.2"
+version = "1.25.0"
 dependencies = [
  "ecapplog",
  "tracing",
@@ -2183,7 +2183,7 @@ dependencies = [
 
 [[package]]
 name = "km-fixes"
-version = "1.24.2"
+version = "1.25.0"
 dependencies = [
  "km-song",
  "serde",
@@ -2192,7 +2192,7 @@ dependencies = [
 
 [[package]]
 name = "km-kmpkg"
-version = "1.24.2"
+version = "1.25.0"
 dependencies = [
  "crc32fast",
  "flate2",
@@ -2208,7 +2208,7 @@ dependencies = [
 
 [[package]]
 name = "km-locale"
-version = "1.24.2"
+version = "1.25.0"
 dependencies = [
  "askama",
  "fluent-bundle",
@@ -2218,7 +2218,7 @@ dependencies = [
 
 [[package]]
 name = "km-logfile"
-version = "1.24.2"
+version = "1.25.0"
 dependencies = [
  "time",
  "tracing",
@@ -2227,7 +2227,7 @@ dependencies = [
 
 [[package]]
 name = "km-logsettings"
-version = "1.24.2"
+version = "1.25.0"
 dependencies = [
  "km-ecapplog",
  "km-logfile",
@@ -2239,7 +2239,7 @@ dependencies = [
 
 [[package]]
 name = "km-logtap"
-version = "1.24.2"
+version = "1.25.0"
 dependencies = [
  "tokio",
  "tracing",
@@ -2248,11 +2248,11 @@ dependencies = [
 
 [[package]]
 name = "km-osopen"
-version = "1.24.2"
+version = "1.25.0"
 
 [[package]]
 name = "km-passwords"
-version = "1.24.2"
+version = "1.25.0"
 dependencies = [
  "km-dirs",
  "serde",
@@ -2262,7 +2262,7 @@ dependencies = [
 
 [[package]]
 name = "km-queue"
-version = "1.24.2"
+version = "1.25.0"
 dependencies = [
  "km-songcode",
  "serde",
@@ -2271,7 +2271,7 @@ dependencies = [
 
 [[package]]
 name = "km-song"
-version = "1.24.2"
+version = "1.25.0"
 dependencies = [
  "chardetng",
  "encoding_rs",
@@ -2283,14 +2283,14 @@ dependencies = [
 
 [[package]]
 name = "km-songbook"
-version = "1.24.2"
+version = "1.25.0"
 dependencies = [
  "km-songcode",
 ]
 
 [[package]]
 name = "km-songcode"
-version = "1.24.2"
+version = "1.25.0"
 dependencies = [
  "serde",
  "thiserror 2.0.20",
@@ -2298,7 +2298,7 @@ dependencies = [
 
 [[package]]
 name = "km-testkit"
-version = "1.24.2"
+version = "1.25.0"
 dependencies = [
  "axum",
  "tower",
@@ -2306,7 +2306,7 @@ dependencies = [
 
 [[package]]
 name = "km-tray"
-version = "1.24.2"
+version = "1.25.0"
 dependencies = [
  "anyhow",
  "image",
@@ -2316,7 +2316,7 @@ dependencies = [
 
 [[package]]
 name = "km-wallpaper-pack"
-version = "1.24.2"
+version = "1.25.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -2345,7 +2345,7 @@ dependencies = [
 
 [[package]]
 name = "km-webshell"
-version = "1.24.2"
+version = "1.25.0"
 dependencies = [
  "tao",
  "tracing",
