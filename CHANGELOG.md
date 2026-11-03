@@ -11,6 +11,8 @@ Entries are written for somebody who has the machine. Why any of it is the way i
 
 ## [Unreleased]
 
+## [1.25.0] - 2026-11-03
+
 ### Added
 
 - **Menu, then Install packages, takes several packages at once.** Choose a whole folder's worth
@@ -20,6 +22,31 @@ Entries are written for somebody who has the machine. Why any of it is the way i
   box for it, on the machine's own page and in `km-admin`. Type the full path of the folder on the
   machine. The card says when that folder is not there. The admin API has the same, at
   `/api/v1/admin/linked-packages/folder`.
+- **The simple package builder can stop a build.** **Cancel** under the progress stops before the
+  next song. Measuring each song's loudness is now a box to tick, in an **Advanced** panel that
+  starts closed.
+- **The simple package builder can write each package's description beside it.** The
+  `.kmspec.yaml` file lists the songs that went in and the folder they came from, and is written
+  even when the build stops.
+
+### Changed
+
+- **A folder holding two copies of one song builds.** The package builder leaves the copy out and
+  lists it with the skipped songs, where before the whole build stopped. `km-pack build
+  --skip-duplicates` does the same.
+- **A package of MP3+G songs builds several times faster** when it measures loudness, because it
+  measures several songs at once.
+
+### Fixed
+
+- **A song number typed into the remote's search finds the song.** It searched the words of songs
+  instead.
+- **The remote's waiting list moves when a song starts.** It kept its old count until the page was
+  reloaded.
+- **A song whose length is not known shows no length in the remote**, rather than `0:00`, and the
+  queue shows no wait time for it.
+- **Downloads no longer trust the emSign ECC Root CA - G3** certificate, which the browsers removed
+  after keys under it were found to be recoverable.
 
 ## [1.24.2] - 2026-10-15
 
