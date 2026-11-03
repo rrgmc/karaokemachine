@@ -107,6 +107,12 @@ impl SongRow {
         clock(self.song.duration_ms)
     }
 
+    /// Whether the length is known. A length of zero is not one: a catalog that lacks it, or a
+    /// server that learns it only by playing the song, sends zero, and `0:00` reads as a fault.
+    pub fn has_duration(&self) -> bool {
+        self.song.duration_ms > 0
+    }
+
     /// Whether there is anything to search YouTube for. Only a row with no title and no artist has
     /// nothing — see [`youtube_query`].
     pub fn searchable(&self) -> bool {
@@ -207,6 +213,9 @@ pub struct PlayerView {
     pub state: StateDto,
     /// Whether the machine is reachable at all.
     pub online: bool,
+    /// Whether the server has a demo song to play. `false` only from a server that says so in
+    /// `/discover`, and then the control is left out rather than offered and refused.
+    pub demo: bool,
 }
 
 impl PlayerView {
@@ -232,18 +241,28 @@ impl PlayerView {
                     music_volume: 1.0,
                     lyric_offset_ms: 0,
                 },
+                player_online: true,
             },
             online: false,
+            demo: true,
         }
     }
 
     /// The time left in the playing song, which is the half of a queued song's wait that moves.
     ///
-    /// Zero where nothing plays.
-    pub fn remaining_ms(&self) -> u32 {
-        self.now().map_or(0, |now| {
-            km_queue::wait::remaining_ms(self.state.position_ms, now.duration_ms)
-        })
+    /// Zero where nothing plays. `None` where the playing song's length is zero, which means the
+    /// length is not known: a server may learn a length only by playing the song. A wait counted
+    /// from a time left of zero reads "under a minute" for every song in the queue, which is wrong
+    /// for every one of them, so no wait is better.
+    pub fn remaining_ms(&self) -> Option<u32> {
+        match self.now() {
+            None => Some(0),
+            Some(now) if now.duration_ms == 0 => None,
+            Some(now) => Some(km_queue::wait::remaining_ms(
+                self.state.position_ms,
+                now.duration_ms,
+            )),
+        }
     }
 
     /// The song, when there is one.
@@ -317,6 +336,15 @@ impl PlayerView {
         self.online && !self.has_song() && self.state.queue_len == 0
     }
 
+    /// Whether the server says its player is not connected.
+    ///
+    /// Never true of this machine, which is its own player. Another server may answer while the
+    /// player behind it is switched off, and the card says so, because the banner is about the
+    /// server and the server is answering.
+    pub fn player_away(&self) -> bool {
+        self.online && !self.state.player_online
+    }
+
     /// Whether the machine is advancing through a song right now.
     pub fn is_playing(&self) -> bool {
         self.state.transport == TransportDto::Playing
@@ -327,11 +355,11 @@ impl PlayerView {
         clock(self.state.position_ms)
     }
 
-    /// `3:42`, or `--:--` with nothing loaded.
+    /// `3:42`, or `--:--` with nothing loaded or a length of zero, which is a length not known.
     pub fn total(&self) -> String {
         match &self.state.now_playing {
-            Some(now) => clock(now.duration_ms),
-            None => "--:--".to_owned(),
+            Some(now) if now.duration_ms > 0 => clock(now.duration_ms),
+            _ => "--:--".to_owned(),
         }
     }
 
@@ -552,5 +580,17 @@ mod tests {
             starred: false,
         };
         assert_eq!(row.duration(), "3:42");
+        assert!(row.has_duration());
+    }
+
+    #[test]
+    fn a_length_of_zero_is_not_known() {
+        let mut unknown = song(1, Some("Legião Urbana"));
+        unknown.duration_ms = 0;
+        let row = SongRow {
+            song: unknown,
+            starred: false,
+        };
+        assert!(!row.has_duration());
     }
 }

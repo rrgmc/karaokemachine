@@ -2339,3 +2339,18 @@ With it off, a pointer hidden with
 appliance has no mouse. That is the reason
 [`F11 opens the remote in a browser`](interface.md#f11-opens-the-remote-in-a-browser) gives for
 naming no key on Linux.
+
+## A song length of zero is unknown, and a wait built on it is not shown
+
+**A length of `0` means the length is not known.** No song lasts no time. A catalog can lack a
+length, and a server that serves this API in front of another player may learn a length only by
+playing the song. Either sends `duration_ms: 0`.
+
+**The remote shows no length rather than `0:00`.** A song row drops the length and its separator.
+The player card shows `--:--`, as it does with nothing loaded. `0:00` on every row reads as a broken
+catalog.
+
+**No queue wait is shown while the playing song's length is unknown.** A wait is the time left in
+the playing song plus the lengths ahead. Counting from a time left of zero made every row read
+"under a minute", which is wrong for every row. An entry the server sends with `ahead_ms: null`
+already shows no wait; this covers the playing song too.

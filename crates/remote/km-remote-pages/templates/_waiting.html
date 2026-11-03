@@ -1,4 +1,4 @@
-<div id="waiting" hx-get="/waiting" hx-trigger="km:requests from:body" hx-swap="outerHTML">
+<div id="waiting" hx-get="/waiting" hx-trigger="km:requests from:body, km:nowplaying from:body" hx-swap="outerHTML">
 {% if !rows.is_empty() %}
 {# The heading is the fold's label. The checkbox it names sits outside this block, in
    `queue.html`, so a refresh does not fold the list away under the guest's eyes. #}

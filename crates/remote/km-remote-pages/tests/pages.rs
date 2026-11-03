@@ -21,9 +21,9 @@ use km_api::dto::{
 };
 use km_api::events::Event;
 use km_remote_pages::machine::{
-    ArtistRow, BrowseQuery, Connect, Connection, Copied, CopyOutcome, Favorites, FolderRow,
-    LanguageRow, Machine, MachineStatus, Miss, Offer, PackageRow, Reconciliation, RemoteError,
-    Resolution, Scan, Scanned, SongPage, SongRef, Songs, TagRow, Transport, codes,
+    ArtistRow, BrowseQuery, Connect, Connection, Copied, CopyOutcome, Favorites, Features,
+    FolderRow, LanguageRow, Machine, MachineStatus, Miss, Offer, PackageRow, Reconciliation,
+    RemoteError, Resolution, Scan, Scanned, SongPage, SongRef, Songs, TagRow, Transport, codes,
 };
 use km_remote_pages::{Capabilities, Remote};
 use km_songcode::SongCode;
@@ -364,6 +364,8 @@ struct StubMachine {
     /// everything here and is exactly the state in which a demo may **not** be started.
     quiet: bool,
     online: bool,
+    /// Which optional controls the server says it has. All of them by default, as this machine.
+    features: Features,
     /// How many times a page has asked for the machine to be tried again.
     ///
     /// An `Arc` because `Harness::with` takes the stub by value: the counter is cloned out before
@@ -399,8 +401,19 @@ impl StubMachine {
             room: km_api::Access::Host,
             quiet: false,
             online: true,
+            features: Features::default(),
             wakes: Arc::new(AtomicUsize::new(0)),
         }
+    }
+
+    /// A server that says it lacks every optional control, as one in front of another player may.
+    fn without_features(mut self) -> Self {
+        self.features = Features {
+            demo: false,
+            song_book: false,
+            web_control: false,
+        };
+        self
     }
 
     /// A machine that refuses a demo trigger the way a real one does — with a sentence.
@@ -601,6 +614,7 @@ impl Machine for StubMachine {
                     music_volume: 0.8,
                     lyric_offset_ms: 0,
                 },
+                player_online: true,
             });
         }
         Ok(StateDto {
@@ -631,6 +645,7 @@ impl Machine for StubMachine {
                 music_volume: 0.8,
                 lyric_offset_ms: 0,
             },
+            player_online: true,
         })
     }
 
@@ -978,6 +993,7 @@ impl Machine for StubMachine {
             address: Some("http://192.168.1.5:8177".to_owned()),
             name: None,
             reason: (!self.online).then_some(codes::NOT_ANSWERING),
+            features: self.features,
         }
     }
 
@@ -1000,6 +1016,8 @@ struct StubConnectState {
     address: Option<String>,
     /// What the machine says it is called, or `None` for one that advertises no name.
     name: Option<String>,
+    /// Which optional controls the machine says it has.
+    features: Features,
     pinned: bool,
     /// Every address `connect_to` was handed, verbatim.
     typed: Vec<String>,
@@ -1026,6 +1044,7 @@ impl StubConnect {
             state: Mutex::new(StubConnectState {
                 address: Some("http://192.168.1.9:8177".to_owned()),
                 name: Some("Living Room".to_owned()),
+                features: Features::default(),
                 pinned: false,
                 typed: Vec::new(),
                 picked: Vec::new(),
@@ -1035,6 +1054,16 @@ impl StubConnect {
             can_browse: true,
             songs: 1204,
         }
+    }
+
+    /// The same stub for a server that says it has no song book and no web page of its own.
+    fn without_features(self) -> Self {
+        self.state.lock().expect("the stub lock holds").features = Features {
+            demo: false,
+            song_book: false,
+            web_control: false,
+        };
+        self
     }
 
     /// The same stub for a machine that advertises no name — every build before names existed.
@@ -1084,6 +1113,7 @@ impl Connect for StubConnect {
                 address: held.address.clone(),
                 name: held.name.clone(),
                 reason: None,
+                features: held.features,
             },
             how: Some("remembered".to_owned()),
             pinned: held.pinned,
@@ -3825,6 +3855,41 @@ async fn the_card_offers_the_machines_own_song_book() {
     assert!(!body.contains("book.pdf"), "{body}");
 }
 
+/// A server that says in `/discover` it has no song book and no web page draws neither link.
+///
+/// Something else may serve this API in front of another player. Both links would answer 404
+/// there, and a control that can only be refused is left out.
+#[tokio::test]
+async fn the_card_leaves_out_what_the_server_says_it_lacks() {
+    let (harness, _connect) = Harness::with_connect(StubConnect::new().without_features());
+    let body = harness.get("/setup").await;
+    assert!(!body.contains("book.pdf"), "{body}");
+    assert!(!body.contains("Open in browser"), "{body}");
+    assert!(
+        body.contains("http://192.168.1.9:8177"),
+        "the address is still printed: {body}"
+    );
+}
+
+/// A server that says it has no demo song draws no demo control, where this machine draws one.
+#[tokio::test]
+async fn the_demo_control_is_left_out_where_the_server_has_none() {
+    let harness = Harness::with(StubMachine::new().quiet(), Capabilities::offline());
+    assert!(
+        harness
+            .get("/now")
+            .await
+            .contains(r#"hx-post="/control/demo""#)
+    );
+
+    let harness = Harness::with(
+        StubMachine::new().quiet().without_features(),
+        Capabilities::offline(),
+    );
+    let page = harness.get("/now").await;
+    assert!(!page.contains(r#"hx-post="/control/demo""#), "{page}");
+}
+
 /// `target="_blank"` is what makes it leave, so it is asserted rather than assumed.
 ///
 /// Every webview this runs in routes a foreign URL out to the real browser off a *new window*
@@ -5646,6 +5711,21 @@ async fn a_hidden_package_leaves_the_list_and_the_pickers_on_both_remotes() {
     }
 }
 
+/// A typed song number finds its song when the form sends its filters empty, which it always does.
+///
+/// The search box submits `language=` and `initial=` with nothing in them. An empty initial is no
+/// filter, and reading it as one sent the number to the text search, which found nothing.
+#[tokio::test]
+async fn a_typed_number_finds_its_song_through_the_forms_empty_filters() {
+    for harness in [Harness::offline(), Harness::online()] {
+        let page = harness
+            .htmx("/?mode=songs&fragment=browse&q=1003&language=&initial=&tags=")
+            .await;
+        assert!(page.contains("Exagerado"), "{page}");
+        assert!(!page.contains("Tempo Perdido"), "only that song: {page}");
+    }
+}
+
 /// A favorite is a song somebody chose, so a folder still lists it when its package is hidden.
 #[tokio::test]
 async fn a_favorites_folder_still_lists_a_song_from_a_hidden_package() {
@@ -5987,7 +6067,7 @@ async fn the_queue_tab_lists_the_songs_waiting_for_a_turn_folded() {
 
     let fragment = guest.get("/waiting").await;
     assert!(
-        fragment.contains(r#"hx-trigger="km:requests from:body""#),
+        fragment.contains(r#"hx-trigger="km:requests from:body, km:nowplaying from:body""#),
         "{fragment}"
     );
 }
@@ -6268,6 +6348,23 @@ async fn the_live_script_asks_again_when_the_requests_change() {
     let queue = harness.get("/queue").await;
     assert!(
         queue.contains(r#"hx-trigger="km:requests from:body, km:nowplaying from:body""#),
+        "{queue}"
+    );
+}
+
+/// The songs waiting for a turn ask again when the song changes, as the phone's own list does.
+///
+/// A waiting request joins the queue when its singer's song starts, so the song change is when this
+/// list changes. A server may say `requests_changed` before its `/requests` shows the move, and a
+/// list that asked only then kept its old count until the page was reloaded.
+#[tokio::test]
+async fn the_waiting_list_asks_again_when_the_song_changes() {
+    let harness = Harness::offline();
+    let queue = harness.get("/queue").await;
+    assert!(
+        queue.contains(
+            r#"id="waiting" hx-get="/waiting" hx-trigger="km:requests from:body, km:nowplaying from:body""#
+        ),
         "{queue}"
     );
 }
@@ -6617,7 +6714,9 @@ async fn the_live_script_asks_again_when_the_singers_change() {
     assert!(script.contains("km:singers"), "{script}");
     let lists = harness.get("/host/lists").await;
     assert!(
-        lists.contains(r#"hx-trigger="km:requests from:body, km:singers from:body""#),
+        lists.contains(
+            r#"hx-trigger="km:requests from:body, km:singers from:body, km:nowplaying from:body""#
+        ),
         "{lists}"
     );
 }

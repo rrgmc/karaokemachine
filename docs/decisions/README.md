@@ -326,6 +326,7 @@ it are the same entry. How the thing is built is [`ARCHITECTURE.md`](../ARCHITEC
 - [The A–Z picker covers artists, and is still offline only](remotes.md#the-az-picker-covers-artists-and-is-still-offline-only)
 - [On a phone, the machine shows its own remote over the screen](remotes.md#on-a-phone-the-machine-shows-its-own-remote-over-the-screen)
 - [On Windows and macOS, the window has a Menu](remotes.md#on-windows-and-macos-the-window-has-a-menu)
+- [A song length of zero is unknown, and a wait built on it is not shown](remotes.md#a-song-length-of-zero-is-unknown-and-a-wait-built-on-it-is-not-shown)
 
 ## [The API and the network](api-and-network.md)
 
@@ -362,6 +363,8 @@ it are the same entry. How the thing is built is [`ARCHITECTURE.md`](../ARCHITEC
 - [A refusal travels as a code, and whoever shows it writes the sentence](api-and-network.md#a-refusal-travels-as-a-code-and-whoever-shows-it-writes-the-sentence)
 - [Power is a capability of the host, not a method on the machine](api-and-network.md#power-is-a-capability-of-the-host-not-a-method-on-the-machine)
 - [The machine's own log is a route, and it is the owner's](api-and-network.md#the-machines-own-log-is-a-route-and-it-is-the-owners)
+- [Discovery says which optional features a server has, and a missing flag means yes](api-and-network.md#discovery-says-which-optional-features-a-server-has-and-a-missing-flag-means-yes)
+- [A server whose player is separate says so, and the remote tells the two absences apart](api-and-network.md#a-server-whose-player-is-separate-says-so-and-the-remote-tells-the-two-absences-apart)
 
 ## [Streaming](streaming.md)
 

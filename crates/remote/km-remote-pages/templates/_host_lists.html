@@ -1,6 +1,6 @@
 {# Four parts in one fragment, because one fetch brings them all. The fragment itself draws no box,
    so each part is placed in the host's grid, in the tab it belongs to. #}
-<div id="host-lists" hx-get="/host/lists" hx-trigger="km:requests from:body, km:singers from:body" hx-swap="outerHTML">
+<div id="host-lists" hx-get="/host/lists" hx-trigger="km:requests from:body, km:singers from:body, km:nowplaying from:body" hx-swap="outerHTML">
 
   {# A machine that kept an evening across a restart starts no song until somebody chooses. Both
      choices stand above either tab, because the host of another day wants the old list gone

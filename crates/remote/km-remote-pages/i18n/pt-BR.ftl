@@ -58,6 +58,7 @@ error-no-sound = Esta máquina não está produzindo som. Fale com o administrad
 
 error-no-favorites = Este controle não guarda favoritas.
 error-no-demo = Esta máquina não tem modo demonstração.
+error-player-offline = O aparelho de karaokê não está conectado.
 
 ## A barra de abas
 #

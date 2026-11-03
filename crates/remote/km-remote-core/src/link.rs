@@ -325,6 +325,7 @@ impl Link {
                 // machine. Reporting the name only after a download would leave it absent on almost
                 // every refresh there ever is.
                 self.machine.set_machine_name(refreshed.name.clone());
+                self.machine.set_features(refreshed.features);
                 // The identity arrives on the same call, and this is what anchors the record on it.
                 if let Some(id) = &refreshed.id {
                     self.answered(id, refreshed.name);

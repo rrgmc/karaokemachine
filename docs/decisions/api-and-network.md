@@ -1749,3 +1749,43 @@ reader can see and discard beats a gap nobody can.
 **Nothing serving this may say anything.** The tap takes a line emitted while feeding a reader and
 sends it to that same reader. On the arm that reports falling behind, it feeds the reader least able
 to keep up.
+
+## Discovery says which optional features a server has, and a missing flag means yes
+
+**Another server may serve this API in front of a different player.** A remote connects to it as it
+connects to this machine. Such a server may have no demo song, no song book and no web page of its
+own. Without a way to say so, the remote offers a demo that is refused with 409, and two links that
+answer 404.
+
+**`GET /discover` carries `features`, an object of three flags:** `demo`, `song_book` and
+`web_control`. The remote leaves out a control whose flag is `false`, for the reason
+[`A control that can only be refused is left out, not grayed`](#a-control-that-can-only-be-refused-is-left-out-not-grayed)
+gives.
+
+**Every flag defaults to `true`, and so does a missing object.** This machine has every feature and
+says so. A machine from before the field existed says nothing and keeps every control. Only a server
+that says `false` loses one.
+
+**Only what a remote has a control for is a flag.** The remote has no lyrics control, so there is no
+`lyrics` flag. A flag nothing reads is a promise nobody checks.
+
+**The remote learns the flags on each catalog refresh, beside the machine's name**, and forgets them
+when it is pointed at another machine. They stay out of the mDNS TXT record, which carries only what
+a client needs to decide whether to ask.
+
+## A server whose player is separate says so, and the remote tells the two absences apart
+
+**Another server may serve this API in front of a separate player**, and keep answering while that
+player is switched off or restarting. A remote then has two different absences to report: the server
+is not answering, or the server is answering and its player is not. The banner already covers the
+first. Before this, the second could only be refused with `no_sound`, which tells the singer the
+machine has no sound.
+
+**The refusal is `player_offline`, and the remote words it "The karaoke player is not connected."**
+This machine never sends it, because it is its own player. It is a code without a constant on the
+machine's side, like `no_demo`, and the remote maps it as it maps the others.
+
+**`state` carries `player_online`, which this machine always sends `true`.** A missing field reads as
+`true`, so an older machine changes nothing. When it is `false` and the server is answering, the
+player card shows the same sentence. It is a line on the card rather than the banner, because the
+banner says the server is away and the server is not.

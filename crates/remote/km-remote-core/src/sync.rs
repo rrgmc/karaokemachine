@@ -83,6 +83,9 @@ pub struct Refreshed {
     ///
     /// Empty on a machine too old to have one, which reads as `None` rather than `Some("")`.
     pub id: Option<String>,
+    /// Which optional controls the machine has, from the same call. All of them where it says
+    /// nothing, which is every KaraokeMachine before the field existed.
+    pub features: km_api::discover::Features,
 }
 
 /// Brings the mirror up to date with a machine, downloading only if it has to.
@@ -112,6 +115,7 @@ pub async fn refresh(
                 outcome: Outcome::AlreadyCurrent { songs },
                 name: name.clone(),
                 id: id.clone(),
+                features: discovery.features,
             });
         }
     }
@@ -177,6 +181,7 @@ pub async fn refresh(
         },
         name,
         id,
+        features: discovery.features,
     })
 }
 

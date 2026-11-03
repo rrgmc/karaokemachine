@@ -18,14 +18,19 @@
   {% if view.is_demo() %}
   <div class="now-demo">{{ "demo-hint"|t }}</div>
   {% endif %}
+  {% if view.player_away() %}
+  <div class="now-offline">{{ "error-player-offline"|t }}</div>
+  {% endif %}
 
   {{ position|safe }}
 
+  {% if view.demo %}
   <div class="control-row needs-control">
     <span class="label">{{ "nobody-singing"|t }}</span>
     <button class="quiet" hx-post="/control/demo" hx-target="#player" hx-swap="outerHTML"
             {% if !view.can_start_demo() %}disabled{% endif %}>{{ "play-something"|t }}</button>
   </div>
+  {% endif %}
 
   <div class="control-row needs-queue">
     <span class="label">{{ "control-key"|t }}</span>

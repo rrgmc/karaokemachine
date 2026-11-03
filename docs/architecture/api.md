@@ -463,6 +463,12 @@ than broadcasting it to a segment that did not.
 **Because mDNS is blocked on plenty of networks**, the always-public `GET /api/v1/discover` returns
 the same payload, and the display shows the URL and a QR code.
 
+**The HTTP payload also carries `features`**, three flags for the optional parts of the API: `demo`,
+`song_book` and `web_control`. This machine sends all three `true`. They are for another server that
+serves this API and lacks some of them. A missing flag reads as `true`, and the remote leaves out a
+control whose flag is `false`. The flags are not in the TXT records. See
+[`Discovery says which optional features a server has`](../decisions/api-and-network.md#discovery-says-which-optional-features-a-server-has-and-a-missing-flag-means-yes).
+
 **The browse side is a `watch::Watcher` held open rather than a `browse(timeout)` per question.**
 There is one daemon and one thread for the life of the process. It folds announcements into a
 `Registry` that answers instantly. A `ServiceRemoved` marks a row *absent* rather than removing it.
@@ -634,7 +640,14 @@ refusal rather than nothing.
 | `nothing_queued` | play with an empty machine and an empty queue | `error-nothing-queued` |
 | `no_sound` | the engine cannot play at all | `error-no-sound` |
 | `queue_full` | the queue is at `MAX_QUEUED` | `error-queue-full` |
+| `player_offline` | never this machine: another server whose separate player is not connected | `error-player-offline` |
 | `unavailable` | everything else, including anything owner-only | `error-unavailable` |
+
+**`player_offline` is the one code this machine never sends.** It is there for another server that
+serves this API in front of a separate player. Such a server also sends `player_online: false` in
+`state` while the player is away, which this machine always sends `true`, and the remote's player card
+says so. See
+[`A server whose player is separate says so`](../decisions/api-and-network.md#a-server-whose-player-is-separate-says-so-and-the-remote-tells-the-two-absences-apart).
 
 **The kind is in the code rather than beside it**, because a sentence the machine composed cannot be
 taken apart again. `article_name()` bakes English's article agreement in, and Portuguese needs its

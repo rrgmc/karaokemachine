@@ -1468,9 +1468,15 @@ impl QueueBlock {
     /// The list for one queue, worded for one reader.
     ///
     /// **Built per language**, as [`MachineBlock`] is, because each row's wait is a sentence with a
-    /// figure in it. `remaining_ms` is the time left in the playing song.
+    /// figure in it. `remaining_ms` is the time left in the playing song, `None` when its length is
+    /// not known.
     #[must_use]
-    pub fn of(entries: &[QueueEntryDto], online: bool, remaining_ms: u32, locale: Locale) -> Self {
+    pub fn of(
+        entries: &[QueueEntryDto],
+        online: bool,
+        remaining_ms: Option<u32>,
+        locale: Locale,
+    ) -> Self {
         let words = crate::words::messages(locale);
         let last = entries.len().saturating_sub(1);
         let sentence = |wait: Wait| match wait {
@@ -1501,12 +1507,14 @@ impl QueueBlock {
 
 /// The wait each entry shows, which also decides whether the list is worth sending again.
 ///
-/// `None` for an entry whose machine sent no figure to state one from.
+/// `None` for an entry whose machine sent no figure to state one from, and for every entry while
+/// the playing song's time left is not known.
 #[must_use]
-pub fn queue_waits(entries: &[QueueEntryDto], remaining_ms: u32) -> Vec<Option<Wait>> {
+pub fn queue_waits(entries: &[QueueEntryDto], remaining_ms: Option<u32>) -> Vec<Option<Wait>> {
     entries
         .iter()
         .map(|entry| {
+            let remaining_ms = remaining_ms?;
             entry
                 .ahead_ms
                 .map(|ahead_ms| Wait::of(remaining_ms, ahead_ms))
@@ -1797,10 +1805,35 @@ mod tests {
                     music_volume: 0.8,
                     lyric_offset_ms: 0,
                 },
+                player_online: true,
             },
             online: true,
+            demo: true,
         };
         render(&PlayerBlock::of(view, Locale::English), Locale::English).expect("the card renders")
+    }
+
+    /// A server that answers while its player is away says so on the card, and this machine never
+    /// does, because it is its own player.
+    #[test]
+    fn the_card_says_when_the_player_behind_the_server_is_away() {
+        let mut view = PlayerView::unreachable();
+        view.online = true;
+        let card = |view: &PlayerView| {
+            render(
+                &PlayerBlock::of(view.clone(), Locale::English),
+                Locale::English,
+            )
+            .expect("the card renders")
+        };
+        assert!(!card(&view).contains("The karaoke player is not connected."));
+
+        view.state.player_online = false;
+        assert!(card(&view).contains("The karaoke player is not connected."));
+
+        // A server that is not answering is the banner's to say, not the card's.
+        view.online = false;
+        assert!(!card(&view).contains("The karaoke player is not connected."));
     }
 
     /// A grayed button says why, in the words the toast would have used for the same press.

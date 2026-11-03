@@ -613,6 +613,7 @@ async fn refresh_catalog(api: &Api, link: &Link, force: bool) {
     match sync::refresh(api, link.mirror(), force).await {
         Ok(refreshed) => {
             link.machine().set_machine_name(refreshed.name.clone());
+            link.machine().set_features(refreshed.features);
             // ...and the identity, on the same call. This is the warm-up path, so it is what
             // anchors the record on a remote that was opened cold and never touched afterwards.
             if let Some(id) = &refreshed.id {

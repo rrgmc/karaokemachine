@@ -30,6 +30,7 @@
 
 use std::collections::HashSet;
 
+pub use km_api::discover::Features;
 use km_api::dto::{
     AccessDto, AccessGrantDto, AddedToQueueDto, QueueDto, RequestDto, RequestsDto,
     SettingsPatchDto, SingerDto, SingerIssuedDto, SingersDto, SongDto, StateDto,
@@ -123,6 +124,14 @@ pub const NO_FAVORITES: &str = "no_favorites";
 /// The default body of `start_demo`, so an implementation that predates the route still compiles
 /// and still says something true.
 pub const NO_DEMO: &str = "no_demo";
+
+/// The refusal of a server whose player is not connected to it.
+///
+/// **Not a code this machine sends**, because this machine is its own player. Another server may
+/// serve this API in front of a separate player and keep answering while that player is switched
+/// off. A command it cannot pass on is refused with this, so the phone says the player is away
+/// rather than that the machine has no sound.
+pub const PLAYER_OFFLINE: &str = "player_offline";
 
 /// The stable names a refusal or a connection state travels under, between the crate that decides
 /// one and the crate that words it.
@@ -551,6 +560,11 @@ pub struct Connection {
     /// this is drawn in the viewer's language and the client that sets it has no idea who is
     /// reading. `None` where there is nothing to add to *not reachable*.
     pub reason: Option<&'static str>,
+    /// Which optional controls the server has, from `/discover` on the last refresh, as the name is.
+    ///
+    /// All of them until something has said otherwise: a server that never says is this machine,
+    /// or an older one, and both have every control.
+    pub features: Features,
 }
 
 impl Connection {
@@ -563,6 +577,7 @@ impl Connection {
             // draws no connection block at all — see `Capabilities::connection`.
             name: None,
             reason: None,
+            features: Features::default(),
         }
     }
 }

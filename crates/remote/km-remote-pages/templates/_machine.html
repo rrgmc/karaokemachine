@@ -60,8 +60,11 @@
        already prints that same address as "retrying", so the card would be pretending otherwise. #}
     {% match status.connection.address %}
     {% when Some with (address) %}
+    {# Each link is left out where the server says in `/discover` that it has no such page. #}
+    {% if status.connection.features.web_control %}
     <a href="{{ address }}" target="_blank" rel="noopener"
        title="{{ "machine-open-browser-title"|t }}">{{ "machine-open-browser"|t }}</a>
+    {% endif %}
     {# **The song book, from the machine rather than from here.** `The song book` said the offline
        remote does not link to it, and the reason it gave was about *serving* one: this device's
        catalog is `km-remote-core`'s own mirror with a different schema and a different sort key, so
@@ -72,8 +75,10 @@
        Gated on having an address rather than on being online, like that anchor: a machine that is
        not answering is a machine the banner is already saying it is retrying, and a link that
        vanished would be pretending this device does not know where the book is. #}
+    {% if status.connection.features.song_book %}
     <a href="{{ address }}/api/v1/songs/book.pdf" target="_blank" rel="noopener"
        title="{{ "book-link"|t }}">{{ "tab-book"|t }}</a>
+    {% endif %}
     {% when None %}
     {% endmatch %}
   </div>

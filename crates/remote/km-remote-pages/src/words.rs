@@ -86,6 +86,7 @@ pub fn refusal_key(code: &str) -> &'static str {
         "request_not_waiting" => "error-request-not-waiting",
         crate::machine::NO_FAVORITES => "error-no-favorites",
         crate::machine::NO_DEMO => "error-no-demo",
+        crate::machine::PLAYER_OFFLINE => "error-player-offline",
         // Including `unavailable` itself, which is what a machine sends for a refusal that has no
         // finer name — and what an older or newer one sends for a name this build cannot place.
         _ => ERROR_UNAVAILABLE,
@@ -243,7 +244,11 @@ mod tests {
             );
             assert!(english.keys().contains(key), "no message called `{key}`");
         }
-        for code in [crate::machine::NO_FAVORITES, crate::machine::NO_DEMO] {
+        for code in [
+            crate::machine::NO_FAVORITES,
+            crate::machine::NO_DEMO,
+            crate::machine::PLAYER_OFFLINE,
+        ] {
             let key = refusal_key(code);
             assert_ne!(
                 key, ERROR_UNAVAILABLE,
@@ -400,6 +405,7 @@ mod tests {
         "error-no-sound",
         "error-no-favorites",
         "error-no-demo",
+        "error-player-offline",
         "language-picker",
         // Returned by a method and rendered with `|t`, so the markup carries no literal for the
         // scanner above to find — see `Mode::label_key` and `PlayerView::title_key`.

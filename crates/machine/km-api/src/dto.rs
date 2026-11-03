@@ -517,6 +517,14 @@ pub struct StateDto {
     pub queue_len: usize,
     /// Current settings.
     pub settings: SettingsDto,
+    /// Whether the player is connected to the server answering this.
+    ///
+    /// Always `true` here, because this machine is its own player. Another server may serve this
+    /// API in front of a separate player, and keep answering while that player is switched off. It
+    /// sends `false` then, so a remote can say the player is away rather than the server. A body
+    /// without the field reads as `true`.
+    #[serde(default = "yes")]
+    pub player_online: bool,
 }
 
 impl From<&Snapshot> for StateDto {
@@ -527,6 +535,7 @@ impl From<&Snapshot> for StateDto {
             position_ms: snapshot.position_ms,
             queue_len: snapshot.queue_len,
             settings: snapshot.settings.into(),
+            player_online: true,
         }
     }
 }
@@ -2719,6 +2728,19 @@ mod tests {
         assert!(json["now_playing"].is_null());
         assert_eq!(json["queue_len"], 0);
         assert_eq!(json["settings"]["transpose"], 0);
+        assert_eq!(json["player_online"], true);
+    }
+
+    /// A state from a machine that predates the field reads as a player that is there.
+    #[test]
+    fn a_state_without_player_online_reads_as_online() {
+        let mut json =
+            serde_json::to_value(StateDto::from(&Snapshot::default())).expect("serialize");
+        json.as_object_mut()
+            .expect("object")
+            .remove("player_online");
+        let state: StateDto = serde_json::from_value(json).expect("parse");
+        assert!(state.player_online);
     }
 
     #[test]

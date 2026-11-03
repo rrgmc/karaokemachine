@@ -909,7 +909,7 @@ async fn songs_for(
     // artist, so typing `10234` found songs with `10234` in their *name* and nothing else. Now that
     // a code is a string with its own grammar it can simply be tried — and only an exact, whole-text
     // match counts, so `500` still searches for the word as well when no song has that code.
-    if artist_free(params)
+    if artist_free(params, state.capabilities)
         && let Ok(code) = text.trim().parse::<SongCode>()
         && let Ok(Some(song)) = state.songs.song(code).await
     {
@@ -947,11 +947,15 @@ async fn songs_for(
 ///
 /// A code lookup answers with one song, so it must not quietly ignore a filter somebody set: inside
 /// an artist, or with a language chosen, the text stays a search.
-fn artist_free(params: &BrowseParams) -> bool {
+///
+/// **Each filter is read through its own accessor, never as the raw field.** The search form sends
+/// `initial=` and `language=` empty on every submit, and an empty value is no filter. Testing the
+/// raw `initial` read that empty string as a letter chosen, so a typed number never found its song.
+fn artist_free(params: &BrowseParams, capabilities: crate::Capabilities) -> bool {
     params.artist().is_none()
         && params.language().is_none()
         && params.tags().is_empty()
-        && params.initial.is_none()
+        && params.initial(capabilities).is_none()
 }
 
 /// Which of these songs this phone has filed somewhere.
@@ -1299,6 +1303,7 @@ async fn player_view(state: &Remote) -> PlayerView {
         Ok(snapshot) => PlayerView {
             state: snapshot,
             online: connection.online,
+            demo: connection.features.demo,
         },
         Err(_) => PlayerView::unreachable(),
     }
@@ -1337,7 +1342,7 @@ pub async fn queue_page(State(state): State<Remote>, headers: HeaderMap) -> Resp
 }
 
 /// The queue list as it stands, given the time left in the playing song.
-async fn queue_block(state: &Remote, remaining_ms: u32, locale: Locale) -> QueueBlock {
+async fn queue_block(state: &Remote, remaining_ms: Option<u32>, locale: Locale) -> QueueBlock {
     let online = state.machine.connection().online;
     let entries = queue_entries(state).await;
     QueueBlock::of(&entries, online, remaining_ms, locale)
@@ -4162,7 +4167,12 @@ async fn pump(state: Remote) {
         tokio::select! {
             event = events.recv() => match event {
                 Ok(km_api::events::Event::State { state: snapshot }) => {
-                    let view = PlayerView { state: snapshot, online: state.machine.connection().online };
+                    let connection = state.machine.connection();
+                    let view = PlayerView {
+                        state: snapshot,
+                        online: connection.online,
+                        demo: connection.features.demo,
+                    };
                     queue.remaining_ms = view.remaining_ms();
                     // The card, only when something on it actually changed. Comparing the rendered
                     // markup is both the simplest and the most honest test of that: it is exactly
@@ -4346,8 +4356,9 @@ async fn publish_player(state: &Remote) -> PlayerView {
 struct QueueFeed {
     /// The waiting songs, as the machine last reported them.
     entries: Vec<QueueEntryDto>,
-    /// The time left in the playing song, as the last state gave it.
-    remaining_ms: u32,
+    /// The time left in the playing song, as the last state gave it. `None` while its length is not
+    /// known.
+    remaining_ms: Option<u32>,
     /// The waits on the list every open page holds.
     sent: Vec<Option<Wait>>,
 }
@@ -4358,14 +4369,15 @@ impl QueueFeed {
     /// **An entry that left the head has started, so the time left is its whole length.**
     /// `queue_changed` arrives before the first `state` of the new song, and the time left this
     /// holds until then belongs to the song before. An entry that somebody removed from the head
-    /// reads the same way here, and the next `state` corrects it.
+    /// reads the same way here, and the next `state` corrects it. A head of length zero has a
+    /// length not known, and so has no time left to count from.
     fn replace(&mut self, entries: Vec<QueueEntryDto>) {
         let started = self
             .entries
             .first()
             .filter(|head| entries.iter().all(|entry| entry.id != head.id));
         if let Some(head) = started {
-            self.remaining_ms = head.duration_ms;
+            self.remaining_ms = Some(head.duration_ms).filter(|&ms| ms > 0);
         }
         self.entries = entries;
     }
@@ -4454,7 +4466,7 @@ mod tests {
         };
         let mut feed = QueueFeed {
             entries: vec![entry(1, 0), entry(2, 200_000)],
-            remaining_ms: 155_000,
+            remaining_ms: Some(155_000),
             sent: Vec::new(),
         };
         feed.sent = feed.waits();
@@ -4464,11 +4476,11 @@ mod tests {
         );
 
         // A second later every wait reads the same.
-        feed.remaining_ms = 154_000;
+        feed.remaining_ms = Some(154_000);
         assert_eq!(feed.waits(), feed.sent);
 
         // The first row crosses from three minutes to two, and the second stays at six.
-        feed.remaining_ms = 149_000;
+        feed.remaining_ms = Some(149_000);
         assert_eq!(
             feed.waits(),
             vec![Some(Wait::Minutes(2)), Some(Wait::Minutes(6))]
@@ -4496,19 +4508,46 @@ mod tests {
         let mut feed = QueueFeed {
             entries: vec![entry(1, 265_000, 0), entry(2, 298_000, 265_000)],
             // The song before has three seconds left.
-            remaining_ms: 3_000,
+            remaining_ms: Some(3_000),
             sent: Vec::new(),
         };
 
         // The first entry starts, and the second is the whole queue.
         feed.replace(vec![entry(2, 298_000, 0)]);
-        assert_eq!(feed.remaining_ms, 265_000);
+        assert_eq!(feed.remaining_ms, Some(265_000));
         assert_eq!(feed.waits(), vec![Some(Wait::Minutes(4))]);
 
         // A song added at the end leaves the time left alone.
-        feed.remaining_ms = 200_000;
+        feed.remaining_ms = Some(200_000);
         feed.replace(vec![entry(2, 298_000, 0), entry(3, 180_000, 298_000)]);
-        assert_eq!(feed.remaining_ms, 200_000);
+        assert_eq!(feed.remaining_ms, Some(200_000));
+    }
+
+    /// A song of unknown length that starts leaves every wait unstated.
+    ///
+    /// A length of zero is a length not known. Counting from it read "under a minute" for every
+    /// song in the queue, which is wrong for each of them.
+    #[test]
+    fn a_song_of_unknown_length_leaves_no_wait_to_state() {
+        let entry = |id, duration_ms, ahead_ms| QueueEntryDto {
+            id,
+            position: 0,
+            number: SongCode::new(1001),
+            title: "Song".to_owned(),
+            artist: None,
+            singer: None,
+            duration_ms,
+            seat: None,
+            ahead_ms: Some(ahead_ms),
+        };
+        let mut feed = QueueFeed {
+            entries: vec![entry(1, 0, 0), entry(2, 180_000, 0)],
+            remaining_ms: Some(3_000),
+            sent: Vec::new(),
+        };
+        feed.replace(vec![entry(2, 180_000, 0)]);
+        assert_eq!(feed.remaining_ms, None);
+        assert_eq!(feed.waits(), vec![None]);
     }
 
     #[test]
@@ -4635,6 +4674,7 @@ mod tests {
                 address: Some("http://127.0.0.1:8177".to_owned()),
                 name: Some("Living Room".to_owned()),
                 reason: None,
+                features: crate::machine::Features::default(),
             },
             how: Some("remembered".to_owned()),
             pinned: true,
@@ -4655,7 +4695,7 @@ mod tests {
         add(sse::POSITION, everywhere(|_| PositionBlock::of(&idle)));
         add(
             sse::QUEUE,
-            everywhere(|locale| QueueBlock::of(&[], true, 0, locale)),
+            everywhere(|locale| QueueBlock::of(&[], true, Some(0), locale)),
         );
         add(sse::QUEUE_COUNT, everywhere(|_| QueueCount { len: 3 }));
         add(sse::CONN, everywhere(|_| Conn { online: false }));
@@ -4667,6 +4707,7 @@ mod tests {
                     address: Some("http://127.0.0.1:8177".to_owned()),
                     name: None,
                     reason: Some(crate::machine::codes::NOT_ANSWERING),
+                    features: crate::machine::Features::default(),
                 },
             }),
         );

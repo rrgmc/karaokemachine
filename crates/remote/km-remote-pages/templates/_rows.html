@@ -10,7 +10,7 @@
       <span class="song-number">#{{ line.row.number() }}</span>
     </div>
     <div class="song-line">
-      <span class="song-sub">{% if line.row.has_artist() %}{{ line.row.artist() }} &middot; {% endif %}{{ line.row.duration() }}</span>
+      <span class="song-sub">{% if line.row.has_artist() %}{{ line.row.artist() }}{% if line.row.has_duration() %} &middot; {% endif %}{% endif %}{% if line.row.has_duration() %}{{ line.row.duration() }}{% endif %}</span>
       <div class="song-controls">
           {% if line.star.is_some() || line.row.searchable() %}
           <div class="song-actions">

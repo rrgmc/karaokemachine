@@ -736,6 +736,8 @@ label.icon-btn { display: inline-flex; align-items: center; justify-content: cen
 /* Dim rather than amber: `.now-singer` is amber because a name is the thing somebody scans this
    card for, and a demo song is the opposite — it is the state where nobody's name is on it. */
 .now-demo { color: var(--text-dim); font-size: 0.88rem; }
+/* The player behind a server is away. A line in the card, not the banner: the server is answering. */
+.now-offline { color: var(--amber); font-size: 0.88rem; }
 
 .progress {
   height: 4px;

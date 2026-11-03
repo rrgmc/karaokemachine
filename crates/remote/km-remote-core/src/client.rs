@@ -20,7 +20,7 @@ use std::sync::{Arc, RwLock};
 use std::time::Duration;
 
 use futures_util::StreamExt;
-use km_api::discover::Discovery;
+use km_api::discover::{Discovery, Features};
 use km_api::dto::{
     AcceptRequest, AcceptingRequest, AccessDto, AccessGrantDto, AddRequest, AddSingerRequest,
     AddToQueueRequest, AddedToQueueDto, CreateSingerRequest, LoginRequest, MergeSingerRequest,
@@ -309,6 +309,7 @@ impl MachineClient {
                 address: None,
                 name: None,
                 reason: Some(codes::LOOKING),
+                features: Features::default(),
             })),
             wake: Arc::new(tokio::sync::Notify::new()),
             attention: Arc::new(tokio::sync::Notify::new()),
@@ -360,7 +361,8 @@ impl MachineClient {
     /// **The name is dropped here and nowhere else.** This is the one call that can mean "a
     /// different machine", and a card that went on heading the new address with the old machine's
     /// name would be wrong in the way hardest to notice. The refresh that follows every caller of
-    /// this puts one back within a request.
+    /// this puts one back within a request. The features go back to all of them for the same
+    /// reason: they were the other machine's.
     pub fn point_at(&self, api: Api) {
         let address = api.base().to_owned();
         self.api.send_replace(Some(api));
@@ -369,6 +371,7 @@ impl MachineClient {
             address: Some(address),
             name: None,
             reason: Some(codes::CONNECTING),
+            features: Features::default(),
         });
     }
 
@@ -386,6 +389,16 @@ impl MachineClient {
             .write()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
         connection.name = name;
+    }
+
+    /// Records which optional controls the machine says it has, from the same `/discover` as the
+    /// name and on the same clock, so a lost event stream does not throw them away either.
+    pub fn set_features(&self, features: Features) {
+        let mut connection = self
+            .connection
+            .write()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        connection.features = features;
     }
 
     /// Records whether the machine is answering, keeping whatever name it has already given.
