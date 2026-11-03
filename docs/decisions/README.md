@@ -326,6 +326,7 @@ it are the same entry. How the thing is built is [`ARCHITECTURE.md`](../ARCHITEC
 - [The A–Z picker covers artists, and is still offline only](remotes.md#the-az-picker-covers-artists-and-is-still-offline-only)
 - [On a phone, the machine shows its own remote over the screen](remotes.md#on-a-phone-the-machine-shows-its-own-remote-over-the-screen)
 - [On Windows and macOS, the window has a Menu](remotes.md#on-windows-and-macos-the-window-has-a-menu)
+- [A song length of zero is unknown, and a wait built on it is not shown](remotes.md#a-song-length-of-zero-is-unknown-and-a-wait-built-on-it-is-not-shown)
 
 ## [The API and the network](api-and-network.md)
 

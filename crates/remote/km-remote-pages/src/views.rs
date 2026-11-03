@@ -1468,9 +1468,15 @@ impl QueueBlock {
     /// The list for one queue, worded for one reader.
     ///
     /// **Built per language**, as [`MachineBlock`] is, because each row's wait is a sentence with a
-    /// figure in it. `remaining_ms` is the time left in the playing song.
+    /// figure in it. `remaining_ms` is the time left in the playing song, `None` when its length is
+    /// not known.
     #[must_use]
-    pub fn of(entries: &[QueueEntryDto], online: bool, remaining_ms: u32, locale: Locale) -> Self {
+    pub fn of(
+        entries: &[QueueEntryDto],
+        online: bool,
+        remaining_ms: Option<u32>,
+        locale: Locale,
+    ) -> Self {
         let words = crate::words::messages(locale);
         let last = entries.len().saturating_sub(1);
         let sentence = |wait: Wait| match wait {
@@ -1501,12 +1507,14 @@ impl QueueBlock {
 
 /// The wait each entry shows, which also decides whether the list is worth sending again.
 ///
-/// `None` for an entry whose machine sent no figure to state one from.
+/// `None` for an entry whose machine sent no figure to state one from, and for every entry while
+/// the playing song's time left is not known.
 #[must_use]
-pub fn queue_waits(entries: &[QueueEntryDto], remaining_ms: u32) -> Vec<Option<Wait>> {
+pub fn queue_waits(entries: &[QueueEntryDto], remaining_ms: Option<u32>) -> Vec<Option<Wait>> {
     entries
         .iter()
         .map(|entry| {
+            let remaining_ms = remaining_ms?;
             entry
                 .ahead_ms
                 .map(|ahead_ms| Wait::of(remaining_ms, ahead_ms))
