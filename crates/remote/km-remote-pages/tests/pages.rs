@@ -6002,7 +6002,7 @@ async fn the_queue_tab_lists_the_songs_waiting_for_a_turn_folded() {
 
     let fragment = guest.get("/waiting").await;
     assert!(
-        fragment.contains(r#"hx-trigger="km:requests from:body""#),
+        fragment.contains(r#"hx-trigger="km:requests from:body, km:nowplaying from:body""#),
         "{fragment}"
     );
 }
@@ -6283,6 +6283,23 @@ async fn the_live_script_asks_again_when_the_requests_change() {
     let queue = harness.get("/queue").await;
     assert!(
         queue.contains(r#"hx-trigger="km:requests from:body, km:nowplaying from:body""#),
+        "{queue}"
+    );
+}
+
+/// The songs waiting for a turn ask again when the song changes, as the phone's own list does.
+///
+/// A waiting request joins the queue when its singer's song starts, so the song change is when this
+/// list changes. A server may say `requests_changed` before its `/requests` shows the move, and a
+/// list that asked only then kept its old count until the page was reloaded.
+#[tokio::test]
+async fn the_waiting_list_asks_again_when_the_song_changes() {
+    let harness = Harness::offline();
+    let queue = harness.get("/queue").await;
+    assert!(
+        queue.contains(
+            r#"id="waiting" hx-get="/waiting" hx-trigger="km:requests from:body, km:nowplaying from:body""#
+        ),
         "{queue}"
     );
 }
@@ -6632,7 +6649,9 @@ async fn the_live_script_asks_again_when_the_singers_change() {
     assert!(script.contains("km:singers"), "{script}");
     let lists = harness.get("/host/lists").await;
     assert!(
-        lists.contains(r#"hx-trigger="km:requests from:body, km:singers from:body""#),
+        lists.contains(
+            r#"hx-trigger="km:requests from:body, km:singers from:body, km:nowplaying from:body""#
+        ),
         "{lists}"
     );
 }
