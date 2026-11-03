@@ -1749,3 +1749,26 @@ reader can see and discard beats a gap nobody can.
 **Nothing serving this may say anything.** The tap takes a line emitted while feeding a reader and
 sends it to that same reader. On the arm that reports falling behind, it feeds the reader least able
 to keep up.
+
+## Discovery says which optional features a server has, and a missing flag means yes
+
+**Another server may serve this API in front of a different player.** A remote connects to it as it
+connects to this machine. Such a server may have no demo song, no song book and no web page of its
+own. Without a way to say so, the remote offers a demo that is refused with 409, and two links that
+answer 404.
+
+**`GET /discover` carries `features`, an object of three flags:** `demo`, `song_book` and
+`web_control`. The remote leaves out a control whose flag is `false`, for the reason
+[`A control that can only be refused is left out, not grayed`](#a-control-that-can-only-be-refused-is-left-out-not-grayed)
+gives.
+
+**Every flag defaults to `true`, and so does a missing object.** This machine has every feature and
+says so. A machine from before the field existed says nothing and keeps every control. Only a server
+that says `false` loses one.
+
+**Only what a remote has a control for is a flag.** The remote has no lyrics control, so there is no
+`lyrics` flag. A flag nothing reads is a promise nobody checks.
+
+**The remote learns the flags on each catalog refresh, beside the machine's name**, and forgets them
+when it is pointed at another machine. They stay out of the mDNS TXT record, which carries only what
+a client needs to decide whether to ask.

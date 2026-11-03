@@ -463,6 +463,12 @@ than broadcasting it to a segment that did not.
 **Because mDNS is blocked on plenty of networks**, the always-public `GET /api/v1/discover` returns
 the same payload, and the display shows the URL and a QR code.
 
+**The HTTP payload also carries `features`**, three flags for the optional parts of the API: `demo`,
+`song_book` and `web_control`. This machine sends all three `true`. They are for another server that
+serves this API and lacks some of them. A missing flag reads as `true`, and the remote leaves out a
+control whose flag is `false`. The flags are not in the TXT records. See
+[`Discovery says which optional features a server has`](../decisions/api-and-network.md#discovery-says-which-optional-features-a-server-has-and-a-missing-flag-means-yes).
+
 **The browse side is a `watch::Watcher` held open rather than a `browse(timeout)` per question.**
 There is one daemon and one thread for the life of the process. It folds announcements into a
 `Registry` that answers instantly. A `ServiceRemoved` marks a row *absent* rather than removing it.

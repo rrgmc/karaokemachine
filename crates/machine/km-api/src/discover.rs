@@ -151,6 +151,40 @@ pub struct Discovery {
     /// that dropped. The most useful refusal on this surface would then read as "the machine is not
     /// answering", which is both wrong and unactionable. One cheap question up front instead.
     pub debug_enabled: bool,
+    /// Which optional parts of this API the server has.
+    ///
+    /// **For a server that is not this machine.** Something else may serve `/api/v1` in front of a
+    /// different player, and have no demo song, no song book or no web page of its own. A remote
+    /// leaves out a control whose flag is `false` rather than offer it and be refused. This machine
+    /// has all of them, and a body without the object reads as all of them, so an older machine
+    /// changes nothing.
+    #[serde(default)]
+    pub features: Features,
+}
+
+/// The optional parts of the API a server has. Every flag defaults to `true`.
+///
+/// Only what a remote has a control for is here. A flag nothing reads would be a promise nobody
+/// checks.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct Features {
+    /// `POST /demo/start` plays a song of the server's own choosing.
+    pub demo: bool,
+    /// `GET /songs/book.pdf` answers with a song book.
+    pub song_book: bool,
+    /// The server's own address serves a page to control it from a browser.
+    pub web_control: bool,
+}
+
+impl Default for Features {
+    fn default() -> Self {
+        Self {
+            demo: true,
+            song_book: true,
+            web_control: true,
+        }
+    }
 }
 
 impl Discovery {
@@ -176,6 +210,7 @@ impl Discovery {
             song_count,
             catalog_version: None,
             debug_enabled: false,
+            features: Features::default(),
         }
     }
 
@@ -781,6 +816,32 @@ mod tests {
         let body: String = serde_json::to_string(&discovery).expect("serialize");
         let parsed: Discovery = serde_json::from_str(&body).expect("parse");
         assert_eq!(parsed, discovery);
+    }
+
+    /// This machine says it has every optional feature, and a server that says nothing about them
+    /// is read the same way, so an older machine loses no control on a newer remote.
+    #[test]
+    fn a_missing_feature_reads_as_present() {
+        let discovery = Discovery::new("abc123", "Living Room", &reachable_info(), Some(4812));
+        let mut json = serde_json::to_value(&discovery).expect("serialize");
+        assert_eq!(json["features"]["demo"], true);
+        assert_eq!(json["features"]["song_book"], true);
+        assert_eq!(json["features"]["web_control"], true);
+
+        json.as_object_mut().expect("object").remove("features");
+        let parsed: Discovery = serde_json::from_value(json.clone()).expect("parse");
+        assert_eq!(parsed.features, Features::default());
+
+        json["features"] = serde_json::json!({ "demo": false });
+        let parsed: Discovery = serde_json::from_value(json).expect("parse");
+        assert_eq!(
+            parsed.features,
+            Features {
+                demo: false,
+                song_book: true,
+                web_control: true,
+            }
+        );
     }
 
     #[test]

@@ -30,6 +30,7 @@
 
 use std::collections::HashSet;
 
+pub use km_api::discover::Features;
 use km_api::dto::{
     AccessDto, AccessGrantDto, AddedToQueueDto, QueueDto, RequestDto, RequestsDto,
     SettingsPatchDto, SingerDto, SingerIssuedDto, SingersDto, SongDto, StateDto,
@@ -551,6 +552,11 @@ pub struct Connection {
     /// this is drawn in the viewer's language and the client that sets it has no idea who is
     /// reading. `None` where there is nothing to add to *not reachable*.
     pub reason: Option<&'static str>,
+    /// Which optional controls the server has, from `/discover` on the last refresh, as the name is.
+    ///
+    /// All of them until something has said otherwise: a server that never says is this machine,
+    /// or an older one, and both have every control.
+    pub features: Features,
 }
 
 impl Connection {
@@ -563,6 +569,7 @@ impl Connection {
             // draws no connection block at all — see `Capabilities::connection`.
             name: None,
             reason: None,
+            features: Features::default(),
         }
     }
 }

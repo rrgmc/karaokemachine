@@ -1303,6 +1303,7 @@ async fn player_view(state: &Remote) -> PlayerView {
         Ok(snapshot) => PlayerView {
             state: snapshot,
             online: connection.online,
+            demo: connection.features.demo,
         },
         Err(_) => PlayerView::unreachable(),
     }
@@ -4166,7 +4167,12 @@ async fn pump(state: Remote) {
         tokio::select! {
             event = events.recv() => match event {
                 Ok(km_api::events::Event::State { state: snapshot }) => {
-                    let view = PlayerView { state: snapshot, online: state.machine.connection().online };
+                    let connection = state.machine.connection();
+                    let view = PlayerView {
+                        state: snapshot,
+                        online: connection.online,
+                        demo: connection.features.demo,
+                    };
                     queue.remaining_ms = view.remaining_ms();
                     // The card, only when something on it actually changed. Comparing the rendered
                     // markup is both the simplest and the most honest test of that: it is exactly
@@ -4668,6 +4674,7 @@ mod tests {
                 address: Some("http://127.0.0.1:8177".to_owned()),
                 name: Some("Living Room".to_owned()),
                 reason: None,
+                features: crate::machine::Features::default(),
             },
             how: Some("remembered".to_owned()),
             pinned: true,
@@ -4700,6 +4707,7 @@ mod tests {
                     address: Some("http://127.0.0.1:8177".to_owned()),
                     name: None,
                     reason: Some(crate::machine::codes::NOT_ANSWERING),
+                    features: crate::machine::Features::default(),
                 },
             }),
         );

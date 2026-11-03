@@ -1807,6 +1807,7 @@ mod tests {
                 },
             },
             online: true,
+            demo: true,
         };
         render(&PlayerBlock::of(view, Locale::English), Locale::English).expect("the card renders")
     }

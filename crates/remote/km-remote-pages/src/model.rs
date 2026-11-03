@@ -213,6 +213,9 @@ pub struct PlayerView {
     pub state: StateDto,
     /// Whether the machine is reachable at all.
     pub online: bool,
+    /// Whether the server has a demo song to play. `false` only from a server that says so in
+    /// `/discover`, and then the control is left out rather than offered and refused.
+    pub demo: bool,
 }
 
 impl PlayerView {
@@ -240,6 +243,7 @@ impl PlayerView {
                 },
             },
             online: false,
+            demo: true,
         }
     }
 

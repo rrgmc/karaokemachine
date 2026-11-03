@@ -363,6 +363,7 @@ it are the same entry. How the thing is built is [`ARCHITECTURE.md`](../ARCHITEC
 - [A refusal travels as a code, and whoever shows it writes the sentence](api-and-network.md#a-refusal-travels-as-a-code-and-whoever-shows-it-writes-the-sentence)
 - [Power is a capability of the host, not a method on the machine](api-and-network.md#power-is-a-capability-of-the-host-not-a-method-on-the-machine)
 - [The machine's own log is a route, and it is the owner's](api-and-network.md#the-machines-own-log-is-a-route-and-it-is-the-owners)
+- [Discovery says which optional features a server has, and a missing flag means yes](api-and-network.md#discovery-says-which-optional-features-a-server-has-and-a-missing-flag-means-yes)
 
 ## [Streaming](streaming.md)
 
