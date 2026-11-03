@@ -909,7 +909,7 @@ async fn songs_for(
     // artist, so typing `10234` found songs with `10234` in their *name* and nothing else. Now that
     // a code is a string with its own grammar it can simply be tried — and only an exact, whole-text
     // match counts, so `500` still searches for the word as well when no song has that code.
-    if artist_free(params)
+    if artist_free(params, state.capabilities)
         && let Ok(code) = text.trim().parse::<SongCode>()
         && let Ok(Some(song)) = state.songs.song(code).await
     {
@@ -947,11 +947,15 @@ async fn songs_for(
 ///
 /// A code lookup answers with one song, so it must not quietly ignore a filter somebody set: inside
 /// an artist, or with a language chosen, the text stays a search.
-fn artist_free(params: &BrowseParams) -> bool {
+///
+/// **Each filter is read through its own accessor, never as the raw field.** The search form sends
+/// `initial=` and `language=` empty on every submit, and an empty value is no filter. Testing the
+/// raw `initial` read that empty string as a letter chosen, so a typed number never found its song.
+fn artist_free(params: &BrowseParams, capabilities: crate::Capabilities) -> bool {
     params.artist().is_none()
         && params.language().is_none()
         && params.tags().is_empty()
-        && params.initial.is_none()
+        && params.initial(capabilities).is_none()
 }
 
 /// Which of these songs this phone has filed somewhere.

@@ -5646,6 +5646,21 @@ async fn a_hidden_package_leaves_the_list_and_the_pickers_on_both_remotes() {
     }
 }
 
+/// A typed song number finds its song when the form sends its filters empty, which it always does.
+///
+/// The search box submits `language=` and `initial=` with nothing in them. An empty initial is no
+/// filter, and reading it as one sent the number to the text search, which found nothing.
+#[tokio::test]
+async fn a_typed_number_finds_its_song_through_the_forms_empty_filters() {
+    for harness in [Harness::offline(), Harness::online()] {
+        let page = harness
+            .htmx("/?mode=songs&fragment=browse&q=1003&language=&initial=&tags=")
+            .await;
+        assert!(page.contains("Exagerado"), "{page}");
+        assert!(!page.contains("Tempo Perdido"), "only that song: {page}");
+    }
+}
+
 /// A favorite is a song somebody chose, so a folder still lists it when its package is hidden.
 #[tokio::test]
 async fn a_favorites_folder_still_lists_a_song_from_a_hidden_package() {
