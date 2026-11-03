@@ -68,6 +68,7 @@ error-no-sound = This machine is not making sound. Ask the administrator.
 
 error-no-favorites = This remote does not keep favorites.
 error-no-demo = This machine cannot start a demo song.
+error-player-offline = The karaoke player is not connected.
 
 ## The tab bar
 #

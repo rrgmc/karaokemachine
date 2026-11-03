@@ -1805,11 +1805,35 @@ mod tests {
                     music_volume: 0.8,
                     lyric_offset_ms: 0,
                 },
+                player_online: true,
             },
             online: true,
             demo: true,
         };
         render(&PlayerBlock::of(view, Locale::English), Locale::English).expect("the card renders")
+    }
+
+    /// A server that answers while its player is away says so on the card, and this machine never
+    /// does, because it is its own player.
+    #[test]
+    fn the_card_says_when_the_player_behind_the_server_is_away() {
+        let mut view = PlayerView::unreachable();
+        view.online = true;
+        let card = |view: &PlayerView| {
+            render(
+                &PlayerBlock::of(view.clone(), Locale::English),
+                Locale::English,
+            )
+            .expect("the card renders")
+        };
+        assert!(!card(&view).contains("The karaoke player is not connected."));
+
+        view.state.player_online = false;
+        assert!(card(&view).contains("The karaoke player is not connected."));
+
+        // A server that is not answering is the banner's to say, not the card's.
+        view.online = false;
+        assert!(!card(&view).contains("The karaoke player is not connected."));
     }
 
     /// A grayed button says why, in the words the toast would have used for the same press.

@@ -1772,3 +1772,20 @@ that says `false` loses one.
 **The remote learns the flags on each catalog refresh, beside the machine's name**, and forgets them
 when it is pointed at another machine. They stay out of the mDNS TXT record, which carries only what
 a client needs to decide whether to ask.
+
+## A server whose player is separate says so, and the remote tells the two absences apart
+
+**Another server may serve this API in front of a separate player**, and keep answering while that
+player is switched off or restarting. A remote then has two different absences to report: the server
+is not answering, or the server is answering and its player is not. The banner already covers the
+first. Before this, the second could only be refused with `no_sound`, which tells the singer the
+machine has no sound.
+
+**The refusal is `player_offline`, and the remote words it "The karaoke player is not connected."**
+This machine never sends it, because it is its own player. It is a code without a constant on the
+machine's side, like `no_demo`, and the remote maps it as it maps the others.
+
+**`state` carries `player_online`, which this machine always sends `true`.** A missing field reads as
+`true`, so an older machine changes nothing. When it is `false` and the server is answering, the
+player card shows the same sentence. It is a line on the card rather than the banner, because the
+banner says the server is away and the server is not.

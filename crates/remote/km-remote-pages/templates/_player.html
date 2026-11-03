@@ -18,6 +18,9 @@
   {% if view.is_demo() %}
   <div class="now-demo">{{ "demo-hint"|t }}</div>
   {% endif %}
+  {% if view.player_away() %}
+  <div class="now-offline">{{ "error-player-offline"|t }}</div>
+  {% endif %}
 
   {{ position|safe }}
 

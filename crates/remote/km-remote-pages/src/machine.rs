@@ -125,6 +125,14 @@ pub const NO_FAVORITES: &str = "no_favorites";
 /// and still says something true.
 pub const NO_DEMO: &str = "no_demo";
 
+/// The refusal of a server whose player is not connected to it.
+///
+/// **Not a code this machine sends**, because this machine is its own player. Another server may
+/// serve this API in front of a separate player and keep answering while that player is switched
+/// off. A command it cannot pass on is refused with this, so the phone says the player is away
+/// rather than that the machine has no sound.
+pub const PLAYER_OFFLINE: &str = "player_offline";
+
 /// The stable names a refusal or a connection state travels under, between the crate that decides
 /// one and the crate that words it.
 ///

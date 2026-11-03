@@ -241,6 +241,7 @@ impl PlayerView {
                     music_volume: 1.0,
                     lyric_offset_ms: 0,
                 },
+                player_online: true,
             },
             online: false,
             demo: true,
@@ -333,6 +334,15 @@ impl PlayerView {
     /// exactly one song, because chaining is what the mode buys.
     pub fn can_start_demo(&self) -> bool {
         self.online && !self.has_song() && self.state.queue_len == 0
+    }
+
+    /// Whether the server says its player is not connected.
+    ///
+    /// Never true of this machine, which is its own player. Another server may answer while the
+    /// player behind it is switched off, and the card says so, because the banner is about the
+    /// server and the server is answering.
+    pub fn player_away(&self) -> bool {
+        self.online && !self.state.player_online
     }
 
     /// Whether the machine is advancing through a song right now.

@@ -640,7 +640,14 @@ refusal rather than nothing.
 | `nothing_queued` | play with an empty machine and an empty queue | `error-nothing-queued` |
 | `no_sound` | the engine cannot play at all | `error-no-sound` |
 | `queue_full` | the queue is at `MAX_QUEUED` | `error-queue-full` |
+| `player_offline` | never this machine: another server whose separate player is not connected | `error-player-offline` |
 | `unavailable` | everything else, including anything owner-only | `error-unavailable` |
+
+**`player_offline` is the one code this machine never sends.** It is there for another server that
+serves this API in front of a separate player. Such a server also sends `player_online: false` in
+`state` while the player is away, which this machine always sends `true`, and the remote's player card
+says so. See
+[`A server whose player is separate says so`](../decisions/api-and-network.md#a-server-whose-player-is-separate-says-so-and-the-remote-tells-the-two-absences-apart).
 
 **The kind is in the code rather than beside it**, because a sentence the machine composed cannot be
 taken apart again. `article_name()` bakes English's article agreement in, and Portuguese needs its

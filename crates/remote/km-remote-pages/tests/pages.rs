@@ -614,6 +614,7 @@ impl Machine for StubMachine {
                     music_volume: 0.8,
                     lyric_offset_ms: 0,
                 },
+                player_online: true,
             });
         }
         Ok(StateDto {
@@ -644,6 +645,7 @@ impl Machine for StubMachine {
                 music_volume: 0.8,
                 lyric_offset_ms: 0,
             },
+            player_online: true,
         })
     }
 
