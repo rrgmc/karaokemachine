@@ -24,8 +24,8 @@ you already own the intent of.
 
 That last part is the whole reason to use this repository as the text rather than a tutorial. The
 usual failure of introductory Rust is that the borrow checker never actually *forces* anything: the
-examples are too small to have a design, so ownership looks like ceremony. This codebase is 233,539
-lines across 316 files and contains the forcing — several times, in places where the comment beside
+examples are too small to have a design, so ownership looks like ceremony. This codebase is 302,591
+lines across 412 files and contains the forcing — several times, in places where the comment beside
 the code says which design was abandoned and why. You will not have to guess.
 
 **How to read it.** Six stages, in order. Each is: the C++ concept this is about to complicate, an
@@ -116,15 +116,15 @@ It also happens to be a genuinely good piece of design, so you are not reading a
   established a few lines up and *relied on* here, with the reliance written down. You do this in
   C++ too; the difference is that the cast is narrowing and the comment is what says why it cannot
   lose anything.
-- **`:93-107`** — the error type is an `enum`, not a class hierarchy, and each variant carries
+- **`:92-107`** — the error type is an `enum`, not a class hierarchy, and each variant carries
   exactly the data its message needs. `#[error("…")]` generates the `Display` impl. There is no
-  base class and there is nothing to catch. Read `NumberTooLarge`'s doc at `:101-106`: it carries
+  base class and there is nothing to catch. Read `NumberTooLarge`'s doc at `:101-104`: it carries
   the text as typed rather than a `u32` *because the value may not fit one*, which is a design
   decision the type system forced into the open.
 - **`:180-199`** — `from_str`. Read the doc block at `:172-179` and the comment at `:185-188`; both
   are arguments about product behavior, not about Rust. This is the register the whole codebase is
   written in.
-- **`:291-303`** — the test asserting that `MAX_BANK`, `MAX_SLOT` and `MAX_NUMBER` are one statement
+- **`:290-303`** — the test asserting that `MAX_BANK`, `MAX_SLOT` and `MAX_NUMBER` are one statement
   written three ways. That is types-as-proofs at the level of constants: three numbers that must
   agree, with a test that fails when somebody widens one of them alone, rather than a comment asking
   the next reader to notice.
@@ -161,7 +161,7 @@ This is the longest stage and the one to take slowly.
 
 ### Read, in order
 
-**1. `crates/machine/km-queue/src/queue.rs:83-165` — read the signature column first.**
+**1. `crates/machine/km-queue/src/queue.rs:125-196` — read the signature column first.**
 
 Before any function body. Just the receivers:
 
@@ -176,7 +176,7 @@ means **"exclusive, and there is exactly one"**. Not "mutable". Exclusive. C++ h
 `T&` guarantees you nothing about who else holds one — and this is the single largest difference
 between the two languages.
 
-**2. `crates/machine/km-queue/src/queue.rs:129-132` — the cleanest borrow-checker fingerprint in the repo.**
+**2. `crates/machine/km-queue/src/queue.rs:166-169` — the cleanest borrow-checker fingerprint in the repo.**
 
 ```rust
 let index = self.entries.iter().position(|entry| entry.id == id)?;
@@ -186,8 +186,8 @@ self.entries.remove(index)
 You would have written this with an iterator: find it, erase it. You cannot, because the
 `&QueueEntry` that `iter()` yields borrows `self`, and `remove` needs `&mut self` — and those
 cannot coexist. So the reference is converted to an index, which borrows nothing, and the borrow
-ends. The same shape appears again at `:142-154` in `move_to`, this time with a genuine
-bug-avoidance comment at `:149-150`.
+ends. The same shape appears again at `:179-191` in `move_to`, this time with a genuine
+bug-avoidance comment at `:186-187`.
 
 Recognize this shape. Once you know it, a great deal of Rust that looks gratuitously indirect
 stops looking that way.
@@ -212,7 +212,7 @@ Also in these 24 lines: `sections.last_mut()` returning `Option<&mut BookSection
 lexicographic in field-declaration order, which is why `artist_missing` is the first field
 (`:26-34`).
 
-**4. `crates/playback/km-audio/src/player.rs:203-212` — why `Option::take` exists.**
+**4. `crates/playback/km-audio/src/player.rs:230-239` — why `Option::take` exists.**
 
 ```rust
 pub fn retire(&mut self) -> Option<Retired> {
@@ -236,11 +236,11 @@ This is not laziness. **Self-referential structs are not expressible in safe Rus
 would have to name its own lifetime — and the standard answer is to store an index. When you see an
 index where you expected a pointer, this is usually why.
 
-**6. `crates/machine/karaokemachine/src/machine.rs:1755-1787` — borrows visibly shaping a function body.**
+**6. `crates/machine/karaokemachine/src/machine.rs:2473-2513` — borrows visibly shaping a function body.**
 
-`:1766` does `loaded.song().map(Arc::clone)` to get an *owned* handle out from under a lock guard.
-`:1773-1774` carries the comment "Built while the borrow of `loaded` is still live, then the guard is
-dropped before publishing". `:1784` is a bare `drop(state);`.
+`:2484` does `loaded.lyric_song().map(Arc::clone)` to get an *owned* handle out from under a lock
+guard. `:2498-2499` carries the comment "Built while the borrow of `loaded` is still live, then the
+guard is dropped before publishing". `:2509` is a bare `drop(state);`.
 
 That last line is worth stopping on. `drop()` here is not destruction-for-side-effects, which is
 what it would be in C++. **It ends a borrow.** The lock guard's scope would otherwise run to the
@@ -249,7 +249,8 @@ for saying "the borrow ends here", and you will see it used that way constantly.
 
 **7. Sidebar: a `macro_rules!` reached for because of the borrow checker.**
 
-There is none in the workspace to point at, so here is the whole of one — a helper that pushed one
+The one `macro_rules!` in the workspace exists for a different reason (Appendix B), so here is the
+whole of one from outside it — a helper that pushed one
 plain-text argument onto an argv being assembled out of a mixture of `&str` literals and owned
 `OsString`s made from paths:
 
@@ -271,12 +272,12 @@ where a lambda capturing by reference costs you nothing at compile time and ever
 Read far more often than written. Two anchors, and then leave it alone until the compiler makes
 you care.
 
-**`crates/song/km-song/src/karaoke.rs:36`** — `pub struct MetaText<'a> { … pub bytes: &'a [u8] }`. A
+**`crates/song/km-song/src/karaoke.rs:38`** — `pub struct MetaText<'a> { … pub bytes: &'a [u8] }`. A
 `Copy` view into the MIDI file's buffer, so parsing allocates nothing. This is `string_view` with
 the dangling problem solved: the annotation says "this cannot outlive the buffer it points into",
 and the compiler enforces it.
 
-**`crates/song/km-kmpkg/src/lib.rs:571-600`** — `EntryWindow`, whose doc line at `:573` reads, in
+**`crates/song/km-kmpkg/src/lib.rs:834-862`** — `EntryWindow`, whose doc line at `:836` reads, in
 bold, *"The point of it is the lifetime."* Read the whole comment. `zip`'s own reader borrows the archive, so
 it can never be `'static` and can never move to a decoder thread; this type learns the byte range,
 drops the archive, keeps the file handle, and becomes `Read + Seek + Send + Sync + 'static`.
@@ -310,7 +311,7 @@ duration, and reading it that way will confuse you for a month.
 
 ### Read
 
-**`crates/machine/km-api/src/error.rs:19-69`, then the three matches at `:104-116`, `:118-132`, `:134-…`.**
+**`crates/machine/km-api/src/error.rs:19-69`, then the three matches at `:104-116`, `:118-130`, `:134-169`.**
 
 The richest enum here: tuple variants (`NotFound(String)`) and named-field variants
 (`Conflict { code, message }`) in one type. Read the three matches *together* — they are the same
@@ -325,16 +326,17 @@ variant, and `matches!` at `:25`. Note `pub fn is_advancing(self)` at `:24` take
 value**. Alarming to a C++ eye; free in fact, because `Transport` is `Copy` and one byte wide.
 
 **`crates/playback/km-audio/src/player.rs:50-61`** — `Retired { Song(Arc<Song>), Track(Box<TrackPlayer>) }`.
-`Box` and `Arc` side by side in one enum with the doc saying why each. Also `enum Program` at `:67`,
+`Box` and `Arc` side by side in one enum, and the doc says why both are handed back rather than
+dropped where they are. Also `enum Program` at `:67`,
 which is *private* — a type used only inside the module, which C++ makes awkward and Rust does not.
 
-**`crates/machine/karaokemachine/src/machine.rs:245-284`** — `SongPreviewLookup` and `CatalogCounts`. Both are
+**`crates/machine/karaokemachine/src/machine.rs:419-460`** — `SongPreviewLookup` and `CatalogCounts`. Both are
 "three outcomes, not an `Option`", and the docs argue why collapsing two of them into `None` would
 be a bug. This is the best illustration in the repository of what sum types buy you over
 `bool` / `optional` / error codes: the third state is *"the library is locked, ask again"*, and in
-a design without it that becomes a lie. The `try_lock` that produces one is at `:2363`, the other
-at `:2488`, and the exhaustive match is in a different module —
-`crates/machine/karaokemachine/src/display.rs:3260-3268`, which is itself the point: the compiler
+a design without it that becomes a lie. The `try_lock` that produces one is at `:3268`, the other
+at `:3393`, and the exhaustive match is in a different module —
+`crates/machine/karaokemachine/src/display.rs:3897-3905`, which is itself the point: the compiler
 names every site when a variant is added, so the match does not have to live beside the enum.
 
 **`crates/playback/km-cdg/src/audio.rs:289-296`** — the densest combinator chain in the repo:
@@ -351,17 +353,17 @@ let sample_rate = format.tracks().iter()
 Four fallible steps, one error, one expression. `and_then` is monadic bind and behaves exactly like
 chained `optional::and_then`; `ok_or_else` converts `Option` to `Result`; `?` propagates.
 
-**`crates/song/km-song/src/text.rs:71`** — `?` on an `Option`. This surprises everybody who met `?`
+**`crates/song/km-song/src/text.rs:82`** — `?` on an `Option`. This surprises everybody who met `?`
 on `Result` first: `let first = folded.chars().next()?;` returns `None` from the enclosing function.
 `?` is not "unwrap or throw" — it is "return early with the empty/error case", and it works on any
 type that opts in.
 
-**Error plumbing:** `crates/song/km-song/src/lib.rs:50` uses `#[from]`, which generates the
+**Error plumbing:** `crates/song/km-song/src/lib.rs:55` uses `#[from]`, which generates the
 `From` impl that makes `?` auto-convert between error types. Then
-`crates/machine/km-api/src/error.rs:172-241` — **four** hand-written `impl From<…> for ApiError`, for when
+`crates/machine/km-api/src/error.rs:172-280` — **six** hand-written `impl From<…> for ApiError`, for when
 the mapping is not one-to-one. Reading them in that order shows you what `#[from]` was doing.
 
-**`let … else`**, at `crates/machine/km-queue/src/queue.rs:143` and `crates/machine/karaokemachine/src/machine.rs:1761`:
+**`let … else`**, at `crates/machine/km-queue/src/queue.rs:180` and `crates/machine/karaokemachine/src/machine.rs:2478`:
 
 ```rust
 let Some(from) = self.entries.iter().position(|e| e.id == id) else {
@@ -379,28 +381,29 @@ this workspace holds to throughout:
 
 > **Library crates use `thiserror`. Binary crates use `anyhow`.**
 
-`anyhow` appears in **twelve** manifests — the four binaries `karaokemachine`, `km-remote`,
-`km-remote-core` and `km-tray`, and every tool: the four under `tools/cmd/`, `km-pick` under
-`tools/dev/`, and three more in the separate `tools/cmd/assets/` workspace. Every `km-*` library
-another crate depends on uses `thiserror` only, **29** error enums in all. The reasoning is that a
+`anyhow` appears in **fourteen** crates — the four binaries `karaokemachine`, `km-remote`,
+`km-remote-core` and `km-tray`, and every tool: the seven under `tools/cmd/`, `km-pick` under
+`tools/dev/`, and `km-admin` and `km-wallpaper-pack` in the separate `tools/cmd/assets/` workspace.
+Every `km-*` library another crate depends on uses `thiserror` only, more than thirty error enums in
+all. The reasoning is that a
 library's error type is part of its public contract and callers must be able to match on it; a
 binary's error is going to be printed to a human, so a single opaque type with context attached is
 better.
 
-Then the seam. **`crates/machine/karaokemachine/src/remote.rs:102`** is `fn api_failed(ApiError) -> RemoteError`,
+Then the seam. **`crates/machine/karaokemachine/src/remote.rs:105`** is `fn api_failed(ApiError) -> RemoteError`,
 a hand-written translation collapsing HTTP-shaped errors into page-shaped ones — including matching
-on the *string code* inside `Conflict { code, message }` at `:110`. Read
-`crates/machine/km-api/src/machine.rs:82-86` immediately afterwards, which argues the opposite case: why
-`CatalogError` is deliberately coarse, because "nothing useful can be done with a distinction
+on the *string code* inside `Conflict { code, message }` at `:113`. Read
+`crates/machine/km-api/src/machine.rs:89-93` immediately afterwards, which argues the opposite case: why
+`CatalogError` is deliberately coarse, because a remote "can do nothing useful with a distinction
 finer than these".
 
 And a short list of **errors that are deliberately not errors**, which is where the exception
 instinct most needs adjusting:
 
-- `crates/machine/km-api/src/events.rs:144-145` — nobody subscribed to the event stream. Normal.
-- `crates/remote/km-remote-core/src/client.rs:536` — losing the connection to the machine. *"A machine
+- `crates/machine/km-api/src/events.rs:159-160` — nobody subscribed to the event stream. Normal.
+- `crates/remote/km-remote-core/src/client.rs:736-737` — losing the connection to the machine. *"A machine
   under a television is switched off most of the day."*
-- `crates/playback/km-audio/src/audio.rs:442` — an ALSA xrun is not a dead device. This comment documents a
+- `crates/playback/km-audio/src/audio.rs:515` — an ALSA xrun is not a dead device. This comment documents a
   real bug caused by treating every error alike.
 
 ### What your C++ instinct gets wrong here
@@ -454,22 +457,22 @@ extraction, no dependency injection framework, and no change to `Player`.
 
 **Static against dynamic dispatch, same repository, same problem:**
 
-- `crates/playback/km-audio/src/player.rs:75` — `pub struct Player<S: AudioSource>`, with
-  `impl<S: AudioSource> Player<S>` at `:108`. Monomorphised, exactly like a C++ template, one copy
+- `crates/playback/km-audio/src/player.rs:95` — `pub struct Player<S: AudioSource>`, with
+  `impl<S: AudioSource> Player<S>` at `:133`. Monomorphised, exactly like a C++ template, one copy
   of the code per concrete `S`, everything inlinable.
-- `crates/machine/km-api/src/server.rs:45` — `catalog: Arc<dyn Catalog>`, with `Arc<dyn Controller>`
-  beside it at `:46`. Type-erased, one copy of the code, a vtable, and the concrete type not known
-  until run time. Four more at `crates/remote/km-remote-pages/src/lib.rs:186-199`, two of them
+- `crates/machine/km-api/src/server.rs:46` — `catalog: Arc<dyn Catalog>`, with `Arc<dyn Controller>`
+  beside it at `:47`. Type-erased, one copy of the code, a vtable, and the concrete type not known
+  until run time. Four more at `crates/remote/km-remote-pages/src/lib.rs:188-198`, two of them
   wrapped in `Option` because the page works without them.
 
 Read them back to back. Same language feature, two dispatch strategies, chosen per use.
 
-**`crates/machine/km-api/src/machine.rs:919-1168`** — a trait with **default method bodies** (`:963-965`,
-and `:1019-1022` which defaults to returning an error). Also the `: Send + Sync + 'static` supertrait
-bound at `:919`, which is what makes `Arc<dyn Catalog>` shareable across threads — the bound is on
+**`crates/machine/km-api/src/machine.rs:1089-1346`** — a trait with **default method bodies** (`:1133-1135`,
+and `:1189-1192` which defaults to returning an error). Also the `: Send + Sync + 'static` supertrait
+bound at `:1089`, which is what makes `Arc<dyn Catalog>` shareable across threads — the bound is on
 the trait, so every implementation must satisfy it and no caller has to check.
 
-At 250 lines this is also the repository's clearest case for default bodies: most implementors want
+At over 250 lines this is also the repository's clearest case for default bodies: most implementors want
 none of the package-problem surface, and a default that refuses is what keeps them from writing an
 `unimplemented!()` each.
 
@@ -477,8 +480,8 @@ none of the package-problem surface, and a default that refuses is what keeps th
 
 - `impl AsRef<Path>` at `crates/playback/km-audio/src/source.rs:148` — takes a `&str`, a `String`, a
   `Path`, or a `PathBuf`, with one implementation and no overload set. Again at `:197`.
-- `impl Into<String>` at `crates/machine/km-api/src/discover.rs:163-164`.
-- `<T: Template>` at `crates/remote/km-remote-pages/src/views.rs:45`, and twice more below it.
+- `impl Into<String>` at `crates/machine/km-api/src/discover.rs:193-194`.
+- `<T: Template>` at `crates/remote/km-remote-pages/src/views.rs:47`, and three more times below it.
 
 **Wrapper types:** `crates/playback/km-audio/src/source.rs:137-140` — `pub struct Bank`, holding an
 `Arc<rustysynth::SoundFont>` and the defects found in it, whose stated purpose (`:134-135`) is
@@ -490,12 +493,12 @@ without naming `rustysynth` in its own manifest.
 | You know it as | Here | Anchor |
 |---|---|---|
 | `operator<<` | `Display` | `crates/song/km-songcode/src/lib.rs:163-167` |
-| converting constructor | `From` | `crates/machine/km-api/src/dto.rs:53` |
-| default constructor | `Default` | derived at `km-queue/src/transport.rs:12`; hand-written eight times in `karaokemachine/src/settings.rs`, the first at `:124` |
+| converting constructor | `From` | `crates/machine/km-api/src/dto.rs:56` |
+| default constructor | `Default` | derived at `km-queue/src/transport.rs:9`; hand-written ten times in `karaokemachine/src/settings.rs`, the first at `:122` |
 | **destructor** | **`Drop`** | `crates/playback/km-cdg/src/audio.rs:335-342` |
 
 `Drop` is the one concept that transfers intact — it is RAII, it runs at end of scope, it runs on
-the way out of a panic. The example joins a decoder thread, and the doc at `:274-283` warns it must
+the way out of a panic. The example joins a decoder thread, and the doc at `:264-265` warns it must
 never be dropped on the audio callback, which is the same reasoning you would apply to a destructor
 that blocks.
 
@@ -504,17 +507,18 @@ that blocks.
 | Rust | Nearest C++ | Anchor and the point |
 |---|---|---|
 | `Box<T>` | `unique_ptr<T>` | `crates/playback/km-cdg/src/audio.rs:285` — owned, erased, and *moved to a thread*, which is exactly why it is `Box` and not `Arc`; the argument is spelled out at `:275` |
-| `Box<T>` for size | — | `crates/playback/km-audio/src/player.rs:60`, rationale at `:52-54` — boxing one large enum variant so the enum stays small |
+| `Box<T>` for size | — | `crates/playback/km-audio/src/player.rs:60` — one enum variant boxed. An enum is as large as its largest variant, so a boxed variant costs every value one pointer, not the whole payload |
 | `Arc<T>` | `shared_ptr<const T>` | `crates/playback/km-audio/src/source.rs:137-140` — note it is **immutable by default**, which `shared_ptr` is not |
 | `Arc<Mutex<T>>` | *nothing* | `crates/machine/karaokemachine/src/engine.rs:168`, `:171` — shared *mutable* state; the mutex is inside the pointer, so there is no way to reach the data without taking the lock |
-| `MutexGuard<'_, T>` | `lock_guard` | `crates/machine/karaokemachine/src/machine.rs:2338`, `:2344` — the `'_` ties the guard to the `&self` it came from, so the type system enforces what `lock_guard` enforces only by convention |
+| `MutexGuard<'_, T>` | `lock_guard` | `crates/machine/karaokemachine/src/machine.rs:3243`, `:3249` — the `'_` ties the guard to the `&self` it came from, so the type system enforces what `lock_guard` enforces only by convention |
 | `Cow<'static, str>` | — | `crates/machine/km-api/src/discover.rs:118-122` — three fields that are a literal in the common case and an owned `String` when the settings name one, with no second type and no allocation for the common case |
 
-**And a thing that is not here at all: there is no `Rc` and no `RefCell` anywhere in this
-workspace.** Do not conclude that single-threaded shared ownership does not exist in Rust — it does,
-and `Rc`/`RefCell` are how you spell it. It is absent here because everything shared in this design
-crosses a thread boundary, so it is `Arc` plus `Mutex`/`RwLock` throughout. You will have to learn
-that pair somewhere else; see Appendix D.
+**And a thing that is here exactly once: `Rc` and `RefCell`.** Almost everything shared in this
+design crosses a thread boundary, so it is `Arc` plus `Mutex`/`RwLock` throughout. The exception is
+`crates/playback/km-display/src/draw.rs:3871-3892`: a `thread_local!` cache of the last QR code
+drawn, `RefCell<Option<(String, Option<Rc<QrMatrix>>)>>`. It lives on the one thread that draws,
+so it needs no lock, and `with_borrow_mut` at `:3882` is the runtime-checked borrow that `RefCell`
+trades for a compile-time one. One use is not enough to learn the pair from; see Appendix D.
 
 ### What your C++ instinct gets wrong here
 
@@ -540,12 +544,12 @@ that pair somewhere else; see Appendix D.
 
 ### Read
 
-**`crates/song/km-song/src/text.rs` — all 149 lines.** Small, complete, and it contains
-`fn fold_char(ch: char) -> impl Iterator<Item = char>` at `:86`, which is a return type meaning
-"some iterator, I am not telling you which". `flat_map` at `:53`, and `String::with_capacity` at
-`:51`, which is `reserve` and means the same thing.
+**`crates/song/km-song/src/text.rs` — all 178 lines.** Small, complete, and it contains
+`fn fold_char(ch: char) -> impl Iterator<Item = char>` at `:108`, which is a return type meaning
+"some iterator, I am not telling you which". `flat_map` at `:62`, and `String::with_capacity` at
+`:58`, which is `reserve` and means the same thing.
 
-**`crates/machine/km-queue/src/queue.rs:100-102`** — two lines that teach a lot:
+**`crates/machine/km-queue/src/queue.rs:135-137`** — two lines that teach a lot:
 
 ```rust
 pub fn entries(&self) -> impl Iterator<Item = &QueueEntry> {
@@ -556,13 +560,13 @@ pub fn entries(&self) -> impl Iterator<Item = &QueueEntry> {
 An anonymous return type with an elided lifetime. The iterator borrows `self`, and the compiler
 works out that the returned iterator cannot outlive it without anybody writing `'a`.
 
-**`crates/song/km-suitability/src/melody.rs:151-239`** — a successive-narrowing pipeline written as *named
+**`crates/song/km-suitability/src/melody.rs:182-292`** — a successive-narrowing pipeline written as *named
 stages with early-return guards* rather than one unreadable chain. This is the house style and it
-is a good one: `filter`/`collect` at `:152-155`, `into_iter().map()` at `:165-170`,
-`iter().copied().filter()` at `:172-176` and `:187-191`, then `retain` at `:206`.
+is a good one: `filter`/`collect` at `:188-191`, `into_iter().map()` at `:201-206`,
+`iter().copied().filter()` at `:209-216`, `:227-231` and `:243-247`, then `retain` at `:262`.
 
-Two details worth stopping on. `.copied()` at `:174` and `:189` turns an iterator of `&&T` into one
-of `&T` — you will meet double references constantly and this is the fix. And `:217`:
+Two details worth stopping on. `.copied()` at `:211`, `:229` and `:245` turns an iterator of `&&T`
+into one of `&T` — you will meet double references constantly and this is the fix. And `:270`:
 
 ```rust
 candidates.sort_by(|a, b| b.score.total_cmp(&a.score));
@@ -572,14 +576,15 @@ Floats do not implement `Ord` in Rust, because NaN makes the ordering not a tota
 therefore unavailable and `total_cmp` is the explicit opt-in. C++ lets you sort floats and lets you
 have NaN, and does not connect the two.
 
-**The turbofish, in two eight-line functions.** `collect` is generic over what it builds, so
+**The turbofish, in two short functions.** `collect` is generic over what it builds, so
 something has to say which container — either the context or you.
-`crates/song/km-catalog/src/search.rs:250-258` writes `collect::<Vec<_>>()` and then `.join(", ")` on
-it, where nothing downstream would have pinned the type; `crates/playback/km-display/src/draw.rs:1531-1538`
-writes `collect::<String>()` and adds an ellipsis to it. Compare either against the plain `collect()`
+`crates/song/km-catalog/src/search.rs:286-292` writes `collect::<Vec<_>>()` and then `.join(", ")` on
+it, where nothing downstream would have pinned the type; `crates/song/km-song/src/ultrastar.rs:340-352`
+writes `collect::<String>()` and calls `.to_ascii_lowercase()` on it. The `let squashed: String`
+binding does not help there, because the method call comes between `collect` and the binding. Compare either against the plain `collect()`
 calls in `melody.rs` above, which need no annotation because the `let` binding already carries one.
 
-**`crates/playback/km-cdg/src/audio.rs:301-318`** — the best `move` closure here, and the second surprise:
+**`crates/playback/km-cdg/src/audio.rs:302-317`** — the best `move` closure here, and the second surprise:
 
 ```rust
 let thread = std::thread::Builder::new().spawn({
@@ -638,14 +643,14 @@ no equivalent of at all: **a doc test at `:62-87`**. That is a runnable example 
 and `cargo test` compiles and runs it. If the API changes and the example stops compiling, the test
 suite fails. Documentation that cannot rot.
 
-**`crates/machine/karaokemachine/src/lib.rs:28-71`** — the contrast: **21** private `mod` against **3**
+**`crates/machine/karaokemachine/src/lib.rs:27-82`** — the contrast: **24** private `mod` against **5**
 `pub mod`. A module is private by default, so this is the normal case and `km-audio` above is the
 deliberate one. It is also the clearest picture of what a binary crate's root looks like: almost
-everything in it is an implementation detail, and the three that are not are the ones another crate
+everything in it is an implementation detail, and the five that are not are the ones another crate
 or a test reaches for.
 
 **`pub(crate)`** — `crates/playback/km-cdg/src/audio.rs:266` and `:284`. Visible
-within this crate, invisible outside it, and there are about 150 across the workspace. It is the
+within this crate, invisible outside it, and there are about 180 across the workspace. It is the
 middle ground C++ has no spelling for: `private:` is per-class and a header is per-file, where this
 is per-*crate* and the compiler enforces it across every module in one.
 
@@ -662,9 +667,9 @@ mod …            // the same public API, returning an error at :159 and :172
 written once against that API and knows nothing about the choice. This is compile-time polymorphism
 with no runtime cost and no virtual anything — the job `#ifdef` does in C++, except that the
 non-selected branch is still parsed, still name-resolved, and cannot rot silently. Same shape twice
-in `tools/cmd/km-pack/src/build.rs`, at `:498`/`:525` and `:615`/`:685`.
+in `tools/cmd/km-pack/src/build.rs`, at `:637`/`:664` and `:758`/`:828`.
 
-Then `crates/machine/km-api/src/lib.rs:52-53` for a conditional *module*:
+Then `crates/machine/km-api/src/lib.rs:57-58` for a conditional *module*:
 
 ```rust
 #[cfg(any(test, feature = "testing"))]
@@ -673,15 +678,15 @@ pub mod testing;
 
 — compiled for this crate's own tests *and* for anybody who asks for the feature. And
 `crates/platform/km-tray/src/lib.rs` as the densest `#[cfg(target_os = …)]` file, which notably uses
-`cfg_attr(…, allow(dead_code))` at `:275`, `:370` and `:389` rather than cfg-ing items away — the
+`cfg_attr(…, allow(dead_code))` on seven items, the first at `:275`, rather than cfg-ing items away — the
 reason is at `:94`, and it is that code which is compiled everywhere cannot rot on the platform you
 are not standing on.
 
-**Features, declared:** `crates/playback/km-video/Cargo.toml:14-16` (default-off `ffmpeg`, with a
+**Features, declared:** `crates/playback/km-video/Cargo.toml:14-24` (default-off `ffmpeg`, with a
 comment explaining the workspace-member problem it solves),
 `crates/machine/karaokemachine/Cargo.toml:64` (`video = ["dep:km-video", "dep:km-stream"]` — one
 switch turning on two crates, because a machine that decodes video is also the one that streams it),
-`tools/cmd/km-package-builder/Cargo.toml:40-42` (forwarding a feature through to a dependency).
+`tools/cmd/km-package-builder/Cargo.toml:41-46` (forwarding a feature through to two dependencies).
 
 **The root `Cargo.toml`, read top to bottom as a document.** It is the best-commented manifest in
 the project and it teaches three things at once: the `[workspace.dependencies]` version table with
@@ -704,13 +709,14 @@ lines here, and the teaching point is the **two-guard problem**, explained in th
 Getting one right and not the other is what turned CI red. Cross-compilation makes host and target
 two different questions, and a build script is the one place you have to keep them apart by hand.
 
-**Where the tests live.** Beside the code, in `#[cfg(test)] mod tests`, some 3,600 of them across
-243 modules in 201 files. Then the crates that split tests into sibling *files* rather than inline
-modules (`crates/playback/km-cdg/src/audio/tests.rs`, and `graphics/tests.rs` beside it), and one
-integration test worth reading: `crates/machine/km-api/tests/surface.rs`, whose `send` helper at
-`:246-258` drives the entire HTTP router through `tower::ServiceExt::oneshot` with no socket at all
-— a whole API surface tested without binding a port or opening an audio device. It is 4,649 lines,
-so read the `Harness` at the top and one test, not the file.
+**Where the tests live.** Beside the code, in `#[cfg(test)] mod tests`, some 4,500 of them in 285
+files, 253 of which hold a `mod tests`. Then the crates that split tests into sibling *files* rather
+than inline modules (`crates/playback/km-cdg/src/audio/tests.rs`, and `graphics/tests.rs` beside
+it), and one integration test worth reading: `crates/machine/km-api/tests/surface.rs`, whose `send`
+helper at `:224-237` drives the entire HTTP router with no socket at all — a whole API surface
+tested without binding a port or opening an audio device. The `tower::ServiceExt::oneshot` call
+underneath is in the shared test kit, at `tools/dev/km-testkit/src/http.rs:62-63`. `surface.rs` is
+6,236 lines, so read the `Harness` at `:24` and one test, not the file.
 
 ### What your C++ instinct gets wrong here
 
@@ -740,20 +746,20 @@ one file under `crates/`, so `git ls-files '*/km-audio/src/player.rs'` finds it.
 | Your C++ reflex says | What Rust actually means | Anchor |
 |---|---|---|
 | A move calls a move constructor and leaves a valid object | A move is a memcpy, runs no user code, and the source is statically unusable afterwards | `km-songbook/src/arrange.rs:73` |
-| `&` is a reference; `const&` is a read-only one | `&` is shared (many allowed); **`&mut` is exclusive (exactly one)** | `km-queue/src/queue.rs:83-165` |
+| `&` is a reference; `const&` is a read-only one | `&` is shared (many allowed); **`&mut` is exclusive (exactly one)** | `km-queue/src/queue.rs:125-196` |
 | I should write copy/move ctors and assignment operators | They do not exist as a concept. `Clone` is an ordinary method you call by name | `km-songcode/src/lib.rs:114` |
 | `Copy` is like `clone()` but cheaper | `Copy` means implicit memcpy duplication, no user code, and is mutually exclusive with `Drop` | `km-queue/src/transport.rs:9` |
 | A trait is an abstract base class | It adds nothing to layout, can be implemented after the fact, for types you did not write | `km-audio/src/source.rs:14` |
-| `virtual` makes the whole hierarchy dynamic | `dyn` is chosen per use site; the same trait is static in one place and dynamic in another | `km-audio/src/player.rs:75` vs `km-api/src/server.rs:45` |
-| Templates fail at instantiation, in a novel | Generics are checked once at the definition against the stated bound | `km-audio/src/player.rs:108` |
-| `'static` means static storage duration | Usually a **bound** meaning "contains no borrows" — what a value needs to cross a thread | `km-kmpkg/src/lib.rs:571-600` |
-| `drop(x)` destroys x for its side effects | It ends a **borrow**; it is a scope tool | `karaokemachine/src/machine.rs:1784` |
-| A lambda has a capture list | There is no capture list. `move` is all-or-nothing; prepare named clones in a block | `km-cdg/src/audio.rs:301-318` |
-| `?` is a hidden throw | Ordinary control flow, visible at every propagation point, no unwinding | `km-songcode/src/lib.rs:194` |
-| `optional<T&>` is awkward and nullable | `Option<&T>` is a null pointer the compiler makes you check, at zero size cost | `km-queue/src/queue.rs:105` |
+| `virtual` makes the whole hierarchy dynamic | `dyn` is chosen per use site; the same trait is static in one place and dynamic in another | `km-audio/src/player.rs:95` vs `km-api/src/server.rs:46` |
+| Templates fail at instantiation, in a novel | Generics are checked once at the definition against the stated bound | `km-audio/src/player.rs:133` |
+| `'static` means static storage duration | Usually a **bound** meaning "contains no borrows" — what a value needs to cross a thread | `km-kmpkg/src/lib.rs:834-862` |
+| `drop(x)` destroys x for its side effects | It ends a **borrow**; it is a scope tool | `karaokemachine/src/machine.rs:2509` |
+| A lambda has a capture list | There is no capture list. `move` is all-or-nothing; prepare named clones in a block | `km-cdg/src/audio.rs:302-317` |
+| `?` is a hidden throw | Ordinary control flow, visible at every propagation point, no unwinding | `km-songcode/src/lib.rs:193` |
+| `optional<T&>` is awkward and nullable | `Option<&T>` is a null pointer the compiler makes you check, at zero size cost | `km-queue/src/queue.rs:140` |
 | An index where I expected a pointer is a code smell | Self-referential structs are inexpressible; an index is the idiom | `km-display/src/keypad.rs:169` |
 | `#ifdef` deletes code before the compiler sees it | `#[cfg]` still parses and name-resolves the disabled branch | `karaokemachine/src/video.rs:23`/`:141` |
-| `unsafe` turns the checks off | It permits five specific operations. Borrowck, lifetimes and type checking all still apply | `km-console/src/lib.rs:177` |
+| `unsafe` turns the checks off | It permits five specific operations. Borrowck, lifetimes and type checking all still apply | `km-console/src/lib.rs:181` |
 
 ---
 
@@ -764,38 +770,38 @@ people bounce off Rust. When you come back, start from these files rather than f
 
 **Threads, `Send`/`Sync`, atomics.** The audio path is the most interesting code in the repository
 and it contains **no `Arc<Mutex>` at all**. Three mechanisms, each with a stated reason:
-atomics publish state *out* of the callback (`crates/playback/km-audio/src/audio.rs:152-207`, with
-`Relaxed` for position at `:615-624` against `AcqRel` for `songs_ended` at `:627`); `rtrb`
-single-producer lock-free rings carry commands *in* (`:390-391`); and a third ring exists purely to
-move `Drop` — megabyte-sized frees — off the real-time thread.
-`crates/playback/km-audio/src/track.rs:47-55` is a hand-rolled generation-counter seek handshake:
-the consumer bumps `seek_request` at `:166`, the producer echoes `seek_acked` at `:132`, and the
-comparison the consumer reads is at `:171-172`. `crates/machine/karaokemachine/src/engine.rs:1-8`
+atomics publish state *out* of the callback (`crates/playback/km-audio/src/audio.rs:172-246`, with
+`Relaxed` for position at `:678-689` against `AcqRel` for `songs_ended` at `:692`); `rtrb`
+single-producer lock-free rings carry commands *in* (`:469`); and a second ring (`:470`) exists
+purely to move `Drop` — megabyte-sized frees — off the real-time thread.
+`crates/playback/km-audio/src/track.rs:65-76` is a hand-rolled generation-counter seek handshake:
+the consumer bumps `seek_request` at `:186`, the producer echoes `seek_acked` at `:151-153`, and the
+comparison the consumer reads is at `:191-192`. `crates/machine/karaokemachine/src/engine.rs:1-6`
 states the `Send` argument in prose: the cpal stream is created on its own thread and never moves,
 because whether it is `Send` depends on the backend, so a design that moved it would compile here
 and fail elsewhere. Lock poisoning is handled uniformly and never `.unwrap()`ed — another concept
 C++ does not have.
 
 **Async.** `crates/machine/km-api/examples/dev_server.rs` (158 lines) is the entry point — the whole HTTP
-API against fixtures. Then `crates/machine/karaokemachine/src/lib.rs:203-722`, which holds the entire
-sync/async/GUI seam: a tokio runtime built at `:405` and hosted as a *component* of a synchronous
-program whose main thread belongs to SDL. At 520 lines it is a function to navigate rather than
+API against fixtures. Then `crates/machine/karaokemachine/src/lib.rs:220-763`, which holds the entire
+sync/async/GUI seam: a tokio runtime built at `:425` and hosted as a *component* of a synchronous
+program whose main thread belongs to SDL. At over 540 lines it is a function to navigate rather than
 read straight through — find the runtime and read outwards from it. `#[tokio::main]` is deliberately
 avoided in every GUI binary and both of them say why.
 
-**`unsafe`.** `crates/platform/km-console/src/lib.rs:159-230` is the workspace's one whole-module allowance
-— 309 lines in the file, one `#![allow(unsafe_code)]` at `:177`, two calls, and a long argument for
-why it exists at all. Everything else is 39 `#[expect(unsafe_code, reason = "…")]` on single items.
+**`unsafe`.** `crates/platform/km-console/src/lib.rs:163-234` is the workspace's one whole-module allowance
+— 313 lines in the file, one `#![allow(unsafe_code)]` at `:181`, two calls, and a long argument for
+why it exists at all. Everything else is about 45 `#[expect(unsafe_code, reason = "…")]` on single items.
 `crates/playback/km-audio/src/level.rs` is the densest with nine, and
 `crates/machine/karaokemachine/src/androidctx.rs` the richest in prose, with a SAFETY comment per
 operation. Note before you start: `unsafe_code = "deny"` is set workspace-wide in the root manifest,
 so every one of these is a deliberate, argued exception.
 
-**FFI**, and it has moved to the ports. Seventeen `extern "C"` across nine files and six
-`extern "system"` in one: the Swift-facing exports in `crates/remote/km-remote-ios/src/ffi.rs` and
-`crates/machine/km-machine-ios/src/ffi.rs`, and the six JNI exports in
-`crates/remote/km-remote-android/src/ffi.rs`, which are `"system"` rather than `"C"` because that is
-the ABI the JVM calls on. Note the two `tests/header_matches.rs` beside the iOS ones: a test that
+**FFI**, and it has moved to the ports. Eleven `extern "C"` exports across four files, two
+`extern "C"` import blocks, and seven `extern "system"` exports across two files: the Swift-facing
+exports in `crates/remote/km-remote-ios/src/ffi.rs` and `crates/machine/km-machine-ios/src/ffi.rs`,
+and the six JNI exports in `crates/remote/km-remote-android/src/ffi.rs`, which are `"system"` rather
+than `"C"` because that is the ABI the JVM calls on. Note the two `tests/header_matches.rs` beside the iOS ones: a test that
 checks a hand-written C header against the Rust exports, which is the seam C++ leaves to the
 compiler and Rust leaves to you.
 
@@ -803,8 +809,12 @@ The interesting case is the one with none: `km-video` writes **zero** `unsafe` w
 and the reason is at `crates/playback/km-video/src/lib.rs:246`, which is itself the lesson about
 where a safe wrapper belongs.
 
-**Macro authoring.** Not one `macro_rules!` in the whole workspace, which is why Stage 2's sidebar
-had to quote an outside example. This repository is the wrong text for it.
+**Macro authoring.** One `macro_rules!` in the whole workspace, at
+`crates/song/km-curation/src/db/filter.rs:772-777`. It expands to a string literal so that
+`concat!` can splice one SQL subquery into two clauses at compile time: `concat!` takes only
+literals, and a `const &str` is not one. That is a real reason to write a macro, but it is not the
+borrow-checker reason in Stage 2's sidebar, which is why the sidebar quotes an outside example. This
+repository is the wrong text for macro authoring.
 
 ---
 
@@ -816,9 +826,9 @@ the smallest programs here that produce something you can look at:
 | What | Lines | Produces |
 |---|---|---|
 | `cargo run -p km-songbook --example sample` | 200 | A PDF song book. No I/O framework, no dependencies |
-| `cargo run -p km-audio --example render_wav -- in.kar out.wav` | 197 | A WAV. No audio device needed |
+| `cargo run -p km-audio --example render_wav -- in.kar out.wav` | 199 | A WAV. No audio device needed |
 | `cargo run -p km-song --example write_fixtures` | 34 | The tiniest runnable thing in the repository |
-| `cargo run -p km-lyrics -- dump <file.kar>` | 1,367 | A parsed lyric timeline as JSON |
+| `cargo run -p km-lyrics -- dump <file.kar>` | 1,539 | A parsed lyric timeline as JSON |
 
 There are a dozen more `examples/` across the workspace — census programs over the corpus, a
 wallpaper preview, an offline CDG decoder. `cargo run -p <crate> --example` with no name lists a
@@ -829,11 +839,12 @@ crate's own.
 ## Appendix D — What this codebase cannot teach you
 
 A reader who learns Rust only from this repository will have specific blind spots. Verified absent
-from `crates/` and `tools/`, every one of them:
+or nearly absent from `crates/` and `tools/`, every one of them:
 
-- **`Rc`, `RefCell`, `Weak`** — single-threaded shared ownership and interior mutability. Absent
-  because everything shared in this design crosses a thread, so it is `Arc` + `Mutex` throughout.
-  This is a real and common part of Rust. *The Rust Book*, ch. 15.
+- **`Rc`, `RefCell`, `Weak`** — single-threaded shared ownership and interior mutability. One
+  thread-local cache in `km-display` (Stage 4) and no `Weak` at all, because nearly everything
+  shared in this design crosses a thread, so it is `Arc` + `Mutex` throughout. This is a real and
+  common part of Rust. *The Rust Book*, ch. 15.
 - **`UnsafeCell`, `transmute`, `MaybeUninit`, `unsafe impl Send`/`Sync`** — the actual hard parts
   of `unsafe`. Nothing here does any of it. *The Rustonomicon.*
 - **`crossbeam`, `parking_lot`** — the ecosystem's alternative concurrency primitives. Neither is in
