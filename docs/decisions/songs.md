@@ -1315,6 +1315,36 @@ the file placed. The file the rule answers:
 A curated corpus therefore wants a reanalysis, and packages built from an affected file keep their
 tabs until they are rebuilt.
 
+## A key signature before the first word is not a word
+
+**One sequencer opens its lyrics with the song's key, and that annotation is dropped.** It is written
+`<key>=<accidentals>`, with a `#` for each sharp and a `$` for each flat: `G=#`, `B=#####`, `Eb=$$$`,
+`C=`. The television drew it in front of the first line as `B=#####C=`.
+
+**The count has to be the key's.** Five sharps only after `B`, three flats only after `Eb`, nothing
+after `C`. That is what keeps the rule off anything a singer sings. A `b` is accepted for a flat
+too, although the files seen write `$`.
+
+**What an annotation may hold besides keys** is what the files hold:
+
+- A second key, `B=#####__C=` or `E=####__Db=$$$$$`.
+- `Acid.` and the notes it lists, `G=#__Acid.__C#__Bb`. A note name counts only after `Acid.`, so an
+  `A` that begins a line is never one.
+- A run of accidentals carried into the next event, `G=#___Ab=$$$$ ` and then `$$$$ `.
+
+**Only before the first word.** Past it, a key-shaped syllable is a syllable of the song.
+
+**The annotation can run into the first word in one event**, `E=####__Db=$$$$$__O` and then `pen `.
+The annotation ends where the first other token starts, and the rest of the event is kept.
+
+**It is read before the underscores are.** A space mark beside a `#` is a stray mark under
+[An underscore in the words is markup about a space](#an-underscore-in-the-words-is-markup-about-a-space),
+and resolving it first would glue the annotation into one token that names no key.
+
+**A few dozen files in the whole corpus carry it.** The pattern is rare but certain, so it costs a
+singer nothing. A file whose only lyric was the annotation now reports no lyrics, which moves its
+stored suitability: a curated corpus wants a reanalysis to see it.
+
 ## A declared lyric encoding must name a real one, and packaging is where that is said
 
 **`km-pack check` and the package builder refuse a `lyric_encoding` that names no encoding; playback

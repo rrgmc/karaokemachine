@@ -11,6 +11,12 @@ Entries are written for somebody who has the machine. Why any of it is the way i
 
 ## [Unreleased]
 
+### Fixed
+
+- **A song no longer starts its first line with its key.** Some files open their words with a key
+  signature such as `B=#####C=`, and the screen drew it in front of the first word. Rescan a
+  library to see it gone from the song list's preview.
+
 ## [1.25.0] - 2026-11-03
 
 ### Added
