@@ -90,6 +90,7 @@ it are the same entry. How the thing is built is [`ARCHITECTURE.md`](../ARCHITEC
 - [A control character in the words is padding, and none of it reaches the screen](songs.md#a-control-character-in-the-words-is-padding-and-none-of-it-reaches-the-screen)
 - [A chord is not a word, and a bracket that opens every line is a mark](songs.md#a-chord-is-not-a-word-and-a-bracket-that-opens-every-line-is-a-mark)
 - [A harmonica tab is not a word](songs.md#a-harmonica-tab-is-not-a-word)
+- [A key signature before the first word is not a word](songs.md#a-key-signature-before-the-first-word-is-not-a-word)
 - [A file that marks no word ends draws a narrower space](songs.md#a-file-that-marks-no-word-ends-draws-a-narrower-space)
 - [A file that marks no word boundary at all draws the same divider](songs.md#a-file-that-marks-no-word-boundary-at-all-draws-the-same-divider)
 - [A file is trusted for the lines it marks, and not for the verse it says nothing about](songs.md#a-file-is-trusted-for-the-lines-it-marks-and-not-for-the-verse-it-says-nothing-about)

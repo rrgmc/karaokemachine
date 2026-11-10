@@ -1142,6 +1142,93 @@ fn without_tabs(text: &str) -> String {
         .collect()
 }
 
+/// The major keys and how many accidentals each one's signature carries, sharps then flats.
+///
+/// `C` is in neither list because it carries none: `C=` is written with nothing after the sign.
+const SHARP_KEYS: [&str; 7] = ["G", "D", "A", "E", "B", "F#", "C#"];
+const FLAT_KEYS: [&str; 7] = ["F", "Bb", "Eb", "Ab", "Db", "Gb", "Cb"];
+
+/// Whether one token is a key signature written as `<key>=<accidentals>`: `G=#`, `B=#####`,
+/// `Eb=$$$`, `C=`.
+///
+/// One sequencer's files open their lyrics this way, and a flat is a `$` there; a `b` is taken too.
+/// **The count has to be the key's**, which is what keeps the rule off anything else: five sharps
+/// only after `B`, three flats only after `Eb`. Nothing sung is spelled like that by accident.
+fn is_key_signature(token: &str) -> bool {
+    let Some((key, accidentals)) = token.split_once('=') else {
+        return false;
+    };
+    let count = accidentals.chars().count();
+    if key == "C" {
+        return count == 0;
+    }
+    let position = |keys: &[&str]| keys.iter().position(|k| *k == key).map(|at| at + 1);
+    if let Some(sharps) = position(&SHARP_KEYS) {
+        return count == sharps && accidentals.chars().all(|ch| ch == '#');
+    }
+    if let Some(flats) = position(&FLAT_KEYS) {
+        return count == flats && accidentals.chars().all(|ch| matches!(ch, '$' | 'b'));
+    }
+    false
+}
+
+/// A run of accidentals on its own, `####` or `$$$$`: the tail of a key annotation that its writer
+/// carried over into the next event.
+fn is_accidental_run(token: &str) -> bool {
+    !token.is_empty() && token.chars().all(|ch| matches!(ch, '#' | '$'))
+}
+
+/// Whether a character separates the tokens of an annotation: whitespace, padding, or the space
+/// mark.
+///
+/// Judged before [`crate::spacing::resolve`] runs, because a mark beside a `#` is read as a stray
+/// one and dropped, which glues `B=#####__C=` into one token that is no key.
+fn separates_tokens(ch: char) -> bool {
+    ch == '_' || ch.is_whitespace() || ch.is_control()
+}
+
+/// The tokens of an event, split on [`separates_tokens`], each with its byte offset.
+fn annotation_tokens(text: &str) -> impl Iterator<Item = (usize, &str)> {
+    text.split(separates_tokens)
+        .filter(|token| !token.is_empty())
+        .map(move |token| (token.as_ptr() as usize - text.as_ptr() as usize, token))
+}
+
+/// Where a key annotation at the start of an event ends, if the event starts with one.
+///
+/// The annotation names at least one key whose signature is right, as in `B=#####__C=`. Beside the
+/// keys it may hold runs of accidentals, and `Acid.` -- the abbreviation that writer heads a list of
+/// accidentals with -- followed by the notes it lists: `G=#__Acid.__C#__Bb`. A note counts only
+/// after `Acid.`, so the `A` that begins a line is never mistaken for one.
+///
+/// **The end is where the first other token starts**, because the field that holds the annotation
+/// can run straight into the first word: `E=####__Db=$$$$$__O` and then `pen `.
+fn key_annotation_end(text: &str) -> Option<usize> {
+    let is_note = |token: &str| {
+        let mut chars = token.chars();
+        matches!(chars.next(), Some('A'..='G'))
+            && matches!(chars.next(), None | Some('#' | 'b' | '$'))
+            && chars.next().is_none()
+    };
+    let mut names_a_key = false;
+    let mut listing_notes = false;
+    for (at, token) in annotation_tokens(text) {
+        if is_key_signature(token) {
+            names_a_key = true;
+        } else if token.eq_ignore_ascii_case("acid.") {
+            listing_notes = true;
+        } else if !(is_accidental_run(token) || (listing_notes && is_note(token))) {
+            return names_a_key.then_some(at);
+        }
+    }
+    names_a_key.then_some(text.len())
+}
+
+#[cfg(test)]
+fn is_key_annotation(text: &str) -> bool {
+    key_annotation_end(text) == Some(text.len())
+}
+
 /// What a file's lyric events say about how that file writes lyrics.
 ///
 /// **Measured once over the events one flavor accepts, rather than per event.** Both rules turn
@@ -1239,6 +1326,7 @@ fn collect_raws(
 
     let mut raws: Vec<RawSyllable> = Vec::new();
     let mut pending = LineBreak::None;
+    let mut after_key_annotation = false;
 
     for (tick, text) in taken {
         // **An event with no bytes ends the syllable before it.** A lyric event has no length, so
@@ -1268,6 +1356,31 @@ fn collect_raws(
         let (leading, body, trailing) = split_break_markers(text, dialect);
         let break_before = stronger(pending, leading);
         pending = trailing;
+
+        // **A key annotation before the first word goes, and so does its carried-over tail.** It is
+        // notation for whoever plays along, and drawn it reads as `B=#####C=` in front of the first
+        // line. Only before any word: past that point the evidence is a syllable of the song. What
+        // follows it in the same event is kept, and so is the break it carried, as for an
+        // annotation below.
+        let mut body = body;
+        if !raws.iter().any(|raw| !raw.text.is_empty()) {
+            let tail = after_key_annotation
+                && annotation_tokens(body).next().is_some()
+                && annotation_tokens(body).all(|(_, token)| is_accidental_run(token));
+            let end = if tail {
+                Some(body.len())
+            } else {
+                key_annotation_end(body)
+            };
+            if let Some(end) = end {
+                after_key_annotation = true;
+                body = &body[end..];
+                if body.is_empty() {
+                    pending = stronger(break_before, pending);
+                    continue;
+                }
+            }
+        }
 
         // Break markers first, so a payload closing with `MEL_ \r` still ends in the space its
         // mark cancels. See [`crate::spacing`] for what an underscore in the words means. Cleaning
@@ -1995,6 +2108,90 @@ mod tests {
         let source = run(&events);
         assert_eq!(source.timeline.plain_text(), "one two three four");
         assert_eq!(source.timeline.syllable_count(), 2);
+    }
+
+    /// The shapes one sequencer opens its lyrics with, and near misses that are not one.
+    #[test]
+    fn a_key_annotation_names_a_key_with_its_own_signature() {
+        for annotation in [
+            "B=#####__C= ",
+            "G=# ",
+            "C=",
+            "Eb=$$$",
+            "E=####__Db=$$$$$__",
+            "G=#__Acid.__C#__Bb ",
+            "G=#___Ab=$$$$ ",
+            "Bb=bb",
+        ] {
+            assert!(is_key_annotation(annotation), "{annotation:?} is a key");
+        }
+        // The count is not the key's.
+        let wrong_count = ["B=### ", "G=## ", "F=# ", "C=#"];
+        // No key at all, or a word beside one.
+        let no_key = ["#####", "A ", "G=# love", "x=y", ""];
+        for not_one in wrong_count.into_iter().chain(no_key) {
+            assert!(!is_key_annotation(not_one), "{not_one:?} is not a key");
+        }
+    }
+
+    #[test]
+    fn a_key_annotation_before_the_first_word_is_dropped() {
+        let events = [
+            ev(1, 0, MetaTextKind::Lyric, b"B=#####__C= "),
+            ev(1, 240, MetaTextKind::Lyric, b"It's_un"),
+            ev(1, 480, MetaTextKind::Lyric, b"de"),
+            ev(1, 720, MetaTextKind::Lyric, b"niable"),
+        ];
+        let source = run(&events);
+        assert_eq!(source.timeline.plain_text(), "It's undeniable");
+    }
+
+    /// The annotation's field ran straight into the first word, and the word's first letter is a
+    /// note name that is not taken as one.
+    #[test]
+    fn a_word_in_the_same_event_as_a_key_annotation_is_kept() {
+        let events = [
+            ev(1, 0, MetaTextKind::Lyric, b"E=####__Db=$$$$$__O"),
+            ev(1, 240, MetaTextKind::Lyric, b"pen "),
+            ev(1, 480, MetaTextKind::Lyric, b"up"),
+        ];
+        assert_eq!(run(&events).timeline.plain_text(), "Open up");
+
+        let events = [
+            ev(1, 0, MetaTextKind::Lyric, b"G=# A "),
+            ev(1, 240, MetaTextKind::Lyric, b"day"),
+        ];
+        assert_eq!(run(&events).timeline.plain_text(), "A day");
+    }
+
+    /// `G=#___Ab=$$$$ ` and then `$$$$ ` on its own: the writer's field ran out mid-annotation.
+    #[test]
+    fn the_tail_of_a_key_annotation_goes_with_it() {
+        let events = [
+            ev(1, 0, MetaTextKind::Lyric, b"G=#___Ab=$$$$ "),
+            ev(1, 120, MetaTextKind::Lyric, b"$$$$ "),
+            ev(1, 240, MetaTextKind::Lyric, b"one "),
+            ev(1, 480, MetaTextKind::Lyric, b"two"),
+        ];
+        assert_eq!(run(&events).timeline.plain_text(), "one two");
+    }
+
+    /// Past the first word a key-shaped syllable is a syllable, and a bare run of `#` is never
+    /// dropped without an annotation before it.
+    #[test]
+    fn a_key_shape_is_kept_where_it_is_not_an_annotation() {
+        let events = [
+            ev(1, 0, MetaTextKind::Lyric, b"one "),
+            ev(1, 240, MetaTextKind::Lyric, b"G=# "),
+            ev(1, 480, MetaTextKind::Lyric, b"two"),
+        ];
+        assert_eq!(run(&events).timeline.plain_text(), "one G=# two");
+
+        let events = [
+            ev(1, 0, MetaTextKind::Lyric, b"## "),
+            ev(1, 240, MetaTextKind::Lyric, b"one"),
+        ];
+        assert_eq!(run(&events).timeline.plain_text(), "## one");
     }
 
     #[test]
