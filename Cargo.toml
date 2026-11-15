@@ -523,7 +523,7 @@ tokio-tungstenite = "0.29.0"
 async-trait = "0.1.92"
 
 # Storage + packages
-rusqlite = { version = "0.40.2", features = ["bundled"] }
+rusqlite = { version = "0.41.1", features = ["bundled"] }
 zip = "9.0.5"
 # The two halves of what a `.kmpkg` is made of, used directly by `km-kmpkg`'s own container: deflate
 # for every entry a decoder reads whole, and a CRC per entry so a damaged package is diagnosed rather
