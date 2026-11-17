@@ -321,8 +321,9 @@ that can each end the port, and they cost a day. They turn every estimate here f
 number. Memory is the second measurement, because it decides which SoundFont banks this carrier can
 offer. That is a product question rather than a build one.
 
-The sibling note is [`tizen.md`](tizen.md), which asks the same question of a Samsung television and
-gets a harder answer.
+The sibling note is [`tizen.md`](tizen.md), which asks the same question of a Samsung television. It
+finds a port possible there too, with one more thing to measure: whether the network can reach the
+API.
 
 ## Sources
 
