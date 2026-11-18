@@ -322,8 +322,7 @@ number. Memory is the second measurement, because it decides which SoundFont ban
 offer. That is a product question rather than a build one.
 
 The sibling note is [`tizen.md`](tizen.md), which asks the same question of a Samsung television. It
-finds a port possible there too, with one more thing to measure: whether the network can reach the
-API.
+finds a port possible there too, gated on the display and on audio output.
 
 ## Sources
 

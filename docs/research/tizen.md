@@ -5,17 +5,18 @@ Tizen carrier would need an entry in `docs/decisions/distribution.md` beside
 [`What the machine *is*, on Linux`](../decisions/distribution.md#what-the-machine-is-on-linux) and
 [`What the machine *is*, on iOS`](../decisions/distribution.md#what-the-machine-is-on-ios) first.
 
-Investigated 2026-09-13 and revised 2026-11-17. **No claim here was verified on a television**, and
-the marker on each says how far it can be trusted. The sibling note is [`webos.md`](webos.md), which
+Investigated 2026-09-13 and revised 2026-11-17. **One claim was measured on a television**: §2's
+listening port, on a 2025 set running Tizen 9. The marker on each of the others says how far it can be
+trusted. The sibling note is [`webos.md`](webos.md), which
 asks the same question of an LG television.
 
 **Summary.** The first version of this note said a native port was impossible, because Samsung
 dropped NaCl, the only route for third-party native code. That was wrong. A Tizen application package
 (`.tpk`) is a .NET application, and a .NET application can load a C library and lend it an OpenGL ES
 context. An open-source client in C and SDL2 ships this way for Tizen 4.0 to 9, and is installed with
-an ordinary Public certificate. **A port in the shape of the Android one is therefore possible.** It is
-gated on three things not yet measured: drawing through SDL3, playing PCM, and accepting a connection
-from the network.
+an ordinary Public certificate. **A port in the shape of the Android one is therefore possible.** An
+application on the television accepts connections from the network, measured. The port is gated on two
+things not yet measured: drawing through SDL3, and playing PCM.
 
 **Two cheaper answers already exist.** A Google TV device on HDMI runs the whole machine on a Samsung
 television. The machine's HLS stream plays on the television's own player with no port at all.
@@ -26,6 +27,7 @@ television. The machine's HLS stream plays on the television's own player with n
 | **[source]** | Read from vendor documentation or another project's source. High confidence. |
 | **[web]** | Public documentation and community reports. Second-hand. |
 | **[inferred]** | Reasoning. A hypothesis to test. |
+| **[measured]** | Run on a television. Highest confidence, for that model year. |
 
 ## 1. Native code reaches a Samsung television through .NET
 
@@ -53,19 +55,26 @@ release notes and the code show how it runs on Tizen:
 television. A test build that dropped a Partner-level privilege for Tizen 4 and 5 had no reported
 result when read. Install error 118014 is what that build was made for.
 
-## 2. Listening on a port: loopback proven, the network not
+## 2. Listening on a port: the network reaches it
 
 **[source]** The same client calls `bind`, `listen` and `accept` on the television. It binds
 `127.0.0.1` only, because the client is the television's own media player. So a native application
 **can** listen, which contradicts the community reports the first version of this note relied on.
 
-**[inferred]** Whether a phone on the network can reach a port the television binds on `0.0.0.0` is
-not answered by anything read. It matters more than anything else here. The machine's control surface
-**is** its HTTP API: `km_api::routes::SURFACE` holds every route, and the singer's remote is served at
-`/`. A machine nobody can queue a song on from a phone is a different product.
+**[inferred]** Whether the network can reach it mattered more than anything else here. The machine's
+control surface **is** its HTTP API: `km_api::routes::SURFACE` holds every route, and the singer's
+remote is served at `/`. A machine nobody can queue a song on from a phone is a different product.
 
-**[inferred]** This is the first measurement, and it is small: a `.tpk` whose library binds
-`0.0.0.0:8177` and answers one request, installed with Apps2Samsung, and fetched from a phone.
+**[measured]** It can. On 2026-11-17 a probe was installed with Apps2Samsung on a 2025 television
+running Tizen 9. The probe was a .NET-only `.tpk` (`net6.0-tizen8.0`, manifest API version 8, `tv`
+profile, privileges `internet` and `network.get`) whose `TcpListener` bound `0.0.0.0:8177`. The bind
+succeeded. A phone and a PC on the same network each fetched a page from it, and the probe showed each
+request with the sender's address. No prompt appeared on the television, and no setting was changed.
+
+**[inferred]** The probe was C#, and the machine's API would be Rust in a native library. Both reach
+the same kernel socket calls under the same application, so the result should carry. It says nothing
+about the multicast socket mDNS needs. Without mDNS, the remote finds the machine by its address or
+by the QR code.
 
 ## 3. What would port, and what would not
 
@@ -75,7 +84,7 @@ not answered by anything read. It matters more than anything else here. The mach
 |---|---|
 | `km-song`, `km-suitability`, `km-fixes`, `km-songcode`, `km-queue`, `km-songbook`, `km-cdg` | pure Rust. Cross-compile to armv7 Linux unchanged |
 | `km-catalog` | SQLite bundled. Builds; the database lives in the application's data folder |
-| `km-api` | axum over tokio. Builds; usable only if §2's measurement passes |
+| `km-api` | axum over tokio. Builds; §2 measured the network reaching a port on the television |
 | `km-audio` | `rustysynth` travels. cpal has no Tizen backend, so output would go through Tizen's native `audio_io` or a .NET `AudioPlayback` the host feeds. Neither has been seen working from a third-party package |
 | `km-video` | ffmpeg cross-compiles. Software decoding of 1080p on a television's processor is unmeasured. The alternative is the television's player on its video plane, as the client in §1 does, which changes how a video song is composited |
 | `km-display` | SDL3 throughout, with no renderer seam. SDL3 has no Tizen driver, so it has to draw into a context it did not create |
@@ -119,10 +128,10 @@ that room, so nothing has to be kept in time across two boxes.
 |---|---|---|
 | Native ARM code from a third party | a `.tpk` with a .NET host, Public certificate | unofficial, and installs on a stock television |
 | SDL | none; SDL2's API over the host's EGL has been shown | SDL2 has a community fork; SDL3 has nothing |
-| The machine's HTTP API | loopback proven; the network unmeasured | ordinary sockets |
+| The machine's HTTP API | reachable from the network, measured on Tizen 9 | ordinary sockets |
 | Reading songs off a stick | unmeasured for a native package | a directory walk, subject to the jailer |
 | Sideload lifetime | seven days reported; effect on an installed package unknown | 1000 hours |
-| Verdict | a port, gated on the network and the display | a port, gated on the display |
+| Verdict | a port, gated on the display and the audio | a port, gated on the display |
 
 ## 8. What answers the question today
 
@@ -137,10 +146,10 @@ The stream in §6 does it with no second device, when a machine already runs els
 Build nothing yet. If a native Samsung machine is wanted, three measurements decide it, in order,
 each a day or less:
 
-1. A `.tpk` that listens on `0.0.0.0` and answers a phone. If it fails, the port is a lyrics screen
-   without a remote and is not worth building, because §6 already covers that.
+1. ~~A `.tpk` that listens on `0.0.0.0` and answers a phone.~~ **Passed** on 2026-11-17; see §2.
 2. SDL3 drawing one frame into the host's EGL context.
-3. An installed package starting after Developer Mode has expired.
+3. An installed package starting after Developer Mode has expired. The probe from §2 is that package,
+   installed on 2026-11-17. Starting it after 2026-11-27 answers this.
 
 A platform decision belongs in `docs/decisions/` after them, not before.
 
