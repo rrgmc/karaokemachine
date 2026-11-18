@@ -5,8 +5,8 @@ Tizen carrier would need an entry in `docs/decisions/distribution.md` beside
 [`What the machine *is*, on Linux`](../decisions/distribution.md#what-the-machine-is-on-linux) and
 [`What the machine *is*, on iOS`](../decisions/distribution.md#what-the-machine-is-on-ios) first.
 
-Investigated 2026-09-13 and revised 2026-11-17. **Four claims were measured on a television**, a 2025
-set running Tizen 10: §2's listening port, and §3's SDL3 window, sound and frame pacing. The marker on
+Investigated 2026-09-13 and revised 2026-11-17. **Five claims were measured on a television**, a 2025
+set running Tizen 10: §2's listening port, and §3's SDL3 window, sound, frame pacing and remote keys. The marker on
 each of the others says how far it can be trusted. The sibling note is [`webos.md`](webos.md), which asks the same question
 of an LG television.
 
@@ -17,7 +17,8 @@ the Android one is possible, and most of its gates are measured open.** An appli
 accepts connections from the network. SDL3's own Wayland driver draws a full-screen frame with its
 GLES2 renderer, after two one-line patches. Sound plays through Tizen's native `audio_io`, though not
 through ALSA. Frames are paced to the display by Tizen's `tdm` vblank, not by SDL3's vsync, at 59 fps
-with about one frame in fourteen held for two vblanks. What is left unmeasured is the remote's keys.
+with about one frame in fourteen held for two vblanks. The remote's arrows, OK, Back and number keys arrive in SDL3 as ordinary key
+events, though Back also freezes the picture. What is left unmeasured is how long an install lasts.
 
 **Two cheaper answers already exist.** A Google TV device on HDMI runs the whole machine on a Samsung
 television. The machine's HLS stream plays on the television's own player with no port at all.
@@ -137,11 +138,37 @@ present:
 loaded into every application. A Tizen `km-display` would wait on it before each present and turn
 SDL's vsync off. Why one frame in fourteen misses its vblank is open. The probe drew almost nothing,
 so it is not render time; the present after the wait blocking on a buffer the compositor has not
-released is the likely cause. A moving wipe would show it as an occasional small stutter.
+released is the likely cause. A moving wipe would show it as an occasional small stutter. A
+three-minute run held the same rate throughout, 56.9 fps on average with the number pad open for part
+of it.
+
+**[measured]** The remote's keys reach SDL3 as ordinary keyboard events, with no key grab declared.
+The window gained keyboard focus from the `wl_shell` toplevel, and a seat keyboard named "Virtual core
+keyboard" appeared. Every key pressed during a three-minute run arrived as a down and an up:
+
+| Remote key | SDL scancode | SDL keycode |
+|---|---|---|
+| Up, Down, Left, Right | `Up`, `Down`, `Left`, `Right` | the same |
+| OK | `Return` | `Return` |
+| Back | `Escape` | `AC Back` |
+| 1 to 4 | `1` to `4` | `1` to `4` |
+| the 123 button, and one other | 0 | 0 |
+
+**[measured]** **Back also acts on the television.** After it, the picture froze on screen, while the
+probe kept presenting about 300 frames every five seconds and kept receiving keys. Pressing the 123
+button, which opens the set's on-screen number pad, brought the picture back. The number keys that
+followed were typed on that pad.
+
+**[inferred]** The number keys are the song-number entry the machine's singer screen is built
+around, and they arrive as they would from a keyboard. Two keys arrived with no SDL mapping, so their
+XKB keysyms are ones SDL does not translate. The machine would need the raw keysym to use them, which
+SDL3 does not pass on. Back freezing the picture is the one finding here that a port would have to
+solve. Why it happens is open: the window manager may treat the `wl_shell` toplevel as something
+other than the application's own window. Claiming the key through `tizen_keyrouter`, or drawing into
+the host's own window as the client in §1 does, are the two routes to try.
 
 **[measured]** What this run does not settle:
 
-- **The remote's keys.** No key event was looked for.
 - **4K.** The output was 1920×1080, the size the compositor gave. Whether a native application may
   draw at the panel's 3840×2160 is open.
 
@@ -197,7 +224,8 @@ that room, so nothing has to be kept in time across two boxes.
 | Sideload lifetime | seven days reported; effect on an installed package unknown | 1000 hours |
 | Sound | Tizen's `audio_io`, measured; ALSA refused | unmeasured |
 | Frame pacing | Tizen's `tdm` vblank, 59 fps with about 7% held a vblank, measured | unmeasured |
-| Verdict | a port; the remote's keys and the install's lifetime are unmeasured | a port, gated on the display |
+| The remote's keys | arrows, OK, Back and numbers reach SDL3, measured; Back also freezes the picture | unmeasured |
+| Verdict | a port; Back's freeze and the install's lifetime are open | a port, gated on the display |
 
 ## 8. What answers the question today
 
@@ -215,7 +243,8 @@ Build nothing yet. If a native Samsung machine is wanted, these measurements dec
 2. ~~SDL3 drawing a frame.~~ **Passed** on 2026-11-17, with the patch and the custom-role window; see §3.
 3. ~~Sound.~~ **Passed** on 2026-11-17 through `audio_io`, not ALSA; see §3.
 4. ~~Presentation paced to the display's 60 Hz.~~ **Passed** on 2026-11-17 through `tdm`, with about
-   7% of frames held a vblank; see §3. The remote's keys reaching SDL is still open.
+   7% of frames held a vblank; see §3. The remote's keys **passed** the same day, except that Back
+   freezes the picture; see §3.
 5. An installed package starting after Developer Mode has expired: leave the set untouched for ten days
    after the last install, then start it.
 
