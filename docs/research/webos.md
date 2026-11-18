@@ -322,8 +322,8 @@ number. Memory is the second measurement, because it decides which SoundFont ban
 offer. That is a product question rather than a build one.
 
 The sibling note is [`tizen.md`](tizen.md), which asks the same question of a Samsung television. It
-finds a port possible there too. SDL3 draws there through its own Wayland driver, sound plays through the
-platform's own audio API, and frame pacing is what is left to measure.
+finds a port possible there too. SDL3 draws there through its own Wayland driver, and sound and frame
+pacing both go through the platform's own services rather than SDL's.
 
 ## Sources
 

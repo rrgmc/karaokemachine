@@ -5,18 +5,19 @@ Tizen carrier would need an entry in `docs/decisions/distribution.md` beside
 [`What the machine *is*, on Linux`](../decisions/distribution.md#what-the-machine-is-on-linux) and
 [`What the machine *is*, on iOS`](../decisions/distribution.md#what-the-machine-is-on-ios) first.
 
-Investigated 2026-09-13 and revised 2026-11-17. **Three claims were measured on a television**, a 2025
-set running Tizen 10: §2's listening port, §3's SDL3 window, and §3's sound. The marker on each of the others says
-how far it can be trusted. The sibling note is [`webos.md`](webos.md), which asks the same question
+Investigated 2026-09-13 and revised 2026-11-17. **Four claims were measured on a television**, a 2025
+set running Tizen 10: §2's listening port, and §3's SDL3 window, sound and frame pacing. The marker on
+each of the others says how far it can be trusted. The sibling note is [`webos.md`](webos.md), which asks the same question
 of an LG television.
 
 **Summary.** The first version of this note said a native port was impossible, because Samsung
 dropped NaCl, the only route for third-party native code. That was wrong. A Tizen application package
 (`.tpk`) is a .NET application, and a .NET application can load a C library. **A port in the shape of
-the Android one is possible, and three of its gates are measured open.** An application on the
-television accepts connections from the network. SDL3's own Wayland driver draws a full-screen frame
-with its GLES2 renderer, after a one-line patch. Sound plays through Tizen's native `audio_io`, though
-not through ALSA. What is left unmeasured is frame pacing and the remote's keys.
+the Android one is possible, and most of its gates are measured open.** An application on the television
+accepts connections from the network. SDL3's own Wayland driver draws a full-screen frame with its
+GLES2 renderer, after two one-line patches. Sound plays through Tizen's native `audio_io`, though not
+through ALSA. Frames are paced to the display by Tizen's `tdm` vblank, not by SDL3's vsync, at 59 fps
+with about one frame in fourteen held for two vblanks. What is left unmeasured is the remote's keys.
 
 **Two cheaper answers already exist.** A Google TV device on HDMI runs the whole machine on a Samsung
 television. The machine's HLS stream plays on the television's own player with no port at all.
@@ -96,9 +97,11 @@ by the QR code.
 set's own libraries, opened a 1920×1080 window and drew with the `opengles2` renderer. The window
 covered the screen above the host's own. It took three things:
 
-1. **A one-line patch to SDL3.** The compositor announces `wl_output.scale` as 0. SDL divides by it in
-   `handle_wl_output_done` and the process dies with `SIGFPE`. Treating a scale below 1 as 1 fixes it.
-   It belongs upstream as a guard.
+1. **Two one-line patches to SDL3**, both guards worth sending upstream. The compositor announces
+   `wl_output.scale` as 0; SDL divides by it in `handle_wl_output_done` and the process dies with
+   `SIGFPE`. Treating a scale below 1 as 1 fixes it. The compositor also reports the refresh as `60`,
+   where the protocol asks for millihertz, so SDL reads 0.06 Hz. Treating a refresh below 1000 as
+   hertz fixes it.
 2. **A custom-role surface.** `SDL_CreateWindow` waits for a configure event from `xdg_wm_base`, which
    this compositor does not have, so it never returns. With
    `SDL_PROP_WINDOW_CREATE_WAYLAND_SURFACE_ROLE_CUSTOM_BOOLEAN`, SDL makes the surface and EGL window and
@@ -119,11 +122,25 @@ build of `km-audio` needs an output backend that pushes PCM through `audio_out_w
 small blocking-write loop, and its 50 ms buffer is in the range the machine already works with.
 PulseAudio, through SDL3 or cpal, was not tried.
 
+**[measured]** Frame pacing comes from Tizen's display manager, not from SDL3. With nothing pacing it,
+the probe presented about 465 frames a second. Four ways were tried, each for 16 s, timing every
+present:
+
+| Pacing | Result |
+|---|---|
+| SDL3's vsync, unpatched | 0.3 fps. SDL sizes its wait for the frame callback from the refresh, and 0.06 Hz makes it 16.7 s |
+| SDL3's vsync, refresh patched | 26 fps, uneven. Frame callbacks rarely arrive, so most swaps fall back on SDL's 50 ms timeout |
+| `eglSwapInterval(1)` on the set's EGL, SDL's vsync off | accepted and ignored: about 4,000 presents a second |
+| `libtdm-client`'s vblank wait, synchronous, then present with SDL's vsync off | **58.9 fps.** Vblank timestamps step 16.6 ms, and per five seconds about 20 of 295 frames are held for two vblanks, with about 10 short ones catching up |
+
+**[inferred]** `tdm` is what the platform's own toolkits pace with, and the client library is already
+loaded into every application. A Tizen `km-display` would wait on it before each present and turn
+SDL's vsync off. Why one frame in fourteen misses its vblank is open. The probe drew almost nothing,
+so it is not render time; the present after the wait blocking on a buffer the compositor has not
+released is the likely cause. A moving wipe would show it as an occasional small stutter.
+
 **[measured]** What this run does not settle:
 
-- **Frame pacing.** The probe presented about 465 frames a second, so presentation is not tied to the
-  display's refresh. The compositor also reports the refresh as `60` where the protocol asks for
-  millihertz, so SDL reads 0.06 Hz. The machine's wipe needs a steady 60.
 - **The remote's keys.** No key event was looked for.
 - **4K.** The output was 1920×1080, the size the compositor gave. Whether a native application may
   draw at the panel's 3840×2160 is open.
@@ -135,12 +152,12 @@ PulseAudio, through SDL3 or cpal, was not tried.
 | `km-song`, `km-suitability`, `km-fixes`, `km-songcode`, `km-queue`, `km-songbook`, `km-cdg` | pure Rust. Cross-compile to armv7 Linux unchanged |
 | `km-catalog` | SQLite bundled. Builds; the database lives in the application's data folder |
 | `km-api` | axum over tokio. Builds; §2 measured the network reaching it |
-| `km-display` | SDL3 with its own Wayland driver, measured above. Needs a custom-role window path and the scale patch |
+| `km-display` | SDL3 with its own Wayland driver, measured above. Needs a custom-role window path, the two patches, and `tdm` pacing |
 | `km-audio` | `rustysynth` travels. Output needs a backend over Tizen's `audio_io`, measured above; ALSA is refused |
 | `km-video` | ffmpeg 7.1 is already on the set as `libavcodec.so.61`. Software decoding of 1080p on its processor is unmeasured. The alternative is the television's player on its video plane, as the client in §1 does |
 
 **[inferred]** The Android port needed changes in five files. This needs a .NET host application, the
-custom-role window, the SDL patch and an `audio_io` output backend, on top.
+custom-role window, the two SDL patches, `tdm` pacing and an `audio_io` output backend, on top.
 
 ## 4. Songs and files
 
@@ -179,7 +196,8 @@ that room, so nothing has to be kept in time across two boxes.
 | Reading songs off a stick | unmeasured for a native package | a directory walk, subject to the jailer |
 | Sideload lifetime | seven days reported; effect on an installed package unknown | 1000 hours |
 | Sound | Tizen's `audio_io`, measured; ALSA refused | unmeasured |
-| Verdict | a port, gated on frame pacing | a port, gated on the display |
+| Frame pacing | Tizen's `tdm` vblank, 59 fps with about 7% held a vblank, measured | unmeasured |
+| Verdict | a port; the remote's keys and the install's lifetime are unmeasured | a port, gated on the display |
 
 ## 8. What answers the question today
 
@@ -196,7 +214,8 @@ Build nothing yet. If a native Samsung machine is wanted, these measurements dec
 1. ~~A `.tpk` that listens on `0.0.0.0` and answers a phone.~~ **Passed** on 2026-11-17; see §2.
 2. ~~SDL3 drawing a frame.~~ **Passed** on 2026-11-17, with the patch and the custom-role window; see §3.
 3. ~~Sound.~~ **Passed** on 2026-11-17 through `audio_io`, not ALSA; see §3.
-4. Presentation paced to the display's 60 Hz, and the remote's keys reaching SDL.
+4. ~~Presentation paced to the display's 60 Hz.~~ **Passed** on 2026-11-17 through `tdm`, with about
+   7% of frames held a vblank; see §3. The remote's keys reaching SDL is still open.
 5. An installed package starting after Developer Mode has expired: leave the set untouched for ten days
    after the last install, then start it.
 
