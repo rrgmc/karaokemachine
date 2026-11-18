@@ -5,17 +5,18 @@ Tizen carrier would need an entry in `docs/decisions/distribution.md` beside
 [`What the machine *is*, on Linux`](../decisions/distribution.md#what-the-machine-is-on-linux) and
 [`What the machine *is*, on iOS`](../decisions/distribution.md#what-the-machine-is-on-ios) first.
 
-Investigated 2026-09-13 and revised 2026-11-17. **No claim here was verified on a television**, and
-the marker on each says how far it can be trusted. The sibling note is [`webos.md`](webos.md), which
-asks the same question of an LG television.
+Investigated 2026-09-13 and revised 2026-11-17. **Two claims were measured on a television**, a 2025
+set running Tizen 10: §2's listening port and §3's SDL3 window. The marker on each of the others says
+how far it can be trusted. The sibling note is [`webos.md`](webos.md), which asks the same question
+of an LG television.
 
 **Summary.** The first version of this note said a native port was impossible, because Samsung
 dropped NaCl, the only route for third-party native code. That was wrong. A Tizen application package
-(`.tpk`) is a .NET application, and a .NET application can load a C library and lend it an OpenGL ES
-context. An open-source client in C and SDL2 ships this way for Tizen 4.0 to 9, and is installed with
-an ordinary Public certificate. **A port in the shape of the Android one is therefore possible.** It is
-gated on three things not yet measured: drawing through SDL3, playing PCM, and accepting a connection
-from the network.
+(`.tpk`) is a .NET application, and a .NET application can load a C library. **A port in the shape of
+the Android one is possible, and two of its gates are measured open.** An application on the
+television accepts connections from the network. SDL3's own Wayland driver draws a full-screen frame
+with its GLES2 renderer, after a one-line patch. What is left unmeasured is sound, frame pacing and the
+remote's keys.
 
 **Two cheaper answers already exist.** A Google TV device on HDMI runs the whole machine on a Samsung
 television. The machine's HLS stream plays on the television's own player with no port at all.
@@ -26,6 +27,7 @@ television. The machine's HLS stream plays on the television's own player with n
 | **[source]** | Read from vendor documentation or another project's source. High confidence. |
 | **[web]** | Public documentation and community reports. Second-hand. |
 | **[inferred]** | Reasoning. A hypothesis to test. |
+| **[measured]** | Run on a television. Highest confidence, for that model year. |
 
 ## 1. Native code reaches a Samsung television through .NET
 
@@ -53,21 +55,66 @@ release notes and the code show how it runs on Tizen:
 television. A test build that dropped a Partner-level privilege for Tizen 4 and 5 had no reported
 result when read. Install error 118014 is what that build was made for.
 
-## 2. Listening on a port: loopback proven, the network not
+**[measured]** What the 2025 set offers a native library:
+
+| | |
+|---|---|
+| Platform | Tizen 10.0, Linux 5.4, .NET 8 runtime |
+| CPU | ARMv7 user space (`armv7l`) with NEON on a 64-bit core |
+| ABI | soft-float calling convention: the loader is `ld-linux.so.3`, so Debian's `armel` toolchain with `-march=armv7-a -mfloat-abi=softfp -mfpu=neon` |
+| glibc | 2.40 |
+| Libraries in `/usr/lib` | `libwayland-client`, `libwayland-egl`, `libwayland-cursor`, `libxkbcommon`, `libEGL`, `libGLESv2`, `libasound`, `libpulse`, `libcapi-media-audio-io`, `libfreetype`, `libharfbuzz`, ffmpeg's `libavcodec.so.61`, and SDL2 2.0.14 |
+| Wayland shells | `wl_shell`, `zxdg_shell_v6`, an old `xdg_shell` v1, and Tizen's own. **No `xdg_wm_base`**. `wl_subcompositor` is offered |
+
+**[measured]** An update signed with a different certificate is refused, and the television will not
+remove an application over the network. A probe re-signed from scratch has to be removed on the set
+by hand first.
+
+## 2. Listening on a port: the network reaches it
 
 **[source]** The same client calls `bind`, `listen` and `accept` on the television. It binds
 `127.0.0.1` only, because the client is the television's own media player. So a native application
 **can** listen, which contradicts the community reports the first version of this note relied on.
 
-**[inferred]** Whether a phone on the network can reach a port the television binds on `0.0.0.0` is
-not answered by anything read. It matters more than anything else here. The machine's control surface
-**is** its HTTP API: `km_api::routes::SURFACE` holds every route, and the singer's remote is served at
-`/`. A machine nobody can queue a song on from a phone is a different product.
+**[inferred]** Whether the network can reach it mattered more than anything else here. The machine's
+control surface **is** its HTTP API: `km_api::routes::SURFACE` holds every route, and the singer's
+remote is served at `/`. A machine nobody can queue a song on from a phone is a different product.
 
-**[inferred]** This is the first measurement, and it is small: a `.tpk` whose library binds
-`0.0.0.0:8177` and answers one request, installed with Apps2Samsung, and fetched from a phone.
+**[measured]** It can. A .NET-only `.tpk` (`net6.0-tizen8.0`, manifest API version 8, `tv` profile,
+privileges `internet` and `network.get`) bound `0.0.0.0:8177` with a `TcpListener`. A phone and a PC on
+the same network each fetched a page from it. No prompt appeared on the television, and no setting
+was changed.
 
-## 3. What would port, and what would not
+**[inferred]** The probe was C#, and the machine's API would be Rust in a native library. Both reach
+the same kernel socket calls under the same application, so the result should carry. It says nothing
+about the multicast socket mDNS needs. Without mDNS, the remote finds the machine by its address or
+by the QR code.
+
+## 3. SDL3 draws on the television
+
+**[measured]** SDL 3.4.14, built static into a shared library with its Wayland driver loading the
+set's own libraries, opened a 1920×1080 window and drew with the `opengles2` renderer. The window
+covered the screen above the host's own. It took three things:
+
+1. **A one-line patch to SDL3.** The compositor announces `wl_output.scale` as 0. SDL divides by it in
+   `handle_wl_output_done` and the process dies with `SIGFPE`. Treating a scale below 1 as 1 fixes it.
+   It belongs upstream as a guard.
+2. **A custom-role surface.** `SDL_CreateWindow` waits for a configure event from `xdg_wm_base`, which
+   this compositor does not have, so it never returns. With
+   `SDL_PROP_WINDOW_CREATE_WAYLAND_SURFACE_ROLE_CUSTOM_BOOLEAN`, SDL makes the surface and EGL window and
+   leaves the role to the caller. The probe made it a `wl_shell` toplevel on SDL's own connection.
+3. **Nothing on the UI thread that blocks.** Tizen closes an application whose UI thread stops
+   answering for about twenty seconds. SDL's loop has to run on a thread of its own, or in another
+   process as the probe did.
+
+**[measured]** What this run does not settle:
+
+- **Frame pacing.** The probe presented about 465 frames a second, so presentation is not tied to the
+  display's refresh. The compositor also reports the refresh as `60` where the protocol asks for
+  millihertz, so SDL reads 0.06 Hz. The machine's wipe needs a steady 60.
+- **The remote's keys.** No key event was looked for.
+- **4K.** The output was 1920×1080, the size the compositor gave. Whether a native application may
+  draw at the panel's 3840×2160 is open.
 
 **[repo]** The layering says which crates travel.
 
@@ -75,16 +122,13 @@ not answered by anything read. It matters more than anything else here. The mach
 |---|---|
 | `km-song`, `km-suitability`, `km-fixes`, `km-songcode`, `km-queue`, `km-songbook`, `km-cdg` | pure Rust. Cross-compile to armv7 Linux unchanged |
 | `km-catalog` | SQLite bundled. Builds; the database lives in the application's data folder |
-| `km-api` | axum over tokio. Builds; usable only if §2's measurement passes |
-| `km-audio` | `rustysynth` travels. cpal has no Tizen backend, so output would go through Tizen's native `audio_io` or a .NET `AudioPlayback` the host feeds. Neither has been seen working from a third-party package |
-| `km-video` | ffmpeg cross-compiles. Software decoding of 1080p on a television's processor is unmeasured. The alternative is the television's player on its video plane, as the client in §1 does, which changes how a video song is composited |
-| `km-display` | SDL3 throughout, with no renderer seam. SDL3 has no Tizen driver, so it has to draw into a context it did not create |
+| `km-api` | axum over tokio. Builds; §2 measured the network reaching it |
+| `km-display` | SDL3 with its own Wayland driver, measured above. Needs a custom-role window path and the scale patch |
+| `km-audio` | `rustysynth` travels. SDL3's ALSA driver is built in, and the set has `libasound` and `libpulse`. Whether either reaches the speakers is unmeasured |
+| `km-video` | ffmpeg 7.1 is already on the set as `libavcodec.so.61`. Software decoding of 1080p on its processor is unmeasured. The alternative is the television's player on its video plane, as the client in §1 does |
 
-**[inferred]** `km-display` is the gate, as on webOS. SDL3's renderer owns its window and context.
-The client in §1 avoids the question by using SDL only as an API over GLES. Whether SDL3 can be given
-an external EGL context, or needs a small video driver of its own, is the second measurement. The
-Android port needed changes in five files; this needs a host application, an audio backend and that
-driver on top.
+**[inferred]** The Android port needed changes in five files. This needs a .NET host application, the
+custom-role window, the SDL patch and, if ALSA is silent, an audio path, on top.
 
 ## 4. Songs and files
 
@@ -118,11 +162,11 @@ that room, so nothing has to be kept in time across two boxes.
 | | Samsung, Tizen | LG, webOS |
 |---|---|---|
 | Native ARM code from a third party | a `.tpk` with a .NET host, Public certificate | unofficial, and installs on a stock television |
-| SDL | none; SDL2's API over the host's EGL has been shown | SDL2 has a community fork; SDL3 has nothing |
-| The machine's HTTP API | loopback proven; the network unmeasured | ordinary sockets |
+| SDL | SDL3's Wayland driver draws, measured on Tizen 10, with a patch and a custom-role window | SDL2 has a community fork; SDL3 has nothing |
+| The machine's HTTP API | reachable from the network, measured on Tizen 10 | ordinary sockets |
 | Reading songs off a stick | unmeasured for a native package | a directory walk, subject to the jailer |
 | Sideload lifetime | seven days reported; effect on an installed package unknown | 1000 hours |
-| Verdict | a port, gated on the network and the display | a port, gated on the display |
+| Verdict | a port, gated on sound and frame pacing | a port, gated on the display |
 
 ## 8. What answers the question today
 
@@ -134,13 +178,13 @@ The stream in §6 does it with no second device, when a machine already runs els
 
 ## 9. Recommendation
 
-Build nothing yet. If a native Samsung machine is wanted, three measurements decide it, in order,
-each a day or less:
+Build nothing yet. If a native Samsung machine is wanted, these measurements decide it, in order:
 
-1. A `.tpk` that listens on `0.0.0.0` and answers a phone. If it fails, the port is a lyrics screen
-   without a remote and is not worth building, because §6 already covers that.
-2. SDL3 drawing one frame into the host's EGL context.
-3. An installed package starting after Developer Mode has expired.
+1. ~~A `.tpk` that listens on `0.0.0.0` and answers a phone.~~ **Passed** on 2026-11-17; see §2.
+2. ~~SDL3 drawing a frame.~~ **Passed** on 2026-11-17, with the patch and the custom-role window; see §3.
+3. Sound from SDL3's ALSA driver, and presentation paced to 60 Hz.
+4. An installed package starting after Developer Mode has expired: leave the set untouched for ten days
+   after the last install, then start it.
 
 A platform decision belongs in `docs/decisions/` after them, not before.
 
@@ -153,5 +197,6 @@ A platform decision belongs in `docs/decisions/` after them, not before.
 - `Apps2Samsung/Apps2Samsung` on GitHub, and its issue #844 on installing from the television.
 - The Samsung developer forum thread "Native app in C++?".
 - Community reports on Developer Mode sideloading and how long a grant lasts.
+- SDL 3.4.14's `src/video/wayland/SDL_waylandvideo.c`.
 - `docs/architecture/android.md`, `docs/architecture/display.md`, `docs/decisions/foundations.md`,
   `docs/decisions/streaming.md` and `crates/machine/km-api/src/routes.rs` in this repository.
