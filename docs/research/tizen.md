@@ -13,14 +13,13 @@ of an LG television.
 **Summary.** The first version of this note said a native port was impossible, because Samsung
 dropped NaCl, the only route for third-party native code. That was wrong. A Tizen application package
 (`.tpk`) is a .NET application, and a .NET application can load a C library. **A port in the shape of
-the Android one looks possible, with one gate reopened.** An application on the television accepts
-connections from the network. Sound plays through Tizen's native `audio_io`, though not through ALSA.
-The remote's arrows, OK, Back and number keys arrive in SDL3 as ordinary key events. SDL3's own
-Wayland driver draws a full-screen frame with its GLES2 renderer, after two one-line patches, **but in
-a window of its own it does not stay on screen.** Presented at 60 fps, the picture sticks on an old
-frame within seconds; at 120 fps it flickers between old and new frames; only unpaced, at hundreds of
-frames a second, does it stay live. Drawing into the host application's own window, as the client in
-§1 does, is the next thing to measure. How long an install lasts is also unmeasured.
+the Android one is possible, and its gates are measured open.** An application on the television
+accepts connections from the network. Sound plays through Tizen's native `audio_io`, though not through
+ALSA. The remote's arrows, OK, Back and number keys arrive in SDL3 as ordinary key events. SDL3's own
+Wayland driver draws with its GLES2 renderer, after two one-line patches. **It has to draw into the
+host application's own window**: as a subsurface of that window, driven a frame at a time from the
+host's main loop, it ran a minute at 60 fps and looked perfect. In a window of its own, the picture
+sticks on an old frame. How long an install lasts is unmeasured.
 
 **Two cheaper answers already exist.** A Google TV device on HDMI runs the whole machine on a Samsung
 television. The machine's HLS stream plays on the television's own player with no port at all.
@@ -125,8 +124,8 @@ build of `km-audio` needs an output backend that pushes PCM through `audio_out_w
 small blocking-write loop, and its 50 ms buffer is in the range the machine already works with.
 PulseAudio, through SDL3 or cpal, was not tried.
 
-**[measured]** Frame pacing comes from Tizen's display manager, not from SDL3. With nothing pacing it,
-the probe presented about 465 frames a second. Four ways were tried, each for 16 s, timing every
+**[measured]** Frame pacing does not come from SDL3. With nothing pacing it, the probe presented about
+465 frames a second in a separate window. Four ways were tried there, each for 16 s, timing every
 present:
 
 | Pacing | Result |
@@ -152,11 +151,35 @@ Watched on the set, the separate window does not stay live:
 **[inferred]** The window is the problem, not the pacing. The compositor shows a stale buffer of
 the `wl_shell` toplevel's swap chain unless new ones arrive faster than it scans out. Nuvio's notes
 record the same shape on Tizen 8–9: a separate GL window made the television pause the application,
-and drawing into a view inside the main window fixed it. So the next measurement is SDL3 drawing into
-the host's own window: an existing `wl_surface`, through
-`SDL_PROP_WINDOW_CREATE_WAYLAND_WL_SURFACE_POINTER`, on the host's `wl_display`, through
-`SDL_PROP_GLOBAL_VIDEO_WAYLAND_WL_DISPLAY_POINTER`, or a subsurface of it. `tdm` would then pace a
-window the compositor treats as the application's own.
+and drawing into a view inside the main window fixed it.
+
+**[measured]** **SDL3 drawn into the host's own window is smooth.** The probe ran inside the host
+process, on its UI thread:
+
+1. **SDL shares the host's connection.** `SDL_PROP_GLOBAL_VIDEO_WAYLAND_WL_DISPLAY_POINTER` is set to
+   DALi's `wl_display`, which `ecore_wl2_window_display_get` and `ecore_wl2_display_get` give from the
+   NUI window's native handle.
+2. **Its surface is a subsurface of the host's window.** SDL creates a custom-role surface and its EGL
+   window. The probe binds `wl_subcompositor` through its own registry on a private event queue, so
+   nothing of DALi's is dispatched, and makes SDL's surface a desynchronised subsurface placed above
+   DALi's window surface.
+3. **The host's main loop drives each frame.** An Ecore animator calls back once a frame. The probe
+   draws and presents one frame per call with SDL's vsync off, so the UI thread never blocks.
+
+It ran 60 s at 1920×1080 and looked perfect on the set. Every five seconds it presented 301 frames,
+297 to 299 of them 12–20 ms apart, with one or two slow ones. The separate window had about twenty.
+The animator reported its timer source, not a vblank-driven one.
+
+**[measured]** Tearing the probe down hung the host. After the last frame, the probe destroyed the
+renderer and the window on the UI thread and left SDL initialised, because `SDL_Quit` would terminate
+the EGL display DALi shares. The layer went away, and the host stopped answering. The machine does not
+tear its display down while it runs, so a port can avoid this, but a clean exit path is still
+unmeasured.
+
+**[inferred]** SDL dispatches the default Wayland queue, which DALi's main loop also reads. So SDL
+must run on the host's UI thread, as the probe did. A Tizen `km-display` would draw from a main-loop
+callback rather than from a loop of its own. That is the shape Nuvio's host takes on Tizen 6 and
+later, where the .NET host calls into the C side once per vsync.
 
 **[measured]** The remote's keys reach SDL3 as ordinary keyboard events, with no key grab declared.
 The window gained keyboard focus from the `wl_shell` toplevel, and a seat keyboard named "Virtual core
@@ -191,7 +214,7 @@ SDL3 does not pass on.
 | `km-song`, `km-suitability`, `km-fixes`, `km-songcode`, `km-queue`, `km-songbook`, `km-cdg` | pure Rust. Cross-compile to armv7 Linux unchanged |
 | `km-catalog` | SQLite bundled. Builds; the database lives in the application's data folder |
 | `km-api` | axum over tokio. Builds; §2 measured the network reaching it |
-| `km-display` | SDL3 with its own Wayland driver draws, measured above, with the two patches and `tdm` pacing. A window of its own does not stay on screen; drawing into the host's window is unmeasured |
+| `km-display` | SDL3 with its own Wayland driver, measured above, with the two patches. It draws into a subsurface of the host's window, a frame per main-loop callback on the host's UI thread, not from a loop of its own |
 | `km-audio` | `rustysynth` travels. Output needs a backend over Tizen's `audio_io`, measured above; ALSA is refused |
 | `km-video` | ffmpeg 7.1 is already on the set as `libavcodec.so.61`. Software decoding of 1080p on its processor is unmeasured. The alternative is the television's player on its video plane, as the client in §1 does |
 
@@ -230,14 +253,14 @@ that room, so nothing has to be kept in time across two boxes.
 | | Samsung, Tizen | LG, webOS |
 |---|---|---|
 | Native ARM code from a third party | a `.tpk` with a .NET host, Public certificate | unofficial, and installs on a stock television |
-| SDL | SDL3's Wayland driver draws, measured on Tizen 10, with two patches; its own window does not stay on screen | SDL2 has a community fork; SDL3 has nothing |
+| SDL | SDL3's Wayland driver draws into the host's window, measured on Tizen 10, with two patches | SDL2 has a community fork; SDL3 has nothing |
 | The machine's HTTP API | reachable from the network, measured on Tizen 10 | ordinary sockets |
 | Reading songs off a stick | unmeasured for a native package | a directory walk, subject to the jailer |
 | Sideload lifetime | seven days reported; effect on an installed package unknown | 1000 hours |
 | Sound | Tizen's `audio_io`, measured; ALSA refused | unmeasured |
-| Frame pacing | Tizen's `tdm` vblank paces presents at 59 fps, measured; the screen does not follow in a separate window | unmeasured |
+| Frame pacing | the host's main loop, 60 fps and smooth on screen, measured | unmeasured |
 | The remote's keys | arrows, OK, Back and numbers reach SDL3, measured | unmeasured |
-| Verdict | a port, gated on drawing into the host's window | a port, gated on the display |
+| Verdict | a port; the install's lifetime is unmeasured | a port, gated on the display |
 
 ## 8. What answers the question today
 
@@ -254,9 +277,9 @@ Build nothing yet. If a native Samsung machine is wanted, these measurements dec
 1. ~~A `.tpk` that listens on `0.0.0.0` and answers a phone.~~ **Passed** on 2026-11-17; see §2.
 2. ~~Sound.~~ **Passed** on 2026-11-17 through `audio_io`, not ALSA; see §3.
 3. ~~The remote's keys.~~ **Passed** on 2026-11-17; see §3.
-4. SDL3 drawing into the host application's own window at a steady 60 fps, watched on the set. SDL3
-   drew in a window of its own on 2026-11-17, but that window does not stay on screen when paced; see
-   §3.
+4. ~~SDL3 drawing into the host application's own window at a steady 60 fps, watched on the set.~~
+   **Passed** on 2026-11-17, as a subsurface driven from the host's main loop; see §3. A window of
+   its own does not stay on screen.
 5. An installed package starting after Developer Mode has expired: leave the set untouched for ten days
    after the last install, then start it.
 
