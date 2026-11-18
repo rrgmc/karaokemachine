@@ -5,18 +5,18 @@ Tizen carrier would need an entry in `docs/decisions/distribution.md` beside
 [`What the machine *is*, on Linux`](../decisions/distribution.md#what-the-machine-is-on-linux) and
 [`What the machine *is*, on iOS`](../decisions/distribution.md#what-the-machine-is-on-ios) first.
 
-Investigated 2026-09-13 and revised 2026-11-17. **Two claims were measured on a television**, a 2025
-set running Tizen 10: §2's listening port and §3's SDL3 window. The marker on each of the others says
+Investigated 2026-09-13 and revised 2026-11-17. **Three claims were measured on a television**, a 2025
+set running Tizen 10: §2's listening port, §3's SDL3 window, and §3's sound. The marker on each of the others says
 how far it can be trusted. The sibling note is [`webos.md`](webos.md), which asks the same question
 of an LG television.
 
 **Summary.** The first version of this note said a native port was impossible, because Samsung
 dropped NaCl, the only route for third-party native code. That was wrong. A Tizen application package
 (`.tpk`) is a .NET application, and a .NET application can load a C library. **A port in the shape of
-the Android one is possible, and two of its gates are measured open.** An application on the
+the Android one is possible, and three of its gates are measured open.** An application on the
 television accepts connections from the network. SDL3's own Wayland driver draws a full-screen frame
-with its GLES2 renderer, after a one-line patch. What is left unmeasured is sound, frame pacing and the
-remote's keys.
+with its GLES2 renderer, after a one-line patch. Sound plays through Tizen's native `audio_io`, though
+not through ALSA. What is left unmeasured is frame pacing and the remote's keys.
 
 **Two cheaper answers already exist.** A Google TV device on HDMI runs the whole machine on a Samsung
 television. The machine's HLS stream plays on the television's own player with no port at all.
@@ -107,6 +107,18 @@ covered the screen above the host's own. It took three things:
    answering for about twenty seconds. SDL's loop has to run on a thread of its own, or in another
    process as the probe did.
 
+**[measured]** Sound plays through Tizen's native `audio_io`, and not through ALSA:
+
+| Route | Result |
+|---|---|
+| SDL3's ALSA driver | Opens the `default` device with 1024-frame periods, then the first write fails with `EBADFD`. Silent. The platform's audio server holds the hardware |
+| `libcapi-media-audio-io`, opened with `dlopen` | `audio_out_create_new(48000, stereo, S16_LE)` and `audio_out_prepare` succeed with no privilege declared. A 440 Hz tone was heard from the set's speakers. Writes were consumed in real time, 10.1 s of audio in 10.0 s. The device buffer is 9,600 bytes, 50 ms |
+
+**[inferred]** cpal's ALSA backend opens the same device, so it should fail the same way. A Tizen
+build of `km-audio` needs an output backend that pushes PCM through `audio_out_write`. That is a
+small blocking-write loop, and its 50 ms buffer is in the range the machine already works with.
+PulseAudio, through SDL3 or cpal, was not tried.
+
 **[measured]** What this run does not settle:
 
 - **Frame pacing.** The probe presented about 465 frames a second, so presentation is not tied to the
@@ -124,11 +136,11 @@ covered the screen above the host's own. It took three things:
 | `km-catalog` | SQLite bundled. Builds; the database lives in the application's data folder |
 | `km-api` | axum over tokio. Builds; §2 measured the network reaching it |
 | `km-display` | SDL3 with its own Wayland driver, measured above. Needs a custom-role window path and the scale patch |
-| `km-audio` | `rustysynth` travels. SDL3's ALSA driver is built in, and the set has `libasound` and `libpulse`. Whether either reaches the speakers is unmeasured |
+| `km-audio` | `rustysynth` travels. Output needs a backend over Tizen's `audio_io`, measured above; ALSA is refused |
 | `km-video` | ffmpeg 7.1 is already on the set as `libavcodec.so.61`. Software decoding of 1080p on its processor is unmeasured. The alternative is the television's player on its video plane, as the client in §1 does |
 
 **[inferred]** The Android port needed changes in five files. This needs a .NET host application, the
-custom-role window, the SDL patch and, if ALSA is silent, an audio path, on top.
+custom-role window, the SDL patch and an `audio_io` output backend, on top.
 
 ## 4. Songs and files
 
@@ -166,7 +178,8 @@ that room, so nothing has to be kept in time across two boxes.
 | The machine's HTTP API | reachable from the network, measured on Tizen 10 | ordinary sockets |
 | Reading songs off a stick | unmeasured for a native package | a directory walk, subject to the jailer |
 | Sideload lifetime | seven days reported; effect on an installed package unknown | 1000 hours |
-| Verdict | a port, gated on sound and frame pacing | a port, gated on the display |
+| Sound | Tizen's `audio_io`, measured; ALSA refused | unmeasured |
+| Verdict | a port, gated on frame pacing | a port, gated on the display |
 
 ## 8. What answers the question today
 
@@ -182,8 +195,9 @@ Build nothing yet. If a native Samsung machine is wanted, these measurements dec
 
 1. ~~A `.tpk` that listens on `0.0.0.0` and answers a phone.~~ **Passed** on 2026-11-17; see §2.
 2. ~~SDL3 drawing a frame.~~ **Passed** on 2026-11-17, with the patch and the custom-role window; see §3.
-3. Sound from SDL3's ALSA driver, and presentation paced to 60 Hz.
-4. An installed package starting after Developer Mode has expired: leave the set untouched for ten days
+3. ~~Sound.~~ **Passed** on 2026-11-17 through `audio_io`, not ALSA; see §3.
+4. Presentation paced to the display's 60 Hz, and the remote's keys reaching SDL.
+5. An installed package starting after Developer Mode has expired: leave the set untouched for ten days
    after the last install, then start it.
 
 A platform decision belongs in `docs/decisions/` after them, not before.
