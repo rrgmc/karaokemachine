@@ -1,0 +1,22 @@
+Local guards for Samsung Tizen television compositors, applied to SDL 3.4.14 by tools/port/machine/tizen/Dockerfile. Not for upstream: SDL does not accept AI-written contributions.
+
+--- a/src/video/wayland/SDL_waylandvideo.c
++++ b/src/video/wayland/SDL_waylandvideo.c
+@@ -952,7 +952,7 @@
+             internal->logical_height = height;
+         }
+ 
+-        internal->refresh = refresh;
++        internal->refresh = (refresh > 0 && refresh < 1000) ? refresh * 1000 : refresh; /* Tizen TV compositors send hertz, not millihertz */
+     }
+ }
+ 
+@@ -1110,7 +1110,7 @@
+ static void handle_wl_output_scale(void *data, struct wl_output *output, int32_t factor)
+ {
+     SDL_DisplayData *internal = (SDL_DisplayData *)data;
+-    internal->scale_factor = factor;
++    internal->scale_factor = factor > 0 ? factor : 1; /* Tizen TV compositors announce scale 0 */
+ }
+ 
+ static void handle_wl_output_name(void *data, struct wl_output *wl_output, const char *name)
