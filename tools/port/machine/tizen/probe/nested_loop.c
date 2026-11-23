@@ -4,9 +4,10 @@
  *
  *     int km_probe_run(const char *args, void *ecore_win, int w, int h, void (*log)(const char *));
  *
- * It does not return until the run ends. Each frame it lets Ecore do one pass of its work with
- * `ecore_main_loop_iterate()`, drains SDL's queue, draws, presents and waits out the rest of the
- * frame budget. That is the shape `run_with` in the machine's `display.rs` would take on the set
+ * It does not return until the run ends. Each frame it lets Ecore do its work by calling Ecore's
+ * iterate, which under the default `pace=animator` blocks until an Ecore animator says a frame is
+ * due; then it drains SDL's queue, draws and presents. Under `pace=deadline` it does one
+ * non-blocking iterate and waits out the rest of the frame budget itself. That is the shape `run_with` in the machine's `display.rs` would take on the set
  * (docs/plans/tizen-port.md, "The design problem: whose loop runs").
  *
  * The window is the measured one from docs/research/tizen.md section 3: SDL on the host's
@@ -30,6 +31,16 @@
  *                  falls back to append when `ecore_event_handler_prepend` is absent, and says so.
  *   backkey=acback what Back becomes in SDL: acback (SDLK_AC_BACK, SDL_SCANCODE_AC_BACK) or escape.
  *   opaque=1       set the opaque region after this many presented frames; 0 never sets it.
+ *   pace=animator  what paces the frames:
+ *                    animator  an Ecore animator whose callback only sets a tick flag; the loop
+ *                              calls ecore_main_loop_iterate_may_block(1) until the tick arrives,
+ *                              then drains SDL, draws and presents. The machine owns the loop and
+ *                              Ecore paces it, as the animator-driven probe that measured smooth
+ *                              was paced. The animator's frametime is set to 1/fps. Without
+ *                              ..._may_block it falls back to iterate plus a 1 ms sleep, and says so
+ *                    deadline  one non-blocking ecore_main_loop_iterate() a frame, then
+ *                              SDL_DelayPrecise to fixed 1/fps deadlines (the first run on the set:
+ *                              about a third of presents were more than 20 ms apart)
  *   fps=60         the frame budget, 1/fps seconds.
  *   eoquit=1       also listen for the Efl loop's "quit" event through libeo; 0 skips that.
  *
@@ -44,7 +55,10 @@
  * Everything goes to the host's `log`, and to `nested-loop.log` beside this library with an fsync
  * per line, so it survives the process ending inside the pump. Every 5 s: frames presented,
  * presents more than 20 ms after the one before, the slowest present interval, the time inside
- * `ecore_main_loop_iterate()` (mean and max), and how many 100 ms Ecore timer ticks arrived. Every
+ * Ecore's iterate calls per frame (mean and max, which under `pace=animator` is mostly time
+ * blocked waiting for the tick), iterate calls per frame, the time drawing and inside
+ * SDL_RenderPresent (mean and max), under `pace=deadline` the worst overshoot of the delay, and how
+ * many 100 ms Ecore timer ticks and animator ticks arrived. Every
  * key is logged as Ecore delivered it and again as SDL's queue returned it. Any of this probe's
  * Ecore callbacks running outside the iterate call is logged as re-entrancy.
  *
@@ -98,6 +112,11 @@ typedef struct { void *object; const void *desc; void *info; } Efl_Event_;
 typedef void (*efl_event_cb)(void *data, const Efl_Event_ *ev);
 
 static void (*ecore_iterate)(void);
+static int (*ecore_iterate_may_block)(int);
+static void *(*ecore_animator_add_)(ecore_task_cb, const void *);
+static void *(*ecore_animator_del_)(void *);
+static void (*ecore_animator_frametime_set_)(double);
+static int (*ecore_animator_source_get_)(void);
 static int (*ecore_nested_get)(void);
 static void *(*ecore_handler_add)(int, ecore_event_cb, const void *);
 static void *(*ecore_handler_prepend)(int, ecore_event_cb, const void *);
@@ -175,6 +194,7 @@ static struct {
     int secs, fps, opaque_after, eoquit, prepend;
     enum back_mode back;
     int back_escape;
+    int pace_deadline;
 } opt;
 
 static int running;            /* inside km_probe_run, this copy of the library */
@@ -201,6 +221,9 @@ static char last_key[64] = "none yet";
 static unsigned keys_from_ecore, keys_pushed, keys_from_sdl, keys_from_sdl_own;
 static unsigned reentrant_callbacks;
 static unsigned timer_ticks;
+static unsigned anim_ticks;       /* every animator callback */
+static unsigned anim_coalesced;   /* ticks that arrived while one was still pending */
+static int anim_tick;             /* set by the animator, cleared by the frame loop */
 
 static double secs_since_start(void) { return (SDL_GetTicksNS() - run_start_ns) / 1e9; }
 
@@ -327,6 +350,18 @@ static ebool on_timer(void *data)
     return ECORE_CALLBACK_RENEW;
 }
 
+/* The animator only says a frame is due. Drawing happens in the frame loop, outside Ecore. */
+static ebool on_animator(void *data)
+{
+    (void)data;
+    callback_enter("the animator");
+    anim_ticks++;
+    if (anim_tick) anim_coalesced++;
+    anim_tick = 1;
+    callback_leave();
+    return ECORE_CALLBACK_RENEW;
+}
+
 static void on_exit_(void)
 {
     if (log_file < 0) return;
@@ -402,7 +437,7 @@ static void draw(int w, int h, double t, double it_mean, double it_max, unsigned
     SDL_RenderDebugText(ren, 16, 28, line);
     snprintf(line, sizeof line, "last key: %s", last_key);
     SDL_RenderDebugText(ren, 16, 44, line);
-    snprintf(line, sizeof line, "iterate %.2f / %.2f ms", it_mean, it_max);
+    snprintf(line, sizeof line, "ecore %.2f / %.2f ms", it_mean, it_max);
     SDL_RenderDebugText(ren, 16, 60, line);
     snprintf(line, sizeof line, "late presents (5 s): %u", late);
     SDL_RenderDebugText(ren, 16, 76, line);
@@ -438,6 +473,7 @@ int km_probe_run(const char *args, void *ecore_win, int w, int h, log_fn log)
     if (opt.fps <= 0) opt.fps = 60;
     opt.opaque_after = arg_int(args, "opaque", 1);
     opt.eoquit = arg_int(args, "eoquit", 1);
+    opt.pace_deadline = arg_is(args, "pace", "deadline");
     opt.prepend = !arg_is(args, "order", "append");
     opt.back = arg_is(args, "back", "pass") ? BACK_PASS : arg_is(args, "back", "host") ? BACK_HOST : BACK_DONE;
     opt.back_escape = arg_is(args, "backkey", "escape");
@@ -450,8 +486,8 @@ int km_probe_run(const char *args, void *ecore_win, int w, int h, log_fn log)
     reentrant_callbacks = 0;
     run_start_ns = SDL_GetTicksNS();
 
-    logf_("---- nested loop '%s': secs=%d fps=%d opaque=%d back=%s order=%s backkey=%s eoquit=%d; %dx%d",
-          args, opt.secs, opt.fps, opt.opaque_after,
+    logf_("---- nested loop '%s': pace=%s secs=%d fps=%d opaque=%d back=%s order=%s backkey=%s eoquit=%d; %dx%d",
+          args, opt.pace_deadline ? "deadline" : "animator", opt.secs, opt.fps, opt.opaque_after,
           opt.back == BACK_DONE ? "done" : opt.back == BACK_PASS ? "pass" : "host",
           opt.prepend ? "prepend" : "append", opt.back_escape ? "escape" : "acback", opt.eoquit, w, h);
 
@@ -460,6 +496,11 @@ int km_probe_run(const char *args, void *ecore_win, int w, int h, log_fn log)
     void *input = dlopen("libecore_input.so.1", RTLD_NOW);
     void *ewl = dlopen("libecore_wl2.so.1", RTLD_NOW);
     ecore_iterate = (void (*)(void))sym(ecore, "ecore_main_loop_iterate");
+    ecore_iterate_may_block = (int (*)(int))sym(ecore, "ecore_main_loop_iterate_may_block");
+    ecore_animator_add_ = (void *(*)(ecore_task_cb, const void *))sym(ecore, "ecore_animator_add");
+    ecore_animator_del_ = (void *(*)(void *))sym(ecore, "ecore_animator_del");
+    ecore_animator_frametime_set_ = (void (*)(double))sym(ecore, "ecore_animator_frametime_set");
+    ecore_animator_source_get_ = (int (*)(void))sym(ecore, "ecore_animator_source_get");
     ecore_nested_get = (int (*)(void))sym(ecore, "ecore_main_loop_nested_get");
     ecore_handler_add = (void *(*)(int, ecore_event_cb, const void *))sym(ecore, "ecore_event_handler_add");
     ecore_handler_prepend = (void *(*)(int, ecore_event_cb, const void *))sym(ecore, "ecore_event_handler_prepend");
@@ -569,28 +610,74 @@ int km_probe_run(const char *args, void *ecore_win, int w, int h, log_fn log)
         if (!ok) loop_obj = NULL;
     }
 
+    /* ---- what paces the frames ---- */
+    void *animator = NULL;
+    if (!opt.pace_deadline) {
+        if (!ecore_animator_add_ || !ecore_animator_del_) {
+            logf_("pace: ecore_animator_add/del absent (%p/%p); falling back to pace=deadline",
+                  (void *)ecore_animator_add_, (void *)ecore_animator_del_);
+            opt.pace_deadline = 1;
+        } else {
+            if (ecore_animator_frametime_set_) ecore_animator_frametime_set_(1.0 / opt.fps);
+            anim_tick = 0;
+            anim_ticks = anim_coalesced = 0;
+            animator = ecore_animator_add_(on_animator, NULL);
+            logf_("pace: animator %p, source %d (0 timer, 1 custom), frametime %s 1/%d s; waiting with %s",
+                  animator, ecore_animator_source_get_ ? ecore_animator_source_get_() : -1,
+                  ecore_animator_frametime_set_ ? "set to" : "NOT set (no ecore_animator_frametime_set), wanted",
+                  opt.fps,
+                  ecore_iterate_may_block ? "ecore_main_loop_iterate_may_block(1)"
+                                          : "FALLBACK: ecore_main_loop_iterate_may_block is absent, so "
+                                            "ecore_main_loop_iterate() plus a 1 ms sleep");
+            if (!animator) { logf_("pace: ecore_animator_add returned NULL; falling back to pace=deadline"); opt.pace_deadline = 1; }
+        }
+    }
+    if (opt.pace_deadline) logf_("pace: deadline, one ecore_main_loop_iterate() a frame, then SDL_DelayPrecise to 1/%d s deadlines", opt.fps);
+
     /* ---- the nested loop ---- */
     const Uint64 budget = 1000000000ull / (Uint64)opt.fps;
     const Uint64 cap_ns = (Uint64)opt.secs * 1000000000ull;
     Uint64 start = SDL_GetTicksNS(), deadline = start, prev_present = 0, window_start = start;
     unsigned w_frames = 0, w_late = 0, w_resyncs = 0, w_timer0 = timer_ticks;
+    unsigned w_anim0 = anim_ticks, w_coal0 = anim_coalesced;
     Uint64 w_slowest = 0, w_it_sum = 0, w_it_max = 0;
+    Uint64 w_draw_sum = 0, w_draw_max = 0, w_pres_sum = 0, w_pres_max = 0, w_over_max = 0;
+    unsigned long long w_calls_sum = 0;
+    unsigned w_calls_max = 0;
     unsigned long long t_frames = 0, t_late = 0;
-    Uint64 t_slowest = 0, t_it_max = 0;
+    Uint64 t_slowest = 0, t_it_max = 0, t_pres_max = 0;
     double shown_it_mean = 0, shown_it_max = 0;
     unsigned shown_late = 0;
     int made_opaque = 0, back_seen = 0;
     run_start_ns = start;
 
     while (ending == END_NONE) {
-        /* 1. One pass of Ecore: DALi's events, the host's posted work, timers, and the key handlers. */
+        /* 1. Ecore: DALi's events, the host's posted work, timers, and the key handlers. Under
+         * pace=deadline, one non-blocking pass. Under pace=animator, passes that may block until the
+         * animator says a frame is due -- at least one, so a frame never skips Ecore. */
         Uint64 a = SDL_GetTicksNS();
-        in_iterate = 1;
-        ecore_iterate();
-        in_iterate = 0;
+        unsigned calls = 0;
+        if (opt.pace_deadline) {
+            in_iterate = 1;
+            ecore_iterate();
+            in_iterate = 0;
+            calls = 1;
+        } else {
+            do {
+                in_iterate = 1;
+                if (ecore_iterate_may_block) ecore_iterate_may_block(1);
+                else ecore_iterate();
+                in_iterate = 0;
+                calls++;
+                if (!ecore_iterate_may_block && !anim_tick && !quit_source) SDL_DelayNS(1000000);
+            } while (!anim_tick && !quit_source && SDL_GetTicksNS() - start < cap_ns);
+            anim_tick = 0;
+        }
         Uint64 it = SDL_GetTicksNS() - a;
         w_it_sum += it;
         if (it > w_it_max) w_it_max = it;
+        w_calls_sum += calls;
+        if (calls > w_calls_max) w_calls_max = calls;
         if (quit_source) { ending = END_HOST_QUIT; break; }
 
         /* 2. SDL's queue, where the pushed keys come back out. */
@@ -617,14 +704,20 @@ int km_probe_run(const char *args, void *ecore_win, int w, int h, log_fn log)
         if (back_seen && opt.back != BACK_HOST) { ending = END_BACK; break; }
 
         /* 3. Draw and present. */
-        double t = (SDL_GetTicksNS() - start) / 1e9;
+        Uint64 d0 = SDL_GetTicksNS();
+        double t = (d0 - start) / 1e9;
         draw(w, h, t, shown_it_mean, shown_it_max, shown_late);
+        Uint64 p0 = SDL_GetTicksNS();
         if (!SDL_RenderPresent(ren)) {
             logf_("%.2f s SDL_RenderPresent failed: %s", t, SDL_GetError());
             ending = END_WAYLAND;
             break;
         }
         Uint64 now = SDL_GetTicksNS();
+        w_draw_sum += p0 - d0;
+        if (p0 - d0 > w_draw_max) w_draw_max = p0 - d0;
+        w_pres_sum += now - p0;
+        if (now - p0 > w_pres_max) w_pres_max = now - p0;
         frame++;
         w_frames++;
         if (prev_present) {
@@ -650,35 +743,56 @@ int km_probe_run(const char *args, void *ecore_win, int w, int h, log_fn log)
             shown_it_mean = w_frames ? w_it_sum / 1e6 / w_frames : 0;
             shown_it_max = w_it_max / 1e6;
             shown_late = w_late;
+            double n = w_frames ? (double)w_frames : 1;
             logf_("%.0f s: %u frames presented, %u more than 20 ms after the one before, slowest %.2f ms; "
-                  "iterate mean %.3f ms max %.2f ms; %u Ecore timer ticks of 50; %u resyncs; keys ecore %u pushed %u "
-                  "sdl %u sdl-own %u; re-entrant callbacks %u",
-                  t, w_frames, w_late, w_slowest / 1e6, shown_it_mean, shown_it_max, timer_ticks - w_timer0,
+                  "in Ecore mean %.3f ms max %.2f ms, iterate calls per frame mean %.2f max %u; "
+                  "draw mean %.2f max %.2f ms; present mean %.2f max %.2f ms; %s%.2f ms; "
+                  "%u Ecore timer ticks of 50; %u animator ticks, %u coalesced; %u resyncs; "
+                  "keys ecore %u pushed %u sdl %u sdl-own %u; re-entrant callbacks %u",
+                  t, w_frames, w_late, w_slowest / 1e6, shown_it_mean, shown_it_max, w_calls_sum / n, w_calls_max,
+                  w_draw_sum / 1e6 / n, w_draw_max / 1e6, w_pres_sum / 1e6 / n, w_pres_max / 1e6,
+                  opt.pace_deadline ? "delay overshoot max " : "(no delay under pace=animator) ",
+                  w_over_max / 1e6, timer_ticks - w_timer0, anim_ticks - w_anim0, anim_coalesced - w_coal0,
                   w_resyncs, keys_from_ecore, keys_pushed, keys_from_sdl, keys_from_sdl_own, reentrant_callbacks);
             t_frames += w_frames; t_late += w_late;
             if (w_slowest > t_slowest) t_slowest = w_slowest;
             if (w_it_max > t_it_max) t_it_max = w_it_max;
+            if (w_pres_max > t_pres_max) t_pres_max = w_pres_max;
             w_frames = w_late = w_resyncs = 0;
             w_slowest = w_it_sum = w_it_max = 0;
+            w_draw_sum = w_draw_max = w_pres_sum = w_pres_max = w_over_max = 0;
+            w_calls_sum = 0;
+            w_calls_max = 0;
             w_timer0 = timer_ticks;
+            w_anim0 = anim_ticks;
+            w_coal0 = anim_coalesced;
             window_start = now;
         }
 
-        /* 5. The safety cap, then the rest of the frame budget. */
+        /* 5. The safety cap, then, under pace=deadline, the rest of the frame budget. Under
+         * pace=animator the next frame's wait is the Ecore pass at the top of the loop. */
         if (now - start >= cap_ns) { ending = END_CAP; break; }
-        deadline += budget;
-        now = SDL_GetTicksNS();
-        if (now > deadline + budget) { deadline = now; w_resyncs++; }
-        else if (now < deadline) SDL_DelayPrecise(deadline - now);
+        if (opt.pace_deadline) {
+            deadline += budget;
+            now = SDL_GetTicksNS();
+            if (now > deadline + budget) { deadline = now; w_resyncs++; }
+            else if (now < deadline) {
+                SDL_DelayPrecise(deadline - now);
+                Uint64 woke = SDL_GetTicksNS();
+                if (woke > deadline && woke - deadline > w_over_max) w_over_max = woke - deadline;
+            }
+        }
     }
     t_frames += w_frames; t_late += w_late;
     if (w_slowest > t_slowest) t_slowest = w_slowest;
     if (w_it_max > t_it_max) t_it_max = w_it_max;
+    if (w_pres_max > t_pres_max) t_pres_max = w_pres_max;
     double total = (SDL_GetTicksNS() - start) / 1e9;
     logf_("ending: %s%s%s, after %.1f s", ending_name(ending), quit_source ? " via " : "", quit_source ? quit_source : "", total);
-    logf_("totals: %llu frames (%.1f fps), %llu late, slowest %.2f ms, iterate max %.2f ms; keys ecore %u pushed %u "
-          "sdl %u sdl-own %u; re-entrant callbacks %u",
-          t_frames, total > 0 ? t_frames / total : 0, t_late, t_slowest / 1e6, t_it_max / 1e6,
+    logf_("totals (pace=%s): %llu frames (%.1f fps), %llu late, slowest %.2f ms, in Ecore max %.2f ms, present max %.2f ms; "
+          "animator ticks %u, coalesced %u; keys ecore %u pushed %u sdl %u sdl-own %u; re-entrant callbacks %u",
+          opt.pace_deadline ? "deadline" : "animator", t_frames, total > 0 ? t_frames / total : 0, t_late,
+          t_slowest / 1e6, t_it_max / 1e6, t_pres_max / 1e6, anim_ticks, anim_coalesced,
           keys_from_ecore, keys_pushed, keys_from_sdl, keys_from_sdl_own, reentrant_callbacks);
 
     /* ---- the measured teardown: subsurface destroyed and committed, a null buffer, SDL's window kept ---- */
@@ -686,6 +800,7 @@ int km_probe_run(const char *args, void *ecore_win, int w, int h, log_fn log)
     ecore_handler_del(h_up);
     if (h_sig) ecore_handler_del(h_sig);
     ecore_timer_del_(timer);
+    if (animator) ecore_animator_del_(animator);
     if (loop_obj && eo_cb_del) eo_cb_del(loop_obj, quit_desc, on_loop_quit, NULL);
     Uint64 td = SDL_GetTicksNS();
     wl_subsurface_destroy(sub);
@@ -694,7 +809,7 @@ int km_probe_run(const char *args, void *ecore_win, int w, int h, log_fn log)
     wl_surface_commit(sdl_surf);
     wl_surface_commit(parent);
     wl_display_flush(dpy);
-    logf_("teardown: handlers and timer removed, subsurface destroyed, null buffer committed, SDL's window kept; "
+    logf_("teardown: handlers, timer and animator removed, subsurface destroyed, null buffer committed, SDL's window kept; "
           "%.1f ms, wl_display error %d", (SDL_GetTicksNS() - td) / 1e6, wl_display_get_error(dpy));
     rc = ending;
 
