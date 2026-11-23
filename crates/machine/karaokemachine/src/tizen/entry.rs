@@ -4,7 +4,8 @@
 //! machine over the probe app's port the way M1's probes were loaded; its argument string carries
 //! the data folder and the rest. `km_tizen_run` is what M5's own .NET host calls, with the data
 //! folder as an argument of its own. Both publish the [`Host`], start the log, write the carried
-//! assets and call [`crate::run`], so M5 changes only the host.
+//! assets and call [`crate::run`], so M5 changes only the host. When `run` returns, both end the
+//! application (see [`end_application`]); `exit=0` in `km_probe_run`'s arguments leaves it open.
 //!
 //! **Neither lets a panic out.** Unwinding across `extern "C"` aborts the process, which on the set
 //! takes the host with it and says nothing, so the body runs under `catch_unwind` as `km-machine-ios`
@@ -183,10 +184,13 @@ fn start(
         dev_remote: args.dev,
         ..Options::default()
     };
-    match crate::run(paths, settings, options) {
+    let code = match crate::run(paths, settings, options) {
         Ok(()) => {
+            // `run` says no more than this: Back on the idle screen, the set asking the app to
+            // quit (Ecore's exit signal ends the display's loop), or a stop through the API.
             tracing::info!(
-                "the machine stopped normally: its display closed or it was told to stop"
+                "the machine stopped normally: its display closed, the set asked the app to \
+                 quit, or it was told to stop"
             );
             0
         }
@@ -197,7 +201,58 @@ fn start(
             );
             1
         }
+    };
+    if args.exit {
+        end_application();
+    } else {
+        tracing::info!("exit=0: leaving the application open");
     }
+    code
+}
+
+/// Asks the host application to end, after the machine has.
+///
+/// **The host cannot end itself once the machine has run.** The display withholds Back from DALi
+/// so that it reaches only the machine, and once SDL's window is gone no key reaches the app at
+/// all (measured at M1), so nothing would ever close it. Both calls only ask the main loop to
+/// quit; it does so after this returns to the host.
+fn end_application() {
+    if let Some(exit) = lookup(c"libcapi-appfw-application.so.0", c"ui_app_exit") {
+        tracing::info!("ending the application with ui_app_exit");
+        exit();
+    } else if let Some(quit) = lookup(c"libecore.so.1", c"ecore_main_loop_quit") {
+        tracing::info!("no ui_app_exit; ending the application with ecore_main_loop_quit");
+        quit();
+    } else {
+        tracing::warn!(
+            "neither ui_app_exit nor ecore_main_loop_quit was found; the application stays open"
+        );
+    }
+}
+
+/// A `void (void)` function from a library the process has, or can load.
+#[expect(
+    unsafe_code,
+    reason = "dlopen and dlsym, and a found symbol taken as the `void (void)` both callers name"
+)]
+fn lookup(library: &CStr, symbol: &CStr) -> Option<extern "C" fn()> {
+    unsafe extern "C" {
+        fn dlopen(filename: *const c_char, flags: c_int) -> *mut c_void;
+        fn dlsym(handle: *mut c_void, symbol: *const c_char) -> *mut c_void;
+    }
+    const RTLD_NOW: c_int = 2;
+    // SAFETY: two NUL-terminated strings alive for the call. The handle is never closed: the
+    // library is the host's own, already loaded, and this runs once as the process ends.
+    let found = unsafe {
+        let handle = dlopen(library.as_ptr(), RTLD_NOW);
+        if handle.is_null() {
+            return None;
+        }
+        dlsym(handle, symbol.as_ptr())
+    };
+    // SAFETY: non-null, and both symbols are `void f(void)` in their headers.
+    (!found.is_null())
+        .then(|| unsafe { std::mem::transmute::<*mut c_void, extern "C" fn()>(found) })
 }
 
 // `CARRIED`, written by `build.rs` from the folder `KM_TIZEN_ASSETS` names.
