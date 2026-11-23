@@ -7,7 +7,7 @@ Tizen carrier would need an entry in `docs/decisions/distribution.md` beside
 
 Investigated 2026-09-13 and revised 2026-11-17 and 2026-11-23. **Most claims here were measured on a
 television**, a 2025 set running Tizen 10: §2's listening port, and §3's SDL3 window, sound, frame
-pacing, remote keys, output size, teardown and video decoding. The marker on each of the others says how far it can be trusted. The sibling note is [`webos.md`](webos.md), which asks the same question
+pacing, remote keys, output size, teardown, video decoding and MIDI synthesis. The marker on each of the others says how far it can be trusted. The sibling note is [`webos.md`](webos.md), which asks the same question
 of an LG television.
 
 **Summary.** The first version of this note said a native port was impossible, because Samsung
@@ -282,6 +282,22 @@ ten-second synthetic clips at 30 fps:
 **[inferred]** 1080p H.264 leaves room for the conversion, the upload and the synthesiser.
 1080p HEVC does not. A song whose audio is Vorbis or Opus would need a decoder of the machine's own.
 
+**[measured]** **The set synthesises MIDI songs in real time on one core.** `km-audio`'s own
+`Player` and `SoundFontSource` were cross-compiled for `armv7-unknown-linux-gnueabi`. The target is
+soft-float by default, so the build used hardware floating point and NEON within the softfp calling
+convention (`-C target-feature=-soft-float,+neon,+vfp4`). That is the sequencer and the synthesiser
+the machine runs, with their 256-voice ceiling. Three dense karaoke MIDI files from the corpus,
+98–148 KB each, rendered at 48 kHz in 1,024-frame blocks, the first 120 s of each, on one thread:
+
+| Bank | Loaded in | Process memory after | Share of real time | Median block | Slowest block | Blocks over 21.3 ms |
+|---|---|---|---|---|---|---|
+| GeneralUser GS, the bundled bank, 32 MB | 0.25 s | 79 MB | 7.9–21.4 % | 1.6–4.8 ms | 14.1 ms | 0 |
+| Colombo GM/GS 2, 275 MB | 1.55 s | 311 MB | 12.9–33.1 % | 2.8–7.8 ms | 21.6 ms | 1 of 5,625 |
+
+**[inferred]** The densest song on the heaviest bank needs a third of one of four cores. The one late
+block was 0.3 ms over, and the `audio_io` buffer above holds 50 ms. A MIDI song decodes no video, so
+its other load is drawing. A 275 MB bank fits a 32-bit process on this set.
+
 **[repo]** The layering says which crates travel.
 
 | | |
@@ -290,7 +306,7 @@ ten-second synthetic clips at 30 fps:
 | `km-catalog` | SQLite bundled. Builds; the database lives in the application's data folder |
 | `km-api` | axum over tokio. Builds; §2 measured the network reaching it |
 | `km-display` | SDL3 with its own Wayland driver, measured above, with the two patches. It draws into a subsurface of the host's window, a frame per main-loop callback on the host's UI thread, not from a loop of its own |
-| `km-audio` | `rustysynth` travels. Output needs a backend over Tizen's `audio_io`, measured above; ALSA is refused |
+| `km-audio` | builds for armv7 softfp; measured above, the synthesiser renders dense songs at 8–33 % of real time on one core. Output needs a backend over Tizen's `audio_io`, measured above; ALSA is refused |
 | `km-video` | ffmpeg 7.1 is already on the set as `libavcodec.so.61`, measured above: 1080p H.264 decodes at 67 fps, 1080p HEVC at 34. Vorbis and Opus are missing. The alternative is the television's player on its video plane, as the client in §1 does |
 
 **[inferred]** The Android port needed changes in five files. This needs a .NET host application, the
@@ -337,6 +353,7 @@ that room, so nothing has to be kept in time across two boxes.
 | The remote's keys | arrows, OK, Back and numbers reach SDL3 in a window of its own, and the host's window beside a transparent SDL subsurface, measured | unmeasured |
 | Picture size | 1080p; a 4K buffer drops to 19 fps, measured | unmeasured |
 | Video decoding | the set's ffmpeg 7.1, 1080p H.264 at 67 fps, measured | unmeasured |
+| MIDI synthesis | `km-audio` on one core, 8–33 % of real time, measured | unmeasured |
 | Verdict | a port; the install's lifetime is unmeasured | a port, gated on the display |
 
 ## 8. What answers the question today
