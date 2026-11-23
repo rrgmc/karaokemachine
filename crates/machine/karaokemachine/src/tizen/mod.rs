@@ -8,11 +8,15 @@
 //!
 //! - [`entry`] is the exported entry point, the folders and the log.
 //! - [`window`] is SDL's window inside the host's, and the per-frame Ecore pump.
+//! - [`args`] and [`assets`] are `entry`'s argument string and carried assets, which have no FFI
+//!   and are also built and tested on every host (see `lib.rs`).
 
 use std::ffi::c_char;
 use std::path::PathBuf;
 use std::sync::OnceLock;
 
+pub(crate) mod args;
+pub(crate) mod assets;
 pub mod entry;
 pub(crate) mod window;
 

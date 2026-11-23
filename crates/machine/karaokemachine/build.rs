@@ -52,6 +52,59 @@ fn main() {
     // compiler over an ELF shared object.
     #[cfg(windows)]
     attach_icon();
+
+    if std::env::var_os("CARGO_FEATURE_TIZEN_EMBED_ASSETS").is_some() {
+        embed_tizen_assets();
+    }
+}
+
+/// Writes `$OUT_DIR/tizen_assets.rs`: `CARRIED`, every file under `KM_TIZEN_ASSETS` as a path
+/// relative to it and its bytes, for `src/tizen/entry.rs` to write out on the set.
+///
+/// Generated rather than one archive so that nothing has to be unpacked but files, and so that
+/// cargo rebuilds when any one of them changes.
+fn embed_tizen_assets() {
+    use std::path::{Path, PathBuf};
+
+    fn walk(dir: &Path, out: &mut Vec<PathBuf>) {
+        let entries = std::fs::read_dir(dir)
+            .unwrap_or_else(|error| panic!("cannot read {}: {error}", dir.display()));
+        for entry in entries {
+            let path = entry.expect("a directory entry").path();
+            if path.is_dir() {
+                walk(&path, out);
+            } else {
+                out.push(path);
+            }
+        }
+    }
+
+    println!("cargo:rerun-if-env-changed=KM_TIZEN_ASSETS");
+    let root = PathBuf::from(std::env::var_os("KM_TIZEN_ASSETS").expect(
+        "tizen-embed-assets needs KM_TIZEN_ASSETS, the staged asset folder; \
+         tools/port/machine/tizen/build.sh sets it",
+    ));
+    println!("cargo:rerun-if-changed={}", root.display());
+    let mut files = Vec::new();
+    walk(&root, &mut files);
+    files.sort();
+
+    let mut code = String::from("static CARRIED: &[(&str, &[u8])] = &[\n");
+    for file in &files {
+        let relative = file
+            .strip_prefix(&root)
+            .expect("under the root")
+            .to_string_lossy()
+            .replace('\\', "/");
+        let absolute = file.canonicalize().expect("a staged file");
+        code.push_str(&format!(
+            "    ({relative:?}, include_bytes!({:?}) as &[u8]),\n",
+            absolute.to_string_lossy()
+        ));
+    }
+    code.push_str("];\n");
+    let out = PathBuf::from(std::env::var_os("OUT_DIR").expect("cargo sets OUT_DIR"));
+    std::fs::write(out.join("tizen_assets.rs"), code).expect("write tizen_assets.rs");
 }
 
 #[cfg(windows)]

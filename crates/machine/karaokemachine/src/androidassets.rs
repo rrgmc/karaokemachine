@@ -177,7 +177,7 @@ mod apk {
 /// Both sides go through [`Entry::parse`], so a malformed or escaping line in either manifest is
 /// ignored rather than acted on — and a line that cannot be parsed on the *installed* side simply
 /// leaves its file where it is, which is the safe direction to fail in.
-fn departed<'a>(installed: &'a str, wanted: &str) -> Vec<&'a str> {
+pub(crate) fn departed<'a>(installed: &'a str, wanted: &str) -> Vec<&'a str> {
     let kept: std::collections::HashSet<&str> = wanted
         .lines()
         .filter_map(Entry::parse)
@@ -193,6 +193,13 @@ fn departed<'a>(installed: &'a str, wanted: &str) -> Vec<&'a str> {
 
 /// One line of the manifest.
 struct Entry<'a> {
+    #[cfg_attr(
+        not(any(target_os = "android", test)),
+        expect(
+            dead_code,
+            reason = "the Tizen build compares whole manifests, not sizes"
+        )
+    )]
     size: u64,
     path: &'a str,
 }
@@ -203,24 +210,26 @@ impl<'a> Entry<'a> {
         let (size, path) = line.split_once('\t')?;
         let size = size.trim().parse().ok()?;
         let path = path.trim();
-        // A path escaping the asset directory would let a rebuilt APK write anywhere the app can.
-        // Nothing generates one, which is exactly why it is worth refusing rather than assuming.
-        //
-        // The leading-separator check is on the string rather than `Path::is_absolute`, because the
-        // manifest is written on a build host and read on a device, and those can disagree about what
-        // "absolute" means: on Windows `Path::new("/data/data/…").is_absolute()` is **false**, since
-        // an absolute path there needs a drive prefix. `is_absolute` is still worth keeping for the
-        // `C:\…` case it does catch.
-        if path.is_empty()
-            || path.starts_with('/')
-            || path.starts_with('\\')
-            || path.contains("..")
-            || Path::new(path).is_absolute()
-        {
-            return None;
-        }
-        Some(Self { size, path })
+        is_safe_asset_path(path).then_some(Self { size, path })
     }
+}
+
+/// Whether `path` stays inside the asset directory. Shared with the Tizen build's carried assets.
+///
+/// A path escaping the asset directory would let a rebuilt APK write anywhere the app can.
+/// Nothing generates one, which is exactly why it is worth refusing rather than assuming.
+///
+/// The leading-separator check is on the string rather than `Path::is_absolute`, because the
+/// manifest is written on a build host and read on a device, and those can disagree about what
+/// "absolute" means: on Windows `Path::new("/data/data/…").is_absolute()` is **false**, since
+/// an absolute path there needs a drive prefix. `is_absolute` is still worth keeping for the
+/// `C:\…` case it does catch.
+pub(crate) fn is_safe_asset_path(path: &str) -> bool {
+    !(path.is_empty()
+        || path.starts_with('/')
+        || path.starts_with('\\')
+        || path.contains("..")
+        || Path::new(path).is_absolute())
 }
 
 #[cfg(test)]
