@@ -77,6 +77,10 @@ mod stream;
 pub mod sync;
 // The icon in the bar, for a streaming run that has no window to be its face.
 mod timed;
+// The machine on a Samsung television, called in by a .NET host. A feature rather than `target_os`,
+// because Tizen reports itself as ordinary Linux.
+#[cfg(feature = "tizen")]
+pub mod tizen;
 #[cfg(all(feature = "video", feature = "tray"))]
 mod tray;
 mod video;
