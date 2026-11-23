@@ -1661,10 +1661,6 @@ cannot skip.
 
 ## What the machine *is*, on a Samsung television
 
-> **Draft, 2026-11-23.** One measurement is still open: whether an installed package starts after the
-> set's Developer Mode has lapsed, readable from 2026-11-27. This entry does not merge before it is
-> read, and if the answer is no, the carrier paragraph changes before anything else does.
-
 **An application on a Samsung Tizen television, and the same program again.** The synthesizer, the
 catalog, the display and the API are the ones every other platform runs. It makes the television
 itself a place to run this product, with no box on an HDMI input. Two answers already existed
@@ -1738,6 +1734,12 @@ connections on `0.0.0.0`, so phones reach the API, the remote and the owner's pa
 
 **Installing is a sideload through Developer Mode**, signed with a Samsung certificate made for the
 person installing. The set's store is not pursued.
+
+**How long an install lasts is still open, and the carrier is decided without it.** Developer Mode's
+grant is reported to lapse after about seven days. Whether an installed package still starts once it
+has is unmeasured. If it does not, a sideload has to be renewed weekly. That would make this a
+carrier for somebody willing to reinstall, and this paragraph would say so before anything else in
+the entry changes.
 
 ## A log file for the runs nobody is watching
 
