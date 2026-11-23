@@ -128,6 +128,9 @@ tools/cmd/km-package-builder/debian-tools/* text eol=lf
 # `RUN apt-get install … \` blocks in tools/platform/linux/Dockerfile fail on a CRLF checkout.
 Dockerfile   text eol=lf
 *.dockerfile text eol=lf
+# Files copied into a Linux image, where a CR breaks `patch` and CMake alike.
+*.patch   text eol=lf
+*.cmake   text eol=lf
 
 # The SoundFont's license, which `tools/setup/fetch-assets.sh` downloads from GeneralUser GS's own
 # repository and copies in beside the bank. **Upstream ships it CRLF**, and this is the one tracked

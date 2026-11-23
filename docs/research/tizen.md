@@ -68,7 +68,7 @@ result when read. Install error 118014 is what that build was made for.
 | CPU | ARMv7 user space (`armv7l`) with NEON on a 64-bit core |
 | ABI | soft-float calling convention: the loader is `ld-linux.so.3`, so Debian's `armel` toolchain with `-march=armv7-a -mfloat-abi=softfp -mfpu=neon` |
 | glibc | 2.40 |
-| Libraries in `/usr/lib` | `libwayland-client`, `libwayland-egl`, `libwayland-cursor`, `libxkbcommon`, `libEGL`, `libGLESv2`, `libasound`, `libpulse`, `libcapi-media-audio-io`, `libfreetype`, `libharfbuzz`, ffmpeg's `libavcodec.so.61`, and SDL2 2.0.14 |
+| Libraries in `/usr/lib` | `libwayland-client`, `libwayland-egl`, `libwayland-cursor`, `libxkbcommon`, `libEGL`, `libGLESv2`, `libasound`, `libpulse`, `libcapi-media-audio-io`, `libfreetype`, `libharfbuzz`, `libgcc_s.so.1`, ffmpeg 7.1's `libavcodec.so.61`, `libavformat.so.61`, `libavutil.so.59`, `libswresample.so.5` and `libswscale.so.8`, and SDL2 2.0.14 |
 | Wayland shells | `wl_shell`, `zxdg_shell_v6`, an old `xdg_shell` v1, and Tizen's own. **No `xdg_wm_base`**. `wl_subcompositor` is offered |
 
 **[measured]** An update signed with a different certificate is refused, and the television will not

@@ -107,6 +107,11 @@ KM_FEATURES_ANDROID="video"
 # that an alias cannot carry.
 KM_FEATURES_IOS="video"
 
+# The machine on a Samsung Tizen television, built by `tools/port/machine/tizen/build.sh` inside the
+# km-tizen image, where ffmpeg is always present. `tizen` stays out of the workspace lists above: its
+# code calls libraries only the set carries, so no host lint could build it.
+KM_FEATURES_TIZEN="video,tizen"
+
 # ...and what the two *remote* shells turn on, which is nothing at all, on each.
 #
 # **Empty is a statement, which is why both are written down.** Each builds

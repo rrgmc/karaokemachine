@@ -42,12 +42,14 @@ Clearing the opaque region on `ECORE_WL2_EVENT_FOCUS_OUT`, and setting it again 
 ## Work breakdown
 
 Everything is behind a `tizen` cargo feature rather than `target_os`, because Tizen reports itself
-as ordinary Linux.
+as ordinary Linux. **The one exception is how SDL is linked**: a feature cannot remove the
+workspace's `build-from-source-static`, so the softfp triple `armv7-unknown-linux-gnueabi`, which no
+other carrier uses, selects the patched SDL3 prebuilt in the image at `/opt/sdl3`.
 
 | Piece | What it is | Where it lands | Size |
 |---|---|---|---|
 | Toolchain | a Docker image with the armel cross-compiler and Rust for `armv7-unknown-linux-gnueabi`, hardware float on; the machine built as a `cdylib` | `tools/port/machine/tizen/` | S |
-| SDL patches | the two one-line guards, output scale 0 and refresh in hertz, applied to the source `sdl3` builds from | a patch file the Tizen build applies | S |
+| SDL patches | the two one-line guards, output scale 0 and refresh in hertz, applied to the source `sdl3` builds from; SDL3 and SDL3_ttf built static in the image | `sdl3-tizen.patch`, applied by the Dockerfile | S |
 | Display path | the window as a custom-role subsurface of the host's window on its `wl_display`; transparent first frame, then opaque, and not opaque while focus is out; the per-frame Ecore pump, paced by an animator; never destroyed | `display.rs`, behind `tizen` | M–L |
 | Keys | SDL's own keyboard, unchanged; Ecore's focus events watched for the opaque region | the same, and a small FFI module | S |
 | Audio output | a `km-audio` output over `audio_out_write` in place of cpal, opened with `dlopen` | `km-audio`, behind `tizen` | M |
