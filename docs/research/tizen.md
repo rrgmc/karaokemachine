@@ -5,9 +5,9 @@ Tizen carrier would need an entry in `docs/decisions/distribution.md` beside
 [`What the machine *is*, on Linux`](../decisions/distribution.md#what-the-machine-is-on-linux) and
 [`What the machine *is*, on iOS`](../decisions/distribution.md#what-the-machine-is-on-ios) first.
 
-Investigated 2026-09-13 and revised 2026-11-17. **Most claims here were measured on a television**, a
-2025 set running Tizen 10: §2's listening port, and §3's SDL3 window, sound, frame pacing and remote
-keys. The marker on each of the others says how far it can be trusted. The sibling note is [`webos.md`](webos.md), which asks the same question
+Investigated 2026-09-13 and revised 2026-11-17 and 2026-11-23. **Most claims here were measured on a
+television**, a 2025 set running Tizen 10: §2's listening port, and §3's SDL3 window, sound, frame
+pacing, remote keys, output size, teardown and video decoding. The marker on each of the others says how far it can be trusted. The sibling note is [`webos.md`](webos.md), which asks the same question
 of an LG television.
 
 **Summary.** The first version of this note said a native port was impossible, because Samsung
@@ -19,7 +19,9 @@ ALSA. The remote's arrows, OK, Back and number keys arrive in SDL3 as ordinary k
 Wayland driver draws with its GLES2 renderer, after two one-line patches. **It has to draw into the
 host application's own window**: as a subsurface of that window, driven a frame at a time from the
 host's main loop, it ran a minute at 60 fps and looked perfect. In a window of its own, the picture
-sticks on an old frame. How long an install lasts is unmeasured.
+sticks on an old frame. The picture is 1080p: the compositor offers no larger output. The set's own
+ffmpeg 7.1 decodes 1080p H.264 in software at twice real time. Two things are open. Exiting the
+application with SDL3 loaded does not end the process. How long an install lasts is unmeasured.
 
 **Two cheaper answers already exist.** A Google TV device on HDMI runs the whole machine on a Samsung
 television. The machine's HLS stream plays on the television's own player with no port at all.
@@ -170,11 +172,32 @@ It ran 60 s at 1920×1080 and looked perfect on the set. Every five seconds it p
 297 to 299 of them 12–20 ms apart, with one or two slow ones. The separate window had about twenty.
 The animator reported its timer source, not a vblank-driven one.
 
-**[measured]** Tearing the probe down hung the host. After the last frame, the probe destroyed the
-renderer and the window on the UI thread and left SDL initialised, because `SDL_Quit` would terminate
-the EGL display DALi shares. The layer went away, and the host stopped answering. The machine does not
-tear its display down while it runs, so a port can avoid this, but a clean exit path is still
-unmeasured.
+**[measured]** Destroying SDL's window kills the host. SDL stays initialised throughout, because
+`SDL_Quit` would terminate the EGL display DALi shares. Each ending below followed a run at 60 fps:
+
+| How the run ended | Result |
+|---|---|
+| SDL's renderer and window destroyed | the host stopped answering |
+| the subsurface destroyed and committed first, then SDL's renderer and window | all three steps logged in 47 ms with no Wayland error, and the process was gone within a second |
+| the subsurface destroyed and SDL's surface given a null buffer, SDL's window kept | the picture went away; the UI thread ran on, and an Ecore timer fired each second with no Wayland error |
+| the same, with raw EGL and no SDL: subsurface, then the host's EGL state restored, then surface, context and `wl_egl_window` destroyed | clean, in 12–75 ms; the UI thread ran on |
+
+**[inferred]** The raw EGL probe registers no input listeners and survives its teardown. SDL's
+keyboard and seat listeners sit on the default queue DALi dispatches, and still name the destroyed
+window. The machine does not tear its display down while it runs, so a port would hide the picture
+and keep SDL's window.
+
+**[measured]** **Exiting is open.** With nothing native loaded, Back exits the probe and the process
+ends. With SDL loaded it does not:
+
+| When Back was pressed | Result |
+|---|---|
+| during a 60 s run, SDL drawing | SDL logged no key. The application left the screen and the process kept running: its UI thread answered a call posted to it a minute later |
+| after the picture was hidden, SDL's window kept | nothing visible. The application had to be closed from the set's menu |
+
+**[inferred]** A port would have to end its own process on Back, rather than rely on NUI's exit. Why
+the exit stops short is unmeasured; the probe's host logs no key events of its own. The keys measured
+below reached SDL in a window of its own, not as a subsurface of the host's.
 
 **[inferred]** SDL dispatches the default Wayland queue, which DALi's main loop also reads. So SDL
 must run on the host's UI thread, as the probe did. A Tizen `km-display` would draw from a main-loop
@@ -202,10 +225,42 @@ around, and they arrive as they would from a keyboard. Two keys arrived with no 
 XKB keysyms are ones SDL does not translate. The machine would need the raw keysym to use them, which
 SDL3 does not pass on.
 
-**[measured]** What this run does not settle:
+**[measured]** **The picture is 1080p.** The compositor announces one `wl_output` mode, 1920×1080
+at 60 Hz, current and preferred, with scale 0. It offers no `wp_viewporter`. The GPU is a Mali-G51
+under OpenGL ES 3.2, with 16,383-pixel limits. A raw EGL probe, as a subsurface of the host's window,
+timed the same nearly empty frame at two buffer sizes:
 
-- **4K.** The output was 1920×1080, the size the compositor gave. Whether a native application may
-  draw at the panel's 3840×2160 is open.
+| Buffer | Frame rate |
+|---|---|
+| 1920×1080 | 60.1 fps |
+| 3840×2160, `wl_surface_set_buffer_scale` 2 | 18.8 fps |
+
+**[measured]** Watched on the set, the 4K buffer reached the panel at 1080p. Three blocks of
+stripes were drawn in it. Lines one buffer pixel wide, vertical and horizontal, showed as flat grey.
+Lines two buffer pixels wide, one pixel at 1080p, showed as stripes.
+
+**[inferred]** The compositor scales a 4K buffer down to its 1080p output on every frame. That is
+where the time goes, and the detail is lost on the way. A native application gains nothing from
+drawing above 1080p.
+
+**[measured]** **The set's ffmpeg decodes 1080p in software.** Its `libavcodec.so.61.19.100` and
+`libavutil.so.59.39.100` are ffmpeg 7.1, the release the machine builds against. They load with
+`dlopen` and no privilege. The build is reduced. Its video decoders are H.264, HEVC, MPEG-1, MPEG-2,
+MPEG-4, H.263, MS-MPEG4, WMV 1–3, VC-1, VP3, VP8, VP9, Theora, RV40, FLV, MJPEG, BMP and TIFF. Its
+audio decoders are AAC, AC-3, MP3, FLAC, ALAC, APE, AMR-NB and three PCM formats. Vorbis and Opus are
+absent. The processor is four ARMv7 cores. Decoding alone, with no conversion or drawing, of
+ten-second synthetic clips at 30 fps:
+
+| Clip | Threads | Frame rate | Cores busy |
+|---|---|---|---|
+| H.264 High, 1920×1080, 8 Mbit/s | automatic, 5 | 67.1 fps | 3.0 |
+| the same | 1 | 26.1 fps | 1.0 |
+| H.264 High, 1280×720, 4 Mbit/s | automatic | 192.4 fps | 3.1 |
+| MPEG-2, 720×480, 6 Mbit/s | automatic | 648.6 fps | 1.9 |
+| HEVC, 1920×1080, 6 Mbit/s | automatic | 33.7 fps | 3.0 |
+
+**[inferred]** 1080p H.264 leaves room for the conversion, the upload and the synthesiser.
+1080p HEVC does not. A song whose audio is Vorbis or Opus would need a decoder of the machine's own.
 
 **[repo]** The layering says which crates travel.
 
@@ -216,7 +271,7 @@ SDL3 does not pass on.
 | `km-api` | axum over tokio. Builds; §2 measured the network reaching it |
 | `km-display` | SDL3 with its own Wayland driver, measured above, with the two patches. It draws into a subsurface of the host's window, a frame per main-loop callback on the host's UI thread, not from a loop of its own |
 | `km-audio` | `rustysynth` travels. Output needs a backend over Tizen's `audio_io`, measured above; ALSA is refused |
-| `km-video` | ffmpeg 7.1 is already on the set as `libavcodec.so.61`. Software decoding of 1080p on its processor is unmeasured. The alternative is the television's player on its video plane, as the client in §1 does |
+| `km-video` | ffmpeg 7.1 is already on the set as `libavcodec.so.61`, measured above: 1080p H.264 decodes at 67 fps, 1080p HEVC at 34. Vorbis and Opus are missing. The alternative is the television's player on its video plane, as the client in §1 does |
 
 **[inferred]** The Android port needed changes in five files. This needs a .NET host application, the
 custom-role window, the two SDL patches, `tdm` pacing and an `audio_io` output backend, on top.
@@ -260,7 +315,9 @@ that room, so nothing has to be kept in time across two boxes.
 | Sound | Tizen's `audio_io`, measured; ALSA refused | unmeasured |
 | Frame pacing | the host's main loop, 60 fps and smooth on screen, measured | unmeasured |
 | The remote's keys | arrows, OK, Back and numbers reach SDL3, measured | unmeasured |
-| Verdict | a port; the install's lifetime is unmeasured | a port, gated on the display |
+| Picture size | 1080p; a 4K buffer drops to 19 fps, measured | unmeasured |
+| Video decoding | the set's ffmpeg 7.1, 1080p H.264 at 67 fps, measured | unmeasured |
+| Verdict | a port; the install's lifetime and a clean exit are unmeasured | a port, gated on the display |
 
 ## 8. What answers the question today
 
@@ -281,7 +338,10 @@ Build nothing yet. If a native Samsung machine is wanted, these measurements dec
    **Passed** on 2026-11-17, as a subsurface driven from the host's main loop; see §3. A window of
    its own does not stay on screen.
 5. An installed package starting after Developer Mode has expired: leave the set untouched for ten days
-   after the last install, then start it.
+   after the last install, then start it. The 2026-11-23 measurements loaded native code into the
+   running probe over its own port and installed nothing.
+6. The application ending its process when the singer leaves it, with SDL3 loaded. On 2026-11-23 Back
+   left the process running; see §3.
 
 A platform decision belongs in `docs/decisions/` after them, not before.
 
