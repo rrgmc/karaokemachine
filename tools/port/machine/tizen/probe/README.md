@@ -5,7 +5,13 @@ SDL frame loop on the host's UI thread and lets Ecore iterate every frame. It is
 nested-loop design. `pace=animator`, the default, blocks in `ecore_main_loop_iterate_may_block(1)`
 until an Ecore animator marks a frame due. `pace=deadline` does one non-blocking
 `ecore_main_loop_iterate()` and sleeps to fixed deadlines. On the set, `deadline` presented about a
-third of its frames more than 20 ms apart. The window setup is the one measured in
+third of its frames more than 20 ms apart.
+
+Two more findings from the set shape the args. SDL's own keyboard on the shared display already
+delivers the remote's keys, so `push=0`, the default, leaves Ecore's keys logged but not pushed.
+Second, once the set's on-screen number pad closed, no key reached the application. So the probe
+watches the host window's focus events. `refocus=1`, the default, clears SDL's opaque region and
+calls `ecore_wl2_window_activate` until focus returns. `refocus=stop` stops presenting instead. The window setup is the one measured in
 [`docs/research/tizen.md`](../../../../../docs/research/tizen.md) §3.
 
 | File | What it is |

@@ -13,17 +13,38 @@
  * The window is the measured one from docs/research/tizen.md section 3: SDL on the host's
  * `wl_display`, a custom-role surface made a desynchronised subsurface above the host's surface,
  * created transparent and given an opaque region after its first frame, vsync off, never destroyed
- * and SDL never quit. The remote's keys arrive at Ecore on the host's window, so Ecore key handlers
- * push them into SDL's queue as SDL key events, tagged with a keyboard id of their own.
+ * and SDL never quit. The remote's keys arrive at Ecore on the host's window, and on the set they
+ * also reach SDL through its own wl_keyboard on the shared display. Ecore's are logged, and pushed
+ * into SDL's queue only with `push=1`, tagged with a keyboard id of their own.
+ *
+ * Keyboard focus: on the set, the 123 button (`XF86More`) opens the on-screen number pad, and once
+ * it closed no key reached the application again. Activating the host's window brought the keys
+ * back. So the probe watches Ecore_Wl2's focus, activate and visibility events and, by `refocus=`,
+ * tries to win focus back while SDL keeps its window.
  *
  * Args, `key=value` separated by commas, every one optional:
  *
  *   secs=120       safety cap in seconds. The run ends on its own after this, whatever happens.
- *   back=done      what Back does:
+ *   push=0         0: Ecore keys are logged but not pushed; the loop relies on SDL's own keyboard.
+ *                  1: Ecore keys are also pushed into SDL's queue (the first build's behaviour; on
+ *                  the set every key then arrived twice).
+ *   refocus=1      what happens when the host loses keyboard focus (focus out, or a deactivate not
+ *                  within 500 ms of this probe's own activate call):
+ *                    1     SDL's opaque region is cleared (on the next present) and drawing goes
+ *                          on; ecore_wl2_window_activate(host) after `refocus_delay` frames, then
+ *                          every 60 frames until focus comes back, at most 10 tries. On focus in,
+ *                          the full opaque region is set again one frame later
+ *                    stop  presenting stops while focus is out; activate is called at once;
+ *                          presenting resumes on focus in, or after 2 s whatever happens
+ *                    0     nothing; the events are still logged
+ *   refocus_delay=30  frames between losing focus and the first activate, for refocus=1.
+ *   back=done      what Back does at Ecore. Back read out of SDL's queue ends the loop whichever
+ *                  route it took: pushed, or SDL's own keyboard (keycode AC_BACK or Escape,
+ *                  scancode AC_BACK or Escape).
  *                    done  the Ecore handler consumes Back (ECORE_CALLBACK_DONE); DALi never sees
- *                          it; the loop ends when the pushed Back is read back out of SDL's queue
+ *                          it; the loop ends when Back is read out of SDL's queue
  *                    pass  the handler passes Back on (ECORE_CALLBACK_PASS_ON), so NUI's Exit()
- *                          also runs; the loop still ends on the pushed Back, the same frame
+ *                          also runs; the loop still ends on Back from SDL's queue, the same frame
  *                    host  passes Back on and does NOT end the loop on it: the loop runs until it
  *                          sees the host quitting inside the pump, or the cap
  *   order=prepend  where the key handlers go in Ecore's list: prepend (ahead of DALi's, so `done`
@@ -45,7 +66,7 @@
  *   eoquit=1       also listen for the Efl loop's "quit" event through libeo; 0 skips that.
  *
  * What ends a run, logged as `ending:` and returned:
- *    0  Back, read out of SDL's queue
+ *    0  Back, read out of SDL's queue (pushed or from SDL's own keyboard)
  *    1  the safety cap
  *    2  the host quitting inside the pump (ECORE_EVENT_SIGNAL_EXIT, or the Efl loop's quit event)
  *    3  a Wayland protocol error, or a present that failed
@@ -59,8 +80,9 @@
  * blocked waiting for the tick), iterate calls per frame, the time drawing and inside
  * SDL_RenderPresent (mean and max), under `pace=deadline` the worst overshoot of the delay, and how
  * many 100 ms Ecore timer ticks and animator ticks arrived. Every
- * key is logged as Ecore delivered it and again as SDL's queue returned it. Any of this probe's
- * Ecore callbacks running outside the iterate call is logged as re-entrancy.
+ * key is logged as Ecore delivered it and again as SDL's queue returned it, and every focus,
+ * activate and visibility event with its time. Any of this probe's Ecore callbacks running outside
+ * the iterate call is logged as re-entrancy.
  *
  * Ecore is reached through dlopen/dlsym only, as the earlier probes did, so nothing links against
  * EFL. `Ecore_Event_Key` below is transcribed from EFL's public header
@@ -195,7 +217,30 @@ static struct {
     enum back_mode back;
     int back_escape;
     int pace_deadline;
+    int push;
+    int refocus;          /* REFOCUS_* */
+    int refocus_delay;    /* frames */
 } opt;
+
+enum { REFOCUS_OFF, REFOCUS_OPAQUE, REFOCUS_STOP };
+
+/* Ecore_Wl2 window events, resolved by name as probe_back.c's watch() does. */
+enum { FE_FOCUS_IN, FE_FOCUS_OUT, FE_ACTIVATE, FE_DEACTIVATE, FE_VISIBILITY, FE_COUNT };
+static const char *const focus_event_names[FE_COUNT] = {
+    "ECORE_WL2_EVENT_FOCUS_IN", "ECORE_WL2_EVENT_FOCUS_OUT", "ECORE_WL2_EVENT_WINDOW_ACTIVATE",
+    "ECORE_WL2_EVENT_WINDOW_DEACTIVATE", "ECORE_WL2_EVENT_WINDOW_VISIBILITY_CHANGE",
+};
+/* Upstream EFL's Ecore_Wl2.h: struct _Ecore_Wl2_Event_Window_Visibility_Change { unsigned int win;
+ * int fully_obscured; }. Only read for the log. */
+typedef struct { unsigned int win; int fully_obscured; } Ecore_Wl2_Visibility_;
+
+static void (*wl2_window_activate)(void *);
+static int (*wl2_window_activated_get)(void *);
+static void *host_win;
+static int focus_in = 1;          /* assumed in when the run starts */
+static int focus_pending;         /* +1 in, -1 out, set by the handlers, read by the frame loop */
+static Uint64 last_activate_ns;
+static unsigned refocus_tries, refocus_total, focus_events;
 
 static int running;            /* inside km_probe_run, this copy of the library */
 static int in_iterate;         /* inside ecore_main_loop_iterate() */
@@ -304,15 +349,71 @@ static ebool on_key(void *data, int type, void *event)
     ev.key.raw = (Uint16)(k ? k->keycode : 0);
     ev.key.down = down;
     ev.key.repeat = repeat;
-    bool pushed = SDL_PushEvent(&ev);
+    bool pushed = opt.push && SDL_PushEvent(&ev);
     if (pushed) keys_pushed++;
     if (is_back) ret = opt.back == BACK_DONE ? ECORE_CALLBACK_DONE : ECORE_CALLBACK_PASS_ON;
     logf_("%.2f s Ecore key %s %s (keycode %u)%s -> SDL %s/%s %s; handler returns %s", secs_since_start(),
           down ? "down" : "up", name, k ? k->keycode : 0, repeat ? " repeat" : "",
-          SDL_GetScancodeName(sc), SDL_GetKeyName(kc), pushed ? "pushed" : "PUSH FAILED",
+          SDL_GetScancodeName(sc), SDL_GetKeyName(kc),
+          !opt.push ? "not pushed (push=0)" : pushed ? "pushed" : "PUSH FAILED",
           ret == ECORE_CALLBACK_DONE ? "DONE (DALi does not see it)" : "PASS_ON");
     callback_leave();
     return ret;
+}
+
+/* ---- the host window's focus ---- */
+
+/* Logs every event and records the newest focus direction; the frame loop acts on it, outside Ecore. */
+static ebool on_focus_event(void *data, int type, void *event)
+{
+    int which = (int)(intptr_t)data;
+    (void)type;
+    callback_enter("a focus event handler");
+    focus_events++;
+    double since_activate = last_activate_ns ? (SDL_GetTicksNS() - last_activate_ns) / 1e6 : -1;
+    const char *name = which >= 0 && which < FE_COUNT ? focus_event_names[which] : "?";
+    int activated = wl2_window_activated_get && host_win ? wl2_window_activated_get(host_win) : -1;
+    switch (which) {
+    case FE_FOCUS_IN:
+    case FE_ACTIVATE:
+        focus_pending = 1;
+        logf_("%.2f s %s (host activated %d; %.0f ms after this probe's last activate)", secs_since_start(),
+              name, activated, since_activate);
+        break;
+    case FE_FOCUS_OUT:
+        focus_pending = -1;
+        logf_("%.2f s %s (host activated %d)", secs_since_start(), name, activated);
+        break;
+    case FE_DEACTIVATE:
+        if (last_activate_ns && since_activate < 500) {
+            logf_("%.2f s %s, %.0f ms after this probe's own activate: logged, not treated as focus out",
+                  secs_since_start(), name, since_activate);
+        } else {
+            focus_pending = -1;
+            logf_("%.2f s %s (host activated %d)", secs_since_start(), name, activated);
+        }
+        break;
+    case FE_VISIBILITY: {
+        const Ecore_Wl2_Visibility_ *v = event;
+        logf_("%.2f s %s fully_obscured=%d", secs_since_start(), name, v ? v->fully_obscured : -1);
+        break;
+    }
+    default:
+        logf_("%.2f s focus event %d", secs_since_start(), which);
+    }
+    callback_leave();
+    return ECORE_CALLBACK_PASS_ON;
+}
+
+static void activate_host(const char *why)
+{
+    if (!wl2_window_activate) { logf_("%.2f s activate wanted (%s) but ecore_wl2_window_activate is absent", secs_since_start(), why); return; }
+    int before = wl2_window_activated_get ? wl2_window_activated_get(host_win) : -1;
+    last_activate_ns = SDL_GetTicksNS();
+    wl2_window_activate(host_win);
+    refocus_total++;
+    logf_("%.2f s ecore_wl2_window_activate(host): %s; activated before %d, frame %llu", secs_since_start(), why,
+          before, frame);
 }
 
 /* ---- the host quitting inside the pump ---- */
@@ -437,6 +538,8 @@ static void draw(int w, int h, double t, double it_mean, double it_max, unsigned
     SDL_RenderDebugText(ren, 16, 28, line);
     snprintf(line, sizeof line, "last key: %s", last_key);
     SDL_RenderDebugText(ren, 16, 44, line);
+    snprintf(line, sizeof line, "focus %s  refocus tries %u (%u)", focus_in ? "in" : "OUT", refocus_tries, refocus_total);
+    SDL_RenderDebugText(ren, 16, 108, line);
     snprintf(line, sizeof line, "ecore %.2f / %.2f ms", it_mean, it_max);
     SDL_RenderDebugText(ren, 16, 60, line);
     snprintf(line, sizeof line, "late presents (5 s): %u", late);
@@ -477,6 +580,15 @@ int km_probe_run(const char *args, void *ecore_win, int w, int h, log_fn log)
     opt.prepend = !arg_is(args, "order", "append");
     opt.back = arg_is(args, "back", "pass") ? BACK_PASS : arg_is(args, "back", "host") ? BACK_HOST : BACK_DONE;
     opt.back_escape = arg_is(args, "backkey", "escape");
+    opt.push = arg_int(args, "push", 0) != 0;
+    opt.refocus = arg_is(args, "refocus", "stop") ? REFOCUS_STOP : arg_is(args, "refocus", "0") ? REFOCUS_OFF : REFOCUS_OPAQUE;
+    opt.refocus_delay = arg_int(args, "refocus_delay", 30);
+    if (opt.refocus_delay < 0) opt.refocus_delay = 30;
+    focus_in = 1;
+    focus_pending = 0;
+    last_activate_ns = 0;
+    refocus_tries = refocus_total = focus_events = 0;
+    host_win = ecore_win;
     ending = END_NONE;
     quit_source = NULL;
     frame = 0;
@@ -490,6 +602,8 @@ int km_probe_run(const char *args, void *ecore_win, int w, int h, log_fn log)
           args, opt.pace_deadline ? "deadline" : "animator", opt.secs, opt.fps, opt.opaque_after,
           opt.back == BACK_DONE ? "done" : opt.back == BACK_PASS ? "pass" : "host",
           opt.prepend ? "prepend" : "append", opt.back_escape ? "escape" : "acback", opt.eoquit, w, h);
+    logf_("     push=%d refocus=%s refocus_delay=%d", opt.push,
+          opt.refocus == REFOCUS_STOP ? "stop" : opt.refocus == REFOCUS_OFF ? "0" : "1", opt.refocus_delay);
 
     int rc = 0;
     void *ecore = dlopen("libecore.so.1", RTLD_NOW);
@@ -513,6 +627,8 @@ int km_probe_run(const char *args, void *ecore_win, int w, int h, log_fn log)
     int *key_down_type = (int *)sym(input, "ECORE_EVENT_KEY_DOWN");
     int *key_up_type = (int *)sym(input, "ECORE_EVENT_KEY_UP");
     int *signal_exit_type = (int *)sym(ecore, "ECORE_EVENT_SIGNAL_EXIT");
+    wl2_window_activate = (void (*)(void *))sym(ewl, "ecore_wl2_window_activate");
+    wl2_window_activated_get = (int (*)(void *))sym(ewl, "ecore_wl2_window_activated_get");
     if (!ecore_iterate || !ecore_handler_add || !ecore_handler_del || !ecore_timer_add_ || !ecore_timer_del_ ||
         !win_display || !display_get || !surface_get || !key_down_type || !key_up_type) {
         logf_("setup: a needed Ecore symbol is missing: iterate %p handler_add %p handler_del %p timer_add %p "
@@ -589,6 +705,20 @@ int km_probe_run(const char *args, void *ecore_win, int w, int h, log_fn log)
           add_key == ecore_handler_prepend ? "prepended, ahead of DALi's" :
           opt.prepend ? "APPENDED: prepend is absent, so DALi sees each key first" : "appended, after DALi's",
           h_down, h_up, h_sig, timer);
+    void *h_focus[FE_COUNT] = { 0 };
+    {
+        char found[400] = "";
+        for (int i = 0; i < FE_COUNT; i++) {
+            int *p = (int *)sym(ewl, focus_event_names[i]);
+            if (!p || !*p) continue;
+            h_focus[i] = ecore_handler_add(*p, on_focus_event, (void *)(intptr_t)i);
+            size_t len = strlen(found);
+            snprintf(found + len, sizeof found - len, "%s ", focus_event_names[i] + 16);
+        }
+        logf_("focus events watched: %s; ecore_wl2_window_activate %s, activated_get %s (host activated %d)", found,
+              wl2_window_activate ? "present" : "ABSENT", wl2_window_activated_get ? "present" : "absent",
+              wl2_window_activated_get ? wl2_window_activated_get(ecore_win) : -1);
+    }
 
     void *loop_obj = NULL;
     const void *quit_desc = NULL;
@@ -649,6 +779,9 @@ int km_probe_run(const char *args, void *ecore_win, int w, int h, log_fn log)
     double shown_it_mean = 0, shown_it_max = 0;
     unsigned shown_late = 0;
     int made_opaque = 0, back_seen = 0;
+    int opaque_cleared = 0, stopped = 0;
+    unsigned long long out_frame = 0, opaque_restore_at = 0, stopped_frames = 0;
+    Uint64 out_ns = 0;
     run_start_ns = start;
 
     while (ending == END_NONE) {
@@ -680,7 +813,57 @@ int km_probe_run(const char *args, void *ecore_win, int w, int h, log_fn log)
         if (calls > w_calls_max) w_calls_max = calls;
         if (quit_source) { ending = END_HOST_QUIT; break; }
 
-        /* 2. SDL's queue, where the pushed keys come back out. */
+        /* 1b. Focus, as the handlers saw it during that pass. */
+        if (focus_pending) {
+            int in = focus_pending > 0;
+            focus_pending = 0;
+            if (in != focus_in) {
+                focus_in = in;
+                Uint64 fnow = SDL_GetTicksNS();
+                if (!in) {
+                    out_frame = frame;
+                    out_ns = fnow;
+                    refocus_tries = 0;
+                    logf_("%.2f s focus OUT at frame %llu", secs_since_start(), frame);
+                    if (opt.refocus == REFOCUS_OPAQUE) {
+                        wl_surface_set_opaque_region(sdl_surf, NULL);
+                        opaque_cleared = 1;
+                        opaque_restore_at = 0;
+                        logf_("%.2f s refocus: opaque region cleared, on the next present; drawing goes on; "
+                              "activate in %d frames", secs_since_start(), opt.refocus_delay);
+                    } else if (opt.refocus == REFOCUS_STOP) {
+                        stopped = 1;
+                        logf_("%.2f s refocus=stop: presenting stopped", secs_since_start());
+                        activate_host("refocus=stop, at once");
+                        refocus_tries = 1;
+                    }
+                } else {
+                    logf_("%.2f s focus IN after %.0f ms out, %u activate tries", secs_since_start(),
+                          out_ns ? (fnow - out_ns) / 1e6 : 0.0, refocus_tries);
+                    if (opaque_cleared) opaque_restore_at = frame + 1;
+                    if (stopped) {
+                        stopped = 0;
+                        prev_present = 0;
+                        logf_("%.2f s refocus=stop: presenting resumes on focus in", secs_since_start());
+                    }
+                    refocus_tries = 0;
+                }
+            }
+        }
+        if (opt.refocus == REFOCUS_OPAQUE && !focus_in && refocus_tries < 10 &&
+            frame >= out_frame + (unsigned long long)opt.refocus_delay + 60ull * refocus_tries) {
+            char why[64];
+            snprintf(why, sizeof why, "refocus try %u of 10", refocus_tries + 1);
+            activate_host(why);
+            refocus_tries++;
+        }
+        if (stopped && SDL_GetTicksNS() - out_ns >= 2000000000ull) {
+            stopped = 0;
+            prev_present = 0;
+            logf_("%.2f s refocus=stop: no focus in after 2 s; presenting resumes anyway", secs_since_start());
+        }
+
+        /* 2. SDL's queue: SDL's own keyboard, and the pushed keys under push=1. */
         SDL_Event e;
         while (SDL_PollEvent(&e)) {
             if (e.type == SDL_EVENT_KEY_DOWN || e.type == SDL_EVENT_KEY_UP) {
@@ -693,8 +876,13 @@ int km_probe_run(const char *args, void *ecore_win, int w, int h, log_fn log)
                       e.type == SDL_EVENT_KEY_DOWN ? "down" : "up", kn && *kn ? kn : "unmapped",
                       SDL_GetScancodeName(e.key.scancode), e.key.repeat ? ", repeat" : "",
                       ours ? "pushed from Ecore" : "from SDL's own keyboard");
-                if (e.type == SDL_EVENT_KEY_DOWN && ours &&
-                    (e.key.key == SDLK_AC_BACK || e.key.key == SDLK_ESCAPE)) back_seen = 1;
+                if (e.type == SDL_EVENT_KEY_DOWN &&
+                    (e.key.key == SDLK_AC_BACK || e.key.key == SDLK_ESCAPE ||
+                     e.key.scancode == SDL_SCANCODE_AC_BACK || e.key.scancode == SDL_SCANCODE_ESCAPE)) {
+                    back_seen = 1;
+                    logf_("%.2f s Back read out of SDL's queue, %s", secs_since_start(),
+                          ours ? "pushed from Ecore" : "from SDL's own keyboard");
+                }
             } else if (e.type == SDL_EVENT_QUIT) {
                 logf_("%.2f s SDL_EVENT_QUIT", secs_since_start());
             } else if (e.type == SDL_EVENT_WINDOW_FOCUS_GAINED || e.type == SDL_EVENT_WINDOW_FOCUS_LOST) {
@@ -702,6 +890,14 @@ int km_probe_run(const char *args, void *ecore_win, int w, int h, log_fn log)
             }
         }
         if (back_seen && opt.back != BACK_HOST) { ending = END_BACK; break; }
+
+        /* refocus=stop: nothing is presented while focus is out; Ecore keeps turning. */
+        if (stopped) {
+            stopped_frames++;
+            if (SDL_GetTicksNS() - start >= cap_ns) { ending = END_CAP; break; }
+            if (opt.pace_deadline) { SDL_DelayNS(budget); deadline = SDL_GetTicksNS(); }
+            continue;
+        }
 
         /* 3. Draw and present. */
         Uint64 d0 = SDL_GetTicksNS();
@@ -727,13 +923,22 @@ int km_probe_run(const char *args, void *ecore_win, int w, int h, log_fn log)
         }
         prev_present = now;
 
-        if (!made_opaque && opt.opaque_after > 0 && frame >= (unsigned long long)opt.opaque_after) {
+        if (!made_opaque && !opaque_cleared && opt.opaque_after > 0 && frame >= (unsigned long long)opt.opaque_after) {
             struct wl_region *r = wl_compositor_create_region(g_comp);
             wl_region_add(r, 0, 0, w, h);
             wl_surface_set_opaque_region(sdl_surf, r);
             wl_region_destroy(r);
             made_opaque = 1;
             logf_("%.2f s opaque region set after frame %llu; takes effect on the next present", t, frame);
+        }
+        if (opaque_restore_at && frame >= opaque_restore_at && focus_in) {
+            struct wl_region *r = wl_compositor_create_region(g_comp);
+            wl_region_add(r, 0, 0, w, h);
+            wl_surface_set_opaque_region(sdl_surf, r);
+            wl_region_destroy(r);
+            opaque_restore_at = 0;
+            opaque_cleared = 0;
+            logf_("%.2f s refocus: full opaque region set again at frame %llu, a frame after focus in", t, frame);
         }
         int werr = wl_display_get_error(dpy);
         if (werr) { logf_("%.2f s wl_display error %d", t, werr); ending = END_WAYLAND; break; }
@@ -789,6 +994,8 @@ int km_probe_run(const char *args, void *ecore_win, int w, int h, log_fn log)
     if (w_pres_max > t_pres_max) t_pres_max = w_pres_max;
     double total = (SDL_GetTicksNS() - start) / 1e9;
     logf_("ending: %s%s%s, after %.1f s", ending_name(ending), quit_source ? " via " : "", quit_source ? quit_source : "", total);
+    logf_("focus: %s at the end; %u focus events, %u activate calls, %llu loop passes not presented (refocus=stop)",
+          focus_in ? "in" : "OUT", focus_events, refocus_total, stopped_frames);
     logf_("totals (pace=%s): %llu frames (%.1f fps), %llu late, slowest %.2f ms, in Ecore max %.2f ms, present max %.2f ms; "
           "animator ticks %u, coalesced %u; keys ecore %u pushed %u sdl %u sdl-own %u; re-entrant callbacks %u",
           opt.pace_deadline ? "deadline" : "animator", t_frames, total > 0 ? t_frames / total : 0, t_late,
@@ -801,6 +1008,7 @@ int km_probe_run(const char *args, void *ecore_win, int w, int h, log_fn log)
     if (h_sig) ecore_handler_del(h_sig);
     ecore_timer_del_(timer);
     if (animator) ecore_animator_del_(animator);
+    for (int i = 0; i < FE_COUNT; i++) if (h_focus[i]) ecore_handler_del(h_focus[i]);
     if (loop_obj && eo_cb_del) eo_cb_del(loop_obj, quit_desc, on_loop_quit, NULL);
     Uint64 td = SDL_GetTicksNS();
     wl_subsurface_destroy(sub);
