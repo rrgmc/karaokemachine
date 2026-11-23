@@ -21,7 +21,7 @@ host application's own window**: as a subsurface of that window, driven a frame 
 host's main loop, it ran a minute at 60 fps and looked perfect. In a window of its own, the picture
 sticks on an old frame. The picture is 1080p: the compositor offers no larger output. The set's own
 ffmpeg 7.1 decodes 1080p H.264 in software at twice real time. SDL3's window must start
-transparent, or its opaque region takes keyboard focus from the application. A MIDI song and a 1080p video song both play end to end, in sync. How long an install
+transparent, or its opaque region takes keyboard focus from the application. A MIDI song, a 1080p video song and an MP3+G song all play end to end, in sync. How long an install
 lasts is unmeasured.
 
 **Two cheaper answers already exist.** A Google TV device on HDMI runs the whole machine on a Samsung
@@ -321,6 +321,26 @@ refreshes.
 needs neither the television's player nor its video plane. 60 fps and HEVC sources are unmeasured,
 and HEVC decoding alone runs at 34 fps.
 
+**[measured]** **An MP3+G song plays end to end**, opened as the machine opens one. The pair came
+from the corpus: a 3.3 MB, 44.1 kHz MP3 and a 1.5 MB `.cdg`. `km_cdg::open` decoded the MP3 with
+symphonia into `km-audio`'s `TrackPlayer`, which resampled it to 48 kHz for `audio_io`. Each tick,
+the host's main loop asked `km-cdg`'s `FrameReader` for the picture at the moment being heard. That
+picture went up as a 288×192 ARGB texture, scaled to the screen's height with nearest-pixel
+sampling, in SDL's window opaque after its first second:
+
+| | |
+|---|---|
+| Seen and heard on the set | the sound clean; the words changing colour in time with the singing; the picture steady |
+| Decoding and resampling the MP3 | 0.25 ms per 21.3 ms block, 1.6 ms at most |
+| Advancing the CD+G screen and uploading it | about 1 ms, 3.6 ms at most |
+| Drawing | 60 fps, 2–9 presents per 300 over 20 ms |
+| The audio written, ahead of the clock | 21–54 ms at its lowest in each five seconds; it never ran dry |
+| Process memory | 53 MB |
+
+**[inferred]** MP3+G is the lightest of the song kinds here. The MP3 path is the one an UltraStar or
+LRC song's audio takes, so those are covered for sound. Their words are drawn the way a MIDI song's
+are, measured above.
+
 **[measured]** **The set synthesises MIDI songs in real time on one core.** `km-audio`'s own
 `Player` and `SoundFontSource` were cross-compiled for `armv7-unknown-linux-gnueabi`. The target is
 soft-float by default, so the build used hardware floating point and NEON within the softfp calling
@@ -411,6 +431,7 @@ that room, so nothing has to be kept in time across two boxes.
 | The remote's keys | arrows, OK, Back and numbers reach SDL3 in a window of its own, and the host's window beside a transparent SDL subsurface, measured | unmeasured |
 | Picture size | 1080p; a 4K buffer drops to 19 fps, measured | unmeasured |
 | Video songs | the set's ffmpeg 7.1 decodes 1080p H.264 at 67 fps; a 1080p30 song played end to end, in sync, measured | unmeasured |
+| MP3+G songs | `km-cdg` and `km-audio` as the machine runs them; played end to end, in sync, at about 1 % of a core, measured | unmeasured |
 | MIDI synthesis | `km-audio` on one core, 8–33 % of real time; a song played end to end with its words in time, measured | unmeasured |
 | Verdict | a port; the install's lifetime is unmeasured | a port, gated on the display |
 
