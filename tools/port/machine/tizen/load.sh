@@ -5,13 +5,16 @@
 #   tools/port/machine/tizen/load.sh <address> [args] [--release]
 #   tools/port/machine/tizen/load.sh 192.168.1.x 'data=<the probe app's data folder>,log=info'
 #
-# POSTs libkm_app.so to http://<address>:8177/load?a=<args>. The probe app writes it into its data
+# POSTs libkm_app.so, the copy build.sh strips of debug information, to
+# http://<address>:8177/load?a=<args>. The probe app writes it into its data
 # folder, loads it and calls km_probe_run on its UI thread, then answers with what was logged: after
 # the machine returns, or after 60 s if it is still running, which is the normal case. GET /log on the
 # same port reads the rest later; the machine's own API is on port= (8277 unless told otherwise).
 #
 # args is km_probe_run's `key=value,...`: data= (required, the probe app's data folder, which its
-# own screen prints), port=, log= (a tracing filter, `;` for `,`) and dev=1 (serve /dev/).
+# own screen prints), port=, log= (a tracing filter, `;` for `,`), dev=1 (serve /dev/) and exit=0
+# (leave the probe app open when the machine stops; by default the machine ends it, because once the
+# machine has run no key reaches the app).
 #
 # **Run it once per load.** Each POST loads a fresh copy and starts it on the UI thread, so a second
 # one while a machine runs starts another inside it. Hence one curl, in the foreground, no retry.
@@ -34,7 +37,7 @@ for arg in "$@"; do
   esac
 done
 
-so="local/tizen/target/armv7-unknown-linux-gnueabi/$profile/libkm_app.so"
+so="local/tizen/target/armv7-unknown-linux-gnueabi/$profile/libkm_app.stripped.so"
 [ -f "$so" ] || { echo "load: $so is not built; run tools/port/machine/tizen/build.sh first" >&2; exit 1; }
 
 # Percent-encodes everything but the unreserved characters, byte by byte.

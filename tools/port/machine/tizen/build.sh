@@ -4,6 +4,10 @@
 #
 #   tools/port/machine/tizen/build.sh              # debug
 #   tools/port/machine/tizen/build.sh --release    # release; other arguments go to cargo too
+#   tools/port/machine/tizen/build.sh --clippy     # clippy over the Tizen code, -D warnings
+#
+# The development build carries the font, the wallpapers and the dev console inside the .so, so
+# load.sh beside this is all it takes to run it in the probe app on the set (M2 to M4).
 #
 # Builds the km-tizen image first (Dockerfile beside this; cached after the first time), then runs
 # build-in-container.sh in it with this checkout mounted. Video is always on: the set has ffmpeg.
