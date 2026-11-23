@@ -19,8 +19,10 @@
 
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU8, AtomicU32, Ordering};
+#[cfg(not(feature = "tizen"))]
 use std::time::Duration;
 
+#[cfg(not(feature = "tizen"))]
 use cpal::traits::{DeviceTrait, StreamTrait};
 use km_queue::Transport;
 use km_song::Song;
@@ -29,6 +31,19 @@ use crate::device::{self, Chosen};
 use crate::player::{Player, PlayerEvent, Retired};
 use crate::source::{AudioSource, SourceError};
 use crate::track::TrackPlayer;
+
+#[cfg(feature = "tizen")]
+mod audioio;
+
+/// The one output a Samsung television has, reported as the system default it is.
+#[cfg(feature = "tizen")]
+fn audioio_chosen() -> Chosen {
+    Chosen {
+        id: device::SYSTEM_DEFAULT.to_owned(),
+        name: audioio::NAME.to_owned(),
+        fell_back: false,
+    }
+}
 
 /// What to load: the two kinds of song a machine can play.
 ///
@@ -157,6 +172,7 @@ fn transport_from_code(code: u8) -> Transport {
 /// never ask for audio again. cpal rebinds nothing itself, so both end the stream.
 ///
 /// Every other kind is one the backend recovers from, and an underrun is the common case.
+#[cfg(not(feature = "tizen"))]
 fn ends_the_stream(kind: cpal::ErrorKind) -> bool {
     matches!(
         kind,
@@ -379,7 +395,10 @@ pub struct DeviceInfo {
 /// A running audio output stream with its player.
 pub struct OutputStream {
     // Dropped last, stopping the callback before the queues it uses go away.
+    #[cfg(not(feature = "tizen"))]
     _stream: cpal::Stream,
+    #[cfg(feature = "tizen")]
+    _stream: audioio::Stream,
     commands: rtrb::Producer<Command>,
     retired: rtrb::Consumer<Retired>,
     shared: Arc<SharedState>,
@@ -399,6 +418,7 @@ const RETIRED_CAPACITY: usize = 8;
 /// cpal's default is `None`, which blocks forever. That was tolerable when the only open happened
 /// inside the ten-second startup budget; it is not, now that a Bluetooth device can be opened in the
 /// middle of an evening and a wedged driver would stall the audio thread for the rest of it.
+#[cfg(not(feature = "tizen"))]
 const ACTIVATION_TIMEOUT: Duration = Duration::from_secs(5);
 
 impl OutputStream {
@@ -417,6 +437,7 @@ impl OutputStream {
     /// the only time [`device::decide`]'s USB preference applies. Because this runs at startup, it is
     /// also where that rule is *settled*: the returned [`Chosen`] is what the caller writes back into
     /// settings, so the guess is made once and kept rather than re-made on every open.
+    #[cfg(not(feature = "tizen"))]
     pub fn probe(want: Option<&str>) -> Result<DeviceInfo, AudioError> {
         let (device, chosen) = device::resolve(want)?;
         let supported = device
@@ -444,6 +465,7 @@ impl OutputStream {
     /// `want` is the same setting [`probe`](Self::probe) takes, and is re-resolved on every open
     /// rather than remembered: a device can be unplugged between one song and the next, and the
     /// answer to that is a fresh fallback, not a stale handle.
+    #[cfg(not(feature = "tizen"))]
     pub fn open<F, S>(
         shared: Arc<SharedState>,
         want: Option<&str>,
@@ -584,6 +606,70 @@ impl OutputStream {
             sample_rate,
             channels,
             chosen,
+        })
+    }
+
+    /// Whether Tizen's `audio_io` is there, and what it is asked for. The set has one output, so
+    /// `want` chooses nothing.
+    #[cfg(feature = "tizen")]
+    pub fn probe(_want: Option<&str>) -> Result<DeviceInfo, AudioError> {
+        audioio::available()?;
+        Ok(DeviceInfo {
+            sample_rate: audioio::SAMPLE_RATE,
+            channels: audioio::CHANNELS,
+            chosen: audioio_chosen(),
+        })
+    }
+
+    /// Opens Tizen's `audio_io` against an existing [`SharedState`]: the cpal `open` above, with a
+    /// writing thread of [`audioio`]'s in place of a device callback.
+    #[cfg(feature = "tizen")]
+    pub fn open<F, S>(
+        shared: Arc<SharedState>,
+        _want: Option<&str>,
+        make_source: F,
+    ) -> Result<Self, AudioError>
+    where
+        F: FnOnce(u32) -> Result<S, SourceError>,
+        S: AudioSource + Send + 'static,
+    {
+        let (sample_rate, channels) = (audioio::SAMPLE_RATE, audioio::CHANNELS);
+        let source = make_source(sample_rate)?;
+        let mut player = Player::new(source);
+
+        let (command_producer, mut command_consumer) = rtrb::RingBuffer::new(COMMAND_CAPACITY);
+        let (mut retired_producer, retired_consumer) = rtrb::RingBuffer::new(RETIRED_CAPACITY);
+        shared.publish_device(sample_rate, channels);
+        shared.stream_failed.store(false, Ordering::Release);
+        // Every block is the same size, so the period is known before the first one.
+        shared.period_ms.store(
+            (audioio::BLOCK_FRAMES as u32) * 1000 / sample_rate,
+            Ordering::Relaxed,
+        );
+        let audio_shared = Arc::clone(&shared);
+        let channel_count = usize::from(channels);
+        // The position published here is the one the words are drawn from. The blocking write
+        // paces the renders, so it advances with the frames the device takes.
+        let render = move |out: &mut [f32]| {
+            while let Ok(command) = command_consumer.pop() {
+                apply(&mut player, command, &mut retired_producer);
+            }
+            fill_and_publish(&mut player, &audio_shared, out, channel_count);
+        };
+        let failed_shared = Arc::clone(&shared);
+        let failed = move || failed_shared.stream_failed.store(true, Ordering::Release);
+
+        let stream = audioio::Stream::start(render, failed)?;
+        shared.streams_opened.fetch_add(1, Ordering::AcqRel);
+
+        Ok(Self {
+            _stream: stream,
+            commands: command_producer,
+            retired: retired_consumer,
+            shared,
+            sample_rate,
+            channels,
+            chosen: audioio_chosen(),
         })
     }
 
@@ -837,6 +923,7 @@ fn apply<S: AudioSource>(
 /// Larger than any block a desktop or phone backend hands over, so the scratch buffer is allocated
 /// here on the control thread and not in the callback. A backend that asks for more still plays: the
 /// buffer grows once on the audio thread and keeps that size.
+#[cfg(not(feature = "tizen"))]
 const SCRATCH_FRAMES: usize = 16_384;
 
 /// Opens a stream in a sample format other than `f32`, rendering into a scratch buffer and
@@ -844,6 +931,7 @@ const SCRATCH_FRAMES: usize = 16_384;
 ///
 /// The clamp stops just short of `+1.0`. cpal's conversion assumes `-1.0 <= s < 1.0`, and a 24-bit
 /// sample at exactly `+1.0` wraps to full negative scale instead of saturating.
+#[cfg(not(feature = "tizen"))]
 fn converting<T>(
     device: &cpal::Device,
     config: cpal::StreamConfig,
