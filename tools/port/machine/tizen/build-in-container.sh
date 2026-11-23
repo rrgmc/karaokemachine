@@ -100,13 +100,13 @@ for symbol in km_probe_run km_tizen_run; do
 done
 
 # Measured on the set (docs/research/tizen.md): glibc 2.40 and the libraries in /usr/lib. libgcc_s
-# comes with every glibc system. libswresample is ffmpeg's, but not known to be on the set.
+# comes with every glibc system. ffmpeg 7.1 is on the set whole, libswresample and libswscale included.
 echo "needed:"
 unknown=0
 while read -r lib; do
   case "$lib" in
     libc.so.6|libm.so.6|libdl.so.2|libpthread.so.0|librt.so.1|libutil.so.1|ld-linux.so.3|libgcc_s.so.1|\
-    libasound.so.2|libavcodec.so.61|libavformat.so.61|libavutil.so.59)
+    libasound.so.2|libavcodec.so.61|libavformat.so.61|libavutil.so.59|libswresample.so.5|libswscale.so.8)
       echo "  $lib" ;;
     *) echo "  $lib   <- not known to be on the set"; unknown=$((unknown + 1)) ;;
   esac
