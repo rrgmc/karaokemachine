@@ -69,7 +69,7 @@ installed before M5.
 | M0 Toolchain | the machine builds as a `cdylib` for `armv7-unknown-linux-gnueabi`, video included | `readelf`: hardware float; every needed soname present on the set | S |
 | M1 Nested loop | a C probe: an SDL frame loop on the UI thread pumping Ecore each frame, Back ending it | on the set: smooth for a minute, arrows and Back arrive, a clean exit. **Passed** | S |
 | M2 The machine starts | `km_tizen_run`: the machine with its idle screen, pad, catalog and API | on the set: idle screen drawn, pad driven by the remote, the owner's page open on a phone. **Passed**: `tools/port/machine/tizen/load.sh` runs it in the probe app | M–L |
-| M3 Sound | the `audio_io` output in `km-audio`; the bundled bank carried in the `.so`; `songs.sh` installs a synthetic test package | a MIDI song dialled on the pad and heard clean | M |
+| M3 Sound | the `audio_io` output in `km-audio`; the bundled bank carried in the `.so`; `songs.sh` installs a synthetic test package | a MIDI song dialled on the pad and heard clean. **Passed**: the words in time, with no latency correction | M |
 | M4 Every song kind | video through the set's ffmpeg, MP3+G, words in time | a video song and an MP3+G song played | S–M |
 | M5 A real app | the .NET host, assets in `res/`, a signed `.tpk` | installed with Apps2Samsung and started from the app list | M |
 | M6 Documentation | `docs/architecture/tizen.md`, `BUILDING.md`, `DEPLOYING.md`, the decision amended; this file deleted | review | S |
