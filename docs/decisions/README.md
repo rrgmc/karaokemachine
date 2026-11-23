@@ -534,6 +534,7 @@ it are the same entry. How the thing is built is [`ARCHITECTURE.md`](../ARCHITEC
 - [The promotional video sings a song written for it](repository.md#the-promotional-video-sings-a-song-written-for-it)
 - [Who the README is for](repository.md#who-the-readme-is-for)
 - [Prose has no house style and no checker](repository.md#prose-has-no-house-style-and-no-checker)
+- [A new feature or port may carry a committed plan](repository.md#a-new-feature-or-port-may-carry-a-committed-plan)
 - [Where a folder-scoped instruction lives](repository.md#where-a-folder-scoped-instruction-lives)
 - [A worktree lives inside the checkout](repository.md#a-worktree-lives-inside-the-checkout)
 - [A compilation cache is shared; a target directory is not](repository.md#a-compilation-cache-is-shared-a-target-directory-is-not)

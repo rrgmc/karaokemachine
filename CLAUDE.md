@@ -20,6 +20,7 @@ The detail lives in the documents below, opened when needed.
 | [`DEPLOYING.md`](DEPLOYING.md) | how to get it onto a device — Android, iOS, and a Linux box over SSH |
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | what to run before a pull request, and the invariants |
 | [`docs/research/`](docs/research/) | investigations — findings, never commitments |
+| [`docs/plans/`](docs/plans/) | a feature or port being built — what, and in which milestones |
 | [`docs/HISTORY.md`](docs/HISTORY.md) | why this took eighteen years and then fourteen days |
 | [`docs/manual/`](docs/manual/) | for somebody who has the machine, not the source — a chapter per file, and the site's `docs/` |
 | [`README.md`](README.md) | the front page: what it is, and where each of these is |
@@ -37,10 +38,10 @@ The detail lives in the documents below, opened when needed.
    out of date — fix it.
 4. **Research notes are not decisions.** Nothing in one is committed until it appears in
    `docs/decisions/`.
-5. Do not create additional plan or status documents. This rule does not catch reference
-   documentation. `README.md`, `docs/manual/`, `BUILDING.md`, `CONTRIBUTING.md`, the per-port READMEs,
-   `icon/README.md`, `docs/learning-rust.md` and `docs/HISTORY.md` say what *is* or *was* true, where
-   a plan says what *will be*.
+5. **A new feature or port may carry a committed plan**, one file in [`docs/plans/`](docs/plans/):
+   what will be built, in which milestones. A plan is not a decision, and it is deleted in the change
+   that finishes the work. Status documents are still not written; a plan's milestones say where
+   the work stands.
 
 ## Non-goals
 

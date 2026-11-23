@@ -775,8 +775,7 @@ other way in, pointing at `BUILDING.md`.
 
 **What is *not* duplicated.** The manual says the builds are unsigned and what the recipient clicks;
 `BUILDING.md` says how to sign one. The manual states the logging behavior; `BUILDING.md` states why
-`--frame-stats` is deliberately not a log level. It is reference documentation and not a plan, so
-rule 5 in `CLAUDE.md` does not reach it.
+`--frame-stats` is deliberately not a log level. It is reference documentation, saying what is true.
 
 ## Prose has no house style and no checker
 
@@ -787,6 +786,20 @@ this text writes clearly without a mechanical floor. Review is the safeguard.
 **The privacy rule is separate and stands.** `check-no-local-refs.sh`, and the human pass it needs,
 are argued in
 [`What a committed file may say about the machine it was written on`](#what-a-committed-file-may-say-about-the-machine-it-was-written-on).
+
+## A new feature or port may carry a committed plan
+
+**A plan for a new feature or port is committed, one file in `docs/plans/`.** It says what will be
+built and in which milestones. This replaces the rule that no plan document be written. A plan in
+the repository travels with the work: to a worktree, to another machine, into a pull request's review.
+
+**A plan is not a decision.** What the product does is decided in `docs/decisions/` first, and a plan
+only carries it out. Where the two disagree, the decision is right, as it is over an architecture
+note.
+
+**A plan is deleted in the change that finishes the work.** By then the decision, the architecture
+note and `BUILDING.md` say what is true, and a finished plan would only say what was once intended.
+Status documents stay unwritten: a plan's milestones say where the work stands.
 
 ## Where a folder-scoped instruction lives
 
@@ -1268,8 +1281,8 @@ alone, and carries the name and the address verbatim.
 **The manual is the one generated part, and it has one source.** `docs/manual/` is markdown that
 GitHub renders in place. `tools/dist/site.sh` renders the same files into `docs/` on the site, as
 pages with a sidebar, a next page and a search. A second copy of the words would go stale against
-the first, and here no second copy exists. That is the failure rule 5 in `CLAUDE.md` exists to
-prevent. `Who the README is for` says what the manual holds.
+the first, and here no second copy exists. That is the failure a second copy of any document
+invites. `Who the README is for` says what the manual holds.
 
 **The other documents stay as markdown on GitHub.** Somebody who has the source reads `BUILDING.md`,
 the architecture notes and the decisions. GitHub already renders them with anchors, a file tree and
