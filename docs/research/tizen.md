@@ -20,8 +20,8 @@ Wayland driver draws with its GLES2 renderer, after two one-line patches. **It h
 host application's own window**: as a subsurface of that window, driven a frame at a time from the
 host's main loop, it ran a minute at 60 fps and looked perfect. In a window of its own, the picture
 sticks on an old frame. The picture is 1080p: the compositor offers no larger output. The set's own
-ffmpeg 7.1 decodes 1080p H.264 in software at twice real time. SDL3's window must be created
-transparent, or its opaque region takes keyboard focus from the application. How long an install
+ffmpeg 7.1 decodes 1080p H.264 in software at twice real time. SDL3's window must start
+transparent, or its opaque region takes keyboard focus from the application. A MIDI song plays end to end, sound and words in time. How long an install
 lasts is unmeasured.
 
 **Two cheaper answers already exist.** A Google TV device on HDMI runs the whole machine on a Samsung
@@ -212,12 +212,25 @@ topmost grab on Back, the arrows, OK and the numbers, and no key arrived. Shared
 and exclusive grabs were refused. Closing the application from the set's menu did not end its
 process.
 
+**[measured]** **The opaque region only matters on the first frame.** One SDL window, created
+transparent, then given an opaque region with `wl_surface_set_opaque_region` while it drew, kept
+the host's focus throughout, fully opaque included. Up and `XF86Back` reached DALi, and the
+application exited. The opaque region also decides how smoothly the window is shown once the sound
+engine runs. The table counts presents more than 20 ms after the one before, per 300, on a song
+played through `audio_io` on Colombo:
+
+| SDL's window | Presents over 20 ms, per 300 | Seen on the set |
+|---|---|---|
+| transparent throughout, sound playing | 99–123 | small, regular jumps |
+| transparent throughout, silent and no bank loaded | 5–16 | smooth |
+| transparent, then opaque after its first second, sound playing | 3–5 | smooth, with an occasional micro-stutter |
+| opaque but a 1-pixel strip, or fully opaque, silent | 1–2 | smooth |
+
 **[inferred]** The compositor seems to treat a window whose whole area is covered by an opaque
-surface as hidden, and takes its focus. A port creates SDL's window transparent. SDL then declares no
-opaque region, and the picture is unchanged, because the renderer clears to an opaque colour. The
-keys reach the host's window and not SDL's, so a port reads them from DALi or from a `wl_keyboard`
-of its own. The keys measured below reached SDL in a window of its own, not as a subsurface of the
-host's.
+surface, on that surface's first frame, as hidden, and takes its focus. A port creates SDL's window
+transparent and declares it opaque after its first frame. The keys reach the host's window and not
+SDL's, so a port reads them from DALi or from a `wl_keyboard` of its own. The keys measured below
+reached SDL in a window of its own, not as a subsurface of the host's.
 
 **[inferred]** SDL dispatches the default Wayland queue, which DALi's main loop also reads. So SDL
 must run on the host's UI thread, as the probe did. A Tizen `km-display` would draw from a main-loop
@@ -298,6 +311,25 @@ the machine runs, with their 256-voice ceiling. Three dense karaoke MIDI files f
 block was 0.3 ms over, and the `audio_io` buffer above holds 50 ms. A MIDI song decodes no video, so
 its other load is drawing. A 275 MB bank fits a 32-bit process on this set.
 
+**[measured]** **A MIDI song plays end to end.** One library held `km-audio`, statically linked
+from Rust, and the C side drawing with SDL3. A thread of its own rendered the densest song on
+Colombo in 1,024-frame blocks, converted them to 16-bit and wrote them to `audio_io` with
+`audio_out_write`, which blocks. The host's main loop drew the current lyric line from the audio
+clock, the sung part highlighted, in SDL's window opaque after its first frame:
+
+| | |
+|---|---|
+| Sound, heard on the set | clean, with no gap or click |
+| The highlight against the singing | in time, judged by eye and ear, with no latency correction |
+| The audio written, ahead of the clock | 21–56 ms at its lowest in each five seconds; it never ran dry |
+| Synthesis per 21.3 ms block, while drawing | mean 7.9–11.3 ms, slowest 24.9 ms |
+| Drawing | 60 fps, 3–5 presents per 300 over 20 ms |
+
+**[inferred]** Synthesis took about half a core once drawing ran beside it, against a third on its
+own. The highlight needed no correction, so `audio_out_write` returning when the device has room is
+an adequate clock. A port can time the words from the frames written and the wall clock, as the
+probe did.
+
 **[repo]** The layering says which crates travel.
 
 | | |
@@ -353,7 +385,7 @@ that room, so nothing has to be kept in time across two boxes.
 | The remote's keys | arrows, OK, Back and numbers reach SDL3 in a window of its own, and the host's window beside a transparent SDL subsurface, measured | unmeasured |
 | Picture size | 1080p; a 4K buffer drops to 19 fps, measured | unmeasured |
 | Video decoding | the set's ffmpeg 7.1, 1080p H.264 at 67 fps, measured | unmeasured |
-| MIDI synthesis | `km-audio` on one core, 8–33 % of real time, measured | unmeasured |
+| MIDI synthesis | `km-audio` on one core, 8–33 % of real time; a song played end to end with its words in time, measured | unmeasured |
 | Verdict | a port; the install's lifetime is unmeasured | a port, gated on the display |
 
 ## 8. What answers the question today
