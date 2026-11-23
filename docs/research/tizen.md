@@ -21,7 +21,7 @@ host application's own window**: as a subsurface of that window, driven a frame 
 host's main loop, it ran a minute at 60 fps and looked perfect. In a window of its own, the picture
 sticks on an old frame. The picture is 1080p: the compositor offers no larger output. The set's own
 ffmpeg 7.1 decodes 1080p H.264 in software at twice real time. SDL3's window must start
-transparent, or its opaque region takes keyboard focus from the application. A MIDI song plays end to end, sound and words in time. How long an install
+transparent, or its opaque region takes keyboard focus from the application. A MIDI song and a 1080p video song both play end to end, in sync. How long an install
 lasts is unmeasured.
 
 **Two cheaper answers already exist.** A Google TV device on HDMI runs the whole machine on a Samsung
@@ -295,6 +295,32 @@ ten-second synthetic clips at 30 fps:
 **[inferred]** 1080p H.264 leaves room for the conversion, the upload and the synthesiser.
 1080p HEVC does not. A song whose audio is Vorbis or Opus would need a decoder of the machine's own.
 
+**[measured]** **A 1080p video song plays end to end.** The clip was synthetic: 60 s of H.264 High
+at 1920×1080, 30 fps and 8 Mbit/s, with 48 kHz stereo AAC. A white square flashed and a beep sounded
+at the start of each second. One thread demuxed it with the set's `libavformat.so.61` and decoded it
+with `libavcodec.so.61`, on its automatic five threads. Video frames went to an eight-frame queue,
+and audio was converted to 16-bit stereo into a ring. A second thread wrote the ring to `audio_io`,
+and the time since its first write was the clock. Each tick, the host's main loop showed the newest
+frame whose time had come. It went up as an `SDL_PIXELFORMAT_IYUV` texture with
+`SDL_UpdateYUVTexture`, so the GPU converted the colour. SDL's window was opaque after its first
+second, as above:
+
+| | |
+|---|---|
+| Seen and heard on the set | each flash on its beep; the picture smooth; the sound clean |
+| Frames shown | 30 a second; 6 of 1,794 dropped |
+| Uploading a 1080p frame | 4.7–5.2 ms mean, 9.1 ms at most |
+| The audio written, ahead of the clock | 21–51 ms at its lowest in each five seconds; it never ran dry |
+| Process memory | 136 MB |
+
+**[measured]** Half the 60 Hz ticks came more than 20 ms after the one before. They are the ticks
+that upload a frame, one in two at 30 fps, and each video frame was still shown for its own two
+refreshes.
+
+**[inferred]** A port can play video songs with the set's own ffmpeg and SDL's YUV textures. It
+needs neither the television's player nor its video plane. 60 fps and HEVC sources are unmeasured,
+and HEVC decoding alone runs at 34 fps.
+
 **[measured]** **The set synthesises MIDI songs in real time on one core.** `km-audio`'s own
 `Player` and `SoundFontSource` were cross-compiled for `armv7-unknown-linux-gnueabi`. The target is
 soft-float by default, so the build used hardware floating point and NEON within the softfp calling
@@ -339,7 +365,7 @@ probe did.
 | `km-api` | axum over tokio. Builds; §2 measured the network reaching it |
 | `km-display` | SDL3 with its own Wayland driver, measured above, with the two patches. It draws into a subsurface of the host's window, a frame per main-loop callback on the host's UI thread, not from a loop of its own |
 | `km-audio` | builds for armv7 softfp; measured above, the synthesiser renders dense songs at 8–33 % of real time on one core. Output needs a backend over Tizen's `audio_io`, measured above; ALSA is refused |
-| `km-video` | ffmpeg 7.1 is already on the set as `libavcodec.so.61`, measured above: 1080p H.264 decodes at 67 fps, 1080p HEVC at 34. Vorbis and Opus are missing. The alternative is the television's player on its video plane, as the client in §1 does |
+| `km-video` | ffmpeg 7.1 is already on the set as `libavcodec.so.61`, measured above: 1080p H.264 decodes at 67 fps, 1080p HEVC at 34. Vorbis and Opus are missing. A 1080p30 video song played end to end through SDL YUV textures, measured above; the television's player on its video plane is not needed |
 
 **[inferred]** The Android port needed changes in five files. This needs a .NET host application, the
 custom-role window, the two SDL patches, `tdm` pacing and an `audio_io` output backend, on top.
@@ -384,7 +410,7 @@ that room, so nothing has to be kept in time across two boxes.
 | Frame pacing | the host's main loop, 60 fps and smooth on screen, measured | unmeasured |
 | The remote's keys | arrows, OK, Back and numbers reach SDL3 in a window of its own, and the host's window beside a transparent SDL subsurface, measured | unmeasured |
 | Picture size | 1080p; a 4K buffer drops to 19 fps, measured | unmeasured |
-| Video decoding | the set's ffmpeg 7.1, 1080p H.264 at 67 fps, measured | unmeasured |
+| Video songs | the set's ffmpeg 7.1 decodes 1080p H.264 at 67 fps; a 1080p30 song played end to end, in sync, measured | unmeasured |
 | MIDI synthesis | `km-audio` on one core, 8–33 % of real time; a song played end to end with its words in time, measured | unmeasured |
 | Verdict | a port; the install's lifetime is unmeasured | a port, gated on the display |
 
