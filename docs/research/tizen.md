@@ -228,13 +228,43 @@ played through `audio_io` on Colombo:
 **[inferred]** The compositor seems to treat a window whose whole area is covered by an opaque
 surface, on that surface's first frame, as hidden, and takes its focus. A port creates SDL's window
 transparent and declares it opaque after its first frame. The keys reach the host's window and not
-SDL's, so a port reads them from DALi or from a `wl_keyboard` of its own. The keys measured below
-reached SDL in a window of its own, not as a subsurface of the host's.
+SDL's. The keys measured below reached SDL in a window of its own, not as a subsurface of the host's.
+
+**[measured]** **SDL's own keyboard receives the keys as a subsurface too.** It shares the host's
+connection, so while the host's surface has focus every arrow, OK and Back arrives in SDL as an
+ordinary key event, once. Back arrives with keycode `AC Back` and scancode `Escape`. Ecore sees the
+same keys. Pushing them into SDL as well delivered each key twice. The 123 button arrives as
+`XF86More`, keycode 148, and SDL does not map it.
+
+**[measured]** **A system overlay takes focus, and an opaque SDL window keeps it from coming back.**
+The 123 button opens the set's number pad, which the remote's Back does not close; 123 does. Its
+opening sends the host `ECORE_WL2_EVENT_FOCUS_OUT`, then `WINDOW_ACTIVATE`. The set's menu does the
+same, with a visibility change to fully obscured and back:
+
+| SDL's window while focus is out | Focus after the pad or the menu closes |
+|---|---|
+| still declaring its full opaque region | never returned; no key reached the application again, and `ecore_wl2_window_activate` brought it back only once SDL had stopped drawing |
+| opaque region cleared on `FOCUS_OUT`, and set again a frame after `FOCUS_IN` | returned by itself, 60–134 ms after the pad closed, and as the application became visible after the menu; no activate call needed. Arrows and Back arrived after |
 
 **[inferred]** SDL dispatches the default Wayland queue, which DALi's main loop also reads. So SDL
 must run on the host's UI thread, as the probe did. A Tizen `km-display` would draw from a main-loop
 callback rather than from a loop of its own. That is the shape Nuvio's host takes on Tizen 6 and
 later, where the .NET host calls into the C side once per vsync.
+
+**[measured]** **A loop of its own works too, if it turns Ecore.** The probe in
+`tools/port/machine/tizen/probe/` was called on the host's UI thread and did not return. Each frame
+it ran Ecore's main loop and then drew and presented, on the host's connection, as a transparent
+subsurface:
+
+| Pacing | Presents more than 20 ms after the last, per 300, with nothing else on screen |
+|---|---|
+| a sleep to a 16.67 ms deadline, one `ecore_main_loop_iterate()` per frame | 0 in one run, 103–120 in another |
+| `ecore_main_loop_iterate_may_block(1)` until an Ecore animator ticks | 0, slowest 17–19 ms, over 45 s; about 16 ms of each frame spent waiting in Ecore, about two iterate calls per frame, presents taking about 0.55 ms |
+
+While the number pad or the menu was up, either pacing had 20–150 late presents per 300. Ecore's
+timers kept time throughout, no callback re-entered the probe, and nothing in Ecore took more than
+4 ms outside an overlay. With the probe's key handler passing Back on, one Back ended the probe's
+loop and DALi's `Exit()` together, and the application ended cleanly.
 
 **[measured]** The remote's keys reach SDL3 as ordinary keyboard events, with no key grab declared.
 The window gained keyboard focus from the `wl_shell` toplevel, and a seat keyboard named "Virtual core
