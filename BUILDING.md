@@ -2311,6 +2311,18 @@ tools/port/remote/ios/build.sh [--release] [--device-only] [--no-app]
   quick iteration wants. The machine then refuses a video song exactly as a `--no-video` desktop
   build does.
 
+### Samsung Tizen television
+
+```sh
+tools/port/machine/tizen/build.sh [--release]   # libkm_app.so for armv7-unknown-linux-gnueabi, video on
+```
+
+Docker only. It builds the `km-tizen` image first: the armel cross-compiler, Rust, the patched static
+SDL3 at `/opt/sdl3` and a link-time ffmpeg. The cold image takes the longest. The library is built
+into `local/tizen/target`, not `target/`, and the script ends by reading it back with `readelf`:
+the softfp ABI, and each needed library against what the set carries. Work in progress, per
+[`docs/plans/tizen-port.md`](docs/plans/tizen-port.md).
+
 **Getting the result onto a device is [`DEPLOYING.md`](DEPLOYING.md)** — finding the device with
 `adb` first, then installing, and the signing traps on each platform.
 

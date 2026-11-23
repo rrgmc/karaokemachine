@@ -76,6 +76,12 @@ video = ["dep:km-video", "dep:km-stream"]
 # this to either list would reintroduce the fault on Linux alone.
 tray = ["dep:tao", "dep:km-tray"]
 
+# The machine on a Samsung television, built by `tools/port/machine/tizen/build.sh`. A feature
+# rather than `target_os`, because Tizen reports itself as ordinary Linux. Empty until the Tizen
+# code lands (`docs/plans/tizen-port.md`). Not in `tools/setup/features.sh`'s workspace lists: that
+# code calls into libraries only the set has, so a host lint cannot build it.
+tizen = []
+
 [dependencies]
 km-song = { workspace = true }
 km-suitability = { workspace = true }
@@ -205,8 +211,20 @@ winresource = { workspace = true }
 # additive, so one crate asking for a static SDL puts a static SDL in the build no matter what the
 # other asks for. Getting this wrong here silently undid the split next door -- `libkm_app.so` came
 # out with no `libSDL3.so` dependency at all.
-[target.'cfg(not(target_os = "android"))'.dependencies]
+[target.'cfg(not(any(target_os = "android", all(target_os = "linux", target_arch = "arm", target_abi = "eabi"))))'.dependencies]
 sdl3 = { workspace = true }
+
+# The Tizen television: the patched static SDL3 and SDL3_ttf the `km-tizen` image installs at
+# `/opt/sdl3`, found through pkg-config, instead of the crate's own unpatched source. Chosen by the
+# target, `armv7-unknown-linux-gnueabi`, because a feature cannot take `build-from-source-static`
+# away again. No other carrier builds for that softfp triple. Split in `km-display` too.
+[target.'cfg(all(target_os = "linux", target_arch = "arm", target_abi = "eabi"))'.dependencies]
+sdl3 = { version = "0.18.4", default-features = false, features = [
+    "ttf",
+    "static-link",
+    "use-pkg-config",
+    "unsafe_textures",
+] }
 
 [target.'cfg(target_os = "android")'.dependencies]
 # Getting `tracing` into logcat, which is the only place a line goes on a device. Android-only

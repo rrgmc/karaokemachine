@@ -48,8 +48,19 @@ unicode-segmentation = { workspace = true }
 # not survive `--gc-sections`, and the failure mode is an `UnsatisfiedLinkError` at run time on a
 # device — which is exactly the kind of thing that cannot be checked at build time. So Android gets
 # the arrangement SDL documents: a real `libSDL3.so` in the APK, loaded first.
-[target.'cfg(not(target_os = "android"))'.dependencies]
+[target.'cfg(not(any(target_os = "android", all(target_os = "linux", target_arch = "arm", target_abi = "eabi"))))'.dependencies]
 sdl3 = { workspace = true }
+
+# The Tizen television's softfp triple links the patched SDL3 and SDL3_ttf prebuilt at `/opt/sdl3`
+# in the `km-tizen` image. The reasoning is beside the same split in the machine's Cargo.toml.
+[target.'cfg(all(target_os = "linux", target_arch = "arm", target_abi = "eabi"))'.dependencies]
+sdl3 = { version = "0.18.4", default-features = false, features = [
+    "ttf",
+    "static-link",
+    "use-pkg-config",
+    "unsafe_textures",
+] }
+sdl3-ttf-sys = { workspace = true, features = ["link-static"] }
 
 #
 # One consequence, and it is load-bearing: because `libSDL3.so` is a real shared library, the C++
