@@ -98,6 +98,7 @@ pub(crate) const DEMO_LABEL: &str = "DEMO · QUEUE to sing next";
 /// about 15 ms on the appliance, so the loop settled near 65 fps by itself — and quite false under a
 /// video song, where the draw drops to about 5.5 ms and this floor ran the loop at **118 fps into a
 /// 60 Hz screen**, the compositor discarding half of it for about a third of a Cortex-A55.
+#[cfg(not(feature = "tizen"))]
 const MIN_FRAME: Duration = Duration::from_millis(8);
 
 /// Asks the renderer to present on the display's refresh, and reports whether it agreed.
@@ -193,7 +194,11 @@ const POSITION_WINDOW_PICTURE_MS: u32 = 6_000;
 /// real Google TV remote sends **`Escape`**, not `AC_BACK`, so it kept quitting on one press. Both
 /// keys now mean [`DisplayAction::Back`], and where this constant is set Escape has no fullscreen step
 /// to take first.
-const FULLSCREEN_IS_FIXED: bool = cfg!(any(target_os = "android", target_os = "ios"));
+const FULLSCREEN_IS_FIXED: bool = cfg!(any(
+    target_os = "android",
+    target_os = "ios",
+    feature = "tizen"
+));
 
 /// Whether the transport strip says which function key presses each of its buttons.
 ///
@@ -210,7 +215,11 @@ const FULLSCREEN_IS_FIXED: bool = cfg!(any(target_os = "android", target_os = "i
 /// **iOS is the platform that makes that asymmetry worth having.** An iPad may well have a keyboard
 /// attached and mostly has none, so this is a guess rather than a fact — and it is a guess whose
 /// cost is one line of text on a button nobody loses.
-const KEY_HINTS: bool = !cfg!(any(target_os = "android", target_os = "ios"));
+const KEY_HINTS: bool = !cfg!(any(
+    target_os = "android",
+    target_os = "ios",
+    feature = "tizen"
+));
 
 /// Whether a package can be installed by dragging it onto the window.
 ///
@@ -228,7 +237,11 @@ const KEY_HINTS: bool = !cfg!(any(target_os = "android", target_os = "ios"));
 /// there is no such thing as on a phone is *dragging a file onto a window*, so the message must not
 /// suggest it. The constant governs the sentence, never the handler, which is why one is false here
 /// and the other still runs. `dropped_path` below is the other half of that route.
-pub(crate) const DRAG_AND_DROP: bool = !cfg!(any(target_os = "android", target_os = "ios"));
+pub(crate) const DRAG_AND_DROP: bool = !cfg!(any(
+    target_os = "android",
+    target_os = "ios",
+    feature = "tizen"
+));
 
 /// The path SDL means by a dropped file.
 ///
@@ -299,7 +312,11 @@ fn dropped_path(filename: &str) -> PathBuf {
 /// about *revealing a folder* rather than about file managers existing. Nothing on the platform
 /// takes a directory and shows it to somebody; the container's `Documents` is reachable because the
 /// bundle asks for it to be listed, not because an application can be pointed at it.
-const FILE_MANAGER: bool = !cfg!(any(target_os = "android", target_os = "ios"));
+const FILE_MANAGER: bool = !cfg!(any(
+    target_os = "android",
+    target_os = "ios",
+    feature = "tizen"
+));
 
 /// Whether `F11` opens the singer's remote in a browser.
 ///
@@ -322,7 +339,11 @@ const FILE_MANAGER: bool = !cfg!(any(target_os = "android", target_os = "ios"));
 /// **iOS falls into that same `xdg-open` arm**, which it has not got either, so the press would come
 /// back `NotFound`. Android's second reason applies here too and is the stronger of the two: a
 /// browser opened over the machine would cover the one screen the machine *is*.
-const WEB_BROWSER: bool = !cfg!(any(target_os = "android", target_os = "ios"));
+const WEB_BROWSER: bool = !cfg!(any(
+    target_os = "android",
+    target_os = "ios",
+    feature = "tizen"
+));
 
 /// Which key the connect panel says out loud opens the remote here, if any.
 ///
@@ -367,7 +388,11 @@ pub(crate) const BROWSER_KEY_HINT: Option<BrowserKey> = if cfg!(target_os = "mac
 /// **iOS answers no for Android's reason.** One application owns the screen, so there is no stack
 /// to climb. Split View puts two of them side by side rather than in front of one another, and this
 /// machine asks for `UIRequiresFullScreen` in any case.
-const WINDOW_STACKS: bool = !cfg!(any(target_os = "android", target_os = "ios"));
+const WINDOW_STACKS: bool = !cfg!(any(
+    target_os = "android",
+    target_os = "ios",
+    feature = "tizen"
+));
 
 /// Whether the window carries a Menu button with *Choose songs* and *Install packages*.
 ///
