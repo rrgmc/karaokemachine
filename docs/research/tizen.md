@@ -20,8 +20,9 @@ Wayland driver draws with its GLES2 renderer, after two one-line patches. **It h
 host application's own window**: as a subsurface of that window, driven a frame at a time from the
 host's main loop, it ran a minute at 60 fps and looked perfect. In a window of its own, the picture
 sticks on an old frame. The picture is 1080p: the compositor offers no larger output. The set's own
-ffmpeg 7.1 decodes 1080p H.264 in software at twice real time. Two things are open. Exiting the
-application with SDL3 loaded does not end the process. How long an install lasts is unmeasured.
+ffmpeg 7.1 decodes 1080p H.264 in software at twice real time. SDL3's window must be created
+transparent, or its opaque region takes keyboard focus from the application. How long an install
+lasts is unmeasured.
 
 **Two cheaper answers already exist.** A Google TV device on HDMI runs the whole machine on a Samsung
 television. The machine's HLS stream plays on the television's own player with no port at all.
@@ -179,25 +180,44 @@ The animator reported its timer source, not a vblank-driven one.
 |---|---|
 | SDL's renderer and window destroyed | the host stopped answering |
 | the subsurface destroyed and committed first, then SDL's renderer and window | all three steps logged in 47 ms with no Wayland error, and the process was gone within a second |
-| the subsurface destroyed and SDL's surface given a null buffer, SDL's window kept | the picture went away; the UI thread ran on, and an Ecore timer fired each second with no Wayland error |
+| the subsurface destroyed and SDL's surface given a null buffer, SDL's window kept | the UI thread ran on, and an Ecore timer fired each second with no Wayland error. Watched on the set, SDL's last frame stayed on screen |
 | the same, with raw EGL and no SDL: subsurface, then the host's EGL state restored, then surface, context and `wl_egl_window` destroyed | clean, in 12–75 ms; the UI thread ran on |
 
 **[inferred]** The raw EGL probe registers no input listeners and survives its teardown. SDL's
 keyboard and seat listeners sit on the default queue DALi dispatches, and still name the destroyed
-window. The machine does not tear its display down while it runs, so a port would hide the picture
-and keep SDL's window.
+window. The machine does not tear its display down while it runs, so a port would keep SDL's window
+for the life of the process.
 
-**[measured]** **Exiting is open.** With nothing native loaded, Back exits the probe and the process
-ends. With SDL loaded it does not:
+**[measured]** **SDL's opaque region takes keyboard focus away from the application.** SDL declares
+an opaque region covering a window unless the window is created transparent. Over the host's whole
+window, the compositor then sends the host a keyboard `leave`, about 200 ms after SDL's first frame.
+It sends no `enter` to SDL's surface or any other surface of the application. The remote's keys go
+nowhere the application can see, and Back does not close it. The probe watched DALi's Ecore key and
+focus events, and a `wl_keyboard` of its own on a private queue:
 
-| When Back was pressed | Result |
-|---|---|
-| during a 60 s run, SDL drawing | SDL logged no key. The application left the screen and the process kept running: its UI thread answered a call posted to it a minute later |
-| after the picture was hidden, SDL's window kept | nothing visible. The application had to be closed from the set's menu |
+| SDL in the host's window | Keyboard focus | Back |
+|---|---|---|
+| none loaded | stays on the host | `XF86Back` reaches DALi; NUI exits, and the process ends |
+| `SDL_Init(SDL_INIT_VIDEO)`, no window | stays on the host | the same |
+| a window as a subsurface, drawing | `leave` from the host, no `enter` anywhere | nothing reaches the application. It stays on screen and its process runs |
+| the same, with `SDL_HINT_WINDOW_ACTIVATE_WHEN_SHOWN` off | lost the same way | nothing |
+| the same, created hidden and shown after it became a subsurface | lost the same way | nothing |
+| the same, with an empty input region | lost the same way | no key reached the application; the set closed it |
+| a raw EGL subsurface, no opaque region | stays on the host | reaches DALi, and the application exits |
+| **an SDL window created with `SDL_PROP_WINDOW_CREATE_TRANSPARENT_BOOLEAN`** | **stays on the host** | **Up and `XF86Back` reach DALi, and the application exits** |
 
-**[inferred]** A port would have to end its own process on Back, rather than rely on NUI's exit. Why
-the exit stops short is unmeasured; the probe's host logs no key events of its own. The keys measured
-below reached SDL in a window of its own, not as a subsurface of the host's.
+**[measured]** With focus lost, `ecore_wl2_window_activate` on the host's window brought it back,
+but only once SDL had stopped drawing. Key grabs did not help. `ecore_wl2_window_keygrab_set` took a
+topmost grab on Back, the arrows, OK and the numbers, and no key arrived. Shared, override-exclusive
+and exclusive grabs were refused. Closing the application from the set's menu did not end its
+process.
+
+**[inferred]** The compositor seems to treat a window whose whole area is covered by an opaque
+surface as hidden, and takes its focus. A port creates SDL's window transparent. SDL then declares no
+opaque region, and the picture is unchanged, because the renderer clears to an opaque colour. The
+keys reach the host's window and not SDL's, so a port reads them from DALi or from a `wl_keyboard`
+of its own. The keys measured below reached SDL in a window of its own, not as a subsurface of the
+host's.
 
 **[inferred]** SDL dispatches the default Wayland queue, which DALi's main loop also reads. So SDL
 must run on the host's UI thread, as the probe did. A Tizen `km-display` would draw from a main-loop
@@ -314,10 +334,10 @@ that room, so nothing has to be kept in time across two boxes.
 | Sideload lifetime | seven days reported; effect on an installed package unknown | 1000 hours |
 | Sound | Tizen's `audio_io`, measured; ALSA refused | unmeasured |
 | Frame pacing | the host's main loop, 60 fps and smooth on screen, measured | unmeasured |
-| The remote's keys | arrows, OK, Back and numbers reach SDL3, measured | unmeasured |
+| The remote's keys | arrows, OK, Back and numbers reach SDL3 in a window of its own, and the host's window beside a transparent SDL subsurface, measured | unmeasured |
 | Picture size | 1080p; a 4K buffer drops to 19 fps, measured | unmeasured |
 | Video decoding | the set's ffmpeg 7.1, 1080p H.264 at 67 fps, measured | unmeasured |
-| Verdict | a port; the install's lifetime and a clean exit are unmeasured | a port, gated on the display |
+| Verdict | a port; the install's lifetime is unmeasured | a port, gated on the display |
 
 ## 8. What answers the question today
 
@@ -340,8 +360,8 @@ Build nothing yet. If a native Samsung machine is wanted, these measurements dec
 5. An installed package starting after Developer Mode has expired: leave the set untouched for ten days
    after the last install, then start it. The 2026-11-23 measurements loaded native code into the
    running probe over its own port and installed nothing.
-6. The application ending its process when the singer leaves it, with SDL3 loaded. On 2026-11-23 Back
-   left the process running; see §3.
+6. ~~The application ending its process when the singer leaves it, with SDL3 loaded.~~ **Passed** on
+   2026-11-23, with SDL's window created transparent; see §3.
 
 A platform decision belongs in `docs/decisions/` after them, not before.
 
