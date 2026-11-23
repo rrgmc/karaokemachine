@@ -5,7 +5,8 @@
 # ABI, the exported entry points, and every needed library checked against what the television is
 # known to carry.
 #
-#   build-in-container.sh [cargo args]   # the library, assets carried inside it
+#   build-in-container.sh [cargo args]         # the library, assets carried inside it (probe app)
+#   build-in-container.sh --app [cargo args]   # the library for the app, assets left to its res/
 #   build-in-container.sh --clippy       # clippy over the Tizen code, -D warnings, and nothing built
 
 set -euo pipefail
@@ -16,9 +17,14 @@ cd /src
 DIST_SCRIPT=tizen
 TRIPLE=armv7-unknown-linux-gnueabi
 
-# Until M5's package carries them in res/, the assets ride inside the .so (the crate's
-# `tizen-embed-assets` feature), so that the probe app's /load is all that reaches the set.
+# For the probe app the assets ride inside the .so (the crate's `tizen-embed-assets` feature), so
+# that its /load is all that reaches the set. The app's package carries them in res/assets instead,
+# from the same staged tree (package.sh), and its library goes without.
 FEATURES="$KM_FEATURES_TIZEN,tizen-embed-assets"
+if [ "${1:-}" = "--app" ]; then
+  shift
+  FEATURES="$KM_FEATURES_TIZEN"
+fi
 
 # The asset tree as the set should see it, staged where build.rs reads it. Replaced only when its
 # contents differ, so an unchanged tree keeps its timestamps and cargo does not rebuild the crate.
@@ -50,7 +56,7 @@ stage_assets() {
     rm -rf "$dest"
     mv "$next" "$dest"
   fi
-  echo "assets carried in the .so ($(du -sh "$dest" | cut -f1)):"
+  echo "assets staged in $dest ($(du -sh "$dest" | cut -f1)):"
   (cd "$dest" && find . -type f | sed 's|^\./|  |' | sort)
 }
 
