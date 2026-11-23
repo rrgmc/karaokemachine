@@ -11,6 +11,11 @@ publish.workspace = true
 [lints]
 workspace = true
 
+[features]
+# The Samsung television: Tizen's `audio_io`, opened with `dlopen`, in place of cpal's ALSA output,
+# which the set's audio server refuses. Turned on by `karaokemachine/tizen`.
+tizen = []
+
 [dependencies]
 # The transport enum this crate's player owns the state of, and the two limits its sequencer clamps
 # to. They lived here until `km-api` needing them meant every remote linking `rustysynth`; see the

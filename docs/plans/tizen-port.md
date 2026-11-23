@@ -52,7 +52,7 @@ other carrier uses, selects the patched SDL3 prebuilt in the image at `/opt/sdl3
 | SDL patches | the two one-line guards, output scale 0 and refresh in hertz, applied to the source `sdl3` builds from; SDL3 and SDL3_ttf built static in the image | `sdl3-tizen.patch`, applied by the Dockerfile | S |
 | Display path | the window as a custom-role subsurface of the host's window on its `wl_display`; transparent first frame, then opaque, and not opaque while focus is out; the per-frame Ecore pump, paced by an animator; never destroyed | `display.rs`, behind `tizen` | M–L |
 | Keys | SDL's own keyboard, unchanged; Ecore's focus events watched for the opaque region | the same, and a small FFI module | S |
-| Audio output | a `km-audio` output over `audio_out_write` in place of cpal, opened with `dlopen` | `km-audio`, behind `tizen` | M |
+| Audio output | a `km-audio` output over `audio_out_write` in place of cpal's stream, opened with `dlopen`; cpal and the ALSA mixer stay linked, so `libasound` stays needed | `km-audio`, behind `tizen` | M |
 | Video | `ffmpeg-next` linked against ffmpeg 7.1 built for armel at build time only; at run time the set's own `libavcodec.so.61` answers | the Docker image | M |
 | Paths and assets | the data and resource folders handed down from C#, as on iOS; fonts and the bundled bank in the package's `res/` | `settings/paths.rs`, the package | S |
 | .NET host | a NUI app that hands the native window and the folders to `km_tizen_run`; Back ends it | `ports/machine/tizen/` | M |
@@ -69,7 +69,7 @@ installed before M5.
 | M0 Toolchain | the machine builds as a `cdylib` for `armv7-unknown-linux-gnueabi`, video included | `readelf`: hardware float; every needed soname present on the set | S |
 | M1 Nested loop | a C probe: an SDL frame loop on the UI thread pumping Ecore each frame, Back ending it | on the set: smooth for a minute, arrows and Back arrive, a clean exit. **Passed** | S |
 | M2 The machine starts | `km_tizen_run`: the machine with its idle screen, pad, catalog and API | on the set: idle screen drawn, pad driven by the remote, the owner's page open on a phone. **Passed**: `tools/port/machine/tizen/load.sh` runs it in the probe app | M–L |
-| M3 Sound | the `audio_io` output in `km-audio` | a MIDI song dialled on the pad and heard clean | M |
+| M3 Sound | the `audio_io` output in `km-audio`; the bundled bank carried in the `.so`; `songs.sh` installs a synthetic test package | a MIDI song dialled on the pad and heard clean | M |
 | M4 Every song kind | video through the set's ffmpeg, MP3+G, words in time | a video song and an MP3+G song played | S–M |
 | M5 A real app | the .NET host, assets in `res/`, a signed `.tpk` | installed with Apps2Samsung and started from the app list | M |
 | M6 Documentation | `docs/architecture/tizen.md`, `BUILDING.md`, `DEPLOYING.md`, the decision amended; this file deleted | review | S |

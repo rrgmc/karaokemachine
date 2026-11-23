@@ -23,13 +23,19 @@ FEATURES="$KM_FEATURES_TIZEN,tizen-embed-assets"
 # The asset tree as the set should see it, staged where build.rs reads it. Replaced only when its
 # contents differ, so an unchanged tree keeps its timestamps and cargo does not rebuild the crate.
 #
-# The SoundFont is left out: nothing plays until M3, and 31 MiB would ride every /load. The font
-# is the image's DejaVu Sans, because the repository bundles none and the set's own are unknown.
+# The bundled bank rides too, so a MIDI song has instruments (M3): soundfont/GeneralUser-GS.sf2,
+# where every carrier puts it, leaving gm.sf2 free for an override. Any other bank stays out. The
+# font is the image's DejaVu Sans, because the repository bundles none and the set's own are unknown.
 stage_assets() {
   local dest=local/tizen/assets next=local/tizen/assets.next
+  [ -f assets/soundfont/GeneralUser-GS.sf2 ] || {
+    echo "tizen: assets/soundfont/GeneralUser-GS.sf2 is missing; run tools/setup/fetch-assets.sh" >&2
+    exit 1
+  }
   rm -rf "$next"
   mkdir -p "$next"
-  (cd assets && find . -type f ! -name '.gitkeep' ! -name '*.sf2' ! -name 'wallpapers-*.zip') \
+  (cd assets && find . -type f ! -name '.gitkeep' ! -name 'wallpapers-*.zip' \
+      \( ! -name '*.sf2' -o -name 'GeneralUser-GS.sf2' \)) \
     | sed 's|^\./||' | while IFS= read -r rel; do
         mkdir -p "$next/$(dirname "$rel")"
         cp "assets/$rel" "$next/$rel"
