@@ -24,7 +24,8 @@
 //! Nothing in steps 2 through 4 is fatal. No SoundFont, no audio device, no free port, no network —
 //! each degrades to something the machine reports rather than something that stops it starting.
 
-#[cfg(any(target_os = "android", test))]
+// The manifest logic is shared with the Tizen build's carried assets.
+#[cfg(any(target_os = "android", feature = "tizen", test))]
 mod androidassets;
 #[cfg(target_os = "android")]
 mod androidctx;
@@ -81,6 +82,14 @@ mod timed;
 // because Tizen reports itself as ordinary Linux.
 #[cfg(feature = "tizen")]
 pub mod tizen;
+// The two parts of it with no FFI, built alone so that their tests run on every host. A host build
+// never turns `tizen` on, so this is the only way they are tested before the set.
+#[cfg(all(test, not(feature = "tizen")))]
+#[path = "tizen/args.rs"]
+mod tizen_args;
+#[cfg(all(test, not(feature = "tizen")))]
+#[path = "tizen/assets.rs"]
+mod tizen_assets;
 #[cfg(all(feature = "video", feature = "tray"))]
 mod tray;
 mod video;
@@ -1137,14 +1146,14 @@ pub fn run_on_phone() -> std::ffi::c_int {
 /// `Once` is what lets either order work.
 ///
 /// Public for the same reason [`ioscfg`] is: the iOS shell is a separate crate.
-#[cfg(any(target_os = "android", target_os = "ios"))]
+#[cfg(any(target_os = "android", target_os = "ios", feature = "tizen"))]
 pub fn install_logging() {
     static ONCE: std::sync::Once = std::sync::Once::new();
     ONCE.call_once(install_logging_now);
 }
 
 /// The body of [`install_logging`], run under its `Once`.
-#[cfg(any(target_os = "android", target_os = "ios"))]
+#[cfg(any(target_os = "android", target_os = "ios", feature = "tizen"))]
 fn install_logging_now() {
     // This has to happen here, and it is not the same call `main.rs` makes. Without a subscriber
     // every `tracing` event is dropped on the floor, and the default one writes to a stdout that
@@ -1172,7 +1181,11 @@ fn install_logging_now() {
     use tracing_subscriber::layer::SubscriberExt as _;
     use tracing_subscriber::util::SubscriberInitExt as _;
 
+    // A television has no environment to set, so its filter comes in `km_probe_run`'s `log=`.
+    #[cfg(not(feature = "tizen"))]
     let filter = std::env::var("RUST_LOG").unwrap_or_else(|_| "info".into());
+    #[cfg(feature = "tizen")]
+    let filter = tizen::entry::log_filter();
     let tap = km_logtap::LogTap::new().with_filter(filter.clone());
     let registry = tracing_subscriber::registry().with(tracing_subscriber::EnvFilter::new(filter));
     // **The destination is the one thing the two platforms genuinely disagree about here.** Android
@@ -1202,6 +1215,19 @@ fn install_logging_now() {
         )
         .with(tap.layer())
         .init();
+    // Through the host's line logger, which the probe app shows on screen and serves at `/log`.
+    // Short lines: no clock (the host stamps each), no target, no escape codes.
+    #[cfg(feature = "tizen")]
+    registry
+        .with(
+            tracing_subscriber::fmt::layer()
+                .with_writer(tizen::entry::HostLogWriter::make)
+                .with_ansi(false)
+                .without_time()
+                .with_target(false),
+        )
+        .with(tap.layer())
+        .init();
     km_logtap::install(tap);
     // After the subscriber, because the hook reports through it — and so the panic it reports is
     // taken by the tap as well, which is the one line somebody reading a device's log most wants.
@@ -1209,6 +1235,8 @@ fn install_logging_now() {
     km_androidlog::install_panic_logger();
     #[cfg(target_os = "ios")]
     ioscfg::install_panic_logger();
+    #[cfg(feature = "tizen")]
+    tizen::entry::install_panic_logger();
 }
 
 /// The entry point Android calls.

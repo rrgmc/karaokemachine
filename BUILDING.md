@@ -2315,13 +2315,27 @@ tools/port/remote/ios/build.sh [--release] [--device-only] [--no-app]
 
 ```sh
 tools/port/machine/tizen/build.sh [--release]   # libkm_app.so for armv7-unknown-linux-gnueabi, video on
+tools/port/machine/tizen/build.sh --clippy      # clippy over the Tizen code, -D warnings
+tools/port/machine/tizen/load.sh <address> 'data=<folder>'   # run it in the probe app on the set
 ```
 
 Docker only. It builds the `km-tizen` image first: the armel cross-compiler, Rust, the patched static
 SDL3 at `/opt/sdl3` and a link-time ffmpeg. The cold image takes the longest. The library is built
 into `local/tizen/target`, not `target/`, and the script ends by reading it back with `readelf`:
-the softfp ABI, and each needed library against what the set carries. Work in progress, per
-[`docs/plans/tizen-port.md`](docs/plans/tizen-port.md).
+the softfp ABI, the exported `km_probe_run` and `km_tizen_run`, and each needed library against
+what the set carries. Work in progress, per [`docs/plans/tizen-port.md`](docs/plans/tizen-port.md).
+
+**The host lint never sees the Tizen code**, because the `tizen` feature calls into libraries only
+the set has. `--clippy` is its lint: `cargo clippy` for the triple in the image, with and without
+the carried assets, `-D warnings`.
+
+**Until M5 the assets ride inside the `.so`**, through the dev-only `tizen-embed-assets` feature:
+the font (the image's DejaVu Sans), the wallpapers and the development console, staged into
+`local/tizen/assets` and written into the data folder on first start. No SoundFont yet.
+`load.sh` POSTs the library to the probe app's `/load` on port 8177 and prints what it logged.
+Run it once per load: a second POST loads another copy on the UI thread while the first runs.
+When the machine stops it ends the probe app, since no key reaches the app after it; `exit=0`
+keeps the app open.
 
 **Getting the result onto a device is [`DEPLOYING.md`](DEPLOYING.md)** — finding the device with
 `adb` first, then installing, and the signing traps on each platform.

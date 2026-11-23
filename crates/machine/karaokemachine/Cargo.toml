@@ -81,6 +81,12 @@ tray = ["dep:tao", "dep:km-tray"]
 # code lands (`docs/plans/tizen-port.md`). Not in `tools/setup/features.sh`'s workspace lists: that
 # code calls into libraries only the set has, so a host lint cannot build it.
 tizen = []
+# The Tizen build with its assets inside the `.so`: the font, the wallpapers and the development
+# console, written into the data folder on first start. **Development only**, for M2 to M4, which
+# load the machine into the probe app over its port, so the `.so` is all that reaches the set.
+# `build.rs` reads the staged tree from `KM_TIZEN_ASSETS`; `tools/port/machine/tizen/build.sh`
+# stages it and turns this on. M5's package carries the assets in `res/` instead.
+tizen-embed-assets = ["tizen"]
 
 [dependencies]
 km-song = { workspace = true }
