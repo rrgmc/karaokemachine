@@ -1,9 +1,8 @@
 # Research: the machine on a Samsung Tizen television
 
-**Research only. Nothing implemented, nothing decided.** A platform is a product decision, so a
-Tizen carrier would need an entry in `docs/decisions/distribution.md` beside
-[`What the machine *is*, on Linux`](../decisions/distribution.md#what-the-machine-is-on-linux) and
-[`What the machine *is*, on iOS`](../decisions/distribution.md#what-the-machine-is-on-ios) first.
+**Research only. Nothing implemented.** The decision this note fed is
+[`What the machine *is*, on a Samsung television`](../decisions/distribution.md#what-the-machine-is-on-a-samsung-television),
+and where the two disagree the decision is right.
 
 Investigated 2026-09-13 and revised 2026-11-17 and 2026-11-23. **Most claims here were measured on a
 television**, a 2025 set running Tizen 10: §2's listening port, and §3's SDL3 window, sound, frame

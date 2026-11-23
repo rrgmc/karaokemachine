@@ -1659,6 +1659,86 @@ privacy policy covering the listening socket and the mDNS advertisement, and a p
 Virtual Reality Checks. None of that is work the sideload needs, and all of it is work a listing
 cannot skip.
 
+## What the machine *is*, on a Samsung television
+
+> **Draft, 2026-11-23.** One measurement is still open: whether an installed package starts after the
+> set's Developer Mode has lapsed, readable from 2026-11-27. This entry does not merge before it is
+> read, and if the answer is no, the carrier paragraph changes before anything else does.
+
+**An application on a Samsung Tizen television, and the same program again.** The synthesizer, the
+catalog, the display and the API are the ones every other platform runs. It makes the television
+itself a place to run this product, with no box on an HDMI input. Two answers already existed
+without it: a Google TV device on HDMI runs the whole machine, and
+[`A television somewhere else is a stream, and the playlist is the interface`](streaming.md#a-television-somewhere-else-is-a-stream-and-the-playlist-is-the-interface)
+puts a machine running elsewhere on the set's own player. This row is for the room that has only the
+television. Everything here was measured on a 2025 set running Tizen 10, and
+[`docs/research/tizen.md`](../research/tizen.md) holds the figures.
+
+**The carrier is a `.tpk`: a .NET host with the machine as a native library inside it.** Samsung
+dropped NaCl, and a `.tpk` is the one shape that takes third-party native code. The host is a NUI
+application, and it loads the machine with `NativeLibrary`. That is Android's arrangement, an
+`SDLActivity` loading a `cdylib`, with C# where Kotlin was. The library targets
+`armv7-unknown-linux-gnueabi`, the set's softfp ABI. **That target is soft-float by default, so the
+build turns hardware floating point and NEON back on**
+(`-C target-feature=-soft-float,+neon,+vfp4`). Left as it ships, every sample the synthesiser makes
+would go through a software float library.
+
+**SDL3 draws into the host's own window, never one of its own.** In a window of its own the picture
+sticks on an old frame within seconds. The machine's surface is a desynchronised subsurface of the
+host's window, on the host's own `wl_display`. It draws one frame per Ecore animator tick on the
+host's UI thread, because SDL and DALi read the same Wayland queue. SDL needs two one-line guards to
+run here at all. The compositor announces an output scale of 0, which SDL divides by, and a refresh in
+hertz where the protocol says millihertz.
+
+**SDL's window starts transparent and is declared opaque after its first frame.** An opaque region
+on the first frame makes the compositor take keyboard focus away from the whole application, and no
+key reaches it again. Left transparent, the window costs even pacing once the sound engine runs:
+about a third of frames late, against one or two in a hundred once it is opaque. Neither order alone
+gives both, and this one does.
+
+**The machine's window is never destroyed while it runs.** Destroying SDL's window kills the host
+process within a second. The machine never tears its display down mid-evening anyway, so it keeps
+the window for the life of the process. Back reaches the host, and the process ends the ordinary way.
+
+**Keys come from the host's window, and SDL never sees them.** Keyboard focus belongs to the host's
+surface. The remote's arrows, OK and Back arrive as Ecore key events. The machine reads them there or
+from a `wl_keyboard` of its own, and translates them into the input it already handles. **Song
+numbers are entered on the machine's own number pad**, as on Android and Google TV, because
+[`The on-screen number pad`](interface.md#the-on-screen-number-pad) is drawn wherever there is no
+keyboard. A Samsung remote has no number keys. The set's own digit pad, behind the 123 button, does
+type digits, but it is about three presses away. So it is not what the idle screen asks for.
+
+**The picture is 1080p, because the set gives an application nothing larger.** The compositor
+announces one mode, 1920×1080 at 60 Hz, and offers no viewporter. A 4K buffer is scaled down on
+every frame, runs at 10–19 fps, and arrives on the panel at 1080p anyway. So there is no 4K setting
+to offer, and nothing in [`Any screen size, and the screen chooses the mode`](#any-screen-size-and-the-screen-chooses-the-mode)
+changes.
+
+**Sound goes out through Tizen's own `audio_io`, opened at run time.** ALSA opens its device and
+then fails the first write, because the platform's audio server holds the hardware. So `km-audio`
+gains an output backend that writes 16-bit blocks to `audio_out_write`, which blocks until the device
+has room, in place of cpal. No privilege is declared for it. The words follow the audio clock as they
+do elsewhere, and on the set they needed no latency correction.
+
+**Video songs use the set's own ffmpeg, and nothing of ffmpeg's ships.** The set carries
+`libavcodec.so.61` and its siblings, which are ffmpeg 7.1, the release this project builds against.
+They are loaded at run time. So the LGPL posture the other carriers keep by shipping shared libraries
+beside the binary does not arise: there is nothing to ship. Frames go to SDL as YUV textures, so the
+GPU converts the colour. 1080p H.264 plays at its own rate. **1080p HEVC is not promised**, since
+decoding it alone barely reaches 34 fps on the set's four cores. Nor is Vorbis or Opus audio, since
+the set's build carries neither decoder.
+
+**Every song kind plays, and the heaviest is a dense MIDI song on a large bank.** Played end to end
+on the set: a MIDI song on a 275 MB bank (half of one core beside drawing), a 1080p video song, and
+an MP3+G song (one percent of a core). UltraStar and LRC songs take the MP3+G song's audio path and
+the MIDI song's lyric drawing, so both halves were measured. A 275 MB bank fits the 32-bit process.
+
+**The machine listens on the network as everywhere else.** An application on the set accepts
+connections on `0.0.0.0`, so phones reach the API, the remote and the owner's page with no change.
+
+**Installing is a sideload through Developer Mode**, signed with a Samsung certificate made for the
+person installing. The set's store is not pursued.
+
 ## A log file for the runs nobody is watching
 
 **`--log-file`, or `KM_LOG_FILE=1`, puts the log in a `logs` folder in the application's own data
