@@ -1,0 +1,82 @@
+# Plan: the machine on a Samsung television
+
+**What will be built:** the whole machine as an app on a Samsung Tizen television, installed as a
+`.tpk`, started from the set's app list, playing every song kind with sound, words and the remote,
+and reachable from phones. It carries out
+[`What the machine *is*, on a Samsung television`](../decisions/distribution.md#what-the-machine-is-on-a-samsung-television);
+where the two disagree, the decision is right. The measurements behind it are in
+[`docs/research/tizen.md`](../research/tizen.md). This file is deleted in the change that finishes
+the port.
+
+**Out of scope:** the Samsung store, 4K, HEVC and Vorbis/Opus sources, finding a USB stick, and a
+release CI job. Each can follow once the app runs.
+
+## The design problem: whose loop runs
+
+**The machine's frame loop runs on the host's UI thread and, once per frame, lets Ecore do one pass
+of its work.** That is the smallest change that satisfies both sides, and M1 proves it on the set
+before anything else depends on it.
+
+- **The machine** draws from one long blocking loop, `run_with` in
+  `crates/machine/karaokemachine/src/display.rs`. On Android, `SDL_main` gives it a thread of its own.
+- **Tizen** needs SDL on the host's UI thread, because SDL and DALi read one Wayland queue. That
+  thread must keep the Ecore main loop turning, or Tizen closes the app after about twenty seconds,
+  and no key, lifecycle or system event arrives.
+
+| Approach | What changes | Verdict |
+|---|---|---|
+| **Nested loop:** the host calls the machine on its UI thread; each frame the machine calls `ecore_main_loop_iterate()` once | a per-frame hook and a Tizen window path in `display.rs`; pacing by the existing frame budget | chosen, if M1 shows smooth frames, live keys and a clean exit |
+| Inverted loop: `run_with` re-cut into a struct whose `frame()` the host's animator calls | the largest scope in the workspace, re-cut into fields | the fallback if the nested loop fails |
+| SDL on a thread of its own, on its own Wayland connection | nothing in the loop | ruled out: a window of its own sticks on an old frame, and a subsurface must share the host's connection |
+
+**Keys follow from the nested loop.** The host's Ecore key handler runs inside the pump and pushes
+each key into SDL's queue as an SDL key event, so the machine's input code sees the remote unchanged.
+
+## Work breakdown
+
+Everything is behind a `tizen` cargo feature rather than `target_os`, because Tizen reports itself
+as ordinary Linux.
+
+| Piece | What it is | Where it lands | Size |
+|---|---|---|---|
+| Toolchain | a Docker image with the armel cross-compiler and Rust for `armv7-unknown-linux-gnueabi`, hardware float on; the machine built as a `cdylib` | `tools/port/machine/tizen/` | S |
+| SDL patches | the two one-line guards, output scale 0 and refresh in hertz, applied to the source `sdl3` builds from | a patch file the Tizen build applies | S |
+| Display path | the window as a custom-role subsurface of the host's window on its `wl_display`; transparent first frame, then opaque; the per-frame Ecore pump; never destroyed | `display.rs`, behind `tizen` | M–L |
+| Keys | Ecore key events pushed into SDL; Back mapped to what the machine already treats as back | the same, and a small FFI module | S |
+| Audio output | a `km-audio` output over `audio_out_write` in place of cpal, opened with `dlopen` | `km-audio`, behind `tizen` | M |
+| Video | `ffmpeg-next` linked against ffmpeg 7.1 built for armel at build time only; at run time the set's own `libavcodec.so.61` answers | the Docker image | M |
+| Paths and assets | the data and resource folders handed down from C#, as on iOS; fonts and the bundled bank in the package's `res/` | `settings/paths.rs`, the package | S |
+| .NET host | a NUI app that hands the native window and the folders to `km_tizen_run`; Back ends it | `ports/machine/tizen/` | M |
+| Packaging and install | the `.tpk` built with the Tizen .NET workload, signed, sideloaded | `tools/port/machine/tizen/` | M |
+
+## Milestones
+
+Each milestone is its own pull request. M0 and M1 run side by side, and M1 is the gate. M2 to M4 run
+the real machine inside the probe app already on the set, loaded over its port, so nothing is
+installed before M5.
+
+| Milestone | Deliverable | Verified by | Size |
+|---|---|---|---|
+| M0 Toolchain | the machine builds as a `cdylib` for `armv7-unknown-linux-gnueabi`, video included | `readelf`: hardware float; every needed soname present on the set | S |
+| M1 Nested loop | a C probe: an SDL frame loop on the UI thread calling `ecore_main_loop_iterate()` each frame, keys pushed into SDL, Back ending it | on the set: smooth for a minute, arrows and Back arrive, a clean exit | S |
+| M2 The machine starts | `km_tizen_run`: the machine with its idle screen, pad, catalog and API | on the set: idle screen drawn, pad driven by the remote, the owner's page open on a phone | M–L |
+| M3 Sound | the `audio_io` output in `km-audio` | a MIDI song dialled on the pad and heard clean | M |
+| M4 Every song kind | video through the set's ffmpeg, MP3+G, words in time | a video song and an MP3+G song played | S–M |
+| M5 A real app | the .NET host, assets in `res/`, a signed `.tpk` | installed with Apps2Samsung and started from the app list | M |
+| M6 Documentation | `docs/architecture/tizen.md`, `BUILDING.md`, `DEPLOYING.md`, the decision amended; this file deleted | review | S |
+
+If M1 fails, the inverted loop replaces the nested one before M2, and the rest is unchanged.
+
+## Risks
+
+| Risk | Why it matters | Fallback or answer |
+|---|---|---|
+| Nested Ecore iteration misbehaves: re-entrant callbacks, uneven frames, an exit inside the pump | it is the whole display design | the inverted loop |
+| The full machine is heavier than the probes | catalog, API threads and fonts, in a 32-bit process | measured at M2; the 275 MB bank already fit beside a song |
+| SDL patch authorship | SDL does not accept AI-written contributions | the guards stay a local patch here |
+| A firmware update changes the set | the focus quirk, the ffmpeg version and the compositor are the set's | the probes in `local/` re-measure it |
+| How long an install lasts | a weekly reinstall would make this a hobbyist carrier | measured later; installing at M5 restarts that clock |
+
+**Open on the way:** whether Apps2Samsung installs an app this size, or `sdb` with a Tizen Studio
+certificate is needed; whether Back on the idle screen ends the app, as on Android; whether the set
+lets an app advertise itself over mDNS, without which phones find it by address.
