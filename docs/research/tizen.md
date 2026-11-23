@@ -235,8 +235,13 @@ timed the same nearly empty frame at two buffer sizes:
 | 1920×1080 | 60.1 fps |
 | 3840×2160, `wl_surface_set_buffer_scale` 2 | 18.8 fps |
 
+**[measured]** Watched on the set, the 4K buffer reached the panel at 1080p. Three blocks of
+stripes were drawn in it. Lines one buffer pixel wide, vertical and horizontal, showed as flat grey.
+Lines two buffer pixels wide, one pixel at 1080p, showed as stripes.
+
 **[inferred]** The compositor scales a 4K buffer down to its 1080p output on every frame. That is
-where the time goes, so a native application gains nothing from drawing above 1080p.
+where the time goes, and the detail is lost on the way. A native application gains nothing from
+drawing above 1080p.
 
 **[measured]** **The set's ffmpeg decodes 1080p in software.** Its `libavcodec.so.61.19.100` and
 `libavutil.so.59.39.100` are ffmpeg 7.1, the release the machine builds against. They load with
