@@ -11,7 +11,9 @@ Two more findings from the set shape the args. SDL's own keyboard on the shared 
 delivers the remote's keys, so `push=0`, the default, leaves Ecore's keys logged but not pushed.
 Second, once the set's on-screen number pad closed, no key reached the application. So the probe
 watches the host window's focus events. `refocus=1`, the default, clears SDL's opaque region and
-calls `ecore_wl2_window_activate` until focus returns. `refocus=stop` stops presenting instead. The window setup is the one measured in
+calls `ecore_wl2_window_activate` every second until `FOCUS_IN` arrives. `refocus=stop` stops
+presenting instead. `kb=1` binds a `wl_keyboard` of the probe's own and logs which surface each
+keyboard enter and leave names. The window setup is the one measured in
 [`docs/research/tizen.md`](../../../../../docs/research/tizen.md) §3.
 
 | File | What it is |
