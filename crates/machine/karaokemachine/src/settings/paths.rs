@@ -192,6 +192,14 @@ impl Paths {
             return Self::in_container(&dirs.support, &dirs.documents);
         }
 
+        // A television is told, as an iPhone is: the .NET host hands down the application's data
+        // folder, and settings, the catalog, packages and the assets all live under it. One folder,
+        // as on Android, and no overlay: the working directory of a Tizen app is not a checkout.
+        #[cfg(feature = "tizen")]
+        if let Some(host) = crate::tizen::host() {
+            return Self::rooted_at(host.data_dir.clone());
+        }
+
         let (asset_dir, overlay_asset_dir) = Self::discover_asset_dirs();
         // A portable copy answers with a folder beside the executable, and `km_dirs` decides that.
         match km_dirs::for_app(APP_NAME) {

@@ -438,7 +438,11 @@ impl Default for DisplaySettings {
             keypad: true,
             // `cfg!` rather than `#[cfg]` so both branches typecheck on every platform, the same
             // way `display::FULLSCREEN_IS_FIXED` is written.
-            number_pad: cfg!(any(target_os = "android", target_os = "ios")),
+            number_pad: cfg!(any(
+                target_os = "android",
+                target_os = "ios",
+                feature = "tizen"
+            )),
             enabled: true,
             lyric_offset_ms: 0,
             window_menu: true,
@@ -726,7 +730,11 @@ impl Default for PlaybackSettings {
             melody_enabled: true,
             end_on_silence: true,
             // `cfg!` and not `#[cfg]`, so both answers compile on every platform.
-            adjust_recordings: !cfg!(any(target_os = "android", target_os = "ios")),
+            adjust_recordings: !cfg!(any(
+                target_os = "android",
+                target_os = "ios",
+                feature = "tizen"
+            )),
         }
     }
 }
@@ -1987,7 +1995,11 @@ mod tests {
         let display = DisplaySettings::default();
         assert_eq!(
             display.number_pad,
-            cfg!(any(target_os = "android", target_os = "ios"))
+            cfg!(any(
+                target_os = "android",
+                target_os = "ios",
+                feature = "tizen"
+            ))
         );
         assert!(
             display.keypad,
@@ -2007,7 +2019,11 @@ mod tests {
                 .expect("an older display block must still load");
         assert_eq!(
             display.number_pad,
-            cfg!(any(target_os = "android", target_os = "ios"))
+            cfg!(any(
+                target_os = "android",
+                target_os = "ios",
+                feature = "tizen"
+            ))
         );
         assert!(
             !display.fullscreen,
@@ -2127,7 +2143,11 @@ mod tests {
     /// Asserted against the same `cfg!` for the reason the pad's tests are.
     #[test]
     fn a_recorded_song_changes_key_and_tempo_by_default_on_a_desktop_only() {
-        let desktop = !cfg!(any(target_os = "android", target_os = "ios"));
+        let desktop = !cfg!(any(
+            target_os = "android",
+            target_os = "ios",
+            feature = "tizen"
+        ));
         assert_eq!(Settings::default().playback.adjust_recordings, desktop);
         let settings: Settings =
             serde_json::from_str(r#"{"playback":{"transpose":1}}"#).expect("parse");

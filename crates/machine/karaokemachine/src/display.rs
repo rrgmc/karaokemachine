@@ -98,6 +98,7 @@ pub(crate) const DEMO_LABEL: &str = "DEMO · QUEUE to sing next";
 /// about 15 ms on the appliance, so the loop settled near 65 fps by itself — and quite false under a
 /// video song, where the draw drops to about 5.5 ms and this floor ran the loop at **118 fps into a
 /// 60 Hz screen**, the compositor discarding half of it for about a third of a Cortex-A55.
+#[cfg(not(feature = "tizen"))]
 const MIN_FRAME: Duration = Duration::from_millis(8);
 
 /// Asks the renderer to present on the display's refresh, and reports whether it agreed.
@@ -193,7 +194,11 @@ const POSITION_WINDOW_PICTURE_MS: u32 = 6_000;
 /// real Google TV remote sends **`Escape`**, not `AC_BACK`, so it kept quitting on one press. Both
 /// keys now mean [`DisplayAction::Back`], and where this constant is set Escape has no fullscreen step
 /// to take first.
-const FULLSCREEN_IS_FIXED: bool = cfg!(any(target_os = "android", target_os = "ios"));
+const FULLSCREEN_IS_FIXED: bool = cfg!(any(
+    target_os = "android",
+    target_os = "ios",
+    feature = "tizen"
+));
 
 /// Whether the transport strip says which function key presses each of its buttons.
 ///
@@ -210,7 +215,11 @@ const FULLSCREEN_IS_FIXED: bool = cfg!(any(target_os = "android", target_os = "i
 /// **iOS is the platform that makes that asymmetry worth having.** An iPad may well have a keyboard
 /// attached and mostly has none, so this is a guess rather than a fact — and it is a guess whose
 /// cost is one line of text on a button nobody loses.
-const KEY_HINTS: bool = !cfg!(any(target_os = "android", target_os = "ios"));
+const KEY_HINTS: bool = !cfg!(any(
+    target_os = "android",
+    target_os = "ios",
+    feature = "tizen"
+));
 
 /// Whether a package can be installed by dragging it onto the window.
 ///
@@ -228,7 +237,11 @@ const KEY_HINTS: bool = !cfg!(any(target_os = "android", target_os = "ios"));
 /// there is no such thing as on a phone is *dragging a file onto a window*, so the message must not
 /// suggest it. The constant governs the sentence, never the handler, which is why one is false here
 /// and the other still runs. `dropped_path` below is the other half of that route.
-pub(crate) const DRAG_AND_DROP: bool = !cfg!(any(target_os = "android", target_os = "ios"));
+pub(crate) const DRAG_AND_DROP: bool = !cfg!(any(
+    target_os = "android",
+    target_os = "ios",
+    feature = "tizen"
+));
 
 /// The path SDL means by a dropped file.
 ///
@@ -299,7 +312,11 @@ fn dropped_path(filename: &str) -> PathBuf {
 /// about *revealing a folder* rather than about file managers existing. Nothing on the platform
 /// takes a directory and shows it to somebody; the container's `Documents` is reachable because the
 /// bundle asks for it to be listed, not because an application can be pointed at it.
-const FILE_MANAGER: bool = !cfg!(any(target_os = "android", target_os = "ios"));
+const FILE_MANAGER: bool = !cfg!(any(
+    target_os = "android",
+    target_os = "ios",
+    feature = "tizen"
+));
 
 /// Whether `F11` opens the singer's remote in a browser.
 ///
@@ -322,7 +339,11 @@ const FILE_MANAGER: bool = !cfg!(any(target_os = "android", target_os = "ios"));
 /// **iOS falls into that same `xdg-open` arm**, which it has not got either, so the press would come
 /// back `NotFound`. Android's second reason applies here too and is the stronger of the two: a
 /// browser opened over the machine would cover the one screen the machine *is*.
-const WEB_BROWSER: bool = !cfg!(any(target_os = "android", target_os = "ios"));
+const WEB_BROWSER: bool = !cfg!(any(
+    target_os = "android",
+    target_os = "ios",
+    feature = "tizen"
+));
 
 /// Which key the connect panel says out loud opens the remote here, if any.
 ///
@@ -367,7 +388,11 @@ pub(crate) const BROWSER_KEY_HINT: Option<BrowserKey> = if cfg!(target_os = "mac
 /// **iOS answers no for Android's reason.** One application owns the screen, so there is no stack
 /// to climb. Split View puts two of them side by side rather than in front of one another, and this
 /// machine asks for `UIRequiresFullScreen` in any case.
-const WINDOW_STACKS: bool = !cfg!(any(target_os = "android", target_os = "ios"));
+const WINDOW_STACKS: bool = !cfg!(any(
+    target_os = "android",
+    target_os = "ios",
+    feature = "tizen"
+));
 
 /// Whether the window carries a Menu button with *Choose songs* and *Install packages*.
 ///
@@ -380,7 +405,11 @@ pub(crate) const WINDOW_MENU: bool = cfg!(any(target_os = "windows", target_os =
 ///
 /// Every desktop, Linux included: an appliance with a mouse plugged in has a pointer over the
 /// lyrics as much as a desktop does. Android and iOS draw none.
-const POINTER: bool = !cfg!(any(target_os = "android", target_os = "ios"));
+const POINTER: bool = !cfg!(any(
+    target_os = "android",
+    target_os = "ios",
+    feature = "tizen"
+));
 
 /// How long an install report stays on screen after it finishes.
 ///
@@ -1706,6 +1735,11 @@ pub fn run(
         "LandscapeLeft LandscapeRight",
     );
 
+    // The television's SDL draws on the host's Wayland connection, which it must be told of before
+    // its video subsystem starts.
+    #[cfg(feature = "tizen")]
+    crate::tizen::window::prepare()?;
+
     // `SDL_Init` with no subsystem flags touches no video driver at all, so a failure here is not a
     // display that is merely absent — it is SDL itself refusing, and no amount of waiting mends it.
     let sdl = sdl3::init().map_err(|error| anyhow::anyhow!("SDL would not start: {error}"))?;
@@ -1791,6 +1825,7 @@ fn run_with(
     // `Display::get_mode` is SDL_GetDesktopDisplayMode, which on kmsdrm reports the connector's
     // preferred mode. Falling back to the configured size keeps a headless or odd video backend
     // working rather than refusing to open at all.
+    #[cfg(not(feature = "tizen"))]
     let (window_width, window_height) = if fullscreen {
         match video.get_primary_display().and_then(|d| d.get_mode()) {
             Ok(mode) if mode.w > 0 && mode.h > 0 => {
@@ -1824,13 +1859,16 @@ fn run_with(
     // see [`song_window_title`] for which way round the two go and why. The window opens on an idle
     // machine, so the bare form is what it opens with.
     let base_title = format!("KaraokeMachine {}", env!("CARGO_PKG_VERSION"));
+    #[cfg(not(feature = "tizen"))]
     let mut builder = video.window(&base_title, window_width, window_height);
     // Where it was left, when that is still on a screen. A fullscreen start is centered whatever
     // was saved: the display's mode is the size, and the saved corner belongs to the smaller rect.
+    #[cfg(not(feature = "tizen"))]
     match windowed.position {
         Some((x, y)) if !fullscreen => builder.position(x, y),
         _ => builder.position_centered(),
     };
+    #[cfg(not(feature = "tizen"))]
     let mut window = builder
         .resizable()
         // Ask for the real pixels. Without this a Retina panel renders the whole display at
@@ -1838,21 +1876,34 @@ fn run_with(
         // Android and Windows, whose window coordinates are physical pixels already.
         .high_pixel_density()
         .build()?;
+    // **On the television SDL's window lives inside the host's**, made from properties no builder
+    // reaches, at the host's size. See `tizen::window`.
+    #[cfg(feature = "tizen")]
+    let window = crate::tizen::window::create_window(&video, &base_title)?;
 
     // Before the canvas takes the window: the taskbar, the dock and the alt-tab switcher all read
     // this, and none of them is reached by the icon an installer writes to disk. Inert on Android,
     // which has no window furniture to put one in.
+    #[cfg(not(feature = "tizen"))]
     km_display::set_window_icon(&mut window);
 
     let mut canvas = window.into_canvas();
+    // Before the first present: the window has to be a subsurface of the host's by then.
+    #[cfg(feature = "tizen")]
+    let mut tizen_frames = crate::tizen::window::Frames::attach(&canvas)?;
     // Which backend SDL actually chose and whether it will pace us, said once and together. Both are
     // decided by probing at run time, so the only way to know is to ask -- and they are the first two
     // questions any "why is this choppy?" has to answer: a software renderer is slow, and a renderer
     // that would not take vsync is drawing frames the screen will never show. On the appliance this
     // should say `opengles2`, which is what kmsdrm reaches through EGL/GBM.
+    // The television's frames are paced by an Ecore animator, with vsync off.
+    #[cfg(not(feature = "tizen"))]
+    let vsync = request_vsync(&canvas);
+    #[cfg(feature = "tizen")]
+    let vsync = false;
     tracing::info!(
         renderer = %canvas.renderer_name,
-        vsync = request_vsync(&canvas),
+        vsync,
         "the SDL renderer backend"
     );
     // After the canvas, because creating the renderer replaces the view the controls would sit on.
@@ -1864,7 +1915,12 @@ fn run_with(
     // into the GPU, not the glyph rasterising. It lives out here because a cache inside the frame
     // would be a cache of nothing.
     let mut text_cache = km_display::text::TextCache::new(canvas.texture_creator());
+    // The television's window is always the host's whole screen, and a custom-role surface has no
+    // fullscreen for SDL to change.
+    #[cfg(not(feature = "tizen"))]
     apply_fullscreen(&mut canvas, &sdl.mouse(), fullscreen, windowed);
+    #[cfg(feature = "tizen")]
+    sdl.mouse().show_cursor(!fullscreen);
     // After the window exists rather than as a creation flag, so that starting in front and being
     // put there by `T` are one code path. Skipped where it would mean nothing, so a platform with
     // no window stack does not log a refusal every start.
@@ -3166,6 +3222,8 @@ fn run_with(
         // says "this machine cannot keep up" -- and it would say so on a machine with nothing wrong.
         let built = Instant::now();
         canvas.present();
+        #[cfg(feature = "tizen")]
+        tizen_frames.presented();
         let present = built.elapsed();
         let build = built.duration_since(last_frame);
 
@@ -3221,8 +3279,18 @@ fn run_with(
             // as load the atomics. That is the same bargain the meter itself makes.
             meter.record(build, present, delta, decode_counts(&machine));
         }
+        #[cfg(not(feature = "tizen"))]
         if spent < MIN_FRAME {
             std::thread::sleep(MIN_FRAME - spent);
+        }
+        // **On the television the wait for the next frame is Ecore's**, so the host's UI thread,
+        // which this is, keeps turning. See `tizen::window`.
+        #[cfg(feature = "tizen")]
+        {
+            let _ = spent;
+            if !tizen_frames.wait() {
+                break 'running;
+            }
         }
     }
 

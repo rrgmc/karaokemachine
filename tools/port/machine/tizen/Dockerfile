@@ -118,3 +118,8 @@ ENV CARGO_TARGET_ARMV7_UNKNOWN_LINUX_GNUEABI_LINKER=arm-linux-gnueabi-gcc \
     PKG_CONFIG_LIBDIR_armv7_unknown_linux_gnueabi=/opt/sdl3/lib/pkgconfig:/usr/lib/arm-linux-gnueabi/pkgconfig:/usr/share/pkgconfig \
     FFMPEG_DIR=/opt/ffmpeg \
     BINDGEN_EXTRA_CLANG_ARGS_armv7_unknown_linux_gnueabi="--sysroot=/usr/arm-linux-gnueabi -mfloat-abi=softfp"
+
+# The font the development build carries inside the .so (build-in-container.sh): the repository
+# bundles none, and which fonts the set has is unknown. Last, so adding it rebuilt nothing above.
+RUN apt-get update && apt-get install -y --no-install-recommends fonts-dejavu-core \
+ && rm -rf /var/lib/apt/lists/*
