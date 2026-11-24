@@ -15,6 +15,7 @@ name: Release
 # | android | ubuntu         | the machine's APK, and the remote's                       |
 # | macos   | macos          | both notarized `.pkg` files                               |
 # | ios     | macos          | both unsigned `.ipa` files                                |
+# | tizen   | ubuntu, Docker | the machine's test-signed `.tpk`, for a Samsung television |
 # | carols  | ubuntu         | the carol pack                                            |
 #
 # **The macOS packages are published notarized or not at all.** Notarizing takes two Developer ID
@@ -581,6 +582,54 @@ jobs:
             dist/km-remote/ios/*.ipa
           if-no-files-found: error
 
+  # **The `.tpk` leaves here signed with the Tizen workload's test certificate, and that is the
+  # carrier.** A Samsung television takes a sideloaded package only when it is signed for that set,
+  # so whoever installs it signs it again: Apps2Samsung does that, then installs it. See
+  # `A Samsung television carrier is re-signed by whoever installs it` in
+  # docs/decisions/distribution.md.
+  #
+  # The library builds in the km-tizen Docker image, as on a desk. The host part needs the .NET 8
+  # SDK and Samsung's Tizen workload, installed under the runner's own ~/.dotnet so the workload
+  # can write beside the SDK. Samsung's install script is pinned to a commit and the workload to the
+  # version `package.sh` was proven with, so a release does not pick up what was published that
+  # morning.
+  tizen:
+    needs: tag
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      DOTNET_INSTALL_DIR: /home/runner/.dotnet
+      TIZEN_WORKLOAD: 10.0.126
+      TIZEN_WORKLOAD_SCRIPT: https://raw.githubusercontent.com/Samsung/Tizen.NET/5294db5380c4e5fffdaaedcf1102d944096af926/workload/scripts/workload-install.sh
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.TAG }}
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 8.0.4xx
+
+      - name: Tizen workload
+        run: |
+          curl -sSfL "$TIZEN_WORKLOAD_SCRIPT" -o "$RUNNER_TEMP/workload-install.sh"
+          bash "$RUNNER_TEMP/workload-install.sh" -v "$TIZEN_WORKLOAD" -d "$HOME/.dotnet"
+          "$HOME/.dotnet/dotnet" workload list
+
+      - uses: actions/cache@v6
+        with:
+          path: ~/.cache/karaokemachine/assets
+          key: assets-tizen-${{ hashFiles('tools/setup/fetch-assets.sh') }}
+      - run: bash tools/setup/fetch-assets.sh
+
+      - run: KM_DOTNET="$HOME/.dotnet/dotnet" bash tools/port/machine/tizen/package.sh
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: tizen
+          path: local/tizen/tpk/*.tpk
+          if-no-files-found: error
+
   # Debian's `abcmidi` package is the abc2midi `carols.sh` looks for on PATH, so nothing is built
   # into the cache for it.
   #
@@ -618,7 +667,7 @@ jobs:
   # macOS is among the platforms when the `macos` job built its packages, and is named as coming from
   # elsewhere when it did not.
   release:
-    needs: [windows, linux, linux-arm64, android, macos, ios, carols]
+    needs: [windows, linux, linux-arm64, android, macos, ios, tizen, carols]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -661,6 +710,10 @@ jobs:
           path: dist
       - uses: actions/download-artifact@v8
         with:
+          name: tizen
+          path: local/tizen/tpk
+      - uses: actions/download-artifact@v8
+        with:
           name: carols
           path: dist/carols
 
@@ -670,7 +723,7 @@ jobs:
           MACOS: ${{ needs.macos.outputs.enabled }}
         run: |
           if [ "$MACOS" = "true" ]; then
-            bash tools/dist/release.sh --upload --platforms windows,macos,linux,linux-arm64,android,quest,ios
+            bash tools/dist/release.sh --upload --platforms windows,macos,linux,linux-arm64,android,quest,ios,tizen
           else
-            bash tools/dist/release.sh --upload --platforms windows,linux,linux-arm64,android,quest,ios --elsewhere macos
+            bash tools/dist/release.sh --upload --platforms windows,linux,linux-arm64,android,quest,ios,tizen --elsewhere macos
           fi

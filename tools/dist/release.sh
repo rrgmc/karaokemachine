@@ -16,7 +16,7 @@
 #   dist/release/<version>/            every asset under the name it is published as
 #   dist/release/<version>-notes.md    the body, rendered from tools/dist/release-notes.md
 #
-# **It gathers; it does not build.** Nineteen carriers, six build systems, three of them in Docker, one
+# **It gathers; it does not build.** Twenty carriers, seven build systems, four of them in Docker, one
 # needing a JDK and two a Mac: a script that ran all of them would be a release cut by whoever typed
 # one word, from artifacts nobody had looked at. So each row below names the command that produces
 # it, a missing artifact is reported by name rather than skipped, and the run stops. `BUILDING.md`
@@ -66,6 +66,11 @@
 # it.** iOS has no signature this repository can put on a file a stranger installs, so the person
 # installing signs it with their own Apple ID; `docs/manual/ios.md` is where that is written for them.
 #
+# **The `.tpk` is renamed to say its platform, and its test signature is the product.** `package.sh`
+# names it for the Tizen package id; a page names it for the platform somebody is choosing. No
+# signature this repository makes installs on a Samsung television, so Apps2Samsung signs it for the
+# set as it installs it; `docs/manual/samsung-tv.md` is where that is written for them.
+#
 # **The macOS row takes the notarized package and no other.** `tools/platform/macos/installer.sh`
 # writes the signed-only and the ad-hoc build into the same folder, under names ending in
 # `-unnotarized` and `-unsigned`, and a release carries neither: a package Gatekeeper refuses on the
@@ -84,7 +89,7 @@ cd "$(dirname "$0")/../.."
 . tools/dist/common.sh
 DIST_SCRIPT=dist-release
 
-ALL_PLATFORMS="windows macos linux linux-arm64 android quest ios any"
+ALL_PLATFORMS="windows macos linux linux-arm64 android quest ios tizen any"
 
 UPLOAD=0
 ADD=0
@@ -270,6 +275,7 @@ android|ports/remote/android/app/build/outputs/apk/release|app-release.apk|km-re
 quest|ports/machine/android/app/build/outputs/apk/headset/release|app-headset-release.apk|karaokemachine-$VERSION-quest.apk|task build:android:quest RELEASE=1
 ios|dist/karaokemachine/ios|karaokemachine-$VERSION-ios-unsigned.ipa|=|task build:ios RELEASE=1 DEVICE=1 IPA=1
 ios|dist/km-remote/ios|km-remote-$VERSION-ios-unsigned.ipa|=|task build:ios:remote RELEASE=1 DEVICE=1 IPA=1
+tizen|local/tizen/tpk|KmMachine1.KaraokeMachine-$VERSION.tpk|karaokemachine-$VERSION-tizen.tpk|bash tools/port/machine/tizen/package.sh
 any|dist/carols|*.kmpkg|=|task carols
 ROWS
 }
