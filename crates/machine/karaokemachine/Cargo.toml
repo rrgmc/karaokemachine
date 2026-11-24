@@ -88,6 +88,12 @@ tizen = ["km-audio/tizen"]
 # stages it and turns this on. M5's package carries the assets in `res/` instead.
 tizen-embed-assets = ["tizen"]
 
+# The machine on an LG webOS television, a native executable built by
+# `tools/port/machine/webos/build.sh`: the window roles the set's compositor needs and the remote's
+# Back key (`src/webos.rs`, `docs/research/webos.md` §13). Shares the Tizen build's triple, so it
+# also gets the prebuilt SDL3 below. Not in the workspace's feature list, for the reason `tizen` is not.
+webos = []
+
 [dependencies]
 km-song = { workspace = true }
 km-suitability = { workspace = true }

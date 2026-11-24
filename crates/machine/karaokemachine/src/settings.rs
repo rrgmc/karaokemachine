@@ -441,7 +441,8 @@ impl Default for DisplaySettings {
             number_pad: cfg!(any(
                 target_os = "android",
                 target_os = "ios",
-                feature = "tizen"
+                feature = "tizen",
+                feature = "webos"
             )),
             enabled: true,
             lyric_offset_ms: 0,
@@ -733,7 +734,8 @@ impl Default for PlaybackSettings {
             adjust_recordings: !cfg!(any(
                 target_os = "android",
                 target_os = "ios",
-                feature = "tizen"
+                feature = "tizen",
+                feature = "webos"
             )),
         }
     }
@@ -1998,7 +2000,8 @@ mod tests {
             cfg!(any(
                 target_os = "android",
                 target_os = "ios",
-                feature = "tizen"
+                feature = "tizen",
+                feature = "webos"
             ))
         );
         assert!(
@@ -2022,7 +2025,8 @@ mod tests {
             cfg!(any(
                 target_os = "android",
                 target_os = "ios",
-                feature = "tizen"
+                feature = "tizen",
+                feature = "webos"
             ))
         );
         assert!(
@@ -2146,7 +2150,8 @@ mod tests {
         let desktop = !cfg!(any(
             target_os = "android",
             target_os = "ios",
-            feature = "tizen"
+            feature = "tizen",
+            feature = "webos"
         ));
         assert_eq!(Settings::default().playback.adjust_recordings, desktop);
         let settings: Settings =
