@@ -72,7 +72,9 @@ fn main() {
         let _ = t.join();
     }
     // Keep serving the log for a while after the work is done, so it can be read.
-    let linger = if ["draw", "sdl"].iter().any(|k| param_u64(&params, k).is_some())
+    let linger = if ["draw", "sdl"]
+        .iter()
+        .any(|k| param_u64(&params, k).is_some())
         || param_str(&params, "sound").is_some()
     {
         120
