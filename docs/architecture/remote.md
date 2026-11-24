@@ -564,7 +564,7 @@ singer goes to `Machine::create_singer`. Then `Machine::request_for` asks for th
 `POST /singers/{id}/requests`.
 
 **`song_action` asks `already_heard` before a guest's request.** It reads the queue and
-`RequestsDto::sung`, and answers with `AskAgain` where the song is in either. The second press
+answers with `AskAgain` where the song is in it. `RequestsDto::sung` is not consulted. The second press
 carries `?sure=1` and skips the question. `AskAgain` targets `closest .confirm` with `outerHTML`,
 so the badge that answers it takes its place.
 

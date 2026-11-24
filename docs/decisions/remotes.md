@@ -384,15 +384,18 @@ never takes a half-typed name.
 
 ## A guest is asked once about a song somebody already has
 
-**A song that is in the queue, or that somebody sang tonight, brings a warning.** The row says
-which of the two it is, and offers *Ask anyway* and a way to leave it. The second press asks for
-the song. The machine itself refuses nothing, because two people may want one song.
+**A song that is in the queue brings a warning.** The row says so, and offers *Ask anyway* and a
+way to leave it. The second press asks for the song. The machine itself refuses nothing, because
+two people may want one song.
+
+**A song sung earlier in the evening brings none.** It once did, and the warning was removed: a
+song sung twice in a night is ordinary, not a mistake to catch.
 
 **The warning stands in the row until the guest answers.** A badge fades in three seconds, and a
 question that faded would take waiting for an answer.
 
-**The phone decides, and the machine is not asked to.** The remote reads the queue and the record
-of songs sung before it sends the request. A phone that never asks the question still gets its
+**The phone decides, and the machine is not asked to.** The remote reads the queue before it sends
+the request. A phone that never asks the question still gets its
 song.
 
 ## A closed night says so on the phone

@@ -2088,8 +2088,7 @@ pub async fn song_action(
         "plain" => Access::Queue,
         _ => Access::Control,
     };
-    // **A warning, and never a refusal.** A song that is in the queue, or that somebody sang
-    // tonight, is asked about once. The guest then asks anyway or picks another, and the machine
+    // **A warning, and never a refusal.** A song that is in the queue is asked about once. The guest then asks anyway or picks another, and the machine
     // itself refuses nothing: two people may want one song.
     if action == "queue"
         && sure.sure.is_none()
@@ -2277,8 +2276,9 @@ pub struct Sure {
     pub sure: Option<String>,
 }
 
-/// The sentence for a song that is in the queue or was sung tonight, or `None` for a fresh one.
+/// The sentence for a song that is in the queue, or `None` for one that is not.
 ///
+/// A song sung earlier in the evening is not asked about: singing it again is ordinary.
 /// A machine that does not answer warns about nothing, and the request itself then says so.
 async fn already_heard(state: &Remote, number: SongCode) -> Option<&'static str> {
     let queued = state
@@ -2286,15 +2286,7 @@ async fn already_heard(state: &Remote, number: SongCode) -> Option<&'static str>
         .queue()
         .await
         .is_ok_and(|queue| queue.entries.iter().any(|entry| entry.number == number));
-    if queued {
-        return Some("ask-again-queued");
-    }
-    let sung = state
-        .machine
-        .requests()
-        .await
-        .is_ok_and(|list| list.sung.iter().any(|sung| sung.number == number));
-    sung.then_some("ask-again-sung")
+    queued.then_some("ask-again-queued")
 }
 
 // -- the host's tab ------------------------------------------------------------------------------

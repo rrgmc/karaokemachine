@@ -308,7 +308,6 @@ singer-unnamed = Convidado
 ## Uma música que alguém já tem
 
 ask-again-queued = Já está na fila.
-ask-again-sung = Já foi cantada hoje.
 ask-again-anyway = Pedir mesmo assim
 ask-again-no = Deixar
 
