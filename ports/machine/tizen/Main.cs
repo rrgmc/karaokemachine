@@ -29,22 +29,39 @@ namespace KaraokeMachine
         // Kept in a static so the delegate the machine calls back into is never collected.
         static readonly LogFn NativeLog = p => Log.Info(LogTag, Marshal.PtrToStringUTF8(p) ?? "");
 
-        // Both are kept in fields so the delegate DALi calls and the timer are never collected.
+        // Kept in fields so the delegate DALi calls and the timers are never collected.
         Window.FrameCallbackType firstFrame;
-        Timer fallback;
+        Timer settle, fallback;
+        TextLabel starting;
         bool started;
 
         protected override void OnCreate()
         {
             base.OnCreate();
             Window.Instance.BackgroundColor = Color.Black;
-            // Only once a frame of this window has reached the screen. The television keeps its launch
-            // animation up until then, and the machine, once called, keeps the thread: posted straight
-            // from here, DALi never drew, and the set showed its spinner over the home screen for ever
-            // while the machine ran unseen behind it. The timer is for a set that never reports.
-            firstFrame = _ => CoreApplication.Post(StartOnce);
+            // The window needs something in it to be drawn, and drawn before the machine takes the
+            // thread: the television keeps its launch animation up until the application's window is
+            // on screen, and the machine's picture is a subsurface of that window. With an empty
+            // window, and with the machine started on the first presented frame, the set showed its
+            // spinner over the home screen for ever while the machine ran unseen. The probe app, whose
+            // window held a label and which started the machine long after, never did.
+            starting = new TextLabel("Karaoke Machine")
+            {
+                WidthResizePolicy = ResizePolicyType.FillToParent,
+                HeightResizePolicy = ResizePolicyType.FillToParent,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center,
+                PointSize = 24f,
+                TextColor = Color.White,
+            };
+            Window.Instance.Add(starting);
+            // A second after the first frame has been presented, or five seconds after creation if the
+            // set never reports one.
+            settle = new Timer(1000);
+            settle.Tick += (s, e) => { StartOnce(); return false; };
+            firstFrame = _ => CoreApplication.Post(() => { if (!started) settle.Start(); });
             Window.Instance.AddFramePresentedCallback(firstFrame, 0);
-            fallback = new Timer(3000);
+            fallback = new Timer(5000);
             fallback.Tick += (s, e) => { StartOnce(); return false; };
             fallback.Start();
         }
@@ -53,6 +70,7 @@ namespace KaraokeMachine
         {
             if (started) return;
             started = true;
+            settle.Stop();
             fallback.Stop();
             StartMachine();
         }
@@ -97,6 +115,7 @@ namespace KaraokeMachine
                 if (e.Key.State == Key.StateType.Down && e.Key.KeyPressedName == "XF86Back")
                     Exit();
             };
+            Window.Instance.Remove(starting);
             Window.Instance.Add(new TextLabel(failure)
             {
                 WidthResizePolicy = ResizePolicyType.FillToParent,
