@@ -1486,6 +1486,14 @@ a build job runs such a script. It fails when a `read` pattern matches no tracke
 what a move leaves behind. It sees a string literal that starts with `../`, and cannot see a path
 built at run time.
 
+**A release's version bump builds nothing on its pull request.** It moves one number in the two
+workspace manifests, and cargo moves the members in the two lockfiles, so every build job would
+otherwise run for it. `tools/dev/ci-version-bump.sh` answers `true` when those four files are the
+only code changed, and every line changed in them is `version = "<old>"` becoming
+`version = "<new>"`. The build jobs and `cargo deny` then skip. A third-party crate moving in a
+lockfile changes its checksum too, so it cannot pass for a bump. The script is in `read`, so a
+change to it builds. The bug report template is outside `code`, as no build reads it.
+
 **`cargo deny` runs when a manifest or a lockfile moves.** The `deps` filter holds every
 `Cargo.toml` and `Cargo.lock`, `deny.toml`, `.cargo/`, `rust-toolchain.toml` and the workflow. No
 other file changes what the lockfiles let in.
