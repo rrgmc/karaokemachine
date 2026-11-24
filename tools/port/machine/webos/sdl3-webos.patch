@@ -1,0 +1,54 @@
+--- a/src/video/wayland/SDL_waylandsym.h
++++ b/src/video/wayland/SDL_waylandsym.h
+@@ -76,8 +76,9 @@
+ SDL_WAYLAND_SYM(void, wl_list_insert_list, (struct wl_list *, struct wl_list *))
+ SDL_WAYLAND_SYM(struct wl_proxy *, wl_proxy_marshal_constructor, (struct wl_proxy *, uint32_t opcode, const struct wl_interface *interface, ...))
+ SDL_WAYLAND_SYM(struct wl_proxy *, wl_proxy_marshal_constructor_versioned, (struct wl_proxy *proxy, uint32_t opcode, const struct wl_interface *interface, uint32_t version, ...))
+-SDL_WAYLAND_SYM(void, wl_proxy_set_tag, (struct wl_proxy *, const char * const *))
+-SDL_WAYLAND_SYM(const char * const *, wl_proxy_get_tag, (struct wl_proxy *))
++// Optional for webOS, whose libwayland predates 1.18. SDL_waylandvideo.c falls back without them.
++SDL_WAYLAND_SYM_OPT(void, wl_proxy_set_tag, (struct wl_proxy *, const char * const *))
++SDL_WAYLAND_SYM_OPT(const char * const *, wl_proxy_get_tag, (struct wl_proxy *))
+ 
+ #if SDL_WAYLAND_CHECK_VERSION(1, 20, 0)
+ /* wayland-scanner 1.20 generates code that will call these, so these are
+--- a/src/video/wayland/SDL_waylandvideo.c
++++ b/src/video/wayland/SDL_waylandvideo.c
+@@ -409,23 +409,35 @@
+ static const char *SDL_WAYLAND_surface_tag = "sdl-window";
+ static const char *SDL_WAYLAND_output_tag = "sdl-output";
+ 
++/* A libwayland older than 1.18, as on webOS, has no proxy tags. Every surface and output is then
++ * taken to be SDL's, which holds in a program that makes its windows through SDL alone. */
+ void SDL_WAYLAND_register_surface(struct wl_surface *surface)
+ {
+-    wl_proxy_set_tag((struct wl_proxy *)surface, &SDL_WAYLAND_surface_tag);
++    if (WAYLAND_wl_proxy_set_tag) {
++        wl_proxy_set_tag((struct wl_proxy *)surface, &SDL_WAYLAND_surface_tag);
++    }
+ }
+ 
+ void SDL_WAYLAND_register_output(struct wl_output *output)
+ {
+-    wl_proxy_set_tag((struct wl_proxy *)output, &SDL_WAYLAND_output_tag);
++    if (WAYLAND_wl_proxy_set_tag) {
++        wl_proxy_set_tag((struct wl_proxy *)output, &SDL_WAYLAND_output_tag);
++    }
+ }
+ 
+ bool SDL_WAYLAND_own_surface(struct wl_surface *surface)
+ {
++    if (!WAYLAND_wl_proxy_get_tag) {
++        return true;
++    }
+     return wl_proxy_get_tag((struct wl_proxy *)surface) == &SDL_WAYLAND_surface_tag;
+ }
+ 
+ bool SDL_WAYLAND_own_output(struct wl_output *output)
+ {
++    if (!WAYLAND_wl_proxy_get_tag) {
++        return true;
++    }
+     return wl_proxy_get_tag((struct wl_proxy *)output) == &SDL_WAYLAND_output_tag;
+ }
+ 

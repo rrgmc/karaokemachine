@@ -4,6 +4,7 @@
 //! The launcher starts it with the launch parameters as a JSON string in `argv[1]`. It writes the
 //! report and serves it on `0.0.0.0:8177`, `GET /report` and `GET /log`. The parameters choose the
 //! rest: `"draw": 1` opens a window with a moving bar and logs frame gaps and keys (P2, P4),
+//! `"sdl": 1` runs `km-sdl-test`, the same through SDL3, and copies its output into the log,
 //! `"sound": "alsa"` or `"pulse"` plays a sine (P3), and `"secs"` (default 600) bounds them.
 //! Standard library only, so the first question, whether Rust's prebuilt std loads here at all, is
 //! not confused with any crate's.
@@ -64,11 +65,18 @@ fn main() {
     if param_u64(&params, "draw") == Some(1) {
         draw::run(secs);
     }
+    if param_u64(&params, "sdl") == Some(1) {
+        run_sdl_test(secs);
+    }
     if let Some(t) = sound_thread {
         let _ = t.join();
     }
     // Keep serving the log for a while after the work is done, so it can be read.
-    let linger = if param_u64(&params, "draw").is_some() || param_str(&params, "sound").is_some() {
+    let linger = if ["draw", "sdl"]
+        .iter()
+        .any(|k| param_u64(&params, k).is_some())
+        || param_str(&params, "sound").is_some()
+    {
         120
     } else {
         secs
@@ -76,6 +84,36 @@ fn main() {
     log(&format!("work done; serving for {linger} s more"));
     std::thread::sleep(Duration::from_secs(linger));
     log("time is up, exiting");
+}
+
+/// Runs `km-sdl-test` from beside this executable and copies its stderr into the log.
+fn run_sdl_test(secs: u64) {
+    use std::io::BufRead;
+    let exe = std::fs::read_link("/proc/self/exe").unwrap_or_default();
+    let test = exe.with_file_name("km-sdl-test");
+    log(&format!("starting {}", test.display()));
+    let child = std::process::Command::new(&test)
+        .arg(secs.to_string())
+        .stderr(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .spawn();
+    let mut child = match child {
+        Ok(c) => c,
+        Err(e) => return log(&format!("km-sdl-test did not start: {e}")),
+    };
+    if let Some(out) = child.stdout.take() {
+        std::thread::spawn(move || {
+            for line in std::io::BufReader::new(out).lines().map_while(Result::ok) {
+                log(&format!("sdl: {line}"));
+            }
+        });
+    }
+    if let Some(err) = child.stderr.take() {
+        for line in std::io::BufReader::new(err).lines().map_while(Result::ok) {
+            log(&format!("sdl: {line}"));
+        }
+    }
+    log(&format!("km-sdl-test exited: {:?}", child.wait()));
 }
 
 /// A string out of the launch parameters, `{"sound": "alsa"}`.
