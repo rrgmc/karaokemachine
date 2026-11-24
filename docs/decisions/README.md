@@ -559,4 +559,5 @@ it are the same entry. How the thing is built is [`ARCHITECTURE.md`](../ARCHITEC
 - [A pull request carries its type, and the programs and platforms it touches](repository.md#a-pull-request-carries-its-type-and-the-programs-and-platforms-it-touches)
 - [One version number for the whole repository](repository.md#one-version-number-for-the-whole-repository)
 - [A release keeps what it changed, and the changelog is where it is kept](repository.md#a-release-keeps-what-it-changed-and-the-changelog-is-where-it-is-kept)
+- [Unreleased entries are a file each, and a release gathers them](repository.md#unreleased-entries-are-a-file-each-and-a-release-gathers-them)
 - [Catalogs live beside the words they translate](repository.md#catalogs-live-beside-the-words-they-translate)

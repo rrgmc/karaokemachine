@@ -130,6 +130,7 @@ jobs:
           bash tools/dev/check-cargo-config.sh
           bash tools/dev/labels.sh check
           bash tools/dev/check-ci-paths.sh
+          bash tools/dist/changelog.sh check
 
       # `-S error` is clean. `warning` adds SC2034 "appears unused" throughout the sourced libraries
       # -- `features.sh`, `common.sh` -- whose variables the caller reads.

@@ -529,6 +529,8 @@ tools/platform/macos/installer-remote.sh    #   the same on macOS: KM Remote in 
 task build:ios RELEASE=1 DEVICE=1 IPA=1         # an unsigned .ipa: the machine, for sideloading
 task build:ios:remote RELEASE=1 DEVICE=1 IPA=1  #   ...and the offline remote
 bash tools/port/machine/tizen/package.sh    # the .tpk for a Samsung television, test-signed; Docker and .NET
+bash tools/dist/changelog.sh preview      # the changelog section the files in changelog.d/ would make
+bash tools/dist/changelog.sh release X.Y.0  #   ...written into CHANGELOG.md, the files removed: RELEASE.md step 1
 bash tools/dist/release.sh           # gather the carriers into dist/release/<version>/ under release names
 bash tools/dist/release.sh --upload  #   ...and put them, and the body, on the draft GitHub release
 bash tools/dist/release.sh --platforms windows,linux,android,quest  # ...the carriers one machine builds
@@ -1045,9 +1047,10 @@ writes no lockfile at all and reports success having changed nothing.
 **Never substitute the old number through a lockfile.** A third-party crate sitting at the version
 being replaced comes out pinned to one that does not exist.
 
-**The changelog's `Unreleased` heading is retitled in the same commit**, to the new number and the
-day. [`RELEASE.md`](RELEASE.md) is the order the whole cut goes in, and that is its first step. The
-range it is written from is easiest to read before the tag exists.
+**The changelog's section for the new number is written in the same commit**, by
+`bash tools/dist/changelog.sh release X.Y.0`, which gathers the files in `changelog.d/` under it and
+deletes them. [`RELEASE.md`](RELEASE.md) is the order the whole cut goes in, and that is its first
+step. The range it is checked against is easiest to read before the tag exists.
 
 Two things worth knowing:
 
@@ -2149,6 +2152,18 @@ It refuses three things that would otherwise be found only after publishing:
 - anything the page would fetch from another server.
 
 The manual's pages pass the same three checks.
+
+## Changelog entries
+
+```sh
+bash tools/dist/changelog.sh check            # or: task lint:changelog
+bash tools/dist/changelog.sh preview          # the section the next release would write
+bash tools/dist/changelog.sh release X.Y.0    # write it into CHANGELOG.md, and git rm the files
+```
+
+**A pull request adds a file to `changelog.d/` and never edits `CHANGELOG.md`**, so two of them do
+not conflict. [`changelog.d/README.md`](changelog.d/README.md) is the format. The standing decision is
+[`Unreleased entries are a file each, and a release gathers them`](docs/decisions/repository.md#unreleased-entries-are-a-file-each-and-a-release-gathers-them).
 
 ## Issue labels
 

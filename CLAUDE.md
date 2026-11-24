@@ -147,6 +147,9 @@ Each of these has cost real time. The reasoning is in `BUILDING.md`; these are t
 - **`master` takes pull requests only, and requires one check, `CI ok`.** A new CI job goes into
   `ci.yml` and under `ci-ok`'s `needs`. A workflow of its own with path filters would never report on
   the pull requests it skips, and those could never merge.
+- **A changelog entry is a new file in `changelog.d/`, never an edit to `CHANGELOG.md`.** Editing
+  `## [Unreleased]` made every pair of pull requests conflict. The format is in
+  [`changelog.d/README.md`](changelog.d/README.md); only a release writes `CHANGELOG.md`.
 - **`gh pr create` takes a type label**: `--label bug`, `enhancement` or `documentation`. A workflow
   adds the program and platform labels from the changed paths, and cannot judge the type.
 - **`gh pr merge` takes no `--delete-branch` here.** The repository deletes a head branch on merge
