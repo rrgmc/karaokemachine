@@ -70,8 +70,9 @@ Each milestone is recorded in the research note as it passes. P1 is the gate.
 
 **Where it stands, 2026-11-24:** P0, P1, P3 and P4 passed. P2 passed through SDL3, at 60 fps in a
 custom-role window, with `sdl3-webos.patch` for the set's older libwayland, and SDL3 receives every
-key, Back as raw evdev 412. P5 is next: it needs a patch hook in the build for `sdl3-sys`, the webOS
-roles in the machine's window setup, and Back mapped. Research note §13.
+key, Back as raw evdev 412. P5 is next: SDL3_ttf in the image beside SDL3, the
+Tizen port's prebuilt-SDL dependency blocks (same triple), the webOS roles in the machine's window
+setup, and Back mapped. Research note §13.
 
 | Milestone | Deliverable | Verified by | Size |
 |---|---|---|---|

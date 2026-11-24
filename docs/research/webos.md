@@ -459,8 +459,12 @@ Developer Mode. LG's Flutter route needs webOS 26 Re:New, so it was not tried. B
 **What this means for §3.** Rungs 0 and 1 are out, and rung 2 turned out smaller than it looked.
 SDL3's Wayland driver needs no third shell path: its custom-role window hands the surface to the
 program, and the webOS roles are about forty lines beside the frame loop rather than inside SDL. The
-patch carried is the libwayland one, two symbols made optional. The build still needs a patch hook,
-because `sdl3-sys`'s `build-from-source-static` has none.
+patch carried is the libwayland one, two symbols made optional. **[repo]** And the build already
+has the prebuilt SDL the paragraph after the §3 ladder asks for: the Tizen port switches
+`armv7-unknown-linux-gnueabi` to `use-pkg-config` and `link-static` in both `km-display` and
+`karaokemachine`, and webOS uses the same triple. So no third dependency block is needed; the webOS
+image only has to put its patched SDL3 where pkg-config finds it, as the Tizen image does.
+`docs/research/sdl3-upstream.md` lists both platforms' SDL3 fixes as candidates for upstream.
 
 ### What is known, by webOS version
 
