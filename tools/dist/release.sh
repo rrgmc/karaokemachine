@@ -71,6 +71,10 @@
 # signature this repository makes installs on a Samsung television, so Apps2Samsung signs it for the
 # set as it installs it; `docs/manual/samsung-tv.md` is where that is written for them.
 #
+# **The `.ipk` is renamed the same way, and it is unofficial.** `build.sh` names it as LG's packer
+# does, for the application id; an LG television installs it only in Developer Mode, which removes it
+# when the session lapses. `docs/manual/lg-tv.md` says so before it says how.
+#
 # **The macOS row takes the notarized package and no other.** `tools/platform/macos/installer.sh`
 # writes the signed-only and the ad-hoc build into the same folder, under names ending in
 # `-unnotarized` and `-unsigned`, and a release carries neither: a package Gatekeeper refuses on the
@@ -89,7 +93,7 @@ cd "$(dirname "$0")/../.."
 . tools/dist/common.sh
 DIST_SCRIPT=dist-release
 
-ALL_PLATFORMS="windows macos linux linux-arm64 android quest ios tizen any"
+ALL_PLATFORMS="windows macos linux linux-arm64 android quest ios tizen webos any"
 
 UPLOAD=0
 ADD=0
@@ -276,6 +280,7 @@ quest|ports/machine/android/app/build/outputs/apk/headset/release|app-headset-re
 ios|dist/karaokemachine/ios|karaokemachine-$VERSION-ios-unsigned.ipa|=|task build:ios RELEASE=1 DEVICE=1 IPA=1
 ios|dist/km-remote/ios|km-remote-$VERSION-ios-unsigned.ipa|=|task build:ios:remote RELEASE=1 DEVICE=1 IPA=1
 tizen|local/tizen/tpk|KmMachine1.KaraokeMachine-$VERSION.tpk|karaokemachine-$VERSION-tizen.tpk|bash tools/port/machine/tizen/package.sh
+webos|local/webos|com.rrgmc.karaokemachine_${VERSION}_arm.ipk|karaokemachine-$VERSION-webos.ipk|bash tools/port/machine/webos/build.sh
 any|dist/carols|*.kmpkg|=|task carols
 ROWS
 }

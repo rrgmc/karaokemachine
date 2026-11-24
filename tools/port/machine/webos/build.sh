@@ -1,13 +1,15 @@
 #!/usr/bin/env bash
 #
-# Cross-builds the webOS probe in Docker and packs it as an .ipk of type "native".
+# Cross-builds the machine for an LG webOS television in Docker and packs it as an .ipk of type
+# "native".
 #
-#   tools/port/machine/webos/build.sh
+#   tools/port/machine/webos/build.sh           # Karaoke Machine, the .ipk a release carries
+#   tools/port/machine/webos/build.sh --probe   # KM Probe: the probe, which starts the machine
 #
-# Builds the km-webos image first (Dockerfile beside this; cached after the first time), then the
-# probe in it, into local/webos/target, never the host's target/. The .ipk is packed on the host with
+# Builds the km-webos image first (Dockerfile beside this; cached after the first time), then
+# everything in it, into local/webos/, never the host's target/. The .ipk is packed on the host with
 # ares-package (`npm install -g @webos-tools/cli`) and lands in local/webos/.
-# docs/architecture/webos.md describes it; run.sh installs and starts the result.
+# docs/architecture/webos.md describes both; run.sh installs and starts the probe.
 
 set -euo pipefail
 
@@ -15,8 +17,19 @@ cd "$(dirname "$0")/../../../.."
 
 IMAGE=km-webos
 HERE=tools/port/machine/webos
-APP_ID=com.rrgmc.kmprobe
 OUT=local/webos
+
+PROBE=0
+case "${1:-}" in
+  --probe) PROBE=1 ;;
+  "") ;;
+  *) echo "usage: build.sh [--probe]" >&2; exit 2 ;;
+esac
+if [ "$PROBE" = 1 ]; then
+  APP_ID=com.rrgmc.kmprobe
+else
+  APP_ID=com.rrgmc.karaokemachine
+fi
 
 for c in docker ares-package; do
   command -v "$c" >/dev/null 2>&1 || { echo "webos: $c is not on PATH" >&2; exit 1; }
@@ -43,7 +56,9 @@ SDL3_SRC_VERSION="$(lock_field sdl3-src version)"
 SDL3_SRC_SHA256="$(lock_field sdl3-src checksum)"
 SDL3_TTF_SRC_VERSION="$(lock_field sdl3-ttf-src version)"
 SDL3_TTF_SRC_SHA256="$(lock_field sdl3-ttf-src checksum)"
-for v in SDL3_SRC_VERSION SDL3_SRC_SHA256 SDL3_TTF_SRC_VERSION SDL3_TTF_SRC_SHA256; do
+# The workspace's version, which the .ipk carries and release.sh looks for in its name.
+VERSION="$(awk '/^\[workspace.package\]/{s=1;next} /^\[/{s=0} s && $1=="version"{gsub(/"/,"",$3);print $3;exit}' Cargo.toml)"
+for v in VERSION SDL3_SRC_VERSION SDL3_SRC_SHA256 SDL3_TTF_SRC_VERSION SDL3_TTF_SRC_SHA256; do
   [ -n "${!v}" ] || { echo "webos: could not read $v from Cargo.lock" >&2; exit 1; }
 done
 
@@ -55,8 +70,9 @@ docker build -q -t "$IMAGE" --build-arg "RUST_VERSION=$RUST_VERSION" \
   --build-context "setup=$(host_path "$PWD/tools/setup")" \
   "$HERE" >/dev/null
 
-echo "== probe"
 mkdir -p "$OUT"
+if [ "$PROBE" = 1 ]; then
+echo "== probe"
 docker run --rm \
   -v "$(host_path "$PWD"):/src" -w /src/$HERE/probe \
   -v km-webos-cargo-registry:/opt/cargo/registry \
@@ -71,10 +87,11 @@ docker run --rm -v "$(host_path "$PWD"):/src" -w /src "$IMAGE" bash -c \
      -I/opt/sdl3/include '"$HERE"'/sdl/km_sdl_test.c -o '"$OUT"'/km-sdl-test \
      /opt/sdl3/lib/libSDL3.a -ldl -lm -lpthread -lrt &&
    arm-linux-gnueabi-strip '"$OUT"'/km-sdl-test && file '"$OUT"'/km-sdl-test'
+fi
 
 # The machine, as an executable with the webos feature, against the image's prebuilt SDL3 (the
-# target triple chooses it; see crates/machine/karaokemachine/Cargo.toml). The probe starts it
-# for "machine": 1.
+# target triple chooses it; see crates/machine/karaokemachine/Cargo.toml). It is the .ipk's main
+# executable, or the probe starts it for "machine": 1.
 echo "== karaokemachine"
 . tools/setup/features.sh
 docker run --rm \
@@ -88,16 +105,18 @@ docker run --rm \
 echo "== package"
 app="$OUT/app"
 rm -rf "$app" && mkdir -p "$app"
-cp "$OUT/target/armv7-unknown-linux-gnueabi/release/km-webos-probe" "$OUT/km-sdl-test" \
-  "$OUT/machine-target/armv7-unknown-linux-gnueabi/release/karaokemachine" "$app/"
+cp "$OUT/machine-target/armv7-unknown-linux-gnueabi/release/karaokemachine" "$app/"
+if [ "$PROBE" = 1 ]; then
+  cp "$OUT/target/armv7-unknown-linux-gnueabi/release/km-webos-probe" "$OUT/km-sdl-test" "$app/"
+fi
 # The machine looks for assets/ beside its executable: the SoundFont, the wallpapers, and a font.
 mkdir -p "$app/assets/fonts" "$app/assets/soundfont" "$app/assets/wallpapers"
 cp assets/soundfont/*.sf2 assets/soundfont/LICENSE.txt "$app/assets/soundfont/"
 cp assets/wallpapers/default-wallpapers.zip assets/wallpapers/CREDITS.md "$app/assets/wallpapers/"
 docker run --rm -v "$(host_path "$PWD/$app"):/app" "$IMAGE" bash -c '
   cp /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf /app/assets/fonts/karaoke.ttf
-  # The ffmpeg the machine was linked against, which the probe puts on LD_LIBRARY_PATH: the
-  # set has its own 4.0, which cannot decode H.264. Only the sonames the machine asks for.
+  # The ffmpeg the machine was linked against, found through its $ORIGIN/lib rpath: the set has
+  # its own 4.0, which cannot decode H.264. Only the sonames the machine asks for.
   mkdir -p /app/lib
   for l in $(arm-linux-gnueabi-readelf -d /app/karaokemachine | sed -n "s/.*Shared library: \[\(lib\(av\|sw\)[a-z]*\.so\.[0-9]*\)\]/\1/p"); do
     cp -L "/opt/ffmpeg/lib/$l" /app/lib/ && arm-linux-gnueabi-strip "/app/lib/$l"
@@ -108,14 +127,19 @@ if [ -n "${KM_WEBOS_PACKAGE:-}" ]; then
   cp "$KM_WEBOS_PACKAGE" "$app/"
 fi
 cp icon/icon-128.png "$app/icon.png"
+if [ "$PROBE" = 1 ]; then
+  main=km-webos-probe title="KM Probe"
+else
+  main=karaokemachine title="Karaoke Machine"
+fi
 cat > "$app/appinfo.json" <<EOF
 {
   "id": "$APP_ID",
-  "version": "0.0.1",
+  "version": "$VERSION",
   "vendor": "karaokemachine",
   "type": "native",
-  "main": "km-webos-probe",
-  "title": "KM Probe",
+  "main": "$main",
+  "title": "$title",
   "icon": "icon.png",
   "requiredACG": []
 }
@@ -133,8 +157,12 @@ docker run --rm -v "$(host_path "$PWD/$OUT"):/w" "$IMAGE" bash -euc '
   arm-linux-gnueabi-ar x "/w/'"$ipk"'"
   mkdir data && tar -xzf data.tar.gz -C data
   find data -type d -exec chmod 755 {} + && find data -type f -exec chmod 644 {} +
-  chmod 755 data/usr/palm/applications/*/km-webos-probe data/usr/palm/applications/*/km-sdl-test \
-    data/usr/palm/applications/*/karaokemachine
+  # The application folder is HOME, where the machine keeps its settings and catalog, and the
+  # application runs as a user of its own that the installer does not make the owner.
+  chmod 777 data/usr/palm/applications/*/
+  for e in karaokemachine km-webos-probe km-sdl-test; do
+    for f in data/usr/palm/applications/*/"$e"; do [ ! -f "$f" ] || chmod 755 "$f"; done
+  done
   tar -czf data.tar.gz -C data --owner=0 --group=0 --numeric-owner usr
   out="/w/'"$ipk"'"
   printf "!<arch>\n" > "$out"

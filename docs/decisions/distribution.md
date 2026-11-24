@@ -1597,6 +1597,30 @@ was published that morning is a release nobody tested.
 **How to install one belongs in [the manual](../manual/samsung-tv.md)**, for the same reason as the
 iPhone's: it is a procedure the recipient carries out.
 
+## An LG television carrier is an unofficial download
+
+**The release carries one `.ipk`, `karaokemachine-<version>-webos.ipk`, and calls it unofficial
+everywhere it is named.** An LG television installs a package from outside LG's store only in
+Developer Mode, from a computer with LG's developer tools. When the session lapses, after 1,000
+hours unless somebody presses Extend, the television removes the application with its songs. That is
+not an appliance, so the release page, the notes and the manual say so before they say how. The
+Android APK on a Google TV box is what the page points a television owner to.
+
+**It is offered anyway, because it works and costs nothing to carry.** The machine draws, plays
+MIDI, MP3+G and video songs, and keeps its data across a restart and a reinstall on a 2020 set on
+webOS 5; [`docs/research/webos.md`](../research/webos.md) §13 has the figures. Rooted sets can
+install it too, through the Homebrew Channel, and the same file serves them.
+
+**What would make it official is a different carrier, not this one improved.** The LG Content Store
+is the only install that does not expire, and its route for native code is LG's Flutter SDK on
+webOS 26 and later. Taking that is a product decision of its own.
+
+**CI builds it like any other carrier**, in a `webos` job: everything in the km-webos Docker image,
+as on a desk, and LG's `ares-package` pinned to the version `build.sh` was proven with. The `.ipk`
+carries the machine as its main executable, the assets, and ffmpeg at the pin in `lib/`, since the
+set's own cannot decode H.264. [`docs/architecture/webos.md`](../architecture/webos.md) has the
+rest. **How to install one belongs in [the manual](../manual/lg-tv.md).**
+
 ## What the machine *is*, on a headset
 
 **The same program again, on a screen that hangs in the room.** `ports/machine/android/` builds a

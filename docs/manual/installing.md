@@ -15,6 +15,7 @@ file per platform. The carol package is a separate download beside them. To buil
 | **Meta Quest** | An APK of its own, which puts the machine on a screen hanging in the room with the room still behind it. The screen starts on your wall, and you move it and resize it by hand. The singer's queue hangs beside it. A button switches to an ordinary system window and back, once the queue is empty. |
 | **iPhone, iPad** | An `.ipa` for the machine and one for the remote, both **unsigned**. You sign them yourself with your own Apple ID. |
 | **Samsung television** | A `.tpk`, the machine as an app on the television itself. Apps2Samsung signs it for your television and installs it. It has run on a 2025 television on Tizen 10. |
+| **LG television, unofficially** | An `.ipk`, the machine as an app on the television itself, installed in Developer Mode with LG's developer tools. The television removes it when Developer Mode lapses. It has run on a 2020 television on webOS 5. |
 
 <p align="center">
 <img src="../images/headset-room.webp" width="90%"
@@ -48,3 +49,5 @@ the singer who asked for each">
 - **A Samsung television** installs an app from outside its store only in Developer mode, and only
   when it is signed for that television. Apps2Samsung does both, and
   [On a Samsung television](samsung-tv.md) has the steps.
+- **An LG television** installs an app from outside its store only in Developer Mode, and removes
+  it when Developer Mode lapses. [On an LG television](lg-tv.md) has the steps and the limits.

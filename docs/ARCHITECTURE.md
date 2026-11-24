@@ -35,7 +35,7 @@ Two neighbors worth knowing before you start:
 | [`android.md`](architecture/android.md) | the APK, the armv7 `cdylib`, assets in the APK, video and packages on Android |
 | [`ios.md`](architecture/ios.md) | the machine on a phone: SDL from source for iOS, the frameworks the app binary is given, the paths handed down from Swift |
 | [`tizen.md`](architecture/tizen.md) | the machine on a Samsung television: the .NET host and the `cdylib`, the host drawing first, the nested Ecore loop, keys, `audio_io` held and dithered, the probe app |
-| [`webos.md`](architecture/webos.md) | the machine on an LG webOS 5 set, a development carrier: the custom-role window with the webOS shell roles, Back from evdev 412, the patched prebuilt SDL3, the `.ipk` and its probe |
+| [`webos.md`](architecture/webos.md) | the machine on an LG webOS 5 set, an unofficial carrier: the custom-role window with the webOS shell roles, Back from evdev 412, the patched prebuilt SDL3, the ffmpeg the `.ipk` carries, the app and its probe |
 | [`assets.md`](architecture/assets.md) | the asset directory and local overlay, the application icon, wallpapers, `km-wallpaper-pack`, the README's pictures |
 | [`appliance.md`](architecture/appliance.md) | Debian on a bare TTY, and the three cold-boot faults found on it |
 | [`distribution.md`](architecture/distribution.md) | the carriers — folders, bundles, `.deb`, tarball, both installers — and what a staging run says |

@@ -15,6 +15,7 @@ for search, queueing and control.
 | [`karaokemachine-@VERSION@-quest.apk`](https://github.com/rrgmc/karaokemachine/releases/download/v@VERSION@/karaokemachine-@VERSION@-quest.apk) | Meta Quest |
 | [`karaokemachine-@VERSION@-ios-unsigned.ipa`](https://github.com/rrgmc/karaokemachine/releases/download/v@VERSION@/karaokemachine-@VERSION@-ios-unsigned.ipa) | iPhone and iPad |
 | [`karaokemachine-@VERSION@-tizen.tpk`](https://github.com/rrgmc/karaokemachine/releases/download/v@VERSION@/karaokemachine-@VERSION@-tizen.tpk) | Samsung televisions |
+| [`karaokemachine-@VERSION@-webos.ipk`](https://github.com/rrgmc/karaokemachine/releases/download/v@VERSION@/karaokemachine-@VERSION@-webos.ipk) | LG televisions, unofficially |
 
 Each of these is the whole machine for its platform. **Every file** below describes them, and has
 the portable copies and the remote on its own.
@@ -51,6 +52,7 @@ the portable copies and the remote on its own.
 | `karaokemachine-@VERSION@-ios-unsigned.ipa` | The machine on an iPhone or iPad. Sign it before installing it; see **Before you install** below. |
 | `km-remote-@VERSION@-ios-unsigned.ipa` | The remote on an iPhone or iPad. Sign it the same way. |
 | `karaokemachine-@VERSION@-tizen.tpk` | The machine as an app on a Samsung television. It has run on a 2025 television on Tizen 10. Apps2Samsung signs it for your television and installs it; see **Before you install** below. |
+| `karaokemachine-@VERSION@-webos.ipk` | The machine as an app on an LG television, **unofficially**. It has run on a 2020 television on webOS 5. It installs only in Developer Mode, which removes it when the session lapses; see **Before you install** below. |
 
 `@CAROLS@` is a song package and a separate download. It holds sixteen public-domain Christmas
 carols from the Open Hymnal Project. Put it in the folder that `karaokemachine --show-paths` calls
@@ -77,6 +79,12 @@ an empty catalog.
   installs it, with a free Samsung account and the television in Developer mode. The manual has the
   steps in
   [On a Samsung television](https://rrgmc.github.io/karaokemachine/docs/samsung-tv.html).
+<!-- /platform -->
+<!-- platform: webos -->
+- **The `.ipk` is for people comfortable with LG's Developer Mode.** It installs from a computer
+  with LG's developer tools, and **the television removes it, with its songs, when Developer Mode
+  lapses**, about six weeks after the last extension. The manual has the steps and the limits in
+  [On an LG television](https://rrgmc.github.io/karaokemachine/docs/lg-tv.html).
 <!-- /platform -->
 
 The manual's

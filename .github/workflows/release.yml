@@ -16,6 +16,7 @@ name: Release
 # | macos   | macos          | both notarized `.pkg` files                               |
 # | ios     | macos          | both unsigned `.ipa` files                                |
 # | tizen   | ubuntu, Docker | the machine's test-signed `.tpk`, for a Samsung television |
+# | webos   | ubuntu, Docker | the machine's `.ipk`, for an LG television                |
 # | carols  | ubuntu         | the carol pack                                            |
 #
 # **The macOS packages are published notarized or not at all.** Notarizing takes two Developer ID
@@ -630,6 +631,37 @@ jobs:
           path: local/tizen/tpk/*.tpk
           if-no-files-found: error
 
+  # **The `.ipk` is unsigned and unofficial, and that is the carrier.** An LG television installs it
+  # only in Developer Mode, which removes it when the session lapses. See `An LG television carrier
+  # is an unofficial download` in docs/decisions/distribution.md.
+  #
+  # Everything builds in the km-webos Docker image, as on a desk; ares-package, LG's packer, is the
+  # one host tool, pinned to the version build.sh was proven with.
+  webos:
+    needs: tag
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.TAG }}
+
+      - run: npm install -g @webos-tools/cli@3.2.6
+
+      - uses: actions/cache@v6
+        with:
+          path: ~/.cache/karaokemachine/assets
+          key: assets-webos-${{ hashFiles('tools/setup/fetch-assets.sh') }}
+      - run: bash tools/setup/fetch-assets.sh
+
+      - run: bash tools/port/machine/webos/build.sh
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: webos
+          path: local/webos/*.ipk
+          if-no-files-found: error
+
   # Debian's `abcmidi` package is the abc2midi `carols.sh` looks for on PATH, so nothing is built
   # into the cache for it.
   #
@@ -667,7 +699,7 @@ jobs:
   # macOS is among the platforms when the `macos` job built its packages, and is named as coming from
   # elsewhere when it did not.
   release:
-    needs: [windows, linux, linux-arm64, android, macos, ios, tizen, carols]
+    needs: [windows, linux, linux-arm64, android, macos, ios, tizen, webos, carols]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -714,6 +746,10 @@ jobs:
           path: local/tizen/tpk
       - uses: actions/download-artifact@v8
         with:
+          name: webos
+          path: local/webos
+      - uses: actions/download-artifact@v8
+        with:
           name: carols
           path: dist/carols
 
@@ -723,7 +759,7 @@ jobs:
           MACOS: ${{ needs.macos.outputs.enabled }}
         run: |
           if [ "$MACOS" = "true" ]; then
-            bash tools/dist/release.sh --upload --platforms windows,macos,linux,linux-arm64,android,quest,ios,tizen
+            bash tools/dist/release.sh --upload --platforms windows,macos,linux,linux-arm64,android,quest,ios,tizen,webos
           else
-            bash tools/dist/release.sh --upload --platforms windows,linux,linux-arm64,android,quest,ios,tizen --elsewhere macos
+            bash tools/dist/release.sh --upload --platforms windows,linux,linux-arm64,android,quest,ios,tizen,webos --elsewhere macos
           fi

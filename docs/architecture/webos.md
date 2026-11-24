@@ -1,9 +1,10 @@
 # The machine on an LG webOS television
 
-**A development carrier, not a product.** The machine runs on a webOS 5 set as a native executable
-installed through Developer Mode, which removes it when the session lapses. Whether LG becomes a
-platform is a product decision that has not been taken; the findings are in
-[`docs/research/webos.md`](../research/webos.md) §13.
+**An unofficial carrier.** The machine runs on a webOS 5 set as a native application, Karaoke
+Machine (`com.rrgmc.karaokemachine`), installed through Developer Mode, which removes it when the
+session lapses. The release carries it as an unofficial download: the decision is
+[`An LG television carrier is an unofficial download`](../decisions/distribution.md#an-lg-television-carrier-is-an-unofficial-download),
+and the findings are in [`docs/research/webos.md`](../research/webos.md) §13.
 
 ## What is different from desktop Linux
 
@@ -40,9 +41,21 @@ television defaults the Tizen build already has.
 
 ## Running it
 
-The `.ipk`'s main executable is the probe, `km-webos-probe`, which starts the machine for
-`"machine": 1` and serves its log on port 8180. `run.sh <device> '{"machine":1}'` installs and
-launches it. `KM_WEBOS_PACKAGE` carries a package into the `.ipk`, and `"package": "<file>"` hands it
+**`build.sh` packs Karaoke Machine**, `com.rrgmc.karaokemachine_<version>_arm.ipk`, whose main
+executable is the machine. Three things make that work:
+
+- **The launcher's JSON is dropped.** webOS passes the launch parameters as one JSON object in
+  `argv[1]`, which `webos::launch_args` removes before clap sees the command line.
+- **ffmpeg is found through an rpath.** Under `webos`, `build.rs` links the executable with
+  `$ORIGIN/lib`, since the launcher sets no `LD_LIBRARY_PATH`.
+- **The application folder is mode 777 in the package.** It is `HOME`, where the settings and the
+  catalog go, and the application runs as a user of its own that the installer does not make its
+  owner. At 755 the machine cannot create its data folder and exits at once.
+
+**`build.sh --probe` packs KM Probe instead**, `com.rrgmc.kmprobe`, whose main executable is the
+probe, `km-webos-probe`. It starts the machine for `"machine": 1` and serves its log on port 8180.
+`run.sh <device> '{"machine":1}'` installs and launches it. The two are separate applications with
+separate data. `KM_WEBOS_PACKAGE` carries a package into the `.ipk`, and `"package": "<file>"` hands it
 to the machine to install; an absolute path works too. A package of real songs stays in `local/`.
 `"frame_stats": 1` passes `--frame-stats`, so a song's frame timing is in the log.
 

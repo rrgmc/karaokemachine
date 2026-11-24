@@ -779,7 +779,10 @@ pub enum Shell {
 /// says nothing — it reads the platform's directories and the executable's own folder and logs
 /// none of it — so nothing is lost to the subscriber not existing yet.
 pub fn main(shell: Shell) -> anyhow::Result<()> {
+    #[cfg(not(feature = "webos"))]
     let cli = Cli::parse();
+    #[cfg(feature = "webos")]
+    let cli = Cli::parse_from(crate::webos::launch_args(std::env::args_os()));
 
     let paths = match &cli.data_dir {
         // `data_rooted_at` and NOT `rooted_at`: this flag moves the data, and assets are not data.

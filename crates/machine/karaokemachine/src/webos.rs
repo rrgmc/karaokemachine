@@ -36,6 +36,20 @@ const HEIGHT: i64 = 1080;
 /// The evdev code the remote's Back key arrives as.
 const EVDEV_BACK: u16 = 412;
 
+/// The command line without the launch parameters the launcher hands every application.
+///
+/// webOS starts a native application with its parameters as one JSON object in `argv[1]`, which no
+/// argument of the machine's could accept; dropped, the rest parse as anywhere else.
+pub(crate) fn launch_args(
+    args: impl IntoIterator<Item = std::ffi::OsString>,
+) -> Vec<std::ffi::OsString> {
+    args.into_iter()
+        .enumerate()
+        .filter(|(i, a)| *i != 1 || !a.to_string_lossy().starts_with('{'))
+        .map(|(_, a)| a)
+        .collect()
+}
+
 /// Gives the remote's Back the `AC_BACK` keycode; every other event is passed through.
 pub(crate) fn remap_event(event: Event) -> Event {
     match event {
