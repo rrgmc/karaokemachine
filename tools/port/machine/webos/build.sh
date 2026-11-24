@@ -126,7 +126,9 @@ docker run --rm -v "$(host_path "$PWD/$app"):/app" "$IMAGE" bash -c '
 if [ -n "${KM_WEBOS_PACKAGE:-}" ]; then
   cp "$KM_WEBOS_PACKAGE" "$app/"
 fi
-cp icon/icon-128.png "$app/icon.png"
+# The launcher's two sizes, as LG asks for them, and the icon's own ground behind them.
+cp icon/icon-80.png "$app/icon.png"
+cp icon/icon-130.png "$app/largeIcon.png"
 if [ "$PROBE" = 1 ]; then
   main=km-webos-probe title="KM Probe"
 else
@@ -141,6 +143,8 @@ cat > "$app/appinfo.json" <<EOF
   "main": "$main",
   "title": "$title",
   "icon": "icon.png",
+  "largeIcon": "largeIcon.png",
+  "iconColor": "#2a0e42",
   "requiredACG": []
 }
 EOF

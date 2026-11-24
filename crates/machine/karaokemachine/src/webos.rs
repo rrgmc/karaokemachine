@@ -36,6 +36,43 @@ const HEIGHT: i64 = 1080;
 /// The evdev code the remote's Back key arrives as.
 const EVDEV_BACK: u16 = 412;
 
+/// `RLIMIT_CORE` in Linux's numbering, which ARM shares.
+const RLIMIT_CORE: c_int = 4;
+
+/// `struct rlimit` as the 32-bit glibc symbol `setrlimit` takes it: two `unsigned long`.
+#[repr(C)]
+struct Rlimit {
+    cur: std::ffi::c_ulong,
+    max: std::ffi::c_ulong,
+}
+
+unsafe extern "C" {
+    fn setrlimit(resource: c_int, limit: *const Rlimit) -> c_int;
+}
+
+/// Settles the process before anything else runs: the first call in `cli::main`, while it is
+/// still the only thread.
+///
+/// **No core dumps.** A core of this process is hundreds of megabytes, and the partition Developer
+/// Mode applications share has about 700 MB free (`docs/research/webos.md` §13).
+///
+/// **The two variables the launcher sets, when it has not.** `XDG_RUNTIME_DIR` is where the
+/// compositor's socket is, and `EGL_PLATFORM` tells the set's EGL 1.4 which kind of display it is
+/// handed. Both arrive from the launcher; a start from the developer shell, or a firmware that
+/// sets less, still finds the compositor. moonlight-tv does the same, §14.
+pub(crate) fn prepare_process() {
+    let none = Rlimit { cur: 0, max: 0 };
+    // SAFETY: a plain system call on a struct that outlives it. A failure leaves the limit as it was,
+    // and there is no log yet to say so in.
+    let _ = unsafe { setrlimit(RLIMIT_CORE, &none) };
+    for (key, value) in [("XDG_RUNTIME_DIR", "/tmp/xdg"), ("EGL_PLATFORM", "wayland")] {
+        if std::env::var_os(key).is_none() {
+            // SAFETY: called first in `cli::main`, before any thread exists to read the environment.
+            unsafe { std::env::set_var(key, value) };
+        }
+    }
+}
+
 /// The command line without the launch parameters the launcher hands every application.
 ///
 /// webOS starts a native application with its parameters as one JSON object in `argv[1]`, which no

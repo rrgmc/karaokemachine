@@ -38,12 +38,21 @@ television defaults the Tizen build already has.
   the cross one, so the two packages go to `/opt/alsa-armel` with a `.pc` of their own.
 - **The `.ipk` is repacked in the image.** On Windows `ares-package` writes every file 0666, and the
   set's installer refuses GNU ar's `name/` headers, so the archive is written by hand.
+- **The launcher's icons are `icon/icon-80.png` and `icon/icon-130.png`**, as `icon` and
+  `largeIcon`, on `iconColor` `#2a0e42`, the theme's `icon_ground`.
+- **The release checks it against firmware it has never run on.** The `webos` job in `release.yml`
+  runs `webosbrew-ipk-verify` from `webosbrew/dev-toolbox-cli`, pinned to a release, and writes which
+  webOS versions have every library and symbol the `.ipk` needs into the job summary. A firmware
+  missing one is reported and passes; a package no set would install fails the job.
 
 ## Running it
 
 **`build.sh` packs Karaoke Machine**, `com.rrgmc.karaokemachine_<version>_arm.ipk`, whose main
-executable is the machine. Three things make that work:
+executable is the machine. Four things make that work:
 
+- **The process is settled first.** `webos::prepare_process`, the first call in `cli::main`, turns
+  core dumps off, since one would take a large share of the partition Developer Mode applications
+  share, and fills in `XDG_RUNTIME_DIR=/tmp/xdg` and `EGL_PLATFORM=wayland` if the launcher has not.
 - **The launcher's JSON is dropped.** webOS passes the launch parameters as one JSON object in
   `argv[1]`, which `webos::launch_args` removes before clap sees the command line.
 - **ffmpeg is found through an rpath.** Under `webos`, `build.rs` links the executable with

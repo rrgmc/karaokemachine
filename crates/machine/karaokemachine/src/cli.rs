@@ -782,6 +782,8 @@ pub fn main(shell: Shell) -> anyhow::Result<()> {
     #[cfg(not(feature = "webos"))]
     let cli = Cli::parse();
     #[cfg(feature = "webos")]
+    crate::webos::prepare_process();
+    #[cfg(feature = "webos")]
     let cli = Cli::parse_from(crate::webos::launch_args(std::env::args_os()));
 
     let paths = match &cli.data_dir {
