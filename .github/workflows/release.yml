@@ -635,8 +635,8 @@ jobs:
   # only in Developer Mode, which removes it when the session lapses. See `An LG television carrier
   # is an unofficial download` in docs/decisions/distribution.md.
   #
-  # Everything builds in the km-webos Docker image, as on a desk; ares-package, LG's packer, is the
-  # one host tool, pinned to the version build.sh was proven with.
+  # Everything builds and packs in Docker, as on a desk: build.sh fetches webosbrew's ares-package,
+  # pinned by checksum, so the job needs nothing on the host.
   webos:
     needs: tag
     runs-on: ubuntu-latest
@@ -645,8 +645,6 @@ jobs:
       - uses: actions/checkout@v7
         with:
           ref: ${{ env.TAG }}
-
-      - run: npm install -g @webos-tools/cli@3.2.6
 
       - uses: actions/cache@v6
         with:

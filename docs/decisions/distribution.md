@@ -1616,7 +1616,7 @@ is the only install that does not expire, and its route for native code is LG's 
 webOS 26 and later. Taking that is a product decision of its own.
 
 **CI builds it like any other carrier**, in a `webos` job: everything in the km-webos Docker image,
-as on a desk, and LG's `ares-package` pinned to the version `build.sh` was proven with. The `.ipk`
+as on a desk, and packed by webosbrew's `ares-package`, which `build.sh` fetches by checksum. The `.ipk`
 carries the machine as its main executable, the assets, and ffmpeg at the pin in `lib/`, since the
 set's own cannot decode H.264. [`docs/architecture/webos.md`](../architecture/webos.md) has the
 rest. **How to install one belongs in [the manual](../manual/lg-tv.md).**

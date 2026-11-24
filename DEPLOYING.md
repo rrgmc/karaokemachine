@@ -443,7 +443,8 @@ removes it when the session lapses. Tried on a 2020 set running webOS 5;
 ### Once per machine
 
 - **Docker**, for everything that is built.
-- **LG's webOS tools**, `npm install -g @webos-tools/cli`, for `ares-package` and `ares-install`.
+- **LG's webOS tools**, `npm install -g @webos-tools/cli`, for `ares-install`. `build.sh` packs
+  the `.ipk` without them.
 - **Developer Mode on the set**, from the LG Content Store, with Key Server on. Add the set with
   `ares-setup-device` (port 9922, user `prisoner`), then `ares-novacom --device <name> --getkey`
   with the passphrase Developer Mode shows.

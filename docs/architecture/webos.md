@@ -16,6 +16,7 @@ television defaults the Tizen build already has.
 | The window | SDL3's own, through `xdg_wm_base` | the compositor has no `xdg_wm_base`. SDL3 makes a custom-role window, and `webos::create_window` gives its `wl_surface` a `wl_shell` toplevel and a `wl_webos_shell_surface` with the application id, fullscreen asked. Both interfaces are reached through `dlopen`, as SDL reaches libwayland |
 | SDL3 | built from source by `sdl3-sys` | prebuilt and patched in the `km-webos` image. `armv7-unknown-linux-gnueabi` selects the prebuilt in `km-display` and `karaokemachine`, the same split the Tizen build uses. `sdl3-webos.patch` makes two libwayland 1.18 symbols optional, since the set's libwayland is older |
 | No screen | logged, and the machine goes on without one | logged, and also shown as a system notification by `webos::explain_no_screen`, sent through the set's own `libhelpers` to `com.webos.notification/createToast`. On the `k3lp` and `k5lp` boards with `/dev/rtkmem` unreadable, the sign of the Developer Mode setup a webOS 24 update can leave unfinished, it names the fix: Developer Mode off, a restart, and on again |
+| The machine's name | `KaraokeMachine` until the owner renames it | on a fresh install, the name the owner gave the television, read by `webos::television_name` from `com.webos.settingsservice` through `libhelpers`; `KaraokeMachine` where the set will not say. A rename afterwards stands |
 | Back | `Escape` or `AC_BACK` | evdev 412 with no SDL keycode. `webos::remap_event` turns it into `AC_BACK` before the display sees it |
 | Fullscreen, window stack, pointer, key hints, file manager, browser | as configured | fixed or absent, through the constants `display.rs` already gates on `tizen` |
 | Number pad, re-pitching recordings | off, on | on, off, as on the other televisions |
@@ -37,8 +38,12 @@ television defaults the Tizen build already has.
   machine names in `DT_NEEDED` into the `.ipk`'s `lib/`.
 - **ALSA for cpal is unpacked, not installed.** Multiarch would pull an armel libc that conflicts with
   the cross one, so the two packages go to `/opt/alsa-armel` with a `.pc` of their own.
-- **The `.ipk` is repacked in the image.** On Windows `ares-package` writes every file 0666, and the
-  set's installer refuses GNU ar's `name/` headers, so the archive is written by hand.
+- **The `.ipk` is packed in a container by webosbrew's `ares-package`**, the Rust one from
+  `ares-cli-rs`, fetched by checksum into `local/webos/`. It writes the plain `ar` headers the set's
+  installer takes, every directory 0777 and group 5000, and each file with its own mode, which the
+  copy into the container makes real. Its binaries want glibc 2.34, so the container is
+  `ubuntu:24.04` rather than the km-webos image. LG's npm packer on Windows wrote every file 0666,
+  and the archive used to be rewritten by hand.
 - **The launcher's icons are `icon/icon-80.png` and `icon/icon-130.png`**, as `icon` and
   `largeIcon`, on `iconColor` `#2a0e42`, the theme's `icon_ground`.
 - **The release checks it against firmware it has never run on.** The `webos` job in `release.yml`
