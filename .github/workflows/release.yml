@@ -656,6 +656,21 @@ jobs:
 
       - run: bash tools/port/machine/webos/build.sh
 
+      # Which webOS releases the .ipk loads on, checked against each firmware's libraries and
+      # symbols rather than on a set; only webOS 5 has been run. The report goes to the job summary.
+      # Exit 1 is "some firmware lacks a symbol", expected of the oldest releases, so it reports and
+      # passes; anything above it means the package no set installs or the check did not run.
+      - name: webOS compatibility
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download v20261017-2d5a7b6 --repo webosbrew/dev-toolbox-cli --dir "$RUNNER_TEMP/toolbox" \
+            --pattern 'webosbrew-toolbox-ipk-verify_*_amd64.deb' --pattern 'webosbrew-toolbox-fw-symbols_*_amd64.deb'
+          sudo apt-get install -yq "$RUNNER_TEMP"/toolbox/*.deb
+          rc=0
+          webosbrew-ipk-verify -f markdown -d -o "$GITHUB_STEP_SUMMARY" local/webos/*.ipk || rc=$?
+          [ "$rc" -le 1 ]
+
       - uses: actions/upload-artifact@v7
         with:
           name: webos

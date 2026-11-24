@@ -200,7 +200,10 @@ const MAGENTA_LIFT: f32 = 0.12;
 /// theme directory. An exact 1024 render rather than an upscale of the 512, which costs nothing
 /// worth counting: everything in this file is signed distance functions over a unit square, so a
 /// bigger tile is a bigger drawing and not a bigger copy.
-const TILE_SIZES: &[u32] = &[16, 32, 48, 64, 128, 256, 512, 1024];
+///
+/// **80 and 130 are an LG television's launcher**, the `icon` and `largeIcon` of the webOS
+/// `appinfo.json` at the sizes LG asks for, copied in by `tools/port/machine/webos/build.sh`.
+const TILE_SIZES: &[u32] = &[16, 32, 48, 64, 80, 128, 130, 256, 512, 1024];
 
 /// The sizes the package builder's icon is rendered at as loose PNGs.
 ///
