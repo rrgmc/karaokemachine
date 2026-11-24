@@ -22,12 +22,10 @@ the portable copies and the remote on its own.
 
 ## What changed
 
-- **Install packages takes several packages at once**, from the Menu on Windows, macOS, Android,
-  iPhone and iPad.
-- **The Songs tab sets the folder linked packages play from.**
-- **The package builder leaves out a copied song** instead of stopping the build, and the simple
-  builder can cancel a build.
-- **A song number typed into the remote's search finds the song.**
+- **The machine runs as an app on a Samsung television**, and **unofficially on an LG television**.
+- **A remote's media keys control the song**: pause, stop, skip, restart, and ten seconds either way.
+- **A newly installed app downloads the recommended instrument bank** the first time it starts.
+- **A song sung earlier tonight no longer brings a question on the remote.**
 
 ## Every file
 
