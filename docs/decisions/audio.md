@@ -233,6 +233,14 @@ is *late*, not clipped. Song time only advances while the device's callback runs
 with the music rather than a second ahead of it. Queuing a song sends the hint that starts the device
 coming up, so most of that second is spent while somebody is still choosing.
 
+**On a Samsung television the machine opens the device at start and never hands it back**, whatever
+`audio.idle_release_secs` says. There the machine *is* the television, so nothing else is waiting for
+the device. **And its silence is dithered**: one step of triangular noise, 96 dB under full scale,
+so the line never carries exact digital zeros. Through a receiver, every song lost its first two or
+three seconds, with the words moving and nothing heard, until both were in place. Unlike Bluetooth's
+late start, this was *clipped*: the music joined mid-song, in step with the words. The two were
+tried together on 2026-11-24, so whether either alone would do is not known.
+
 ## A song follows the output device
 
 **A song that loses its output device carries on from the same position on the next one.** Headphones

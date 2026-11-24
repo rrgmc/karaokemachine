@@ -188,6 +188,11 @@ covered the screen above the host's own. It took three things:
 | SDL3's ALSA driver | Opens the `default` device with 1024-frame periods, then the first write fails with `EBADFD`. Silent. The platform's audio server holds the hardware |
 | `libcapi-media-audio-io`, opened with `dlopen` | `audio_out_create_new(48000, stereo, S16_LE)` and `audio_out_prepare` succeed with no privilege declared. A 440 Hz tone was heard from the set's speakers. Writes were consumed in real time, 10.1 s of audio in 10.0 s. The device buffer is 9,600 bytes, 50 ms |
 
+**[measured]** Through a receiver, a song started from silence lost its first two or three seconds.
+The machine had written them, so the words moved while nothing was heard, and the music joined in
+step. The stream held open from the start, with dithered silence instead of zeros, plays every song
+from its first note. Which link slept, the television's output or the receiver, was not isolated.
+
 **[inferred]** cpal's ALSA backend opens the same device, so it should fail the same way. A Tizen
 build of `km-audio` needs an output backend that pushes PCM through `audio_out_write`. That is a
 small blocking-write loop, and its 50 ms buffer is in the range the machine already works with.
