@@ -1020,6 +1020,12 @@ already there. It would be an argument for resume too, but not one about any par
 has been carried out. The decision is
 [`Offering the recommended bank at install time`](../decisions/distribution.md#offering-the-recommended-bank-at-install-time).
 
+**The app carriers write it themselves.** `firstrun::request_on_a_fresh_install` runs in
+`run_on_phone` and `km_tizen_run`, before `Settings::load`. A missing `settings.json` is what makes a
+start the first one, and `load` writes that file, so the request is written once per install. The
+decision is
+[`An app requests the recommended bank on its first start`](../decisions/distribution.md#an-app-requests-the-recommended-bank-on-its-first-start).
+
 | | |
 |---|---|
 | Where | `config_dir` — `%APPDATA%\karaokemachine\config` on Windows, `~/Library/Application Support/karaokemachine` on macOS |

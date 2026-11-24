@@ -318,9 +318,11 @@ impl Machine {
                     attempt = attempted.attempts,
                     "fetching the SoundFont a setup program was asked for"
                 );
+                // The license too, because on an app carrier this line is the only place the
+                // terms are printed before the bank arrives.
                 self.notify_first_run(crate::firstrun::Notice::Working(format!(
-                    "downloading {} — {}",
-                    row.name, row.size
+                    "downloading {} — {} — {}",
+                    row.name, row.size, row.license
                 )));
             }
             Err(error) => {
