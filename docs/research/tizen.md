@@ -522,12 +522,12 @@ that room, so nothing has to be kept in time across two boxes.
 
 | | Samsung, Tizen | LG, webOS |
 |---|---|---|
-| Native ARM code from a third party | a `.tpk` with a .NET host, Public certificate | unofficial, and installs on a stock television |
-| SDL | SDL3's Wayland driver draws into the host's window, measured on Tizen 10, with two patches | SDL2 has a community fork; SDL3 has nothing |
+| Native ARM code from a third party | a `.tpk` with a .NET host, Public certificate | an `.ipk` with a Flutter host and a C++ plugin, LG's own SDK, from webOS 26 Re:New; or a bare executable, unofficial, through Developer Mode |
+| SDL | SDL3's Wayland driver draws into the host's window, measured on Tizen 10, with two patches | SDL2 has a community fork; SDL3 has nothing. Whether the Flutter host lends its surface is unknown |
 | The machine's HTTP API | reachable from the network, measured on Tizen 10 | ordinary sockets |
 | Reading songs off a stick | unmeasured for a native package | a directory walk, subject to the jailer |
 | Sideload lifetime | seven days reported; effect on an installed package unknown | 1000 hours |
-| Sound | Tizen's `audio_io`, measured; ALSA refused | unmeasured |
+| Sound | Tizen's `audio_io`, measured; ALSA refused | unmeasured; LG's own Flutter plugin opens ALSA |
 | Frame pacing | the host's main loop, 60 fps and smooth on screen, measured | unmeasured |
 | The remote's keys | arrows, OK, Back and numbers reach SDL3 in a window of its own, and the host's window beside a transparent SDL subsurface, measured | unmeasured |
 | Picture size | 1080p; a 4K buffer drops to 19 fps, measured | unmeasured |

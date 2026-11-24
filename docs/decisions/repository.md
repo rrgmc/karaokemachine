@@ -445,6 +445,13 @@ Three things keep that inside the four constraints:
   [`distribution.md`](distribution.md#what-setup-fetches) is unchanged, and that is the point of doing
   it this way rather than downloading during the install.
 
+**On the four app carriers, installing the app is the asking.** Android, Meta Quest, iOS and a
+Samsung television have no setup program to print an offer. The machine writes the same request on
+its first start there, and prints the bank's size and terms on the television as the download
+begins. That is a narrowing of "nothing is fetched unasked", accepted in
+[`An app requests the recommended bank on its first start`](distribution.md#an-app-requests-the-recommended-bank-on-its-first-start).
+The four constraints and the three-start limit are unchanged.
+
 **An owner's own choice wins over the tick box**, which is the other half of "nothing is fetched
 unasked". If `audio.soundfont` is already set, the request is dropped unread. So a repair or upgrade
 install cannot talk over a bank somebody chose.
