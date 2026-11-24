@@ -528,6 +528,7 @@ tools/platform/windows/installer-remote.sh  # ...and the remote alone, about 5 M
 tools/platform/macos/installer-remote.sh    #   the same on macOS: KM Remote in /Applications, nothing else
 task build:ios RELEASE=1 DEVICE=1 IPA=1         # an unsigned .ipa: the machine, for sideloading
 task build:ios:remote RELEASE=1 DEVICE=1 IPA=1  #   ...and the offline remote
+bash tools/port/machine/tizen/package.sh    # the .tpk for a Samsung television, test-signed; Docker and .NET
 bash tools/dist/release.sh           # gather the carriers into dist/release/<version>/ under release names
 bash tools/dist/release.sh --upload  #   ...and put them, and the body, on the draft GitHub release
 bash tools/dist/release.sh --platforms windows,linux,android,quest  # ...the carriers one machine builds
@@ -2207,6 +2208,7 @@ task dist NO_VIDEO=1  ZIP=1  VERBOSE=1
 | `tools/platform/macos/installer-remote.sh` | the same as a `.pkg` — must run on macOS |
 | `tools/port/machine/ios/build.sh --ipa` | the machine as an unsigned `.ipa` — must run on macOS |
 | `tools/port/remote/ios/build.sh --ipa` | the offline remote as one |
+| `tools/port/machine/tizen/package.sh` | the machine as a `.tpk` for a Samsung television, test-signed for Apps2Samsung to sign again |
 
 - **The `-no-video` marker goes on the declined build**, because the plain name should name what the
   plain command produces. The `.deb` uses a `no-video/` subfolder instead, both builds having the same
@@ -2337,6 +2339,7 @@ of the manifest. Then it builds `ports/machine/tizen` into a `.tpk` that carries
 script from the `Samsung/Tizen.NET` repository installs it. The package is signed with the
 workload's test certificate, and Apps2Samsung signs it again for the set it installs on. **The SDK
 warns that `net6.0` is out of support.** That is the framework the sets run, so the warning stays.
+A release builds the same `.tpk` in the release workflow's `tizen` job, with the workload pinned.
 
 **The host lint never sees the Tizen code**, because the `tizen` feature calls into libraries only
 the set has. `--clippy` is its lint: `cargo clippy` for the triple in the image, with and without
