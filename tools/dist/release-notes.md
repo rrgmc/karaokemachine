@@ -49,7 +49,7 @@ the portable copies and the remote on its own.
 | `karaokemachine-@VERSION@-quest.apk` | The machine on a Meta Quest, on a screen that hangs in the room with the room still behind it. It installs beside the Android APK rather than over it. |
 | `karaokemachine-@VERSION@-ios-unsigned.ipa` | The machine on an iPhone or iPad. Sign it before installing it; see **Before you install** below. |
 | `km-remote-@VERSION@-ios-unsigned.ipa` | The remote on an iPhone or iPad. Sign it the same way. |
-| `karaokemachine-@VERSION@-tizen.tpk` | The machine as an app on a Samsung television. It has run on a 2025 television on Tizen 10. Apps2Samsung signs it for your television and installs it; see **Before you install** below. |
+| `karaokemachine-@VERSION@-tizen.tpk` | The machine as an app on a Samsung television. It has run on a 2025 television on Tizen 10. [Apps2Samsung](https://github.com/Apps2Samsung/Apps2Samsung) signs it for your television and installs it; see **Before you install** below. |
 | `karaokemachine-@VERSION@-webos.ipk` | The machine as an app on an LG television, **unofficially**. It has run on a 2020 television on webOS 5. It installs only in Developer Mode, which removes it when the session lapses; see **Before you install** below. |
 
 `@CAROLS@` is a song package and a separate download. It holds sixteen public-domain Christmas
@@ -73,7 +73,7 @@ an empty catalog.
   [On an iPhone or an iPad](https://rrgmc.github.io/karaokemachine/docs/ios.html).
 <!-- /platform -->
 <!-- platform: tizen -->
-- **The `.tpk` is signed for no particular television**, and Apps2Samsung signs it for yours as it
+- **The `.tpk` is signed for no particular television**, and [Apps2Samsung](https://github.com/Apps2Samsung/Apps2Samsung) signs it for yours as it
   installs it, with a free Samsung account and the television in Developer mode. The manual has the
   steps in
   [On a Samsung television](https://rrgmc.github.io/karaokemachine/docs/samsung-tv.html).
