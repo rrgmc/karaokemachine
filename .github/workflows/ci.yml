@@ -69,15 +69,22 @@ jobs:
   # `tools/dev/check-ci-paths.sh` reads `code` and `read` from here and fails when Rust names a file
   # that neither would build. It wants one pattern a line under `code`, and one brace list under
   # `read`, with no comment between the patterns.
+  #
+  # **A release's version bump builds nothing.** When every code file is a root or assets manifest
+  # or lockfile, and every line changed in them is the workspace version moving, `bump` says so and
+  # `code`, `assets` and `deps` are all false. The push to `master` and the tag build it all anyway.
   changes:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
-      code: ${{ steps.filter.outputs.code == 'true' || steps.filter.outputs.read == 'true' || github.event_name != 'pull_request' }}
-      assets: ${{ steps.filter.outputs.assets == 'true' || github.event_name != 'pull_request' }}
-      deps: ${{ steps.filter.outputs.deps == 'true' || github.event_name != 'pull_request' }}
+      code: ${{ github.event_name != 'pull_request' || (steps.filter.outputs.code == 'true' || steps.filter.outputs.read == 'true') && steps.bump.outputs.only != 'true' }}
+      assets: ${{ github.event_name != 'pull_request' || steps.filter.outputs.assets == 'true' && steps.bump.outputs.only != 'true' }}
+      deps: ${{ github.event_name != 'pull_request' || steps.filter.outputs.deps == 'true' && steps.bump.outputs.only != 'true' }}
     steps:
+      # Two commits: on a pull request HEAD is the merge into the base, and `HEAD^1` is the base.
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 2
       - uses: dorny/paths-filter@v4
         id: filter
         if: github.event_name == 'pull_request'
@@ -85,9 +92,11 @@ jobs:
           # `every`: a file counts for a filter only when it matches all of that filter's patterns,
           # which is what makes the exclusions under `code` mean "none of these".
           predicate-quantifier: every
+          list-files: json
           filters: |
             code:
               - '!**/*.md'
+              - '!.github/ISSUE_TEMPLATE/**'
               - '!docs/**'
               - '!site/**'
               - '!ports/**'
@@ -98,11 +107,24 @@ jobs:
               - '!tools/setup/**'
               - '!Taskfile.yml'
             read:
-              - '{tools/dev/km-*/**,tools/dev/remote/**,tools/dist/portable-settings.example.json,tools/platform/linux/apt-deps.sh,tools/platform/linux/grub-appliance-edit.sh}'
+              - '{tools/dev/ci-version-bump.sh,tools/dev/km-*/**,tools/dev/remote/**,tools/dist/portable-settings.example.json,tools/platform/linux/apt-deps.sh,tools/platform/linux/grub-appliance-edit.sh}'
             deps:
               - '{**/Cargo.toml,**/Cargo.lock,deny.toml,.cargo/**,rust-toolchain.toml,.github/workflows/ci.yml}'
             assets:
               - '{tools/cmd/assets/**,rust-toolchain.toml,.github/workflows/ci.yml}'
+
+      # Skipped when `read` moved: a change to this script, or to anything a build reads from a
+      # skipped area, builds whatever else it carries. The file list is JSON, never interpolated.
+      - name: A version bump and nothing else
+        id: bump
+        if: steps.filter.outputs.code == 'true' && steps.filter.outputs.read != 'true'
+        env:
+          CODE_FILES: ${{ steps.filter.outputs.code_files }}
+        run: |
+          mapfile -t files < <(jq -r '.[]' <<< "$CODE_FILES")
+          only=$(bash tools/dev/ci-version-bump.sh HEAD^1 HEAD "${files[@]}")
+          echo "only=$only" >> "$GITHUB_OUTPUT"
+          echo "A version bump and nothing else: $only"
 
   # The conventions `task check` runs locally, made unskippable. They read the same files on every
   # platform, so they run once.
