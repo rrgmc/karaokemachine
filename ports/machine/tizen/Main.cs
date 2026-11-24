@@ -29,9 +29,6 @@ namespace KaraokeMachine
         // Kept in a static so the delegate the machine calls back into is never collected.
         static readonly LogFn NativeLog = p => Log.Info(LogTag, Marshal.PtrToStringUTF8(p) ?? "");
 
-        [DllImport("libdali2-csharp-binder.so", EntryPoint = "CSharp_Dali_GetNativeWindowHandler")]
-        static extern IntPtr DaliNativeWindow(HandleRef window);
-
         protected override void OnCreate()
         {
             base.OnCreate();
@@ -91,21 +88,17 @@ namespace KaraokeMachine
             });
         }
 
-        // The Ecore_Wl2_Window* behind the NUI window. NUI keeps the getter internal, so its handle
-        // is read by reflection and handed to DALi's own C binding.
+        // The Ecore_Wl2_Window* behind the NUI window, from NUI's own getter. It is internal in every
+        // TizenFX from API 8 on, so it is called by reflection, as OmegaTube does. The public route,
+        // Tizen.Common.IWindowProvider.WindowHandle, arrived after API 10 and returns the same thing.
         static IntPtr NativeWindow()
         {
-            const BindingFlags any = BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public;
-            object cptr = null;
-            for (Type t = typeof(Window); t != null && cptr == null; t = t.BaseType)
-            {
-                PropertyInfo prop = t.GetProperty("SwigCPtr", any);
-                if (prop != null) cptr = prop.GetValue(Window.Instance);
-                FieldInfo field = t.GetField("swigCPtr", any);
-                if (cptr == null && field != null) cptr = field.GetValue(Window.Instance);
-            }
-            if (cptr == null) throw new InvalidOperationException("NUI's Window has no SwigCPtr");
-            return DaliNativeWindow((HandleRef)cptr);
+            MethodInfo getter = typeof(Window).GetMethod("GetNativeWindowHandler",
+                BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
+            if (getter == null) throw new InvalidOperationException("NUI's Window has no GetNativeWindowHandler");
+            IntPtr handle = (IntPtr)getter.Invoke(Window.Instance, null);
+            if (handle == IntPtr.Zero) throw new InvalidOperationException("NUI's Window has no native window");
+            return handle;
         }
 
         static void Main(string[] args)
