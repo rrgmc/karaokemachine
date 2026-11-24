@@ -11,6 +11,17 @@ Entries are written for somebody who has the machine. Why any of it is the way i
 
 ## [Unreleased]
 
+### Added
+
+- **The machine runs as an app on a Samsung television.** Download
+  `karaokemachine-<version>-tizen.tpk` and install it with Apps2Samsung, which signs it for your
+  television. Every kind of song plays, phones reach it as on any other machine, and songs are
+  typed on its own number pad. It has run on a 2025 television on Tizen 10. The manual's
+  *On a Samsung television* has the steps.
+- **A remote's media keys control the song.** Play/Pause pauses and resumes, Play and Pause do only
+  what they say, Stop stops, Next skips, Previous starts the song again, and Rewind and
+  Fast-forward move ten seconds. This works with a keyboard's media keys too, and on Android TV.
+
 ### Fixed
 
 - **A song no longer starts its first line with its key.** Some files open their words with a key
