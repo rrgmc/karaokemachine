@@ -4,7 +4,8 @@
 // The machine runs on this application's UI thread and does not return until it ends: each frame
 // it lets Ecore do its work (docs/architecture/tizen.md, the nested loop). It withholds Back from
 // DALi, and when it stops it ends this application with ui_app_exit. So once km_tizen_run is
-// called, nothing here runs again except the log callback.
+// called, nothing here runs again except the log callback and OnPause and OnResume, which the
+// Ecore iterate inside the machine's loop dispatches.
 
 using System;
 using System.Reflection;
@@ -26,6 +27,9 @@ namespace KaraokeMachine
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         delegate int RunFn(IntPtr ecoreWindow, int width, int height, IntPtr dataDir, IntPtr assetDir, LogFn log);
 
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        delegate void SetVisibleFn(int visible);
+
         // Kept in a static so the delegate the machine calls back into is never collected.
         static readonly LogFn NativeLog = p => Log.Info(LogTag, Marshal.PtrToStringUTF8(p) ?? "");
 
@@ -34,6 +38,30 @@ namespace KaraokeMachine
         Timer settle, fallback;
         TextLabel starting;
         bool started;
+        // The machine's km_tizen_set_visible, once the library is loaded, and whether the app is
+        // paused now, so a pause that came before the library is passed on when it loads.
+        SetVisibleFn setVisible;
+        bool paused;
+
+        // Tizen pauses the app when none of its windows can be seen: Home, another input, an app
+        // over it. The machine then stops drawing and pauses a playing song, as on Android. These
+        // run on the UI thread, from inside the Ecore iterate the machine's frame loop turns, so they
+        // only store a flag in the machine and return. See docs/architecture/tizen.md, Hidden.
+        protected override void OnPause()
+        {
+            base.OnPause();
+            paused = true;
+            Log.Info(LogTag, "paused");
+            setVisible?.Invoke(0);
+        }
+
+        protected override void OnResume()
+        {
+            base.OnResume();
+            paused = false;
+            Log.Info(LogTag, "resumed");
+            setVisible?.Invoke(1);
+        }
 
         protected override void OnCreate()
         {
@@ -85,6 +113,9 @@ namespace KaraokeMachine
                 string assets = System.IO.Path.Combine(dirs.Resource, "assets");
                 IntPtr lib = NativeLibrary.Load(System.IO.Path.GetFullPath(library));
                 var run = Marshal.GetDelegateForFunctionPointer<RunFn>(NativeLibrary.GetExport(lib, "km_tizen_run"));
+                setVisible = Marshal.GetDelegateForFunctionPointer<SetVisibleFn>(NativeLibrary.GetExport(lib, "km_tizen_set_visible"));
+                if (paused)
+                    setVisible(0);
                 Size2D size = Window.Instance.WindowSize;
                 IntPtr data = Marshal.StringToCoTaskMemUTF8(dirs.Data);
                 IntPtr res = Marshal.StringToCoTaskMemUTF8(assets);

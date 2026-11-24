@@ -11,6 +11,10 @@
 //! - **The opaque region is cleared while a system overlay has focus**, and set again a frame after
 //!   focus returns, or focus never returns.
 //! - **Each frame waits in Ecore** until an animator ticks, so the host's UI thread keeps turning.
+//! - **Nothing is drawn while the application is hidden**, by Home or another input, and the machine
+//!   is told it has left the screen. The host's pause and resume say so through
+//!   [`report_visible`], and Ecore's visibility event says it too, in case one of them never comes.
+//!   Unmeasured on the set: `docs/research/tizen.md` §9, item 7.
 //! - **The window is never destroyed and SDL never quit.** Either kills the host. The ending is the
 //!   subsurface destroyed and a null buffer committed, with SDL's window kept.
 //!
@@ -267,6 +271,47 @@ static TICK: AtomicBool = AtomicBool::new(false);
 static FOCUS: AtomicI8 = AtomicI8::new(0);
 /// Ecore saw the process asked to exit.
 static QUIT: AtomicBool = AtomicBool::new(false);
+/// The newest word on whether the application is on screen: 1 shown, -1 hidden, 0 none since the
+/// last frame. Set by [`report_visible`], taken by [`Frames::wait`].
+static VISIBLE: AtomicI8 = AtomicI8::new(0);
+
+/// Records that the application was hidden or shown again. `source` names who said so, for the log.
+///
+/// Called on the host's UI thread, from inside Ecore's iterate, by the host's pause and resume
+/// through `km_tizen_set_visible` and by Ecore's visibility event. Both may report one change, and
+/// the second is a no-op where it reaches the machine. Only stores, so it is safe before the frame
+/// loop exists and after it has gone.
+pub(crate) fn report_visible(visible: bool, source: &str) {
+    VISIBLE.store(if visible { 1 } else { -1 }, Ordering::Release);
+    tracing::info!(
+        visible,
+        source,
+        "the set says the application is {}",
+        if visible { "shown" } else { "hidden" }
+    );
+}
+
+/// Upstream EFL's `struct _Ecore_Wl2_Event_Window_Visibility_Change`, which the M1 probe read on
+/// the set: a window id, then whether it is fully obscured.
+#[repr(C)]
+struct VisibilityChange {
+    win: u32,
+    fully_obscured: c_int,
+}
+
+#[expect(
+    unsafe_code,
+    reason = "reading Ecore's Ecore_Wl2_Event_Window_Visibility_Change"
+)]
+extern "C" fn on_visibility(_: *mut c_void, _: c_int, event: *mut c_void) -> EinaBool {
+    // SAFETY: Ecore passes the event it was registered for, alive for the callback; read only.
+    let obscured = unsafe { event.cast::<VisibilityChange>().as_ref() }.map(|v| v.fully_obscured);
+    match obscured {
+        Some(obscured) => report_visible(obscured == 0, "ecore visibility"),
+        None => tracing::warn!("a visibility event with nothing in it"),
+    }
+    CALLBACK_PASS_ON
+}
 
 extern "C" fn on_animator(_: *mut c_void) -> EinaBool {
     TICK.store(true, Ordering::Release);
@@ -444,8 +489,12 @@ pub(crate) struct Frames {
     animator: *mut c_void,
     handlers: Vec<*mut c_void>,
     focus_in: bool,
+    /// The application is on screen. While it is not, the display loop draws nothing.
+    visible: bool,
+    /// A change of [`Self::visible`] the display loop has not taken yet.
+    visibility_change: Option<bool>,
     /// The presented-frame count at which the full opaque region is declared. `None` while it is
-    /// declared, or while focus is out.
+    /// declared, or while focus is out or the application hidden.
     opaque_at: Option<u64>,
     presented: u64,
     wayland_error: bool,
@@ -590,10 +639,17 @@ impl Frames {
             tracing::warn!("Ecore_Wl2's focus events are missing; an overlay may keep the keys");
         }
         let signal_exit = event_type(core, c"ECORE_EVENT_SIGNAL_EXIT");
+        let visibility = event_type(ewl, c"ECORE_WL2_EVENT_WINDOW_VISIBILITY_CHANGE");
+        if visibility.is_none() {
+            tracing::warn!(
+                "Ecore_Wl2's visibility event is missing; only the host's pause says so"
+            );
+        }
 
         TICK.store(false, Ordering::Release);
         FOCUS.store(0, Ordering::Release);
         QUIT.store(false, Ordering::Release);
+        // Not cleared: a pause that came while the machine was starting still counts.
         let mut handlers = Vec::new();
         // SAFETY: Ecore's documented calls, on its own thread, with static callbacks.
         let animator = unsafe {
@@ -608,6 +664,9 @@ impl Frames {
             }
             if let Some(t) = signal_exit {
                 handlers.push(handler_add(t, on_signal_exit, std::ptr::null()));
+            }
+            if let Some(t) = visibility {
+                handlers.push(handler_add(t, on_visibility, std::ptr::null()));
             }
             frametime_set(1.0 / 60.0);
             animator_add(on_animator, std::ptr::null())
@@ -631,6 +690,8 @@ impl Frames {
             animator,
             handlers,
             focus_in: true,
+            visible: true,
+            visibility_change: None,
             opaque_at: Some(1),
             presented: 0,
             wayland_error: false,
@@ -652,22 +713,58 @@ impl Frames {
                 break;
             }
         }
+        // Info rather than debug, focus and visibility both: which of them an overlay, Home and a
+        // change of input each raise is still to be read off the set, and one run's log should say.
         match FOCUS.swap(0, Ordering::AcqRel) {
             -1 if self.focus_in => {
                 // An overlay has focus. With the region cleared, the compositor gives it back.
                 self.focus_in = false;
                 self.opaque_at = None;
                 self.set_opaque(false);
-                tracing::debug!("focus out: the opaque region is cleared");
+                tracing::info!("focus out: the opaque region is cleared");
             }
             1 if !self.focus_in => {
                 self.focus_in = true;
-                self.opaque_at = Some(self.presented + 1);
-                tracing::debug!("focus in: the opaque region returns a frame from now");
+                if self.visible {
+                    self.opaque_at = Some(self.presented + 1);
+                }
+                tracing::info!("focus in: the opaque region returns a frame from now");
+            }
+            _ => {}
+        }
+        match VISIBLE.swap(0, Ordering::AcqRel) {
+            -1 if self.visible => {
+                // Hidden: nothing is drawn until the application is shown again, so the region goes
+                // now rather than with a present that will not come.
+                self.visible = false;
+                self.visibility_change = Some(false);
+                self.opaque_at = None;
+                self.set_opaque(false);
+                tracing::info!("hidden: drawing stops, and the machine leaves the screen");
+            }
+            1 if !self.visible => {
+                self.visible = true;
+                self.visibility_change = Some(true);
+                if self.focus_in {
+                    self.opaque_at = Some(self.presented + 1);
+                }
+                tracing::info!("shown: drawing resumes, opaque again a frame from now");
             }
             _ => {}
         }
         true
+    }
+
+    /// Whether the application is on screen. While it is not, the display loop draws nothing:
+    /// presenting into a surface the compositor is not showing could wait in EGL for a buffer that
+    /// is never released, and a UI thread stopped for twenty seconds is one Tizen closes.
+    pub(crate) fn visible(&self) -> bool {
+        self.visible
+    }
+
+    /// A change of [`Self::visible`] since this was last asked, for the machine's foreground flag.
+    pub(crate) fn take_visibility_change(&mut self) -> Option<bool> {
+        self.visibility_change.take()
     }
 
     /// After each present: declares the window opaque once its first frame is up, and again a frame
@@ -678,7 +775,7 @@ impl Frames {
     )]
     pub(crate) fn presented(&mut self) {
         self.presented += 1;
-        if self.focus_in && self.opaque_at.is_some_and(|at| self.presented >= at) {
+        if self.focus_in && self.visible && self.opaque_at.is_some_and(|at| self.presented >= at) {
             self.opaque_at = None;
             self.set_opaque(true);
         }

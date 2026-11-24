@@ -601,8 +601,10 @@ Build nothing yet. If a native Samsung machine is wanted, these measurements dec
 6. ~~The application ending its process when the singer leaves it, with SDL3 loaded.~~ **Passed** on
    2026-11-23, with SDL's window created transparent; see §3.
 7. The machine sent to the background, by Home or a change of input: whether its sound stops,
-   whether the set ends it, and whether it draws again on return. The port handles a system overlay
-   taking focus, and nothing else of the kind. moonlight-tizen stops its stream when hidden; see §1.
+   whether the set ends it, and whether it draws again on return. moonlight-tizen stops its stream
+   when hidden; see §1. **Built, not yet run on the set**: the port pauses the song and stops drawing
+   on the host's pause or Ecore's visibility event (`docs/architecture/tizen.md`, Hidden). The run
+   should also say whether the set's menu and the number pad each count as hidden.
 
 A platform decision belongs in `docs/decisions/` after them, not before.
 

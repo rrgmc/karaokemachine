@@ -1,6 +1,6 @@
 //! The exported entry points, the folders and the log.
 //!
-//! **Two exports and one body.** `km_probe_run` has the probe app's signature, so M2 to M4 load the
+//! **Two exports and one body**, and a third, `km_tizen_set_visible`, the host's pause and resume. `km_probe_run` has the probe app's signature, so M2 to M4 load the
 //! machine over the probe app's port the way M1's probes were loaded; its argument string carries
 //! the data folder and the rest. `km_tizen_run` is what the app's own .NET host in
 //! `ports/machine/tizen` calls, with the data folder and the package's `res/assets` as arguments of
@@ -118,6 +118,29 @@ pub unsafe extern "C" fn km_tizen_run(
         // `None` is the address settings hold, as on every other platform.
         start(ecore_window.addr(), width, height, args, assets, None, log)
     })
+}
+
+/// The host's pause (`visible` 0) and resume (`visible` 1), from NUI's `OnPause` and `OnResume`.
+///
+/// Tizen pauses an application when none of its windows can be seen: Home, another input, an app
+/// launched over it. The machine then stops drawing and leaves the screen, which pauses a playing
+/// song as on Android. Ecore's visibility event reports the same thing, so either alone is enough.
+///
+/// Called on the host's UI thread, normally from inside Ecore's iterate while [`km_tizen_run`] is
+/// running. It only stores a flag and logs, so a call before the machine starts or after it ends
+/// does nothing harmful.
+#[expect(
+    unsafe_code,
+    reason = "exporting the C symbol the .NET host calls on pause and resume; it reads no pointer"
+)]
+#[unsafe(no_mangle)]
+pub extern "C" fn km_tizen_set_visible(visible: c_int) {
+    let source = if visible != 0 {
+        "host resume"
+    } else {
+        "host pause"
+    };
+    let _ = std::panic::catch_unwind(|| super::window::report_visible(visible != 0, source));
 }
 
 /// A folder the host named, or `None` for a null or empty string.

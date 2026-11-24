@@ -101,6 +101,28 @@ event arrives. `crates/machine/karaokemachine/src/tizen/window.rs` is the whole 
   the subsurface and commits a null buffer, then ends the app with `ui_app_exit`, or with
   `ecore_main_loop_quit` where that is missing.
 
+## Hidden
+
+**Home, another input or an app over the machine hides it, and it then stops drawing and leaves the
+screen.** The rule is
+[`Leaving the screen stops the music`](../decisions/interface.md#leaving-the-screen-stops-the-music):
+a playing song pauses, and no demo starts. SDL's Wayland driver raises no background event, so two
+witnesses report it instead, and either is enough:
+
+| Witness | Route |
+|---|---|
+| NUI's `OnPause` and `OnResume` in `Main.cs` | the export `km_tizen_set_visible`. A pause before the library is loaded is passed on when it loads |
+| Ecore's `ECORE_WL2_EVENT_WINDOW_VISIBILITY_CHANGE` | `fully_obscured`, read in `tizen/window.rs` |
+
+Both run on the UI thread, inside the Ecore iterate the frame loop turns, and only store a flag.
+`Frames::wait` takes it. While hidden, the display loop skips drawing and presenting and only waits
+in Ecore. A present into a surface the compositor does not show could wait in EGL for a buffer, and
+Tizen closes an app whose UI thread stops. The opaque region is cleared on hiding and set a frame
+after the app is shown again, as after an overlay. Focus and visibility changes are logged at info.
+
+**None of this has run on the set yet**:
+[`docs/research/tizen.md`](../research/tizen.md) §9, item 7.
+
 ## Keys
 
 **SDL's own `wl_keyboard` receives the remote's keys**, because it shares the host's connection.
