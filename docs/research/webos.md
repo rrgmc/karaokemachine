@@ -423,7 +423,8 @@ webOS 26 Re:New, deployed as LG's Flutter template with the probe as a plugin. W
 set settled carries over as a guess, not a measurement: whether the newer compositor still lacks
 `xdg_wm_base`, and how old its libwayland is, decide whether the window code here is needed there.
 Memory is the other measurement, because it decides which SoundFont banks a carrier can offer; on
-webOS 5 the machine left about 236 MB free with the bundled bank.
+webOS 5 the machine left about 236 MB free with the bundled bank, and a 275 MB bank played only by
+leaning on swap.
 
 The sibling note is [`tizen.md`](tizen.md), which asks the same question of a Samsung television. It
 finds a port possible there too. SDL3 draws through its own Wayland driver into the host
@@ -443,7 +444,7 @@ Developer Mode. LG's Flutter route needs webOS 26 Re:New, so it was not tried. B
 | Loader, float ABI, glibc | `/lib/ld-linux.so.3`, softfp, glibc 2.28. `armv7-unknown-linux-gnueabi` with `-soft-float,+neon,+vfp4`, built on Debian buster's armel compiler. Rust's prebuilt std loads; a float through libm's `cos` and a local one both come out right |
 | The machine | four Cortex-A55 cores under a 32-bit ARMv7 kernel, 4.4. About 1.1 GB of memory, 230 to 300 MB of it available with the television's own UI running |
 | Who it runs as | an unprivileged user in groups `audio`, `video` and `compositor`, no capabilities. `HOME` is the application folder |
-| Where it can write | the application folder, `/tmp`, `/var/tmp` and `/media/developer/temp`. The application folder is removed with the Developer Mode session. Whether any of them survives a reboot was not measured |
+| Where it can write | the application folder, `/tmp`, `/var/tmp` and `/media/developer/temp`. The application folder is removed with the Developer Mode session. It and `/media/developer/temp` survive a cold boot, and the application folder survives a reinstall of the same `.ipk`; `/tmp` is cleared on boot |
 | USB | `/tmp/usb` is visible and was empty, with no stick in |
 | `/dev/dri` | `card0` is there and opening it fails with `ENODEV`. **Rung 0, kmsdrm, is out** |
 | Wayland | `XDG_RUNTIME_DIR=/tmp/xdg`, which holds `wayland-0`. `WAYLAND_DISPLAY` is unset and `wl_display_connect(NULL)` finds the socket anyway. `SDL_VIDEODRIVER=wayland` and `APPID` are set by the launcher |
@@ -458,7 +459,9 @@ Developer Mode. LG's Flutter route needs webOS 26 Re:New, so it was not tried. B
 | SDL3's keys | every key arrives as an SDL key event. Arrows, OK as `Return` and the digits as `1` onwards map to their ordinary scancodes and keycodes. **Back does not**: scancode 400 with no name, keycode `0x200003`, `raw` 412. The machine has to map evdev 412 to Back itself, as the SDL2 fork's `SDL_scancode_webos.c` does |
 | The machine | **runs, and plays.** Built with the `webos` feature and no `video`, launched from the `.ipk`: the idle screen fullscreen at 1920x1080 with vsync, the wallpapers, the number pad, and the remote's keys working, Back included through the evdev 412 remap. The singer's page opens on a phone, and a song queued from it played a MIDI file with the bundled SoundFont through ALSA's `default`, lyrics in time, no underruns, confirmed by eye and ear. mDNS advertises |
 | Its cost | 50 MB resident at idle and 56 MB playing, 79 MB at peak, leaving about 236 MB available. Playing a MIDI song takes about 0.6 of one core of the four |
-| Its data | settings, the catalog and the packages folder land under `HOME`, the application folder, so Developer Mode's expiry takes them with it. The developer shell cannot read them. Whether anything survives a reboot is still not measured |
+| Its data | settings, the catalog and the packages folder land under `HOME`, the application folder, so Developer Mode's expiry takes them with it. The developer shell cannot read them. **They survive a cold boot and a reinstall**: launched with no package named, the machine still holds the one installed before |
+| A larger bank | ColomboGMGS2 (275 MB) as the bundled bank: the machine starts in about 7 s and sits at 140 MB resident plus 154 MB in swap, of about 900 MB swap the set has. Playing takes about 0.85 of a core. One burst of two xruns about 11 s into the first song, then clean; confirmed by ear |
+| Restarting the set | holding the remote's power button is standby, not a restart. With Quick Start+ off, power off and on is a cold boot. After one, the network comes up late, and the developer port answers only once it has |
 | A surprise | once, between two launches, the set was found switched off. The cause is unknown |
 
 **What this means for §3.** Rungs 0 and 1 are out, and rung 2 turned out smaller than it looked.
@@ -477,7 +480,7 @@ What works where, kept up to date as sets are tried. Only webOS 5 has been run.
 
 | webOS | Sets | Known | Source |
 |---|---|---|---|
-| 5 (`sdkVersion` 5.x) | 2020 | Everything in the table above: native `.ipk` through Developer Mode, softfp and glibc 2.28, `wl_shell` + `wl_webos_shell` with no `xdg_wm_base`, libwayland older than 1.18, SDL3 drawing at 60 fps through a custom-role window, ALSA `default`, remote keys reaching SDL3 with Back mapped from evdev 412, and **the machine running and playing a MIDI song**. Too old for LG's Flutter route | **[set]** |
+| 5 (`sdkVersion` 5.x) | 2020 | Everything in the table above: native `.ipk` through Developer Mode, softfp and glibc 2.28, `wl_shell` + `wl_webos_shell` with no `xdg_wm_base`, libwayland older than 1.18, SDL3 drawing at 60 fps through a custom-role window, ALSA `default`, remote keys reaching SDL3 with Back mapped from evdev 412, **the machine running and playing a MIDI song**, its data surviving a cold boot and a reinstall, and a 275 MB bank playing through swap. Too old for LG's Flutter route | **[set]** |
 | 5 and later | | Native applications install through Developer Mode on a stock set; Kodi ships so | **[web]**, §1 |
 | 24 and 25 | 2024, 2025 | Chromium 120 is the web engine on webOS 25. The root chains reach 2025 sets only on the webOS 10.0 they shipped with | **[web]**, §1 |
 | 26 Re:New and later | | LG's Flutter for webOS TV: an official `native` application type with C++ plugins, LG's NDK for `ca9v1`, Chromium 132. Whether its compositor offers `xdg_wm_base`, and how new its libwayland is, are not known | **[web]**, §1 |

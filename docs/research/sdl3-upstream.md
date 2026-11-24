@@ -34,7 +34,7 @@ All entries are against SDL 3.4.14, the version `Cargo.lock` pins.
   and the refresh reads 0.06 Hz.
 - #3: the set's `libwayland-client.so.0` exports `wl_proxy_create_wrapper` and
   `wl_display_prepare_read_queue` but not `wl_proxy_set_tag`, `wl_proxy_get_tag` or
-  `wl_proxy_marshal_flags`. With the patch SDL3 draws at 60 fps, `webos.md` §13. **Not yet run
-  unpatched**: that SDL's loader then refuses the whole driver is read from `SDL_waylandsym.h`, where
-  both are `SDL_WAYLAND_SYM` rather than `SDL_WAYLAND_SYM_OPT`. An issue wants that run first.
+  `wl_proxy_marshal_flags`. With the patch SDL3 draws at 60 fps, `webos.md` §13. Unpatched, the same
+  test fails at once with `SDL_Init failed: wayland not available`: both are `SDL_WAYLAND_SYM`
+  rather than `SDL_WAYLAND_SYM_OPT` in `SDL_waylandsym.h`, so the loader refuses the whole driver.
 - #4: the key log in `webos.md` §13.
