@@ -5,7 +5,7 @@
 //! report and serves it on `0.0.0.0:8177`, or 8180 when the machine runs, `GET /report` and
 //! `GET /log`. The parameters choose the rest: `"draw": 1` opens a window with a moving bar and logs frame gaps and keys (P2, P4),
 //! `"sdl": 1` runs `km-sdl-test`, the same through SDL3, and copies its output into the log,
-//! `"machine": 1` runs the machine itself the same way,
+//! `"machine": 1` runs the machine itself the same way, with `"env"` setting variables for it,
 //! `"sound": "alsa"` or `"pulse"` plays a sine (P3), and `"secs"` (default 600) bounds them.
 //! Standard library only, so the first question, whether Rust's prebuilt std loads here at all, is
 //! not confused with any crate's.
@@ -70,7 +70,7 @@ fn main() {
         draw::run(secs);
     }
     if param_u64(&params, "sdl") == Some(1) {
-        run_child("km-sdl-test", &[secs.to_string()], "sdl");
+        run_child("km-sdl-test", &[secs.to_string()], &[], "sdl");
     }
     if machine {
         // `"package": "<file>"` installs a package carried beside the executable, as a
@@ -91,7 +91,18 @@ fn main() {
         if let Some(more) = param_str(&params, "args") {
             args.extend(more.split_whitespace().map(String::from));
         }
-        run_child("karaokemachine", &args, "km");
+        // `"env": "SDL_VIDEODRIVER=dummy"` sets variables for the machine, split on spaces. That
+        // one makes the window fail, which is how the notification a set with no screen shows is
+        // tried on one that has a screen.
+        let env: Vec<(String, String)> = param_str(&params, "env")
+            .map(|all| {
+                all.split_whitespace()
+                    .filter_map(|pair| pair.split_once('='))
+                    .map(|(k, v)| (k.to_owned(), v.to_owned()))
+                    .collect()
+            })
+            .unwrap_or_default();
+        run_child("karaokemachine", &args, &env, "km");
     }
     if let Some(t) = sound_thread {
         let _ = t.join();
@@ -112,7 +123,7 @@ fn main() {
 }
 
 /// Runs `name` from beside this executable and copies its output into the log, each line tagged.
-fn run_child(name: &str, args: &[String], tag: &'static str) {
+fn run_child(name: &str, args: &[String], env: &[(String, String)], tag: &'static str) {
     use std::io::BufRead;
     let exe = std::fs::read_link("/proc/self/exe").unwrap_or_default();
     let test = exe.with_file_name(name);
@@ -123,6 +134,7 @@ fn run_child(name: &str, args: &[String], tag: &'static str) {
     let child = std::process::Command::new(&test)
         .args(args)
         .env("LD_LIBRARY_PATH", &lib)
+        .envs(env.iter().map(|(k, v)| (k, v)))
         .stderr(std::process::Stdio::piped())
         .stdout(std::process::Stdio::piped())
         .spawn();

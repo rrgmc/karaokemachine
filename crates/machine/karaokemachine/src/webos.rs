@@ -87,6 +87,152 @@ pub(crate) fn launch_args(
         .collect()
 }
 
+/// The application id when the launcher has not said, which it always does.
+const APP_ID: &str = "com.rrgmc.karaokemachine";
+
+/// How long a notification's reply is waited for. It is the last thing a run without a screen
+/// does before going on headless, so it must not hang it.
+const NOTIFY_WAIT: std::time::Duration = std::time::Duration::from_secs(3);
+
+/// The longest reason a notification carries. A toast shows two or three lines.
+const REASON_CHARS: usize = 120;
+
+/// Says on the television why the machine has no screen, since without one nothing else can.
+///
+/// The display's failures otherwise reach only the log, and the set shows nothing at all. The
+/// message is a system notification, sent through the set's own `libhelpers`.
+///
+/// **One failure has a known cause and a known fix.** After a firmware update to webOS 24, some
+/// sets are left with Developer Mode's configuration half written, and a native application's
+/// graphics cannot start. Turning Developer Mode off, restarting and turning it on again fixes it,
+/// at the cost of the applications it installed. `docs/research/webos.md` §14 has the source.
+pub(crate) fn explain_no_screen(reason: &str) {
+    let message = if developer_mode_looks_unfinished() {
+        "Karaoke Machine cannot use the screen: Developer Mode was not set up fully after a TV \
+         update. Turn Developer Mode off, restart the TV and turn it on again. This removes the \
+         apps it installed."
+            .to_owned()
+    } else {
+        let reason: String = reason.chars().take(REASON_CHARS).collect();
+        format!("Karaoke Machine could not open the screen: {reason}")
+    };
+    match notify(&message) {
+        Ok(reply) => tracing::info!(%reply, "webos: told the television why there is no screen"),
+        Err(error) => tracing::warn!(%error, "webos: could not tell the television"),
+    }
+}
+
+/// Whether this is a set whose Developer Mode jail was left unfinished by a firmware update.
+///
+/// moonlight-tv's decoder library checks it this way: on the `k3lp` and `k5lp` boards a working
+/// jail lets an application read `/dev/rtkmem`, and the broken one does not. Other boards are not
+/// known to be affected, so on them this says no.
+fn developer_mode_looks_unfinished() -> bool {
+    let board = std::fs::read_to_string("/etc/prefs/properties/machineName").unwrap_or_default();
+    let board = board.trim();
+    (board.starts_with("k3lp") || board.starts_with("k5lp"))
+        && std::fs::File::open("/dev/rtkmem").is_err()
+}
+
+/// libhelpers' `HContext`, from webosbrew's `libhelpers.h`.
+#[repr(C)]
+struct HContext {
+    callback: extern "C" fn(*mut c_void, *mut c_void, *mut c_void) -> bool,
+    userdata: *mut c_void,
+    unknown: *mut c_void,
+    multiple: c_int,
+    public: c_int,
+    token: std::ffi::c_ulong,
+}
+
+/// One call in flight: the context first, so the pointer libhelpers hands the callback is this.
+#[repr(C)]
+struct Call {
+    context: HContext,
+    message: unsafe extern "C" fn(*mut c_void) -> *const c_char,
+    reply: std::sync::mpsc::SyncSender<String>,
+}
+
+extern "C" fn on_reply(_handle: *mut c_void, message: *mut c_void, context: *mut c_void) -> bool {
+    // SAFETY: `context` is the `Call` `notify` leaked, whose first field is the `HContext` passed.
+    let call = unsafe { &*context.cast::<Call>() };
+    // SAFETY: libhelpers' own accessor on the message it handed over; it may answer null.
+    let payload = unsafe { (call.message)(message) };
+    let text = if payload.is_null() {
+        String::new()
+    } else {
+        // SAFETY: a NUL-terminated JSON string that lives for the length of this callback.
+        unsafe { CStr::from_ptr(payload) }
+            .to_string_lossy()
+            .into_owned()
+    };
+    // A full channel or a gone receiver is a reply nobody is waiting for any more.
+    let _ = call.reply.try_send(text);
+    true
+}
+
+/// Shows `text` as a system notification and returns the service's reply.
+///
+/// Through `libhelpers`, which the set's own SDL makes its calls with: it registers on the bus
+/// under the application's id, which is the one name a Developer Mode application's role lets
+/// call a service. The reply arrives on its thread and is waited for here, briefly.
+fn notify(text: &str) -> anyhow::Result<String> {
+    let lib = [c"libhelpers.so.2", c"libhelpers.so"]
+        .iter()
+        // SAFETY: dlopen with a C string; a null handle is checked below.
+        .map(|name| unsafe { dlopen(name.as_ptr(), RTLD_NOW) })
+        .find(|lib| !lib.is_null())
+        .context("the set has no libhelpers")?;
+    let call_fn = symbol_in(lib, c"HLunaServiceCall")?;
+    let message_fn = symbol_in(lib, c"HLunaServiceMessage")?;
+    // SAFETY: the two symbols have these signatures in libhelpers.h.
+    let (call_fn, message_fn) = unsafe {
+        (
+            std::mem::transmute::<
+                *mut c_void,
+                unsafe extern "C" fn(*const c_char, *const c_char, *mut HContext) -> c_int,
+            >(call_fn),
+            std::mem::transmute::<*mut c_void, unsafe extern "C" fn(*mut c_void) -> *const c_char>(
+                message_fn,
+            ),
+        )
+    };
+    let app_id = std::env::var("APPID").unwrap_or_else(|_| APP_ID.to_owned());
+    let payload = serde_json::json!({ "sourceId": app_id, "message": text }).to_string();
+    let (tx, rx) = std::sync::mpsc::sync_channel(1);
+    // **Leaked**, because a reply that arrives after the wait gives up still reads it. This runs
+    // at most a few times in a run that has no screen.
+    let call: &mut Call = Box::leak(Box::new(Call {
+        context: HContext {
+            callback: on_reply,
+            userdata: null_mut(),
+            unknown: null_mut(),
+            multiple: 0,
+            public: 1,
+            token: 0,
+        },
+        message: message_fn,
+        reply: tx,
+    }));
+    let uri = CString::new("luna://com.webos.notification/createToast")?;
+    let payload = CString::new(payload)?;
+    // SAFETY: C strings that outlive the call, and a context that is never freed.
+    let sent = unsafe { call_fn(uri.as_ptr(), payload.as_ptr(), &mut call.context) };
+    anyhow::ensure!(sent == 0, "HLunaServiceCall answered {sent}");
+    rx.recv_timeout(NOTIFY_WAIT)
+        .context("the notification service did not answer")
+}
+
+/// `RTLD_NOW` in glibc's numbering.
+const RTLD_NOW: c_int = 2;
+
+fn symbol_in(lib: *mut c_void, name: &CStr) -> anyhow::Result<*mut c_void> {
+    // SAFETY: `lib` is a handle dlopen returned and `name` is a C string.
+    let p = unsafe { dlsym(lib, name.as_ptr()) };
+    anyhow::ensure!(!p.is_null(), "libhelpers has no {name:?}");
+    Ok(p)
+}
+
 /// Gives the remote's Back the `AC_BACK` keycode; every other event is passed through.
 pub(crate) fn remap_event(event: Event) -> Event {
     match event {

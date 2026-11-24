@@ -668,6 +668,9 @@ pub fn run(paths: Paths, config: Settings, options: Options) -> anyhow::Result<(
                 // always did, and the reason is logged rather than swallowed.
                 Err(display::DisplayError::Failed(error)) => {
                     tracing::error!(%error, "the display could not start; continuing without one");
+                    // A television shows nothing of a log, so it is told in a notification.
+                    #[cfg(feature = "webos")]
+                    crate::webos::explain_no_screen(&format!("{error:#}"));
                     wait_for_signal(&runtime, &shutdown);
                     break;
                 }
@@ -686,6 +689,10 @@ pub fn run(paths: Paths, config: Settings, options: Options) -> anyhow::Result<(
                              one appears"
                         );
                         said_it_once = true;
+                        // A television always has its screen, so on one this is a failure too,
+                        // and said once like the line above.
+                        #[cfg(feature = "webos")]
+                        crate::webos::explain_no_screen(&reason);
                     }
                     // Three rungs, and the top one exists because of a race measured on the
                     // appliance rather than because three felt tidier: the boot splash lets go of
