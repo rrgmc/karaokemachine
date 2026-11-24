@@ -33,6 +33,10 @@ measured in [`docs/research/tizen.md`](../research/tizen.md) §3.
 **Keys need no bridge.** SDL's own `wl_keyboard` shares the host's connection and receives the
 remote's keys while the host's window has focus. Back arrives as `AC Back`, which the machine already
 treats as back. Pushing Ecore keys into SDL as well delivered every key twice, so nothing is pushed.
+The media keys are the exception: the set keeps them unless a window grabs them, so the machine
+grabs them in TOPMOST mode, as flutter-tizen and OmegaTube do. On the set all nine grabs were
+taken and the remote's Play/Pause paused a song, on 2026-11-24. Each key Ecore sees is logged at
+debug.
 
 **Focus is the one thing to manage.** A system overlay, such as the set's number pad or its menu,
 takes keyboard focus. If SDL's window still declares a full opaque region, focus never comes back.
@@ -51,12 +55,12 @@ other carrier uses, selects the patched SDL3 prebuilt in the image at `/opt/sdl3
 | Toolchain | a Docker image with the armel cross-compiler and Rust for `armv7-unknown-linux-gnueabi`, hardware float on; the machine built as a `cdylib` | `tools/port/machine/tizen/` | S |
 | SDL patches | the two one-line guards, output scale 0 and refresh in hertz, applied to the source `sdl3` builds from; SDL3 and SDL3_ttf built static in the image | `sdl3-tizen.patch`, applied by the Dockerfile | S |
 | Display path | the window as a custom-role subsurface of the host's window on its `wl_display`; transparent first frame, then opaque, and not opaque while focus is out; the per-frame Ecore pump, paced by an animator; never destroyed | `display.rs`, behind `tizen` | M–L |
-| Keys | SDL's own keyboard, unchanged; Ecore's focus events watched for the opaque region | the same, and a small FFI module | S |
-| Audio output | a `km-audio` output over `audio_out_write` in place of cpal's stream, opened with `dlopen`; cpal and the ALSA mixer stay linked, so `libasound` stays needed | `km-audio`, behind `tizen` | M |
+| Keys | SDL's own keyboard, unchanged; Ecore's focus events watched for the opaque region; the media keys grabbed | the same, and a small FFI module | S |
+| Audio output | a `km-audio` output over `audio_out_write` in place of cpal's stream, opened with `dlopen`; opened at start and held for the run, with dithered silence, or a receiver clips each song's start; cpal and the ALSA mixer stay linked, so `libasound` stays needed | `km-audio`, behind `tizen` | M |
 | Video | `ffmpeg-next` linked against ffmpeg 7.1 built for armel at build time only; at run time the set's own `libavcodec.so.61` answers | the Docker image | M |
-| Paths and assets | the data and resource folders handed down from C#, as on iOS; fonts and the bundled bank in the package's `res/` | `settings/paths.rs`, the package | S |
+| Paths and assets | the data folder and the package's `res/assets` handed down from C#, as on iOS; the bank, font and wallpapers read in place there, with nothing written out | `settings/paths.rs`, `tizen/entry.rs`, the package | S |
 | .NET host | a NUI app that hands the native window and the folders to `km_tizen_run`; Back ends it | `ports/machine/tizen/` | M |
-| Packaging and install | the `.tpk` built with the Tizen .NET workload, signed, sideloaded | `tools/port/machine/tizen/` | M |
+| Packaging and install | the `.tpk` built with the Tizen .NET workload and signed with its test author certificate; Apps2Samsung signs it again for the set it installs on | `tools/port/machine/tizen/package.sh` | M |
 
 ## Milestones
 
@@ -70,8 +74,8 @@ installed before M5.
 | M1 Nested loop | a C probe: an SDL frame loop on the UI thread pumping Ecore each frame, Back ending it | on the set: smooth for a minute, arrows and Back arrive, a clean exit. **Passed** | S |
 | M2 The machine starts | `km_tizen_run`: the machine with its idle screen, pad, catalog and API | on the set: idle screen drawn, pad driven by the remote, the owner's page open on a phone. **Passed**: `tools/port/machine/tizen/load.sh` runs it in the probe app | M–L |
 | M3 Sound | the `audio_io` output in `km-audio`; the bundled bank carried in the `.so`; `songs.sh` installs a synthetic test package | a MIDI song dialled on the pad and heard clean. **Passed**: the words in time, with no latency correction | M |
-| M4 Every song kind | video through the set's ffmpeg, MP3+G, words in time; no new playback code, so the work is `songs.sh` adding a synthetic 1080p video song and an MP3+G song whose words light on a beep each second, the `.cdg` from km-cdg's `sync_song` example | a video song and an MP3+G song played, each flash and each word on its beep. Built, not yet run on the set | S–M |
-| M5 A real app | the .NET host, assets in `res/`, a signed `.tpk` | installed with Apps2Samsung and started from the app list | M |
+| M4 Every song kind | video through the set's ffmpeg, MP3+G, words in time; no new playback code, so the work is `songs.sh` adding a synthetic 1080p video song and an MP3+G song whose words light on a beep each second, the `.cdg` from km-cdg's `sync_song` example | a video song and an MP3+G song played, each flash and each word on its beep. **Passed** on 2026-11-24, in the probe app; the remote's Play/Pause paused a song too | S–M |
+| M5 A real app | the .NET host, assets in `res/`, a signed `.tpk`: `package.sh` builds `KmMachine1.KaraokeMachine`, the API on 8177 as settings say | installed with Apps2Samsung and started from the app list, and the remote's Play/Pause pausing a song. **Passed** on 2026-11-24: installed with Apps2Samsung, started from the app list, every song kind played from the remote, Back closed it. The host draws its name before starting the machine, or the set keeps its launch spinner up | M |
 | M6 Documentation | `docs/architecture/tizen.md`, `BUILDING.md`, `DEPLOYING.md`, the decision amended; this file deleted | review | S |
 
 M1 passed, so the inverted loop is not built.

@@ -2,10 +2,12 @@
 //!
 //! **Two exports and one body.** `km_probe_run` has the probe app's signature, so M2 to M4 load the
 //! machine over the probe app's port the way M1's probes were loaded; its argument string carries
-//! the data folder and the rest. `km_tizen_run` is what M5's own .NET host calls, with the data
-//! folder as an argument of its own. Both publish the [`Host`], start the log, write the carried
-//! assets and call [`crate::run`], so M5 changes only the host. When `run` returns, both end the
-//! application (see [`end_application`]); `exit=0` in `km_probe_run`'s arguments leaves it open.
+//! the data folder and the rest. `km_tizen_run` is what the app's own .NET host in
+//! `ports/machine/tizen` calls, with the data folder and the package's `res/assets` as arguments of
+//! their own. Both publish the [`Host`], start the log and call [`crate::run`]; `km_probe_run` first
+//! writes the assets its library carries, because the probe app has no `res/` of ours. When `run`
+//! returns, both end the application (see [`end_application`]); `exit=0` in `km_probe_run`'s
+//! arguments leaves it open.
 //!
 //! **Neither lets a panic out.** Unwinding across `extern "C"` aborts the process, which on the set
 //! takes the host with it and says nothing, so the body runs under `catch_unwind` as `km-machine-ios`
@@ -13,6 +15,7 @@
 
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::io::{self, Write};
+use std::net::SocketAddr;
 use std::panic::AssertUnwindSafe;
 use std::path::PathBuf;
 use std::sync::OnceLock;
@@ -65,24 +68,36 @@ pub unsafe extern "C" fn km_probe_run(
     };
     guarded(log, || {
         let args = Args::parse(&text);
-        start(ecore_window.addr(), width, height, args, log)
+        // Every interface, so a phone reaches it, on a port of its own: the probe holds 8177.
+        let api_bind = Some(SocketAddr::from(([0, 0, 0, 0], args.port)));
+        start(
+            ecore_window.addr(),
+            width,
+            height,
+            args,
+            None,
+            api_bind,
+            log,
+        )
     })
 }
 
-/// The machine, called by M5's .NET host on its UI thread.
+/// The machine, called by the .NET host in `ports/machine/tizen` on its UI thread.
 ///
-/// `data_dir` is the application's data folder (`Application.Current.DirectoryInfo.Data`). The API
-/// takes its default port here, and the log `info`. Returns 0 when the machine stopped cleanly, 1
-/// otherwise.
+/// `data_dir` is the application's data folder (`Application.Current.DirectoryInfo.Data`), and
+/// `asset_dir` the package's `res/assets`, read where it was installed. The API binds where
+/// settings say, which is 8177 on every interface unless the owner changed it, and the log is
+/// `info`. Returns 0 when the machine stopped cleanly, 1 otherwise.
 ///
 /// # Safety
 ///
-/// `data_dir` is null or a NUL-terminated string alive for the call. `ecore_window` is the host
-/// window's `Ecore_Wl2_Window *`, and this is called on the host's UI thread.
+/// `data_dir` and `asset_dir` are each null or a NUL-terminated string alive for the call.
+/// `ecore_window` is the host window's `Ecore_Wl2_Window *`, and this is called on the host's UI
+/// thread.
 #[expect(
     unsafe_code,
-    reason = "exporting the C symbol the .NET host calls; the one raw pointer read is the data \
-              folder, which the host keeps alive for the call"
+    reason = "exporting the C symbol the .NET host calls; the raw pointers read are the two \
+              folders, which the host keeps alive for the call"
 )]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn km_tizen_run(
@@ -90,22 +105,37 @@ pub unsafe extern "C" fn km_tizen_run(
     width: c_int,
     height: c_int,
     data_dir: *const c_char,
+    asset_dir: *const c_char,
     log: Option<HostLog>,
 ) -> c_int {
-    let data = if data_dir.is_null() {
-        None
-    } else {
-        // SAFETY: non-null, NUL-terminated by the host, and alive until this call returns.
-        let text = unsafe { CStr::from_ptr(data_dir) }.to_string_lossy();
-        (!text.is_empty()).then(|| PathBuf::from(text.as_ref()))
-    };
+    // SAFETY: each is null or NUL-terminated by the host, and alive until this call returns.
+    let (data, assets) = unsafe { (folder(data_dir), folder(asset_dir)) };
     guarded(log, || {
         let args = Args {
             data,
             ..Args::default()
         };
-        start(ecore_window.addr(), width, height, args, log)
+        // `None` is the address settings hold, as on every other platform.
+        start(ecore_window.addr(), width, height, args, assets, None, log)
     })
+}
+
+/// A folder the host named, or `None` for a null or empty string.
+///
+/// # Safety
+///
+/// `text` is null or a NUL-terminated string alive for the call.
+#[expect(
+    unsafe_code,
+    reason = "reading a NUL-terminated string the host keeps alive for the call"
+)]
+unsafe fn folder(text: *const c_char) -> Option<PathBuf> {
+    if text.is_null() {
+        return None;
+    }
+    // SAFETY: non-null and NUL-terminated, per this function's contract.
+    let text = unsafe { CStr::from_ptr(text) }.to_string_lossy();
+    (!text.is_empty()).then(|| PathBuf::from(text.as_ref()))
 }
 
 /// Runs `body`, turning a panic into 1.
@@ -127,6 +157,8 @@ fn start(
     width: c_int,
     height: c_int,
     args: Args,
+    asset_dir: Option<PathBuf>,
+    api_bind: Option<SocketAddr>,
     log: Option<HostLog>,
 ) -> c_int {
     let Some(data_dir) = args.data.clone() else {
@@ -143,6 +175,7 @@ fn start(
         width,
         height,
         data_dir,
+        asset_dir,
         log,
     }) {
         host_line(
@@ -162,13 +195,16 @@ fn start(
         window = format!("{:#x}", host.ecore_window),
         width = host.width,
         height = host.height,
-        port = args.port,
+        api = ?api_bind,
         settings = %paths.settings_file().display(),
         assets = %paths.asset_dir.display(),
         "starting on a Tizen television"
     );
-    // Before `run`, because the display opens the font and the wallpapers as files.
-    super::assets::unpack(&paths, carried());
+    // Before `run`, because the display opens the font and the wallpapers as files. A package's
+    // `res/assets` is read-only and whole already, so nothing is written over it.
+    if host.asset_dir.is_none() {
+        super::assets::unpack(&paths, carried());
+    }
     if km_api::discover::mdns_declined() {
         tracing::info!("mDNS declined by the environment");
     } else {
@@ -179,8 +215,7 @@ fn start(
 
     let (settings, _) = Settings::load(&paths);
     let options = Options {
-        // Every interface, so a phone on the network reaches it; the port is this run's only.
-        api_bind: Some(std::net::SocketAddr::from(([0, 0, 0, 0], args.port))),
+        api_bind,
         dev_remote: args.dev,
         ..Options::default()
     };

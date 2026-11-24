@@ -17,7 +17,8 @@
 #     and a .cdg from km-cdg's sync_song example whose word blocks light one per second, on the beep.
 #
 # The video and the MP3 need ffmpeg on PATH, built with libx264, aac and libmp3lame. The package id
-# is fixed, so installing it again replaces it. The songs' numbers are printed at the end.
+# is fixed, so installing it again replaces it. After the upload the machine is asked for the
+# numbers it gave the songs, which are what the pad dials: bank * 1000 + slot, never the slot alone.
 #
 # Then signs in on http://<address>:8277 and POSTs the package to /api/v1/admin/packages/upload.
 # The admin password is KM_ADMIN_PASSWORD, or asked for. A machine still on its generated PIN shows
@@ -68,8 +69,6 @@ if [ -z "$package" ]; then
   cargo run -q -p km-pack --features video -- spec "$out/songs" --id "$TEST_ID" \
     --name "Tizen test songs" --default-language en --out "$spec"
   cargo run -q -p km-pack --features video -- build "$spec" --out "$package"
-  echo "songs: numbers in $package:" >&2
-  sed -n 's/^- file: \(.*\)$/\1/p; s/^  number: \(.*\)$/  number \1/p' "$spec" | paste -d' ' - - >&2
 fi
 [ -f "$package" ] || { echo "songs: $package is not a file" >&2; exit 1; }
 
@@ -90,3 +89,11 @@ echo "songs: sending $package ($(du -h "$package" | cut -f1)) to $address" >&2
 curl --silent --show-error --fail --max-time 300 -X POST "$api/admin/packages/upload" \
   -H "authorization: Bearer $token" -F "file=@$package"
 echo
+
+# The numbers to dial. The package says only each song's slot; the bank is the machine's to give.
+if [ "$(basename "$package")" = tizen-test-songs.kmpkg ]; then
+  echo "songs: dial these on the machine:" >&2
+  curl --silent --show-error --fail --max-time 20 "$api/songs?limit=200" \
+    | grep -o '{"number":"[0-9]*","title":"[^"]*"[^}]*"package_id":"'"$TEST_ID"'"' \
+    | sed 's/^{"number":"\([0-9]*\)","title":"\([^"]*\)".*/  \1  \2/' >&2
+fi

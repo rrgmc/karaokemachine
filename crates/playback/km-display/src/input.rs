@@ -26,6 +26,13 @@ pub enum DisplayAction {
     Clear,
     /// Start or pause playback.
     TogglePause,
+    /// Start or resume playback, and never pause it. A remote's own Play key, where Play and Pause
+    /// are two keys: a toggle there would pause the song somebody pressed Play on.
+    Play,
+    /// Pause playback, and never start it. A remote's own Pause key.
+    Pause,
+    /// Stop the song and unload it. A remote's Stop key, and nothing on a keyboard.
+    Stop,
     /// Leave the current song, and let the machine choose what follows.
     ///
     /// **What follows is the machine's to decide, and a queue is only its most ordinary answer.**
@@ -455,6 +462,18 @@ pub fn action_for(key: Keycode, ctrl: bool) -> Option<DisplayAction> {
         // hint and no change to SDL's Java.
         K::AcBack => DisplayAction::Back,
 
+        // A remote's media keys, and a keyboard's. Previous restarts rather than going back a song,
+        // as in every player: the machine keeps no history of what was sung. On a Samsung
+        // television these reach the machine only because it grabs them (`tizen/window.rs`).
+        K::MediaPlayPause => DisplayAction::TogglePause,
+        K::MediaPlay => DisplayAction::Play,
+        K::MediaPause => DisplayAction::Pause,
+        K::MediaStop => DisplayAction::Stop,
+        K::MediaNextTrack => DisplayAction::Skip,
+        K::MediaPreviousTrack => DisplayAction::Restart,
+        K::MediaRewind => DisplayAction::SeekBy(-SEEK_STEP_SECS),
+        K::MediaFastForward => DisplayAction::SeekBy(SEEK_STEP_SECS),
+
         // The three that are not the strip. Above the fall-through, and deliberately **not** entries
         // in `TRANSPORT_COMMANDS`: that table is the strip drawn over a playing song, numbered from
         // itself and carrying a `needs_melody` axis, and none of these is a transport control or
@@ -556,6 +575,26 @@ mod tests {
             action_for(Keycode::KpPlus, false),
             Some(DisplayAction::TransposeUp)
         );
+    }
+
+    #[test]
+    fn media_keys_drive_the_transport_and_play_never_pauses() {
+        let cases = [
+            (Keycode::MediaPlayPause, DisplayAction::TogglePause),
+            (Keycode::MediaPlay, DisplayAction::Play),
+            (Keycode::MediaPause, DisplayAction::Pause),
+            (Keycode::MediaStop, DisplayAction::Stop),
+            (Keycode::MediaNextTrack, DisplayAction::Skip),
+            (Keycode::MediaPreviousTrack, DisplayAction::Restart),
+            (Keycode::MediaRewind, DisplayAction::SeekBy(-SEEK_STEP_SECS)),
+            (
+                Keycode::MediaFastForward,
+                DisplayAction::SeekBy(SEEK_STEP_SECS),
+            ),
+        ];
+        for (key, action) in cases {
+            assert_eq!(action_for(key, false), Some(action), "{key:?}");
+        }
     }
 
     #[test]

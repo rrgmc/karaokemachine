@@ -3786,6 +3786,9 @@ fn handle(
             };
             report(entry, machine.transport(command));
         }
+        DisplayAction::Play => report(entry, machine.transport(TransportCommand::Play)),
+        DisplayAction::Pause => report(entry, machine.transport(TransportCommand::Pause)),
+        DisplayAction::Stop => report(entry, machine.transport(TransportCommand::Stop)),
         DisplayAction::Skip => report(entry, machine.transport(TransportCommand::Skip)),
         DisplayAction::Restart => report(entry, machine.transport(TransportCommand::Restart)),
         DisplayAction::SeekBy(seconds) => seek_by(machine, entry, seconds),

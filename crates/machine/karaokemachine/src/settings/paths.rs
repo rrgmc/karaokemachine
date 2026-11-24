@@ -193,11 +193,18 @@ impl Paths {
         }
 
         // A television is told, as an iPhone is: the .NET host hands down the application's data
-        // folder, and settings, the catalog, packages and the assets all live under it. One folder,
-        // as on Android, and no overlay: the working directory of a Tizen app is not a checkout.
+        // folder, and settings, the catalog and packages all live under it, as on Android, with no
+        // overlay: the working directory of a Tizen app is not a checkout. The assets are the
+        // package's `res/assets` when the host names it.
         #[cfg(feature = "tizen")]
         if let Some(host) = crate::tizen::host() {
-            return Self::rooted_at(host.data_dir.clone());
+            let mut paths = Self::rooted_at(host.data_dir.clone());
+            // The package's own `res/assets`, read where it was installed; the probe app has none
+            // and writes what its library carries under the data folder instead.
+            if let Some(assets) = &host.asset_dir {
+                paths.asset_dir = assets.clone();
+            }
+            return paths;
         }
 
         let (asset_dir, overlay_asset_dir) = Self::discover_asset_dirs();

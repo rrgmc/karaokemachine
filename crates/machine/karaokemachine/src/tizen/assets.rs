@@ -1,10 +1,11 @@
-//! Writing the assets the `.so` carries into the data folder, until M5's package carries them.
+//! Writing the assets the `.so` carries into the data folder, for the probe app.
 //!
 //! **A development arrangement.** M2 to M4 load the machine into the probe app over its port, and
 //! the `.so` is the only thing that arrives, so the `tizen-embed-assets` feature compiles the font,
 //! the wallpapers and the development console into it (see `build.rs`). Everything that reads them
 //! wants a path, as on Android, so they are written out once into [`Paths::asset_dir`] and the
-//! machine carries on with ordinary files. M5 puts them in the package's `res/` instead.
+//! machine carries on with ordinary files. The app's `.tpk` carries them in `res/assets` instead,
+//! read in place, and its library is built without them.
 //!
 //! The manifest and the removal of departed files are `androidassets`', and for the same reasons:
 //! `size<TAB>path` lines, written last as the marker that the folder is complete, and only files the
