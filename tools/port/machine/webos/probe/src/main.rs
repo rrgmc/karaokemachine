@@ -75,13 +75,18 @@ fn main() {
     if machine {
         // `"package": "<file>"` installs a package carried beside the executable, as a
         // double-clicked .kmpkg arrives on a desktop.
-        let args: Vec<String> = param_str(&params, "package")
+        let mut args: Vec<String> = param_str(&params, "package")
             .map(|name| {
                 let exe = std::fs::read_link("/proc/self/exe").unwrap_or_default();
                 exe.with_file_name(name).display().to_string()
             })
             .into_iter()
             .collect();
+        // `"frame_stats": 1` has the machine log its frame timing, which is how a video song's
+        // decode is measured on a set nobody is watching.
+        if param_u64(&params, "frame_stats") == Some(1) {
+            args.push("--frame-stats".into());
+        }
         run_child("karaokemachine", &args, "km");
     }
     if let Some(t) = sound_thread {
@@ -108,8 +113,12 @@ fn run_child(name: &str, args: &[String], tag: &'static str) {
     let exe = std::fs::read_link("/proc/self/exe").unwrap_or_default();
     let test = exe.with_file_name(name);
     log(&format!("starting {}", test.display()));
+    // Libraries carried in the application's own `lib/`, ahead of the set's: its ffmpeg 4.0
+    // cannot decode H.264, so the machine's video build brings its own.
+    let lib = exe.with_file_name("lib");
     let child = std::process::Command::new(&test)
         .args(args)
+        .env("LD_LIBRARY_PATH", &lib)
         .stderr(std::process::Stdio::piped())
         .stdout(std::process::Stdio::piped())
         .spawn();
