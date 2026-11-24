@@ -361,7 +361,6 @@ singer-unnamed = Guest
 ## A song somebody already has
 
 ask-again-queued = Already in the queue.
-ask-again-sung = Already sung tonight.
 ask-again-anyway = Ask anyway
 ask-again-no = Leave it
 

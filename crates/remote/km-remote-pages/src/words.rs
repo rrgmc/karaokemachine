@@ -459,7 +459,6 @@ mod tests {
         "error-requests-closed",
         "error-request-not-waiting",
         "ask-again-queued",
-        "ask-again-sung",
         "host-needs-singer",
         "host-added-queued",
         "host-added-waiting",

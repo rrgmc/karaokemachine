@@ -61,8 +61,8 @@ singers cannot hold one name on the same evening. A phone that several people sh
 them under **Add another singer on this phone**, and then chooses who is singing. **Who is
 singing** stands on the Setup tab and above the list on the Songs tab.
 
-**A song somebody already has brings a question.** Tap **+** on a song that is in the queue, or
-that somebody sang tonight, and the row says so. Tap **Ask anyway** to ask for it, or **✕** to
+**A song somebody already has brings a question.** Tap **+** on a song that is in the queue, and
+the row says so. Tap **Ask anyway** to ask for it, or **✕** to
 leave it.
 
 **A phone with the host's code has a host's tab.** It is the ticked box in the tab bar. A host uses
