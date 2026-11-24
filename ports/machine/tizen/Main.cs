@@ -29,12 +29,32 @@ namespace KaraokeMachine
         // Kept in a static so the delegate the machine calls back into is never collected.
         static readonly LogFn NativeLog = p => Log.Info(LogTag, Marshal.PtrToStringUTF8(p) ?? "");
 
+        // Both are kept in fields so the delegate DALi calls and the timer are never collected.
+        Window.FrameCallbackType firstFrame;
+        Timer fallback;
+        bool started;
+
         protected override void OnCreate()
         {
             base.OnCreate();
             Window.Instance.BackgroundColor = Color.Black;
-            // After OnCreate has returned, so the window is shown before the machine takes the thread.
-            CoreApplication.Post(StartMachine);
+            // Only once a frame of this window has reached the screen. The television keeps its launch
+            // animation up until then, and the machine, once called, keeps the thread: posted straight
+            // from here, DALi never drew, and the set showed its spinner over the home screen for ever
+            // while the machine ran unseen behind it. The timer is for a set that never reports.
+            firstFrame = _ => CoreApplication.Post(StartOnce);
+            Window.Instance.AddFramePresentedCallback(firstFrame, 0);
+            fallback = new Timer(3000);
+            fallback.Tick += (s, e) => { StartOnce(); return false; };
+            fallback.Start();
+        }
+
+        void StartOnce()
+        {
+            if (started) return;
+            started = true;
+            fallback.Stop();
+            StartMachine();
         }
 
         void StartMachine()
