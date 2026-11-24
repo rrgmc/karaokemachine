@@ -8,7 +8,8 @@ webOS carrier needs an entry in `docs/decisions/distribution.md` beside
 Investigated 2026-09-13 and revised 2026-11-24. **§13 is what a 2020 set on webOS 5 measured**, with
 the probe in `tools/port/machine/webos/`, and the machine itself runs there as
 [`docs/architecture/webos.md`](../architecture/webos.md) describes. Nothing else here was verified
-on a television, and the marker on each claim says how far it can be trusted.
+on a television, and the marker on each claim says how far it can be trusted. **§14 is what an
+established native webOS application, moonlight-tv, does that this port does not.**
 
 **Summary.** The whole machine runs on an LG television as a native 32-bit ARM Linux program. The
 engine is ready: it already plays all three song kinds on a 32-bit Cortex-A55 television box at
@@ -67,8 +68,9 @@ untouched. **This is the largest single saving the platform offers.**
 
 **[web]** Applications draw through LSM, the webOS Wayland compositor, using `wl_webos_shell` rather
 than `xdg_wm_base`. Audio is ALSA with PulseAudio above it. Hardware video decode is reachable only
-through the television's media pipeline, `com.webos.media` and NDL DirectMedia. That pipeline takes a
-file or a URL and draws on a plane behind the GL surface.
+through the television's media pipeline, which draws on a plane behind the GL surface.
+**[source]** That pipeline is not only a file-or-URL player: NDL DirectMedia takes compressed frames
+from the application, §5.
 
 ### Since 2026-06: an official native application type, through Flutter
 
@@ -260,7 +262,26 @@ repository is developed on Windows, so a webOS ffmpeg cross-compiled here meets 
 **[inferred]** A television's SoC is in that class and is already running the television, so
 headroom is the question rather than raw speed. If it fails, video songs are declined and the
 `.ipk` is built without them. The machine still catalogs, searches and queues them, and says at
-startup that it cannot play them. That is a supported shape of every carrier today.
+startup that it cannot play them. That is a supported shape of every carrier today. **[set]** It did
+not fail: §13 measured 1080p30 at about 2.1 cores with an ffmpeg of the application's own.
+
+**[source]** Hardware decode is open to an application after all. moonlight-tv streams games on these
+sets through `mariotaku/ss4s`, whose webOS modules push **compressed frames** to the television:
+`NDL_DirectVideoPlay(data, size, pts)` takes H.264, H.265, VP9 and AV1, and NDL's audio side takes
+raw S16LE PCM, or Opus. There is one module for webOS 4, one for webOS 5 and later, and LGNC and
+StarfishMediaPipeline ones for other generations. So libavformat could demux a video song here and
+the television decode it, at a fraction of a core and up to the panel's own 4K.
+
+**[inferred]** Two costs keep it a candidate rather than a plan:
+
+- **The picture is on a plane behind the GL surface.** The lyrics, the queue and the idle screen have
+  to be drawn over it with the surface transparent where the video shows, which is the punch-through
+  the SDL2 fork carries in `SDL_waylandwebos_foreign.c`. `km-display` draws an opaque frame today.
+- **Sound and picture need one clock.** A video song's lyrics are burned into the picture. Handing NDL
+  both the video and the decoded audio lets the television keep them together, at the price of a
+  second sound output beside cpal; keeping the sound on ALSA leaves two clocks to reconcile.
+
+It is worth taking up only if video songs on an LG set are wanted beyond what software decode gives.
 
 ## 6. Memory is the second constraint
 
@@ -401,13 +422,9 @@ until the registry dump exists.
 
 ## 11. Out of scope, whatever the answer
 
-- **Hardware video decode.** The media pipeline is handed a file or a URL and draws behind the GL
-  surface. It cannot carry a song whose picture and whose sound are produced separately.
 - **Any carrier with an indefinite life**, short of the Content Store. Developer Mode expires and the
   Homebrew Channel needs a rooted television.
 - **The on-screen keyboard.** The machine's own number pad is how a song number is entered.
-- **Video-plane punch-through.** That patch serves hardware video behind the GL surface, which this
-  machine does not use.
 - **Writing to the stick.** It is a source of songs and not a place to put them.
 - **Noticing a stick without being asked.** The rescan is somebody's act.
 
@@ -490,8 +507,29 @@ What works where, kept up to date as sets are tried. Only webOS 5 has been run.
 |---|---|---|---|
 | 5 (`sdkVersion` 5.x) | 2020 | Everything in the table above: native `.ipk` through Developer Mode, softfp and glibc 2.28, `wl_shell` + `wl_webos_shell` with no `xdg_wm_base`, libwayland older than 1.18, SDL3 drawing at 60 fps through a custom-role window, ALSA `default`, remote keys reaching SDL3 with Back mapped from evdev 412, **the machine running and playing MIDI and MP3+G songs**, video songs at up to 1080p30 with an ffmpeg of its own since the set's cannot decode H.264, its data surviving a cold boot and a reinstall, and a 275 MB bank playing through swap. Too old for LG's Flutter route | **[set]** |
 | 5 and later | | Native applications install through Developer Mode on a stock set; Kodi ships so | **[web]**, §1 |
-| 24 and 25 | 2024, 2025 | Chromium 120 is the web engine on webOS 25. The root chains reach 2025 sets only on the webOS 10.0 they shipped with | **[web]**, §1 |
+| 24 and 25 | 2024, 2025 | Chromium 120 is the web engine on webOS 25. The root chains reach 2025 sets only on the webOS 10.0 they shipped with. On webOS 24 (9.x), sets on the `k3lp` and `k5lp` boards can ship a broken jail configuration in which a native application's graphics fail to start; moonlight-tv detects it by `/dev/rtkmem` being unreadable | **[web]**, §1; **[source]**, §14 |
 | 26 Re:New and later | | LG's Flutter for webOS TV: an official `native` application type with C++ plugins, LG's NDK for `ca9v1`, Chromium 132. Whether its compositor offers `xdg_wm_base`, and how new its libwayland is, are not known | **[web]**, §1 |
+
+## 14. What moonlight-tv shows
+
+**[source]** `mariotaku/moonlight-tv` is a game-streaming client that has shipped as a native SDL
+`.ipk` on webOS for years, on more firmware than has been tried here. Read 2026-11-24. It uses the
+SDL2 fork, bundled under `lib/backports` with an rpath, which §3 rules out here. What else it does
+that this port does not:
+
+| | What it does | What it means here |
+|---|---|---|
+| **Hardware decode** | `mariotaku/ss4s` feeds compressed frames and PCM to NDL DirectMedia | §5: video songs could be decoded by the television |
+| **Checking firmware it has never run on** | `webosbrew-ipk-verify`, from `webosbrew/dev-toolbox-cli`, checks the `.ipk`'s libraries and symbols against each webOS release's, and its CI writes the report into the job summary | the only way found to say which webOS versions the `.ipk` loads on without owning those sets. Only webOS 5 has been run (§13) |
+| **The broken webOS 24 jail** | when the window cannot be made on webOS 9 or later, it opens a known-issues page with `SDL_OpenURL` | the machine exits with nothing on screen in that case today |
+| **The Homebrew Channel** | each release carries a `.manifest.json` made by `webosbrew-gen-manifest`, which is what a listing in `webosbrew/apps-repo` points at | rooted sets would install and update the machine from the Channel, with no Developer Mode expiry. Listing it is an outward act, and a decision |
+| **Installing in Developer Mode** | its README points owners to `webosbrew/dev-manager-desktop`, a desktop program that takes the key and installs the `.ipk` | the manual's route asks the owner to install Node and LG's command-line tools |
+| **Packing** | `webosbrew/ares-cli-rs`, a Rust `ares-package` shipped as a Linux `.deb` | might replace the pinned npm `@webos-tools/cli` and the hand-written archive of `docs/architecture/webos.md`. Not tried |
+| **The remote** | Back as Escape, EXIT opening its overlay, Channel up and down as page up and down, the four colour keys as actions, HOME captured only when the owner asks, through the fork's access-policy hints | the machine maps the arrows, the digits, OK and Back. Channel keys would page a list |
+| **Luna from a Developer Mode application** | reads the television's own name from `com.webos.settingsservice` (`network`, `deviceName`), falling back to `modelName` from `com.webos.service.tv.systemproperty`; returns to the home bar by launching `com.webos.app.home` with `launchType` `homeKey` | **[inferred]** the television's name could name the machine on the network and on the singer's page |
+| **Startup** | sets `EGL_PLATFORM=wayland` and `XDG_RUNTIME_DIR=/tmp/xdg` when the launcher has not, and sets `RLIMIT_CORE` to zero in release builds | **[inferred]** a core of a process this size would take a large share of the 2 GB partition Developer Mode applications share (§13) |
+| **An unwritable home** | settings fall back to `/tmp` and the application runs without persistence | the `.ipk` makes its folder 777 instead; the fallback would cover a firmware whose installer differs |
+| **`appinfo.json`** | `largeIcon`, `iconColor`, `splashBackground`, and `dialAppName` | the machine's has `icon` only. **[inferred]** `dialAppName` looks like what lets a phone launch the application over DIAL |
 
 ## Sources
 
@@ -514,5 +552,9 @@ What works where, kept up to date as sets are tried. Only webOS 5 has been run.
 - LG's webOS TV developer documentation: the Developer Mode application.
 - Kodi's webOS installation instructions, for native applications on a stock television.
 - RootMyTV, for which firmware the exploit chain reaches.
+- `mariotaku/moonlight-tv`: `src/app/platform/webos/`, `src/main.c`, `src/app/app.c`,
+  `src/app/ui/root.c`, `CMakeLists.txt`, `cmake/PackageWebOS.cmake`, `cmake/AresPackage.cmake`,
+  `deploy/webos/appinfo.json` and its webOS build and release workflows. `mariotaku/ss4s`:
+  `modules/webos/ndl/webos5/` and `modules/webos/utils/jail_check.c`.
 - `docs/architecture/android.md`, `docs/architecture/audio.md`, `docs/architecture/display.md`,
   `docs/architecture/appliance.md` and `docs/decisions/distribution.md` in this repository.
