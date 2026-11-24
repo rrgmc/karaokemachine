@@ -1482,6 +1482,12 @@ impl Settings {
         let mut changed = stepped;
         if settings.machine.instance_id.is_empty() {
             settings.machine.instance_id = km_api::discover::new_instance_id();
+            // A fresh install on an LG television is named after it, once: a rename afterwards is
+            // the owner's and stands.
+            #[cfg(feature = "webos")]
+            if let Some(name) = crate::webos::television_name() {
+                settings.machine.name = name;
+            }
             changed = true;
         }
         changed |= settings.ensure_password();

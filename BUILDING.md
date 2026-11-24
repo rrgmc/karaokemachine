@@ -529,7 +529,7 @@ tools/platform/macos/installer-remote.sh    #   the same on macOS: KM Remote in 
 task build:ios RELEASE=1 DEVICE=1 IPA=1         # an unsigned .ipa: the machine, for sideloading
 task build:ios:remote RELEASE=1 DEVICE=1 IPA=1  #   ...and the offline remote
 bash tools/port/machine/tizen/package.sh    # the .tpk for a Samsung television, test-signed; Docker and .NET
-bash tools/port/machine/webos/build.sh      # the .ipk for an LG television, unofficial; Docker and ares-package
+bash tools/port/machine/webos/build.sh      # the .ipk for an LG television, unofficial; Docker
 bash tools/dist/changelog.sh preview      # the changelog section the files in changelog.d/ would make
 bash tools/dist/changelog.sh release X.Y.0  #   ...written into CHANGELOG.md, the files removed: RELEASE.md step 1
 bash tools/dist/release.sh           # gather the carriers into dist/release/<version>/ under release names
@@ -2383,12 +2383,12 @@ tools/port/machine/webos/build.sh --probe    # KM Probe, which starts the machin
 tools/port/machine/webos/run.sh <device> '{"machine":1}'   # install the probe and start the machine in it
 ```
 
-Docker, plus LG's `ares-package` (`npm install -g @webos-tools/cli`). `build.sh` builds the
+Docker and curl. `build.sh` builds the
 `km-webos` image first: Debian buster's armel cross-compiler, Rust, wayland 1.18's scanner, the
 patched static SDL3, armel ALSA, and ffmpeg at the pin. The cold image takes the longest. Everything
 is built into `local/webos/`, not `target/`, and the machine with `KM_FEATURES_WEBOS`. The `.ipk`
-carries the machine, the assets and ffmpeg's libraries, and is repacked in the image with real file
-modes. A release builds the same `.ipk` in the release workflow's `webos` job. How it all fits
+carries the machine, the assets and ffmpeg's libraries, and is packed in an `ubuntu:24.04` container
+by webosbrew's `ares-package`, which `build.sh` fetches by checksum. A release builds the same `.ipk` in the release workflow's `webos` job. How it all fits
 together is [`docs/architecture/webos.md`](docs/architecture/webos.md).
 
 **The host lint never sees the webOS code** either: run clippy for the triple in the image, with

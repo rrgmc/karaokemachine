@@ -7,8 +7,9 @@
 #   tools/port/machine/webos/build.sh --probe   # KM Probe: the probe, which starts the machine
 #
 # Builds the km-webos image first (Dockerfile beside this; cached after the first time), then
-# everything in it, into local/webos/, never the host's target/. The .ipk is packed on the host with
-# ares-package (`npm install -g @webos-tools/cli`) and lands in local/webos/.
+# everything in it, into local/webos/, never the host's target/. The .ipk is packed in a container
+# with webosbrew's ares-package, fetched by checksum, and lands in local/webos/. Docker and curl
+# are all the host needs.
 # docs/architecture/webos.md describes both; run.sh installs and starts the probe.
 
 set -euo pipefail
@@ -31,7 +32,7 @@ else
   APP_ID=com.rrgmc.karaokemachine
 fi
 
-for c in docker ares-package; do
+for c in docker curl; do
   command -v "$c" >/dev/null 2>&1 || { echo "webos: $c is not on PATH" >&2; exit 1; }
 done
 
@@ -149,31 +150,27 @@ cat > "$app/appinfo.json" <<EOF
 }
 EOF
 rm -f "$OUT"/*.ipk
-ares-package --no-minify -o "$OUT" "$app"
 
-# ares-package on Windows writes every file 0666, so the set installs an executable it cannot run.
-# Repack the data tarball in the image with real modes. An .ipk is an ar archive whose members must
-# stay in this order, and the set's installer refuses GNU ar's `name/` headers, so the archive is
-# written by hand in the form ares-package writes.
-ipk="$(cd "$OUT" && ls *.ipk)"
-docker run --rm -v "$(host_path "$PWD/$OUT"):/w" "$IMAGE" bash -euc '
-  t=$(mktemp -d) && cd "$t"
-  arm-linux-gnueabi-ar x "/w/'"$ipk"'"
-  mkdir data && tar -xzf data.tar.gz -C data
-  find data -type d -exec chmod 755 {} + && find data -type f -exec chmod 644 {} +
-  # The application folder is HOME, where the machine keeps its settings and catalog, and the
-  # application runs as a user of its own that the installer does not make the owner.
-  chmod 777 data/usr/palm/applications/*/
+# Packed by webosbrew's ares-package, the Rust one, in a container: it writes the .ipk in the form
+# the set's installer takes, every directory 0777 -- the application folder is HOME, where the
+# machine keeps its settings and catalog, and the application runs as a user of its own -- and each
+# file with its own mode, which a copy inside the container makes real. Its binaries want a newer
+# glibc than the km-webos image's, hence ubuntu. Pinned by checksum, fetched once into local/.
+ARES_VERSION=0.7.0
+ARES_SHA256=be49153274939dba1ba180940144e3b1265911538a013c4c17342c6bc41fc5fc
+ares_tgz="$OUT/ares-cli-rs-$ARES_VERSION.tar.gz"
+if [ ! -f "$ares_tgz" ]; then
+  curl --proto '=https' -sSfL -o "$ares_tgz.part" \
+    "https://github.com/webosbrew/ares-cli-rs/releases/download/v$ARES_VERSION/ares-cli-rs-v$ARES_VERSION-linux-x86_64.tar.gz"
+  mv "$ares_tgz.part" "$ares_tgz"
+fi
+docker run --rm -v "$(host_path "$PWD/$OUT"):/w" ubuntu:24.04 bash -euc '
+  echo "'"$ARES_SHA256"'  /w/'"$(basename "$ares_tgz")"'" | sha256sum -c --quiet -
+  t=$(mktemp -d) && tar -xzf /w/'"$(basename "$ares_tgz")"' -C "$t" --strip-components=1
+  cp -r /w/app "$t/app"
+  find "$t/app" -type d -exec chmod 755 {} + && find "$t/app" -type f -exec chmod 644 {} +
   for e in karaokemachine km-webos-probe km-sdl-test; do
-    for f in data/usr/palm/applications/*/"$e"; do [ ! -f "$f" ] || chmod 755 "$f"; done
+    [ ! -f "$t/app/$e" ] || chmod 755 "$t/app/$e"
   done
-  tar -czf data.tar.gz -C data --owner=0 --group=0 --numeric-owner usr
-  out="/w/'"$ipk"'"
-  printf "!<arch>\n" > "$out"
-  for m in debian-binary control.tar.gz data.tar.gz; do
-    size=$(stat -c %s "$m")
-    printf "%-16s%-12s%-6s%-6s%-8s%-10s\140\n" "$m" "$(date +%s)" 0 0 100644 "$size" >> "$out"
-    cat "$m" >> "$out"
-    [ $((size % 2)) -eq 0 ] || printf "\n" >> "$out"
-  done'
+  "$t/ares-package" -A arm -o /w "$t/app"'
 ls -l "$OUT"/*.ipk

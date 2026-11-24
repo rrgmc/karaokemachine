@@ -90,9 +90,10 @@ pub(crate) fn launch_args(
 /// The application id when the launcher has not said, which it always does.
 const APP_ID: &str = "com.rrgmc.karaokemachine";
 
-/// How long a notification's reply is waited for. It is the last thing a run without a screen
-/// does before going on headless, so it must not hang it.
-const NOTIFY_WAIT: std::time::Duration = std::time::Duration::from_secs(3);
+/// How long a system service's reply is waited for. A notification is the last thing a run
+/// without a screen does, and the television's name is asked for during startup, so neither may
+/// hang the machine.
+const LUNA_WAIT: std::time::Duration = std::time::Duration::from_secs(3);
 
 /// The longest reason a notification carries. A toast shows two or three lines.
 const REASON_CHARS: usize = 120;
@@ -154,7 +155,7 @@ struct Call {
 }
 
 extern "C" fn on_reply(_handle: *mut c_void, message: *mut c_void, context: *mut c_void) -> bool {
-    // SAFETY: `context` is the `Call` `notify` leaked, whose first field is the `HContext` passed.
+    // SAFETY: `context` is the `Call` `luna_call` leaked, whose first field is the `HContext` passed.
     let call = unsafe { &*context.cast::<Call>() };
     // SAFETY: libhelpers' own accessor on the message it handed over; it may answer null.
     let payload = unsafe { (call.message)(message) };
@@ -172,11 +173,46 @@ extern "C" fn on_reply(_handle: *mut c_void, message: *mut c_void, context: *mut
 }
 
 /// Shows `text` as a system notification and returns the service's reply.
+fn notify(text: &str) -> anyhow::Result<String> {
+    let app_id = std::env::var("APPID").unwrap_or_else(|_| APP_ID.to_owned());
+    let payload = serde_json::json!({ "sourceId": app_id, "message": text });
+    luna_call("luna://com.webos.notification/createToast", &payload)
+}
+
+/// The name the owner gave the television, in Settings, General, Devices, if the set will say.
+///
+/// A fresh install takes it as the machine's own name, so a phone's list shows the television
+/// rather than `KaraokeMachine`. Through the settings service, as moonlight-tv reads it; older
+/// firmware refuses an application this key, and then the machine keeps its default.
+pub(crate) fn television_name() -> Option<String> {
+    let payload = serde_json::json!({ "category": "network", "keys": ["deviceName"] });
+    let reply = match luna_call(
+        "luna://com.webos.settingsservice/getSystemSettings",
+        &payload,
+    ) {
+        Ok(reply) => reply,
+        Err(error) => {
+            tracing::info!(%error, "webos: the television's name is not available");
+            return None;
+        }
+    };
+    let name = serde_json::from_str::<serde_json::Value>(&reply)
+        .ok()
+        .and_then(|v| v["settings"]["deviceName"].as_str().map(str::to_owned))
+        .and_then(|name| km_api::discover::tidy_name(&name));
+    match &name {
+        Some(name) => tracing::info!(name, "webos: named after the television"),
+        None => tracing::info!(%reply, "webos: the television did not give its name"),
+    }
+    name
+}
+
+/// Calls a system service and returns its reply, as JSON text.
 ///
 /// Through `libhelpers`, which the set's own SDL makes its calls with: it registers on the bus
 /// under the application's id, which is the one name a Developer Mode application's role lets
 /// call a service. The reply arrives on its thread and is waited for here, briefly.
-fn notify(text: &str) -> anyhow::Result<String> {
+fn luna_call(uri: &str, payload: &serde_json::Value) -> anyhow::Result<String> {
     let lib = [c"libhelpers.so.2", c"libhelpers.so"]
         .iter()
         // SAFETY: dlopen with a C string; a null handle is checked below.
@@ -197,11 +233,9 @@ fn notify(text: &str) -> anyhow::Result<String> {
             ),
         )
     };
-    let app_id = std::env::var("APPID").unwrap_or_else(|_| APP_ID.to_owned());
-    let payload = serde_json::json!({ "sourceId": app_id, "message": text }).to_string();
     let (tx, rx) = std::sync::mpsc::sync_channel(1);
     // **Leaked**, because a reply that arrives after the wait gives up still reads it. This runs
-    // at most a few times in a run that has no screen.
+    // a few times in a run at most: once on a fresh install, and on a failed screen.
     let call: &mut Call = Box::leak(Box::new(Call {
         context: HContext {
             callback: on_reply,
@@ -214,13 +248,13 @@ fn notify(text: &str) -> anyhow::Result<String> {
         message: message_fn,
         reply: tx,
     }));
-    let uri = CString::new("luna://com.webos.notification/createToast")?;
-    let payload = CString::new(payload)?;
+    let uri_c = CString::new(uri)?;
+    let payload = CString::new(payload.to_string())?;
     // SAFETY: C strings that outlive the call, and a context that is never freed.
-    let sent = unsafe { call_fn(uri.as_ptr(), payload.as_ptr(), &mut call.context) };
+    let sent = unsafe { call_fn(uri_c.as_ptr(), payload.as_ptr(), &mut call.context) };
     anyhow::ensure!(sent == 0, "HLunaServiceCall answered {sent}");
-    rx.recv_timeout(NOTIFY_WAIT)
-        .context("the notification service did not answer")
+    rx.recv_timeout(LUNA_WAIT)
+        .with_context(|| format!("{uri} did not answer"))
 }
 
 /// `RTLD_NOW` in glibc's numbering.
