@@ -1,0 +1,13 @@
+[package]
+name = "km-webos-probe"
+version = "0.1.0"
+edition = "2024"
+publish = false
+description = "Asks an LG webOS television the questions that can each end a port"
+
+# Outside the repository's workspace on purpose: it builds only in the km-webos image.
+[workspace]
+
+[profile.release]
+opt-level = "s"
+strip = true
