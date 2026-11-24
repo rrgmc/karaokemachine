@@ -10,5 +10,7 @@
   <privileges>
     <privilege>http://tizen.org/privilege/internet</privilege>
     <privilege>http://tizen.org/privilege/network.get</privilege>
+    <!-- The remote's media keys, which the machine grabs (crates/machine/karaokemachine/src/tizen/window.rs). -->
+    <privilege>http://tizen.org/privilege/tv.inputdevice</privilege>
   </privileges>
 </manifest>

@@ -391,6 +391,7 @@ it are the same entry. How the thing is built is [`ARCHITECTURE.md`](../ARCHITEC
 - [The song sync program wears the builder's mark with three beats](interface.md#the-song-sync-program-wears-the-builders-mark-with-three-beats)
 - [The on-screen number pad](interface.md#the-on-screen-number-pad)
 - [The transport strip names its keys](interface.md#the-transport-strip-names-its-keys)
+- [A remote's media keys drive the transport](interface.md#a-remotes-media-keys-drive-the-transport)
 - [Nothing is drawn where a television will not show it](interface.md#nothing-is-drawn-where-a-television-will-not-show-it)
 - [What the machine draws over a song that brought its own words](interface.md#what-the-machine-draws-over-a-song-that-brought-its-own-words)
 - [The position bar answers the person in the room](interface.md#the-position-bar-answers-the-person-in-the-room)

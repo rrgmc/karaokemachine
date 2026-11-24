@@ -51,6 +51,17 @@ the address and QR code.</sub></td>
 | `F9` | `M` | Turn the guide melody on and off, for a song that has one |
 | | `K` | Put the song back in its own key |
 
+A remote's media keys, or a keyboard's, work during a song too:
+
+| Key | What it does |
+|---|---|
+| Play/Pause | Pause and resume |
+| Play, Pause | Play, or pause, and never the other |
+| Stop | Stop the song |
+| Next | Skip to the next song |
+| Previous | Start the song again |
+| Rewind, Fast-forward | Go back or forward ten seconds |
+
 ## The screen and the window
 
 | Key | What it does |

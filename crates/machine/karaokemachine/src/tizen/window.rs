@@ -305,11 +305,59 @@ extern "C" fn on_key(_: *mut c_void, _: c_int, event: *mut c_void) -> EinaBool {
             .unwrap_or(std::ptr::null());
         (!name.is_null()).then(|| CStr::from_ptr(name))
     };
+    // What the set calls each key, for matching a remote's button to what SDL then delivers.
+    tracing::debug!(key = ?name, "a key from Ecore");
     if name == Some(c"XF86Back") {
         CALLBACK_DONE
     } else {
         CALLBACK_PASS_ON
     }
+}
+
+/// The remote's media keys, which the television keeps for itself unless a window grabs them: an
+/// ungrabbed press shows the set's own "not available" notice and the machine never sees it. The
+/// key table that turns them into transport actions is `km-display`'s `action_for`.
+const MEDIA_KEYS: [&CStr; 9] = [
+    c"XF86PlayBack", // the Smart Remote's single play/pause key
+    c"XF86AudioPlay",
+    c"XF86AudioPause",
+    c"XF86AudioStop",
+    c"XF86AudioNext",
+    c"XF86AudioPrev",
+    c"XF86AudioRewind",
+    c"XF86AudioForward",
+    c"XF86AudioPlayPause",
+];
+
+/// `ECORE_WL2_WINDOW_KEYGRAB_TOPMOST`: the key comes to this window while it is on top. Tizen's
+/// `Ecore_Wl2.h` numbers it 2 (SHARED is 1). flutter-tizen grabs its keys this way, and OmegaTube
+/// does too under the free developer certificate, which is what a sideloaded `.tpk` carries.
+const KEYGRAB_TOPMOST: c_int = 2;
+
+/// Grabs [`MEDIA_KEYS`] for the host's window. A key the compositor refuses is logged and left to
+/// the television; nothing else depends on it. Never released: the grab ends with the window.
+#[expect(unsafe_code, reason = "ecore_wl2_window_keygrab_set through dlsym")]
+fn grab_media_keys(ewl: *mut c_void, window: *mut c_void) {
+    type Grab =
+        unsafe extern "C" fn(*mut c_void, *const c_char, c_int, c_int, c_int, c_int) -> EinaBool;
+    let Some(grab) = function::<Grab>(ewl, c"ecore_wl2_window_keygrab_set") else {
+        tracing::warn!(
+            "ecore_wl2_window_keygrab_set is absent; the remote's media keys stay the set's"
+        );
+        return;
+    };
+    let (mut taken, mut refused) = (Vec::new(), Vec::new());
+    for key in MEDIA_KEYS {
+        // SAFETY: the host's live `Ecore_Wl2_Window *`, a NUL-terminated key name, on the UI thread.
+        let ok = unsafe { grab(window, key.as_ptr(), 0, 0, 0, KEYGRAB_TOPMOST) };
+        let name = key.to_string_lossy();
+        if ok == 0 {
+            refused.push(name)
+        } else {
+            taken.push(name)
+        }
+    }
+    tracing::info!(?taken, ?refused, "grabbed the remote's media keys");
 }
 
 /// What a registry round trip binds, filled in by [`on_global`].
@@ -566,6 +614,7 @@ impl Frames {
         };
         handlers.retain(|h| !h.is_null());
         anyhow::ensure!(!animator.is_null(), "ecore_animator_add returned nothing");
+        grab_media_keys(ewl, host.ecore_window as *mut c_void);
         tracing::info!(
             "SDL's window is a subsurface of the host's; frames paced by an Ecore animator"
         );
