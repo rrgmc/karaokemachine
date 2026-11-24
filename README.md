@@ -19,8 +19,9 @@ A song is one of five things:
 
 An MP3 on its own is not a song, because it has no words in it.
 
-It runs on Windows, macOS and Linux, on Android and a Meta Quest, and on an iPhone and an iPad. The
-pictures and the download are on the site,
+It runs on Windows, macOS and Linux, on Android and a Meta Quest, on an iPhone and an iPad, and on a
+Samsung television on Tizen 10 or, unofficially, an LG one on webOS 5. The pictures and the download
+are on the site,
 **[rrgmc.github.io/karaokemachine](https://rrgmc.github.io/karaokemachine/)**.
 
 ## What it looks like

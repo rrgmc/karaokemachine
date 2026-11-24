@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>KaraokeMachine — uma máquina de karaokê que funciona como um aparelho doméstico</title>
-<meta name="description" content="Escolha uma música pelo número, ela toca, e a letra acende no tempo certo. Tela cheia na televisão; todo celular da rede é um controle. Músicas em MIDI, vídeo, MP3+G, UltraStar e LRC. Windows, macOS, Linux, Android, Meta Quest e iOS.">
+<meta name="description" content="Escolha uma música pelo número, ela toca, e a letra acende no tempo certo. Tela cheia na televisão; todo celular da rede é um controle. Músicas em MIDI, vídeo, MP3+G, UltraStar e LRC. Windows, macOS, Linux, Android, Meta Quest, iOS, Samsung Tizen e LG webOS.">
 <link rel="icon" type="image/png" href="../favicon.png">
 <link rel="apple-touch-icon" href="../icon-512.png">
 <link rel="stylesheet" href="../style.css">
@@ -38,7 +38,7 @@
     <!-- A língua se chama pelo próprio nome, porque quem precisa ler este link é justamente quem não
          lê a página em volta. `Locale::endonym` enuncia a regra para as telas que têm Rust atrás. -->
     <p class="lang"><a href="../" hreflang="en" lang="en">English</a></p>
-    <p class="eyebrow">MIDI · Vídeo · MP3+G · UltraStar · LRC &nbsp;·&nbsp; Windows, macOS, Linux, Android, Meta Quest, iOS</p>
+    <p class="eyebrow">MIDI · Vídeo · MP3+G · UltraStar · LRC &nbsp;·&nbsp; Windows, macOS, Linux, Android, Meta Quest, iOS, Tizen, webOS</p>
     <!-- `alt=""`: o nome está logo ao lado, e uma descrição diria a mesma coisa duas vezes. -->
     <h1><img class="mark" src="../icon-512.png" width="512" height="512" alt="">Karaoke<span>Machine</span></h1>
     <p class="lede">
@@ -386,6 +386,17 @@
         <td>Um <code>.ipa</code> para a máquina e outro para o controle, os dois <b>sem
           assinatura</b>. Você assina os dois com o seu próprio Apple ID. É a máquina inteira, e as
           músicas chegam pelo aplicativo Arquivos.</td>
+      </tr>
+      <tr>
+        <th scope="row">Televisão Samsung</th>
+        <td>Um <code>.tpk</code>, a máquina como aplicativo na própria televisão. O Apps2Samsung
+          assina para a sua televisão e instala. Já rodou numa televisão de 2025 com Tizen 10.</td>
+      </tr>
+      <tr>
+        <th scope="row">Televisão LG</th>
+        <td>Um <code>.ipk</code> <b>não oficial</b>, instalado no Modo Desenvolvedor com as
+          ferramentas da LG. A televisão remove o aplicativo quando o Modo Desenvolvedor expira. Já
+          rodou numa televisão de 2020 com webOS 5.</td>
       </tr>
     </tbody>
   </table>
