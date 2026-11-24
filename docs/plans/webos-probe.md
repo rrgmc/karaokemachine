@@ -68,6 +68,10 @@ parameters `ares-launch --params` passes in `argv[1]`.
 
 Each milestone is recorded in the research note as it passes. P1 is the gate.
 
+**Where it stands, 2026-11-24:** P0 and P1 passed. P2 drew at 60 fps without SDL, on the protocol
+directly, and P3's sine played with no underruns. What waits is the owner seeing the bar and hearing
+the tone, the remote's keys (P4), and P2 through SDL3, which needs the rung 2 patch. Research note §13.
+
 | Milestone | Deliverable | Verified by | Size |
 |---|---|---|---|
 | P0 Toolchain | the image; a probe that only writes a line, packed, installed and launched | the line read back from the set | S |

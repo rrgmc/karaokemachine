@@ -5,8 +5,9 @@ webOS carrier needs an entry in `docs/decisions/distribution.md` beside
 [`What the machine *is*, on Linux`](../decisions/distribution.md#what-the-machine-is-on-linux) and
 [`What the machine *is*, on iOS`](../decisions/distribution.md#what-the-machine-is-on-ios) first.
 
-Investigated 2026-09-13 and revised 2026-11-24. **No claim here was verified on a television**, and
-the marker on each says how far it can be trusted.
+Investigated 2026-09-13 and revised 2026-11-24. **§13 is what a 2020 set on webOS 5 measured**, with
+the probe of [`docs/plans/webos-probe.md`](../plans/webos-probe.md). Nothing else here was verified on
+a television, and the marker on each claim says how far it can be trusted.
 
 **Summary.** The whole machine runs on an LG television as a native 32-bit ARM Linux program. The
 engine is ready: it already plays all three song kinds on a 32-bit Cortex-A55 television box at
@@ -38,6 +39,7 @@ the questions that can each end it.
 | **[source]** | Read from webOS or SDL source, or from a file listing. High confidence. |
 | **[web]** | Public documentation and community reports. Second-hand. |
 | **[inferred]** | Reasoning. A hypothesis to test. |
+| **[set]** | Measured on a television, §13. |
 
 ## 1. What a webOS television permits
 
@@ -47,8 +49,8 @@ settles whether the path works at all. Until 2026 that was the only native route
 one. The subsection at the end of this section has the official route LG has added since.
 
 **[web]** The toolchain is `webosbrew/meta-lg-webos-ndk`, a Yocto SDK producing **armv7a glibc**
-binaries. The kernel is arm64 and the userland is not, so the Rust target is
-`armv7-unknown-linux-gnueabihf`. Installation is an `.ipk` pushed with `ares-install`, and the
+binaries. **[set]** On the webOS 5 set the userland is softfp, not hard-float: the loader is
+`ld-linux.so.3`, and the Rust target is `armv7-unknown-linux-gnueabi`, as on Tizen (§13). Installation is an `.ipk` pushed with `ares-install`, and the
 launcher starts the program as an ordinary ELF executable with a JSON string in `argv[1]`.
 
 **[repo]** That last point removes the layer both mobile carriers need. iOS has
@@ -171,7 +173,8 @@ shell path.
 
 **[inferred]** LSM probably advertises no `wl_shell` substitute SDL3 accepts. Kodi has its own
 Wayland windowing backend requiring xdg-shell, and its webOS port uses SDL2 instead. The registry
-dump in §2 settles it.
+dump in §2 settles it. **[set]** On webOS 5 it did: the registry has `wl_shell` and
+`wl_webos_shell` and no `xdg_wm_base`, so rung 1 is out (§13).
 
 **The ladder, stopping at the first rung that works:**
 
@@ -424,6 +427,34 @@ The sibling note is [`tizen.md`](tizen.md), which asks the same question of a Sa
 finds a port possible there too. SDL3 draws through its own Wayland driver into the host
 application's window, since a window of its own does not stay on screen, and sound goes through the
 platform's own service rather than SDL's.
+
+## 13. Measured: a 2020 set on webOS 5
+
+**[set]** Measured 2026-11-24 on a 2020 LG set, `sdkVersion` 5.6.2, with the homebrew route of the
+plan: a std-only Rust executable in an `.ipk` of type `native`, installed with `ares-install` through
+Developer Mode. LG's Flutter route needs webOS 26 Re:New, so it was not tried. Built in
+`tools/port/machine/webos/`.
+
+| Question | Answer |
+|---|---|
+| Does a bundled executable run from the application folder? | **Yes.** The folder is not `noexec`. The launcher starts it with the parameters as JSON in `argv[1]` |
+| Loader, float ABI, glibc | `/lib/ld-linux.so.3`, softfp, glibc 2.28. `armv7-unknown-linux-gnueabi` with `-soft-float,+neon,+vfp4`, built on Debian buster's armel compiler. Rust's prebuilt std loads; a float through libm's `cos` and a local one both come out right |
+| The machine | four Cortex-A55 cores under a 32-bit ARMv7 kernel, 4.4. About 1.1 GB of memory, 230 to 300 MB of it available with the television's own UI running |
+| Who it runs as | an unprivileged user in groups `audio`, `video` and `compositor`, no capabilities. `HOME` is the application folder |
+| Where it can write | the application folder, `/tmp`, `/var/tmp` and `/media/developer/temp`. The application folder is removed with the Developer Mode session. Whether any of them survives a reboot was not measured |
+| USB | `/tmp/usb` is visible and was empty, with no stick in |
+| `/dev/dri` | `card0` is there and opening it fails with `ENODEV`. **Rung 0, kmsdrm, is out** |
+| Wayland | `XDG_RUNTIME_DIR=/tmp/xdg`, which holds `wayland-0`. `WAYLAND_DISPLAY` is unset and `wl_display_connect(NULL)` finds the socket anyway. `SDL_VIDEODRIVER=wayland` and `APPID` are set by the launcher |
+| The registry | `wl_compositor` v3, `wl_shell` v1, `wl_webos_shell` v1, `wl_seat` v3 three times, `wl_shm`, `wl_output` v2, `wl_webos_foreign`, `wl_webos_input_manager`, `wl_starfish_pointer`, `text_model_factory`, `mali_buffer_sharing`. **No `xdg_wm_base`**, so stock SDL3 has no shell to use and rung 1 is out |
+| Drawing | a `wl_shell` toplevel with a `wl_webos_shell_surface` on the same surface, `appId` set and fullscreen asked: the SDL2 fork's setup. The compositor answers fullscreen and exposed at once, and the keyboard enters the surface. EGL 1.4 and GLES 3.2 on a Mali. A moving bar drew at **60.0 fps for a minute**: 5 frames of 3,584 over 20 ms, four of them in the first second |
+| Sound | ALSA's `default` opens at 48 kHz stereo S16. A 440 Hz sine played for a minute with **no underruns**. `/tmp/xdg/pulse` exists; PulseAudio was not needed |
+| Libraries in `/usr/lib` | `libwayland-client`, `libwayland-egl`, `libEGL`, `libGLESv2`, `libasound`, `libpulse`, `libavcodec.so.58` (ffmpeg 4), `libxkbcommon`, `libfreetype` and LG's SDL2 2.0.10. No `libdrm`, no `libgbm` |
+| The network | a listener on `0.0.0.0:8177` answers from another machine on the LAN |
+
+**What this means for §3.** Rungs 0 and 1 are out, and the surface setup rung 2 would carry into
+SDL3 works when written directly against the protocol. So rung 2 is no longer "can this compositor
+show a native window" but "carry this setup into SDL3's Wayland driver": a third shell path beside
+xdg-shell and libdecor, `wl_shell` plus `wl_webos_shell`, and a patch hook in the build.
 
 ## Sources
 
