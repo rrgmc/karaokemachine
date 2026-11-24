@@ -1009,6 +1009,33 @@ that is `manual`, or for a table with two recommendations.
 appliance is the one install where somebody is at a shell anyway. `--first-run-soundfont` writes the
 same request, and `task soundfont BANK=…` is there.
 
+## An app requests the recommended bank on its first start
+
+**On Android, Meta Quest, iOS and a Samsung television, the machine writes the request itself the
+first time it starts, and nobody is asked.** An APK, an iOS bundle and a `.tpk` are installed by a
+store or a sideloader. None has a page of its own to put a tick box on. Without this, the four
+carriers that have no shell and no installer are the four that never get the bank judged best.
+
+**Installing the app is the asking.** That is the one thing this changes in
+[`Nothing downloads`](repository.md#nothing-downloads), and it is changed for these four carriers
+only. Everything else there holds: one bank, named, from its pinned address against its pinned
+digests.
+
+| | |
+|---|---|
+| When | a start that finds no `settings.json`. Loading settings writes one, so this is true once per install |
+| What is written | the same `first-run-soundfont.json` a setup program writes, naming the recommended row by its id |
+| An upgrade | has settings already, and gets nothing. The bank is on the SoundFont page |
+| Where the terms are printed | on the television, in the line that says the download has started: the bank's name, size and license |
+| Limits | the setup programs': three starts, and a bank the owner chose wins |
+
+**The cost that was accepted is a phone on mobile data.** A fresh install on one fetches 262 MiB
+without being asked. Asking on screen first was the alternative. It needs a question the display can
+draw and four kinds of input can answer, tested on each carrier. A television, a headset and a
+streaming box are on a home network, and they are most of what these carriers run on.
+
+**Not the `.deb`, still.** That one has a shell, and `--first-run-soundfont` in it.
+
 ## The recommended bank is fetched before a release is tagged
 
 **`task release:bank` downloads the recommended bank and checks it against the bank table, and a
@@ -1552,6 +1579,24 @@ the one carrier whose instructions are a procedure the recipient carries out, ra
 double-click. The manual is the document written for somebody who has the machine rather than the
 source.
 
+## A Samsung television carrier is re-signed by whoever installs it
+
+**The release carries one `.tpk`, `karaokemachine-<version>-tizen.tpk`, signed with the Tizen .NET
+workload's test certificate.** A Samsung television installs a package from outside its store only
+when it is signed for that set, by a certificate Samsung issues against the set's own id. No
+signature this repository makes can be that. So the person installing signs it, and Apps2Samsung
+does that with a free Samsung account, as it installs. Under its test signature the file is a
+package and nothing more, which is why the name says only the platform. The `.ipa` files say
+`unsigned` because the person signs them by hand; here the installer does it without being asked.
+
+**CI builds it like any other carrier**, in a `tizen` job: the library in the same Docker image as
+on a desk, then `package.sh` with the .NET 8 SDK and Samsung's Tizen workload. Samsung's install
+script is pinned to a commit and the workload to a version, because a release built from whatever
+was published that morning is a release nobody tested.
+
+**How to install one belongs in [the manual](../manual/samsung-tv.md)**, for the same reason as the
+iPhone's: it is a procedure the recipient carries out.
+
 ## What the machine *is*, on a headset
 
 **The same program again, on a screen that hangs in the room.** `ports/machine/android/` builds a
@@ -1692,14 +1737,22 @@ key reaches it again. Left transparent, the window costs even pacing once the so
 about a third of frames late, against one or two in a hundred once it is opaque. Neither order alone
 gives both, and this one does.
 
+**The host draws before the machine starts.** It shows its name, waits until that frame is on
+screen and a second more, then hands its window over. The set keeps its launch animation up until
+the application's window has been drawn. A machine started at once, into an empty window, ran with
+its API answering while the set showed a spinner over the home screen for ever.
+
 **The machine's window is never destroyed while it runs.** Destroying SDL's window kills the host
 process within a second. The machine never tears its display down mid-evening anyway, so it keeps
-the window for the life of the process. Back reaches the host, and the process ends the ordinary way.
+the window for the life of the process. When the machine ends, it ends the application with
+`ui_app_exit`.
 
-**Keys come from the host's window, and SDL never sees them.** Keyboard focus belongs to the host's
-surface. The remote's arrows, OK and Back arrive as Ecore key events. The machine reads them there or
-from a `wl_keyboard` of its own, and translates them into the input it already handles. **Song
-numbers are entered on the machine's own number pad**, as on Android and Google TV, because
+**The remote's keys reach SDL directly, and Back is kept from the host.** SDL's own keyboard shares
+the host's Wayland connection and gets the arrows, OK and Back as ordinary key events. The host
+never sees Back, or NUI would close the application on every press. The machine decides what Back
+means, as it does on Android. The media keys are grabbed, or the set keeps them; see
+[`A remote's media keys drive the transport`](interface.md#a-remotes-media-keys-drive-the-transport).
+**Song numbers are entered on the machine's own number pad**, as on Android and Google TV, because
 [`The on-screen number pad`](interface.md#the-on-screen-number-pad) is drawn wherever there is no
 keyboard. A Samsung remote has no number keys. The set's own digit pad, behind the 123 button, does
 type digits, but it is about three presses away. So it is not what the idle screen asks for.
@@ -1714,7 +1767,8 @@ changes.
 then fails the first write, because the platform's audio server holds the hardware. So `km-audio`
 gains an output backend that writes 16-bit blocks to `audio_out_write`, which blocks until the device
 has room, in place of cpal. No privilege is declared for it. The words follow the audio clock as they
-do elsewhere, and on the set they needed no latency correction.
+do elsewhere, and on the set they needed no latency correction. The stream is held for the whole
+run, which [`Holding the audio device`](audio.md#holding-the-audio-device) explains.
 
 **Video songs use the set's own ffmpeg, and nothing of ffmpeg's ships.** The set carries
 `libavcodec.so.61` and its siblings, which are ffmpeg 7.1, the release this project builds against.
@@ -1733,7 +1787,14 @@ the MIDI song's lyric drawing, so both halves were measured. A 275 MB bank fits 
 connections on `0.0.0.0`, so phones reach the API, the remote and the owner's page with no change.
 
 **Installing is a sideload through Developer Mode**, signed with a Samsung certificate made for the
-person installing. The set's store is not pursued.
+person installing. The `.tpk` is built signed with the Tizen workload's test certificate, and
+Apps2Samsung signs it again for the set and installs it. A 39 MB package went on that way. The
+set's store is not pursued.
+
+**What was measured is one 2025 set on Tizen 10.** The host targets `net6.0-tizen8.0`: .NET 6 is on
+sets from 2023, and the Tizen 8 API on sets from 2024. Older sets need more than a rebuild, and
+[`docs/research/tizen.md`](../research/tizen.md) lists what, by Tizen version. No set is promised
+that has not run it.
 
 **How long an install lasts is still open, and the carrier is decided without it.** Developer Mode's
 grant is reported to lapse after about seven days. Whether an installed package still starts once it
@@ -2798,8 +2859,9 @@ download. It names each asset and what that asset is for.
 
 **The page warns only where a download fails without a step, and the manual holds the rest.**
 Windows refuses an unsigned setup program until the reader clicks past a warning. iOS installs an
-`.ipa` only after the reader signs it. The page states those two and links the manual's
-`Installing` and iOS chapters. What macOS, Android, a Meta Quest and Linux say about a download
+`.ipa` only after the reader signs it, and a Samsung television installs a `.tpk` only once
+Apps2Samsung has signed it. The page states those three and links the manual's `Installing`, iOS
+and Samsung chapters. What macOS, Android, a Meta Quest and Linux say about a download
 stops nobody, and it is the same at every release. A manual chapter is where a reader looks for it
 after the download.
 
@@ -2815,7 +2877,7 @@ into it, so the tracked file states no version of its own.
 **The body opens with one linked file per platform, and that file is the full package.** Eight
 rows name the two setup programs, the two machine `.deb` files, the tarball, the two machine APKs and
 the machine `.ipa`. A reader who wants the machine on one system chooses among eight links and not
-among nineteen files. The portable copies, the remote on its own, the tools packages, the arm64 tarball and the
+among twenty files. The portable copies, the remote on its own, the tools packages, the arm64 tarball and the
 carol pack stay in
 the full table below it.
 
@@ -2840,7 +2902,7 @@ files that mean nothing to a reader who has a download.
 - a `.deb` and a tarball, which carry Debian's own conventions
 
 **A release page is flat**, so the folder that says it in `dist/setup/windows/` and
-`dist/setup/macos/` is not there. A reader choosing between nineteen files has the filename and
+`dist/setup/macos/` is not there. A reader choosing between twenty files has the filename and
 the sentence beside it.
 
 **The extension is not enough on its own.** A `.pkg` and an `.exe` each belong to one system, and
@@ -2856,9 +2918,9 @@ name the build gave it, so one name holds in `dist/`, in the documents and on th
 
 **`bash tools/dist/release.sh --platforms windows,linux,android,quest` names what a cut carries**, and the rows
 for every other platform leave the table, the count and the body's download table together. A run
-that names none carries all nineteen, which is the full release and the default.
+that names none carries all twenty, which is the full release and the default.
 
-**No one desk machine builds all nineteen.** The two `.pkg` files and the two `.ipa` files are
+**No one desk machine builds all twenty.** The two `.pkg` files and the two `.ipa` files are
 produced on a Mac, and the four arm64 carriers on an arm64 Docker host. So a machine that is
 neither has eight carriers it cannot stage, and a refusal it can do nothing about. Holding a
 release until every platform can be built on one computer waits on hardware rather than on the software being ready. The release workflow names its
@@ -2891,14 +2953,14 @@ the rows the first one wrote with it.
 
 ## CI builds every release carrier, and a Mac can add the macOS packages
 
-**A pushed `v*` tag runs `.github/workflows/release.yml`, which builds all nineteen carriers and
+**A pushed `v*` tag runs `.github/workflows/release.yml`, which builds all twenty carriers and
 fills the draft release.** Each platform's job runs the same staging script a person types, and
 a last job runs `bash tools/dist/release.sh --upload` over what they staged. Publishing stays
 `gh release edit v<version> --draft=false`, typed by somebody who has opened the page.
 
-**The runners build Windows, macOS, Linux, Android, Meta Quest and iOS.** A public repository's
-standard runners cost nothing, so a release needs no machine of the owner's. The Android release
-keystore is one set of secrets. The SignPath token that
+**The runners build Windows, macOS, Linux, Android, Meta Quest, iOS and Samsung televisions.**
+A public repository's standard runners cost nothing, so a release needs no machine of the
+owner's. The Android release keystore is one set of secrets. The SignPath token that
 [`Signing a Windows release`](#signing-a-windows-release) reads is optional and is not set.
 
 **The two macOS packages are built on a runner when the macOS signing secrets are set.** They are

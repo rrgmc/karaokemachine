@@ -2,7 +2,7 @@
 //! that use it.
 //!
 //! **The host calls in on its UI thread and the machine does not return until it ends.** Each frame
-//! the machine lets Ecore do its work, which is the nested loop `docs/plans/tizen-port.md` chose and
+//! the machine lets Ecore do its work, which is the nested loop `docs/architecture/tizen.md` describes and
 //! `docs/research/tizen.md` §3 measured. So everything the host knows is published here once, before
 //! [`crate::run`] starts, the way `ioscfg` publishes an iPhone's folders before `SDL_main`.
 //!
@@ -32,8 +32,12 @@ pub(crate) struct Host {
     /// The host window's size in pixels, which is the screen's.
     pub(crate) width: i32,
     pub(crate) height: i32,
-    /// The application's writable data folder: settings, the catalog, the unpacked assets.
+    /// The application's writable data folder: settings, the catalog, the packages.
     pub(crate) data_dir: PathBuf,
+    /// The read-only folder the package's assets are in (`res/assets` of the `.tpk`), when the
+    /// host has one. `None` for the probe app, whose library carries its assets and writes them
+    /// into `data_dir/assets`.
+    pub(crate) asset_dir: Option<PathBuf>,
     /// Where the line logger writes; `None` when the host gave none.
     pub(crate) log: Option<HostLog>,
 }

@@ -159,6 +159,53 @@ impl Drop for Stream {
     }
 }
 
+/// Triangular dither of one step either way, added before rounding to S16.
+///
+/// **It is meant to keep the sound path awake.** Seen on the set through a receiver: with exact
+/// zeros written between songs, every song lost its first two or three seconds while something on
+/// the way to the speakers woke from what it took for nothing playing. Dither one step either side
+/// of zero is 96 dB under full scale, so nobody hears it, and the line is never digital silence.
+/// It is also the right way to make sixteen bits out of a float in any case.
+#[derive(Default)]
+struct Dither(u32);
+
+impl Dither {
+    /// The sum of two uniform values in `[-0.5, 0.5)`: triangular, from -1 to 1.
+    fn next(&mut self) -> f32 {
+        self.uniform() + self.uniform()
+    }
+
+    /// xorshift32, which is plenty for noise one step high.
+    fn uniform(&mut self) -> f32 {
+        if self.0 == 0 {
+            self.0 = 0x9e37_79b9;
+        }
+        self.0 ^= self.0 << 13;
+        self.0 ^= self.0 >> 17;
+        self.0 ^= self.0 << 5;
+        (self.0 >> 8) as f32 / (1u32 << 24) as f32 - 0.5
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Dither;
+
+    #[test]
+    fn dither_stays_within_one_step_and_is_not_silence() {
+        let mut dither = Dither::default();
+        let values: Vec<f32> = (0..10_000).map(|_| dither.next()).collect();
+        assert!(values.iter().all(|v| (-1.0..1.0).contains(v)));
+        let rounded: Vec<i16> = values.iter().map(|v| v.round() as i16).collect();
+        assert!(
+            rounded.iter().any(|&s| s != 0),
+            "silence must not be exact zeros"
+        );
+        let mean = values.iter().sum::<f32>() / values.len() as f32;
+        assert!(mean.abs() < 0.02, "no offset: {mean}");
+    }
+}
+
 #[expect(
     unsafe_code,
     reason = "the audio_io calls, on a handle this function creates and destroys"
@@ -215,11 +262,12 @@ fn run(
     let mut pcm = vec![0i16; samples];
     let bytes = c_uint::try_from(samples * size_of::<i16>()).unwrap_or(c_uint::MAX);
     let mut failed = Some(failed);
+    let mut dither = Dither::default();
     while !stop.load(Ordering::Acquire) {
         render(&mut float);
         // The block is already limited to full scale; the cast saturates anyway.
         for (out, sample) in pcm.iter_mut().zip(&float) {
-            *out = (sample * f32::from(i16::MAX)) as i16;
+            *out = (sample * f32::from(i16::MAX) + dither.next()).round() as i16;
         }
         // SAFETY: `handle` is prepared and `pcm` holds `bytes` bytes for the length of the call.
         let rc = unsafe { (api.write)(handle, pcm.as_mut_ptr().cast(), bytes) };

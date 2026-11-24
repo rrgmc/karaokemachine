@@ -1156,6 +1156,18 @@ fn run(
 
     let mut held = Held::new(music_volume, want, output);
 
+    // **On a Samsung television the stream is opened now and held for the whole run**, whatever
+    // `audio.idle_release_secs` says. The machine is the television, so there is nobody to hand the
+    // device back to, and the sound often goes on through a receiver. Seen on the set: every song
+    // lost its first two or three seconds while the way to the speakers woke up again. A stream that
+    // never closes, writing dithered silence between songs, gives it nothing to fall asleep on.
+    #[cfg(feature = "tizen")]
+    let idle_release: Option<Duration> = {
+        let _ = idle_release;
+        held.ensure_open(&instrument, &shared);
+        None
+    };
+
     loop {
         match commands.recv_timeout(HOUSEKEEPING_INTERVAL) {
             Ok(Job::Player(command)) => {

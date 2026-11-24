@@ -4,7 +4,7 @@
 [`BUILDING.md`](BUILDING.md) is what produced the artifact — this is what puts it on the phone, the
 television or the box under it.
 
-Seven targets, and they are not equally finished. One has a script that does the whole job. Four stop
+Eight targets, and they are not equally finished. One has a script that does the whole job. Five stop
 at a file you install by hand, and two are a project you open and press Run in.
 
 | Target | Build | Onto the device |
@@ -12,6 +12,7 @@ at a file you install by hand, and two are a project you open and press Run in.
 | [The machine → Android](#the-machine--android) | `task build:android` | `adb install -r` |
 | [The machine → Meta Quest](#the-machine--meta-quest) | `task build:android:quest` | `adb install -r` |
 | [The machine → iOS](#the-machine--ios) | `task build:ios` | Xcode, press Run |
+| [The machine → Samsung TV](#the-machine--a-samsung-television) | `tools/port/machine/tizen/package.sh` | Apps2Samsung, a local `.tpk` |
 | [The remote → Android](#the-remote--android) | `task build:android:remote` | `adb install -r` |
 | [The remote → iOS](#the-remote--ios) | `task build:ios:remote` | Xcode, press Run |
 | [The machine → Linux, over SSH](#the-machine--a-linux-box-over-ssh) | folded into the task | `task deploy:linux HOST=user@box` |
@@ -382,6 +383,56 @@ It needs `RELEASE=1`. [The manual](docs/manual/ios.md) has the procedure they fo
 
 ---
 
+## The machine → a Samsung television
+
+An app on the television itself, installed as a `.tpk` through the set's Developer Mode. Tried on a
+2025 set running Tizen 10; [`docs/architecture/tizen.md`](docs/architecture/tizen.md) says which
+others are likely.
+
+### Once per machine
+
+- **Docker**, for the library.
+- **The .NET SDK with Samsung's Tizen workload**, for the app. Samsung's workload-install script
+  in the `Samsung/Tizen.NET` repository on GitHub adds it to an SDK. `package.sh` looks for it as
+  `$KM_DOTNET`, `dotnet` on `PATH`, then `~/.dotnet/dotnet`.
+- **[Apps2Samsung](https://github.com/Apps2Samsung/Apps2Samsung)**, which signs the package for
+  one set with a free Samsung certificate and installs it.
+- **Developer Mode on the set**, with this computer's address as its Host PC IP. Apps2Samsung walks
+  through it.
+
+### Build and install
+
+```sh
+tools/port/machine/tizen/package.sh
+```
+
+That writes `local/tizen/tpk/KmMachine1.KaraokeMachine-<version>.tpk`, about 39 MB. Install it from
+Apps2Samsung as a local file, then start **Karaoke Machine** from the set's app list. It shows its
+name for a second, then the idle screen, with the address phones use, on port 8177.
+
+### Songs
+
+```sh
+tools/port/machine/tizen/songs.sh <the set's address> mysongs.kmpkg
+```
+
+It signs in with the machine's admin password, or the PIN on screen while there is none, and
+uploads the package. Given no package, it builds the synthetic test package and prints the numbers
+to dial. The owner's page does the same from a browser, at `/admin/` on the same port.
+
+### Three things that bite
+
+- **Remove the app on the set before installing a build with the same version.** An install over it
+  is not reliably a replacement, and the first sign is the old behaviour coming back. Removing it
+  also removes its songs.
+- **A song number is the package's bank times 1000, plus its slot.** The slot a package lists, such
+  as 5, is not dialable on its own; numbers below 1000 belong to nobody. `songs.sh` prints the real
+  numbers.
+- **Each installer signs with its own certificate**, and the set refuses an update signed with a
+  different one. Stay with Apps2Samsung, or remove the app before switching tools.
+
+---
+
 ## The machine → a Linux box over SSH
 
 The one target with a real deployment script. It builds the package, copies it, installs it, enables
@@ -645,6 +696,7 @@ no login session, so none of the machine's `-t` caveat applies.
 | Machine → Android | `task build:android` | `ports/machine/android/app/build/outputs/apk/flat/debug/app-flat-debug.apk` | `com.rrgmc.karaokemachine` |
 | Machine → Meta Quest | `task build:android:quest` | `ports/machine/android/app/build/outputs/apk/headset/debug/app-headset-debug.apk` | `com.rrgmc.karaokemachine.quest` |
 | Machine → iOS | `task build:ios` | `ports/machine/ios/KaraokeMachine.xcodeproj` | `com.rrgmc.karaokemachine` |
+| Machine → Samsung TV | `tools/port/machine/tizen/package.sh` | `local/tizen/tpk/KmMachine1.KaraokeMachine-<version>.tpk` | `KmMachine1.KaraokeMachine` |
 | Remote → Android | `task build:android:remote` | `ports/remote/android/app/build/outputs/apk/debug/app-debug.apk` | `com.rrgmc.karaokemachine.remote` |
 | Remote → iOS | `task build:ios:remote` | `ports/remote/ios/KaraokeRemote.xcodeproj` | `com.rrgmc.karaokemachine.remote` |
 | Machine → Linux | `task deploy:linux HOST=user@box` | `dist/karaokemachine/linux/*.deb` | `/opt/karaokemachine`, `karaokemachine.service` |

@@ -370,6 +370,23 @@ without a keyboard. So a wrong platform guess leaves somebody unable to enter a 
 A wrong guess here costs a line of text on a button that goes on working. On Android the hint would
 name a key that does not exist. A key too small to hold two lines drops its hint and keeps its label.
 
+## A remote's media keys drive the transport
+
+**Play/Pause toggles, Play plays, Pause pauses, Stop stops.** A remote with one play/pause key gets
+the toggle. A remote with two keys gets two actions that never undo each other: a toggle on Play
+would pause the song somebody pressed Play to hear. **Next skips, and Previous starts the song
+again**, as in every player. The machine keeps no history of what was sung, so there is no song to
+go back to. **Rewind and Fast-forward seek** by the same step as `,` and `.`.
+
+**Every platform, and no setting.** SDL gives the same keycodes from a keyboard's media keys, an
+Android TV remote and a Samsung remote, so the one table in `km-display`'s `action_for` serves all
+three. A key that is not pressed costs nothing.
+
+**On a Samsung television the machine grabs the keys.** Without a grab the set keeps them and shows
+its own "not available" notice. The grab is `ecore_wl2_window_keygrab_set` in TOPMOST mode, which
+works under the free certificate a sideloaded package carries, and it needs the `tv.inputdevice`
+privilege.
+
 ## Nothing is drawn where a television will not show it
 
 **A safe inset of five per cent of each axis, and everything in a corner sits on it.** A set

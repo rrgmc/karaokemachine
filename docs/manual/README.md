@@ -31,6 +31,7 @@ else.
 - [Installing](installing.md)
 - [On Debian, it is also an appliance](appliance.md)
 - [On an iPhone or an iPad, you sign it yourself](ios.md)
+- [On a Samsung television, Apps2Samsung signs it](samsung-tv.md)
 - [Removing it](removing.md)
 
 ## Using it

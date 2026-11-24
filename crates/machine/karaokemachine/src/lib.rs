@@ -1121,6 +1121,8 @@ pub fn run_on_phone() -> std::ffi::c_int {
     // remote out of the same directory. A bundle needs none of it: the tree is already files.
     #[cfg(target_os = "android")]
     androidassets::unpack(&paths);
+    // Before `load`, which writes `settings.json` and so ends the first start.
+    firstrun::request_on_a_fresh_install(&paths);
     let (settings, _) = Settings::load(&paths);
     match run(paths, settings, Options::default()) {
         Ok(()) => {

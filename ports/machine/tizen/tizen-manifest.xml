@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- package.sh writes the release's version over VERSION into the copy it builds with. -->
+<manifest xmlns="http://tizen.org/ns/packages" api-version="8" package="KmMachine1" version="VERSION">
+  <profile name="tv" />
+  <ui-application appid="KmMachine1.KaraokeMachine" exec="KaraokeMachine.dll" type="dotnet"
+                  multiple="false" taskmanage="true" nodisplay="false" launch_mode="single">
+    <label>Karaoke Machine</label>
+    <icon>karaokemachine.png</icon>
+  </ui-application>
+  <privileges>
+    <privilege>http://tizen.org/privilege/internet</privilege>
+    <privilege>http://tizen.org/privilege/network.get</privilege>
+    <!-- The remote's media keys, which the machine grabs (crates/machine/karaokemachine/src/tizen/window.rs). -->
+    <privilege>http://tizen.org/privilege/tv.inputdevice</privilege>
+  </privileges>
+</manifest>

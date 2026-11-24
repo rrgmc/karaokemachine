@@ -1,6 +1,6 @@
 # Research: the machine on a Samsung Tizen television
 
-**Research only. Nothing implemented.** The decision this note fed is
+**Research, and the port it argued for is built**: [`docs/architecture/tizen.md`](../architecture/tizen.md) says how. The decision this note fed is
 [`What the machine *is*, on a Samsung television`](../decisions/distribution.md#what-the-machine-is-on-a-samsung-television),
 and where the two disagree the decision is right.
 
@@ -75,6 +75,73 @@ result when read. Install error 118014 is what that build was made for.
 remove an application over the network. A probe re-signed from scratch has to be removed on the set
 by hand first.
 
+### Two more projects with the same shape
+
+**[source]** **OmegaTube** (`IIyn/omegatube`) is a video client for Samsung televisions: a C# NUI
+shell around a C++ library, `libomegacore.so`, built in a Debian buster armel Docker image. Its
+README gives the reason for the split. A third party cannot install a purely native application
+without a partner certificate, but a .NET application signed with the free certificate may load its
+own library. It is in the Apps2Samsung community catalog, so that installer already carries a `.tpk`
+with native code in it. Three of its findings apply here:
+
+- **Loading the library:** on Tizen 6.0 and later, `dlopen` of the packaged library by path works.
+  On 5.5 and earlier, Samsung's exploit prevention refuses any file-backed executable mapping, so it
+  copies the ELF into anonymous memory itself (`NativeCore.cs`, `ElfLoader.cs`).
+- **The window:** it gets the `Ecore_Wl2_Window *` by calling NUI's internal
+  `Window.GetNativeWindowHandler()` through reflection. That method is the same in TizenFX API 8, 10
+  and 12. The public route, `Tizen.Common.IWindowProvider.WindowHandle`, came after API 10.
+- **The remote's media keys:** it grabs them with `ecore_wl2_window_keygrab_set`
+  (`MediaKeyGrabber.cs`) and declares the `tv.inputdevice` privilege. Without the grab, the set
+  shows its own "not available" notice. Its comment calls the mode it passes, 2, "Shared".
+  **Tizen's `Ecore_Wl2.h` says 2 is TOPMOST** (SHARED is 1), so TOPMOST is what works under the free
+  certificate.
+
+It plays video through Samsung's hardware player, `libesplusplayer.so`, opened at run time. That is
+the route to try if the set's software ffmpeg falls short of 4K or HEVC.
+
+**[source]** **flutter-tizen** is Samsung's Flutter port. Its native engine accepts an existing
+`Ecore_Wl2_Window *` and builds its EGL window on it (`tizen_window_ecore_wl2.cc`), the same handoff
+`km_tizen_run` takes. Its `.so` files go into the `.tpk` through `TizenTpkUserIncludeFiles` with
+`TizenTpkSubDir`, the way `KaraokeMachine.csproj` does it. It grabs the media and colour keys in
+TOPMOST mode, and it ends the application with `ui_app_exit()`.
+
+### Which televisions: the Tizen versions
+
+**[source]** Samsung's general specifications give each model year's platform:
+
+| Model year | Tizen | Tizen .NET | TizenFX API | Browser engine |
+|---|---|---|---|---|
+| 2026 | 10.0 | .NET 8 | 13 | Chromium M130 |
+| 2025 | 9.0 | .NET 6 | 12 | Chromium M120 |
+| 2024 | 8.0 | .NET 6 | 12 | M108 |
+| 2023 | 7.0 | .NET 6 | 11 | M94 |
+| 2022 | 6.5 | .NET Standard 2.1 | 10 | M85 |
+| 2021 | 6.0 | .NET Standard 2.1 | 9 | M76 |
+| 2020 | 5.5 | .NET Standard 2.1 | 8 | M69 |
+| 2019 | 5.0 | .NET Standard 2.1 | 6 | M63 |
+| 2018 | 4.0 | .NET Standard 2.0 | 5 | M56 |
+| 2017 | 3.0 | .NET Standard 2.0 | 4 | M47 |
+| 2016 and earlier | 2.4, 2.3 | none | none | WebKit |
+
+The extraction lost some cells, so the alignment of the two middle columns was inferred: only one
+alignment fits. Samsung's text says .NET is supported from Tizen 4.0. OmegaTube's README says Tizen
+3.0 has none, against the 2017 entry above. Sets from 2023 on take OS upgrades, which is why **the
+2025 set measured here runs Tizen 10**, not 9. Samsung also says GCC 14.2 replaced 9.2 from the 2026
+models on, and that libraries built with 9.2 must be rebuilt.
+
+**[inferred]** What would change to reach older sets, newest first:
+
+| Sets | What stands in the way | What it would take |
+|---|---|---|
+| 2023–2025 (7.0–9.0), not upgraded | `KaraokeMachine.csproj` targets `net6.0-tizen8.0`, so 7.0 may refuse it. Whether these sets carry ffmpeg 7.1's sonames (`libavcodec.so.61`) is unknown; the video songs need them | a lower Tizen target, and a look at `/usr/lib` on one such set |
+| 2021–2022 (6.0, 6.5) | no .NET 6, so the host needs a `tizen60`-era target. glibc 2.30 on 6.0, while the library asks for symbols up to 2.35 | the host built twice, and the library built against an older glibc, as OmegaTube's image holds it to 2.24 |
+| 2018–2020 (4.0–5.5) | everything above, plus `dlopen` of the packaged library refused | an in-memory loader like OmegaTube's, or nuvio's separate 4.0–5.5 package |
+| 2017 and earlier | no .NET, or none that works | no route |
+
+nuvio-native-legacy already splits its packages the same way, into 4.0–5.5, 6.0, 6.5–7 and 8–9.
+`build-in-container.sh` prints the newest glibc symbol the library needs, and that is the first number
+to watch for any of these.
+
 ## 2. Listening on a port: the network reaches it
 
 **[source]** The same client calls `bind`, `listen` and `accept` on the television. It binds
@@ -120,6 +187,11 @@ covered the screen above the host's own. It took three things:
 |---|---|
 | SDL3's ALSA driver | Opens the `default` device with 1024-frame periods, then the first write fails with `EBADFD`. Silent. The platform's audio server holds the hardware |
 | `libcapi-media-audio-io`, opened with `dlopen` | `audio_out_create_new(48000, stereo, S16_LE)` and `audio_out_prepare` succeed with no privilege declared. A 440 Hz tone was heard from the set's speakers. Writes were consumed in real time, 10.1 s of audio in 10.0 s. The device buffer is 9,600 bytes, 50 ms |
+
+**[measured]** Through a receiver, a song started from silence lost its first two or three seconds.
+The machine had written them, so the words moved while nothing was heard, and the music joined in
+step. The stream held open from the start, with dithered silence instead of zeros, plays every song
+from its first note. Which link slept, the television's output or the receiver, was not isolated.
 
 **[inferred]** cpal's ALSA backend opens the same device, so it should fail the same way. A Tizen
 build of `km-audio` needs an output backend that pushes PCM through `audio_out_write`. That is a
@@ -450,12 +522,12 @@ that room, so nothing has to be kept in time across two boxes.
 
 | | Samsung, Tizen | LG, webOS |
 |---|---|---|
-| Native ARM code from a third party | a `.tpk` with a .NET host, Public certificate | unofficial, and installs on a stock television |
-| SDL | SDL3's Wayland driver draws into the host's window, measured on Tizen 10, with two patches | SDL2 has a community fork; SDL3 has nothing |
+| Native ARM code from a third party | a `.tpk` with a .NET host, Public certificate | an `.ipk` with a Flutter host and a C++ plugin, LG's own SDK, from webOS 26 Re:New; or a bare executable, unofficial, through Developer Mode |
+| SDL | SDL3's Wayland driver draws into the host's window, measured on Tizen 10, with two patches | SDL2 has a community fork; SDL3 has nothing. Whether the Flutter host lends its surface is unknown |
 | The machine's HTTP API | reachable from the network, measured on Tizen 10 | ordinary sockets |
 | Reading songs off a stick | unmeasured for a native package | a directory walk, subject to the jailer |
 | Sideload lifetime | seven days reported; effect on an installed package unknown | 1000 hours |
-| Sound | Tizen's `audio_io`, measured; ALSA refused | unmeasured |
+| Sound | Tizen's `audio_io`, measured; ALSA refused | unmeasured; LG's own Flutter plugin opens ALSA |
 | Frame pacing | the host's main loop, 60 fps and smooth on screen, measured | unmeasured |
 | The remote's keys | arrows, OK, Back and numbers reach SDL3 in a window of its own, and the host's window beside a transparent SDL subsurface, measured | unmeasured |
 | Picture size | 1080p; a 4K buffer drops to 19 fps, measured | unmeasured |
@@ -497,6 +569,23 @@ A platform decision belongs in `docs/decisions/` after them, not before.
 - `iqui27/nuvio-native-legacy` on GitHub: its README and release notes, `src/tpk.c`,
   `src/dts/dts_hls_tpk.c`, `tizen-tpk/README.md`, and its notes on the `.tpk` build.
 - `Apps2Samsung/Apps2Samsung` on GitHub, and its issue #844 on installing from the television.
+- OmegaTube, <https://github.com/IIyn/omegatube>: its README, `app/OmegaTube/NativeCore.cs`,
+  `ElfLoader.cs`, `MediaKeyGrabber.cs`, `OmegaTube.csproj` and `tizen-manifest.xml`.
+- flutter-tizen, <https://github.com/flutter-tizen/flutter-tizen> and
+  <https://github.com/flutter-tizen/embedder>: the C# embedding and its `Runner.csproj` templates,
+  `flutter/shell/platform/tizen/tizen_window_ecore_wl2.cc`, `flutter_tizen_view.cc` and
+  `channels/platform_channel.cc`.
+- TizenFX, <https://github.com/Samsung/TizenFX>: `Window.GetNativeWindowHandler` and
+  `WindowHandle.cs` on the API8, API10 and API12 branches.
+- Tizen's EFL, `src/lib/ecore_wl2/Ecore_Wl2.h`, for `Ecore_Wl2_Window_Keygrab_Mode`, read from a
+  mirror at <https://github.com/inputhacker/efl-tizen>. The Ecore_Wl2 reference is at
+  <https://docs.tizen.org/application/native/api/common/10.0/group__Ecore__Wl2__Window__Group.html>.
+- Samsung's Tizen .NET packaging, `TizenTpkUserIncludeFiles`:
+  <https://github.com/Samsung/build-task-tizen/blob/master/doc/tizen.net.sdk-packaging-tpk.md>.
+- Samsung's television specifications: the general specifications at
+  <https://developer.samsung.com/smarttv/develop/specifications/general-specifications.html> and the
+  web engine table at
+  <https://developer.samsung.com/smarttv/develop/specifications/web-engine-specifications.html>.
 - The Samsung developer forum thread "Native app in C++?".
 - Community reports on Developer Mode sideloading and how long a grant lasts.
 - SDL 3.4.14's `src/video/wayland/SDL_waylandvideo.c`.

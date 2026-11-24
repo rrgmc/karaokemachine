@@ -11,16 +11,9 @@ Entries are written for somebody who has the machine. Why any of it is the way i
 
 ## [Unreleased]
 
-### Changed
-
-- **A song sung earlier tonight no longer brings a question on the remote.** Asking for it again
-  just asks. A song still waiting in the queue is asked about once, as before.
-
-### Fixed
-
-- **A song no longer starts its first line with its key.** Some files open their words with a key
-  signature such as `B=#####C=`, and the screen drew it in front of the first word. Rescan a
-  library to see it gone from the song list's preview.
+What the next release gives is one file per change in [`changelog.d/`](changelog.d/), so that two
+pull requests never edit the same lines here. A release gathers them into a section below; see
+[`RELEASE.md`](RELEASE.md). `bash tools/dist/changelog.sh preview` prints that section now.
 
 ## [1.25.0] - 2026-11-03
 

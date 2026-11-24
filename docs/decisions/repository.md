@@ -445,6 +445,13 @@ Three things keep that inside the four constraints:
   [`distribution.md`](distribution.md#what-setup-fetches) is unchanged, and that is the point of doing
   it this way rather than downloading during the install.
 
+**On the four app carriers, installing the app is the asking.** Android, Meta Quest, iOS and a
+Samsung television have no setup program to print an offer. The machine writes the same request on
+its first start there, and prints the bank's size and terms on the television as the download
+begins. That is a narrowing of "nothing is fetched unasked", accepted in
+[`An app requests the recommended bank on its first start`](distribution.md#an-app-requests-the-recommended-bank-on-its-first-start).
+The four constraints and the three-start limit are unchanged.
+
 **An owner's own choice wins over the tick box**, which is the other half of "nothing is fetched
 unasked". If `audio.soundfont` is already set, the request is dropped unread. So a repair or upgrade
 install cannot talk over a bank somebody chose.
@@ -1657,11 +1664,43 @@ more absolute URLs naming the account this repository currently sits under. They
 the day it moves, and would be dead in every clone until then. A version and a date locate a release
 in `git log` without help.
 
-**The order is a document of its own.** Retitling `Unreleased` is the first step of a cut rather than
-a line inside `BUILDING.md`'s bump section. The range it is written from is read most easily before
+**The order is a document of its own.** Writing the changelog's section is the first step of a cut
+rather than a line inside `BUILDING.md`'s bump section. The range it is written from is read most easily before
 the tag exists. And a release has six more steps after it that no single section owned.
 [`RELEASE.md`](../../RELEASE.md) is that order, and it points at `BUILDING.md` for every command
 rather than repeating one.
+
+## Unreleased entries are a file each, and a release gathers them
+
+**A pull request records what it changed for the person with the machine as a new file in
+`changelog.d/`, and never edits `CHANGELOG.md`.** The file is `<name>.<type>.md`, where the type is
+one of Keep a Changelog's six sections, and it holds the entry exactly as it will read. Only cutting
+a release writes `CHANGELOG.md`: `tools/dist/changelog.sh release X.Y.Z` gathers the files under a
+new version heading and deletes them in the same commit.
+
+**Why: every pull request edited the same lines.** Entries went under `## [Unreleased]`, at the top
+of the same `### Added` or `### Fixed`, so any two pull requests open at once conflicted there. With
+several sessions routinely working in parallel, that was most pairs. A new file in a folder conflicts
+with nothing, and the entry is still written by the change that earns it, while its author knows
+what it gives.
+
+**It is the convention towncrier and its relatives use**, a folder of fragments named by section,
+without the tool. A script of a page reads the folder, so nothing is installed to cut a release or to
+check a pull request. Entries within a section come in the order their files were first committed,
+which is the order they merged.
+
+**`## [Unreleased]` stays in the changelog**, holding a paragraph that points at the folder rather
+than entries. Somebody reading the changelog still finds where the next release's changes are, and
+the paragraph never changes, so nothing conflicts on it.
+
+**`check` is a guard like the others.** `task check` and CI's `guards` job fail on a file whose name
+or shape the release would mangle — an unknown type, a heading, text that is not a list item —
+because the release is the wrong moment to find it.
+
+**What this gives up:** the changelog no longer shows the next release until it is cut;
+`tools/dist/changelog.sh preview` prints it. And a pull request that forgets its file has nothing to
+conflict over, so nothing announces the omission. The release checks the gathered section against
+`git log --merges v<previous>..HEAD` for that reason; see [`RELEASE.md`](../../RELEASE.md).
 
 ## Catalogs live beside the words they translate
 

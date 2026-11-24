@@ -19,12 +19,19 @@ tools/dev/check-script-modes.sh      # or: task lint:modes  — a script with a 
 bash tools/dev/check-cargo-config.sh      # or: task lint:cargo  — every value a worktree can inherit
 bash tools/dev/labels.sh check            # or: task lint:labels — a label for every platform, program and path row
 bash tools/dev/check-ci-paths.sh          # or: task lint:ci     — a file a build job reads starts that job
+bash tools/dist/changelog.sh check        # or: task lint:changelog — every file in changelog.d/ is well formed
 cargo fmt --all
 cargo km-lint                        # clippy over every target, -D warnings
 cargo km-test                        # the test suite
 cargo km-lint-assets                 # and the same two over tools/cmd/assets, which is a second
 cargo km-test-assets                 # workspace `--workspace` cannot reach
 ```
+
+**A change somebody with the machine would notice adds a file to [`changelog.d/`](changelog.d/)**,
+and does not edit `CHANGELOG.md`. One file per change, named `<name>.<type>.md`, holding the entry as
+it will read; [`changelog.d/README.md`](changelog.d/README.md) has the format. Two pull requests that
+both edited `## [Unreleased]` always conflicted, and two new files never do. The release gathers
+them.
 
 **The compiler version is not yours to choose.** `rust-toolchain.toml` pins an exact one, and rustup
 installs it on the first `cargo` command. There is nothing to select, and `rustup update` is not part
