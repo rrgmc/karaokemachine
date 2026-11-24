@@ -35,6 +35,7 @@ Two neighbors worth knowing before you start:
 | [`android.md`](architecture/android.md) | the APK, the armv7 `cdylib`, assets in the APK, video and packages on Android |
 | [`ios.md`](architecture/ios.md) | the machine on a phone: SDL from source for iOS, the frameworks the app binary is given, the paths handed down from Swift |
 | [`tizen.md`](architecture/tizen.md) | the machine on a Samsung television: the .NET host and the `cdylib`, the host drawing first, the nested Ecore loop, keys, `audio_io` held and dithered, the probe app |
+| [`webos.md`](architecture/webos.md) | the machine on an LG webOS 5 set, a development carrier: the custom-role window with the webOS shell roles, Back from evdev 412, the patched prebuilt SDL3, the `.ipk` and its probe |
 | [`assets.md`](architecture/assets.md) | the asset directory and local overlay, the application icon, wallpapers, `km-wallpaper-pack`, the README's pictures |
 | [`appliance.md`](architecture/appliance.md) | Debian on a bare TTY, and the three cold-boot faults found on it |
 | [`distribution.md`](architecture/distribution.md) | the carriers — folders, bundles, `.deb`, tarball, both installers — and what a staging run says |
@@ -252,6 +253,7 @@ tools/                     # six folders and nothing loose -- see "How things he
     libc_n.map             # both Android ports use them -- the map via a cfg(target) rustflag.
     machine/android/       # build, stage, assets, ffmpeg -- the machine as an APK
     machine/tizen/         # the build image, build, package, load and songs -- the machine as a .tpk
+    machine/webos/         # the build image, the SDL3 patch, build and run, the probe -- the machine as a .ipk
     remote/android/        # build, stage -- the offline remote as an APK
     remote/ios/            # build -- the xcframework and the generated Xcode project
   platform/                # what a platform asks for, rather than what karaoke does. The same word

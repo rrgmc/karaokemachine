@@ -7,7 +7,7 @@
 # Builds the km-webos image first (Dockerfile beside this; cached after the first time), then the
 # probe in it, into local/webos/target, never the host's target/. The .ipk is packed on the host with
 # ares-package (`npm install -g @webos-tools/cli`) and lands in local/webos/.
-# docs/plans/webos-probe.md is what this is for; run.sh installs and starts the result.
+# docs/architecture/webos.md describes it; run.sh installs and starts the result.
 
 set -euo pipefail
 

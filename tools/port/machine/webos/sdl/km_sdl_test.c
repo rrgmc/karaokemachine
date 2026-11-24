@@ -1,5 +1,5 @@
 /*
- * km-sdl-test: P2 and P4 of docs/plans/webos-probe.md through SDL3, on a webOS 5 set.
+ * km-sdl-test: drawing and the remote through SDL3 (docs/research/webos.md §13), on a webOS 5 set.
  *
  *   km-sdl-test [secs]
  *

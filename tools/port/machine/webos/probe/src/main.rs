@@ -1,5 +1,5 @@
 //! The webOS probe: asks a webOS television, from inside an application's jail, the questions in
-//! `docs/research/webos.md` §2 that can each end a port. See `docs/plans/webos-probe.md`.
+//! `docs/research/webos.md` §2 that can each end a port. See `docs/architecture/webos.md`.
 //!
 //! The launcher starts it with the launch parameters as a JSON string in `argv[1]`. It writes the
 //! report and serves it on `0.0.0.0:8177`, or 8180 when the machine runs, `GET /report` and

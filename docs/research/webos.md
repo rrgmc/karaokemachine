@@ -6,8 +6,9 @@ webOS carrier needs an entry in `docs/decisions/distribution.md` beside
 [`What the machine *is*, on iOS`](../decisions/distribution.md#what-the-machine-is-on-ios) first.
 
 Investigated 2026-09-13 and revised 2026-11-24. **§13 is what a 2020 set on webOS 5 measured**, with
-the probe of [`docs/plans/webos-probe.md`](../plans/webos-probe.md). Nothing else here was verified on
-a television, and the marker on each claim says how far it can be trusted.
+the probe in `tools/port/machine/webos/`, and the machine itself runs there as
+[`docs/architecture/webos.md`](../architecture/webos.md) describes. Nothing else here was verified
+on a television, and the marker on each claim says how far it can be trusted.
 
 **Summary.** The whole machine runs on an LG television as a native 32-bit ARM Linux program. The
 engine is ready: it already plays all three song kinds on a 32-bit Cortex-A55 television box at
@@ -23,15 +24,16 @@ machine as a library. Flutter takes the place .NET took there. §1 has the detai
 TV 26 "Re:New" or later, which television years that covers is not yet known, and installing still
 goes through Developer Mode.
 
-Two questions decide the answer, and nobody has asked either of hardware. **Where SDL3 can draw.**
-There is no SDL3 for webOS, and on Samsung the answer was a subsurface of the host's own window. And
-whether cpal reaches a sound device, where PulseAudio owns a television's sound. LG's own plugin linking
-ALSA makes that one likelier. Two further findings shape the product rather than block it. An
-installed application is removed when the Developer Mode session runs out, unless the Content Store
-carries it. And a television has about a third of the memory the Android measurements had.
+**On a webOS 5 set both questions that could end it are answered, and the machine runs** (§13). SDL3
+draws at 60 fps in a custom-role window given the webOS shell roles, after a two-symbol patch for the
+set's older libwayland. cpal plays through ALSA's `default` with no underruns. The machine plays a
+MIDI song with its lyrics in about 56 MB and 0.6 of a core, and the singer's page works from a phone.
+Two findings still shape the product rather than block it. An installed application is removed when
+the Developer Mode session runs out, unless the Content Store carries it. And video songs need the
+set's ffmpeg 4, which this build does not use.
 
-**Nothing is being built from this.** If it is ever taken up, one afternoon with a television answers
-the questions that can each end it.
+**This is a development carrier, not a product.** The shippable route is LG's Flutter one, on a
+webOS 26 set, which has not been tried; whether LG is a platform at all is a product decision.
 
 | Marker | Meaning |
 |---|---|
@@ -410,18 +412,18 @@ until the registry dump exists.
 ## 12. Recommendation
 
 **Not now, but no longer "not shippable".** The Android port on a Google TV device already serves a
-television. And on this platform the display may turn out not to work at all. What has changed is
-the carrier. The first version of this note had only a homebrew one, which asks its owner to keep a
+television. The display question is answered for webOS 5: the machine draws and plays there
+(§13). What has changed is the carrier. The first version of this note had only a homebrew one, which asks its owner to keep a
 developer session alive or lose the machine. LG's Flutter SDK is an official native application type,
 and a host plus a loaded library has already been built and measured on Samsung. On LG it is the route to
 try first, and the Content Store is the only way found to an install that does not expire.
 
-If it is ever taken up, the first act is the afternoon in §2 and nothing else, on a television with
-webOS 26 Re:New, deployed as LG's Flutter template with the probe plugin. The bare binary, the
-registry dump and the sine tone of §4 belong in one deploy. Between them they answer five questions
-that can each end the port, and they cost a day. They turn every estimate here from a guess into a
-number. Memory is the second measurement, because it decides which SoundFont banks this carrier can
-offer. That is a product question rather than a build one.
+If it is ever taken up as a product, the first act is the afternoon in §2 on a television with
+webOS 26 Re:New, deployed as LG's Flutter template with the probe as a plugin. What the webOS 5
+set settled carries over as a guess, not a measurement: whether the newer compositor still lacks
+`xdg_wm_base`, and how old its libwayland is, decide whether the window code here is needed there.
+Memory is the other measurement, because it decides which SoundFont banks a carrier can offer; on
+webOS 5 the machine left about 236 MB free with the bundled bank.
 
 The sibling note is [`tizen.md`](tizen.md), which asks the same question of a Samsung television. It
 finds a port possible there too. SDL3 draws through its own Wayland driver into the host
@@ -454,6 +456,9 @@ Developer Mode. LG's Flutter route needs webOS 26 Re:New, so it was not tried. B
 | libwayland | older than 1.18: no `wl_proxy_set_tag`/`get_tag` (1.18), `wl_proxy_marshal_flags` (1.20) or `wl_proxy_get_display` (1.23). `wl_proxy_create_wrapper` and `wl_display_prepare_read_queue` are there |
 | SDL3 | **draws.** SDL3 3.4.14 built against wayland 1.18's headers and scanner, whose generated code calls only `wl_proxy_marshal_constructor`, with `tools/port/machine/webos/sdl3-webos.patch` making the two tag functions optional. The window is made with `SDL_PROP_WINDOW_CREATE_WAYLAND_SURFACE_ROLE_CUSTOM_BOOLEAN`, and the program gives SDL's `wl_surface` the `wl_shell` and `wl_webos_shell` roles itself. SDL's GLES2 renderer reports 1920x1080 and a moving bar ran at **59.9 fps for a minute**, 9 frames of 3,565 over 20 ms, after a 378 ms stall in the first second. xkbcommon finds no Compose file for locale `C`, which costs only dead keys |
 | SDL3's keys | every key arrives as an SDL key event. Arrows, OK as `Return` and the digits as `1` onwards map to their ordinary scancodes and keycodes. **Back does not**: scancode 400 with no name, keycode `0x200003`, `raw` 412. The machine has to map evdev 412 to Back itself, as the SDL2 fork's `SDL_scancode_webos.c` does |
+| The machine | **runs, and plays.** Built with the `webos` feature and no `video`, launched from the `.ipk`: the idle screen fullscreen at 1920x1080 with vsync, the wallpapers, the number pad, and the remote's keys working, Back included through the evdev 412 remap. The singer's page opens on a phone, and a song queued from it played a MIDI file with the bundled SoundFont through ALSA's `default`, lyrics in time, no underruns, confirmed by eye and ear. mDNS advertises |
+| Its cost | 50 MB resident at idle and 56 MB playing, 79 MB at peak, leaving about 236 MB available. Playing a MIDI song takes about 0.6 of one core of the four |
+| Its data | settings, the catalog and the packages folder land under `HOME`, the application folder, so Developer Mode's expiry takes them with it. The developer shell cannot read them. Whether anything survives a reboot is still not measured |
 | A surprise | once, between two launches, the set was found switched off. The cause is unknown |
 
 **What this means for §3.** Rungs 0 and 1 are out, and rung 2 turned out smaller than it looked.
@@ -472,7 +477,7 @@ What works where, kept up to date as sets are tried. Only webOS 5 has been run.
 
 | webOS | Sets | Known | Source |
 |---|---|---|---|
-| 5 (`sdkVersion` 5.x) | 2020 | Everything in the table above: native `.ipk` through Developer Mode, softfp and glibc 2.28, `wl_shell` + `wl_webos_shell` with no `xdg_wm_base`, libwayland older than 1.18, SDL3 drawing at 60 fps through a custom-role window, ALSA `default`, remote keys reaching SDL3 with Back to be mapped from evdev 412. Too old for LG's Flutter route | **[set]** |
+| 5 (`sdkVersion` 5.x) | 2020 | Everything in the table above: native `.ipk` through Developer Mode, softfp and glibc 2.28, `wl_shell` + `wl_webos_shell` with no `xdg_wm_base`, libwayland older than 1.18, SDL3 drawing at 60 fps through a custom-role window, ALSA `default`, remote keys reaching SDL3 with Back mapped from evdev 412, and **the machine running and playing a MIDI song**. Too old for LG's Flutter route | **[set]** |
 | 5 and later | | Native applications install through Developer Mode on a stock set; Kodi ships so | **[web]**, §1 |
 | 24 and 25 | 2024, 2025 | Chromium 120 is the web engine on webOS 25. The root chains reach 2025 sets only on the webOS 10.0 they shipped with | **[web]**, §1 |
 | 26 Re:New and later | | LG's Flutter for webOS TV: an official `native` application type with C++ plugins, LG's NDK for `ca9v1`, Chromium 132. Whether its compositor offers `xdg_wm_base`, and how new its libwayland is, are not known | **[web]**, §1 |
