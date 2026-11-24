@@ -112,9 +112,10 @@ KM_FEATURES_IOS="video"
 # code calls libraries only the set carries, so no host lint could build it.
 KM_FEATURES_TIZEN="video,tizen"
 
-# The machine on an LG webOS 5 television, built by `tools/port/machine/webos/build.sh`. No `video`:
-# the set carries ffmpeg 4, and the machine is built against 7.1.
-KM_FEATURES_WEBOS="webos"
+# The machine on an LG webOS 5 television, built by `tools/port/machine/webos/build.sh` inside the
+# km-webos image, which builds ffmpeg at the pin; the .ipk carries it, since the set's own cannot
+# decode H.264.
+KM_FEATURES_WEBOS="video,webos"
 
 # ...and what the two *remote* shells turn on, which is nothing at all, on each.
 #

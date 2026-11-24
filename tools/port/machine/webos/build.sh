@@ -52,6 +52,7 @@ docker build -q -t "$IMAGE" --build-arg "RUST_VERSION=$RUST_VERSION" \
   --build-arg "SDL3_SRC_VERSION=$SDL3_SRC_VERSION" --build-arg "SDL3_SRC_SHA256=$SDL3_SRC_SHA256" \
   --build-arg "SDL3_TTF_SRC_VERSION=$SDL3_TTF_SRC_VERSION" \
   --build-arg "SDL3_TTF_SRC_SHA256=$SDL3_TTF_SRC_SHA256" \
+  --build-context "setup=$(host_path "$PWD/tools/setup")" \
   "$HERE" >/dev/null
 
 echo "== probe"
@@ -93,8 +94,14 @@ cp "$OUT/target/armv7-unknown-linux-gnueabi/release/km-webos-probe" "$OUT/km-sdl
 mkdir -p "$app/assets/fonts" "$app/assets/soundfont" "$app/assets/wallpapers"
 cp assets/soundfont/*.sf2 assets/soundfont/LICENSE.txt "$app/assets/soundfont/"
 cp assets/wallpapers/default-wallpapers.zip assets/wallpapers/CREDITS.md "$app/assets/wallpapers/"
-docker run --rm -v "$(host_path "$PWD/$app"):/app" "$IMAGE" \
+docker run --rm -v "$(host_path "$PWD/$app"):/app" "$IMAGE" bash -c '
   cp /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf /app/assets/fonts/karaoke.ttf
+  # The ffmpeg the machine was linked against, which the probe puts on LD_LIBRARY_PATH: the
+  # set has its own 4.0, which cannot decode H.264. Only the sonames the machine asks for.
+  mkdir -p /app/lib
+  for l in $(arm-linux-gnueabi-readelf -d /app/karaokemachine | sed -n "s/.*Shared library: \[\(lib\(av\|sw\)[a-z]*\.so\.[0-9]*\)\]/\1/p"); do
+    cp -L "/opt/ffmpeg/lib/$l" /app/lib/ && arm-linux-gnueabi-strip "/app/lib/$l"
+  done'
 # A package to try the machine with, carried beside it; the probe installs it for "package". It
 # stays in local/, since a package of real songs is not the repository's to carry.
 if [ -n "${KM_WEBOS_PACKAGE:-}" ]; then

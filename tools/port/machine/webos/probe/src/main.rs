@@ -87,6 +87,10 @@ fn main() {
         if param_u64(&params, "frame_stats") == Some(1) {
             args.push("--frame-stats".into());
         }
+        // `"args": "--data-dir /media/developer/temp/x"` passes more, split on spaces.
+        if let Some(more) = param_str(&params, "args") {
+            args.extend(more.split_whitespace().map(String::from));
+        }
         run_child("karaokemachine", &args, "km");
     }
     if let Some(t) = sound_thread {
