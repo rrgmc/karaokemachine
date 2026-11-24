@@ -82,6 +82,8 @@ mod timed;
 // because Tizen reports itself as ordinary Linux.
 #[cfg(feature = "tizen")]
 pub mod tizen;
+#[cfg(feature = "webos")]
+mod webos;
 // The two parts of it with no FFI, built alone so that their tests run on every host. A host build
 // never turns `tizen` on, so this is the only way they are tested before the set.
 #[cfg(all(test, not(feature = "tizen")))]

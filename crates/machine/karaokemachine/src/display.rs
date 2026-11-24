@@ -197,7 +197,8 @@ const POSITION_WINDOW_PICTURE_MS: u32 = 6_000;
 const FULLSCREEN_IS_FIXED: bool = cfg!(any(
     target_os = "android",
     target_os = "ios",
-    feature = "tizen"
+    feature = "tizen",
+    feature = "webos"
 ));
 
 /// Whether the transport strip says which function key presses each of its buttons.
@@ -218,7 +219,8 @@ const FULLSCREEN_IS_FIXED: bool = cfg!(any(
 const KEY_HINTS: bool = !cfg!(any(
     target_os = "android",
     target_os = "ios",
-    feature = "tizen"
+    feature = "tizen",
+    feature = "webos"
 ));
 
 /// Whether a package can be installed by dragging it onto the window.
@@ -240,7 +242,8 @@ const KEY_HINTS: bool = !cfg!(any(
 pub(crate) const DRAG_AND_DROP: bool = !cfg!(any(
     target_os = "android",
     target_os = "ios",
-    feature = "tizen"
+    feature = "tizen",
+    feature = "webos"
 ));
 
 /// The path SDL means by a dropped file.
@@ -315,7 +318,8 @@ fn dropped_path(filename: &str) -> PathBuf {
 const FILE_MANAGER: bool = !cfg!(any(
     target_os = "android",
     target_os = "ios",
-    feature = "tizen"
+    feature = "tizen",
+    feature = "webos"
 ));
 
 /// Whether `F11` opens the singer's remote in a browser.
@@ -342,7 +346,8 @@ const FILE_MANAGER: bool = !cfg!(any(
 const WEB_BROWSER: bool = !cfg!(any(
     target_os = "android",
     target_os = "ios",
-    feature = "tizen"
+    feature = "tizen",
+    feature = "webos"
 ));
 
 /// Which key the connect panel says out loud opens the remote here, if any.
@@ -391,7 +396,8 @@ pub(crate) const BROWSER_KEY_HINT: Option<BrowserKey> = if cfg!(target_os = "mac
 const WINDOW_STACKS: bool = !cfg!(any(
     target_os = "android",
     target_os = "ios",
-    feature = "tizen"
+    feature = "tizen",
+    feature = "webos"
 ));
 
 /// Whether the window carries a Menu button with *Choose songs* and *Install packages*.
@@ -408,7 +414,8 @@ pub(crate) const WINDOW_MENU: bool = cfg!(any(target_os = "windows", target_os =
 const POINTER: bool = !cfg!(any(
     target_os = "android",
     target_os = "ios",
-    feature = "tizen"
+    feature = "tizen",
+    feature = "webos"
 ));
 
 /// How long an install report stays on screen after it finishes.
@@ -1825,7 +1832,7 @@ fn run_with(
     // `Display::get_mode` is SDL_GetDesktopDisplayMode, which on kmsdrm reports the connector's
     // preferred mode. Falling back to the configured size keeps a headless or odd video backend
     // working rather than refusing to open at all.
-    #[cfg(not(feature = "tizen"))]
+    #[cfg(not(any(feature = "tizen", feature = "webos")))]
     let (window_width, window_height) = if fullscreen {
         match video.get_primary_display().and_then(|d| d.get_mode()) {
             Ok(mode) if mode.w > 0 && mode.h > 0 => {
@@ -1859,16 +1866,16 @@ fn run_with(
     // see [`song_window_title`] for which way round the two go and why. The window opens on an idle
     // machine, so the bare form is what it opens with.
     let base_title = format!("KaraokeMachine {}", env!("CARGO_PKG_VERSION"));
-    #[cfg(not(feature = "tizen"))]
+    #[cfg(not(any(feature = "tizen", feature = "webos")))]
     let mut builder = video.window(&base_title, window_width, window_height);
     // Where it was left, when that is still on a screen. A fullscreen start is centered whatever
     // was saved: the display's mode is the size, and the saved corner belongs to the smaller rect.
-    #[cfg(not(feature = "tizen"))]
+    #[cfg(not(any(feature = "tizen", feature = "webos")))]
     match windowed.position {
         Some((x, y)) if !fullscreen => builder.position(x, y),
         _ => builder.position_centered(),
     };
-    #[cfg(not(feature = "tizen"))]
+    #[cfg(not(any(feature = "tizen", feature = "webos")))]
     let mut window = builder
         .resizable()
         // Ask for the real pixels. Without this a Retina panel renders the whole display at
@@ -1880,11 +1887,14 @@ fn run_with(
     // reaches, at the host's size. See `tizen::window`.
     #[cfg(feature = "tizen")]
     let window = crate::tizen::window::create_window(&video, &base_title)?;
+    // On webOS too SDL cannot give the window a shell of its own; see `webos`.
+    #[cfg(feature = "webos")]
+    let window = crate::webos::create_window(&video, &base_title)?;
 
     // Before the canvas takes the window: the taskbar, the dock and the alt-tab switcher all read
     // this, and none of them is reached by the icon an installer writes to disk. Inert on Android,
     // which has no window furniture to put one in.
-    #[cfg(not(feature = "tizen"))]
+    #[cfg(not(any(feature = "tizen", feature = "webos")))]
     km_display::set_window_icon(&mut window);
 
     let mut canvas = window.into_canvas();
@@ -1917,9 +1927,9 @@ fn run_with(
     let mut text_cache = km_display::text::TextCache::new(canvas.texture_creator());
     // The television's window is always the host's whole screen, and a custom-role surface has no
     // fullscreen for SDL to change.
-    #[cfg(not(feature = "tizen"))]
+    #[cfg(not(any(feature = "tizen", feature = "webos")))]
     apply_fullscreen(&mut canvas, &sdl.mouse(), fullscreen, windowed);
-    #[cfg(feature = "tizen")]
+    #[cfg(any(feature = "tizen", feature = "webos"))]
     sdl.mouse().show_cursor(!fullscreen);
     // After the window exists rather than as a creation flag, so that starting in front and being
     // put there by `T` are one code path. Skipped where it would mean nothing, so a platform with
@@ -2100,6 +2110,9 @@ fn run_with(
         }
 
         for event in event_pump.poll_iter() {
+            // The webOS remote's Back arrives as a key SDL has no name for. See `webos::remap_event`.
+            #[cfg(feature = "webos")]
+            let event = crate::webos::remap_event(event);
             match event {
                 SdlEvent::Quit { .. } => {
                     // Worth naming, because "the display is closing" alone does not say who asked.

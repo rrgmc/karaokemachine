@@ -41,11 +41,17 @@ lock_field() { # crate field
 }
 SDL3_SRC_VERSION="$(lock_field sdl3-src version)"
 SDL3_SRC_SHA256="$(lock_field sdl3-src checksum)"
-[ -n "$SDL3_SRC_VERSION" ] && [ -n "$SDL3_SRC_SHA256" ] || { echo "webos: no sdl3-src in Cargo.lock" >&2; exit 1; }
+SDL3_TTF_SRC_VERSION="$(lock_field sdl3-ttf-src version)"
+SDL3_TTF_SRC_SHA256="$(lock_field sdl3-ttf-src checksum)"
+for v in SDL3_SRC_VERSION SDL3_SRC_SHA256 SDL3_TTF_SRC_VERSION SDL3_TTF_SRC_SHA256; do
+  [ -n "${!v}" ] || { echo "webos: could not read $v from Cargo.lock" >&2; exit 1; }
+done
 
 echo "== image $IMAGE"
 docker build -q -t "$IMAGE" --build-arg "RUST_VERSION=$RUST_VERSION" \
   --build-arg "SDL3_SRC_VERSION=$SDL3_SRC_VERSION" --build-arg "SDL3_SRC_SHA256=$SDL3_SRC_SHA256" \
+  --build-arg "SDL3_TTF_SRC_VERSION=$SDL3_TTF_SRC_VERSION" \
+  --build-arg "SDL3_TTF_SRC_SHA256=$SDL3_TTF_SRC_SHA256" \
   "$HERE" >/dev/null
 
 echo "== probe"
@@ -65,10 +71,30 @@ docker run --rm -v "$(host_path "$PWD"):/src" -w /src "$IMAGE" bash -c \
      /opt/sdl3/lib/libSDL3.a -ldl -lm -lpthread -lrt &&
    arm-linux-gnueabi-strip '"$OUT"'/km-sdl-test && file '"$OUT"'/km-sdl-test'
 
+# The machine, as an executable with the webos feature, against the image's prebuilt SDL3 (the
+# target triple chooses it; see crates/machine/karaokemachine/Cargo.toml). The probe starts it
+# for "machine": 1.
+echo "== karaokemachine"
+. tools/setup/features.sh
+docker run --rm \
+  -v "$(host_path "$PWD"):/src" -w /src \
+  -v km-webos-cargo-registry:/opt/cargo/registry \
+  -e CARGO_TARGET_DIR=/src/$OUT/machine-target \
+  "$IMAGE" bash -c 'cargo build --locked --release -p karaokemachine --bin karaokemachine \
+      --target armv7-unknown-linux-gnueabi --features '"$KM_FEATURES_WEBOS"' &&
+    file /src/'"$OUT"'/machine-target/armv7-unknown-linux-gnueabi/release/karaokemachine'
+
 echo "== package"
 app="$OUT/app"
 rm -rf "$app" && mkdir -p "$app"
-cp "$OUT/target/armv7-unknown-linux-gnueabi/release/km-webos-probe" "$OUT/km-sdl-test" "$app/"
+cp "$OUT/target/armv7-unknown-linux-gnueabi/release/km-webos-probe" "$OUT/km-sdl-test" \
+  "$OUT/machine-target/armv7-unknown-linux-gnueabi/release/karaokemachine" "$app/"
+# The machine looks for assets/ beside its executable: the SoundFont, the wallpapers, and a font.
+mkdir -p "$app/assets/fonts" "$app/assets/soundfont" "$app/assets/wallpapers"
+cp assets/soundfont/*.sf2 assets/soundfont/LICENSE.txt "$app/assets/soundfont/"
+cp assets/wallpapers/default-wallpapers.zip assets/wallpapers/CREDITS.md "$app/assets/wallpapers/"
+docker run --rm -v "$(host_path "$PWD/$app"):/app" "$IMAGE" \
+  cp /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf /app/assets/fonts/karaoke.ttf
 cp icon/icon-128.png "$app/icon.png"
 cat > "$app/appinfo.json" <<EOF
 {
@@ -95,7 +121,8 @@ docker run --rm -v "$(host_path "$PWD/$OUT"):/w" "$IMAGE" bash -euc '
   arm-linux-gnueabi-ar x "/w/'"$ipk"'"
   mkdir data && tar -xzf data.tar.gz -C data
   find data -type d -exec chmod 755 {} + && find data -type f -exec chmod 644 {} +
-  chmod 755 data/usr/palm/applications/*/km-webos-probe data/usr/palm/applications/*/km-sdl-test
+  chmod 755 data/usr/palm/applications/*/km-webos-probe data/usr/palm/applications/*/km-sdl-test \
+    data/usr/palm/applications/*/karaokemachine
   tar -czf data.tar.gz -C data --owner=0 --group=0 --numeric-owner usr
   out="/w/'"$ipk"'"
   printf "!<arch>\n" > "$out"

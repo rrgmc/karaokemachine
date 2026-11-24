@@ -82,3 +82,41 @@ RUN set -e; mkdir -p /usr/src/sdl3 && cd /usr/src/sdl3 \
       -DSDL_CAMERA=OFF \
  && (grep -rh "define SDL_VIDEO_DRIVER_WAYLAND_DYNAMIC" build/ || true) \
  && cmake --build build && cmake --install build && rm -rf build
+
+# -- SDL3_ttf, with its own FreeType and no HarfBuzz or plutosvg, as the workspace asks ---------------
+
+ARG SDL3_TTF_SRC_VERSION
+ARG SDL3_TTF_SRC_SHA256
+RUN set -e; mkdir -p /usr/src/sdl3-ttf && cd /usr/src/sdl3-ttf \
+ && curl --proto '=https' -sSfL -o sdl3-ttf-src.crate \
+      "https://static.crates.io/crates/sdl3-ttf-src/sdl3-ttf-src-${SDL3_TTF_SRC_VERSION}.crate" \
+ && echo "${SDL3_TTF_SRC_SHA256}  sdl3-ttf-src.crate" | sha256sum -c - \
+ && tar -xzf sdl3-ttf-src.crate --strip-components=1 && rm sdl3-ttf-src.crate \
+ && cmake -S SDL_ttf -B build -G Ninja -DCMAKE_TOOLCHAIN_FILE=/opt/km-webos/armel.cmake \
+      -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/opt/sdl3 \
+      -DSDL3_DIR=/opt/sdl3/lib/cmake/SDL3 -DBUILD_SHARED_LIBS=OFF \
+      -DSDLTTF_VENDORED=ON -DSDLTTF_HARFBUZZ=OFF -DSDLTTF_PLUTOSVG=OFF -DSDLTTF_SAMPLES=OFF \
+      -DFT_DISABLE_ZLIB=ON -DFT_DISABLE_BZIP2=ON -DFT_DISABLE_PNG=ON -DFT_DISABLE_HARFBUZZ=ON \
+      -DFT_DISABLE_BROTLI=ON \
+ && cmake --build build && cmake --install build && rm -rf build
+
+# -- The machine's other native needs ---------------------------------------------------------------
+#
+# ALSA's headers and link library for cpal, armel; the set has libasound.so.2. Installing them
+# through multiarch pulls an armel libc that conflicts with the cross one, so the two packages are
+# unpacked into /opt/alsa-armel and given a .pc of their own. DejaVu is the font the .ipk carries in
+# assets/fonts, since which fonts the set has is not known.
+RUN dpkg --add-architecture armel && apt-get update \
+ && apt-get install -y --no-install-recommends fonts-dejavu-core \
+ && cd /tmp && apt-get download libasound2:armel libasound2-dev:armel \
+ && for d in libasound2*_armel.deb; do dpkg -x "$d" /opt/alsa-armel; done && rm -f libasound2*_armel.deb \
+ && mkdir -p /opt/km-webos/pc-armel \
+ && printf 'prefix=/opt/alsa-armel/usr\nlibdir=${prefix}/lib/arm-linux-gnueabi\nincludedir=${prefix}/include\nName: alsa\nDescription: ALSA, armel\nVersion: 1.1.8\nLibs: -L${libdir} -lasound\nCflags: -I${includedir}\n' \
+      > /opt/km-webos/pc-armel/alsa.pc \
+ && rm -rf /var/lib/apt/lists/*
+
+ENV CXX_armv7_unknown_linux_gnueabi=arm-linux-gnueabi-g++ \
+    AR_armv7_unknown_linux_gnueabi=arm-linux-gnueabi-ar \
+    CXXFLAGS_armv7_unknown_linux_gnueabi="-march=armv7-a -mfloat-abi=softfp -mfpu=neon" \
+    PKG_CONFIG_ALLOW_CROSS=1 \
+    PKG_CONFIG_LIBDIR_armv7_unknown_linux_gnueabi=/opt/sdl3/lib/pkgconfig:/opt/km-webos/pc-armel

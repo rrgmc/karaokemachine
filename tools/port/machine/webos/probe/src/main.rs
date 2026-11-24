@@ -2,9 +2,10 @@
 //! `docs/research/webos.md` §2 that can each end a port. See `docs/plans/webos-probe.md`.
 //!
 //! The launcher starts it with the launch parameters as a JSON string in `argv[1]`. It writes the
-//! report and serves it on `0.0.0.0:8177`, `GET /report` and `GET /log`. The parameters choose the
-//! rest: `"draw": 1` opens a window with a moving bar and logs frame gaps and keys (P2, P4),
+//! report and serves it on `0.0.0.0:8177`, or 8180 when the machine runs, `GET /report` and
+//! `GET /log`. The parameters choose the rest: `"draw": 1` opens a window with a moving bar and logs frame gaps and keys (P2, P4),
 //! `"sdl": 1` runs `km-sdl-test`, the same through SDL3, and copies its output into the log,
+//! `"machine": 1` runs the machine itself the same way,
 //! `"sound": "alsa"` or `"pulse"` plays a sine (P3), and `"secs"` (default 600) bounds them.
 //! Standard library only, so the first question, whether Rust's prebuilt std loads here at all, is
 //! not confused with any crate's.
@@ -58,7 +59,10 @@ fn main() {
         let _ = std::fs::write(dir.join("km-probe-report.txt"), &report);
     }
 
-    std::thread::spawn(move || serve(report));
+    // The machine takes 8177 when it runs, so the probe moves aside.
+    let machine = param_u64(&params, "machine") == Some(1);
+    let port = if machine { 8180 } else { 8177 };
+    std::thread::spawn(move || serve(report, port));
 
     let sound = param_str(&params, "sound");
     let sound_thread = sound.map(|backend| std::thread::spawn(move || sound::run(&backend, secs)));
@@ -66,13 +70,16 @@ fn main() {
         draw::run(secs);
     }
     if param_u64(&params, "sdl") == Some(1) {
-        run_sdl_test(secs);
+        run_child("km-sdl-test", &[secs.to_string()], "sdl");
+    }
+    if machine {
+        run_child("karaokemachine", &[], "km");
     }
     if let Some(t) = sound_thread {
         let _ = t.join();
     }
     // Keep serving the log for a while after the work is done, so it can be read.
-    let linger = if ["draw", "sdl"]
+    let linger = if ["draw", "sdl", "machine"]
         .iter()
         .any(|k| param_u64(&params, k).is_some())
         || param_str(&params, "sound").is_some()
@@ -86,34 +93,34 @@ fn main() {
     log("time is up, exiting");
 }
 
-/// Runs `km-sdl-test` from beside this executable and copies its stderr into the log.
-fn run_sdl_test(secs: u64) {
+/// Runs `name` from beside this executable and copies its output into the log, each line tagged.
+fn run_child(name: &str, args: &[String], tag: &'static str) {
     use std::io::BufRead;
     let exe = std::fs::read_link("/proc/self/exe").unwrap_or_default();
-    let test = exe.with_file_name("km-sdl-test");
+    let test = exe.with_file_name(name);
     log(&format!("starting {}", test.display()));
     let child = std::process::Command::new(&test)
-        .arg(secs.to_string())
+        .args(args)
         .stderr(std::process::Stdio::piped())
         .stdout(std::process::Stdio::piped())
         .spawn();
     let mut child = match child {
         Ok(c) => c,
-        Err(e) => return log(&format!("km-sdl-test did not start: {e}")),
+        Err(e) => return log(&format!("{name} did not start: {e}")),
     };
     if let Some(out) = child.stdout.take() {
         std::thread::spawn(move || {
             for line in std::io::BufReader::new(out).lines().map_while(Result::ok) {
-                log(&format!("sdl: {line}"));
+                log(&format!("{tag}: {line}"));
             }
         });
     }
     if let Some(err) = child.stderr.take() {
         for line in std::io::BufReader::new(err).lines().map_while(Result::ok) {
-            log(&format!("sdl: {line}"));
+            log(&format!("{tag}: {line}"));
         }
     }
-    log(&format!("km-sdl-test exited: {:?}", child.wait()));
+    log(&format!("{name} exited: {:?}", child.wait()));
 }
 
 /// A string out of the launch parameters, `{"sound": "alsa"}`.
@@ -127,15 +134,15 @@ fn param_str(params: &str, key: &str) -> Option<String> {
     Some(rest[..rest.find('"')?].to_string())
 }
 
-fn serve(report: String) {
-    let listener = match TcpListener::bind("0.0.0.0:8177") {
+fn serve(report: String, port: u16) {
+    let listener = match TcpListener::bind(("0.0.0.0", port)) {
         Ok(l) => l,
         Err(e) => {
-            log(&format!("bind 0.0.0.0:8177 failed: {e}"));
+            log(&format!("bind 0.0.0.0:{port} failed: {e}"));
             return;
         }
     };
-    log("listening on 0.0.0.0:8177");
+    log(&format!("listening on 0.0.0.0:{port}"));
     loop {
         match listener.accept() {
             Ok((mut s, peer)) => {
