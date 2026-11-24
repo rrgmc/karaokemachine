@@ -2,7 +2,7 @@
 // its folders to the machine in lib/libkm_app.so, and is otherwise empty.
 //
 // The machine runs on this application's UI thread and does not return until it ends: each frame
-// it lets Ecore do its work (docs/plans/tizen-port.md, the nested loop). It withholds Back from
+// it lets Ecore do its work (docs/architecture/tizen.md, the nested loop). It withholds Back from
 // DALi, and when it stops it ends this application with ui_app_exit. So once km_tizen_run is
 // called, nothing here runs again except the log callback.
 
