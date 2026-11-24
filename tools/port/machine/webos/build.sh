@@ -30,8 +30,23 @@ host_path() { if command -v cygpath >/dev/null 2>&1; then cygpath -m "$1"; else 
 RUST_VERSION="$(sed -n 's/^[[:space:]]*channel[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' rust-toolchain.toml)"
 [ -n "$RUST_VERSION" ] || { echo "webos: could not read the channel from rust-toolchain.toml" >&2; exit 1; }
 
+# The version and checksum Cargo.lock records for one registry crate, so the SDL3 in the image is
+# the one the sdl3-sys crate expects.
+lock_field() { # crate field
+  awk -v name="$1" -v field="$2" '
+    $0 == "name = \"" name "\"" { hit = 1; next }
+    hit && $1 == field { gsub(/"/, "", $3); print $3; exit }
+    /^\[\[package\]\]/ { hit = 0 }
+  ' Cargo.lock
+}
+SDL3_SRC_VERSION="$(lock_field sdl3-src version)"
+SDL3_SRC_SHA256="$(lock_field sdl3-src checksum)"
+[ -n "$SDL3_SRC_VERSION" ] && [ -n "$SDL3_SRC_SHA256" ] || { echo "webos: no sdl3-src in Cargo.lock" >&2; exit 1; }
+
 echo "== image $IMAGE"
-docker build -q -t "$IMAGE" --build-arg "RUST_VERSION=$RUST_VERSION" "$HERE" >/dev/null
+docker build -q -t "$IMAGE" --build-arg "RUST_VERSION=$RUST_VERSION" \
+  --build-arg "SDL3_SRC_VERSION=$SDL3_SRC_VERSION" --build-arg "SDL3_SRC_SHA256=$SDL3_SRC_SHA256" \
+  "$HERE" >/dev/null
 
 echo "== probe"
 mkdir -p "$OUT"
@@ -42,10 +57,18 @@ docker run --rm \
   "$IMAGE" bash -c 'cargo build --release --target armv7-unknown-linux-gnueabi &&
     file /src/'"$OUT"'/target/armv7-unknown-linux-gnueabi/release/km-webos-probe'
 
+# The SDL3 test, linked against the image's patched static SDL3. The probe starts it for "sdl": 1.
+echo "== km-sdl-test"
+docker run --rm -v "$(host_path "$PWD"):/src" -w /src "$IMAGE" bash -c \
+  'arm-linux-gnueabi-gcc -O2 -march=armv7-a -mfloat-abi=softfp -mfpu=neon -Wall \
+     -I/opt/sdl3/include '"$HERE"'/sdl/km_sdl_test.c -o '"$OUT"'/km-sdl-test \
+     /opt/sdl3/lib/libSDL3.a -ldl -lm -lpthread -lrt &&
+   arm-linux-gnueabi-strip '"$OUT"'/km-sdl-test && file '"$OUT"'/km-sdl-test'
+
 echo "== package"
 app="$OUT/app"
 rm -rf "$app" && mkdir -p "$app"
-cp "$OUT/target/armv7-unknown-linux-gnueabi/release/km-webos-probe" "$app/"
+cp "$OUT/target/armv7-unknown-linux-gnueabi/release/km-webos-probe" "$OUT/km-sdl-test" "$app/"
 cp icon/icon-128.png "$app/icon.png"
 cat > "$app/appinfo.json" <<EOF
 {
@@ -72,7 +95,7 @@ docker run --rm -v "$(host_path "$PWD/$OUT"):/w" "$IMAGE" bash -euc '
   arm-linux-gnueabi-ar x "/w/'"$ipk"'"
   mkdir data && tar -xzf data.tar.gz -C data
   find data -type d -exec chmod 755 {} + && find data -type f -exec chmod 644 {} +
-  chmod 755 data/usr/palm/applications/*/km-webos-probe
+  chmod 755 data/usr/palm/applications/*/km-webos-probe data/usr/palm/applications/*/km-sdl-test
   tar -czf data.tar.gz -C data --owner=0 --group=0 --numeric-owner usr
   out="/w/'"$ipk"'"
   printf "!<arch>\n" > "$out"
