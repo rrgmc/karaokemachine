@@ -2,9 +2,15 @@
 //! `docs/research/webos.md` §2 that can each end a port. See `docs/plans/webos-probe.md`.
 //!
 //! The launcher starts it with the launch parameters as a JSON string in `argv[1]`. It writes the
-//! report, then serves it on `0.0.0.0:8177` until `secs` (default 600) have passed:
-//! `GET /report` and `GET /log`. Standard library only, so the first question, whether Rust's
-//! prebuilt std loads here at all, is not confused with any crate's.
+//! report and serves it on `0.0.0.0:8177`, `GET /report` and `GET /log`. The parameters choose the
+//! rest: `"draw": 1` opens a window with a moving bar and logs frame gaps and keys (P2, P4),
+//! `"sound": "alsa"` or `"pulse"` plays a sine (P3), and `"secs"` (default 600) bounds them.
+//! Standard library only, so the first question, whether Rust's prebuilt std loads here at all, is
+//! not confused with any crate's.
+
+mod draw;
+mod sound;
+mod wayland;
 
 use std::ffi::CStr;
 use std::fmt::Write as _;
@@ -47,18 +53,41 @@ fn main() {
         let _ = std::fs::write(dir.join("km-probe-report.txt"), &report);
     }
 
+    std::thread::spawn(move || serve(report));
+
+    let sound = param_str(&params, "sound");
+    let sound_thread = sound.map(|backend| std::thread::spawn(move || sound::run(&backend, secs)));
+    if param_u64(&params, "draw") == Some(1) {
+        draw::run(secs);
+    }
+    if let Some(t) = sound_thread {
+        let _ = t.join();
+    }
+    // Keep serving the log for a while after the work is done, so it can be read.
+    let linger = if param_u64(&params, "draw").is_some() || param_str(&params, "sound").is_some() { 120 } else { secs };
+    log(&format!("work done; serving for {linger} s more"));
+    std::thread::sleep(Duration::from_secs(linger));
+    log("time is up, exiting");
+}
+
+/// A string out of the launch parameters, `{"sound": "alsa"}`.
+fn param_str(params: &str, key: &str) -> Option<String> {
+    let at = params.find(&format!("\"{key}\""))?;
+    let rest = params[at + key.len() + 2..].trim_start().strip_prefix(':')?.trim_start();
+    let rest = rest.strip_prefix('"')?;
+    Some(rest[..rest.find('"')?].to_string())
+}
+
+fn serve(report: String) {
     let listener = match TcpListener::bind("0.0.0.0:8177") {
         Ok(l) => l,
         Err(e) => {
             log(&format!("bind 0.0.0.0:8177 failed: {e}"));
-            std::thread::sleep(Duration::from_secs(secs));
             return;
         }
     };
     log("listening on 0.0.0.0:8177");
-    listener.set_nonblocking(true).unwrap();
-    let until = Instant::now() + Duration::from_secs(secs);
-    while Instant::now() < until {
+    loop {
         match listener.accept() {
             Ok((mut s, peer)) => {
                 let _ = s.set_nonblocking(false);
@@ -82,7 +111,6 @@ fn main() {
             Err(_) => std::thread::sleep(Duration::from_millis(50)),
         }
     }
-    log("time is up, exiting");
 }
 
 /// A number out of the launch parameters, `{"secs": 30}`, without a JSON parser.
@@ -191,6 +219,9 @@ fn report(args: &[String]) -> String {
     let _ = writeln!(r, "/dev/snd: {}", list("/dev/snd"));
     let rt = std::env::var("XDG_RUNTIME_DIR").unwrap_or_else(|_| "/tmp/xdg".into());
     let _ = writeln!(r, "{rt}: {}", list(&rt));
+
+    let _ = writeln!(r, "\n## Wayland globals");
+    r.push_str(&wayland::registry());
 
     let _ = writeln!(r, "\n## Libraries");
     for lib in [
