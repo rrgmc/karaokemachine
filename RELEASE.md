@@ -10,18 +10,27 @@ they all move together. See
 
 ## 1. Write down what changed
 
-[`CHANGELOG.md`](CHANGELOG.md) — retitle `## [Unreleased]` to `## [X.Y.0] - <today>`, and open an
-empty `## [Unreleased]` above it. An entry names what somebody with the machine gets, in one
-sentence, consequence first. A crate, a route, a thread, a build flag or a format's internals is the
-shape to catch. It names what changed rather than what the change gives.
+The entries are already written, a file each in [`changelog.d/`](changelog.d/). Gather them into
+[`CHANGELOG.md`](CHANGELOG.md):
 
-**Do this first**, while the range is still `git log --merges v<previous>..HEAD` rather than
-something to reconstruct after the tag exists.
+```sh
+bash tools/dist/changelog.sh preview          # read the section first
+bash tools/dist/changelog.sh release X.Y.0    # write it as `## [X.Y.0] - <today>`, git rm the files
+```
 
-**A release with no predecessor is the one case that skips the range.** Where no `v<previous>`
-resolves, write the entry from the branch's own commits and from what the machine does. It goes into
-the empty `## [Unreleased]`, rather than into a retitled one that already carries a release's worth
-of entries.
+`## [Unreleased]` stays as it is: it holds no entries, only the paragraph pointing at the folder.
+
+**Read the section against the range** before committing it, while that is still
+`git log --merges v<previous>..HEAD` rather than something to reconstruct after the tag exists. A
+merged pull request that changed what the machine does and left no file is an entry to write now,
+in `CHANGELOG.md` directly. An entry names what somebody with the machine gets, in one sentence,
+consequence first. A crate, a route, a thread, a build flag or a format's internals is the shape to
+catch. It names what changed rather than what the change gives.
+
+**The script refuses an empty folder**, because a release is not cut without a section. A release
+with no predecessor is the one case that skips the range: where no `v<previous>` resolves, write the
+entries as files from the branch's own commits and from what the machine does, then gather them the
+same way.
 
 ## 2. Write the download page's body
 

@@ -319,6 +319,16 @@ tasks:
     cmds:
       - '"{{.SH}}" tools/dev/check-ci-paths.sh'
 
+  # Unreleased changelog entries are a file each in `changelog.d/`, gathered into CHANGELOG.md only
+  # when a release is cut, so two pull requests never conflict over the same lines. This asserts every
+  # file there is named and shaped the way the release expects. The standing decision is `Unreleased
+  # entries are a file each, and a release gathers them` in docs/decisions/repository.md. Reads one
+  # folder and says one line.
+  lint:changelog:
+    desc: 'Check that every unreleased changelog entry in changelog.d/ is well formed'
+    cmds:
+      - '"{{.SH}}" tools/dist/changelog.sh check'
+
   # In the order a failure is cheapest to read: the text checks are a second each and say one
   # line, formatting says one thing, clippy says a few, and the test suite is the long one. `check:linux`
   # below is the part that only fails on Linux, and CI's `linux` job runs its equivalent.
@@ -328,7 +338,7 @@ tasks:
   # `task build:no-video` is how you confirm the video-less tree still compiles. CI's `linux` job runs
   # the same build; its Windows and macOS jobs run the `-no-video` twins.
   check:
-    desc: 'The pass before a push -- local refs, the two pins, script modes, the daemon, cargo config, issue labels, the CI paths, formatting, clippy, then the tests'
+    desc: 'The pass before a push -- local refs, the two pins, script modes, the daemon, cargo config, issue labels, the CI paths, the changelog entries, formatting, clippy, then the tests'
     cmds:
       - task: lint:local
       - task: lint:pin
@@ -338,6 +348,7 @@ tasks:
       - task: lint:cargo
       - task: lint:labels
       - task: lint:ci
+      - task: lint:changelog
       - task: fmt:check
       - task: lint
       - task: test
