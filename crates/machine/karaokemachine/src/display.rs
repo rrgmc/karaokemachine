@@ -2094,6 +2094,26 @@ fn run_with(
             break;
         }
 
+        // **The television says when the app is hidden, and SDL does not.** Its Wayland driver has
+        // no `AppWillEnterBackground` to raise, so the watch above never fires there, and the
+        // host's pause and Ecore's visibility reach the machine through `tizen::window` instead.
+        // `set_foreground` is the same call either way, so a song pauses on Home as it does on
+        // Android. While hidden nothing is drawn: the frame is Ecore's wait and nothing else.
+        #[cfg(feature = "tizen")]
+        {
+            if let Some(visible) = tizen_frames.take_visibility_change() {
+                machine.set_foreground(visible);
+            }
+            if !tizen_frames.visible() {
+                if !tizen_frames.wait() {
+                    break 'running;
+                }
+                // So the first frame back does not animate across the whole time away.
+                last_frame = Instant::now();
+                continue 'running;
+            }
+        }
+
         // **The panel's flag, reconciled once per frame rather than on the keypress.** `F12` is no
         // longer the only thing that can move it, so the meter has to be built and dropped where
         // *any* change is noticed. One atomic load per frame, which is what `foreground` already

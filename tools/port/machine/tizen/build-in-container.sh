@@ -100,9 +100,9 @@ echo "for load.sh: $stripped ($(du -h "$stripped" | cut -f1))"
 "$readelf" -h "$so" | grep -E 'Class|Machine|Flags'
 "$readelf" -A "$so" | grep -E 'Tag_CPU_arch|Tag_FP_arch|Tag_Advanced_SIMD_arch|Tag_ABI_VFP_args'
 
-# The two entry points the hosts look up by name: the probe app's, and M5's.
+# The entry points the hosts look up by name: the probe app's, M5's, and the app's pause and resume.
 echo "exported:"
-for symbol in km_probe_run km_tizen_run; do
+for symbol in km_probe_run km_tizen_run km_tizen_set_visible; do
   if "$readelf" --dyn-syms -W "$so" | awk '$4 == "FUNC" && $7 != "UND" { print $8 }' | grep -qx "$symbol"; then
     echo "  $symbol"
   else
