@@ -34,9 +34,9 @@ measured in [`docs/research/tizen.md`](../research/tizen.md) §3.
 remote's keys while the host's window has focus. Back arrives as `AC Back`, which the machine already
 treats as back. Pushing Ecore keys into SDL as well delivered every key twice, so nothing is pushed.
 The media keys are the exception: the set keeps them unless a window grabs them, so the machine
-grabs them in TOPMOST mode, as flutter-tizen and OmegaTube do. Whether SDL then names
-`XF86PlayBack`, the Smart Remote's one play/pause key, is for the set to say; each key Ecore sees is
-logged at debug.
+grabs them in TOPMOST mode, as flutter-tizen and OmegaTube do. On the set all nine grabs were
+taken and the remote's Play/Pause paused a song, on 2026-11-24. Each key Ecore sees is logged at
+debug.
 
 **Focus is the one thing to manage.** A system overlay, such as the set's number pad or its menu,
 takes keyboard focus. If SDL's window still declares a full opaque region, focus never comes back.
@@ -74,8 +74,8 @@ installed before M5.
 | M1 Nested loop | a C probe: an SDL frame loop on the UI thread pumping Ecore each frame, Back ending it | on the set: smooth for a minute, arrows and Back arrive, a clean exit. **Passed** | S |
 | M2 The machine starts | `km_tizen_run`: the machine with its idle screen, pad, catalog and API | on the set: idle screen drawn, pad driven by the remote, the owner's page open on a phone. **Passed**: `tools/port/machine/tizen/load.sh` runs it in the probe app | M–L |
 | M3 Sound | the `audio_io` output in `km-audio`; the bundled bank carried in the `.so`; `songs.sh` installs a synthetic test package | a MIDI song dialled on the pad and heard clean. **Passed**: the words in time, with no latency correction | M |
-| M4 Every song kind | video through the set's ffmpeg, MP3+G, words in time; no new playback code, so the work is `songs.sh` adding a synthetic 1080p video song and an MP3+G song whose words light on a beep each second, the `.cdg` from km-cdg's `sync_song` example | a video song and an MP3+G song played, each flash and each word on its beep. Built, not yet run on the set | S–M |
-| M5 A real app | the .NET host, assets in `res/`, a signed `.tpk`: `package.sh` builds `KmMachine1.KaraokeMachine`, the API on 8177 as settings say | installed with Apps2Samsung and started from the app list, and the remote's Play/Pause pausing a song. Built, not yet installed | M |
+| M4 Every song kind | video through the set's ffmpeg, MP3+G, words in time; no new playback code, so the work is `songs.sh` adding a synthetic 1080p video song and an MP3+G song whose words light on a beep each second, the `.cdg` from km-cdg's `sync_song` example | a video song and an MP3+G song played, each flash and each word on its beep. **Passed** on 2026-11-24, in the probe app; the remote's Play/Pause paused a song too | S–M |
+| M5 A real app | the .NET host, assets in `res/`, a signed `.tpk`: `package.sh` builds `KmMachine1.KaraokeMachine`, the API on 8177 as settings say | installed with Apps2Samsung and started from the app list, and the remote's Play/Pause pausing a song, which already works in the probe app. Built, not yet installed | M |
 | M6 Documentation | `docs/architecture/tizen.md`, `BUILDING.md`, `DEPLOYING.md`, the decision amended; this file deleted | review | S |
 
 M1 passed, so the inverted loop is not built.
