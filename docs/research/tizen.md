@@ -1,6 +1,6 @@
 # Research: the machine on a Samsung Tizen television
 
-**Research only. Nothing implemented.** The decision this note fed is
+**Research, and the port it argued for is built**: [`docs/architecture/tizen.md`](../architecture/tizen.md) says how. The decision this note fed is
 [`What the machine *is*, on a Samsung television`](../decisions/distribution.md#what-the-machine-is-on-a-samsung-television),
 and where the two disagree the decision is right.
 

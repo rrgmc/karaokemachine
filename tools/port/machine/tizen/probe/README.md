@@ -1,6 +1,6 @@
 # The nested-loop probe
 
-M1 of [`docs/plans/tizen-port.md`](../../../../../docs/plans/tizen-port.md): a C probe that runs an
+The M1 probe of the Tizen port ([`docs/architecture/tizen.md`](../../../../../docs/architecture/tizen.md)): a C probe that runs an
 SDL frame loop on the host's UI thread and lets Ecore iterate every frame. It is the gate for the
 nested-loop design. `pace=animator`, the default, blocks in `ecore_main_loop_iterate_may_block(1)`
 until an Ecore animator marks a frame due. `pace=deadline` does one non-blocking

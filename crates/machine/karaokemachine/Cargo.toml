@@ -78,7 +78,7 @@ tray = ["dep:tao", "dep:km-tray"]
 
 # The machine on a Samsung television, built by `tools/port/machine/tizen/build.sh`. A feature
 # rather than `target_os`, because Tizen reports itself as ordinary Linux. It turns on `km-audio`'s
-# `audio_io` output (`docs/plans/tizen-port.md`). Not in `tools/setup/features.sh`'s workspace
+# `audio_io` output (`docs/architecture/tizen.md`). Not in `tools/setup/features.sh`'s workspace
 # lists: that code calls into libraries only the set has, so a host lint cannot build it.
 tizen = ["km-audio/tizen"]
 # The Tizen build with its assets inside the `.so`: the font, the wallpapers and the development

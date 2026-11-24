@@ -1692,14 +1692,22 @@ key reaches it again. Left transparent, the window costs even pacing once the so
 about a third of frames late, against one or two in a hundred once it is opaque. Neither order alone
 gives both, and this one does.
 
+**The host draws before the machine starts.** It shows its name, waits until that frame is on
+screen and a second more, then hands its window over. The set keeps its launch animation up until
+the application's window has been drawn. A machine started at once, into an empty window, ran with
+its API answering while the set showed a spinner over the home screen for ever.
+
 **The machine's window is never destroyed while it runs.** Destroying SDL's window kills the host
 process within a second. The machine never tears its display down mid-evening anyway, so it keeps
-the window for the life of the process. Back reaches the host, and the process ends the ordinary way.
+the window for the life of the process. When the machine ends, it ends the application with
+`ui_app_exit`.
 
-**Keys come from the host's window, and SDL never sees them.** Keyboard focus belongs to the host's
-surface. The remote's arrows, OK and Back arrive as Ecore key events. The machine reads them there or
-from a `wl_keyboard` of its own, and translates them into the input it already handles. **Song
-numbers are entered on the machine's own number pad**, as on Android and Google TV, because
+**The remote's keys reach SDL directly, and Back is kept from the host.** SDL's own keyboard shares
+the host's Wayland connection and gets the arrows, OK and Back as ordinary key events. The host
+never sees Back, or NUI would close the application on every press. The machine decides what Back
+means, as it does on Android. The media keys are grabbed, or the set keeps them; see
+[`A remote's media keys drive the transport`](interface.md#a-remotes-media-keys-drive-the-transport).
+**Song numbers are entered on the machine's own number pad**, as on Android and Google TV, because
 [`The on-screen number pad`](interface.md#the-on-screen-number-pad) is drawn wherever there is no
 keyboard. A Samsung remote has no number keys. The set's own digit pad, behind the 123 button, does
 type digits, but it is about three presses away. So it is not what the idle screen asks for.
@@ -1714,7 +1722,8 @@ changes.
 then fails the first write, because the platform's audio server holds the hardware. So `km-audio`
 gains an output backend that writes 16-bit blocks to `audio_out_write`, which blocks until the device
 has room, in place of cpal. No privilege is declared for it. The words follow the audio clock as they
-do elsewhere, and on the set they needed no latency correction.
+do elsewhere, and on the set they needed no latency correction. The stream is held for the whole
+run, which [`Holding the audio device`](audio.md#holding-the-audio-device) explains.
 
 **Video songs use the set's own ffmpeg, and nothing of ffmpeg's ships.** The set carries
 `libavcodec.so.61` and its siblings, which are ffmpeg 7.1, the release this project builds against.
@@ -1733,7 +1742,14 @@ the MIDI song's lyric drawing, so both halves were measured. A 275 MB bank fits 
 connections on `0.0.0.0`, so phones reach the API, the remote and the owner's page with no change.
 
 **Installing is a sideload through Developer Mode**, signed with a Samsung certificate made for the
-person installing. The set's store is not pursued.
+person installing. The `.tpk` is built signed with the Tizen workload's test certificate, and
+Apps2Samsung signs it again for the set and installs it. A 39 MB package went on that way. The
+set's store is not pursued.
+
+**What was measured is one 2025 set on Tizen 10.** The host targets `net6.0-tizen8.0`: .NET 6 is on
+sets from 2023, and the Tizen 8 API on sets from 2024. Older sets need more than a rebuild, and
+[`docs/research/tizen.md`](../research/tizen.md) lists what, by Tizen version. No set is promised
+that has not run it.
 
 **How long an install lasts is still open, and the carrier is decided without it.** Developer Mode's
 grant is reported to lapse after about seven days. Whether an installed package still starts once it

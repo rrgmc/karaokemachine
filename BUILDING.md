@@ -2314,28 +2314,46 @@ tools/port/remote/ios/build.sh [--release] [--device-only] [--no-app]
 ### Samsung Tizen television
 
 ```sh
-tools/port/machine/tizen/build.sh [--release]   # libkm_app.so for armv7-unknown-linux-gnueabi, video on
+tools/port/machine/tizen/package.sh [--debug]  # the app: local/tizen/tpk/KmMachine1.KaraokeMachine-<version>.tpk
+tools/port/machine/tizen/build.sh [--release]   # libkm_app.so with its assets inside, for the probe app
 tools/port/machine/tizen/build.sh --clippy      # clippy over the Tizen code, -D warnings
-tools/port/machine/tizen/load.sh <address> 'data=<folder>'   # run it in the probe app on the set
+tools/port/machine/tizen/load.sh <address> 'data=<folder>'   # run that library in the probe app on the set
+tools/port/machine/tizen/songs.sh <address>     # build the synthetic test package and upload it
 ```
 
-Docker only. It builds the `km-tizen` image first: the armel cross-compiler, Rust, the patched static
-SDL3 at `/opt/sdl3` and a link-time ffmpeg. The cold image takes the longest. The library is built
-into `local/tizen/target`, not `target/`, and the script ends by reading it back with `readelf`:
-the softfp ABI, the exported `km_probe_run` and `km_tizen_run`, and each needed library against
-what the set carries. Work in progress, per [`docs/plans/tizen-port.md`](docs/plans/tizen-port.md).
+Docker for the library, plus the .NET SDK with Samsung's Tizen workload for the app.
+`build.sh` builds the `km-tizen` image first: the armel cross-compiler, Rust, the patched static
+SDL3 at `/opt/sdl3`, and an ffmpeg used at link time only. The cold image takes the longest. The
+library is built into `local/tizen/target`, not `target/`. The script ends by reading it back with
+`readelf`: the softfp ABI, the exported `km_probe_run` and `km_tizen_run`, each needed library
+against what the set carries, and the newest glibc symbol it needs. How it all fits together is
+[`docs/architecture/tizen.md`](docs/architecture/tizen.md).
+
+**`package.sh` is the one that makes something to install.** It runs `build.sh --app --release`,
+which leaves the assets out of the library, and writes the version from `Cargo.toml` into a copy
+of the manifest. Then it builds `ports/machine/tizen` into a `.tpk` that carries the library in
+`lib/`, the assets in `res/assets/` and the icon. It finds the SDK as `$KM_DOTNET`, `dotnet` on
+`PATH`, or `~/.dotnet/dotnet`, whichever has the `tizen` workload. Samsung's workload-install
+script from the `Samsung/Tizen.NET` repository installs it. The package is signed with the
+workload's test certificate, and Apps2Samsung signs it again for the set it installs on. **The SDK
+warns that `net6.0` is out of support.** That is the framework the sets run, so the warning stays.
 
 **The host lint never sees the Tizen code**, because the `tizen` feature calls into libraries only
 the set has. `--clippy` is its lint: `cargo clippy` for the triple in the image, with and without
 the carried assets, `-D warnings`.
 
-**Until M5 the assets ride inside the `.so`**, through the dev-only `tizen-embed-assets` feature:
-the font (the image's DejaVu Sans), the wallpapers and the development console, staged into
-`local/tizen/assets` and written into the data folder on first start. No SoundFont yet.
-`load.sh` POSTs the library to the probe app's `/load` on port 8177 and prints what it logged.
-Run it once per load: a second POST loads another copy on the UI thread while the first runs.
-When the machine stops it ends the probe app, since no key reaches the app after it; `exit=0`
+**The plain build is for the probe app**, a development app on the set that is not in this
+repository. It carries the bank, the font, the wallpapers and the development console inside the
+`.so`, through the dev-only `tizen-embed-assets` feature, and writes them into the data folder on
+first start. `load.sh` POSTs the library to the probe app's `/load` on port 8177 and prints what it
+logged. Run it once per load: a second POST loads another copy on the UI thread while the first
+runs. When the machine stops it ends the probe app, since no key reaches the app after it; `exit=0`
 keeps the app open.
+
+**`songs.sh` signs in to the machine's API on port 8177**, the app's. For a machine in the probe
+app, set `KM_TIZEN_API_PORT=8277`. It needs ffmpeg on `PATH` to make the video and MP3 songs. It
+ends by printing the numbers to dial, which are the bank the machine gave the package times 1000,
+plus the slot.
 
 **Getting the result onto a device is [`DEPLOYING.md`](DEPLOYING.md)** — finding the device with
 `adb` first, then installing, and the signing traps on each platform.

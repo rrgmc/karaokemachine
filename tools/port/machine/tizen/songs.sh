@@ -20,7 +20,8 @@
 # is fixed, so installing it again replaces it. After the upload the machine is asked for the
 # numbers it gave the songs, which are what the pad dials: bank * 1000 + slot, never the slot alone.
 #
-# Then signs in on http://<address>:8277 and POSTs the package to /api/v1/admin/packages/upload.
+# Then signs in on http://<address>:8177, the installed app's port, and POSTs the package to
+# /api/v1/admin/packages/upload. For the machine running in the probe app, KM_TIZEN_API_PORT=8277.
 # The admin password is KM_ADMIN_PASSWORD, or asked for. A machine still on its generated PIN shows
 # it on the television's screen.
 
@@ -32,7 +33,7 @@ export PATH="$HOME/.cargo/bin:$PATH"
 [ $# -ge 1 ] || { sed -n '3,6p' "$0" >&2; exit 2; }
 address="$1"
 package="${2:-}"
-api="http://$address:${KM_TIZEN_API_PORT:-8277}/api/v1"
+api="http://$address:${KM_TIZEN_API_PORT:-8177}/api/v1"
 
 # The songs, how long the synthetic media lasts, and the package id they always go under.
 SONGS="high_quality_song.mid melody_and_accompaniment.mid a_complete_short_song.mid soft_karaoke.kar"

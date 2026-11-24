@@ -2,7 +2,7 @@
 //! that use it.
 //!
 //! **The host calls in on its UI thread and the machine does not return until it ends.** Each frame
-//! the machine lets Ecore do its work, which is the nested loop `docs/plans/tizen-port.md` chose and
+//! the machine lets Ecore do its work, which is the nested loop `docs/architecture/tizen.md` describes and
 //! `docs/research/tizen.md` §3 measured. So everything the host knows is published here once, before
 //! [`crate::run`] starts, the way `ioscfg` publishes an iPhone's folders before `SDL_main`.
 //!
