@@ -5,22 +5,32 @@ webOS carrier needs an entry in `docs/decisions/distribution.md` beside
 [`What the machine *is*, on Linux`](../decisions/distribution.md#what-the-machine-is-on-linux) and
 [`What the machine *is*, on iOS`](../decisions/distribution.md#what-the-machine-is-on-ios) first.
 
-Investigated 2026-09-13. **No claim here was verified on a television**, and the marker on each says
-how far it can be trusted.
+Investigated 2026-09-13 and revised 2026-11-24. **No claim here was verified on a television**, and
+the marker on each says how far it can be trusted.
 
-**Summary.** The whole machine runs on an LG television as a native armv7 Linux program installed by
-sideload. It is a homebrew carrier rather than a shippable one. The engine is ready: it already plays
-all three song kinds on a 32-bit Cortex-A55 television box at 59.5 fps. And webOS is glibc Linux, so
-the machine is an ordinary executable there and needs none of the shell code both mobile ports carry.
+**Summary.** The whole machine runs on an LG television as a native 32-bit ARM Linux program. The
+engine is ready: it already plays all three song kinds on a 32-bit Cortex-A55 television box at
+59.5 fps.
 
-Two questions decide the answer, and nobody has asked either of hardware. **There is no SDL3 for
-webOS**, and cpal reaches ALSA where PulseAudio owns a television's sound. Two further findings shape
-the product rather than block it. An installed application is removed when the Developer Mode session
-runs out. And a television has about a third of the memory the Android measurements had.
+**The 2026-11-24 revision found the route the first version said did not exist.** That version knew
+one way in, a homebrew executable sideloaded through Developer Mode, and called it a homebrew carrier
+rather than a shippable one. Since 2026-06 LG has published **Flutter for webOS TV**, an SDK LG
+maintains itself. Its applications are `"type": "native"`, compiled ahead of time to ARM. Its plugins
+are C++ shared libraries built with CMake, and one of LG's own links ALSA. That is the shape the
+[Samsung port](tizen.md) is built in: a thin host on the vendor's supported framework, loading the
+machine as a library. Flutter takes the place .NET took there. §1 has the detail. It needs webOS
+TV 26 "Re:New" or later, which television years that covers is not yet known, and installing still
+goes through Developer Mode.
 
-**Nothing is
-being built from this.** If it is ever taken up, one afternoon with a television answers five
-questions that can each end it.
+Two questions decide the answer, and nobody has asked either of hardware. **Where SDL3 can draw.**
+There is no SDL3 for webOS, and on Samsung the answer was a subsurface of the host's own window. And
+whether cpal reaches a sound device, where PulseAudio owns a television's sound. LG's own plugin linking
+ALSA makes that one likelier. Two further findings shape the product rather than block it. An
+installed application is removed when the Developer Mode session runs out, unless the Content Store
+carries it. And a television has about a third of the memory the Android measurements had.
+
+**Nothing is being built from this.** If it is ever taken up, one afternoon with a television answers
+the questions that can each end it.
 
 | Marker | Meaning |
 |---|---|
@@ -31,9 +41,10 @@ questions that can each end it.
 
 ## 1. What a webOS television permits
 
-**[web]** Native applications are not officially supported on a retail television, and they install
-and run on a stock, unrooted one through Developer Mode. Kodi ships that way for webOS 5 and later.
-It is a larger native program than this one, so it settles whether the path works at all.
+**[web]** Native applications install and run on a stock, unrooted television through Developer Mode.
+Kodi ships that way for webOS 5 and later. It is a larger native program than this one, so it
+settles whether the path works at all. Until 2026 that was the only native route, and an unofficial
+one. The subsection at the end of this section has the official route LG has added since.
 
 **[web]** The toolchain is `webosbrew/meta-lg-webos-ndk`, a Yocto SDK producing **armv7a glibc**
 binaries. The kernel is arm64 and the userland is not, so the Rust target is
@@ -52,6 +63,50 @@ untouched. **This is the largest single saving the platform offers.**
 than `xdg_wm_base`. Audio is ALSA with PulseAudio above it. Hardware video decode is reachable only
 through the television's media pipeline, `com.webos.media` and NDL DirectMedia. That pipeline takes a
 file or a URL and draws on a plane behind the GL surface.
+
+### Since 2026-06: an official native application type, through Flutter
+
+**[web]** LG announced Flutter for webOS TV as "now officially available for developers" in its
+developer news of 2026-06-30. It supports "webOS TV 26 Re:New, and later", and a television that
+shipped with webOS 26 needs the Re:New update first. LG says nothing about which model years receive
+it. Development is on Ubuntu only, with WSL2 or a container elsewhere, and a device needs Developer
+Mode to deploy to.
+
+**[source]** The SDK is `lg-flutter-webos/flutter-webos`, BSD-3-Clause, with its plugins in
+`lg-flutter-webos/plugins`. What its files show:
+
+| | |
+|---|---|
+| **Application type** | the template's `appinfo.json` says `"type": "native"`, with `main` naming the executable. The type the first version of this note called unofficial is the one LG's own SDK emits |
+| **Code** | release builds are AOT. The runner is a C++ `main.cc`, an `App` deriving from LG's `FlutterWindow`, which registers the plugins |
+| **Native plugins** | a plugin's `webos/` folder is a CMake project building a `SHARED` library, registered through an ordinary `pluginClass` in `pubspec.yaml`. Its CMake has a list of further libraries to bundle with it |
+| **Toolchain** | LG's webOS NDK, `environment-setup-ca9v1-webosmllib32-linux-gnueabi`, and output under `build/webos/arm/`. The plugins build with `-mfpu=neon -mfloat-abi=softfp` |
+| **Sound** | `audioplayers_soloud` builds SoLoud's ALSA backend and requires `alsa` from pkg-config. Its sibling `audioplayers_webos` goes through the platform's media pipeline |
+| **Nothing found** | `dart:ffi`, an FFI plugin template, how the embedder gets its surface (Wayland or EGL), and any plugin for the remote's keys |
+
+**[inferred]** The port this implies is Tizen's, part for part. A Flutter application draws a label
+and nothing more. A plugin of perhaps a hundred lines of C++ opens `libkm_app.so` with `dlopen` and
+calls one exported entry point with the window, the data folder and the assets folder. The machine is
+the `cdylib`, as it is on Android and Tizen, not the executable the paragraph above described. That
+gives up the saving it called the largest the platform offers. It buys a route LG supports.
+
+**[inferred]** The two toolchains disagree about floating point. The homebrew NDK says hard-float and
+`gnueabihf`. LG's says `gnueabi`, and its plugins build `softfp`, which is the Samsung set's ABI and
+the triple the Tizen build already uses. A library must match the process that loads it, so LG's
+answer is the one that binds a plugin. The probe in §2 reads the loader's name and settles it.
+
+**[web]** The other routes, for completeness:
+
+- **A JavaScript service** cannot carry native code. LG's documentation says flatly that modules with
+  C/C++ add-ons cannot be used, and services run inside a jail. Whether one may start a bundled
+  executable is not documented either way.
+- **A web application in WebAssembly** is possible in principle. The engine is Chromium 120 on
+  webOS 25 and Chromium 132 on webOS 26, but LG documents nothing about WebAssembly, AudioWorklet or
+  WebGL2 support. It would also replace `km-display` wholesale, which is the divergence §3 refuses
+  for SDL2.
+- **Rooting** is not a product route. The faultmanager, DejaVuln and crashd chains are patched in
+  current firmware. Their maintainers report the 2025 televisions rootable only on the webOS 10.0 they
+  shipped with.
 
 ## 2. What one afternoon answers
 
@@ -83,6 +138,14 @@ jail, that is the best outcome available. SDL3's `kmsdrm` backend is what the De
 already ships, documented in [`appliance.md`](../architecture/appliance.md). The graphics problem
 below then disappears entirely. LSM almost certainly holds DRM master, which is the appliance's own
 documented failure against a display manager, and the question costs ten seconds.
+
+**[inferred]** **On the Flutter route of §1 the same questions are asked from inside LG's template**,
+and that deploy comes first. It is LG's hello-world plus a plugin of a few dozen lines of C++. The
+plugin opens a test library with `dlopen`, and the library writes a file, probes the same folders,
+binds a listener and dumps the registry. Two questions are added. **Whether the plugin can reach the
+host's Wayland surface**, which is what SDL3 has to draw into. And the ELF loader's name, which settles
+hard-float against `softfp`. A library loaded from the application's own folder answers the `exec`
+question in the form this route asks it.
 
 ## 3. The blocker: there is no SDL3 for webOS
 
@@ -120,6 +183,13 @@ dump in §2 settles it.
 3. **A new SDL3 `webos` video driver** over EGL and the webOS shell. Weeks, and an SDL video driver
    maintained here for as long as the port lives.
 
+**[inferred]** With a Flutter host, the rung to try first after kmsdrm is Samsung's. SDL3's stock
+Wayland driver draws into a `wl_subsurface` of the host's own window. On Tizen 10 a window of SDL's
+own stuck on an old frame, while a subsurface ran at 60 fps
+([`tizen.md`](tizen.md) §3). It is rung 1 with the toplevel lent by the host, so it needs neither
+`xdg_wm_base` nor `wl_webos_shell`. It does need the plugin to hand the machine a `wl_surface`, or
+something it can be reached from, and that is the unknown §1 lists.
+
 **SDL2 is not a fourth rung.** `km-display` takes `sdl3-ttf-sys` directly, and every one of its
 source files draws through SDL3 types. The workspace depends on the `unsafe_textures` feature. That
 feature drops the `Texture` lifetime, which is load-bearing for the text cache. SDL2 means a second
@@ -144,6 +214,11 @@ nothing about device selection is bound to a target.
 
 **[web]** A television's sound is ALSA with PulseAudio above it, and PulseAudio owns the hardware
 devices.
+
+**[source]** LG's own `audioplayers_soloud` plugin builds SoLoud's ALSA backend and nothing else
+besides a null one. A plugin in LG's SDK, for applications LG supports, opens ALSA. That makes the
+first outcome below the likeliest. It is still a build file rather than a measurement, and on Samsung
+ALSA was refused where the platform's own service worked.
 
 **[inferred]** Three outcomes, and the spike is a thirty-line sine tone:
 
@@ -232,7 +307,19 @@ extends a session. When a session expires **the applications installed under it 
 Developer Mode is disabled**, and ten reboots with no network disable it too.
 
 **[web]** Rooting lifts this. But firmware released since the middle of 2022 patches the RootMyTV
-exploit chain, so it cannot root a television bought today.
+exploit chain, so it cannot root a television bought today. The later chains are patched too (§1).
+
+**[web]** Keeping the session alive from outside has been tried. Community scripts call LG's session
+reset with the developer token from a cron job, or have Home Assistant open the Developer Mode
+application and press EXTEND. The reports are mixed, and some say the scripted reset no longer
+works. LG's own forum answer is that 1000 hours rarely needs extending.
+
+**[inferred]** The Flutter route of §1 changes where this can end rather than how it starts. LG's
+guide deploys through Developer Mode as well. But an application built with LG's SDK, of the type LG's
+template emits, is something the LG Content Store can at least be asked to carry. Individual sellers
+can register, and LG puts every submission through QA. Nothing found says whether an individual's
+native or Flutter application is accepted, or what QA makes of a karaoke machine that serves an HTTP
+API on the local network. A store install has none of the expiry above.
 
 **[inferred]** This is the finding that most affects whether the port is worth having. A karaoke
 machine is an appliance somebody switches on in a room. This one asks its owner to keep a developer
@@ -271,6 +358,14 @@ through `RUSTFLAGS` is undeclared where clippy runs with `-D warnings`.
 **[repo]** SDL links static here, as everywhere except Android, because no Java side calls into it.
 Assets are ordinary files, so iOS's treatment applies and nothing like `androidassets.rs` is needed.
 
+**[inferred]** On the Flutter route of §1 the table changes in three rows. `ports/machine/webos/`
+becomes a Flutter project: the Dart host, `webos/meta/appinfo.json`, and the C++ plugin that loads
+the machine. `tools/port/machine/webos/` drives LG's `flutter-webos` and NDK, inside a container
+because LG supports Ubuntu hosts only. And the machine becomes a `cdylib` exporting one entry point
+behind the `webos` feature, which is what `tizen` already is. The Samsung host is
+`ports/machine/tizen/Main.cs`, and it is the model for the Dart one. It draws its first frame before
+starting the machine, and it shows the reason when the machine cannot load.
+
 ## 10. Effort and risks
 
 The estimate is keyed on which rung of §3 the graphics land on, and nothing below rung 1 is knowable
@@ -289,6 +384,8 @@ until the registry dump exists.
 | No SDL3 video backend can be made to work | the port stops |
 | cpal opens no device and only the media pipeline exists | the port stops |
 | The jail refuses `exec` or offers no persistent writable directory | the port stops |
+| LG's Flutter embedder lends a plugin no Wayland surface | the Flutter route packages the machine but cannot show it, and the ladder of §3 starts over from a window of its own |
+| The Content Store declines it | the Flutter route is a sideload too, and §8 applies unchanged |
 | A patched SDL is needed | a third `sdl3` dependency block, and the additive-features trap that has already been paid for once |
 | The bank does not fit in a television's RAM | the offered bank list shrinks to the small entries |
 | The jailer hides USB from the application | songs have no source; a restart is the reported workaround |
@@ -299,10 +396,8 @@ until the registry dump exists.
 
 - **Hardware video decode.** The media pipeline is handed a file or a URL and draws behind the GL
   surface. It cannot carry a song whose picture and whose sound are produced separately.
-- **The LG Content Store.** The answer to how this is installed is a sideload, and a decision entry
-  says so plainly rather than hedging.
-- **Any carrier with an indefinite life.** Developer Mode expires and the Homebrew Channel needs a
-  rooted television.
+- **Any carrier with an indefinite life**, short of the Content Store. Developer Mode expires and the
+  Homebrew Channel needs a rooted television.
 - **The on-screen keyboard.** The machine's own number pad is how a song number is entered.
 - **Video-plane punch-through.** That patch serves hardware video behind the GL surface, which this
   machine does not use.
@@ -311,11 +406,15 @@ until the registry dump exists.
 
 ## 12. Recommendation
 
-**Not now.** The Android port on a Google TV device already serves a television. This carrier asks
-its owner to keep a developer session alive or lose the machine. And on this platform the display may
-turn out not to work at all.
+**Not now, but no longer "not shippable".** The Android port on a Google TV device already serves a
+television. And on this platform the display may turn out not to work at all. What has changed is
+the carrier. The first version of this note had only a homebrew one, which asks its owner to keep a
+developer session alive or lose the machine. LG's Flutter SDK is an official native application type,
+and a host plus a loaded library has already been built and measured on Samsung. On LG it is the route to
+try first, and the Content Store is the only way found to an install that does not expire.
 
-If it is ever taken up, the first act is the afternoon in §2 and nothing else. The bare binary, the
+If it is ever taken up, the first act is the afternoon in §2 and nothing else, on a television with
+webOS 26 Re:New, deployed as LG's Flutter template with the probe plugin. The bare binary, the
 registry dump and the sine tone of §4 belong in one deploy. Between them they answer five questions
 that can each end the port, and they cost a day. They turn every estimate here from a guess into a
 number. Memory is the second measurement, because it decides which SoundFont banks this carrier can
@@ -331,8 +430,20 @@ platform's own service rather than SDL's.
 - webOS Homebrew: the native development, filesystem and environment setup guides.
 - `webosbrew/meta-lg-webos-ndk` and `webosbrew/SDL-webOS`, read for the toolchain and for the six
   webOS files inside the Wayland driver.
-- LG's webOS TV developer documentation: the Developer Mode application, and Flutter for webOS for
-  what an officially supported native path looks like.
+- LG's webOS TV developer news of 2026-06-30, "Flutter for webOS TV is now available for developers",
+  and the Flutter for webOS guide: the supported versions, the Ubuntu host, Developer Mode.
+- `lg-flutter-webos/flutter-webos`: `doc/getting-started.md` for the NDK, and
+  `templates/app/meta/appinfo.json.tmpl` and `templates/app/runner/main.cc` for the application
+  type and the runner. `lg-flutter-webos/plugins`: `doc/plugin-guide.md`, `doc/plugin-list.md`, and
+  `packages/audioplayers_soloud` (`pubspec.yaml`, `webos/CMakeLists.txt`, `webos/Configure.cmake`,
+  `webos/webos_player.cc`).
+- LG's JavaScript service guides, for the C/C++ add-on rule and the jail. LG's web engine
+  specification, for the Chromium version of each release. LG's app ecosystem and approval process
+  pages, for individual sellers and QA.
+- `throwaway96/faultmanager-autoroot` and `throwaway96/dejavuln-autoroot`, for which firmware the
+  later root chains reach. Community reports of renewing the Developer Mode session from cron and
+  from Home Assistant.
+- LG's webOS TV developer documentation: the Developer Mode application.
 - Kodi's webOS installation instructions, for native applications on a stock television.
 - RootMyTV, for which firmware the exploit chain reaches.
 - `docs/architecture/android.md`, `docs/architecture/audio.md`, `docs/architecture/display.md`,
