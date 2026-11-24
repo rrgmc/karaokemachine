@@ -69,8 +69,9 @@ parameters `ares-launch --params` passes in `argv[1]`.
 Each milestone is recorded in the research note as it passes. P1 is the gate.
 
 **Where it stands, 2026-11-24:** P0, P1, P3 and P4 passed. P2 passed through SDL3, at 60 fps in a
-custom-role window, with `sdl3-webos.patch` for the set's older libwayland; SDL3's keys are being
-checked. P5 is next. Research note §13.
+custom-role window, with `sdl3-webos.patch` for the set's older libwayland, and SDL3 receives every
+key, Back as raw evdev 412. P5 is next: it needs a patch hook in the build for `sdl3-sys`, the webOS
+roles in the machine's window setup, and Back mapped. Research note §13.
 
 | Milestone | Deliverable | Verified by | Size |
 |---|---|---|---|
