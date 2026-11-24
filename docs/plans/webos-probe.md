@@ -68,8 +68,9 @@ parameters `ares-launch --params` passes in `argv[1]`.
 
 Each milestone is recorded in the research note as it passes. P1 is the gate.
 
-**Where it stands, 2026-11-24:** P0, P1, P3 and P4 passed. P2 drew at 60 fps without SDL, on the
-protocol directly; P2 through SDL3 waits on the rung 2 patch, and P5 on that. Research note §13.
+**Where it stands, 2026-11-24:** P0, P1, P3 and P4 passed. P2 passed through SDL3, at 60 fps in a
+custom-role window, with `sdl3-webos.patch` for the set's older libwayland; SDL3's keys are being
+checked. P5 is next. Research note §13.
 
 | Milestone | Deliverable | Verified by | Size |
 |---|---|---|---|

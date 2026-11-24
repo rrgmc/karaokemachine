@@ -451,11 +451,26 @@ Developer Mode. LG's Flutter route needs webOS 26 Re:New, so it was not tried. B
 | The remote | a standard remote, not a Magic Remote. Every key reaches the surface's `wl_keyboard` as an evdev code on one of the three seats, with `_WEBOS_ACCESS_POLICY_KEYS_BACK` set: arrows 103, 105, 106, 108; OK 28 (`KEY_ENTER`); Back 412 (`KEY_PREVIOUS`); digits as `KEY_1` onwards. The pointer sent nothing. A bar on screen and a clean tone were confirmed by eye and ear |
 | Libraries in `/usr/lib` | `libwayland-client`, `libwayland-egl`, `libEGL`, `libGLESv2`, `libasound`, `libpulse`, `libavcodec.so.58` (ffmpeg 4), `libxkbcommon`, `libfreetype` and LG's SDL2 2.0.10. No `libdrm`, no `libgbm` |
 | The network | a listener on `0.0.0.0:8177` answers from another machine on the LAN |
+| libwayland | older than 1.18: no `wl_proxy_set_tag`/`get_tag` (1.18), `wl_proxy_marshal_flags` (1.20) or `wl_proxy_get_display` (1.23). `wl_proxy_create_wrapper` and `wl_display_prepare_read_queue` are there |
+| SDL3 | **draws.** SDL3 3.4.14 built against wayland 1.18's headers and scanner, whose generated code calls only `wl_proxy_marshal_constructor`, with `tools/port/machine/webos/sdl3-webos.patch` making the two tag functions optional. The window is made with `SDL_PROP_WINDOW_CREATE_WAYLAND_SURFACE_ROLE_CUSTOM_BOOLEAN`, and the program gives SDL's `wl_surface` the `wl_shell` and `wl_webos_shell` roles itself. SDL's GLES2 renderer reports 1920x1080 and a moving bar ran at **59.9 fps for a minute**, 9 frames of 3,565 over 20 ms, after a 378 ms stall in the first second. xkbcommon finds no Compose file for locale `C`, which costs only dead keys |
+| A surprise | once, between two launches, the set was found switched off. The cause is unknown |
 
-**What this means for §3.** Rungs 0 and 1 are out, and the surface setup rung 2 would carry into
-SDL3 works when written directly against the protocol. So rung 2 is no longer "can this compositor
-show a native window" but "carry this setup into SDL3's Wayland driver": a third shell path beside
-xdg-shell and libdecor, `wl_shell` plus `wl_webos_shell`, and a patch hook in the build.
+**What this means for §3.** Rungs 0 and 1 are out, and rung 2 turned out smaller than it looked.
+SDL3's Wayland driver needs no third shell path: its custom-role window hands the surface to the
+program, and the webOS roles are about forty lines beside the frame loop rather than inside SDL. The
+patch carried is the libwayland one, two symbols made optional. The build still needs a patch hook,
+because `sdl3-sys`'s `build-from-source-static` has none.
+
+### What is known, by webOS version
+
+What works where, kept up to date as sets are tried. Only webOS 5 has been run.
+
+| webOS | Sets | Known | Source |
+|---|---|---|---|
+| 5 (`sdkVersion` 5.x) | 2020 | Everything in the table above: native `.ipk` through Developer Mode, softfp and glibc 2.28, `wl_shell` + `wl_webos_shell` with no `xdg_wm_base`, libwayland older than 1.18, SDL3 drawing at 60 fps through a custom-role window, ALSA `default`, remote keys as evdev codes. Too old for LG's Flutter route | **[set]** |
+| 5 and later | | Native applications install through Developer Mode on a stock set; Kodi ships so | **[web]**, §1 |
+| 24 and 25 | 2024, 2025 | Chromium 120 is the web engine on webOS 25. The root chains reach 2025 sets only on the webOS 10.0 they shipped with | **[web]**, §1 |
+| 26 Re:New and later | | LG's Flutter for webOS TV: an official `native` application type with C++ plugins, LG's NDK for `ca9v1`, Chromium 132. Whether its compositor offers `xdg_wm_base`, and how new its libwayland is, are not known | **[web]**, §1 |
 
 ## Sources
 
