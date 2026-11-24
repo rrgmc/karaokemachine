@@ -4,7 +4,7 @@
 [`What the machine *is*, on a Samsung television`](../decisions/distribution.md#what-the-machine-is-on-a-samsung-television),
 and where the two disagree the decision is right.
 
-Investigated 2026-09-13 and revised 2026-11-17 and 2026-11-23. **Most claims here were measured on a
+Investigated 2026-09-13 and revised 2026-11-17, 2026-11-23 and 2026-11-24. **Most claims here were measured on a
 television**, a 2025 set running Tizen 10: §2's listening port, and §3's SDL3 window, sound, frame
 pacing, remote keys, output size, teardown, video decoding and MIDI synthesis. The marker on each of the others says how far it can be trusted. The sibling note is [`webos.md`](webos.md), which asks the same question
 of an LG television.
@@ -105,6 +105,32 @@ the route to try if the set's software ffmpeg falls short of 4K or HEVC.
 `TizenTpkSubDir`, the way `KaraokeMachine.csproj` does it. It grabs the media and colour keys in
 TOPMOST mode, and it ends the application with `ui_app_exit()`.
 
+### A web application with a WebAssembly core
+
+**[source]** **moonlight-tizen** (`brightcraft/moonlight-tizen`) is a game-streaming client in wide
+everyday use on Tizen 5.5 and later, 2020 sets on. It takes the third route: a web application
+(`.wgt`) whose C core is compiled to WebAssembly with Samsung's Emscripten fork, 1.39 on fastcomp.
+Two Samsung extensions carry it. The **Tizen Sockets Extension** gives the WebAssembly side raw TCP
+and UDP. The **Tizen WASM Player** (`samsung::wasm::ElementaryMediaStreamSource`) takes elementary
+streams and decodes them in hardware: H.264, HEVC and AV1 video, and 16-bit 48 kHz PCM audio, at a
+`kLow` or `kUltraLow` latency mode.
+
+**[inferred]** It is not a route for this machine. Rust does not target that 2019 Emscripten, and
+drawing would mean WebGL in place of SDL3. Its one advantage over the `.tpk` is a single package for
+every set from 2020 on, where the table below needs three.
+
+**[source]** Its documentation and code also report, from many sets:
+
+| | |
+|---|---|
+| Video | most sets stream 4K60 HDR through the hardware decoder. Most cap hardware H.264 at level 4.1–4.2, about 1080p. Applications are held to about 60 fps on a 120 Hz panel |
+| Refresh rate | some sets start without their full refresh rate, and frames are skipped while the application's own count looks right. Powering on a device on an HDMI input clears it until the set is switched off |
+| Sound | multichannel PCM from an application often comes out distorted or silent; stereo is the reliable configuration |
+| Game mode | the `http://samsung.com/tv/metadata/use.game.mode` metadata breaks playback on Tizen 9 and later: frozen first frames, black screens, crackling sound |
+| Network | many sets have 100 Mbps Ethernet; 5 GHz Wi-Fi can be faster |
+| Volume | the `tv.audio` privilege lets an application change the set's own volume |
+| Going to the background | the application stops its stream on `visibilitychange`, "to prevent TV resource issues" |
+
 ### Which televisions: the Tizen versions
 
 **[source]** Samsung's general specifications give each model year's platform:
@@ -161,6 +187,12 @@ was changed.
 the same kernel socket calls under the same application, so the result should carry. It says nothing
 about the multicast socket mDNS needs. Without mDNS, the remote finds the machine by its address or
 by the QR code.
+
+**[source]** A listener need not belong to the application on screen. moonlight-tizen's `config.xml`
+declares a `tizen:service` with `on-boot="true"` and `auto-restart="true"`, and that service, in
+JavaScript, serves HTTP on `0.0.0.0:8888`. **[inferred]** So an API could answer a phone while the
+machine itself is closed, and start it when a song is queued, through the `application.launch`
+privilege. Native service applications exist too. Neither is measured here.
 
 ## 3. SDL3 draws on the television
 
@@ -377,6 +409,10 @@ Lines two buffer pixels wide, one pixel at 1080p, showed as stripes.
 where the time goes, and the detail is lost on the way. A native application gains nothing from
 drawing above 1080p.
 
+**[inferred]** That limit is the graphics plane's. moonlight-tizen, in §1, gets 4K60 HDR on screen
+through the hardware decoder, so the video plane is not held to it. A 4K video song would take that
+plane, through the player OmegaTube opens, not SDL's window.
+
 **[measured]** **The set's ffmpeg decodes 1080p in software.** Its `libavcodec.so.61.19.100` and
 `libavutil.so.59.39.100` are ffmpeg 7.1, the release the machine builds against. They load with
 `dlopen` and no privilege. The build is reduced. Its video decoders are H.264, HEVC, MPEG-1, MPEG-2,
@@ -510,6 +546,11 @@ connection used to install one, is unresolved. People run the client in §1 as t
 which suggests the second. It is the third measurement: install, leave the television alone for ten
 days, and start the application.
 
+**[source]** moonlight-tizen's installation guide points the same way. It installs over Developer
+Mode through Apps2Samsung or Tizen Studio and gives no lifetime for the result. The one route it
+names as expiring, after 30 days, was Samsung's USB demo package, since discontinued. An expired
+certificate is described only as stopping the installation of an update.
+
 ## 6. The television as a screen for a machine elsewhere
 
 **[repo]** This was a gap when the note was first written, and it has since been decided and built.
@@ -559,6 +600,9 @@ Build nothing yet. If a native Samsung machine is wanted, these measurements dec
    running probe over its own port and installed nothing.
 6. ~~The application ending its process when the singer leaves it, with SDL3 loaded.~~ **Passed** on
    2026-11-23, with SDL's window created transparent; see §3.
+7. The machine sent to the background, by Home or a change of input: whether its sound stops,
+   whether the set ends it, and whether it draws again on return. The port handles a system overlay
+   taking focus, and nothing else of the kind. moonlight-tizen stops its stream when hidden; see §1.
 
 A platform decision belongs in `docs/decisions/` after them, not before.
 
@@ -571,6 +615,10 @@ A platform decision belongs in `docs/decisions/` after them, not before.
 - `Apps2Samsung/Apps2Samsung` on GitHub, and its issue #844 on installing from the television.
 - OmegaTube, <https://github.com/IIyn/omegatube>: its README, `app/OmegaTube/NativeCore.cs`,
   `ElfLoader.cs`, `MediaKeyGrabber.cs`, `OmegaTube.csproj` and `tizen-manifest.xml`.
+- moonlight-tizen, <https://github.com/brightcraft/moonlight-tizen>: `README.Samsung.md`,
+  `res/config.xml`, `res/service/service.js`, `wasm/wasmplayer.cpp`, `wasm/main.cpp`,
+  `wasm/platform/index.js`, `CHANGELOG.md`, and its wiki's Installation Guide, Updating Guide,
+  Frequently Asked Questions and Known Issues pages.
 - flutter-tizen, <https://github.com/flutter-tizen/flutter-tizen> and
   <https://github.com/flutter-tizen/embedder>: the C# embedding and its `Runner.csproj` templates,
   `flutter/shell/platform/tizen/tizen_window_ecore_wl2.cc`, `flutter_tizen_view.cc` and
