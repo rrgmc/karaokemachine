@@ -14,6 +14,7 @@ file per platform. The carol package is a separate download beside them. To buil
 | **Android, Google TV** | An APK carrying both ABIs, for a phone and for a television. |
 | **Meta Quest** | An APK of its own, which puts the machine on a screen hanging in the room with the room still behind it. The screen starts on your wall, and you move it and resize it by hand. The singer's queue hangs beside it. A button switches to an ordinary system window and back, once the queue is empty. |
 | **iPhone, iPad** | An `.ipa` for the machine and one for the remote, both **unsigned**. You sign them yourself with your own Apple ID. |
+| **Samsung television** | A `.tpk`, the machine as an app on the television itself. Apps2Samsung signs it for your television and installs it. It has run on a 2025 television on Tizen 10. |
 
 <p align="center">
 <img src="../images/headset-room.webp" width="90%"
@@ -44,3 +45,6 @@ the singer who asked for each">
   unsigned too.
 - **An iPhone or an iPad** installs no unsigned application. You sign both `.ipa` files yourself,
   and [On an iPhone or an iPad](ios.md) has the steps.
+- **A Samsung television** installs an app from outside its store only in Developer mode, and only
+  when it is signed for that television. Apps2Samsung does both, and
+  [On a Samsung television](samsung-tv.md) has the steps.
