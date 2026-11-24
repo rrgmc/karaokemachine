@@ -80,7 +80,7 @@ an empty catalog.
 <!-- /platform -->
 <!-- platform: webos -->
 - **The `.ipk` is for people comfortable with LG's Developer Mode.** It installs from a computer
-  with LG's developer tools, and **the television removes it, with its songs, when Developer Mode
+  with [webOS Dev Manager](https://github.com/webosbrew/dev-manager-desktop) or LG's developer tools, and **the television removes it, with its songs, when Developer Mode
   lapses**, about six weeks after the last extension. The manual has the steps and the limits in
   [On an LG television](https://rrgmc.github.io/karaokemachine/docs/lg-tv.html).
 <!-- /platform -->
