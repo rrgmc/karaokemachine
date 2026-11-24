@@ -13,7 +13,10 @@
 //! **Back.** The remote's Back arrives as evdev `KEY_PREVIOUS`, 412, which SDL maps to no key at
 //! all. [`remap_event`] turns it into `AC_BACK`, which the display already binds.
 
-#![expect(unsafe_code, reason = "Wayland calls through dlopen, and SDL's window properties")]
+#![expect(
+    unsafe_code,
+    reason = "Wayland calls through dlopen, and SDL's window properties"
+)]
 
 use std::ffi::{CStr, CString, c_char, c_int, c_void};
 use std::ptr::{null, null_mut};
@@ -198,13 +201,23 @@ extern "C" fn on_global_remove(_: *mut c_void, _: *mut c_void, _: u32) {}
 static REGISTRY_LISTENER: [extern "C" fn(); 2] = [
     // SAFETY: listener tables are arrays of function pointers that libwayland calls with the
     // event's own signature, which is how C declares them too.
-    unsafe { std::mem::transmute::<extern "C" fn(*mut c_void, *mut c_void, u32, *const c_char, u32), extern "C" fn()>(on_global) },
-    unsafe { std::mem::transmute::<extern "C" fn(*mut c_void, *mut c_void, u32), extern "C" fn()>(on_global_remove) },
+    unsafe {
+        std::mem::transmute::<
+            extern "C" fn(*mut c_void, *mut c_void, u32, *const c_char, u32),
+            extern "C" fn(),
+        >(on_global)
+    },
+    unsafe {
+        std::mem::transmute::<extern "C" fn(*mut c_void, *mut c_void, u32), extern "C" fn()>(
+            on_global_remove,
+        )
+    },
 ];
 
 extern "C" fn on_ping(_: *mut c_void, shell_surface: *mut c_void, serial: u32) {
     // SAFETY: set before any listener is added; `pong` is opcode 0 of `wl_shell_surface`.
-    let marshal: Marshal = unsafe { std::mem::transmute(MARSHAL.load(Ordering::Acquire)) };
+    let marshal =
+        unsafe { std::mem::transmute::<*mut c_void, Marshal>(MARSHAL.load(Ordering::Acquire)) };
     unsafe { marshal(shell_surface, 0, serial) };
 }
 extern "C" fn on_configure(_: *mut c_void, _: *mut c_void, _: u32, w: i32, h: i32) {
@@ -213,9 +226,21 @@ extern "C" fn on_configure(_: *mut c_void, _: *mut c_void, _: u32, w: i32, h: i3
 extern "C" fn on_popup_done(_: *mut c_void, _: *mut c_void) {}
 static SHELL_SURFACE_LISTENER: [extern "C" fn(); 3] = [
     // SAFETY: as for the registry listener.
-    unsafe { std::mem::transmute::<extern "C" fn(*mut c_void, *mut c_void, u32), extern "C" fn()>(on_ping) },
-    unsafe { std::mem::transmute::<extern "C" fn(*mut c_void, *mut c_void, u32, i32, i32), extern "C" fn()>(on_configure) },
-    unsafe { std::mem::transmute::<extern "C" fn(*mut c_void, *mut c_void), extern "C" fn()>(on_popup_done) },
+    unsafe {
+        std::mem::transmute::<extern "C" fn(*mut c_void, *mut c_void, u32), extern "C" fn()>(
+            on_ping,
+        )
+    },
+    unsafe {
+        std::mem::transmute::<extern "C" fn(*mut c_void, *mut c_void, u32, i32, i32), extern "C" fn()>(
+            on_configure,
+        )
+    },
+    unsafe {
+        std::mem::transmute::<extern "C" fn(*mut c_void, *mut c_void), extern "C" fn()>(
+            on_popup_done,
+        )
+    },
 ];
 
 extern "C" fn on_state(_: *mut c_void, _: *mut c_void, state: u32) {
@@ -236,11 +261,29 @@ extern "C" fn on_exposed(_: *mut c_void, _: *mut c_void, _: *mut c_void) {}
 extern "C" fn on_about_to_change(_: *mut c_void, _: *mut c_void, _: u32) {}
 static WEBOS_SURFACE_LISTENER: [extern "C" fn(); 5] = [
     // SAFETY: as for the registry listener.
-    unsafe { std::mem::transmute::<extern "C" fn(*mut c_void, *mut c_void, u32), extern "C" fn()>(on_state) },
-    unsafe { std::mem::transmute::<extern "C" fn(*mut c_void, *mut c_void, i32, i32), extern "C" fn()>(on_position) },
-    unsafe { std::mem::transmute::<extern "C" fn(*mut c_void, *mut c_void), extern "C" fn()>(on_close) },
-    unsafe { std::mem::transmute::<extern "C" fn(*mut c_void, *mut c_void, *mut c_void), extern "C" fn()>(on_exposed) },
-    unsafe { std::mem::transmute::<extern "C" fn(*mut c_void, *mut c_void, u32), extern "C" fn()>(on_about_to_change) },
+    unsafe {
+        std::mem::transmute::<extern "C" fn(*mut c_void, *mut c_void, u32), extern "C" fn()>(
+            on_state,
+        )
+    },
+    unsafe {
+        std::mem::transmute::<extern "C" fn(*mut c_void, *mut c_void, i32, i32), extern "C" fn()>(
+            on_position,
+        )
+    },
+    unsafe {
+        std::mem::transmute::<extern "C" fn(*mut c_void, *mut c_void), extern "C" fn()>(on_close)
+    },
+    unsafe {
+        std::mem::transmute::<extern "C" fn(*mut c_void, *mut c_void, *mut c_void), extern "C" fn()>(
+            on_exposed,
+        )
+    },
+    unsafe {
+        std::mem::transmute::<extern "C" fn(*mut c_void, *mut c_void, u32), extern "C" fn()>(
+            on_about_to_change,
+        )
+    },
 ];
 
 /// SDL's window, made with a custom surface role and given the webOS roles.
@@ -258,7 +301,11 @@ pub(crate) fn create_window(video: &VideoSubsystem, title: &str) -> anyhow::Resu
     // SAFETY: a fresh property set, filled and freed here; the window SDL returns is wrapped at once.
     let raw = unsafe {
         let props = SDL_CreateProperties();
-        SDL_SetStringProperty(props, v::SDL_PROP_WINDOW_CREATE_TITLE_STRING, title.as_ptr());
+        SDL_SetStringProperty(
+            props,
+            v::SDL_PROP_WINDOW_CREATE_TITLE_STRING,
+            title.as_ptr(),
+        );
         SDL_SetNumberProperty(props, v::SDL_PROP_WINDOW_CREATE_WIDTH_NUMBER, WIDTH);
         SDL_SetNumberProperty(props, v::SDL_PROP_WINDOW_CREATE_HEIGHT_NUMBER, HEIGHT);
         SDL_SetBooleanProperty(props, v::SDL_PROP_WINDOW_CREATE_OPENGL_BOOLEAN, true);
@@ -272,7 +319,11 @@ pub(crate) fn create_window(video: &VideoSubsystem, title: &str) -> anyhow::Resu
         SDL_DestroyProperties(props);
         raw
     };
-    anyhow::ensure!(!raw.is_null(), "SDL would not create its window: {}", sdl3::get_error());
+    anyhow::ensure!(
+        !raw.is_null(),
+        "SDL would not create its window: {}",
+        sdl3::get_error()
+    );
     // SAFETY: `raw` is a live window SDL just made, owned by nothing else, with no Metal view.
     let window = unsafe { Window::from_ll(video.clone(), raw, null_mut()) };
     // SAFETY: both are pointers SDL publishes and keeps alive with the video subsystem and window.
@@ -310,7 +361,9 @@ fn give_roles(display: *mut c_void, surface: *mut c_void) -> anyhow::Result<()> 
     let lib = unsafe { dlopen(c"libwayland-client.so.0".as_ptr(), 2) };
     if lib.is_null() {
         // SAFETY: dlerror returns a C string after a failed dlopen.
-        let error = unsafe { CStr::from_ptr(dlerror()) }.to_string_lossy().into_owned();
+        let error = unsafe { CStr::from_ptr(dlerror()) }
+            .to_string_lossy()
+            .into_owned();
         anyhow::bail!("dlopen libwayland-client: {error}");
     }
     // SAFETY: each symbol is transmuted to the signature libwayland declares for it.
@@ -322,11 +375,17 @@ fn give_roles(display: *mut c_void, surface: *mut c_void) -> anyhow::Result<()> 
         Roundtrip,
     ) = unsafe {
         (
-            std::mem::transmute(symbol(lib, c"wl_proxy_marshal_constructor")?),
-            std::mem::transmute(symbol(lib, c"wl_proxy_marshal_constructor_versioned")?),
-            std::mem::transmute(symbol(lib, c"wl_proxy_marshal")?),
-            std::mem::transmute(symbol(lib, c"wl_proxy_add_listener")?),
-            std::mem::transmute(symbol(lib, c"wl_display_roundtrip")?),
+            std::mem::transmute::<*mut c_void, MarshalCtor>(symbol(
+                lib,
+                c"wl_proxy_marshal_constructor",
+            )?),
+            std::mem::transmute::<*mut c_void, MarshalCtorV>(symbol(
+                lib,
+                c"wl_proxy_marshal_constructor_versioned",
+            )?),
+            std::mem::transmute::<*mut c_void, Marshal>(symbol(lib, c"wl_proxy_marshal")?),
+            std::mem::transmute::<*mut c_void, AddListener>(symbol(lib, c"wl_proxy_add_listener")?),
+            std::mem::transmute::<*mut c_void, Roundtrip>(symbol(lib, c"wl_display_roundtrip")?),
         )
     };
     MARSHAL.store(marshal as *mut c_void, Ordering::Release);
@@ -371,8 +430,13 @@ fn give_roles(display: *mut c_void, surface: *mut c_void) -> anyhow::Result<()> 
             1u32,
             null_mut::<c_void>(),
         );
-        let shell_surface = marshal_ctor(shell, 0, shell_surface_iface, null_mut::<c_void>(), surface);
-        add_listener(shell_surface, SHELL_SURFACE_LISTENER.as_ptr().cast(), null_mut());
+        let shell_surface =
+            marshal_ctor(shell, 0, shell_surface_iface, null_mut::<c_void>(), surface);
+        add_listener(
+            shell_surface,
+            SHELL_SURFACE_LISTENER.as_ptr().cast(),
+            null_mut(),
+        );
         marshal(shell_surface, 9, c"karaokemachine".as_ptr()); // set_class
         marshal(shell_surface, 3); // set_toplevel
         let webos_surface = marshal_ctor(
@@ -382,7 +446,11 @@ fn give_roles(display: *mut c_void, surface: *mut c_void) -> anyhow::Result<()> 
             null_mut::<c_void>(),
             surface,
         );
-        add_listener(webos_surface, WEBOS_SURFACE_LISTENER.as_ptr().cast(), null_mut());
+        add_listener(
+            webos_surface,
+            WEBOS_SURFACE_LISTENER.as_ptr().cast(),
+            null_mut(),
+        );
         let app_id = CString::new(std::env::var("APPID").unwrap_or_default())?;
         marshal(webos_surface, 2, c"appId".as_ptr(), app_id.as_ptr());
         // The remote's Back comes to the application rather than closing it.
