@@ -461,6 +461,9 @@ Developer Mode. LG's Flutter route needs webOS 26 Re:New, so it was not tried. B
 | Its cost | 50 MB resident at idle and 56 MB playing, 79 MB at peak, leaving about 236 MB available. Playing a MIDI song takes about 0.6 of one core of the four |
 | Its data | settings, the catalog and the packages folder land under `HOME`, the application folder, so Developer Mode's expiry takes them with it. The developer shell cannot read them. **They survive a cold boot and a reinstall**: launched with no package named, the machine still holds the one installed before |
 | A larger bank | ColomboGMGS2 (275 MB) as the bundled bank: the machine starts in about 7 s and sits at 140 MB resident plus 154 MB in swap, of about 900 MB swap the set has. Playing takes about 0.85 of a core. One burst of two xruns about 11 s into the first song, then clean; confirmed by ear |
+| MP3+G | **plays**, with no change to the build: the MP3 is decoded by symphonia, not ffmpeg. Four real pairs packed with `km-pack` installed and played, picture and sound confirmed by eye and ear. About 0.23 of a core, under half a MIDI song's, and 57 MB resident, no xruns |
+| Video songs | not tried. They need the `video` feature, so ffmpeg 7.1 cross-built and linked statically, decoding in software on the A55s: the set's hardware decoder is behind LG's media pipeline |
+| Copying a file onto the set | `ares-push` is refused under the TV profile, and the developer shell takes no stdin. `wget` on the set from an HTTP server on the LAN works; `/media/developer/temp` is world-writable |
 | Restarting the set | holding the remote's power button is standby, not a restart. With Quick Start+ off, power off and on is a cold boot. After one, the network comes up late, and the developer port answers only once it has |
 | A surprise | once, between two launches, the set was found switched off. The cause is unknown |
 
@@ -480,7 +483,7 @@ What works where, kept up to date as sets are tried. Only webOS 5 has been run.
 
 | webOS | Sets | Known | Source |
 |---|---|---|---|
-| 5 (`sdkVersion` 5.x) | 2020 | Everything in the table above: native `.ipk` through Developer Mode, softfp and glibc 2.28, `wl_shell` + `wl_webos_shell` with no `xdg_wm_base`, libwayland older than 1.18, SDL3 drawing at 60 fps through a custom-role window, ALSA `default`, remote keys reaching SDL3 with Back mapped from evdev 412, **the machine running and playing a MIDI song**, its data surviving a cold boot and a reinstall, and a 275 MB bank playing through swap. Too old for LG's Flutter route | **[set]** |
+| 5 (`sdkVersion` 5.x) | 2020 | Everything in the table above: native `.ipk` through Developer Mode, softfp and glibc 2.28, `wl_shell` + `wl_webos_shell` with no `xdg_wm_base`, libwayland older than 1.18, SDL3 drawing at 60 fps through a custom-role window, ALSA `default`, remote keys reaching SDL3 with Back mapped from evdev 412, **the machine running and playing MIDI and MP3+G songs**, its data surviving a cold boot and a reinstall, and a 275 MB bank playing through swap. Too old for LG's Flutter route | **[set]** |
 | 5 and later | | Native applications install through Developer Mode on a stock set; Kodi ships so | **[web]**, §1 |
 | 24 and 25 | 2024, 2025 | Chromium 120 is the web engine on webOS 25. The root chains reach 2025 sets only on the webOS 10.0 they shipped with | **[web]**, §1 |
 | 26 Re:New and later | | LG's Flutter for webOS TV: an official `native` application type with C++ plugins, LG's NDK for `ca9v1`, Chromium 132. Whether its compositor offers `xdg_wm_base`, and how new its libwayland is, are not known | **[web]**, §1 |
