@@ -34,7 +34,11 @@ static LOG: Mutex<String> = Mutex::new(String::new());
 static START: Mutex<Option<Instant>> = Mutex::new(None);
 
 fn log(line: &str) {
-    let t = START.lock().unwrap().map(|s| s.elapsed().as_secs_f32()).unwrap_or(0.0);
+    let t = START
+        .lock()
+        .unwrap()
+        .map(|s| s.elapsed().as_secs_f32())
+        .unwrap_or(0.0);
     let line = format!("[{t:8.3}] {line}\n");
     eprint!("{line}");
     LOG.lock().unwrap().push_str(&line);
@@ -64,7 +68,11 @@ fn main() {
         let _ = t.join();
     }
     // Keep serving the log for a while after the work is done, so it can be read.
-    let linger = if param_u64(&params, "draw").is_some() || param_str(&params, "sound").is_some() { 120 } else { secs };
+    let linger = if param_u64(&params, "draw").is_some() || param_str(&params, "sound").is_some() {
+        120
+    } else {
+        secs
+    };
     log(&format!("work done; serving for {linger} s more"));
     std::thread::sleep(Duration::from_secs(linger));
     log("time is up, exiting");
@@ -73,7 +81,10 @@ fn main() {
 /// A string out of the launch parameters, `{"sound": "alsa"}`.
 fn param_str(params: &str, key: &str) -> Option<String> {
     let at = params.find(&format!("\"{key}\""))?;
-    let rest = params[at + key.len() + 2..].trim_start().strip_prefix(':')?.trim_start();
+    let rest = params[at + key.len() + 2..]
+        .trim_start()
+        .strip_prefix(':')?
+        .trim_start();
     let rest = rest.strip_prefix('"')?;
     Some(rest[..rest.find('"')?].to_string())
 }
@@ -129,12 +140,22 @@ fn report(args: &[String]) -> String {
     let _ = writeln!(r, "exe: {}", exe.display());
     let _ = writeln!(r, "argv: {args:?}");
     let _ = writeln!(r, "cwd: {:?}", std::env::current_dir().ok());
-    let _ = writeln!(r, "uid/gid: {}/{}", unsafe { getuid() }, unsafe { getgid() });
-    let _ = writeln!(r, "time: {:?}", SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs()));
+    let _ = writeln!(r, "uid/gid: {}/{}", unsafe { getuid() }, unsafe {
+        getgid()
+    });
+    let _ = writeln!(
+        r,
+        "time: {:?}",
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|d| d.as_secs())
+    );
 
     let _ = writeln!(r, "\n## Loader and ABI");
     let _ = writeln!(r, "{}", elf_facts(&exe));
-    let libc = unsafe { CStr::from_ptr(gnu_get_libc_version()) }.to_string_lossy().into_owned();
+    let libc = unsafe { CStr::from_ptr(gnu_get_libc_version()) }
+        .to_string_lossy()
+        .into_owned();
     let _ = writeln!(r, "glibc: {libc}");
     // The float check crosses the C boundary: cos() is libm's, so a wrong calling convention
     // returns garbage rather than failing to load.
@@ -157,14 +178,21 @@ fn report(args: &[String]) -> String {
             let _ = writeln!(r, "{l}");
         }
     }
-    let _ = writeln!(r, "cores: {}", cpu.lines().filter(|l| l.starts_with("processor")).count());
+    let _ = writeln!(
+        r,
+        "cores: {}",
+        cpu.lines().filter(|l| l.starts_with("processor")).count()
+    );
 
     let _ = writeln!(r, "\n## Memory");
     for l in read("/proc/meminfo").lines().take(5) {
         let _ = writeln!(r, "{l}");
     }
     for l in read("/proc/self/status").lines() {
-        if ["VmRSS", "Groups", "Cap", "Seccomp", "NoNewPrivs"].iter().any(|k| l.starts_with(k)) {
+        if ["VmRSS", "Groups", "Cap", "Seccomp", "NoNewPrivs"]
+            .iter()
+            .any(|k| l.starts_with(k))
+        {
             let _ = writeln!(r, "{l}");
         }
     }
@@ -181,7 +209,15 @@ fn report(args: &[String]) -> String {
     let xdg = std::env::var("XDG_DATA_HOME").unwrap_or_default();
     let app = exe.parent().map(Path::to_path_buf).unwrap_or_default();
     let mut dirs: Vec<PathBuf> = vec![app.clone(), PathBuf::from(&home), PathBuf::from(&xdg)];
-    for d in ["/tmp", "/var/lib/webosbrew", "/media/developer", "/media/internal", "/media/developer/temp", "/var/tmp", "/home/root"] {
+    for d in [
+        "/tmp",
+        "/var/lib/webosbrew",
+        "/media/developer",
+        "/media/internal",
+        "/media/developer/temp",
+        "/var/tmp",
+        "/home/root",
+    ] {
         dirs.push(PathBuf::from(d));
     }
     if let Ok(cwd) = std::env::current_dir() {
@@ -190,21 +226,34 @@ fn report(args: &[String]) -> String {
     for d in dirs.iter().filter(|d| !d.as_os_str().is_empty()) {
         let marker = d.join("km-probe-marker");
         let before = std::fs::read_to_string(&marker).ok();
-        let stamp = format!("{:?}\n", SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs()));
+        let stamp = format!(
+            "{:?}\n",
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .map(|d| d.as_secs())
+        );
         let wrote = std::fs::write(&marker, stamp);
         let _ = writeln!(
             r,
             "{}: write {}; earlier marker {}",
             d.display(),
-            wrote.map(|_| "ok".to_string()).unwrap_or_else(|e| format!("FAILED ({e})")),
-            before.map(|s| format!("found, written at {}", s.trim())).unwrap_or_else(|| "none".into())
+            wrote
+                .map(|_| "ok".to_string())
+                .unwrap_or_else(|e| format!("FAILED ({e})")),
+            before
+                .map(|s| format!("found, written at {}", s.trim()))
+                .unwrap_or_else(|| "none".into())
         );
     }
 
     let _ = writeln!(r, "\n## Mounts for the application folder, /tmp and /media");
     for l in read("/proc/self/mountinfo").lines() {
         let mp = l.split(' ').nth(4).unwrap_or("");
-        if mp == "/" || mp.starts_with("/tmp") || mp.starts_with("/media") || (!mp.is_empty() && app.starts_with(mp) && mp != "/") {
+        if mp == "/"
+            || mp.starts_with("/tmp")
+            || mp.starts_with("/media")
+            || (!mp.is_empty() && app.starts_with(mp) && mp != "/")
+        {
             let _ = writeln!(r, "{l}");
         }
     }
@@ -212,7 +261,11 @@ fn report(args: &[String]) -> String {
     let _ = writeln!(r, "\n## Devices");
     let _ = writeln!(r, "/tmp/usb: {}", list("/tmp/usb"));
     let _ = writeln!(r, "/dev/dri: {}", list("/dev/dri"));
-    for e in std::fs::read_dir("/dev/dri").into_iter().flatten().flatten() {
+    for e in std::fs::read_dir("/dev/dri")
+        .into_iter()
+        .flatten()
+        .flatten()
+    {
         let p = e.path();
         let _ = writeln!(r, "  open {} rw: {}", p.display(), try_open(&p));
     }
@@ -225,12 +278,27 @@ fn report(args: &[String]) -> String {
 
     let _ = writeln!(r, "\n## Libraries");
     for lib in [
-        "libwayland-client.so.0", "libwayland-egl.so.1", "libEGL.so.1", "libGLESv2.so.2",
-        "libasound.so.2", "libpulse.so.0", "libpulse-simple.so.0", "libavcodec.so.58",
-        "libavformat.so.58", "libSDL2-2.0.so.0", "libdrm.so.2", "libgbm.so.1", "libxkbcommon.so.0",
-        "libfreetype.so.6", "libudev.so.1", "libstdc++.so.6",
+        "libwayland-client.so.0",
+        "libwayland-egl.so.1",
+        "libEGL.so.1",
+        "libGLESv2.so.2",
+        "libasound.so.2",
+        "libpulse.so.0",
+        "libpulse-simple.so.0",
+        "libavcodec.so.58",
+        "libavformat.so.58",
+        "libSDL2-2.0.so.0",
+        "libdrm.so.2",
+        "libgbm.so.1",
+        "libxkbcommon.so.0",
+        "libfreetype.so.6",
+        "libudev.so.1",
+        "libstdc++.so.6",
     ] {
-        let found = ["/usr/lib", "/lib"].iter().map(|d| format!("{d}/{lib}")).find(|p| Path::new(p).exists());
+        let found = ["/usr/lib", "/lib"]
+            .iter()
+            .map(|d| format!("{d}/{lib}"))
+            .find(|p| Path::new(p).exists());
         let _ = writeln!(r, "{lib}: {}", found.unwrap_or_else(|| "absent".into()));
     }
     r
@@ -247,7 +315,10 @@ fn read(p: &str) -> String {
 fn list(p: &str) -> String {
     match std::fs::read_dir(p) {
         Ok(it) => {
-            let mut v: Vec<String> = it.flatten().map(|e| e.file_name().to_string_lossy().into_owned()).collect();
+            let mut v: Vec<String> = it
+                .flatten()
+                .map(|e| e.file_name().to_string_lossy().into_owned())
+                .collect();
             v.sort();
             format!("{v:?}")
         }
@@ -257,7 +328,9 @@ fn list(p: &str) -> String {
 
 fn try_open(p: &Path) -> String {
     let c = std::ffi::CString::new(p.as_os_str().as_encoded_bytes()).unwrap();
-    let fd = unsafe { open(c.as_ptr(), 2 /* O_RDWR */) };
+    let fd = unsafe {
+        open(c.as_ptr(), 2 /* O_RDWR */)
+    };
     if fd < 0 {
         format!("FAILED ({})", std::io::Error::last_os_error())
     } else {
@@ -268,7 +341,9 @@ fn try_open(p: &Path) -> String {
 
 /// The ELF interpreter and the ARM float-ABI flag of the running executable.
 fn elf_facts(exe: &Path) -> String {
-    let Ok(b) = std::fs::read(exe) else { return "could not read own executable".into() };
+    let Ok(b) = std::fs::read(exe) else {
+        return "could not read own executable".into();
+    };
     if b.len() < 52 || &b[..4] != b"\x7fELF" || b[4] != 1 {
         return "not a 32-bit ELF".into();
     }
@@ -286,7 +361,9 @@ fn elf_facts(exe: &Path) -> String {
         let ph = phoff + i * phentsize;
         if u32_at(ph) == 3 {
             let (off, size) = (u32_at(ph + 4), u32_at(ph + 16));
-            interp = String::from_utf8_lossy(&b[off..off + size]).trim_end_matches('\0').to_string();
+            interp = String::from_utf8_lossy(&b[off..off + size])
+                .trim_end_matches('\0')
+                .to_string();
         }
     }
     let present = Path::new(&interp).exists();
@@ -296,9 +373,14 @@ fn elf_facts(exe: &Path) -> String {
 /// Every directory the report found writable, for a copy of the report on disk.
 fn writable_dirs() -> Vec<PathBuf> {
     let mut v = Vec::new();
-    if let Some(app) = std::fs::read_link("/proc/self/exe").ok().and_then(|p| p.parent().map(Path::to_path_buf)) {
+    if let Some(app) = std::fs::read_link("/proc/self/exe")
+        .ok()
+        .and_then(|p| p.parent().map(Path::to_path_buf))
+    {
         v.push(app);
     }
     v.push(PathBuf::from("/tmp"));
-    v.into_iter().filter(|d| std::fs::metadata(d.join("km-probe-marker")).is_ok()).collect()
+    v.into_iter()
+        .filter(|d| std::fs::metadata(d.join("km-probe-marker")).is_ok())
+        .collect()
 }

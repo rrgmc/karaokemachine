@@ -21,7 +21,10 @@ fn open(name: &str) -> Result<*mut c_void, String> {
     let c = CString::new(name).unwrap();
     let h = unsafe { dlopen(c.as_ptr(), 2) };
     if h.is_null() {
-        return Err(format!("dlopen {name}: {}", unsafe { CStr::from_ptr(dlerror()) }.to_string_lossy()));
+        return Err(format!(
+            "dlopen {name}: {}",
+            unsafe { CStr::from_ptr(dlerror()) }.to_string_lossy()
+        ));
     }
     Ok(h)
 }
@@ -61,12 +64,20 @@ pub fn run(backend: &str, secs: u64) {
 
 fn alsa(secs: u64) -> Result<(), String> {
     let lib = open("libasound.so.2")?;
-    let pcm_open: unsafe extern "C" fn(*mut *mut c_void, *const c_char, c_int, c_int) -> c_int = sym(lib, "snd_pcm_open")?;
-    let set_params: unsafe extern "C" fn(*mut c_void, c_int, c_int, u32, u32, c_int, u32) -> c_int = sym(lib, "snd_pcm_set_params")?;
-    let writei: unsafe extern "C" fn(*mut c_void, *const c_void, c_long) -> c_long = sym(lib, "snd_pcm_writei")?;
-    let recover: unsafe extern "C" fn(*mut c_void, c_int, c_int) -> c_int = sym(lib, "snd_pcm_recover")?;
+    let pcm_open: unsafe extern "C" fn(*mut *mut c_void, *const c_char, c_int, c_int) -> c_int =
+        sym(lib, "snd_pcm_open")?;
+    let set_params: unsafe extern "C" fn(*mut c_void, c_int, c_int, u32, u32, c_int, u32) -> c_int =
+        sym(lib, "snd_pcm_set_params")?;
+    let writei: unsafe extern "C" fn(*mut c_void, *const c_void, c_long) -> c_long =
+        sym(lib, "snd_pcm_writei")?;
+    let recover: unsafe extern "C" fn(*mut c_void, c_int, c_int) -> c_int =
+        sym(lib, "snd_pcm_recover")?;
     let strerror: unsafe extern "C" fn(c_int) -> *const c_char = sym(lib, "snd_strerror")?;
-    let err = |e: c_int| unsafe { CStr::from_ptr(strerror(e)) }.to_string_lossy().into_owned();
+    let err = |e: c_int| {
+        unsafe { CStr::from_ptr(strerror(e)) }
+            .to_string_lossy()
+            .into_owned()
+    };
 
     let mut pcm = std::ptr::null_mut();
     let e = unsafe { pcm_open(&mut pcm, c"default".as_ptr(), 0, 0) };
@@ -88,7 +99,10 @@ fn alsa(secs: u64) -> Result<(), String> {
         let n = unsafe { writei(pcm, buf.as_ptr() as *const c_void, CHUNK as c_long) };
         if n < 0 {
             underruns += 1;
-            log(&format!("sound: writei {} (underrun {underruns})", err(n as c_int)));
+            log(&format!(
+                "sound: writei {} (underrun {underruns})",
+                err(n as c_int)
+            ));
             let e = unsafe { recover(pcm, n as c_int, 1) };
             if e < 0 {
                 return Err(format!("snd_pcm_recover: {}", err(e)));
@@ -96,7 +110,9 @@ fn alsa(secs: u64) -> Result<(), String> {
         }
         chunks += 1;
     }
-    log(&format!("sound done: {chunks} chunks of 20 ms, {underruns} underruns"));
+    log(&format!(
+        "sound done: {chunks} chunks of 20 ms, {underruns} underruns"
+    ));
     Ok(())
 }
 
@@ -110,20 +126,45 @@ struct SampleSpec {
 fn pulse(secs: u64) -> Result<(), String> {
     let lib = open("libpulse-simple.so.0")?;
     type New = unsafe extern "C" fn(
-        *const c_char, *const c_char, c_int, *const c_char, *const c_char,
-        *const SampleSpec, *const c_void, *const c_void, *mut c_int,
+        *const c_char,
+        *const c_char,
+        c_int,
+        *const c_char,
+        *const c_char,
+        *const SampleSpec,
+        *const c_void,
+        *const c_void,
+        *mut c_int,
     ) -> *mut c_void;
     let new: New = sym(lib, "pa_simple_new")?;
-    let write: unsafe extern "C" fn(*mut c_void, *const c_void, usize, *mut c_int) -> c_int = sym(lib, "pa_simple_write")?;
+    let write: unsafe extern "C" fn(*mut c_void, *const c_void, usize, *mut c_int) -> c_int =
+        sym(lib, "pa_simple_write")?;
     let pulse = open("libpulse.so.0")?;
     let strerror: unsafe extern "C" fn(c_int) -> *const c_char = sym(pulse, "pa_strerror")?;
-    let err = |e: c_int| unsafe { CStr::from_ptr(strerror(e)) }.to_string_lossy().into_owned();
+    let err = |e: c_int| {
+        unsafe { CStr::from_ptr(strerror(e)) }
+            .to_string_lossy()
+            .into_owned()
+    };
 
-    let spec = SampleSpec { format: 3, rate: RATE, channels: 2 }; // PA_SAMPLE_S16LE
+    let spec = SampleSpec {
+        format: 3,
+        rate: RATE,
+        channels: 2,
+    }; // PA_SAMPLE_S16LE
     let mut e = 0;
     let s = unsafe {
-        new(std::ptr::null(), c"km-probe".as_ptr(), 1, std::ptr::null(), c"sine".as_ptr(), &spec,
-            std::ptr::null(), std::ptr::null(), &mut e)
+        new(
+            std::ptr::null(),
+            c"km-probe".as_ptr(),
+            1,
+            std::ptr::null(),
+            c"sine".as_ptr(),
+            &spec,
+            std::ptr::null(),
+            std::ptr::null(),
+            &mut e,
+        )
     };
     if s.is_null() {
         return Err(format!("pa_simple_new: {}", err(e)));
@@ -141,6 +182,8 @@ fn pulse(secs: u64) -> Result<(), String> {
         }
         chunks += 1;
     }
-    log(&format!("sound done: {chunks} chunks of 20 ms, {failures} write failures"));
+    log(&format!(
+        "sound done: {chunks} chunks of 20 ms, {failures} write failures"
+    ));
     Ok(())
 }

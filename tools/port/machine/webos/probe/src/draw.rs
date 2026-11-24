@@ -48,7 +48,8 @@ static MARSHAL: AtomicPtr<c_void> = AtomicPtr::new(std::ptr::null_mut());
 static ADD_LISTENER: AtomicPtr<c_void> = AtomicPtr::new(std::ptr::null_mut());
 
 type MarshalCtor = unsafe extern "C" fn(*mut c_void, u32, *const WlInterface, ...) -> *mut c_void;
-type MarshalCtorV = unsafe extern "C" fn(*mut c_void, u32, *const WlInterface, u32, ...) -> *mut c_void;
+type MarshalCtorV =
+    unsafe extern "C" fn(*mut c_void, u32, *const WlInterface, u32, ...) -> *mut c_void;
 type Marshal = unsafe extern "C" fn(*mut c_void, u32, ...);
 type AddListener = unsafe extern "C" fn(*mut c_void, *const c_void, *mut c_void) -> c_int;
 
@@ -70,7 +71,9 @@ impl Lib {
         let c = CString::new(name).unwrap();
         let h = unsafe { dlopen(c.as_ptr(), 2) };
         if h.is_null() {
-            let e = unsafe { CStr::from_ptr(dlerror()) }.to_string_lossy().into_owned();
+            let e = unsafe { CStr::from_ptr(dlerror()) }
+                .to_string_lossy()
+                .into_owned();
             return Err(format!("dlopen {name}: {e}"));
         }
         Ok(Lib(h, name))
@@ -93,7 +96,11 @@ fn cs(s: &str) -> *const c_char {
 }
 
 fn msg(name: &str, sig: &str, types: Vec<*const WlInterface>) -> WlMessage {
-    WlMessage { name: cs(name), signature: cs(sig), types: Box::leak(types.into_boxed_slice()).as_ptr() }
+    WlMessage {
+        name: cs(name),
+        signature: cs(sig),
+        types: Box::leak(types.into_boxed_slice()).as_ptr(),
+    }
 }
 
 fn iface(name: &str, methods: Vec<WlMessage>, events: Vec<WlMessage>) -> *mut WlInterface {
@@ -129,7 +136,10 @@ fn webos_interfaces(wl_surface: *const WlInterface) -> (*mut WlInterface, *mut W
     );
     let shell = iface(
         "wl_webos_shell",
-        vec![msg("get_system_pip", "", vec![]), msg("get_shell_surface", "no", vec![surface, wl_surface])],
+        vec![
+            msg("get_system_pip", "", vec![]),
+            msg("get_shell_surface", "no", vec![surface, wl_surface]),
+        ],
         vec![],
     );
     (shell, surface)
@@ -142,9 +152,21 @@ struct Globals {
     list: Vec<(String, u32, u32)>,
 }
 
-unsafe extern "C" fn reg_global(data: *mut c_void, _: *mut c_void, name: u32, iface: *const c_char, version: u32) {
+unsafe extern "C" fn reg_global(
+    data: *mut c_void,
+    _: *mut c_void,
+    name: u32,
+    iface: *const c_char,
+    version: u32,
+) {
     let g = unsafe { &mut *(data as *mut Globals) };
-    g.list.push((unsafe { CStr::from_ptr(iface) }.to_string_lossy().into_owned(), version, name));
+    g.list.push((
+        unsafe { CStr::from_ptr(iface) }
+            .to_string_lossy()
+            .into_owned(),
+        version,
+        name,
+    ));
 }
 unsafe extern "C" fn reg_remove(_: *mut c_void, _: *mut c_void, _: u32) {}
 #[repr(C)]
@@ -167,10 +189,13 @@ struct ShellSurfaceListener(
     unsafe extern "C" fn(*mut c_void, *mut c_void, u32, i32, i32),
     unsafe extern "C" fn(*mut c_void, *mut c_void),
 );
-static SHELL_SURFACE_LISTENER: ShellSurfaceListener = ShellSurfaceListener(ss_ping, ss_configure, ss_popup_done);
+static SHELL_SURFACE_LISTENER: ShellSurfaceListener =
+    ShellSurfaceListener(ss_ping, ss_configure, ss_popup_done);
 
 unsafe extern "C" fn ws_state(_: *mut c_void, _: *mut c_void, state: u32) {
-    log(&format!("webos state_changed {state} (3 = fullscreen, 1 = minimized)"));
+    log(&format!(
+        "webos state_changed {state} (3 = fullscreen, 1 = minimized)"
+    ));
 }
 unsafe extern "C" fn ws_position(_: *mut c_void, _: *mut c_void, x: i32, y: i32) {
     log(&format!("webos position_changed {x},{y}"));
@@ -197,18 +222,37 @@ static WEBOS_SURFACE_LISTENER: WebosSurfaceListener =
     WebosSurfaceListener(ws_state, ws_position, ws_close, ws_exposed, ws_about);
 
 unsafe extern "C" fn seat_caps(_: *mut c_void, seat: *mut c_void, caps: u32) {
-    log(&format!("seat {seat:p} capabilities {caps:#x} (1 pointer, 2 keyboard, 4 touch)"));
+    log(&format!(
+        "seat {seat:p} capabilities {caps:#x} (1 pointer, 2 keyboard, 4 touch)"
+    ));
     if caps & 1 != 0 {
-        let p = unsafe { marshal_ctor()(seat, 0, POINTER_IFACE.load(Ordering::Relaxed), std::ptr::null_mut::<c_void>()) };
+        let p = unsafe {
+            marshal_ctor()(
+                seat,
+                0,
+                POINTER_IFACE.load(Ordering::Relaxed),
+                std::ptr::null_mut::<c_void>(),
+            )
+        };
         add_listener(p, &POINTER_LISTENER as *const _ as *const c_void);
     }
     if caps & 2 != 0 {
-        let kb = unsafe { marshal_ctor()(seat, 1, KEYBOARD_IFACE.load(Ordering::Relaxed), std::ptr::null_mut::<c_void>()) };
+        let kb = unsafe {
+            marshal_ctor()(
+                seat,
+                1,
+                KEYBOARD_IFACE.load(Ordering::Relaxed),
+                std::ptr::null_mut::<c_void>(),
+            )
+        };
         add_listener(kb, &KEYBOARD_LISTENER as *const _ as *const c_void);
     }
 }
 unsafe extern "C" fn seat_name(_: *mut c_void, seat: *mut c_void, name: *const c_char) {
-    log(&format!("seat {seat:p} name {}", unsafe { CStr::from_ptr(name) }.to_string_lossy()));
+    log(&format!(
+        "seat {seat:p} name {}",
+        unsafe { CStr::from_ptr(name) }.to_string_lossy()
+    ));
 }
 #[repr(C)]
 struct SeatListener(
@@ -217,15 +261,32 @@ struct SeatListener(
 );
 static SEAT_LISTENER: SeatListener = SeatListener(seat_caps, seat_name);
 
-unsafe extern "C" fn p_enter(_: *mut c_void, p: *mut c_void, _: u32, _: *mut c_void, x: i32, y: i32) {
+unsafe extern "C" fn p_enter(
+    _: *mut c_void,
+    p: *mut c_void,
+    _: u32,
+    _: *mut c_void,
+    x: i32,
+    y: i32,
+) {
     log(&format!("pointer {p:p} enter at {},{}", x / 256, y / 256));
 }
 unsafe extern "C" fn p_leave(_: *mut c_void, p: *mut c_void, _: u32, _: *mut c_void) {
     log(&format!("pointer {p:p} leave"));
 }
 unsafe extern "C" fn p_motion(_: *mut c_void, _: *mut c_void, _: u32, _: i32, _: i32) {}
-unsafe extern "C" fn p_button(_: *mut c_void, p: *mut c_void, _: u32, _: u32, button: u32, state: u32) {
-    log(&format!("BUTTON {button:#x} {} on pointer {p:p}", if state == 1 { "down" } else { "up" }));
+unsafe extern "C" fn p_button(
+    _: *mut c_void,
+    p: *mut c_void,
+    _: u32,
+    _: u32,
+    button: u32,
+    state: u32,
+) {
+    log(&format!(
+        "BUTTON {button:#x} {} on pointer {p:p}",
+        if state == 1 { "down" } else { "up" }
+    ));
 }
 unsafe extern "C" fn p_axis(_: *mut c_void, _: *mut c_void, _: u32, axis: u32, value: i32) {
     log(&format!("AXIS {axis} {}", value / 256));
@@ -238,22 +299,42 @@ struct PointerListener(
     unsafe extern "C" fn(*mut c_void, *mut c_void, u32, u32, u32, u32),
     unsafe extern "C" fn(*mut c_void, *mut c_void, u32, u32, i32),
 );
-static POINTER_LISTENER: PointerListener = PointerListener(p_enter, p_leave, p_motion, p_button, p_axis);
+static POINTER_LISTENER: PointerListener =
+    PointerListener(p_enter, p_leave, p_motion, p_button, p_axis);
 
 unsafe extern "C" fn kb_keymap(_: *mut c_void, _: *mut c_void, format: u32, fd: i32, size: u32) {
     log(&format!("keyboard keymap format {format}, {size} bytes"));
     unsafe { close(fd) };
 }
-unsafe extern "C" fn kb_enter(_: *mut c_void, kb: *mut c_void, _: u32, surface: *mut c_void, _: *mut c_void) {
+unsafe extern "C" fn kb_enter(
+    _: *mut c_void,
+    kb: *mut c_void,
+    _: u32,
+    surface: *mut c_void,
+    _: *mut c_void,
+) {
     log(&format!("keyboard {kb:p} enter surface {surface:p}"));
 }
 unsafe extern "C" fn kb_leave(_: *mut c_void, kb: *mut c_void, _: u32, surface: *mut c_void) {
     log(&format!("keyboard {kb:p} leave surface {surface:p}"));
 }
 unsafe extern "C" fn kb_key(_: *mut c_void, kb: *mut c_void, _: u32, _: u32, key: u32, state: u32) {
-    log(&format!("KEY {key} (evdev; xkb {}) {} on {kb:p}", key + 8, if state == 1 { "down" } else { "up" }));
+    log(&format!(
+        "KEY {key} (evdev; xkb {}) {} on {kb:p}",
+        key + 8,
+        if state == 1 { "down" } else { "up" }
+    ));
 }
-unsafe extern "C" fn kb_mods(_: *mut c_void, _: *mut c_void, _: u32, _: u32, _: u32, _: u32, _: u32) {}
+unsafe extern "C" fn kb_mods(
+    _: *mut c_void,
+    _: *mut c_void,
+    _: u32,
+    _: u32,
+    _: u32,
+    _: u32,
+    _: u32,
+) {
+}
 unsafe extern "C" fn kb_repeat(_: *mut c_void, _: *mut c_void, _: i32, _: i32) {}
 #[repr(C)]
 struct KeyboardListener(
@@ -288,12 +369,20 @@ fn try_run(secs: u64) -> Result<(), String> {
     MARSHAL_CTOR.store(wl.ptr("wl_proxy_marshal_constructor")?, Ordering::Relaxed);
     MARSHAL.store(wl.ptr("wl_proxy_marshal")?, Ordering::Relaxed);
     ADD_LISTENER.store(wl.ptr("wl_proxy_add_listener")?, Ordering::Relaxed);
-    KEYBOARD_IFACE.store(wl.ptr("wl_keyboard_interface")? as *mut WlInterface, Ordering::Relaxed);
-    POINTER_IFACE.store(wl.ptr("wl_pointer_interface")? as *mut WlInterface, Ordering::Relaxed);
+    KEYBOARD_IFACE.store(
+        wl.ptr("wl_keyboard_interface")? as *mut WlInterface,
+        Ordering::Relaxed,
+    );
+    POINTER_IFACE.store(
+        wl.ptr("wl_pointer_interface")? as *mut WlInterface,
+        Ordering::Relaxed,
+    );
     let ctor_v: MarshalCtorV = wl.sym("wl_proxy_marshal_constructor_versioned")?;
-    let connect: unsafe extern "C" fn(*const c_char) -> *mut c_void = wl.sym("wl_display_connect")?;
+    let connect: unsafe extern "C" fn(*const c_char) -> *mut c_void =
+        wl.sym("wl_display_connect")?;
     let roundtrip: unsafe extern "C" fn(*mut c_void) -> c_int = wl.sym("wl_display_roundtrip")?;
-    let dispatch_pending: unsafe extern "C" fn(*mut c_void) -> c_int = wl.sym("wl_display_dispatch_pending")?;
+    let dispatch_pending: unsafe extern "C" fn(*mut c_void) -> c_int =
+        wl.sym("wl_display_dispatch_pending")?;
     let flush: unsafe extern "C" fn(*mut c_void) -> c_int = wl.sym("wl_display_flush")?;
     let i_registry = wl.ptr("wl_registry_interface")? as *const WlInterface;
     let i_compositor = wl.ptr("wl_compositor_interface")? as *const WlInterface;
@@ -307,10 +396,17 @@ fn try_run(secs: u64) -> Result<(), String> {
     if display.is_null() {
         return Err("wl_display_connect failed".into());
     }
-    let registry = unsafe { marshal_ctor()(display, 1, i_registry, std::ptr::null_mut::<c_void>()) };
+    let registry =
+        unsafe { marshal_ctor()(display, 1, i_registry, std::ptr::null_mut::<c_void>()) };
     let mut globals = Globals::default();
     let f: AddListener = unsafe { std::mem::transmute(ADD_LISTENER.load(Ordering::Relaxed)) };
-    unsafe { f(registry, &REGISTRY_LISTENER as *const _ as *const c_void, &mut globals as *mut _ as *mut c_void) };
+    unsafe {
+        f(
+            registry,
+            &REGISTRY_LISTENER as *const _ as *const c_void,
+            &mut globals as *mut _ as *mut c_void,
+        )
+    };
     unsafe { roundtrip(display) };
 
     let bind = |want: &str, iface: *const WlInterface, max: u32| -> Vec<*mut c_void> {
@@ -321,44 +417,109 @@ fn try_run(secs: u64) -> Result<(), String> {
             .map(|(_, v, name)| {
                 let v = (*v).min(max);
                 let iname = unsafe { (*iface).name };
-                unsafe { ctor_v(registry, 0, iface, v, *name, iname, v, std::ptr::null_mut::<c_void>()) }
+                unsafe {
+                    ctor_v(
+                        registry,
+                        0,
+                        iface,
+                        v,
+                        *name,
+                        iname,
+                        v,
+                        std::ptr::null_mut::<c_void>(),
+                    )
+                }
             })
             .collect()
     };
-    let compositor = *bind("wl_compositor", i_compositor, 3).first().ok_or("no wl_compositor")?;
+    let compositor = *bind("wl_compositor", i_compositor, 3)
+        .first()
+        .ok_or("no wl_compositor")?;
     let shell = *bind("wl_shell", i_shell, 1).first().ok_or("no wl_shell")?;
-    let webos_shell = *bind("wl_webos_shell", i_webos_shell, 1).first().ok_or("no wl_webos_shell")?;
+    let webos_shell = *bind("wl_webos_shell", i_webos_shell, 1)
+        .first()
+        .ok_or("no wl_webos_shell")?;
     for seat in bind("wl_seat", i_seat, 3) {
         add_listener(seat, &SEAT_LISTENER as *const _ as *const c_void);
     }
 
-    let surface = unsafe { marshal_ctor()(compositor, 0, i_surface, std::ptr::null_mut::<c_void>()) };
-    let ss = unsafe { marshal_ctor()(shell, 0, i_shell_surface, std::ptr::null_mut::<c_void>(), surface) };
+    let surface =
+        unsafe { marshal_ctor()(compositor, 0, i_surface, std::ptr::null_mut::<c_void>()) };
+    let ss = unsafe {
+        marshal_ctor()(
+            shell,
+            0,
+            i_shell_surface,
+            std::ptr::null_mut::<c_void>(),
+            surface,
+        )
+    };
     add_listener(ss, &SHELL_SURFACE_LISTENER as *const _ as *const c_void);
     unsafe { marshal()(ss, 9, c"km-probe".as_ptr()) }; // set_class
     unsafe { marshal()(ss, 3) }; // set_toplevel
-    let ws = unsafe { marshal_ctor()(webos_shell, 1, i_webos_surface, std::ptr::null_mut::<c_void>(), surface) };
+    let ws = unsafe {
+        marshal_ctor()(
+            webos_shell,
+            1,
+            i_webos_surface,
+            std::ptr::null_mut::<c_void>(),
+            surface,
+        )
+    };
     add_listener(ws, &WEBOS_SURFACE_LISTENER as *const _ as *const c_void);
     let appid = CString::new(std::env::var("APPID").unwrap_or_default()).unwrap();
     unsafe { marshal()(ws, 2, c"appId".as_ptr(), appid.as_ptr()) };
-    unsafe { marshal()(ws, 2, c"_WEBOS_ACCESS_POLICY_KEYS_BACK".as_ptr(), c"true".as_ptr()) };
+    unsafe {
+        marshal()(
+            ws,
+            2,
+            c"_WEBOS_ACCESS_POLICY_KEYS_BACK".as_ptr(),
+            c"true".as_ptr(),
+        )
+    };
     unsafe { marshal()(ws, 1, 3u32) }; // set_state fullscreen
     unsafe { roundtrip(display) };
     log("surface created: wl_shell toplevel + wl_webos_shell_surface, fullscreen asked");
 
     // EGL
-    let egl_window_create: unsafe extern "C" fn(*mut c_void, c_int, c_int) -> *mut c_void = wegl.sym("wl_egl_window_create")?;
+    let egl_window_create: unsafe extern "C" fn(*mut c_void, c_int, c_int) -> *mut c_void =
+        wegl.sym("wl_egl_window_create")?;
     let get_display: unsafe extern "C" fn(*mut c_void) -> *mut c_void = egl.sym("eglGetDisplay")?;
-    let initialize: unsafe extern "C" fn(*mut c_void, *mut c_int, *mut c_int) -> c_int = egl.sym("eglInitialize")?;
+    let initialize: unsafe extern "C" fn(*mut c_void, *mut c_int, *mut c_int) -> c_int =
+        egl.sym("eglInitialize")?;
     let bind_api: unsafe extern "C" fn(u32) -> c_int = egl.sym("eglBindAPI")?;
-    let choose: unsafe extern "C" fn(*mut c_void, *const c_int, *mut *mut c_void, c_int, *mut c_int) -> c_int = egl.sym("eglChooseConfig")?;
-    let create_ctx: unsafe extern "C" fn(*mut c_void, *mut c_void, *mut c_void, *const c_int) -> *mut c_void = egl.sym("eglCreateContext")?;
-    let create_surf: unsafe extern "C" fn(*mut c_void, *mut c_void, *mut c_void, *const c_int) -> *mut c_void = egl.sym("eglCreateWindowSurface")?;
-    let make_current: unsafe extern "C" fn(*mut c_void, *mut c_void, *mut c_void, *mut c_void) -> c_int = egl.sym("eglMakeCurrent")?;
-    let swap_interval: unsafe extern "C" fn(*mut c_void, c_int) -> c_int = egl.sym("eglSwapInterval")?;
-    let swap: unsafe extern "C" fn(*mut c_void, *mut c_void) -> c_int = egl.sym("eglSwapBuffers")?;
+    let choose: unsafe extern "C" fn(
+        *mut c_void,
+        *const c_int,
+        *mut *mut c_void,
+        c_int,
+        *mut c_int,
+    ) -> c_int = egl.sym("eglChooseConfig")?;
+    let create_ctx: unsafe extern "C" fn(
+        *mut c_void,
+        *mut c_void,
+        *mut c_void,
+        *const c_int,
+    ) -> *mut c_void = egl.sym("eglCreateContext")?;
+    let create_surf: unsafe extern "C" fn(
+        *mut c_void,
+        *mut c_void,
+        *mut c_void,
+        *const c_int,
+    ) -> *mut c_void = egl.sym("eglCreateWindowSurface")?;
+    let make_current: unsafe extern "C" fn(
+        *mut c_void,
+        *mut c_void,
+        *mut c_void,
+        *mut c_void,
+    ) -> c_int = egl.sym("eglMakeCurrent")?;
+    let swap_interval: unsafe extern "C" fn(*mut c_void, c_int) -> c_int =
+        egl.sym("eglSwapInterval")?;
+    let swap: unsafe extern "C" fn(*mut c_void, *mut c_void) -> c_int =
+        egl.sym("eglSwapBuffers")?;
     let get_error: unsafe extern "C" fn() -> c_int = egl.sym("eglGetError")?;
-    let query_string: unsafe extern "C" fn(*mut c_void, c_int) -> *const c_char = egl.sym("eglQueryString")?;
+    let query_string: unsafe extern "C" fn(*mut c_void, c_int) -> *const c_char =
+        egl.sym("eglQueryString")?;
     let clear_color: unsafe extern "C" fn(f32, f32, f32, f32) = gles.sym("glClearColor")?;
     let clear: unsafe extern "C" fn(u32) = gles.sym("glClear")?;
     let enable: unsafe extern "C" fn(u32) = gles.sym("glEnable")?;
@@ -371,29 +532,45 @@ fn try_run(secs: u64) -> Result<(), String> {
     let dpy = unsafe { get_display(display) };
     let (mut major, mut minor) = (0, 0);
     if unsafe { initialize(dpy, &mut major, &mut minor) } == 0 {
-        return Err(format!("eglInitialize failed: {:#x}", unsafe { get_error() }));
+        return Err(format!("eglInitialize failed: {:#x}", unsafe {
+            get_error()
+        }));
     }
-    let vendor = unsafe { CStr::from_ptr(query_string(dpy, 0x3053)) }.to_string_lossy().into_owned();
+    let vendor = unsafe { CStr::from_ptr(query_string(dpy, 0x3053)) }
+        .to_string_lossy()
+        .into_owned();
     log(&format!("EGL {major}.{minor}, vendor {vendor}"));
     unsafe { bind_api(0x30A0) };
-    let attribs = [0x3033, 4, 0x3024, 8, 0x3023, 8, 0x3022, 8, 0x3021, 8, 0x3040, 4, 0x3038];
+    let attribs = [
+        0x3033, 4, 0x3024, 8, 0x3023, 8, 0x3022, 8, 0x3021, 8, 0x3040, 4, 0x3038,
+    ];
     let mut cfg = std::ptr::null_mut();
     let mut n = 0;
     if unsafe { choose(dpy, attribs.as_ptr(), &mut cfg, 1, &mut n) } == 0 || n == 0 {
-        return Err(format!("eglChooseConfig found nothing: {:#x}", unsafe { get_error() }));
+        return Err(format!("eglChooseConfig found nothing: {:#x}", unsafe {
+            get_error()
+        }));
     }
     let ctx_attribs = [0x3098, 2, 0x3038];
     let ctx = unsafe { create_ctx(dpy, cfg, std::ptr::null_mut(), ctx_attribs.as_ptr()) };
     let esurf = unsafe { create_surf(dpy, cfg, ew, std::ptr::null()) };
     if ctx.is_null() || esurf.is_null() {
-        return Err(format!("context or surface failed: {:#x}", unsafe { get_error() }));
+        return Err(format!("context or surface failed: {:#x}", unsafe {
+            get_error()
+        }));
     }
     if unsafe { make_current(dpy, esurf, esurf, ctx) } == 0 {
-        return Err(format!("eglMakeCurrent failed: {:#x}", unsafe { get_error() }));
+        return Err(format!("eglMakeCurrent failed: {:#x}", unsafe {
+            get_error()
+        }));
     }
     unsafe { swap_interval(dpy, 1) };
-    let renderer = unsafe { CStr::from_ptr(get_string(0x1F01)) }.to_string_lossy().into_owned();
-    let version = unsafe { CStr::from_ptr(get_string(0x1F02)) }.to_string_lossy().into_owned();
+    let renderer = unsafe { CStr::from_ptr(get_string(0x1F01)) }
+        .to_string_lossy()
+        .into_owned();
+    let version = unsafe { CStr::from_ptr(get_string(0x1F02)) }
+        .to_string_lossy()
+        .into_owned();
     log(&format!("GL_RENDERER {renderer}, GL_VERSION {version}"));
     unsafe { viewport(0, 0, W, H) };
 
@@ -432,7 +609,10 @@ fn try_run(secs: u64) -> Result<(), String> {
         worst = worst.max(gap);
         if window_start.elapsed() >= Duration::from_secs(5) {
             let fps = frames as f32 / window_start.elapsed().as_secs_f32();
-            log(&format!("frames: {fps:.1} fps, {gaps} gaps over 20 ms, worst {:.1} ms", worst.as_secs_f32() * 1000.0));
+            log(&format!(
+                "frames: {fps:.1} fps, {gaps} gaps over 20 ms, worst {:.1} ms",
+                worst.as_secs_f32() * 1000.0
+            ));
             window_start = Instant::now();
             frames = 0;
             gaps = 0;
