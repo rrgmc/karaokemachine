@@ -73,7 +73,16 @@ fn main() {
         run_child("km-sdl-test", &[secs.to_string()], "sdl");
     }
     if machine {
-        run_child("karaokemachine", &[], "km");
+        // `"package": "<file>"` installs a package carried beside the executable, as a
+        // double-clicked .kmpkg arrives on a desktop.
+        let args: Vec<String> = param_str(&params, "package")
+            .map(|name| {
+                let exe = std::fs::read_link("/proc/self/exe").unwrap_or_default();
+                exe.with_file_name(name).display().to_string()
+            })
+            .into_iter()
+            .collect();
+        run_child("karaokemachine", &args, "km");
     }
     if let Some(t) = sound_thread {
         let _ = t.join();

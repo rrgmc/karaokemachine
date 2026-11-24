@@ -95,6 +95,11 @@ cp assets/soundfont/*.sf2 assets/soundfont/LICENSE.txt "$app/assets/soundfont/"
 cp assets/wallpapers/default-wallpapers.zip assets/wallpapers/CREDITS.md "$app/assets/wallpapers/"
 docker run --rm -v "$(host_path "$PWD/$app"):/app" "$IMAGE" \
   cp /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf /app/assets/fonts/karaoke.ttf
+# A package to try the machine with, carried beside it; the probe installs it for "package". It
+# stays in local/, since a package of real songs is not the repository's to carry.
+if [ -n "${KM_WEBOS_PACKAGE:-}" ]; then
+  cp "$KM_WEBOS_PACKAGE" "$app/"
+fi
 cp icon/icon-128.png "$app/icon.png"
 cat > "$app/appinfo.json" <<EOF
 {
