@@ -13,6 +13,7 @@ at a file you install by hand, and two are a project you open and press Run in.
 | [The machine → Meta Quest](#the-machine--meta-quest) | `task build:android:quest` | `adb install -r` |
 | [The machine → iOS](#the-machine--ios) | `task build:ios` | Xcode, press Run |
 | [The machine → Samsung TV](#the-machine--a-samsung-television) | `tools/port/machine/tizen/package.sh` | Apps2Samsung, a local `.tpk` |
+| [The machine → LG TV](#the-machine--an-lg-television) | `tools/port/machine/webos/build.sh` | `ares-install` |
 | [The remote → Android](#the-remote--android) | `task build:android:remote` | `adb install -r` |
 | [The remote → iOS](#the-remote--ios) | `task build:ios:remote` | Xcode, press Run |
 | [The machine → Linux, over SSH](#the-machine--a-linux-box-over-ssh) | folded into the task | `task deploy:linux HOST=user@box` |
@@ -430,6 +431,41 @@ to dial. The owner's page does the same from a browser, at `/admin/` on the same
   numbers.
 - **Each installer signs with its own certificate**, and the set refuses an update signed with a
   different one. Stay with Apps2Samsung, or remove the app before switching tools.
+
+---
+
+## The machine → an LG television
+
+An app on the television itself, installed as an `.ipk` through the set's Developer Mode, which
+removes it when the session lapses. Tried on a 2020 set running webOS 5;
+[`docs/architecture/webos.md`](docs/architecture/webos.md) has the rest.
+
+### Once per machine
+
+- **Docker**, for everything that is built.
+- **LG's webOS tools**, `npm install -g @webos-tools/cli`, for `ares-package` and `ares-install`.
+- **Developer Mode on the set**, from the LG Content Store, with Key Server on. Add the set with
+  `ares-setup-device` (port 9922, user `prisoner`), then `ares-novacom --device <name> --getkey`
+  with the passphrase Developer Mode shows.
+
+### Build and install
+
+```sh
+tools/port/machine/webos/build.sh
+ares-install --device <name> local/webos/com.rrgmc.karaokemachine_<version>_arm.ipk
+```
+
+That writes the `.ipk`, about 48 MB. Start **Karaoke Machine** from the set's app list, or with
+`ares-launch --device <name> com.rrgmc.karaokemachine`. Phones reach it on port 8177.
+
+### Three things that bite
+
+- **`Memory Not available` from `ares-install` means storage.** Applications share about 700 MB;
+  `ares-novacom --run 'df -h /media/developer'` says what is left.
+- **`ares-push` is refused under the TV profile.** A file reaches the set by `wget` from the
+  developer shell, `ares-novacom --run`, into `/media/developer/temp`.
+- **Karaoke Machine and KM Probe are two applications with two libraries.** Songs sent to one are
+  not in the other, and only one can hold port 8177.
 
 ---
 

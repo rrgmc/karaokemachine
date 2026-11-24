@@ -56,6 +56,13 @@ fn main() {
     if std::env::var_os("CARGO_FEATURE_TIZEN_EMBED_ASSETS").is_some() {
         embed_tizen_assets();
     }
+
+    // On an LG webOS television the `.ipk` carries ffmpeg in `lib/` beside the executable, because
+    // the set's own cannot decode H.264. The launcher starts the executable directly, with nothing
+    // on LD_LIBRARY_PATH, so the executable says where to look. See `docs/architecture/webos.md`.
+    if std::env::var_os("CARGO_FEATURE_WEBOS").is_some() {
+        println!("cargo:rustc-link-arg-bins=-Wl,-rpath,$ORIGIN/lib");
+    }
 }
 
 /// Writes `$OUT_DIR/tizen_assets.rs`: `CARRIED`, every file under `KM_TIZEN_ASSETS` as a path

@@ -496,6 +496,7 @@ it are the same entry. How the thing is built is [`ARCHITECTURE.md`](../ARCHITEC
 - [What the machine *is*, on iOS](distribution.md#what-the-machine-is-on-ios)
 - [An iOS carrier is unsigned, and the person installing signs it](distribution.md#an-ios-carrier-is-unsigned-and-the-person-installing-signs-it)
 - [A Samsung television carrier is re-signed by whoever installs it](distribution.md#a-samsung-television-carrier-is-re-signed-by-whoever-installs-it)
+- [An LG television carrier is an unofficial download](distribution.md#an-lg-television-carrier-is-an-unofficial-download)
 - [What the machine *is*, on a headset](distribution.md#what-the-machine-is-on-a-headset)
 - [What the machine *is*, on a Samsung television](distribution.md#what-the-machine-is-on-a-samsung-television)
 - [A log file for the runs nobody is watching](distribution.md#a-log-file-for-the-runs-nobody-is-watching)

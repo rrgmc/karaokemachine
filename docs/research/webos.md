@@ -29,11 +29,13 @@ draws at 60 fps in a custom-role window given the webOS shell roles, after a two
 set's older libwayland. cpal plays through ALSA's `default` with no underruns. The machine plays a
 MIDI song with its lyrics in about 56 MB and 0.6 of a core, and the singer's page works from a phone.
 Two findings still shape the product rather than block it. An installed application is removed when
-the Developer Mode session runs out, unless the Content Store carries it. And video songs need the
-set's ffmpeg 4, which this build does not use.
+the Developer Mode session runs out, unless the Content Store carries it. And the set's ffmpeg
+cannot decode H.264, so the `.ipk` carries its own.
 
-**This is a development carrier, not a product.** The shippable route is LG's Flutter one, on a
-webOS 26 set, which has not been tried; whether LG is a platform at all is a product decision.
+**The release offers it as an unofficial download**, the decision
+[`An LG television carrier is an unofficial download`](../decisions/distribution.md#an-lg-television-carrier-is-an-unofficial-download).
+The route to an install that does not expire is LG's Flutter one, on a webOS 26 set, which has not
+been tried.
 
 | Marker | Meaning |
 |---|---|

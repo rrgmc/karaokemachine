@@ -529,6 +529,7 @@ tools/platform/macos/installer-remote.sh    #   the same on macOS: KM Remote in 
 task build:ios RELEASE=1 DEVICE=1 IPA=1         # an unsigned .ipa: the machine, for sideloading
 task build:ios:remote RELEASE=1 DEVICE=1 IPA=1  #   ...and the offline remote
 bash tools/port/machine/tizen/package.sh    # the .tpk for a Samsung television, test-signed; Docker and .NET
+bash tools/port/machine/webos/build.sh      # the .ipk for an LG television, unofficial; Docker and ares-package
 bash tools/dist/changelog.sh preview      # the changelog section the files in changelog.d/ would make
 bash tools/dist/changelog.sh release X.Y.0  #   ...written into CHANGELOG.md, the files removed: RELEASE.md step 1
 bash tools/dist/release.sh           # gather the carriers into dist/release/<version>/ under release names
@@ -2224,6 +2225,7 @@ task dist NO_VIDEO=1  ZIP=1  VERBOSE=1
 | `tools/port/machine/ios/build.sh --ipa` | the machine as an unsigned `.ipa` — must run on macOS |
 | `tools/port/remote/ios/build.sh --ipa` | the offline remote as one |
 | `tools/port/machine/tizen/package.sh` | the machine as a `.tpk` for a Samsung television, test-signed for Apps2Samsung to sign again |
+| `tools/port/machine/webos/build.sh` | the machine as an `.ipk` for an LG television, installed in Developer Mode |
 
 - **The `-no-video` marker goes on the declined build**, because the plain name should name what the
   plain command produces. The `.deb` uses a `no-video/` subfolder instead, both builds having the same
@@ -2372,6 +2374,25 @@ keeps the app open.
 app, set `KM_TIZEN_API_PORT=8277`. It needs ffmpeg on `PATH` to make the video and MP3 songs. It
 ends by printing the numbers to dial, which are the bank the machine gave the package times 1000,
 plus the slot.
+
+### LG webOS television
+
+```sh
+tools/port/machine/webos/build.sh            # the app: local/webos/com.rrgmc.karaokemachine_<version>_arm.ipk
+tools/port/machine/webos/build.sh --probe    # KM Probe, which starts the machine and serves its log
+tools/port/machine/webos/run.sh <device> '{"machine":1}'   # install the probe and start the machine in it
+```
+
+Docker, plus LG's `ares-package` (`npm install -g @webos-tools/cli`). `build.sh` builds the
+`km-webos` image first: Debian buster's armel cross-compiler, Rust, wayland 1.18's scanner, the
+patched static SDL3, armel ALSA, and ffmpeg at the pin. The cold image takes the longest. Everything
+is built into `local/webos/`, not `target/`, and the machine with `KM_FEATURES_WEBOS`. The `.ipk`
+carries the machine, the assets and ffmpeg's libraries, and is repacked in the image with real file
+modes. A release builds the same `.ipk` in the release workflow's `webos` job. How it all fits
+together is [`docs/architecture/webos.md`](docs/architecture/webos.md).
+
+**The host lint never sees the webOS code** either: run clippy for the triple in the image, with
+`--features video,webos`.
 
 **Getting the result onto a device is [`DEPLOYING.md`](DEPLOYING.md)** — finding the device with
 `adb` first, then installing, and the signing traps on each platform.

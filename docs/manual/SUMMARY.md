@@ -10,6 +10,7 @@
   - [On Debian, it is also an appliance](appliance.md)
   - [On an iPhone or an iPad, you sign it yourself](ios.md)
   - [On a Samsung television, Apps2Samsung signs it](samsung-tv.md)
+  - [On an LG television, unofficially, through Developer Mode](lg-tv.md)
   - [Removing it](removing.md)
 
 # Using it
