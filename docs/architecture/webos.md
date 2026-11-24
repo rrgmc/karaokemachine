@@ -18,7 +18,7 @@ television defaults the Tizen build already has.
 | Fullscreen, window stack, pointer, key hints, file manager, browser | as configured | fixed or absent, through the constants `display.rs` already gates on `tizen` |
 | Number pad, re-pitching recordings | off, on | on, off, as on the other televisions |
 | Sound | cpal on the system default | the same, which on the set is ALSA's `default` |
-| Video songs | with the `video` feature | not built. The set carries ffmpeg 4 and the machine is built against 7.1 |
+| Video songs | with the `video` feature, against the system's ffmpeg or the pinned one | with the `video` feature, against ffmpeg at the pin, which the `.ipk` carries in `lib/`. The set's own is 4.0, without threads, and its H.264 decoder does not work. The probe puts `lib/` on `LD_LIBRARY_PATH`, and the sonames, `.61` against the set's `.58`, never meet |
 | Assets | beside the executable or the checkout | `assets/` beside the executable in the `.ipk`: the SoundFont, the wallpapers, and DejaVu as `fonts/karaoke.ttf` |
 
 ## The build
@@ -30,6 +30,9 @@ television defaults the Tizen build already has.
   past its support, so apt reads `archive.debian.org`, security suite included.
 - **SDL3 is built against wayland 1.18's headers and scanner**, built in the image for the build
   machine. 1.18's scanner still generates `wl_proxy_marshal_constructor`, which the set has.
+- **ffmpeg is built at the pin in `tools/setup/ffmpeg-pin.sh`**, with its cross configure line less
+  zlib, as the Tizen image does. Unlike Tizen's it is shipped: `build.sh` copies the libraries the
+  machine names in `DT_NEEDED` into the `.ipk`'s `lib/`.
 - **ALSA for cpal is unpacked, not installed.** Multiarch would pull an armel libc that conflicts with
   the cross one, so the two packages go to `/opt/alsa-armel` with a `.pc` of their own.
 - **The `.ipk` is repacked in the image.** On Windows `ares-package` writes every file 0666, and the
@@ -40,7 +43,11 @@ television defaults the Tizen build already has.
 The `.ipk`'s main executable is the probe, `km-webos-probe`, which starts the machine for
 `"machine": 1` and serves its log on port 8180. `run.sh <device> '{"machine":1}'` installs and
 launches it. `KM_WEBOS_PACKAGE` carries a package into the `.ipk`, and `"package": "<file>"` hands it
-to the machine to install. A package of real songs stays in `local/`.
+to the machine to install; an absolute path works too. A package of real songs stays in `local/`.
+`"frame_stats": 1` passes `--frame-stats`, so a song's frame timing is in the log.
+
+A package too large to carry in the `.ipk` reaches the set by `wget` from the developer shell,
+`ares-novacom --run`, into `/media/developer/temp`: `ares-push` is refused under the TV profile.
 
 The probe's other modes measure the set: `"draw"`, `"sdl"`, `"sound"`, and the report on its own.
 `docs/research/webos.md` §13 has what each found.

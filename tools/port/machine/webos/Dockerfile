@@ -120,3 +120,29 @@ ENV CXX_armv7_unknown_linux_gnueabi=arm-linux-gnueabi-g++ \
     CXXFLAGS_armv7_unknown_linux_gnueabi="-march=armv7-a -mfloat-abi=softfp -mfpu=neon" \
     PKG_CONFIG_ALLOW_CROSS=1 \
     PKG_CONFIG_LIBDIR_armv7_unknown_linux_gnueabi=/opt/sdl3/lib/pkgconfig:/opt/km-webos/pc-armel
+
+# -- ffmpeg, shipped -------------------------------------------------------------------------------
+#
+# The set's own ffmpeg is 4.0, built without threads, and its H.264 decoder fails on every profile,
+# so the .ipk carries ffmpeg at the pin in tools/setup/ffmpeg-pin.sh, in its lib/. Its sonames end
+# .61 where the set's end .58, so the two never meet. The pin's cross configure line, less zlib as on
+# Tizen; every hwcontext_*.h is removed afterwards, for the 32-bit Vulkan stub assertion
+# tools/port/machine/android/ffmpeg.sh describes. libclang is bindgen's, for ffmpeg-sys-next.
+COPY --from=setup ffmpeg-pin.sh /opt/km-webos/ffmpeg-pin.sh
+RUN apt-get update && apt-get install -y --no-install-recommends libclang-dev clang \
+ && rm -rf /var/lib/apt/lists/* \
+ && . /opt/km-webos/ffmpeg-pin.sh && mkdir -p /usr/src/ffmpeg && cd /usr/src/ffmpeg \
+ && curl --proto '=https' -sSfL -o ffmpeg.tar.xz "$FF_SRC_URL" \
+ && echo "$FF_SRC_SHA256  ffmpeg.tar.xz" | sha256sum -c - \
+ && tar -xJf ffmpeg.tar.xz --strip-components=1 && rm ffmpeg.tar.xz \
+ && flags=(); for f in "${FF_SRC_CONFIGURE_CROSS[@]}"; do [ "$f" = --enable-zlib ] || flags+=("$f"); done \
+ && ./configure --prefix=/opt/ffmpeg "${flags[@]}" \
+      --enable-cross-compile --cross-prefix=arm-linux-gnueabi- --target-os=linux \
+      --arch=arm --cpu=armv7-a --enable-neon --enable-pthreads --enable-pic \
+      "--extra-cflags=-march=armv7-a -mfloat-abi=softfp -mfpu=neon -fPIC" \
+ && make -j"$(nproc)" && make install \
+ && rm -f /opt/ffmpeg/include/libavutil/hwcontext_*.h \
+ && cd / && rm -rf /usr/src/ffmpeg
+
+ENV FFMPEG_DIR=/opt/ffmpeg \
+    BINDGEN_EXTRA_CLANG_ARGS_armv7_unknown_linux_gnueabi="--target=arm-linux-gnueabi --sysroot=/usr/arm-linux-gnueabi -mfloat-abi=softfp"
