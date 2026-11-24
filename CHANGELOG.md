@@ -15,6 +15,39 @@ What the next release gives is one file per change in [`changelog.d/`](changelog
 pull requests never edit the same lines here. A release gathers them into a section below; see
 [`RELEASE.md`](RELEASE.md). `bash tools/dist/changelog.sh preview` prints that section now.
 
+## [1.26.0] - 2026-11-24
+
+### Added
+
+- **A remote's media keys control the song.** Play/Pause pauses and resumes, Play and Pause do only
+  what they say, Stop stops, Next skips, Previous starts the song again, and Rewind and
+  Fast-forward move ten seconds. This works with a keyboard's media keys too, and on Android TV.
+- **The machine runs as an app on a Samsung television.** Download
+  `karaokemachine-<version>-tizen.tpk` and install it with Apps2Samsung, which signs it for your
+  television. Every kind of song plays, phones reach it as on any other machine, and songs are
+  typed on its own number pad. It has run on a 2025 television on Tizen 10. The manual's
+  *On a Samsung television* has the steps.
+- **The machine runs as an app on an LG television, unofficially.** Download
+  `karaokemachine-<version>-webos.ipk` and install it in the television's Developer Mode with LG's
+  developer tools. MIDI, MP3+G and video songs play, and phones reach it as on any other machine.
+  The television removes it when Developer Mode lapses. It has run on a 2020 television on webOS 5.
+  The manual's *On an LG television* has the steps.
+
+### Changed
+
+- **A newly installed app downloads the recommended instrument bank.** On Android, Meta Quest,
+  iPhone, iPad and a Samsung television, the machine fetches it the first time it starts, a
+  download of 262 MiB, and then uses it. The screen says so while it happens. An app that is
+  already installed keeps its bank: choose the recommended one on the SoundFont page.
+- **A song sung earlier tonight no longer brings a question on the remote.** Asking for it again
+  just asks. A song still waiting in the queue is asked about once, as before.
+
+### Fixed
+
+- **A song no longer starts its first line with its key.** Some files open their words with a key
+  signature such as `B=#####C=`, and the screen drew it in front of the first word. Rescan a
+  library to see it gone from the song list's preview.
+
 ## [1.25.0] - 2026-11-03
 
 ### Added
