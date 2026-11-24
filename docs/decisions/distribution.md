@@ -1009,6 +1009,33 @@ that is `manual`, or for a table with two recommendations.
 appliance is the one install where somebody is at a shell anyway. `--first-run-soundfont` writes the
 same request, and `task soundfont BANK=…` is there.
 
+## An app requests the recommended bank on its first start
+
+**On Android, Meta Quest, iOS and a Samsung television, the machine writes the request itself the
+first time it starts, and nobody is asked.** An APK, an iOS bundle and a `.tpk` are installed by a
+store or a sideloader. None has a page of its own to put a tick box on. Without this, the four
+carriers that have no shell and no installer are the four that never get the bank judged best.
+
+**Installing the app is the asking.** That is the one thing this changes in
+[`Nothing downloads`](repository.md#nothing-downloads), and it is changed for these four carriers
+only. Everything else there holds: one bank, named, from its pinned address against its pinned
+digests.
+
+| | |
+|---|---|
+| When | a start that finds no `settings.json`. Loading settings writes one, so this is true once per install |
+| What is written | the same `first-run-soundfont.json` a setup program writes, naming the recommended row by its id |
+| An upgrade | has settings already, and gets nothing. The bank is on the SoundFont page |
+| Where the terms are printed | on the television, in the line that says the download has started: the bank's name, size and license |
+| Limits | the setup programs': three starts, and a bank the owner chose wins |
+
+**The cost that was accepted is a phone on mobile data.** A fresh install on one fetches 262 MiB
+without being asked. Asking on screen first was the alternative. It needs a question the display can
+draw and four kinds of input can answer, tested on each carrier. A television, a headset and a
+streaming box are on a home network, and they are most of what these carriers run on.
+
+**Not the `.deb`, still.** That one has a shell, and `--first-run-soundfont` in it.
+
 ## The recommended bank is fetched before a release is tagged
 
 **`task release:bank` downloads the recommended bank and checks it against the bank table, and a

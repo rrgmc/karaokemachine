@@ -6,6 +6,9 @@
 //! first start with [`crate::fetch`], which already verifies the digest and refuses a bank that will
 //! not play.
 //!
+//! **An app carrier has no setup program, so there the machine writes the file itself**, once, on
+//! the first start: [`request_on_a_fresh_install`].
+//!
 //! # Why a file beside `settings.json` and not a key inside it
 //!
 //! The same argument [`crate::soundfont`] makes for its own note, plus one this file has and that
@@ -140,6 +143,47 @@ pub fn write(paths: &Paths, request: &Request) -> std::io::Result<()> {
     std::fs::write(file(paths), text)
 }
 
+/// Asks for the recommended bank on the first start of an app that had no setup program.
+///
+/// An APK, an iOS bundle and a `.tpk` are installed by a store or a sideloader, with no page of
+/// their own to put a tick box on. So the app writes the request a setup program would have, once,
+/// and the ordinary first-start path carries it out. See `An app requests the recommended bank on
+/// its first start` in `docs/decisions/distribution.md`.
+///
+/// **Called before [`crate::settings::Settings::load`], because that call is what ends the first
+/// start**: it writes `settings.json`. A missing settings file is therefore true exactly once per
+/// install, which is what keeps the three-start limit a limit. An install that already has
+/// settings is an upgrade, and is not talked over.
+///
+/// The concrete id is written rather than [`RECOMMENDED`], as the installers do, so a retry on a
+/// later build fetches the bank this start named. Returns whether a request was written.
+#[cfg_attr(
+    not(any(target_os = "android", target_os = "ios", feature = "tizen", test)),
+    expect(dead_code, reason = "called only from the app carriers' entry points")
+)]
+pub(crate) fn request_on_a_fresh_install(paths: &Paths) -> bool {
+    if paths.settings_file().exists() || file(paths).exists() {
+        return false;
+    }
+    let Some(row) = Request::new(RECOMMENDED).resolve() else {
+        return false;
+    };
+    match write(paths, &Request::new(row.id)) {
+        Ok(()) => {
+            tracing::info!(
+                bank = %row.id,
+                size = %row.size,
+                "a first start with no settings; asking for the recommended SoundFont"
+            );
+            true
+        }
+        Err(error) => {
+            tracing::warn!(%error, "could not write the first-start SoundFont request");
+            false
+        }
+    }
+}
+
 /// Removes it. A request that was not there is not an error — every path here ends by clearing one.
 pub fn remove(paths: &Paths) -> std::io::Result<()> {
     match std::fs::remove_file(file(paths)) {
@@ -234,6 +278,44 @@ mod tests {
         remove(&paths).expect("the request is removed");
         assert!(read(&paths).is_none());
         remove(&paths).expect("removing a request that is not there is not an error");
+    }
+
+    /// An app with no settings yet asks for the recommended bank, by its own id.
+    #[test]
+    fn a_fresh_install_asks_for_the_recommended_bank() {
+        let scratch = Scratch::new("fresh-app");
+        let paths = paths_in(&scratch);
+
+        assert!(request_on_a_fresh_install(&paths));
+        let request = read(&paths).expect("a request was written");
+        assert_ne!(request.bank, RECOMMENDED, "the row is named outright");
+        assert!(request.resolve().expect("a known bank").recommended);
+    }
+
+    /// Settings already there means an upgrade, and somebody's install is left alone.
+    #[test]
+    fn an_install_with_settings_is_not_asked_for() {
+        let scratch = Scratch::new("upgraded-app");
+        let paths = paths_in(&scratch);
+        std::fs::create_dir_all(&paths.config_dir).expect("the config directory");
+        std::fs::write(paths.settings_file(), "{}").expect("a settings file");
+
+        assert!(!request_on_a_fresh_install(&paths));
+        assert!(read(&paths).is_none());
+    }
+
+    /// A request already counting its attempts is not replaced by a fresh one.
+    #[test]
+    fn a_request_already_there_keeps_its_attempts() {
+        let scratch = Scratch::new("retrying-app");
+        let paths = paths_in(&scratch);
+        let spent = Request::new("colombogmgs2")
+            .attempted()
+            .expect("one attempt");
+        write(&paths, &spent).expect("the request is written");
+
+        assert!(!request_on_a_fresh_install(&paths));
+        assert_eq!(read(&paths), Some(spent));
     }
 
     /// Bytes nobody can act on are deleted, not read again at every start for ever.

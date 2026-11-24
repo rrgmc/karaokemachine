@@ -213,6 +213,8 @@ fn start(
         tracing::info!("mDNS will be tried; its outcome follows from the API");
     }
 
+    // Before `load`, which writes `settings.json` and so ends the first start.
+    crate::firstrun::request_on_a_fresh_install(&paths);
     let (settings, _) = Settings::load(&paths);
     let options = Options {
         api_bind,
