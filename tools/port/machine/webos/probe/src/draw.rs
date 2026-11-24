@@ -42,6 +42,7 @@ pub struct WlInterface {
 
 static QUIT: AtomicBool = AtomicBool::new(false);
 static KEYBOARD_IFACE: AtomicPtr<WlInterface> = AtomicPtr::new(std::ptr::null_mut());
+static POINTER_IFACE: AtomicPtr<WlInterface> = AtomicPtr::new(std::ptr::null_mut());
 static MARSHAL_CTOR: AtomicPtr<c_void> = AtomicPtr::new(std::ptr::null_mut());
 static MARSHAL: AtomicPtr<c_void> = AtomicPtr::new(std::ptr::null_mut());
 static ADD_LISTENER: AtomicPtr<c_void> = AtomicPtr::new(std::ptr::null_mut());
@@ -197,6 +198,10 @@ static WEBOS_SURFACE_LISTENER: WebosSurfaceListener =
 
 unsafe extern "C" fn seat_caps(_: *mut c_void, seat: *mut c_void, caps: u32) {
     log(&format!("seat {seat:p} capabilities {caps:#x} (1 pointer, 2 keyboard, 4 touch)"));
+    if caps & 1 != 0 {
+        let p = unsafe { marshal_ctor()(seat, 0, POINTER_IFACE.load(Ordering::Relaxed), std::ptr::null_mut::<c_void>()) };
+        add_listener(p, &POINTER_LISTENER as *const _ as *const c_void);
+    }
     if caps & 2 != 0 {
         let kb = unsafe { marshal_ctor()(seat, 1, KEYBOARD_IFACE.load(Ordering::Relaxed), std::ptr::null_mut::<c_void>()) };
         add_listener(kb, &KEYBOARD_LISTENER as *const _ as *const c_void);
@@ -211,6 +216,29 @@ struct SeatListener(
     unsafe extern "C" fn(*mut c_void, *mut c_void, *const c_char),
 );
 static SEAT_LISTENER: SeatListener = SeatListener(seat_caps, seat_name);
+
+unsafe extern "C" fn p_enter(_: *mut c_void, p: *mut c_void, _: u32, _: *mut c_void, x: i32, y: i32) {
+    log(&format!("pointer {p:p} enter at {},{}", x / 256, y / 256));
+}
+unsafe extern "C" fn p_leave(_: *mut c_void, p: *mut c_void, _: u32, _: *mut c_void) {
+    log(&format!("pointer {p:p} leave"));
+}
+unsafe extern "C" fn p_motion(_: *mut c_void, _: *mut c_void, _: u32, _: i32, _: i32) {}
+unsafe extern "C" fn p_button(_: *mut c_void, p: *mut c_void, _: u32, _: u32, button: u32, state: u32) {
+    log(&format!("BUTTON {button:#x} {} on pointer {p:p}", if state == 1 { "down" } else { "up" }));
+}
+unsafe extern "C" fn p_axis(_: *mut c_void, _: *mut c_void, _: u32, axis: u32, value: i32) {
+    log(&format!("AXIS {axis} {}", value / 256));
+}
+#[repr(C)]
+struct PointerListener(
+    unsafe extern "C" fn(*mut c_void, *mut c_void, u32, *mut c_void, i32, i32),
+    unsafe extern "C" fn(*mut c_void, *mut c_void, u32, *mut c_void),
+    unsafe extern "C" fn(*mut c_void, *mut c_void, u32, i32, i32),
+    unsafe extern "C" fn(*mut c_void, *mut c_void, u32, u32, u32, u32),
+    unsafe extern "C" fn(*mut c_void, *mut c_void, u32, u32, i32),
+);
+static POINTER_LISTENER: PointerListener = PointerListener(p_enter, p_leave, p_motion, p_button, p_axis);
 
 unsafe extern "C" fn kb_keymap(_: *mut c_void, _: *mut c_void, format: u32, fd: i32, size: u32) {
     log(&format!("keyboard keymap format {format}, {size} bytes"));
@@ -261,6 +289,7 @@ fn try_run(secs: u64) -> Result<(), String> {
     MARSHAL.store(wl.ptr("wl_proxy_marshal")?, Ordering::Relaxed);
     ADD_LISTENER.store(wl.ptr("wl_proxy_add_listener")?, Ordering::Relaxed);
     KEYBOARD_IFACE.store(wl.ptr("wl_keyboard_interface")? as *mut WlInterface, Ordering::Relaxed);
+    POINTER_IFACE.store(wl.ptr("wl_pointer_interface")? as *mut WlInterface, Ordering::Relaxed);
     let ctor_v: MarshalCtorV = wl.sym("wl_proxy_marshal_constructor_versioned")?;
     let connect: unsafe extern "C" fn(*const c_char) -> *mut c_void = wl.sym("wl_display_connect")?;
     let roundtrip: unsafe extern "C" fn(*mut c_void) -> c_int = wl.sym("wl_display_roundtrip")?;

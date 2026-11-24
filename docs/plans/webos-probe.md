@@ -68,9 +68,8 @@ parameters `ares-launch --params` passes in `argv[1]`.
 
 Each milestone is recorded in the research note as it passes. P1 is the gate.
 
-**Where it stands, 2026-11-24:** P0 and P1 passed. P2 drew at 60 fps without SDL, on the protocol
-directly, and P3's sine played with no underruns. What waits is the owner seeing the bar and hearing
-the tone, the remote's keys (P4), and P2 through SDL3, which needs the rung 2 patch. Research note §13.
+**Where it stands, 2026-11-24:** P0, P1, P3 and P4 passed. P2 drew at 60 fps without SDL, on the
+protocol directly; P2 through SDL3 waits on the rung 2 patch, and P5 on that. Research note §13.
 
 | Milestone | Deliverable | Verified by | Size |
 |---|---|---|---|
