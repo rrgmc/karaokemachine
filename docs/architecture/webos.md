@@ -44,7 +44,12 @@ television defaults the Tizen build already has.
   `ubuntu:24.04` rather than the km-webos image. LG's npm packer on Windows wrote every file 0666,
   and the archive used to be rewritten by hand.
 - **The launcher's icons are `icon/icon-80.png` and `icon/icon-130.png`**, as `icon` and
-  `largeIcon`, on `iconColor` `#2a0e42`, the theme's `icon_ground`.
+  `largeIcon`, on `iconColor` `#2a0e42`, the theme's `icon_ground`. **The launch screen is
+  `icon/splash-1920x1080.png`**, as `splashBackground`: the Plymouth composition, the tile on the
+  machine's own background.
+- **`dialAppName` is `KaraokeMachine`**, so the set's DIAL service starts and stops the machine:
+  `POST` and `DELETE` on `<Application-URL>/KaraokeMachine`, the Application-URL being the set's
+  `:36866/apps`. The machine reads no DIAL launch parameters.
 - **The release checks it against firmware it has never run on.** The `webos` job in `release.yml`
   runs `webosbrew-ipk-verify` from `webosbrew/dev-toolbox-cli`, pinned to a release, and writes which
   webOS versions have every library and symbol the `.ipk` needs into the job summary. A firmware

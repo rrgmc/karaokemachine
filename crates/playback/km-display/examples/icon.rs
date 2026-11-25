@@ -984,6 +984,30 @@ fn render_bar(height: u32) -> RgbaImage {
     })
 }
 
+/// The launch screen of an LG television: 1920 by 1080, the size LG asks for.
+///
+/// The Plymouth theme's composition: the tile at a fifth of the width, centred, on
+/// [`Theme::background`], so the machine's first frame follows it without a flash.
+fn render_splash() -> RgbaImage {
+    const WIDTH: u32 = 1920;
+    const HEIGHT: u32 = 1080;
+    let size = WIDTH / 5;
+    let tile = render(size, &Layout::tile(size), machine_lead(), Badge::None);
+    let ground = Theme::default().background;
+    let ground = [ground.r, ground.g, ground.b].map(|c| c as f32 / 255.0);
+    let (left, top) = ((WIDTH - size) / 2, (HEIGHT - size) / 2);
+    RgbaImage::from_fn(WIDTH, HEIGHT, |x, y| {
+        let inside = (left..left + size).contains(&x) && (top..top + size).contains(&y);
+        if !inside {
+            return Rgba([ground[0], ground[1], ground[2], 1.0].map(byte));
+        }
+        let Rgba(p) = *tile.get_pixel(x - left, y - top);
+        let src = [p[0], p[1], p[2]].map(|c| c as f32 / 255.0);
+        let (rgb, _) = over(src, p[3] as f32 / 255.0, ground, 1.0);
+        Rgba([rgb[0], rgb[1], rgb[2], 1.0].map(byte))
+    })
+}
+
 /// Straight-alpha source-over: `src` at `src_alpha`, on top of `dst` at `dst_alpha`.
 fn over(src: [f32; 3], src_alpha: f32, dst: [f32; 3], dst_alpha: f32) -> ([f32; 3], f32) {
     let alpha = src_alpha + dst_alpha * (1.0 - src_alpha);
@@ -1191,6 +1215,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         )?;
         written += 1;
     }
+
+    // An LG television's launch screen, its `appinfo.json` `splashBackground`.
+    write(&icons.join("splash-1920x1080.png"), &png(&render_splash())?)?;
+    written += 1;
 
     // Windows.
     let members: Vec<RgbaImage> = ICO_SIZES

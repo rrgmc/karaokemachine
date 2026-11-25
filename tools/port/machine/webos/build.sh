@@ -130,6 +130,8 @@ fi
 # The launcher's two sizes, as LG asks for them, and the icon's own ground behind them.
 cp icon/icon-80.png "$app/icon.png"
 cp icon/icon-130.png "$app/largeIcon.png"
+# What the set shows while the machine starts.
+cp icon/splash-1920x1080.png "$app/splash.png"
 if [ "$PROBE" = 1 ]; then
   main=km-webos-probe title="KM Probe"
 else
@@ -146,6 +148,8 @@ cat > "$app/appinfo.json" <<EOF
   "icon": "icon.png",
   "largeIcon": "largeIcon.png",
   "iconColor": "#2a0e42",
+  "splashBackground": "splash.png",
+  "dialAppName": "KaraokeMachine",
   "requiredACG": []
 }
 EOF
