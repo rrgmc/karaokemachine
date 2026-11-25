@@ -152,6 +152,14 @@ Each of these has cost real time. The reasoning is in `BUILDING.md`; these are t
   [`changelog.d/README.md`](changelog.d/README.md); only a release writes `CHANGELOG.md`.
 - **`gh pr create` takes a type label**: `--label bug`, `enhancement` or `documentation`. A workflow
   adds the program and platform labels from the changed paths, and cannot judge the type.
+- **A pull request body starts from `.github/pull_request_template.md`**, and a box is ticked only
+  when it is true: when clippy and the tests did not run, the `task check` box stays empty and the
+  line under it names the commands that did.
+- **A change no compiler or test reads may leave clippy and the tests to CI** — prose under `docs/`,
+  a `README.md`, a skill. A cold compile in a worktree costs about 10 GB. The checks that compile
+  nothing still run: `task lint:local lint:pin lint:version lint:modes lint:mdns lint:cargo
+  lint:labels lint:ci fmt:check`. A script, the Taskfile, a workflow, a manifest or Rust code runs
+  the whole of `task check`.
 - **`gh pr merge` takes no `--delete-branch` here.** The repository deletes a head branch on merge
   itself, so the flag reaches only the *local* branch. Deleting that means `gh` checks out `master`,
   which the main checkout already holds. From a worktree, where the work is, that is
