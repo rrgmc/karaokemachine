@@ -1,4 +1,4 @@
-//! Audio focus: asking Android for the sound, and giving it back.
+//! Audio focus: asking Android or a Samsung television for the sound, and giving it back.
 //!
 //! **Android arbitrates who is heard, and an application that does not join in is both rude and
 //! unprotected.** A machine that never asks is one another player talks over, and a machine that
@@ -82,6 +82,57 @@ pub fn from_code(value: i32) -> Option<Change> {
     }
 }
 
+/// Samsung's sound manager constants, from `sound_manager.h`.
+#[cfg_attr(
+    not(feature = "tizen"),
+    allow(dead_code, reason = "read by the Tizen half and by the tests below")
+)]
+pub mod tizen_code {
+    /// `SOUND_STREAM_FOCUS_FOR_PLAYBACK`, a bit of the mask.
+    pub const FOR_PLAYBACK: i32 = 0x01;
+    /// `SOUND_STREAM_FOCUS_STATE_RELEASED` and `_ACQUIRED`.
+    pub const RELEASED: i32 = 0;
+    pub const ACQUIRED: i32 = 1;
+    /// `SOUND_STREAM_FOCUS_CHANGED_BY_*`, in the header's order.
+    pub const BY_MEDIA: i32 = 0;
+    pub const BY_SYSTEM: i32 = 1;
+    pub const BY_NOTIFICATION: i32 = 3;
+    pub const BY_MEDIA_EXTERNAL_ONLY: i32 = 10;
+    /// `SOUND_BEHAVIOR_NO_RESUME`, a bit of the behaviour the taker declared.
+    pub const NO_RESUME: i32 = 0x01;
+}
+
+/// Reads what Samsung's sound manager hands the focus callback.
+///
+/// **A state and a reason, where Android has one code**, so the four cases are read off the reason.
+/// Another player or the system taking the sound keeps it ([`Change::Lost`]). A notification is a
+/// chime, and the singer sings through it ([`Change::Ducked`]), as on Android. Everything else, an
+/// alarm, a call, the voice assistant, takes it for a while ([`Change::LostForNow`]), unless the
+/// taker said the sound is not to come back. A reason the header adds later is a loss for a while
+/// too: the state already says the sound is gone, and the system says when it returns.
+///
+/// A change that leaves playback alone, recording only, answers `None`.
+#[cfg_attr(
+    not(feature = "tizen"),
+    allow(dead_code, reason = "called by the Tizen half and by the tests below")
+)]
+pub fn from_tizen(mask: i32, state: i32, reason: i32, behavior: i32) -> Option<Change> {
+    use tizen_code::*;
+    if mask & FOR_PLAYBACK == 0 {
+        return None;
+    }
+    match state {
+        ACQUIRED => Some(Change::Regained),
+        RELEASED => Some(match reason {
+            BY_MEDIA | BY_SYSTEM | BY_MEDIA_EXTERNAL_ONLY => Change::Lost,
+            BY_NOTIFICATION => Change::Ducked,
+            _ if behavior & NO_RESUME != 0 => Change::Lost,
+            _ => Change::LostForNow,
+        }),
+        _ => None,
+    }
+}
+
 /// What the machine does about a change, and what it remembers afterwards.
 ///
 /// `owed` carries in whether a song is waiting on the sound coming back, and carries out whether one
@@ -103,13 +154,13 @@ pub fn action(change: Change, owed: bool) -> (Option<TransportCommand>, bool) {
     }
 }
 
-/// Everywhere that is not Android, where nothing arbitrates the sound.
+/// Everywhere that is neither Android nor a Samsung television, where nothing arbitrates the sound.
 ///
-/// **A desktop, a television appliance and an iPhone all reach this.** iOS has an audio session
-/// rather than focus, and cpal's own backend answers the interruption there; a desktop lets every
-/// application make a sound at once by design. So the seam exists on every platform and does
+/// **A desktop, a Linux television appliance and an iPhone all reach this.** iOS has an audio
+/// session rather than focus, and cpal's own backend answers the interruption there; a desktop lets
+/// every application make a sound at once by design. So the seam exists on every platform and does
 /// nothing on most of them, which keeps the machine's own code free of `cfg`.
-#[cfg(not(target_os = "android"))]
+#[cfg(not(any(target_os = "android", feature = "tizen")))]
 mod platform {
     use super::Change;
 
@@ -125,6 +176,12 @@ mod platform {
     pub fn take() -> Option<Change> {
         None
     }
+}
+
+/// A Samsung television, whose sound manager arbitrates as Android's `AudioManager` does.
+#[cfg(feature = "tizen")]
+mod platform {
+    pub use crate::tizen::soundfocus::{abandon, request, take};
 }
 
 pub use platform::{abandon, request, take};
@@ -253,6 +310,39 @@ mod tests {
             );
         }
     }
+
+    /// Samsung's state and reason read as the four cases.
+    #[test]
+    fn samsung_reasons_are_the_four_cases() {
+        use tizen_code::*;
+        let released = |reason, behavior| from_tizen(FOR_PLAYBACK, RELEASED, reason, behavior);
+        assert_eq!(released(BY_MEDIA, 0), Some(Change::Lost));
+        assert_eq!(released(BY_SYSTEM, 0), Some(Change::Lost));
+        assert_eq!(released(BY_MEDIA_EXTERNAL_ONLY, 0), Some(Change::Lost));
+        assert_eq!(released(BY_NOTIFICATION, 0), Some(Change::Ducked));
+        // An alarm, the voice assistant and a call, then one the header has not got yet.
+        for reason in [2, 6, 9, 42] {
+            assert_eq!(released(reason, 0), Some(Change::LostForNow), "{reason}");
+            assert_eq!(released(reason, NO_RESUME), Some(Change::Lost), "{reason}");
+        }
+        assert_eq!(
+            from_tizen(FOR_PLAYBACK | 0x02, ACQUIRED, BY_CALL_UNUSED, 0),
+            Some(Change::Regained)
+        );
+        assert_eq!(
+            from_tizen(0x02, RELEASED, BY_MEDIA, 0),
+            None,
+            "recording only"
+        );
+        assert_eq!(
+            from_tizen(FOR_PLAYBACK, 7, BY_MEDIA, 0),
+            None,
+            "no such state"
+        );
+    }
+
+    /// Any reason will do on regaining; the state alone says it.
+    const BY_CALL_UNUSED: i32 = 9;
 
     /// The whole policy, as a table.
     #[test]

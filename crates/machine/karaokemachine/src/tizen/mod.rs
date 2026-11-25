@@ -18,6 +18,7 @@ use std::sync::OnceLock;
 pub(crate) mod args;
 pub(crate) mod assets;
 pub mod entry;
+pub(crate) mod soundfocus;
 pub(crate) mod window;
 
 /// The host's line logger: one UTF-8, NUL-terminated line per call, on any thread.
