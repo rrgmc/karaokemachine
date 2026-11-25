@@ -242,6 +242,7 @@ fn start(
     let options = Options {
         api_bind,
         dev_remote: args.dev,
+        frame_stats: args.stats,
         ..Options::default()
     };
     let code = match crate::run(paths, settings, options) {
