@@ -15,6 +15,29 @@ What the next release gives is one file per change in [`changelog.d/`](changelog
 pull requests never edit the same lines here. A release gathers them into a section below; see
 [`RELEASE.md`](RELEASE.md). `bash tools/dist/changelog.sh preview` prints that section now.
 
+## [1.27.0] - 2026-11-25
+
+### Added
+
+- **On an LG television, a machine that cannot use the screen says why in a notification**, rather
+  than showing nothing. Where a webOS 24 update left Developer Mode half set up, the notification
+  says how to fix it.
+- **On an LG television the machine opens on its own launch screen**, the KM mark on the machine's
+  dark background. It can also be started and stopped over DIAL, the protocol phones use to start
+  apps on a television.
+
+### Changed
+
+- **On an LG television the machine's tile in the launcher is drawn at the sizes LG asks for**, on
+  the icon's own purple, rather than scaled from a larger icon.
+
+### Fixed
+
+- **On a Samsung television, leaving the machine pauses the song.** Pressing Home or switching to
+  another input no longer leaves it playing unseen, and no demo song starts while you are away.
+- On a Samsung television, a song pauses when the voice assistant, an alarm or another player takes
+  the sound, and one paused for a moment resumes when the sound comes back.
+
 ## [1.26.0] - 2026-11-24
 
 ### Added
