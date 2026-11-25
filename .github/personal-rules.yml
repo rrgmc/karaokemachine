@@ -1,0 +1,36 @@
+# personal-rules: what this repository opted into. /personal-rules:check audits against it, and
+# the always-on rules read `stage` to decide how work reaches master.
+version: 0.4.0              # personal-rules version last applied
+stage: established          # established: PR-only master, the ci-check required
+language: rust              # the main language, which holds the version
+features: [ci, release, changelog, dependabot]
+release-environment: ''     # signing secrets are repository secrets
+# ci.yml and release.yml are this repository's own: check audits what the rules rely on and never
+# replaces them with a template.
+custom: [ci, release]
+ci-check: CI ok
+# The native shells in ports/, built from the scripts under tools/port/ that mirror them. webOS has
+# no folder in ports/: its shell is the main binary, with its own module and scripts.
+components:
+  - name: machine-android
+    language: android
+    path: ports/machine/android tools/port/machine/android
+    native: rust
+  - name: remote-android
+    language: android
+    path: ports/remote/android tools/port/remote/android
+    native: rust
+  - name: machine-ios
+    language: ios
+    path: ports/machine/ios tools/port/machine/ios
+  - name: remote-ios
+    language: ios
+    path: ports/remote/ios tools/port/remote/ios
+  - name: machine-tizen
+    language: other
+    path: ports/machine/tizen tools/port/machine/tizen
+    build: bash tools/port/machine/tizen/package.sh
+  - name: machine-webos
+    language: other
+    path: tools/port/machine/webos crates/machine/karaokemachine/src/webos.rs
+    build: bash tools/port/machine/webos/build.sh
