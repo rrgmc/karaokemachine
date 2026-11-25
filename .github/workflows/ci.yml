@@ -96,7 +96,16 @@ jobs:
           filters: |
             code:
               - '!**/*.md'
+              - '!.claude/**'
+              - '!.editorconfig'
+              - '!.gitignore'
+              - '!LICENSE-*'
               - '!.github/ISSUE_TEMPLATE/**'
+              - '!.github/dependabot.yml'
+              - '!.github/personal-rules.yml'
+              - '!.github/workflows/issue-labels.yml'
+              - '!.github/workflows/pages.yml'
+              - '!.github/workflows/pr-labels.yml'
               - '!docs/**'
               - '!site/**'
               - '!ports/**'

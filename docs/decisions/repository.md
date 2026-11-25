@@ -1470,7 +1470,10 @@ satisfies the requirement.
 seven minutes, and a change to a script or to the site needs none of it. The three build jobs skip
 when every changed file sits in a listed area. The areas are Markdown, `docs/`, `site/`, `ports/`
 and `Taskfile.yml`, and under `tools/` the folders `dev/`, `dist/`, `platform/`, `port/` and
-`setup/`. `guards` never skips, so the text checks and shellcheck read every pull request.
+`setup/`. Configuration no build reads is listed too: `.claude/`, `.editorconfig`, `.gitignore`,
+the `LICENSE-*` files (only the packaging under `tools/` reads them), and under `.github/` the
+issue forms, `dependabot.yml`, `personal-rules.yml` and the label and pages workflows. `guards`
+never skips, so the text checks and shellcheck read every pull request.
 
 **Exclusion decides what may skip.** The areas are written as exclusions in the `code` filter of
 `ci.yml`. A new directory counts as code until it is listed, and a move can only make a job run.
