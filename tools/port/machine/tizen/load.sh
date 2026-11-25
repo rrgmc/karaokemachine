@@ -12,9 +12,9 @@
 # same port reads the rest later; the machine's own API is on port= (8277 unless told otherwise).
 #
 # args is km_probe_run's `key=value,...`: data= (required, the probe app's data folder, which its
-# own screen prints), port=, log= (a tracing filter, `;` for `,`), dev=1 (serve /dev/) and exit=0
-# (leave the probe app open when the machine stops; by default the machine ends it, because once the
-# machine has run no key reaches the app).
+# own screen prints), port=, log= (a tracing filter, `;` for `,`), dev=1 (serve /dev/), stats=1 (frame
+# statistics in the log once a second) and exit=0 (leave the probe app open when the machine stops;
+# by default the machine ends it, because once the machine has run no key reaches the app).
 #
 # **Run it once per load.** Each POST loads a fresh copy and starts it on the UI thread, so a second
 # one while a machine runs starts another inside it. Hence one curl, in the foreground, no retry.

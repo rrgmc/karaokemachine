@@ -10,6 +10,7 @@
 //! | `log` | a tracing filter, `;` standing for `,` | `info` |
 //! | `dev` | `1` serves the development console at `/dev/` | off |
 //! | `exit` | `0` leaves the application open when the machine stops, for debugging | `1` |
+//! | `stats` | `1` logs frame statistics once a second, as `KM_FRAME_STATS` does elsewhere | off |
 //!
 //! `;` stands for `,` in `log` because the comma already separates the arguments, and a filter
 //! such as `info,km_app=debug` needs one.
@@ -29,6 +30,8 @@ pub(crate) struct Args {
     pub(crate) port: u16,
     pub(crate) log: String,
     pub(crate) dev: bool,
+    /// Log frame statistics once a second; the probe app has no environment to set.
+    pub(crate) stats: bool,
     /// End the application when the machine stops.
     pub(crate) exit: bool,
     /// What could not be understood, said in the log once there is one.
@@ -42,6 +45,7 @@ impl Default for Args {
             port: DEFAULT_PORT,
             log: DEFAULT_LOG.to_owned(),
             dev: false,
+            stats: false,
             exit: true,
             complaints: Vec::new(),
         }
@@ -74,6 +78,7 @@ impl Args {
                 },
                 "log" if !value.is_empty() => args.log = value.replace(';', ","),
                 "dev" => args.dev = is_on(value),
+                "stats" => args.stats = is_on(value),
                 "exit" => args.exit = is_on(value),
                 _ => args.complaints.push(format!("ignored `{pair}`")),
             }
@@ -100,13 +105,15 @@ mod tests {
 
     #[test]
     fn every_key_is_read() {
-        let args =
-            Args::parse("data=/opt/usr/apps/x/data/, port=8300,log=info;km_app=debug,dev=1,exit=0");
+        let args = Args::parse(
+            "data=/opt/usr/apps/x/data/, port=8300,log=info;km_app=debug,dev=1,exit=0,stats=1",
+        );
         assert_eq!(args.data, Some(PathBuf::from("/opt/usr/apps/x/data/")));
         assert_eq!(args.port, 8300);
         assert_eq!(args.log, "info,km_app=debug");
         assert!(args.dev);
         assert!(!args.exit);
+        assert!(args.stats);
         assert!(args.complaints.is_empty(), "{:?}", args.complaints);
     }
 
