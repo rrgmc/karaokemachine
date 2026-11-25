@@ -897,6 +897,11 @@ deliberately **not** filtered out there, because it is a real answer for somebod
 
 There is no `--clear-name`. The way back is `--set-name KaraokeMachine`.
 
+**A new machine is `KaraokeMachine` on every platform, never the device's own name.** No other
+platform borrows one, and an LG television that was never renamed calls itself
+`[LG] webOS TV <model>`, which is what a fresh install there took when it did. That lookup was
+removed before it shipped.
+
 **Written down before it is answered to.** The controller persists, and only then does the running
 machine start using the new name. So a failed write leaves the machine and its settings file agreeing.
 The name is saved immediately rather than at shutdown, because a power cut does not run a shutdown

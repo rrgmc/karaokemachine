@@ -91,8 +91,7 @@ pub(crate) fn launch_args(
 const APP_ID: &str = "com.rrgmc.karaokemachine";
 
 /// How long a system service's reply is waited for. A notification is the last thing a run
-/// without a screen does, and the television's name is asked for during startup, so neither may
-/// hang the machine.
+/// without a screen does, and it may not hang the machine.
 const LUNA_WAIT: std::time::Duration = std::time::Duration::from_secs(3);
 
 /// The longest reason a notification carries. A toast shows two or three lines.
@@ -177,34 +176,6 @@ fn notify(text: &str) -> anyhow::Result<String> {
     let app_id = std::env::var("APPID").unwrap_or_else(|_| APP_ID.to_owned());
     let payload = serde_json::json!({ "sourceId": app_id, "message": text });
     luna_call("luna://com.webos.notification/createToast", &payload)
-}
-
-/// The name the owner gave the television, in Settings, General, Devices, if the set will say.
-///
-/// A fresh install takes it as the machine's own name, so a phone's list shows the television
-/// rather than `KaraokeMachine`. Through the settings service, as moonlight-tv reads it; older
-/// firmware refuses an application this key, and then the machine keeps its default.
-pub(crate) fn television_name() -> Option<String> {
-    let payload = serde_json::json!({ "category": "network", "keys": ["deviceName"] });
-    let reply = match luna_call(
-        "luna://com.webos.settingsservice/getSystemSettings",
-        &payload,
-    ) {
-        Ok(reply) => reply,
-        Err(error) => {
-            tracing::info!(%error, "webos: the television's name is not available");
-            return None;
-        }
-    };
-    let name = serde_json::from_str::<serde_json::Value>(&reply)
-        .ok()
-        .and_then(|v| v["settings"]["deviceName"].as_str().map(str::to_owned))
-        .and_then(|name| km_api::discover::tidy_name(&name));
-    match &name {
-        Some(name) => tracing::info!(name, "webos: named after the television"),
-        None => tracing::info!(%reply, "webos: the television did not give its name"),
-    }
-    name
 }
 
 /// Calls a system service and returns its reply, as JSON text.
