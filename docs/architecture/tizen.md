@@ -120,7 +120,9 @@ in Ecore. A present into a surface the compositor does not show could wait in EG
 Tizen closes an app whose UI thread stops. The opaque region is cleared on hiding and set a frame
 after the app is shown again, as after an overlay. Focus and visibility changes are logged at info.
 
-**None of this has run on the set yet**:
+**Measured on the set through the probe app**, so with Ecore's witness alone: Home and a change of
+input hide the app and pause the song, and it draws again on return; the set's menu is only a focus
+change, and the song plays on under it. The `OnPause` route waits for an installed `.tpk`:
 [`docs/research/tizen.md`](../research/tizen.md) §9, item 7.
 
 ## Keys
