@@ -162,8 +162,10 @@ information, made on the first song and kept, `sound_manager_acquire_focus` whil
 and the shared policy pauses or resumes; see
 [`The machine asks Android for the sound, and gives it back`](../decisions/audio.md#the-machine-asks-android-for-the-sound-and-gives-it-back).
 The stream information is not attached to the `audio_io` handle, so the sound server cannot refuse
-the output over focus. Which reasons the set reports, and on which thread, are logged at info and
-**not yet measured**: [`docs/research/tizen.md`](../research/tizen.md) §9, item 8.
+the output over focus. Every change the set reports is logged at info. **Measured with the voice
+assistant**: its spoken answer pauses the song and its end resumes it, but its listening silences
+the machine without a focus change, so the song plays on unheard there:
+[`docs/research/tizen.md`](../research/tizen.md) §9, item 8.
 
 ## Video
 

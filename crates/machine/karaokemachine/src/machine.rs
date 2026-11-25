@@ -1984,13 +1984,21 @@ impl Machine {
     fn settle_audio_focus(&self) {
         // What the system said, before what the machine wants, because losing the sound changes the
         // transport and there is no point asking for what a pause is about to hand back.
+        // **A resume this tick still wants the sound**, though the transport has not moved yet. Seen
+        // on a Samsung set: the Play went out, the transport still read Paused, the level below
+        // said nothing was wanted, and the sound the system had just handed back was given away and
+        // asked for again in the same second.
+        let mut resuming = false;
         if let Some(change) = audiofocus::take() {
             let owed = self.owes_resume.load(Ordering::Acquire);
             let (command, still_owed) = audiofocus::action(change, owed);
             self.owes_resume.store(still_owed, Ordering::Release);
             if let Some(command) = command {
                 match Controller::transport(self, command) {
-                    Ok(()) => tracing::info!(?change, ?command, "the sound changed hands"),
+                    Ok(()) => {
+                        resuming = command == TransportCommand::Play;
+                        tracing::info!(?change, ?command, "the sound changed hands");
+                    }
                     // Not a fault, and the same reason `settle_foreground` gives: the song can end
                     // between the report and this line.
                     Err(error) => tracing::debug!(%error, ?change, "nothing to do about the sound"),
@@ -2013,7 +2021,8 @@ impl Machine {
         // waiting on a call to end: abandoning the request there would leave the system with nothing
         // to hand back to, and the song would sit paused for good. Asked every tick and acted on
         // only when the answer differs from what is held, so an idle machine costs a few atomics.
-        let wants = transport == Transport::Playing || self.owes_resume.load(Ordering::Acquire);
+        let wants =
+            transport == Transport::Playing || resuming || self.owes_resume.load(Ordering::Acquire);
         if wants == self.holds_focus.load(Ordering::Acquire) {
             return;
         }
