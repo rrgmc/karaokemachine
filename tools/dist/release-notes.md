@@ -22,10 +22,12 @@ the portable copies and the remote on its own.
 
 ## What changed
 
-- **The machine runs as an app on a Samsung television**, and **unofficially on an LG television**.
-- **A remote's media keys control the song**: pause, stop, skip, restart, and ten seconds either way.
-- **A newly installed app downloads the recommended instrument bank** the first time it starts.
-- **A song sung earlier tonight no longer brings a question on the remote.**
+- **On a Samsung television, leaving the machine pauses the song**, and so does the voice
+  assistant, an alarm or another player taking the sound.
+- **On an LG television the machine opens on its own launch screen**, and a phone can start it over
+  DIAL.
+- **On an LG television that cannot give the machine a screen, a notification says why**, and how
+  to fix the Developer Mode a webOS 24 update left half set up.
 
 ## Every file
 
