@@ -155,6 +155,16 @@ woke up. So on Tizen the engine ignores `audio.idle_release_secs`, and the S16 c
 step of triangular dither. See
 [`Holding the audio device`](../decisions/audio.md#holding-the-audio-device).
 
+**A song asks the set for the sound, as on Android.** `tizen/soundfocus.rs` is `audiofocus`'s three
+platform calls over `libcapi-media-sound-manager.so.0`, opened with `dlopen`: one media stream
+information, made on the first song and kept, `sound_manager_acquire_focus` while a song plays and
+`_release_focus` when it stops. The focus callback stores one integer, which the machine's tick reads,
+and the shared policy pauses or resumes; see
+[`The machine asks Android for the sound, and gives it back`](../decisions/audio.md#the-machine-asks-android-for-the-sound-and-gives-it-back).
+The stream information is not attached to the `audio_io` handle, so the sound server cannot refuse
+the output over focus. Which reasons the set reports, and on which thread, are logged at info and
+**not yet measured**: [`docs/research/tizen.md`](../research/tizen.md) §9, item 8.
+
 ## Video
 
 The set's ffmpeg 7.1 decodes, through the same `km-video` the desktop uses. Frames go to SDL as YUV

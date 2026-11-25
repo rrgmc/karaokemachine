@@ -46,7 +46,7 @@ unsafe extern "C" {
 }
 
 #[expect(unsafe_code, reason = "dlopen of a system library by its soname")]
-fn open(name: &CStr) -> anyhow::Result<*mut c_void> {
+pub(super) fn open(name: &CStr) -> anyhow::Result<*mut c_void> {
     // SAFETY: a NUL-terminated soname; the handle is never closed, so nothing resolved from it
     // outlives it.
     let lib = unsafe { dlopen(name.as_ptr(), RTLD_NOW) };
@@ -74,7 +74,7 @@ fn function<F: Copy>(lib: *mut c_void, name: &CStr) -> Option<F> {
     address(lib, name).map(|p| unsafe { std::mem::transmute_copy::<*mut c_void, F>(&p) })
 }
 
-fn required<F: Copy>(lib: *mut c_void, name: &CStr) -> anyhow::Result<F> {
+pub(super) fn required<F: Copy>(lib: *mut c_void, name: &CStr) -> anyhow::Result<F> {
     function(lib, name).with_context(|| format!("{} is missing", name.to_string_lossy()))
 }
 

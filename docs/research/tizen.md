@@ -613,6 +613,11 @@ Build nothing yet. If a native Samsung machine is wanted, these measurements dec
 
    The set ended neither hidden app. Still open: the host's `OnPause` route, which needs the `.tpk`
    installed after item 5's check, and the number pad, which was not pressed.
+8. Another sound taking the set's audio while a song plays and the machine stays on screen: the
+   voice assistant, an alarm or a notification. **Built, not yet run on the set**: the machine holds
+   sound focus while a song plays and pauses when the set reports it gone
+   (`docs/architecture/tizen.md`, Sound). The run should say which reason each source reports,
+   whether the callback arrives at all, and whether the song resumes when the sound comes back.
 
 A platform decision belongs in `docs/decisions/` after them, not before.
 

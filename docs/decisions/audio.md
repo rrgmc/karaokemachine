@@ -314,9 +314,12 @@ rule rejects auto-resume because somebody walked away, and a singer waiting out 
 **A debt lasts while the song does.** A song unloaded or stopped during the call cancels it, because
 getting the sound back must not start something nobody chose.
 
-**Android alone.** A desktop lets every application make a sound at once, and iOS has a session
-rather than focus, which cpal's own backend answers. The policy is written once and the platform call
-is the only part that is Android's.
+**Android and a Samsung television.** Tizen's sound manager arbitrates the same way and reports a
+state and a reason where Android reports one code. Another player or the system taking the sound is a
+loss for good; a notification is a chime the singer sings through; an alarm, a call or the voice
+assistant is a loss for a while, unless the taker says the sound is not to come back. A desktop lets
+every application make a sound at once, and iOS has a session rather than focus, which cpal's own
+backend answers. The policy is written once and the platform calls are the only part that differs.
 
 **A refusal is not a failure.** Android may decline the request, and the machine plays anyway, which
 is what it did before it ever asked. It asks again on the next song.

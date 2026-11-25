@@ -828,8 +828,9 @@ pub struct Machine {
     /// Android's cached-application freezer, so a machine that kept it in the background would throw
     /// away the backstop that entry names.
     ///
-    /// False on every platform but Android, where [`crate::audiofocus::request`] answers true
-    /// without asking anybody, because nothing there arbitrates the sound.
+    /// False on every platform but Android and a Samsung television. Elsewhere
+    /// [`crate::audiofocus::request`] answers true without asking anybody, because nothing there
+    /// arbitrates the sound.
     holds_focus: AtomicBool,
     /// A song the machine stopped because something else needed the sound, and owes itself.
     ///
@@ -1977,8 +1978,8 @@ impl Machine {
     /// press, a queue advancing, a song ending, a seek, the screen going away — moves the transport,
     /// so watching it here catches all of them and none of them learns that focus exists.
     ///
-    /// Off Android the whole method is one atomic read and one comparison per tick: nothing
-    /// arbitrates the sound there, [`crate::audiofocus::take`] answers nothing, and a request that
+    /// Elsewhere than Android and a Samsung television the whole method is one atomic read and one
+    /// comparison per tick: nothing arbitrates the sound there, [`crate::audiofocus::take`] answers nothing, and a request that
     /// is always granted leaves the flag matching the transport after the first song.
     fn settle_audio_focus(&self) {
         // What the system said, before what the machine wants, because losing the sound changes the
