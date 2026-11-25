@@ -4,7 +4,7 @@
 [`What the machine *is*, on a Samsung television`](../decisions/distribution.md#what-the-machine-is-on-a-samsung-television),
 and where the two disagree the decision is right.
 
-Investigated 2026-09-13 and revised 2026-11-17, 2026-11-23 and 2026-11-24. **Most claims here were measured on a
+Investigated 2026-09-13 and revised 2026-11-17, 2026-11-23, 2026-11-24 and 2026-11-25. **Most claims here were measured on a
 television**, a 2025 set running Tizen 10: §2's listening port, and §3's SDL3 window, sound, frame
 pacing, remote keys, output size, teardown, video decoding and MIDI synthesis. The marker on each of the others says how far it can be trusted. The sibling note is [`webos.md`](webos.md), which asks the same question
 of an LG television.
@@ -602,9 +602,17 @@ Build nothing yet. If a native Samsung machine is wanted, these measurements dec
    2026-11-23, with SDL's window created transparent; see §3.
 7. The machine sent to the background, by Home or a change of input: whether its sound stops,
    whether the set ends it, and whether it draws again on return. moonlight-tizen stops its stream
-   when hidden; see §1. **Built, not yet run on the set**: the port pauses the song and stops drawing
-   on the host's pause or Ecore's visibility event (`docs/architecture/tizen.md`, Hidden). The run
-   should also say whether the set's menu and the number pad each count as hidden.
+   when hidden; see §1. **Passed** on 2026-11-25 through the probe app, where Ecore's visibility
+   event is the only witness (`docs/architecture/tizen.md`, Hidden):
+
+   | Action, with a song playing | Raised | Sound | On return |
+   |---|---|---|---|
+   | Home, back after 7 s | `fully_obscured`, then shown | paused at once | drawn again, still paused |
+   | Source to another input, back after 16 s | the same | paused at once | the same |
+   | the set's settings menu, then closed | focus out and in only | kept playing | — |
+
+   The set ended neither hidden app. Still open: the host's `OnPause` route, which needs the `.tpk`
+   installed after item 5's check, and the number pad, which was not pressed.
 
 A platform decision belongs in `docs/decisions/` after them, not before.
 

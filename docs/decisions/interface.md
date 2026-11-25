@@ -1240,8 +1240,9 @@ the pausing fifty milliseconds later. Blocking there is an ANR.
 input or an app launched over the machine hides it, and Tizen pauses the app. SDL's Wayland driver
 raises no background event, so the host's `OnPause` and `OnResume`, and Ecore's visibility event as
 a second witness, set the same flag. While hidden the machine also draws nothing, because presenting
-into a surface nobody shows may wait on a buffer that never comes back. Whether the set's own menu
-counts as hidden, and so pauses a song, is unmeasured, as is whether the set ends a hidden app.
+into a surface nobody shows may wait on a buffer that never comes back. The set's own menu does not
+count as hidden: it takes focus and leaves the picture, so a song plays on under it.
+The set did not end a hidden app in the run that measured this.
 
 **One thing this deliberately does not do.** The output device is *not* handed back:
 [`Holding the audio device`](audio.md#holding-the-audio-device) excludes `Paused` because reopening
