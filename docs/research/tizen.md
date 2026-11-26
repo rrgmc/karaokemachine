@@ -4,7 +4,7 @@
 [`What the machine *is*, on a Samsung television`](../decisions/distribution.md#what-the-machine-is-on-a-samsung-television),
 and where the two disagree the decision is right.
 
-Investigated 2026-09-13 and revised 2026-11-17, 2026-11-23, 2026-11-24 and 2026-11-25. **Most claims here were measured on a
+Investigated 2026-09-13 and revised 2026-11-17, 2026-11-23, 2026-11-24 and 2026-11-25 (twice: the second added plx-native, §1). **Most claims here were measured on a
 television**, a 2025 set running Tizen 10: §2's listening port, and §3's SDL3 window, sound, frame
 pacing, remote keys, output size, teardown, video decoding and MIDI synthesis. The marker on each of the others says how far it can be trusted. The sibling note is [`webos.md`](webos.md), which asks the same question
 of an LG television.
@@ -104,6 +104,30 @@ the route to try if the set's software ffmpeg falls short of 4K or HEVC.
 `km_tizen_run` takes. Its `.so` files go into the `.tpk` through `TizenTpkUserIncludeFiles` with
 `TizenTpkSubDir`, the way `KaraokeMachine.csproj` does it. It grabs the media and colour keys in
 TOPMOST mode, and it ends the application with `ui_app_exit()`.
+
+### plx-native: the same shape, with the television's player
+
+**[source]** **plx-native** (`plxnative/plx-native`, read 2026-11-25) is a Plex client, native on LG
+sets, with a Tizen build its own documentation calls super alpha. A .NET 8 host (`tizen80` target)
+loads `libplx.so` and drives it through three exported C functions. The library makes its own
+Ecore_Wl2 window and EGL context. It links SDL2 and SDL2_ttf statically for text only, and never
+starts SDL's video. Most of what it records was measured on Samsung's TV 10.0 emulator. One retail
+report exists, from a 2023 set on Tizen 9.0. Five findings apply here:
+
+| | |
+|---|---|
+| **The television's player** | `libcapi-media-player.so.0` through P/Invoke, bound to the application's own Ecore window as an overlay with `player_set_ecore_wl_display` **before** `player_prepare_async`: a player with no display never advances its position. The prepared, buffering and completed callbacks arrive on one non-main thread per player. The `internet` privilege was enough. The retail set played 1080p H.264 through it. A smaller route than OmegaTube's `libesplusplayer` |
+| **Showing the video plane** | a translucent window, `ecore_wl2_window_alpha_set(win, 1)`, shows the video only through pixels cleared to (0, 0, 0, 0). **On the retail set the home screen showed through those pixels too**: in the letterbox bars, and over the whole screen when no picture was up. The fix, read from the compositor's source and confirmed on the emulator, is an opaque window plus `ecore_wl2_window_video_has(win, 1)` (public since Tizen 6.0): the compositor then puts a clear rectangle under the window and blends its alpha, so the plane shows and the windows below stay hidden. The video plane mixes straight alpha, not premultiplied |
+| **Older sets, checked without owning them** | the ARM library is held below glibc 2.30, and CI compares every import against `ci/testdata/tizen60-armv7-abi.json`, read from the Tizen 6.0 ARM rootstrap and its compiler's `libgcc_s.so.1`. It is this platform's `webosbrew-ipk-verify`, and the check the table below needs for sets older than 2023. It covers link-time imports, not libraries opened by name |
+| **The emulator** | the Tizen SDK 10.0 command line with the TV Extension, the x86_64 image under KVM, run with `LIBGL_ALWAYS_SOFTWARE=1 GALLIUM_DRIVER=llvmpipe`. It runs the whole application but has no sound. Only `sdb shell 0 <cmd>` answers, `sdb dlog` is empty and the application's data folder cannot be pulled, so the log leaves over UDP, as it does from retail sets |
+| **Distribution** | Apps2Samsung takes a GitHub releases repository as a package source and re-signs each `.tpk` for the television it installs on. The nightly is signed with throwaway certificates for that reason |
+
+**[source]** Smaller findings. The Ecore IMF sequence raises the set's own keyboard. Its delete key
+reaches the window as `BackSpace`, Done as `Select` and Back as `Cancel`. The remote's Exit key raises
+`OnPause`, then `OnTerminate` about 365 ms later. The library is linked with `-z defs` and a version
+script exporting only the three entry points, and a check refuses any `DT_NEEDED` outside a short
+allowlist. Whether `CoreUIApplication` installs a `SynchronizationContext` on the main thread is
+recorded as unverified.
 
 ### A web application with a WebAssembly core
 
@@ -411,7 +435,10 @@ drawing above 1080p.
 
 **[inferred]** That limit is the graphics plane's. moonlight-tizen, in §1, gets 4K60 HDR on screen
 through the hardware decoder, so the video plane is not held to it. A 4K video song would take that
-plane, through the player OmegaTube opens, not SDL's window.
+plane, through the player OmegaTube opens or the one plx-native opens (§1), not SDL's window. SDL's
+window would then stay opaque and declare `ecore_wl2_window_video_has`, with the lyrics drawn over
+pixels cleared to transparent. A translucent window shows the television's home screen through them
+instead.
 
 **[measured]** **The set's ffmpeg decodes 1080p in software.** Its `libavcodec.so.61.19.100` and
 `libavutil.so.59.39.100` are ffmpeg 7.1, the release the machine builds against. They load with
@@ -642,6 +669,8 @@ A platform decision belongs in `docs/decisions/` after them, not before.
   `res/config.xml`, `res/service/service.js`, `wasm/wasmplayer.cpp`, `wasm/main.cpp`,
   `wasm/platform/index.js`, `CHANGELOG.md`, and its wiki's Installation Guide, Updating Guide,
   Frequently Asked Questions and Known Issues pages.
+- plx-native, <https://github.com/plxnative/plx-native>: `docs/tizen.md`, `docs/samsung-nightly.md`,
+  `rust-modules/platform-tizen/src/keys.rs`, `mk/platform-tizen.mk` and the Tizen workflows.
 - flutter-tizen, <https://github.com/flutter-tizen/flutter-tizen> and
   <https://github.com/flutter-tizen/embedder>: the C# embedding and its `Runner.csproj` templates,
   `flutter/shell/platform/tizen/tizen_window_ecore_wl2.cc`, `flutter_tizen_view.cc` and

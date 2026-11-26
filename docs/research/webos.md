@@ -5,11 +5,12 @@ webOS carrier needs an entry in `docs/decisions/distribution.md` beside
 [`What the machine *is*, on Linux`](../decisions/distribution.md#what-the-machine-is-on-linux) and
 [`What the machine *is*, on iOS`](../decisions/distribution.md#what-the-machine-is-on-ios) first.
 
-Investigated 2026-09-13 and revised 2026-11-24. **§13 is what a 2020 set on webOS 5 measured**, with
+Investigated 2026-09-13 and revised 2026-11-24 and 2026-11-25. **§13 is what a 2020 set on webOS 5 measured**, with
 the probe in `tools/port/machine/webos/`, and the machine itself runs there as
 [`docs/architecture/webos.md`](../architecture/webos.md) describes. Nothing else here was verified
 on a television, and the marker on each claim says how far it can be trusted. **§14 is what an
-established native webOS application, moonlight-tv, does that this port does not.**
+established native webOS application, moonlight-tv, does that this port does not**, and §15 what a
+second one, plx-native, found: among it, that LG's store takes no native application.
 
 **Summary.** The whole machine runs on an LG television as a native 32-bit ARM Linux program. The
 engine is ready: it already plays all three song kinds on a 32-bit Cortex-A55 television box at
@@ -35,8 +36,10 @@ cannot decode H.264, so the `.ipk` carries its own.
 
 **The release offers it as an unofficial download**, the decision
 [`An LG television carrier is an unofficial download`](../decisions/distribution.md#an-lg-television-carrier-is-an-unofficial-download).
-The route to an install that does not expire is LG's Flutter one, on a webOS 26 set, which has not
-been tried.
+The route to an install that does not expire was thought to be LG's Flutter one, on a webOS 26 set,
+which has not been tried. LG has since told another project in writing that its store accepts web
+applications only (§8). Whether that covers a Flutter application, whose type is also `native`, is
+the question to put to LG before anything is built.
 
 | Marker | Meaning |
 |---|---|
@@ -281,6 +284,14 @@ the television decode it, at a fraction of a core and up to the panel's own 4K.
   both the video and the decoded audio lets the television keep them together, at the price of a
   second sound output beside cpal; keeping the sound on ALSA leaves two clocks to reconcile.
 
+**[source]** plx-native (§15) feeds the same pipeline through LG's `StarfishMediaAPIs` and adds two
+cautions. From webOS 5 the plane is bound through an **exported window**. In LG's SDL2 that is
+`SDL_webOSCreateExportedWindow`, whose id goes into the Load payload as `option.windowId`, and it sits
+on the `wl_webos_foreign` global the webOS 5 set offers (§13). And the pipeline sets aside resources
+for the **declared** ceiling, not the stream. On webOS 10.3.1, H.264 declared at 3840x2160@60 was
+refused outright with "Resource Allocation Error", 1080p content included, while the same envelope
+naming HEVC played. Declared at 1920x1080 it loaded.
+
 It is worth taking up only if video songs on an LG set are wanted beyond what software decode gives.
 
 ## 6. Memory is the second constraint
@@ -349,6 +360,14 @@ can register, and LG puts every submission through QA. Nothing found says whethe
 native or Flutter application is accepted, or what QA makes of a karaoke machine that serves an HTTP
 API on the local network. A store install has none of the expiry above.
 
+**[source]** plx-native records that LG Seller Lounge told it in writing, on 2026-10-20, that
+registration and Functional QA accept web applications only, and that native applications are not
+eligible for submission or review. That project had worked through LG's App Self Checklist, all 53
+items, for a native `.ipk`, and keeps the checklist now as a quality record only. **[inferred]** So
+an `.ipk` like this one cannot reach the store. A Flutter application also declares `"type":
+"native"`. Whether LG reviews it as native or as its own case was not part of that answer, and it is
+the one question the Flutter route turns on.
+
 **[inferred]** This is the finding that most affects whether the port is worth having. A karaoke
 machine is an appliance somebody switches on in a room. This one asks its owner to keep a developer
 session alive or lose it. The machine's data therefore belongs where an uninstall does not reach. Then
@@ -413,7 +432,7 @@ until the registry dump exists.
 | cpal opens no device and only the media pipeline exists | the port stops |
 | The jail refuses `exec` or offers no persistent writable directory | the port stops |
 | LG's Flutter embedder lends a plugin no Wayland surface | the Flutter route packages the machine but cannot show it, and the ladder of §3 starts over from a window of its own |
-| The Content Store declines it | the Flutter route is a sideload too, and §8 applies unchanged |
+| The Content Store declines it | the Flutter route is a sideload too, and §8 applies unchanged. LG already declines native applications (§8); a Flutter one is unasked |
 | A patched SDL is needed | a third `sdl3` dependency block, and the additive-features trap that has already been paid for once |
 | The bank does not fit in a television's RAM | the offered bank list shrinks to the small entries |
 | The jailer hides USB from the application | songs have no source; a restart is the reported workaround |
@@ -435,10 +454,13 @@ television. The display question is answered for webOS 5: the machine draws and 
 (§13). What has changed is the carrier. The first version of this note had only a homebrew one, which asks its owner to keep a
 developer session alive or lose the machine. LG's Flutter SDK is an official native application type,
 and a host plus a loaded library has already been built and measured on Samsung. On LG it is the route to
-try first, and the Content Store is the only way found to an install that does not expire.
+try first, and the Content Store is the only way found to an install that does not expire. LG
+accepts no native application there (§8), so the first question is now one for LG, not for a
+television: whether a Flutter application counts as one.
 
 If it is ever taken up as a product, the first act is the afternoon in §2 on a television with
-webOS 26 Re:New, deployed as LG's Flutter template with the probe as a plugin. What the webOS 5
+webOS 26 Re:New, deployed as LG's Flutter template with the probe as a plugin. That television can be
+rented by the hour in LG's Cloud Test Lab (§15). What the webOS 5
 set settled carries over as a guess, not a measurement: whether the newer compositor still lacks
 `xdg_wm_base`, and how old its libwayland is, decide whether the window code here is needed there.
 Memory is the other measurement, because it decides which SoundFont banks a carrier can offer; on
@@ -507,7 +529,7 @@ What works where, kept up to date as sets are tried. Only webOS 5 has been run.
 |---|---|---|---|
 | 5 (`sdkVersion` 5.x) | 2020 | Everything in the table above: native `.ipk` through Developer Mode, softfp and glibc 2.28, `wl_shell` + `wl_webos_shell` with no `xdg_wm_base`, libwayland older than 1.18, SDL3 drawing at 60 fps through a custom-role window, ALSA `default`, remote keys reaching SDL3 with Back mapped from evdev 412, **the machine running and playing MIDI and MP3+G songs**, video songs at up to 1080p30 with an ffmpeg of its own since the set's cannot decode H.264, its data surviving a cold boot and a reinstall, and a 275 MB bank playing through swap. Too old for LG's Flutter route | **[set]** |
 | 5 and later | | Native applications install through Developer Mode on a stock set; Kodi ships so. The machine's `.ipk` finds every library and symbol it needs on each firmware `webosbrew-ipk-verify` knows from 5.3.1 to 11.2.0, and on none before 5 | **[web]**, §1; **[source]**, §14 |
-| 24 and 25 | 2024, 2025 | Chromium 120 is the web engine on webOS 25. The root chains reach 2025 sets only on the webOS 10.0 they shipped with. On webOS 24 (9.x), sets on the `k3lp` and `k5lp` boards can ship a broken jail configuration in which a native application's graphics fail to start; moonlight-tv detects it by `/dev/rtkmem` being unreadable | **[web]**, §1; **[source]**, §14 |
+| 24 and 25 | 2024, 2025 | Chromium 120 is the web engine on webOS 25. The root chains reach 2025 sets only on the webOS 10.0 they shipped with. On webOS 24 (9.x), sets on the `k3lp` and `k5lp` boards can ship a broken jail configuration in which a native application's graphics fail to start; moonlight-tv detects it by `/dev/rtkmem` being unreadable. **Which release a 2024 set runs is in doubt**: plx-native's Cloud Test Lab set, booked as "webOS24" with board `K24_DVB`, reported release 10.3.1 and concluded webOS 10 is the 2024 generation (§15). A 2024 set upgraded under Re:New would report the same, so neither reading is settled. On it EGL 1.5 came up on a Mali-G57 and the feared jail regression on `/dev/dma_buf_unified` did not occur | **[web]**, §1; **[source]**, §14, §15 |
 | 26 Re:New and later | | LG's Flutter for webOS TV: an official `native` application type with C++ plugins, LG's NDK for `ca9v1`, Chromium 132. Whether its compositor offers `xdg_wm_base`, and how new its libwayland is, are not known | **[web]**, §1 |
 
 ## 14. What moonlight-tv shows
@@ -531,8 +553,27 @@ that this port does not:
 | **An unwritable home** | settings fall back to `/tmp` and the application runs without persistence | the `.ipk` makes its folder 777 instead; the fallback would cover a firmware whose installer differs |
 | **`appinfo.json`** | `largeIcon`, `iconColor`, `splashBackground`, and `dialAppName` | **Taken**, all four. The icons at LG's 80 and 130 pixels; the splash is `icon/splash-1920x1080.png`. `dialAppName` `KaraokeMachine` registers the application with the set's DIAL service as soon as it is installed: on the webOS 5 set `GET http://<set>:36866/apps/KaraokeMachine` answered `stopped`, a `POST` started the machine (201, its API answering), and a `DELETE` of the `run` link stopped it. The Application-URL comes from the UPnP description on port 1394. No client of ours speaks DIAL yet |
 
+## 15. What plx-native shows
+
+**[source]** `plxnative/plx-native` is a native Plex client that ships as an `.ipk` for webOS 4 and
+later, through Developer Mode and the Homebrew Channel. It draws with LG's SDL2 and plays video
+through LG's media pipeline. Read 2026-11-25. What it found that this note did not have:
+
+| | What it found | What it means here |
+|---|---|---|
+| **The store** | LG accepts web applications only; native ones are not eligible for submission or review (§8) | the `.ipk` stays an unofficial download, and the Flutter route waits on one question to LG |
+| **LG Cloud Test Lab** | LG rents physical sets by the hour, across webOS releases and chips. It gives a picture and a virtual remote: no shell, no console, no file download. The project built a lab-only build that sends its own log out over HTTPS, the only evidence such a set yields | the way to run the §2 afternoon on webOS 26 Re:New, or anything past webOS 5, without owning the set. The log has to leave the way it does from Tizen, over the network |
+| **A firmware inventory** | `webosbrew-toolbox-fw-symbols`, already installed by the release workflow for `webosbrew-ipk-verify`, holds every library and its exported symbols for 14 firmware images. The project's `tools/fwcompat.py` asks it which releases carry a library | which webOS releases have `wl_webos_foreign`'s client library, a given libwayland symbol or an ffmpeg soname can be answered without a set. Its system ffmpeg goes from soname 58 on 5.x to 59 on 10.2 and 60 on 11.2; webosbrew's own guidance is not to use it, which is what `build.sh` already does |
+| **Hardware video** | the exported window and the declared-ceiling refusal (§5) | two traps on the route §5 keeps as a candidate |
+| **The screen's size** | `SDL_webOSGetPanelResolution` reports the panel, 3840x2160, while the window and drawable are 1920x1080, on webOS 4 and 10 alike | size from the drawable, as the machine does. The same 1080p ceiling §3 of [`tizen.md`](tizen.md) measured on Samsung |
+| **Back on the first screen** | LG's submission rules expect Back there to show the television's Home, not a confirmation. The project launches `com.webos.app.home` and leaves its process running | matters only for a store submission, which §8 rules out for now |
+| **Emulators** | LG's simulator runs web applications only; the old emulator is x86 and ended with webOS 22; webOS OSE carries none of LG's media stack | there is no off-device answer; one television, or a rented one |
+
 ## Sources
 
+- plx-native, <https://github.com/plxnative/plx-native>: `docs/webos5-port.md`,
+  `docs/webos10-lab-report.md`, `docs/webos10-resource-allocation.md`, `docs/lab-diagnostics.md`,
+  `docs/lg-self-checklist.md` and `README.md`.
 - webOS Homebrew: the native development, filesystem and environment setup guides.
 - `webosbrew/meta-lg-webos-ndk` and `webosbrew/SDL-webOS`, read for the toolchain and for the six
   webOS files inside the Wayland driver.
