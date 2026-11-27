@@ -15,7 +15,7 @@ body:
     attributes:
       label: Version
       description: "`karaokemachine --version`, or the version on the release you downloaded."
-      placeholder: "1.27.0"
+      placeholder: "1.28.0"
     validations:
       required: true
   - type: dropdown
