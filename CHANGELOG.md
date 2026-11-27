@@ -15,6 +15,14 @@ What the next release gives is one file per change in [`changelog.d/`](changelog
 pull requests never edit the same lines here. A release gathers them into a section below; see
 [`RELEASE.md`](RELEASE.md). `bash tools/dist/changelog.sh preview` prints that section now.
 
+## [1.28.0] - 2026-11-27
+
+### Changed
+
+- **The package builder's song buttons come first in each row.** Play, the star, rename and the
+  similar-song buttons now sit between the tick box and Artist, so they stay in reach when a wide
+  table scrolls sideways.
+
 ## [1.27.0] - 2026-11-25
 
 ### Added

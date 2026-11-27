@@ -22,12 +22,8 @@ the portable copies and the remote on its own.
 
 ## What changed
 
-- **On a Samsung television, leaving the machine pauses the song**, and so does the voice
-  assistant, an alarm or another player taking the sound.
-- **On an LG television the machine opens on its own launch screen**, and a phone can start it over
-  DIAL.
-- **On an LG television that cannot give the machine a screen, a notification says why**, and how
-  to fix the Developer Mode a webOS 24 update left half set up.
+- **The package builder's song buttons come first in each row**, so Play, the star and rename stay
+  in reach when a wide table scrolls sideways.
 
 ## Every file
 
