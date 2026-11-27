@@ -15,6 +15,7 @@
   <thead>
     <tr>
       <th></th>
+      <th class="actions"></th>
       <th>{{ "column-artist"|t }}</th>
       <th>{{ "column-title"|t }}</th>
       <th class="firstwords">{{ "column-first-words"|t }}</th>
@@ -25,7 +26,6 @@
       <th class="num" title="{{ "column-melody-title"|t }}">{{ "column-melody"|t }}</th>
       <th class="num" title="{{ "column-copies-title"|t }}">{{ "column-copies"|t }}</th>
       <th class="num" title="{{ "column-versions-title"|t }}">{{ "column-versions"|t }}</th>
-      <th></th>
     </tr>
   </thead>
   <tbody>
@@ -33,7 +33,7 @@
     {% let song = hit.song %}
     {% include "song_row.html" %}
     <tr class="passage">
-      <td></td>
+      <td colspan="2"></td>
       <td colspan="10">
         {% for run in crate::views::highlight(hit.passage.as_str()) %}
         {% if run.1 %}<mark>{{ run.0 }}</mark>{% else %}{{ run.0 }}{% endif %}

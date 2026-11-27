@@ -21,6 +21,56 @@
        addresses out of band and htmx silently drops a swap whose id is not on the page. #}
     <td class="tick"><input type="checkbox" name="song_id" value="{{ song.id }}"
         ><span id="hint-{{ song.id }}" class="place">{{ song.hint_text() }}</span></td>
+    <td class="actions">
+      <span class="row">
+        {% call play::button(song.id, last_played.as_deref() == Some(song.id.as_str()), false) %}{% endcall %}
+        {# Gold and not merely filled when the song has been filed: at row height ★ and ☆ differ by a
+           few pixels of interior, and this is the one mark on a row somebody scans a whole column for.
+           The class is on the button rather than a span inside it so the border carries the color too;
+           see `button.star.filed` in style.css.
+
+           **The fill and the color answer different questions.** The fill says the song is in a list;
+           the color says one of those lists is a filing rather than a working list somebody made to
+           hold what they have not decided about yet. A song set aside is a song still to do, and gold
+           down that column has to mean done.
+
+           It closes the chooser it opened, because the row it is on stays on the page while the
+           chooser is under it -- so a second click on the same button meaning nothing at all would be
+           the odd behavior rather than the safe one. #}
+        <button type="button" class="star{% if song.permanent_count > 0 %} filed{% endif %}"
+                title="{{ song.favorite_title }}"
+                hx-get="/songs/{{ song.id }}/row{% if !picking %}?picking=1{% endif %}"
+                hx-target="closest tbody" hx-swap="outerHTML">{% if song.favorite_count > 0 %}&#9733;{% if song.favorite_count > 1 %}{{ song.favorite_count }}{% endif %}{% else %}&#9734;{% endif %}</button>
+        <button type="button" title="{{ "row-edit-title"|t }}"
+                hx-get="/songs/{{ song.id }}/row?editing=1"
+                hx-target="closest tbody" hx-swap="outerHTML">&#9998;</button>
+        {# ≈, *almost equal to*: other files whose name is like this one. On the similar list itself it
+           starts a new search from that row.
+
+           **`target="_blank"` asks for a window of its own, and where it lands is the host's call.**
+           A browser opens a tab, so the list being curated stays where it is behind it. The tool's own
+           window loads the page in place, because `desktop.rs` keeps an address on this server inside
+           the webview and sends only the rest out to a browser. No `rel="noopener"`: the page is this
+           tool's own. #}
+        {% let similar = song.similar_url() %}
+        {% if !similar.is_empty() %}
+        <a href="{{ similar }}" target="_blank"><button type="button"
+           title="{{ "row-similar-title"|t }}">&#8776;</button></a>
+        {% endif %}
+        {# ≋, *all equal to*: other files that sing what this one sings, whatever they are called.
+           One tilde more than the ≈ beside it, because it is the same question asked of more of the
+           song. Drawn only where the song has words, and most of a real corpus is instrumental. #}
+        {% let words = song.words_url() %}
+        {% if !words.is_empty() %}
+        <a href="{{ words }}" target="_blank"><button type="button"
+           title="{{ "row-words-title"|t }}">&#8779;</button></a>
+        {% endif %}
+        {% if song.searchable() %}
+        <a href="{{ song.youtube_url() }}" target="_blank" rel="noopener"><button type="button"
+           title="{{ "row-youtube-title"|t }}">&#9834;</button></a>
+        {% endif %}
+      </span>
+    </td>
     {# How alike this song's name is to the one searched for, on the similar-names list only. Drawn on
        every row and shown by `table.similar` in style.css, because a row does not know the list it is
        on.
@@ -172,56 +222,6 @@
         href="/songs/{{ song.id }}">{{ song.version_count }}</a>{% else %}<span class="dim">&mdash;</span>{% endif %}
       {%- match song.duplicate_of %}{% when Some with (shown) %} <a class="tag hidden-version"
         title="{{ "row-hidden-version-title"|t }}" href="/songs/{{ shown }}">{{ "row-hidden-version"|t }}</a>{% when None %}{% endmatch -%}
-    </td>
-    <td class="actions">
-      <span class="row">
-        {% call play::button(song.id, last_played.as_deref() == Some(song.id.as_str()), false) %}{% endcall %}
-        {# Gold and not merely filled when the song has been filed: at row height ★ and ☆ differ by a
-           few pixels of interior, and this is the one mark on a row somebody scans a whole column for.
-           The class is on the button rather than a span inside it so the border carries the color too;
-           see `button.star.filed` in style.css.
-
-           **The fill and the color answer different questions.** The fill says the song is in a list;
-           the color says one of those lists is a filing rather than a working list somebody made to
-           hold what they have not decided about yet. A song set aside is a song still to do, and gold
-           down that column has to mean done.
-
-           It closes the chooser it opened, because the row it is on stays on the page while the
-           chooser is under it -- so a second click on the same button meaning nothing at all would be
-           the odd behavior rather than the safe one. #}
-        <button type="button" class="star{% if song.permanent_count > 0 %} filed{% endif %}"
-                title="{{ song.favorite_title }}"
-                hx-get="/songs/{{ song.id }}/row{% if !picking %}?picking=1{% endif %}"
-                hx-target="closest tbody" hx-swap="outerHTML">{% if song.favorite_count > 0 %}&#9733;{% if song.favorite_count > 1 %}{{ song.favorite_count }}{% endif %}{% else %}&#9734;{% endif %}</button>
-        <button type="button" title="{{ "row-edit-title"|t }}"
-                hx-get="/songs/{{ song.id }}/row?editing=1"
-                hx-target="closest tbody" hx-swap="outerHTML">&#9998;</button>
-        {# ≈, *almost equal to*: other files whose name is like this one. On the similar list itself it
-           starts a new search from that row.
-
-           **`target="_blank"` asks for a window of its own, and where it lands is the host's call.**
-           A browser opens a tab, so the list being curated stays where it is behind it. The tool's own
-           window loads the page in place, because `desktop.rs` keeps an address on this server inside
-           the webview and sends only the rest out to a browser. No `rel="noopener"`: the page is this
-           tool's own. #}
-        {% let similar = song.similar_url() %}
-        {% if !similar.is_empty() %}
-        <a href="{{ similar }}" target="_blank"><button type="button"
-           title="{{ "row-similar-title"|t }}">&#8776;</button></a>
-        {% endif %}
-        {# ≋, *all equal to*: other files that sing what this one sings, whatever they are called.
-           One tilde more than the ≈ beside it, because it is the same question asked of more of the
-           song. Drawn only where the song has words, and most of a real corpus is instrumental. #}
-        {% let words = song.words_url() %}
-        {% if !words.is_empty() %}
-        <a href="{{ words }}" target="_blank"><button type="button"
-           title="{{ "row-words-title"|t }}">&#8779;</button></a>
-        {% endif %}
-        {% if song.searchable() %}
-        <a href="{{ song.youtube_url() }}" target="_blank" rel="noopener"><button type="button"
-           title="{{ "row-youtube-title"|t }}">&#9834;</button></a>
-        {% endif %}
-      </span>
     </td>
   </tr>
 

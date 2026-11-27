@@ -1989,6 +1989,11 @@ the ordinary case rather than the narrow one.
 finishes. Finishing it alphabetically by title makes the same folder open on the same page tomorrow.
 *Artist* is one click away in the bar for the pass where it is the right order.
 
+**The row's buttons come before the artist, straight after the tick.** Play, the star, rename and
+the similar-song buttons are what a row is acted on with, and at the end of the row they were the
+first thing to go past the right-hand edge once the table scrolled sideways. First, they stay in
+reach at any width, and the columns pushed out of view are the numbers, which are read least.
+
 The performer is the second key rather than the first. That draws the four *Goodbye*s by one
 performer together, instead of scattering them through the others. The rule and the term that puts
 an unattributed song last are `Within one title, by performer` in [`songs.md`](songs.md).

@@ -507,7 +507,8 @@ tr.rule-row td { border-bottom: 0; padding-top: 0.8rem; }
 .row { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
 .spread { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; }
 
-/* The five buttons at the end of a browse row, on one line at the window this tool opens at.
+/* The buttons at the start of a browse row, between the tick and Artist, on one line at the window
+   this tool opens at.
    `.row` is `flex-wrap: wrap` -- correctly, everywhere else -- and the cell has no width of its own,
    so on anything narrower than a very wide screen the last two buttons dropped underneath and every
    row grew a second line of height.
@@ -534,10 +535,10 @@ tr.rule-row td { border-bottom: 0; padding-top: 0.8rem; }
    and `folders.html` had the same cell.
 
    None of this can make the *row* fit. Once Title and Artist have no slack left the table overflows
-   and `.scroll` starts scrolling sideways instead -- with the buttons past the right-hand edge,
-   which looks the same from a chair. That is a width problem and it is answered where the width is
-   chosen: `WANTED` in `src/desktop.rs`, which opens at 1500 logical pixels. Nothing here needs
-   changing when that moves. */
+   and `.scroll` starts scrolling sideways instead -- with the numeric columns past the right-hand
+   edge, though the buttons, being first, stay in reach. That is a width problem and it is answered
+   where the width is chosen: `WANTED` in `src/desktop.rs`, which opens at 1500 logical pixels.
+   Nothing here needs changing when that moves. */
 th.actions, td.actions { width: 1%; }
 td.actions .row { flex-wrap: nowrap; gap: 0.25rem; }
 td.actions button { padding: 0.28rem 0.4rem; }

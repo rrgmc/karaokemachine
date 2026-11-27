@@ -13,6 +13,7 @@
   <thead>
     <tr>
       <th><input type="checkbox" class="select-all" title="{{ "songs-select-all-title"|t }}"></th>
+      <th class="actions"></th>
       <th>{{ "column-artist"|t }}</th>
       <th>{{ "column-title"|t }}</th>
       <th class="firstwords">{{ "column-first-words"|t }}</th>
@@ -23,7 +24,6 @@
       <th class="num" title="{{ "column-melody-title"|t }}">{{ "column-melody"|t }}</th>
       <th class="num" title="{{ "column-copies-title"|t }}">{{ "column-copies"|t }}</th>
       <th class="num" title="{{ "column-versions-title"|t }}">{{ "column-versions"|t }}</th>
-      <th class="actions"></th>
     </tr>
   </thead>
   {# One `<tbody>` per song rather than one round the lot: `song_row.html` brings its own, because
