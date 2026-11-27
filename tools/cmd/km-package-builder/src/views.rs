@@ -5501,8 +5501,10 @@ mod tests {
             "the headers are the old way round"
         );
 
-        let artist_cell = html.find("Tom Jobim").expect("the artist in a row");
-        let title_cell = html.find("Corcovado").expect("the title in a row");
+        // The text between tags, because the buttons now come first and their links carry both
+        // names in a query string.
+        let artist_cell = html.find(">Tom Jobim<").expect("the artist in a row");
+        let title_cell = html.find(">Corcovado<").expect("the title in a row");
         assert!(
             artist_cell < title_cell,
             "the cells did not follow their headers: {html}"
